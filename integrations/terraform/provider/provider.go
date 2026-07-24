@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"strconv"
@@ -35,8 +36,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/legacy"
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/resources"
 )
 
 const (
@@ -114,7 +119,7 @@ type RetryConfig struct {
 // Provider Teleport Provider
 type Provider struct {
 	configured  bool
-	Client      *client.Client
+	clt         *client.Client
 	RetryConfig RetryConfig
 	cancel      context.CancelFunc
 }
@@ -441,7 +446,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		Cap:      retryCapDuration,
 		MaxTries: int(maxTries),
 	}
-	p.Client = clt
+	p.clt = clt
 	p.configured = true
 }
 
@@ -556,120 +561,67 @@ func (p *Provider) configureLog() {
 
 // GetResources returns the map of provider resources
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
-	return map[string]tfsdk.ResourceType{
-		"teleport_app":                        resourceTeleportAppType{},
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
-		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
-		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
-		"teleport_database":                   resourceTeleportDatabaseType{},
-		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
-		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
-		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               resourceTeleportKubeClusterType{},
-		"teleport_lock":                       resourceTeleportLockType{},
-		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
-		"teleport_role":                       resourceTeleportRoleType{},
-		"teleport_saml_connector":             resourceTeleportSAMLConnectorType{},
-		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
-		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  resourceTeleportUIConfigType{},
-		"teleport_user":                       resourceTeleportUserType{},
-		"teleport_bot":                        resourceTeleportBotType{},
-		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
-		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
-		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                resourceTeleportAccessListType{},
-		"teleport_access_list_member":         resourceTeleportMemberType{},
-		"teleport_server":                     resourceTeleportServerType{},
-		"teleport_installer":                  resourceTeleportInstallerType{},
-		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
-		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
-		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
-		"teleport_integration":                resourceTeleportIntegrationType{},
-		"teleport_inference_model":            resourceTeleportInferenceModelType{},
-		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
-		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_classifier":                 resourceTeleportClassifierType{},
-		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
-		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
-		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
-	}, nil
+	resourceTypes := legacy.ResourceTypes()
+
+	genericResourceTypes := map[string]tfsdk.ResourceType{
+		"teleport_app":          resources.NewAppResourceType(),
+		"teleport_scoped_token": resources.NewScopedTokenResourceType(),
+	}
+
+	maps.Insert(resourceTypes, maps.All(genericResourceTypes))
+
+	return resourceTypes, nil
 }
 
 // GetDataSources returns the map of provider data sources
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
-	return map[string]tfsdk.DataSourceType{
-		"teleport_app":                        dataSourceTeleportAppType{},
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
-		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
-		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
-		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
-		"teleport_database":                   dataSourceTeleportDatabaseType{},
-		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
-		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
-		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               dataSourceTeleportKubeClusterType{},
-		"teleport_lock":                       dataSourceTeleportLockType{},
-		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
-		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
-		"teleport_role":                       dataSourceTeleportRoleType{},
-		"teleport_saml_connector":             dataSourceTeleportSAMLConnectorType{},
-		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
-		"teleport_session_recording_config":   dataSourceTeleportSessionRecordingConfigType{},
-		"teleport_trusted_cluster":            dataSourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  dataSourceTeleportUIConfigType{},
-		"teleport_user":                       dataSourceTeleportUserType{},
-		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
-		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
-		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
-		"teleport_access_list":                dataSourceTeleportAccessListType{},
-		"teleport_access_list_member":         dataSourceTeleportMemberType{},
-		"teleport_installer":                  dataSourceTeleportInstallerType{},
-		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
-		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
-		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
-		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
-		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
-		"teleport_integration":                dataSourceTeleportIntegrationType{},
-		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
-		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		"teleport_classifier":                 dataSourceTeleportClassifierType{},
-		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
-		// are fixed. The current problems with data sources include:
-		// - Data sources only perform a "shallow fill", which means only setting
-		//   leaf-level fields.
-		// - Data sources use the same schema as resources, which means that fields
-		//   required on a resource also need to be set on the data source
-		//   definition.
-		"teleport_workload_cluster":      dataSourceTeleportWorkloadClusterType{},
-		"teleport_client_ip_restriction": dataSourceTeleportClientIPRestrictionType{},
-	}, nil
+	dataSourceTypes := legacy.DataSourceTypes()
+
+	genericDataSourceTypes := map[string]tfsdk.DataSourceType{
+		"teleport_app":          resources.NewAppDataSourceType(),
+		"teleport_scoped_token": resources.NewScopedTokenDataSourceType(),
+	}
+
+	maps.Insert(dataSourceTypes, maps.All(genericDataSourceTypes))
+
+	return dataSourceTypes, nil
 }
 
 // Close closes the provider's client and cancels its context.
 // This is needed in the tests to avoid accumulating clients and running out of file descriptors.
 func (p *Provider) Close() error {
 	var err error
-	if p.Client != nil {
-		err = p.Client.Close()
+	if p.clt != nil {
+		err = p.clt.Close()
 	}
 	if p.cancel != nil {
 		p.cancel()
 	}
 	return err
+}
+
+// Client provides an authenticated Teleport client.
+func (p *Provider) Client() *client.Client {
+	return p.clt
+}
+
+// Retry provides a [retryutils.Retry] that should be to
+// apply backoff for failed operations.
+func (p *Provider) Retry() (retryutils.Retry, error) {
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewExponentialDriver(p.RetryConfig.Base),
+		First:  p.RetryConfig.Base,
+		Max:    p.RetryConfig.Cap,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return retry, nil
+}
+
+// MaxRetries is the configured upper bound to retry attempts.
+func (p *Provider) MaxRetries() int {
+	return p.RetryConfig.MaxTries
 }

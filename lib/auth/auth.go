@@ -671,13 +671,18 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.SubCAService == nil {
-		var err error
-		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+	if cfg.SubCAService == nil || cfg.PendingCSRRequestService == nil {
+		localSubCA, err := local.NewSubCAService(local.SubCAServiceParams{
 			Backend: cfg.Backend,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+		if cfg.SubCAService == nil {
+			cfg.SubCAService = localSubCA
+		}
+		if cfg.PendingCSRRequestService == nil {
+			cfg.PendingCSRRequestService = localSubCA
 		}
 	}
 
@@ -754,6 +759,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Beams:                           cfg.Beams,
 		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
+		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 		EnrollPairing:                   cfg.EnrollPairing,
 	}
 
@@ -3084,6 +3090,8 @@ type AppTestCertRequest struct {
 	PinnedIP string
 	// LoginTrait is the login to include in the cert
 	LoginTrait string
+	// Scope is the optional scope of the target application to encode in the route.
+	Scope string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -3129,6 +3137,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		AppSessionID:      sessionID,
 		AppPublicAddr:     req.PublicAddr,
+		TargetScope:       req.Scope,
 		AppTargetPort:     req.TargetPort,
 		AppClusterName:    req.ClusterName,
 		AWSRoleARN:        req.AWSRoleARN,
@@ -4037,6 +4046,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			PublicAddr:                      req.AppPublicAddr,
 			ClusterName:                     req.AppClusterName,
 			Name:                            req.AppName,
+			Scope:                           req.TargetScope,
 			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 			AzureIdentity:                   req.AzureIdentity,
@@ -4258,16 +4268,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	}
 
 	if unscoped := req.checkerContext.CertParams().UnscopedCertParams(); unscoped != nil {
-		lockTargets = append(lockTargets,
-			services.RolesToLockTargets(unscoped.RoleNames())...,
-		)
+		lockTargets = slices.AppendSeq(lockTargets, services.RolesToLockTargets(slices.Values(unscoped.RoleNames())))
 	}
 
 	// TODO(fspmarshall/scopes): implement scoped role locking.
 
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
-	)
+	lockTargets = slices.AppendSeq(lockTargets, services.AccessRequestsToLockTargets(slices.Values(req.activeAccessRequests)))
 	if req.botInstanceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
 	}
@@ -8213,6 +8219,10 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			// Make sure we only return the app with the matching scope.
+			if server.GetScope() != t.App.Scope {
+				continue
 			}
 			app = server.GetApp()
 			break

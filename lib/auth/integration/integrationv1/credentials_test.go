@@ -92,7 +92,7 @@ func TestExportIntegrationCertAuthorities(t *testing.T) {
 		{
 			name:        "not allowed",
 			integration: githubIntegration.GetName(),
-			identity:    authorizerForDummyUser(t, ctx, types.RoleSpecV6{}, localClient),
+			identity:    authorizerForAdminUser(t, ctx, types.RoleSpecV6{}, localClient),
 			check: func(t *testing.T, resp *integrationpb.ExportIntegrationCertAuthoritiesResponse, err error) {
 				t.Helper()
 				require.Nil(t, resp)

@@ -687,6 +687,10 @@ type AppsAccessPoint interface {
 	// ReadAppsAccessPoint provides methods to read data
 	ReadAppsAccessPoint
 
+	// ScopedRoleReader returns a read-only scoped role client. Used by the app service to
+	// authorize scope-pinned identities accessing applications.
+	ScopedRoleReader() services.ScopedRoleReader
+
 	// accessPoint provides common access point functionality
 	accessPoint
 }
@@ -1765,6 +1769,12 @@ func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessP
 		accessPoint:         base,
 		ReadAppsAccessPoint: cache,
 	}
+}
+
+func (w *AppsWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on app agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources

@@ -14,6 +14,10 @@ resource "teleport_scoped_role" "test" {
       verbs     = ["read", "list", "create"]
     }]
     ssh = {
+      labels = [{
+        name   = "*"
+        values = ["*"]
+      }]
       logins = ["root"]
     }
   }

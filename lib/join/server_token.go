@@ -67,6 +67,9 @@ func (s *Server) handleTokenJoin(
 	// be generated we need to attempt to consume the token. Any error should be
 	// considered a join failure.
 	if scopedToken, ok := joining.GetScopedToken(token); ok {
+		if tokenInit.ClientParams.HostParams == nil {
+			return nil, trace.BadParameter("HostParams is required for a scoped token join")
+		}
 		publicKey := tokenInit.ClientParams.HostParams.PublicKeys.PublicTLSKey
 
 		if _, err := s.cfg.ScopedTokenService.UseScopedToken(stream.Context(), scopedToken, publicKey); err != nil {

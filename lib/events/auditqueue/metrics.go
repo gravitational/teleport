@@ -139,6 +139,15 @@ var queueDeadLetter = prometheus.NewGaugeVec(
 	[]string{"queue"},
 )
 
+var queueCorrupt = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_corrupt_pending",
+		Help:      "Number of audit events currently quarantined as corrupt.",
+	},
+	[]string{"queue"},
+)
+
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
 	orphansAdopted,
@@ -154,4 +163,5 @@ var prometheusCollectors = []prometheus.Collector{
 	corruptExpired,
 	queuePending,
 	queueDeadLetter,
+	queueCorrupt,
 }

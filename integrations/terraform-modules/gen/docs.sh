@@ -54,6 +54,7 @@ cat <<EOF > "${MODULES_DOC_INDEX}"
 title: Teleport Terraform Modules Reference
 sidebar_label: Terraform Modules
 description: Reference documentation for the Teleport Terraform modules.
+page_type: landing
 tags:
  - infrastructure-as-code
  - reference
@@ -97,6 +98,7 @@ EOF
 title: Reference for the ${module_name} Terraform module
 sidebar_label: ${module_name}
 description: This page describes the ${module_name} Terraform module.
+page_type: reference
 ---
 
 {/*
@@ -105,6 +107,9 @@ description: This page describes the ${module_name} Terraform module.
     Instead, edit ${MODULES_ROOT_DIR}/${module}/README.md
     Then, regenerate the docs with \`make -C ${MODULES_ROOT_DIR} docs\`.
 */}
+
+This page lists the input fields and output values of the ${module_name}
+Terraform module.
 
 Source Code: [${SOURCE_URI}/${module}](https://${SOURCE_URI}/${module})
 
@@ -123,6 +128,7 @@ EOF
 title: Terraform Module ${module_name} Examples
 sidebar_label: examples
 description: Index of all the examples for the ${module_name} Terraform module.
+page_type: landing
 ---
 
 {/*
@@ -160,6 +166,7 @@ EOF
 title: ${example_title}
 sidebar_label: ${example_name}
 description: ${example_description}
+page_type: reference
 ---
 
 {/*
@@ -168,6 +175,9 @@ description: ${example_description}
     Instead, edit ${example}/README.md
     Then, regenerate the docs with \`make -C ${MODULES_ROOT_DIR} docs\`.
 */}
+
+This page lists the configuration fields in a usage example of the
+${module_name} Terraform module: ${example_name}.
 
 Source Code: [${SOURCE_URI}/${example}](https://${SOURCE_URI}/${example})
 

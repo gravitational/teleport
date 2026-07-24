@@ -297,6 +297,7 @@ func (q *sqliteQueue) statsLoop() {
 		}
 		queuePending.WithLabelValues(label).Set(float64(stats.PendingCount))
 		queueDeadLetter.WithLabelValues(label).Set(float64(stats.DeadLetterCount))
+		queueCorrupt.WithLabelValues(label).Set(float64(stats.CorruptCount))
 	}
 }
 

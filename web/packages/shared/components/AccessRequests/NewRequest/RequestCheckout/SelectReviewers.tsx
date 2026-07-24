@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { components } from 'react-select';
 import ReactSelectCreatable from 'react-select/creatable';
 import styled from 'styled-components';
 
 import { Box, ButtonBorder, ButtonIcon, Flex, Text } from 'design';
 import * as Icon from 'design/Icon';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import { ReviewerOption } from './types';
 
@@ -34,11 +35,32 @@ export function SelectReviewers({
   const selectWrapperRef = useRef(null);
   const reactSelectRef = useRef(null);
   const [editReviewers, setEditReviewers] = useState(false);
-  const [suggestedReviewers, setSuggestedReviewers] = useState<
-    ReviewerOption[]
-  >(
-    // Initially, all suggested reviewers are selected for the requestor.
-    () => reviewers.map(r => ({ value: r, label: r, isDisabled: true }))
+
+  const suggestedReviewerDisplays = useMemo(
+    () => new Map(reviewers.map(reviewer => [reviewer.name, reviewer.display])),
+    [reviewers]
+  );
+  const selectedReviewerOptions = useMemo(
+    () =>
+      selectedReviewers.map(reviewer => ({
+        ...reviewer,
+        display: suggestedReviewerDisplays.get(reviewer.value),
+      })),
+    [selectedReviewers, suggestedReviewerDisplays]
+  );
+  const selectedReviewerNames = useMemo(
+    () => new Set(selectedReviewers.map(reviewer => reviewer.value)),
+    [selectedReviewers]
+  );
+  const suggestedReviewers = useMemo<ReviewerOption[]>(
+    () =>
+      reviewers.map(reviewer => ({
+        value: reviewer.name,
+        label: reviewer.name,
+        display: reviewer.display,
+        isDisabled: selectedReviewerNames.has(reviewer.name),
+      })),
+    [reviewers, selectedReviewerNames]
   );
 
   useEffect(() => {
@@ -66,7 +88,7 @@ export function SelectReviewers({
   const reviewerOptions = [
     {
       label: '',
-      options: selectedReviewers,
+      options: selectedReviewerOptions,
     },
     {
       label: 'Suggested Reviewers',
@@ -94,7 +116,14 @@ export function SelectReviewers({
           <Flex alignItems="center" justifyContent="space-between">
             <Flex alignItems="center" width="210px">
               <Icon.CircleCheck size="medium" color="success.main" mr={2} />
-              <Text title={props.data.value}>{props.data.value}</Text>
+              <UserDisplayName
+                username={props.data.value}
+                primaryText={props.data.display?.primary}
+                secondaryText={props.data.display?.secondary}
+                usernameTextProps={{ style: { color: 'inherit' } }}
+                secondaryTextProps={{ style: { color: 'inherit' } }}
+                layout="stacked"
+              />
             </Flex>
             <Icon.Cross size="small" />
           </Flex>
@@ -104,9 +133,20 @@ export function SelectReviewers({
 
     return (
       <components.Option {...props}>
-        <Text mx={4} title={props.data.value}>
-          {props.data.label}
-        </Text>
+        {props.data.display ? (
+          <UserDisplayName
+            username={props.data.value}
+            primaryText={props.data.display.primary}
+            secondaryText={props.data.display.secondary}
+            usernameTextProps={{ style: { color: 'inherit' } }}
+            secondaryTextProps={{ style: { color: 'inherit' } }}
+            layout="stacked"
+          />
+        ) : (
+          <Text mx={4} title={props.data.value}>
+            {props.data.label}
+          </Text>
+        )}
       </components.Option>
     );
   };
@@ -119,18 +159,7 @@ export function SelectReviewers({
       isSelected: true,
     }));
 
-    const updateSuggestedReviewers = suggestedReviewers.map(r => {
-      if (values.find(t => t.value === r.value)) {
-        // isDisabled flag is used to not render this name in suggested list.
-        r.isDisabled = true;
-      } else {
-        r.isDisabled = false;
-      }
-      return r;
-    });
-
     setSelectedReviewers(updateSelectedReviewers);
-    setSuggestedReviewers(updateSuggestedReviewers);
   }
 
   function toggleEditReviewers() {
@@ -153,9 +182,10 @@ export function SelectReviewers({
           controlShouldRenderValue={false}
           hideSelectedOptions={false}
           placeholder="Type or select a name"
-          value={selectedReviewers}
+          value={selectedReviewerOptions}
           options={reviewerOptions}
           onChange={handleOnChange}
+          filterOption={filterReviewerOption}
           formatGroupLabel={formatGroupLabel}
           components={{ Option }}
           noOptionsMessage={() => null}
@@ -163,7 +193,7 @@ export function SelectReviewers({
         />
       </SelectWrapper>
       <Reviewers
-        reviewers={selectedReviewers}
+        reviewers={selectedReviewerOptions}
         editReviewers={editReviewers}
         toggleEditReviewers={toggleEditReviewers}
         updateReviewers={handleOnChange}
@@ -201,14 +231,13 @@ function Reviewers({
           background: ${props => props.theme.colors.spotBackground[0]};
         `}
       >
-        <Text
-          typography="body3"
-          bold
-          style={{ whiteSpace: 'nowrap', maxWidth: '200px' }}
-          title={reviewer.value}
-        >
-          {reviewer.value}
-        </Text>
+        <UserDisplayName
+          username={reviewer.value}
+          primaryText={reviewer.display?.primary}
+          secondaryText={reviewer.display?.secondary}
+          primaryTextProps={{ fontWeight: 'bold' }}
+          layout="stacked"
+        />
         <ButtonIcon
           size={0}
           title="Remove reviewer"
@@ -275,6 +304,13 @@ function Reviewers({
       </Flex>
       {expanded && <Box data-testid="reviewers">{$reviewers}</Box>}
     </>
+  );
+}
+
+function filterReviewerOption({ data }, inputValue) {
+  const normalizedInput = inputValue.trim().toLocaleLowerCase();
+  return [data.value, data.display?.primary, data.display?.secondary].some(
+    value => value?.toLocaleLowerCase().includes(normalizedInput)
   );
 }
 

@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
@@ -45,25 +46,26 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 		}
 
 		// Test.
-		got := services.LockTargetsFromTLSIdentity(identity)
+		got := make(map[types.LockTarget]struct{})
+		for lockTarget := range services.LockTargetsFromTLSIdentity(identity) {
+			got[lockTarget] = struct{}{}
+		}
 
-		want := []types.LockTarget{
-			{User: identity.Username},
-			{MFADevice: identity.MFAVerified},
-			{Device: identity.DeviceExtensions.DeviceID},
-			{JoinToken: "example"},
-			{BotInstanceID: "a-b-c-d"},
+		want := map[types.LockTarget]struct{}{
+			{User: identity.Username}:                    struct{}{},
+			{MFADevice: identity.MFAVerified}:            struct{}{},
+			{Device: identity.DeviceExtensions.DeviceID}: struct{}{},
+			{JoinToken: "example"}:                       struct{}{},
+			{BotInstanceID: "a-b-c-d"}:                   struct{}{},
 		}
-		// Insert roles at the start to match `got`s order.
-		// The test itself doesn't care about the order, it's just easier to test
-		// this way.
-		want = append(services.RolesToLockTargets(identity.Groups), want...)
+		for _, role := range identity.Groups {
+			want[types.LockTarget{Role: role}] = struct{}{}
+		}
 		for _, request := range identity.ActiveRequests {
-			want = append(want, types.LockTarget{AccessRequest: request})
+			want[types.LockTarget{AccessRequest: request}] = struct{}{}
 		}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("LockTargetsFromTLSIdentity mismatch (-want +got)\n%s", diff)
-		}
+
+		require.Empty(t, cmp.Diff(want, got, protocmp.Transform()), "LockTargetsFromTLSIdentity mismatch (-want +got)")
 	})
 }
 
@@ -96,30 +98,31 @@ func TestSSHAccessLockTargets(t *testing.T) {
 			Roles:    mappedRoles,
 		}
 
-		got := services.SSHAccessLockTargets(clusterName, serverID, osLogin, accessInfo, unmappedIdentity)
-		want := []types.LockTarget{
-			{User: teleportUser},
-			{ServerID: serverID},
-			{ServerID: serverID + "." + clusterName},
-			{MFADevice: mfaDevice},
-			{Device: trustedDevice},
-			{JoinToken: joinToken},
-			{BotInstanceID: botInstanceID},
+		got := make(map[types.LockTarget]struct{})
+		for _, lockTarget := range services.SSHAccessLockTargets(clusterName, serverID, osLogin, accessInfo, unmappedIdentity) {
+			got[lockTarget] = struct{}{}
+		}
+
+		want := map[types.LockTarget]struct{}{
+			{User: teleportUser}:                     struct{}{},
+			{ServerID: serverID}:                     struct{}{},
+			{ServerID: serverID + "." + clusterName}: struct{}{},
+			{MFADevice: mfaDevice}:                   struct{}{},
+			{Device: trustedDevice}:                  struct{}{},
+			{JoinToken: joinToken}:                   struct{}{},
+			{BotInstanceID: botInstanceID}:           struct{}{},
+			{Login: osLogin}:                         struct{}{},
 		}
 		for _, role := range mappedRoles {
-			want = append(want, types.LockTarget{Role: role})
+			want[types.LockTarget{Role: role}] = struct{}{}
 		}
-		for _, role := range unmappedRoles[:len(unmappedRoles)-1] /* skip duplicate role */ {
-			want = append(want, types.LockTarget{Role: role})
+		for _, role := range unmappedRoles {
+			want[types.LockTarget{Role: role}] = struct{}{}
 		}
 		for _, request := range accessRequests {
-			want = append(want, types.LockTarget{AccessRequest: request})
+			want[types.LockTarget{AccessRequest: request}] = struct{}{}
 		}
 
-		want = append(want, types.LockTarget{Login: osLogin})
-
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("SSHAccessLockTargets mismatch (-want +got)\n%s", diff)
-		}
+		require.Empty(t, cmp.Diff(want, got, protocmp.Transform()), "SSHAccessLockTargets mismatch (-want +got)")
 	})
 }

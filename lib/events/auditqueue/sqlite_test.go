@@ -93,7 +93,7 @@ func TestEnqueueDequeue_FIFO(t *testing.T) {
 	require.NoError(t, q.ack(got))
 }
 
-func TestStats_CountsPendingAndDeadLetter(t *testing.T) {
+func TestStats_CountsPendingDeadLetterAndCorrupt(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	q, err := newSQLiteQueue(Config{
@@ -107,6 +107,7 @@ func TestStats_CountsPendingAndDeadLetter(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, stats.PendingCount)
 	require.Zero(t, stats.DeadLetterCount)
+	require.Zero(t, stats.CorruptCount)
 
 	const n = 5
 	for i := int64(0); i < n; i++ {
@@ -128,6 +129,17 @@ func TestStats_CountsPendingAndDeadLetter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(n-2), stats.PendingCount, "promoted events should leave the main queue")
 	require.Equal(t, int64(2), stats.DeadLetterCount)
+
+	_, err = q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		corruptPayload, time.Now().Unix())
+	require.NoError(t, err)
+
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(n-2), stats.PendingCount)
+	require.Equal(t, int64(2), stats.DeadLetterCount)
+	require.Equal(t, int64(1), stats.CorruptCount)
 }
 
 func TestDequeue_RespectsLimit(t *testing.T) {
