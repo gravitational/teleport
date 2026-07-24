@@ -312,6 +312,7 @@ function makeReviewStateOptions(
       // message text so it survives across versions; surface other errors as-is.
       const err = fetchSuggestedAccessListsAttempt.error;
       const isPermissionError =
+        // @ts-expect-error ApiError lives in teleport and isRpcError lives in teleterm so they can't be imported.
         err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
       msg = isPermissionError
         ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."

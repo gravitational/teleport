@@ -23,6 +23,7 @@ import styled from 'styled-components';
 import { Box, ButtonSecondary, Flex, Menu, MenuItem, Text } from 'design';
 import { ChevronDown } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { getErrorMessage } from 'shared/utils/error';
 
 import cfg from 'teleport/config';
 import { Cluster } from 'teleport/services/clusters';
@@ -84,7 +85,7 @@ export function ClusterDropdown({
     try {
       return clusterLoader.fetchClusters(signal);
     } catch (err) {
-      onError(err.message);
+      onError(getErrorMessage(err));
     }
   }
 
@@ -115,7 +116,7 @@ export function ClusterDropdown({
         const res = await loadClusters(signal.signal);
         setOptions(createOptions(res));
       } catch (err) {
-        onError(err.message);
+        onError(getErrorMessage(err));
       }
     }
 

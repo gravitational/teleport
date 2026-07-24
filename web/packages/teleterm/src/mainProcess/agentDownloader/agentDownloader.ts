@@ -26,6 +26,7 @@ import { createUnzip } from 'node:zlib';
 
 import { extract } from 'tar-fs';
 
+import { isErrnoException } from 'shared/utils/error';
 import { compareSemVers } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
@@ -149,7 +150,7 @@ async function isCorrectAgentVersionAlreadyDownloaded(
     return agentVersion.stdout.trim() === neededVersion;
   } catch (e) {
     // When the agent is being downloaded for the first time, the binary does not yet exist.
-    if (e.code !== 'ENOENT') {
+    if (!isErrnoException(e, 'ENOENT')) {
       throw e;
     }
     return false;
