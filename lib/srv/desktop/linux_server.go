@@ -33,6 +33,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
@@ -54,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -74,7 +75,7 @@ import (
 // and translates X11 protocol messages to TDPB.
 type LinuxService struct {
 	cfg        LinuxServiceConfig
-	middleware *authz.Middleware
+	middleware *auth.Middleware
 
 	// clusterName is the cached local cluster name, to avoid calling
 	// cfg.AccessPoint.GetClusterName multiple times.
@@ -121,7 +122,7 @@ type LinuxServiceConfig struct {
 	// Hostname of the Linux desktop service
 	Hostname string
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
 	ChildLogConfig       *srv.ChildLogConfig
 
@@ -199,7 +200,7 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 	ctx, close := context.WithCancel(context.Background())
 	s := &LinuxService{
 		cfg: cfg,
-		middleware: &authz.Middleware{
+		middleware: &auth.Middleware{
 			ClusterName:   clusterName.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageLinuxDesktopOnly},
 		},
@@ -563,7 +564,7 @@ func (sess *linuxSession) startMonitor() error {
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
 		LockingMode:           sess.authCtx.Checker.LockingMode(sess.authPref.GetLockingMode()),
-		LockTargets:           append(services.LockTargetsFromTLSIdentity(sess.identity), types.LockTarget{LinuxDesktop: sess.desktop.GetMetadata().GetName()}),
+		LockTargets:           slices.AppendSeq([]types.LockTarget{{LinuxDesktop: sess.desktop.GetMetadata().GetName()}}, services.LockTargetsFromTLSIdentity(sess.identity)),
 		Tracker:               &sess.track,
 		TeleportUser:          sess.identity.Username,
 		UserOriginClusterName: sess.identity.OriginClusterName,

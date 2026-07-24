@@ -220,7 +220,7 @@ export function getSharedPrivateRoutes() {
     <Route
       key="linuxDesktop"
       path={cfg.routes.linuxDesktop}
-      component={<DesktopSession />}
+      component={DesktopSession}
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route
