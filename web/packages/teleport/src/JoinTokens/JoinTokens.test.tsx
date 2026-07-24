@@ -241,14 +241,66 @@ describe('JoinTokens', () => {
       });
     });
   });
+
+  describe('system resource (e.g. beam) tokens', () => {
+    const beamToken = {
+      id: 'beam-066c847c-eea8-457c-b498-0ba95b704059',
+      safeName: 'beam-066c847c-eea8-457c-b498-0ba95b704059',
+      bot_name: 'beam-bot',
+      expiry: '3024-07-26T11:52:48.320045Z',
+      roles: ['Bot'],
+      isStatic: false,
+      isSystemResource: true,
+      method: 'bound_keypair',
+      content: 'fake content',
+    };
+
+    test('the options menu is disabled so it cannot be edited or deleted', async () => {
+      render(<Component tokenList={[beamToken]} />);
+
+      await act(tick);
+
+      const optionsButton = await screen.findByRole('button', {
+        name: /options/i,
+      });
+      expect(optionsButton).toBeDisabled();
+
+      await userEvent.click(optionsButton);
+      expect(screen.queryByText(/view\/edit/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/delete/i)).not.toBeInTheDocument();
+    });
+
+    test('a non-system token of the same kind keeps an enabled options menu', async () => {
+      const editableToken = {
+        ...beamToken,
+        id: 'editable-token',
+        safeName: 'editable-token',
+        isSystemResource: false,
+      };
+
+      render(<Component tokenList={[editableToken]} />);
+      await act(tick);
+
+      const optionsButton = await screen.findByRole('button', {
+        name: /options/i,
+      });
+      expect(optionsButton).toBeEnabled();
+    });
+  });
 });
 
-const Component = ({ parseYamlMock }: { parseYamlMock?: object }) => {
+const Component = ({
+  parseYamlMock,
+  tokenList = tokens,
+}: {
+  parseYamlMock?: object;
+  tokenList?: any[];
+}) => {
   const ctx = createTeleportContext();
 
   jest
     .spyOn(ctx.joinTokenService, 'fetchJoinTokens')
-    .mockResolvedValue({ items: tokens.map(makeJoinToken) });
+    .mockResolvedValue({ items: tokenList.map(makeJoinToken) });
 
   jest.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
     parseYamlMock ?? {
