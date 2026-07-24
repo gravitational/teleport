@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
+	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
@@ -1222,28 +1223,48 @@ func openFileAsUser(localUser *user.User, path string) (file *os.File, err error
 		return nil, trace.Wrap(err)
 	}
 
+	strIDs, err := localUser.GroupIds()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	suppGids := make([]int, len(strIDs))
+	for i, strID := range strIDs {
+		gid, err := strconv.Atoi(strID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		suppGids[i] = gid
+	}
+
 	prevUID := os.Geteuid()
 	prevGID := os.Getegid()
+	prevSuppGIDs, err := os.Getgroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	defer func() {
-		gidErr := syscall.Setegid(prevGID)
 		uidErr := syscall.Seteuid(prevUID)
-		if uidErr != nil || gidErr != nil {
+		gidErr := syscall.Setegid(prevGID)
+		suppGIDsErr := syscall.Setgroups(prevSuppGIDs)
+		if uidErr != nil || gidErr != nil || suppGIDsErr != nil {
 			file.Close()
-			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
+			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "supp_gids_err", suppGIDsErr, "error", err)
 			os.Exit(reexecconstants.UnexpectedCredentials)
 		}
 	}()
 
+	if err := syscall.Setgroups(suppGids); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := syscall.Setegid(gid); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	if err := syscall.Seteuid(uid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	file, err = os.Open(path)
+	file, err = safefile.OpenNoFollow(path)
 	return file, trace.ConvertSystemError(err)
 }
 
