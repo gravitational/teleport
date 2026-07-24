@@ -18,34 +18,27 @@ package hardwarekey
 
 import (
 	"context"
-	"crypto/tls"
-	"errors"
 	"fmt"
-	"log/slog"
-	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekeyagent"
-	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/localagent"
 )
 
 const (
 	// SocketFileName is the name of the socket on which the Hardware Key Agent
 	// service will listen.
-	SocketFileName = "agent.sock"
+	SocketFileName = localagent.SocketFileName
 
 	// CertFileName is the name of the file containing the Hardware Key Agent
 	// server certificate.
-	CertFileName = "cert.pem"
+	CertFileName = localagent.CertFileName
 
 	dirName     = ".Teleport-PIV"
 	agentDirEnv = "TELEPORT_KEY_AGENT_DIR"
@@ -71,129 +64,66 @@ func DefaultAgentDir() string {
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentClient(ctx context.Context, keyAgentDir string) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
-	socketPath := filepath.Join(keyAgentDir, SocketFileName)
-	certPath := filepath.Join(keyAgentDir, CertFileName)
-
-	creds, err := credentials.NewClientTLSFromFile(certPath, "localhost")
+	cc, err := localagent.NewClient(keyAgentDir)
 	if err != nil {
 		return nil, err
 	}
-
-	return hardwarekeyagent.NewClient(socketPath, creds)
+	return hardwarekeyagentv1.NewHardwareKeyAgentServiceClient(cc), nil
 }
 
 // Server implementation [hardwarekeyagentv1.HardwareKeyAgentServiceServer].
 type Server struct {
-	grpcServer *grpc.Server
-	listener   net.Listener
-	dir        string
+	server *localagent.Server
 }
 
-// NewAgentServer returns a new hardware key agent server based out of the given directory.
-// The given directory will be created when the server is served and destroyed with the server is stopped.
+// NewAgentServer returns a new hardware key agent server based out of the given
+// directory. The given directory will be created when the server is served and
+// destroyed with the server is stopped.
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir string, knownKeyFn hardwarekeyagent.KnownHardwareKeyFn) (*Server, error) {
-	if knownKeyFn == nil {
-		return nil, trace.BadParameter("knownKeyFn must be provided")
+	checkActiveConn := func(ctx context.Context, conn *grpc.ClientConn) error {
+		_, err := hardwarekeyagentv1.NewHardwareKeyAgentServiceClient(conn).
+			Ping(ctx, &hardwarekeyagentv1.PingRequest{})
+		return trace.Wrap(err)
 	}
 
-	if err := os.MkdirAll(keyAgentDir, 0o700); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	l, err := newAgentListener(ctx, keyAgentDir)
+	localAgent, err := localagent.NewServer(keyAgentDir,
+		localagent.WithActiveConnectionCheck(checkActiveConn),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cert, err := generateServerCert(keyAgentDir)
+	server, err := NewAgentServerWithLocalAgent(ctx, localAgent, s, knownKeyFn)
 	if err != nil {
-		l.Close()
+		localAgent.Stop(ctx)
 		return nil, trace.Wrap(err)
 	}
-
-	grpcServer, err := hardwarekeyagent.NewServer(s, credentials.NewServerTLSFromCert(&cert), knownKeyFn)
-	if err != nil {
-		l.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return &Server{
-		grpcServer: grpcServer,
-		listener:   l,
-		dir:        keyAgentDir,
-	}, nil
+	return server, nil
 }
 
-func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
-	socketPath := filepath.Join(keyAgentDir, SocketFileName)
-	l, err := net.Listen("unix", socketPath)
-	if err == nil {
-		return l, nil
-	} else if !errors.Is(err, errAddrInUse) {
+// NewAgentServerWithLocalAgent returns a hardware key agent server using an
+// existing local agent server.
+func NewAgentServerWithLocalAgent(
+	ctx context.Context,
+	localAgent *localagent.Server,
+	s hardwarekey.Service,
+	knownKeyFn hardwarekeyagent.KnownHardwareKeyFn,
+) (*Server, error) {
+	if err := hardwarekeyagent.RegisterServer(localAgent, s, knownKeyFn); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// A hardware key agent already exists in the given path. Before replacing it,
-	// try to connect to it and see if it is active.
-	client, err := NewAgentClient(ctx, keyAgentDir)
-	if err == nil {
-		pong, err := client.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
-		if err == nil {
-			return nil, trace.AlreadyExists("another agent instance is already running; PID: %d", pong.GetPid())
-		}
-	}
-
-	// If it isn't running, remove the socket and try again.
-	if err := os.Remove(socketPath); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if l, err = net.Listen("unix", socketPath); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return l, nil
-}
-
-func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
-	}
-
-	certPath := filepath.Join(keyAgentDir, CertFileName)
-	f, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if _, err = f.Write(creds.Cert); err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if err = f.Close(); err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	return keys.X509KeyPair(creds.Cert, creds.PrivateKey)
+	return &Server{server: localAgent}, nil
 }
 
 // Serve the hardware key agent server.
 func (s *Server) Serve(ctx context.Context) error {
 	fmt.Fprintln(os.Stderr, "Listening for hardware key agent requests")
-	context.AfterFunc(ctx, s.Stop)
-	return trace.Wrap(s.grpcServer.Serve(s.listener))
+	return trace.Wrap(s.server.Serve(ctx))
 }
 
 // Stop the hardware key agent server.
 func (s *Server) Stop() {
-	s.grpcServer.GracefulStop()
-
-	if err := os.Remove(filepath.Join(s.dir, SocketFileName)); err != nil {
-		slog.DebugContext(context.TODO(), "failed to remove hardware key agent socket")
-	}
-
-	if err := os.Remove(filepath.Join(s.dir, CertFileName)); err != nil {
-		slog.DebugContext(context.TODO(), "failed to remove hardware key agent certificate")
-	}
+	s.server.Stop(context.TODO())
 }
