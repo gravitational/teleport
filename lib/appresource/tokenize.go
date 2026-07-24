@@ -28,8 +28,6 @@
 //	    - paths:
 //	        - /api/v4/user/{username}
 //	      where: user.name == vars.username
-//
-// The app agent, role validation, and tctl will use this package.
 package appresource
 
 import (
@@ -73,9 +71,10 @@ const legalPathPunct = "-._~!$&'()*+,=:@/%"
 //     consecutive slashes and "." or ".." segments. A ".."
 //     written between encoded slashes ("a%2F..%2Fadmin") is
 //     rejected the same as a raw one.
-//  4. The path body, with the encoded separator kept literal, must
-//     decode to valid, NFKC-stable UTF-8 and contain only graphic
-//     runes. "é" is allowed only as "%C3%A9".
+//  4. Each segment, once its non-ASCII escapes are decoded, must be
+//     valid, NFKC-stable UTF-8 and contain only graphic runes. The
+//     encoded separator %2F is a segment boundary for this check.
+//     "é" is allowed only as "%C3%A9".
 //  5. Split on real "/" only. An encoded slash stays one opaque
 //     token, hex case preserved.
 func Tokenize(path string) ([]string, error) {
@@ -92,9 +91,6 @@ func Tokenize(path string) ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 	if err := validateDecoded(path); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validatePathContent(path); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return strings.Split(path[1:], "/"), nil
@@ -152,12 +148,11 @@ func validatePercentEscapes(path string) error {
 	return nil
 }
 
-// validateDecoded rejects "." and ".." segments and consecutive
-// slashes on a view where the encoded separator %2F is decoded
-// to "/". A trailing slash is kept, so "/foo/" tokenizes to
-// ["foo", ""] and does not match "/foo".
+// validateDecoded checks the decoded validation view of the path. It
+// rejects consecutive slashes, "." and ".." segments, and any content
+// that is not NFKC-stable graphic UTF-8.
 func validateDecoded(path string) error {
-	decoded := decodeSeparators(path)
+	decoded := decode(path)
 	if strings.Contains(decoded, "//") {
 		const msg = "path %q has consecutive slashes once the encoded separator %%2F is decoded"
 		return trace.BadParameter(msg, path)
@@ -168,31 +163,13 @@ func validateDecoded(path string) error {
 			return trace.BadParameter(msg, path)
 		}
 	}
-	return nil
-}
-
-// decodeSeparators returns the decode-for-validation view of path.
-// %2F is unescaped to "/", every other byte is left raw. The ".",
-// "..", and "//" checks run on this view, so any of these written
-// with an encoded slash is caught the same as a raw one.
-func decodeSeparators(path string) string {
-	decoded := strings.ReplaceAll(path, "%2F", "/")
-	return strings.ReplaceAll(decoded, "%2f", "/")
-}
-
-// validatePathContent decodes non-ASCII escapes in the path body,
-// keeping the encoded separator literal, and requires valid UTF-8,
-// NFKC stability, and a graphic category for every rune of the
-// resulting string.
-func validatePathContent(path string) error {
-	content := decodeNonASCII(path[1:])
-	if !utf8.ValidString(content) {
+	if !utf8.ValidString(decoded) {
 		return trace.BadParameter("path %q is not valid UTF-8 once decoded", path)
 	}
-	if !norm.NFKC.IsNormalString(content) {
+	if !norm.NFKC.IsNormalString(decoded) {
 		return trace.BadParameter("path %q is not NFKC-normalized", path)
 	}
-	for _, r := range content {
+	for _, r := range decoded {
 		if !isGraphicRune(r) {
 			const msg = "path %q contains the disallowed character %q; only letters, marks, numbers, punctuation, and symbols are allowed"
 			return trace.BadParameter(msg, path, string(r))
@@ -201,11 +178,12 @@ func validatePathContent(path string) error {
 	return nil
 }
 
-// decodeNonASCII returns s with every non-ASCII escape (a "%XX"
-// that decodes to a non-ASCII byte) replaced by its decoded byte.
-// All other bytes, including the encoded separator %2F, are
-// left as is.
-func decodeNonASCII(s string) string {
+// decode returns the validation view of s, resolving every escape that
+// validatePercentEscapes leaves alive: %2F (either case) to "/", and a
+// non-ASCII escape to its byte. Those are the only escapes it can
+// receive, so nothing else needs decoding. The view is used for
+// validation only; the returned tokens keep their raw form.
+func decode(s string) string {
 	if !strings.ContainsRune(s, '%') {
 		return s
 	}
@@ -213,7 +191,7 @@ func decodeNonASCII(s string) string {
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		if s[i] == '%' && i+2 < len(s) {
-			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && byte(v) >= 0x80 {
+			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && (v == '/' || v >= 0x80) {
 				b.WriteByte(byte(v))
 				i += 2
 				continue

@@ -78,6 +78,19 @@ func TestTokenize(t *testing.T) {
 			want: []string{"files", "caf%C3%A9.md"},
 		},
 		{
+			// %2F decodes to a real "/" before the NFKC check, so a
+			// combining mark after it has no "F" to fold with and
+			// accepts just like the real-slash form below.
+			name: "combining mark after an encoded slash is allowed",
+			path: "/p/a%2F%CC%87x",
+			want: []string{"p", "a%2F%CC%87x"},
+		},
+		{
+			name: "combining mark after a real slash is allowed",
+			path: "/p/a/%CC%87x",
+			want: []string{"p", "a", "%CC%87x"},
+		},
+		{
 			name:    "path over the length cap is rejected",
 			path:    "/" + strings.Repeat("a", lengthCap),
 			wantErr: true,
@@ -217,24 +230,32 @@ func TestNonASCIIFold(t *testing.T) {
 		})
 	}
 
-	reject := map[string]string{
-		"raw non-ASCII byte":           "/files/caf\xc3\xa9",
-		"overlong UTF-8 of slash":      "/p/a%C0%AFb",
-		"lone continuation byte":       "/p/%A9",
-		"truncated two-byte sequence":  "/p/%C3",
-		"fullwidth solidus folds to /": "/p/a%EF%BC%8Fb",
-		"fullwidth A folds to A":       "/p/%EF%BC%A1dmin",
-		"fullwidth lowercase a":        "/p/%EF%BD%81dmin",
-		"zero-width space is format":   "/p/a%E2%80%8Bb",
-		"bidi override is format":      "/p/a%E2%80%AEb",
-		"decomposed e plus accent":     "/p/cafe%CC%81",
-		"ligature fi folds to fi":      "/p/o%EF%AC%81ce",
-		"non-breaking space folds":     "/p/a%C2%A0b",
+	reject := map[string]struct {
+		path string
+		// errContains pins which rule must reject inputs that more
+		// than one layer would catch. When empty, any error passes.
+		errContains string
+	}{
+		"raw non-ASCII byte":           {path: "/files/caf\xc3\xa9"},
+		"overlong UTF-8 of slash":      {path: "/p/a%C0%AFb"},
+		"lone continuation byte":       {path: "/p/%A9"},
+		"truncated two-byte sequence":  {path: "/p/%C3"},
+		"fullwidth solidus folds to /": {path: "/p/a%EF%BC%8Fb"},
+		"fullwidth A folds to A":       {path: "/p/%EF%BC%A1dmin"},
+		"fullwidth lowercase a":        {path: "/p/%EF%BD%81dmin"},
+		"zero-width space is format":   {path: "/p/a%E2%80%8Bb"},
+		"bidi override is format":      {path: "/p/a%E2%80%AEb"},
+		"decomposed e plus accent":     {path: "/p/cafe%CC%81"},
+		"ligature fi folds to fi":      {path: "/p/o%EF%AC%81ce"},
+		"non-breaking space folds":     {path: "/p/a%C2%A0b", errContains: "not NFKC-normalized"},
 	}
-	for name, path := range reject {
+	for name, tt := range reject {
 		t.Run("reject "+name, func(t *testing.T) {
-			_, err := Tokenize(path)
+			_, err := Tokenize(tt.path)
 			require.Error(t, err)
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+			}
 		})
 	}
 }
@@ -255,7 +276,7 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 			return
 		}
 		for _, tok := range tokens {
-			content := decodeNonASCII(decodeSeparators(tok))
+			content := decode(tok)
 			valid := utf8.ValidString(content)
 			require.True(t, valid, "accepted token %q decodes to invalid UTF-8", tok)
 			normal := norm.NFKC.IsNormalString(content)
