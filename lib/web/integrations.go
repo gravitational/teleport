@@ -34,6 +34,7 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/usertasks"
@@ -168,7 +169,10 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	integration, err := clt.GetIntegration(r.Context(), integrationName)
+	// Strip MFA from context for the read call so the MFA response is not
+	// consumed before the UpdateIntegration call that actually needs it.
+	getCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
+	integration, err := clt.GetIntegration(getCtx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
