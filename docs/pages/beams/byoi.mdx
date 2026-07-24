@@ -1,0 +1,275 @@
+---
+title: 'Route requests to your own inference provider'
+sidebar_label: 'BYOI'
+description: Harness your own Inference through Beams
+tags:
+  - how-to
+  - ai
+  - aws
+---
+
+<Admonition type="tip" title="CLI Tools">
+  Beams requires `tsh` version 18.8.0 or newer. To install `tsh`, visit
+  [Download Client Tools](https://goteleport.com/download/client-tools/), select
+  your platform, and choose "CLI Client Tools" in the **Download Type** menu.
+</Admonition>
+
+To get you started, [Beams](https://beams.run) comes with Claude Code and Codex
+out-the-box (subject to rate limits and fair usage). This is great for
+evaluation and tinkering, but is not a solution for scale, a strong privacy
+stance or flexible enough for enterprise needs. Once past the evaluation
+period, customers should bring their own inference provider to continue seeing
+value from beams for AI workloads.
+
+Beams offers a convenient connection to Amazon Bedrock via an [AWS
+OIDC](../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx)
+integration. To view the latest supported models, visit [AWS: Models at a
+glance](https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html).
+
+This guide explains the steps to provision an Anthropic model which Claude Code
+(as an example) will use within a Beam. It'll cover setting up Beams as an OIDC
+provider in AWS, granting the required permissions and creating an LLM proxy.
+
+Beams is part of the [Teleport Agentic Identity
+Framework](../agentic-identity-framework/agentic-identity-framework.mdx) and is
+designed to solve the core adoption blockers for running agents in production:
+security, IAM, and operational overhead.
+
+## How it works
+
+Beams access inference models securely through an LLM proxy hosted by the
+cluster. The proxy translates and forwards requests to the inference provider
+(Amazon Bedrock) and passes responses back to the beam. Beams are free to use
+tools and SDKs that support the Anthropic Messages API or OpenAI-compatible
+APIs.
+
+Switching inference providers is simply a process of creating a new LLM
+proxy for the provider and configuring beams to use it. Beams have two provider
+_slots_, one supporting providers using the Anthropic Messages API and the
+other supporting providers using OpenAI-compatible APIs.
+
+Existing beams will continue to use the providers configured when they were
+created, while new beams will use the newly set LLM proxy.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.11 or higher)"!)
+
+- An active Teleport session (`tsh login`).
+- `aws` CLI installed.
+- An active `aws` session
+
+## Step 1/4. Configure an AWS OIDC integration
+
+This guide assumes you will not be using an existing AWS OIDC integration. To
+list existing integrations use `tctl get integration` and look out for
+`aws-oidc` as the integration type. Skip this step if you which to use an
+existing integration.
+
+To configure a new integration, start by creating an identity provider in AWS.
+Use the `aws iam create-open-id-connect-provider` CLI command, or create the
+identity provider through the AWS Console. Use the following configuration:
+
+- Provider type: OpenID Connect
+- Provider URL: https://<Var name="teleport.example.com" />
+- Audience: `discover.teleport`
+- Tags:
+  - `teleport.dev/cluster`: <Var name="teleport.example.com" />
+  - `teleport.dev/origin`: `integration_awsoidc`
+  - `teleport.dev/integration`: <Var name="my-integration"/>
+
+Next, create an IAM role using `aws iam create-role` or the AWS Console to
+establish a Trust Relationship between AWS and the Beams cluster.
+
+Note the role's ARN as this will be used later.
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Principal": {
+				"Federated": "arn:aws:iam::<Var name="aws-account-id" description="AWS Account ID"/>:oidc-provider/<Var name="teleport.example.com" />"
+			},
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringEquals": {
+					"<Var name="teleport.example.com" />:aud": "discover.teleport"
+				}
+			}
+		}
+	]
+}
+```
+
+Complete the integration by creating an integration resource. Create a file
+called `awsoidc-integration.yaml` with the following content:
+
+```yaml
+kind: integration
+sub_kind: aws-oidc
+version: v1
+metadata:
+  name: <Var name="my-integration"/>
+spec:
+  aws_oidc:
+    role_arn: "arn:aws:iam::<Var name="aws-account-id"/>:role/beams-oidc"
+```
+
+Create the resource:
+
+```code
+$ tctl create awsoidc-integration.yaml
+```
+
+Validate the new integration is operational using the `tctl` test utility:
+
+```bash
+tctl integrations test <Var name="my-integration"/>
+```
+
+See the dedicated [AWS OIDC
+guide](../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx)
+for more details.
+
+## Step 2/4. Grant Amazon Bedrock permissions
+
+The integration needs permissions to invoke Bedrock models. These are granted
+by attaching a policy to the identity provider role created earlier. The policy
+can be appended using `aws iam put-role-policy` CLI command or using the AWS
+Console.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["bedrock-mantle:CreateInference"],
+      "Resource": "arn:aws:bedrock-mantle:*:*:project/*"
+    }
+  ]
+}
+```
+
+This policy above gives access to all Bedrock Mantle projects. Projects can be
+configured to allow only certain models and provide a useful way to track token
+usage and costs.
+
+## Step 3/4. Configure an LLM proxy
+
+An LLM proxy exposes the Bedrock inference profile to beams. It can also be
+used by authenticated cluster users via a local proxy.
+
+Create a file called `llm-proxy.yaml` with the following content:
+
+```yaml
+kind: app_server
+version: v3
+metadata:
+  name: <Var name="anthropic-byoi"/>
+spec:
+  host_id: <generate-uuid-here>
+  app:
+    kind: app
+    version: v3
+    metadata:
+      name: <Var name="anthropic-byoi"/>
+    spec:
+      public_addr: <Var name="anthropic-byoi" />.<Var name="teleport.example.com" />
+      integration: <Var name="my-integration"/>
+      inference:
+        format: anthropic
+        provider: bedrock
+        models:
+          - name: claude-opus-4-8
+            provider_name: anthropic.claude-opus-4-8
+```
+
+Create the resource:
+
+```bash
+tctl create llm-proxy.yaml
+```
+
+Validate the new LLM proxy is operational by sending a test request via a local
+app proxy:
+
+```bash
+# Check for an app named "<Var name="anthropic-byoi"/>"
+tsh apps ls
+
+# Start a local proxy
+tsh proxy app <Var name="anthropic-byoi"/>
+
+# Set the API URL to the local proxy address (http)
+export ANTHROPIC_API_URL=http://localhost:56789
+
+# Send a test request
+curl -sS -X POST "$ANTHROPIC_API_URL/v1/messages" \
+  -H "Content-Type: application/json" -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-opus-4-8","max_tokens":256,"messages":[{"role":"user","content":"Hello!"}]}' | jq '.content[0].text'
+```
+
+A successful response from the model means the LLM proxy is operational.
+
+## Step 4/4. Update global beams config
+
+Update the beams global config to route Anthropic traffic through the new LLM
+proxy for all future beams.
+
+Fetch the existing beams config resource to a local file. If the resource does
+not yet exist, it'll be created in the coming steps.
+
+```bash
+tctl get beams_config > beams-config.yaml
+```
+
+Update (or create) beams-config.yaml with the following contents:
+
+```diff
+kind: beams_config
+version: v1
+metadata:
+    name: beams-config
+spec:
+    llm:
+        anthropic:
+-            app_name: anthropic
++            app_name: <Var name="anthropic-byoi"/>
+        openai:
+            app_name: openai
+```
+
+Update (or create) the beams config resource:
+
+```bash
+tctl create -f beams-config.yaml
+```
+
+Alternatively, for an interactive editing experience:
+
+```bash
+tctl edit beams_config
+```
+
+Validate the beams config changes have had an effect by inspecting the config
+available to a new beam and sending a test request:
+
+```bash
+# Create a new beam
+tsh beams add --no-console
+
+# The ANTHROPIC_BASE_URL env var should reference the new LLM proxy name
+tsh beams exec <beam-id> 'echo $ANTHROPIC_BASE_URL'
+
+# Test Claude Code
+tsh beams exec <beam-id> 'echo "tell me a joke about an AI" | claude -p'
+```
+
+## Summary
+
+You've provisioned an Anthropic model for use within a Beam and configured new
+beams to use the new provider. You've upgraded the beams experience while
+improving privacy, scalability and flexibility.
