@@ -7,15 +7,39 @@ Resolve the common fields from the skill's Setup section, then these Azure field
 
 | Field | Tool derivation | Default |
 |-------|-----------------|---------|
-| `subscriptions` | `az account show --query id --output tsv` for the current subscription | Ask |
+| `scope` | see **Scope** below | `subscription` |
+| `management_group_id` | Only when scope is management-group: `az account show --query tenantId --output tsv` | Ask |
+| `subscriptions` | Only when scope is subscription: `az account show --query id --output tsv` for the current subscription | Ask |
 | `resource_group` | none | Ask |
 | `location` | see **Resource group and location** below | Ask, per **Resource group and location** |
 | `regions` | none | Ask, with `["*"]` as the default |
 | `resource_groups` | none | Ask, with `["*"]` as the default |
 | `tags` | none | Ask, with `{"*": ["*"]}` as the default |
 
-Validate that every subscription ID is a UUID of the form
+When scope is subscription, validate that every subscription ID is a UUID of the form
 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`. If any fails, ask the user to correct it.
+
+## Scope
+
+Users can discover VMs in specific subscriptions or across subscriptions in a
+management group.
+
+Resolve `scope` before `subscriptions`.
+Set it to `management-group` when the request names a management group, tenant-wide
+discovery, or discovery across all subscriptions.
+Otherwise, use `subscription` scope.
+
+For management-group scope:
+
+1. Ask which management group to use. Default to the tenant ID (Tenant root group,
+   all subscriptions). The alternative is a specific management group ID.
+2. For tenant-wide: derive `management_group_id` from
+   `az account show --query tenantId --output tsv`. Note that using a tenant ID
+   targets the [Tenant root group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory)
+   and requires [elevated access](https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin).
+3. For a specific management group: ask for the management group ID.
+4. Set `subscriptions` automatically to `["*"]`. Do not ask for subscription IDs
+   and do not validate them as UUIDs.
 
 ## Resource group and location
 
@@ -63,6 +87,13 @@ provider "teleport" {
 }
 ```
 
+When scope is management-group and `management_group_id` is the tenant ID (tenant-wide),
+add a data source to read it dynamically:
+
+```hcl
+data "azurerm_client_config" "current" {}
+```
+
 Write the discovery module. When `create_resource_group` is true, create the resource group
 and reference it from the module:
 
@@ -74,7 +105,7 @@ resource "azurerm_resource_group" "teleport_discovery" {
 
 module "azure_discovery" {
   source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
-  version = "~> <major>.0"
+  version = "<module_version>"
 
   teleport_proxy_public_addr    = "<proxy_addr>"
   teleport_discovery_group_name = "<discovery_group>"
@@ -82,10 +113,16 @@ module "azure_discovery" {
   azure_resource_group_name       = azurerm_resource_group.teleport_discovery.name
   azure_managed_identity_location = azurerm_resource_group.teleport_discovery.location
 
+  # Fill azure_management_group_id only when scope is management-group:
+  # azure_management_group_id = data.azurerm_client_config.current.tenant_id
+  # or for a specific management group:
+  # azure_management_group_id = "<management_group_id>"
+
   azure_matchers = [
     {
       types         = ["vm"]
       subscriptions = [<each subscription ID quoted, comma-separated>]
+      # For management-group scope, use: subscriptions = ["*"]
       # add regions, resource_groups, or tags per the schema below to narrow
     }
   ]
@@ -122,7 +159,7 @@ data "azurerm_resource_group" "teleport_discovery" {
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `types` | list(string) | required | Only `["vm"]`. |
-| `subscriptions` | list(string) | required | Azure subscription IDs to search. |
+| `subscriptions` | list(string) | required | Azure subscription IDs, or `["*"]` when `azure_management_group_id` is set. |
 | `regions` | list(string) | `["*"]` | `["*"]` matches all regions. |
 | `resource_groups` | list(string) | `["*"]` | `["*"]` matches all resource groups. |
 | `tags` | map(list(string)) | `{"*": ["*"]}` | Tag filter. |
