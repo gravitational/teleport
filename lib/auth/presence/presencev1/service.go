@@ -20,6 +20,7 @@ package presencev1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -32,7 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -52,6 +56,10 @@ type Backend interface {
 
 	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
 	DeleteProxyServer(ctx context.Context, name string) error
+
+	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
+	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
+	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
 }
 
 type Cache interface {
@@ -631,4 +639,140 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.Wrap(err)
 	}
 	return &presencepb.DeleteProxyServerResponse{}, nil
+}
+
+// GetKubeCluster returns the specified kube cluster resource.
+func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (*presencepb.GetKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.backend.GetKubeCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid cluster")
+	}
+	return presencepb.GetKubeClusterResponse_builder{
+		Cluster: clusterV3,
+	}.Build(), nil
+}
+
+// getCursorForKubeCluster wraps [services.GetCursorForKubeCluster] with a signature
+// referencing [*types.KubernetesClusterV3] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForKubeCluster(cluster *types.KubernetesClusterV3) string {
+	return services.GetCursorForKubeCluster(cluster)
+}
+
+// ListKubeClusters returns a page of registered kube clusters.
+func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) (*presencepb.ListKubeClustersResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	clusters, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeKubeClusters(ctx, req),
+			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
+					clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+					return clusterV3, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForKubeCluster,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListKubeClustersResponse_builder{
+		Clusters:      clusters,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteKubeCluster removes the specified kube cluster resource.
+func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) (*presencepb.DeleteKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure user has access to the kubernetes cluster before deleting.
+	cluster, err := s.backend.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeCluster(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
+	}
+	return presencepb.DeleteKubeClusterResponse_builder{}.Build(), nil
 }

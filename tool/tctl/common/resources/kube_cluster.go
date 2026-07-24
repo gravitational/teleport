@@ -23,10 +23,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -59,7 +63,11 @@ func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, cluster := range c.clusters {
 		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
 		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
+			scopes.QualifiedName{
+				Scope: cluster.GetScope(),
+				Name:  common.FormatResourceName(cluster, verbose),
+			}.String(),
+
 			labels,
 		})
 	}
@@ -86,15 +94,27 @@ func kubeClusterHandler() Handler {
 }
 
 func getKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	listFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-	clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
+	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if ref.Name == "" {
 		return NewKubeClusterCollection(clusters), nil
 	}
-	clusters = FilterByNameOrDiscoveredName(clusters, ref.Name)
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{
+			Name: ref.Name,
+		}
+	}
+	clusters = FilterBySQNOrDiscoveredName(clusters, sqn)
 	if len(clusters) == 0 {
 		return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
 	}
@@ -106,10 +126,117 @@ func createKubeCluster(ctx context.Context, client *authclient.Client, raw servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !opts.Force {
 				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
+			}
+			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("Kubernetes cluster %q has been updated\n", sqn.String())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Kubernetes cluster %q has been created\n", sqn.String())
+	return nil
+}
+
+func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	listFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+	}
+	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
+	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	resDesc := "Kubernetes cluster"
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{
+			Name: ref.Name,
+		}
+	}
+	clusters = FilterBySQNOrDiscoveredName(clusters, sqn)
+	name, err := GetOneResourceNameToDelete(clusters, ref, resDesc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	return nil
+}
+
+func scopedKubeClusterHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedKubeCluster,
+		createHandler: createScopedKubeCluster,
+		deleteHandler: deleteScopedKubeCluster,
+		updateHandler: updateScopedKubeCluster,
+		description:   "A dynamic resource representing a Kubernetes cluster that can be accessed via a Kubernetes service.",
+	}
+}
+
+func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, _ GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindKubernetesCluster, subKind)
+	}
+
+	if sqn != nil {
+		cluster, err := client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+			Scope: sqn.Scope,
+			Name:  sqn.Name,
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cluster.GetScope() != sqn.Scope {
+			return nil, scopeMismatchNotFound(types.KindKubernetesCluster, *sqn, cluster.GetScope())
+		}
+		return NewKubeClusterCollection([]types.KubeCluster{cluster}), nil
+	}
+
+	clusters, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageSize:    int32(pageSize),
+			PageToken:   pageKey,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewKubeClusterCollection(clusters), nil
+}
+
+func createScopedKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
+	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !opts.Force {
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", sqn.String())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
@@ -119,25 +246,56 @@ func createKubeCluster(ctx context.Context, client *authclient.Client, raw servi
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", sqn.String())
 	return nil
 }
 
-func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-	clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
+func updateScopedKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
+	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	resDesc := "Kubernetes cluster"
-	clusters = FilterByNameOrDiscoveredName(clusters, ref.Name)
-	name, err := GetOneResourceNameToDelete(clusters, ref, resDesc)
+
+	if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
+	fmt.Printf("%v %q has been updated\n", types.KindKubernetesCluster, sqn.String())
+	return nil
+}
+
+func deleteScopedKubeCluster(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindKubernetesCluster, subKind)
+	}
+
+	// Fetch first to verify scope before deleting.
+	cluster, err := client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+
+	if cluster.GetScope() != sqn.Scope {
+		return scopeMismatchNotFound(types.KindScopedToken, sqn, cluster.GetScope())
+	}
+
+	if err := client.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%s %q has been deleted\n", resDesc, name)
+	fmt.Printf(
+		"%v %q has been deleted\n",
+		types.KindKubernetesCluster,
+		sqn.String(),
+	)
 	return nil
 }

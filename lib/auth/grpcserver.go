@@ -5500,6 +5500,9 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *authpb.Appen
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
+//
+// Deprecated: Use GetKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
@@ -5573,6 +5576,9 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
@@ -5601,6 +5607,9 @@ func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.Lis
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
+//
+// Deprecated: Use DeleteKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {

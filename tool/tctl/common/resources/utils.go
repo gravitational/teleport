@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/iterutils"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -75,6 +76,49 @@ func filterResourcesByName[T types.ResourceWithLabels](resources []T, name strin
 		}
 		for _, altName := range altNameFns {
 			if altName(r) == name {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// ScopedResourceWithLabels extends [types.ResourceWithLabels] with a GetScope method for the purposes
+// of working with potentially scoped resources.
+type ScopedResourceWithLabels interface {
+	types.ResourceWithLabels
+	GetScope() string
+}
+
+// FilterBySQNOrDiscoverdName filters resources by scope qualified name or
+// "discovered name". It prefers exact name filtering first - if none of the
+// resource names match exactly (i.e. all of the resources are filtered out),
+// then it retries and filters the resources by "discovered name" of resource
+// name instead, which comes from an auto-discovery label.
+func FilterBySQNOrDiscoveredName[T ScopedResourceWithLabels](resources []T, sqn scopes.QualifiedName, extra ...AltResourceNameFunc[T]) []T {
+	// prefer exact names
+	out := filterScopedResourcesByName(resources, sqn, extra...)
+	if len(out) == 0 {
+		// fallback to looking for discovered name label matches.
+		out = filterByDiscoveredName(resources, sqn.String())
+	}
+	return out
+}
+
+// filterScopedResourcesByName filters resources by exact name match while respecting scopes. This filter is safe
+// for use on both scoped and unscoped resources.
+func filterScopedResourcesByName[T ScopedResourceWithLabels](resources []T, sqn scopes.QualifiedName, altNameFns ...AltResourceNameFunc[T]) []T {
+	return filterResources(resources, func(r T) bool {
+		resourceSQN := scopes.QualifiedName{
+			Scope: r.GetScope(),
+			Name:  r.GetName(),
+		}
+
+		if resourceSQN == sqn {
+			return true
+		}
+		for _, altName := range altNameFns {
+			if altName(r) == sqn.String() {
 				return true
 			}
 		}

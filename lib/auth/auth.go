@@ -74,6 +74,7 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -351,8 +352,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.Kubernetes == nil {
-		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
+		cfg.Kubernetes, err = local.NewKubernetesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
@@ -7797,6 +7802,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
@@ -7824,6 +7830,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
@@ -7835,11 +7842,12 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 	return nil
 }
 
-// DeleteKubernetesCluster deletes a kubernetes cluster resource.
-func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
+// DeleteKubeCluster deletes a kubernetes cluster resource.
+func (a *Server) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	if err := a.Kubernetes.DeleteKubeCluster(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
 		Metadata: apievents.Metadata{
 			Type: events.KubernetesClusterDeleteEvent,
@@ -7847,7 +7855,8 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
