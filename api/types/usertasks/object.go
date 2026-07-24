@@ -316,6 +316,11 @@ var DiscoverRDSIssueTypes = []string{
 // List of Auto Discover Azure VM issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover Azure VM tasks.
 const (
+	// AutoDiscoverAzureVMIssueSubscriptionListDenied indicates the integration
+	// lacks permission to list subscriptions while expanding a wildcard
+	// subscription matcher.
+	AutoDiscoverAzureVMIssueSubscriptionListDenied = "azure-vm-subscription-list-denied"
+
 	// AutoDiscoverAzureVMIssueMissingRunCommandsPermission is used to identify VMs that failed to auto-enroll
 	// because the Azure integration is missing runCommands permissions (runCommands/write or runCommands/read).
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission = "azure-vm-missing-run-commands-permission"
@@ -335,6 +340,7 @@ const (
 
 // DiscoverAzureVMIssueTypes is a list of issue types that can occur when trying to auto enroll Azure VMs.
 var DiscoverAzureVMIssueTypes = []string{
+	AutoDiscoverAzureVMIssueSubscriptionListDenied,
 	AutoDiscoverAzureVMIssueMissingRunCommandsPermission,
 	AutoDiscoverAzureVMIssueVMNotRunning,
 	AutoDiscoverAzureVMIssueVMAgentNotAvailable,
@@ -625,14 +631,20 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 	if discover == nil {
 		return trace.BadParameter("%s: discover_azure_vm field is required", TaskTypeDiscoverAzureVM)
 	}
-	switch {
-	case discover.SubscriptionId == "":
-		return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
-	case discover.ResourceGroup == "":
-		return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
-	case discover.Region == "":
-		return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
+	isSubscriptionListIssue := spec.IssueType == AutoDiscoverAzureVMIssueSubscriptionListDenied
+	if !isSubscriptionListIssue {
+		switch {
+		case discover.SubscriptionId == "":
+			return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
+		case discover.ResourceGroup == "":
+			return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
+		case discover.Region == "":
+			return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
+		case len(discover.Instances) == 0:
+			return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
+		}
 	}
+
 	expectedTaskName := taskNameForDiscoverAzureVM(
 		TaskGroup{
 			Integration: spec.Integration,
@@ -650,9 +662,12 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 			ut.Metadata.Name,
 		)
 	}
-	if len(discover.Instances) == 0 {
-		return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
+
+	// Subscription resolution fails before VM scope or instance data is known.
+	if isSubscriptionListIssue {
+		return nil
 	}
+
 	for vmID, vmIssue := range discover.Instances {
 		switch {
 		case vmIssue == nil:

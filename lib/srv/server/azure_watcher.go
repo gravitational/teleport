@@ -176,44 +176,45 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
-// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(
+// MatcherToAzureInstanceFetchers converts an Azure VM matcher into Azure VM fetchers.
+func MatcherToAzureInstanceFetchers(
 	ctx context.Context,
 	logger *slog.Logger,
-	matchers []types.AzureMatcher,
+	matcher types.AzureMatcher,
 	getClient azureClientGetter,
 	discoveryConfigName string,
 	listSubs listSubscriptionsFunc,
-) []Fetcher[*AzureInstances] {
-	ret := make([]Fetcher[*AzureInstances], 0)
-	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
-		for _, subscription := range matcher.Subscriptions {
-			for _, resourceGroup := range matcher.ResourceGroups {
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:             matcher,
-					Subscription:        subscription,
-					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   getClient,
-					DiscoveryConfigName: discoveryConfigName,
-					Logger:              logger,
-				})
-				ret = append(ret, fetcher)
-			}
+) ([]Fetcher[*AzureInstances], error) {
+	subscriptions, err := expandAzureMatcherSubscriptions(ctx, matcher.Subscriptions, matcher.Integration, listSubs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	matcher.Subscriptions = subscriptions
+
+	fetchers := make([]Fetcher[*AzureInstances], 0, len(matcher.Subscriptions)*len(matcher.ResourceGroups))
+	for _, subscription := range matcher.Subscriptions {
+		for _, resourceGroup := range matcher.ResourceGroups {
+			fetchers = append(fetchers, newAzureInstanceFetcher(azureFetcherConfig{
+				Matcher:             matcher,
+				Subscription:        subscription,
+				ResourceGroup:       resourceGroup,
+				AzureClientGetter:   getClient,
+				DiscoveryConfigName: discoveryConfigName,
+				Logger:              logger,
+			}))
 		}
 	}
-	return ret
+	return fetchers, nil
 }
 
 // expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
 // subscriptions and replaces the wildcard with the subscriptions list.
 func expandAzureMatcherSubscriptions(
 	ctx context.Context,
-	logger *slog.Logger,
 	subscriptions []string,
 	integration string,
 	listSubs listSubscriptionsFunc,
-) []string {
+) ([]string, error) {
 	var out []string
 	for _, sub := range subscriptions {
 		if sub != types.Wildcard {
@@ -221,17 +222,18 @@ func expandAzureMatcherSubscriptions(
 			continue
 		}
 		subs, err := listSubs(ctx, integration)
+		// Azure can return a successful response with no subscriptions when the
+		// identity has no subscription-scoped access. Treat this as a resolution
+		// failure so wildcard discovery doesn't silently produce 0 fetchers.
+		if err == nil && len(subs) == 0 {
+			err = trace.NotFound("Azure returned no subscriptions for wildcard in discovery configuration")
+		}
 		if err != nil {
-			// TODO(gavin): make a user task
-			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
-				"integration", integration,
-				"error", err,
-			)
-			continue
+			return nil, trace.Wrap(err)
 		}
 		out = append(out, subs...)
 	}
-	return utils.Deduplicate(out)
+	return utils.Deduplicate(out), nil
 }
 
 type azureFetcherConfig struct {
