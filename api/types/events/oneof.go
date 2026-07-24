@@ -1020,6 +1020,19 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_CertAuthorityOverrideEvent{
 			CertAuthorityOverrideEvent: e,
 		}
+	case *BeamsConfigCreate:
+		out.Event = &OneOf_BeamsConfigCreate{
+			BeamsConfigCreate: e,
+		}
+	case *BeamsConfigUpdate:
+		out.Event = &OneOf_BeamsConfigUpdate{
+			BeamsConfigUpdate: e,
+		}
+	case *BeamsConfigDelete:
+		out.Event = &OneOf_BeamsConfigDelete{
+			BeamsConfigDelete: e,
+		}
+
 	case *ScopedTokenCreate:
 		out.Event = &OneOf_ScopedTokenCreate{
 			ScopedTokenCreate: e,
