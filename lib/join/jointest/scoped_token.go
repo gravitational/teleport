@@ -276,7 +276,7 @@ func setProviderConfig(spec *joiningv1.ScopedTokenSpec, fieldName string, config
 	}
 
 	value := message.NewField(field)
-	if err := protojson.Unmarshal(encoded, value.Message().Interface()); err != nil {
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(encoded, value.Message().Interface()); err != nil {
 		return trace.Wrap(err, "converting classic %s configuration to scoped form", fieldName)
 	}
 	message.Set(field, value)
