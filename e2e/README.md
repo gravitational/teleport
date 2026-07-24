@@ -42,6 +42,7 @@ By default, the runner runs in test mode. Use one of the following flags to chan
 |------------------------|------------------|-----------------------------------------------------------------------------------------|
 | `-v`                   | `false`          | Enable debug logging                                                                    |
 | `--no-build`           | `false`          | Skip `make` binaries (useful during development)                                        |
+| `--no-resource-setup`  | `false`          | Skip pre-test resource setup                                                            |
 | `--quiet`              | `false`          | Redirect Teleport logs to file instead of stdout                                        |
 | `--replace-certs`      | `false`          | Generate new self-signed certificates                                                   |
 | `--update-snapshots`   | `false`          | Update Playwright snapshot baselines                                                    |
@@ -231,6 +232,9 @@ Connect is built automatically when running `tests/connect` paths or when using 
 ```bash
 # Run a specific test, skip rebuilding (fastest iteration loop)
 ./e2e/run.sh --no-build e2e/tests/web/authenticated/roles.spec.ts
+
+# Skip applying pre-test resources
+./e2e/run.sh --no-build --no-resource-setup e2e/tests/web/authenticated/roles.spec.ts
 
 # Run only Connect tests, skip rebuilding of both Teleport and Connect
 ./e2e/run.sh --no-build e2e/tests/connect

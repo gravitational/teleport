@@ -205,22 +205,24 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 	for _, browser := range config.browsers {
 		inst := &testInstance{
-			browser: browser,
-			log:     newBrowserLogger(browser),
-			e2eDir:  e2eDir,
-			dataDir: filepath.Join(e2eDir, "data", browser),
-			tctlBin: flags.tctlBin,
+			browser:         browser,
+			log:             newBrowserLogger(browser),
+			e2eDir:          e2eDir,
+			dataDir:         filepath.Join(e2eDir, "data", browser),
+			tctlBin:         flags.tctlBin,
+			noResourceSetup: flags.noResourceSetup,
 		}
 		config.instances = append(config.instances, inst)
 	}
 
 	if fixtures.Connect.Enabled {
 		config.connectInstance = &testInstance{
-			browser: "connect",
-			log:     newBrowserLogger("connect"),
-			e2eDir:  e2eDir,
-			dataDir: filepath.Join(e2eDir, "data", "connect"),
-			tctlBin: flags.tctlBin,
+			browser:         "connect",
+			log:             newBrowserLogger("connect"),
+			e2eDir:          e2eDir,
+			dataDir:         filepath.Join(e2eDir, "data", "connect"),
+			tctlBin:         flags.tctlBin,
+			noResourceSetup: flags.noResourceSetup,
 		}
 	}
 
