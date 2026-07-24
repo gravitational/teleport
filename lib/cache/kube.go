@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -32,7 +31,6 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -52,7 +50,11 @@ func kubeServerByClusterNameKey(s types.KubeServer) string {
 	if cluster == nil {
 		return ""
 	}
-	return string(ordered.Encode(cluster.GetName(), s.GetHostID(), s.GetName()))
+	// The second component is the scope-aware resource cursor, so within each
+	// kube cluster name the in-memory ordering matches the backend listing order
+	// (unscoped first, then scoped) and index keys are interchangeable with
+	// the fallback pagination tokens.
+	return string(ordered.Encode(cluster.GetName(), services.GetCursorForKubeServer(s)))
 }
 
 func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer, kubeServerIndex], error) {
@@ -65,9 +67,7 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 			types.KindKubeServer,
 			types.KubeServer.Copy,
 			map[kubeServerIndex]func(types.KubeServer) string{
-				kubeServerNameIndex: func(u types.KubeServer) string {
-					return u.GetHostID() + "/" + u.GetName()
-				},
+				kubeServerNameIndex:        services.GetCursorForKubeServer,
 				kubeServerClusterNameIndex: kubeServerByClusterNameKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeServer, error) {
@@ -137,20 +137,19 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 				return nil, "", trace.BadParameter("pagination token does not match the requested kubernetes cluster name")
 			}
 
-			backendKey := ""
+			// The remainder of the token is the scope aware resource
+			startKey := ""
 			if len(rest) > 0 {
-				var hostID, serverName string
-				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
+				if err := ordered.Decode(rest, &startKey); err != nil {
 					return nil, "", trace.Wrap(err)
 				}
-				backendKey = hostID + "/" + serverName
 			}
 
 			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindKubeServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
-				StartKey:     backendKey,
+				StartKey:     startKey,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -170,11 +169,7 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 
 			next := ""
 			if resp.NextKey != "" {
-				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
-				if !ok {
-					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
-				}
-				next = string(ordered.Encode(clusterName, hostID, serverName))
+				next = string(ordered.Encode(clusterName, resp.NextKey))
 			}
 			return page, next, nil
 		}

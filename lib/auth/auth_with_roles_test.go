@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -3552,11 +3553,12 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	}))
 
 	const scope = "/test"
+	const hostID = "host-id"
 	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", scope, types.RoleKube)
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
-	unscopedKubeClient, err := srv.NewClient(authtest.TestServerID(types.RoleKube, "host-id"))
+	unscopedKubeClient, err := srv.NewClient(authtest.TestServerID(types.RoleKube, hostID))
 	require.NoError(t, err)
 
 	// create an admin client to create resources and setup for test cases
@@ -3593,7 +3595,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	err = adminClient.CreateKubernetesCluster(ctx, scopedKubeCluster)
 	require.NoError(t, err)
 
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", hostID)
 	require.NoError(t, err)
 	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
@@ -3747,12 +3749,16 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
 		require.NoError(t, err)
 
-		// unscoped kube clients SHOULD be able to delete a kube server
-		err = unscopedKubeClient.DeleteKubernetesServer(ctx, "host-id", ks.GetName())
+		// unscoped kube clients SHOULD be able to delete their own kube server
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		err = unscopedKubeClient.DeleteKubernetesServer(ctx, hostID, ks.GetName())
 		require.NoError(t, err)
 
 		// scoped kube clients SHOULD NOT be able to delete a kube server
-		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", "host-id")
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", hostID)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
@@ -14600,11 +14606,21 @@ func TestRoleKubeLeastPrivilege(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("delete own kube server allowed", func(t *testing.T) {
-		require.NoError(t, kube.DeleteKubernetesServer(ctx, ownID, "kube"))
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		require.NoError(t, kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &authpb.DeleteKubernetesServerRequest{
+			HostID: ownID,
+			Name:   "kube",
+		}))
 	})
 
 	t.Run("delete other kube server denied", func(t *testing.T) {
-		err := kube.DeleteKubernetesServer(ctx, otherID, "kube")
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		err := kube.ScopedServerWithRoles().DeleteKubernetesServer(ctx, &authpb.DeleteKubernetesServerRequest{
+			HostID: otherID,
+			Name:   "kube",
+		})
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 

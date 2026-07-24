@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -647,6 +648,12 @@ type KubeClusterWatcherConfig struct {
 	KubeClustersC chan []types.KubeCluster
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
+	// ScopeFilter is an optional scope filter applied to the watch. A nil filter
+	// yields the caller's default scope behavior (unscoped-only for unscoped
+	// callers, current-scope-only for scoped callers). Watchers that run on the
+	// teleport proxy and must observe every instance of an optionally-scoped kind
+	// (regardless of scope) should set this to MODE_ALL.
+	ScopeFilter *types.ScopeFilter
 }
 
 // NewKubeClusterWatcher returns a new instance of KubeClusterWatcher.
@@ -655,12 +662,21 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		return nil, trace.BadParameter("KubernetesClusterGetter must be provided")
 	}
 
+	var scopeFilter *scopesv1.Filter
+	if filter := cfg.ScopeFilter; filter != nil {
+		scopeFilter = scopesv1.Filter_builder{
+			Scope: filter.Scope,
+			Mode:  filter.Mode,
+		}.Build()
+	}
 	getter := cfg.KubernetesClusterGetter
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, readonly.KubeCluster]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				ScopeFilter: scopeFilter,
+			}.Build()))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
@@ -670,6 +686,7 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ReadOnlyFunc: func(resource types.KubeCluster) readonly.KubeCluster {
 			return resource
 		},
+		ScopeFilter: cfg.ScopeFilter,
 	})
 	return w, trace.Wrap(err)
 }

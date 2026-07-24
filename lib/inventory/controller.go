@@ -66,7 +66,7 @@ type Auth interface {
 	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
 
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 	DeleteRelayServer(ctx context.Context, name string) error
@@ -827,7 +827,11 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 			return
 		}
 
-		if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+		if err := c.auth.DeleteKubeServer(c.closeContext, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  kube.resource.GetScope(),
+			HostId: kube.resource.GetHostID(),
+			Name:   kube.resource.GetName(),
+		}.Build()); err != nil && !trace.IsNotFound(err) {
 			if cleanupCtx.Err() != nil {
 				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().GetServerID(), "error", err)
 				return

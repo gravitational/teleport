@@ -1662,7 +1662,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
+		baseParser: newBaseParser(kubeServersUnscopedPrefix(), kubeServersScopedPrefix()),
 	}
 }
 
@@ -1673,18 +1673,24 @@ type kubeServerParser struct {
 func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		components := event.Item.Key.Components()
-		if len(components) != 3 {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		// Scoped kube servers live under
+		// /scoped/kubeServers/<encoded-scope>/<host-id>/<name>.
+		sqn, hostID, err := kubeServerNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return &types.ResourceHeader{
+		return &types.KubernetesServerV3{
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        components[2],
+				Name:        sqn.Name,
 				Namespace:   apidefaults.Namespace,
-				Description: components[1],
+				Description: hostID,
+			},
+			Scope: sqn.Scope,
+			Spec: types.KubernetesServerSpecV3{
+				HostID: hostID,
 			},
 		}, nil
 	case types.OpPut:
@@ -1838,6 +1844,35 @@ func kubeNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
 		}, nil
 	default:
 		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+	}
+}
+
+func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+	switch {
+	case key.HasPrefix(kubeServersScopedPrefix()):
+		components := key.TrimPrefix(kubeServersScopedPrefix()).Components()
+		if len(components) != 3 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, hostID, name := components[0], components[1], components[2]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, "", trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, hostID, nil
+	case key.HasPrefix(kubeServersUnscopedPrefix()):
+		components := key.TrimPrefix(kubeServersUnscopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[1],
+		}, components[0], nil
+	default:
+		return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 	}
 }
 

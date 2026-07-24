@@ -41,6 +41,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1119,7 +1120,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteWindowsDesktop(ctx, desktops[0].Spec.HostID, desktops[0].GetName())
 	require.NoError(t, err)
 	desktops = desktops[1:]
-	err = clt.DeleteKubernetesServer(ctx, kubeServers[0].Spec.HostID, kubeServers[0].GetName())
+	err = clt.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].Spec.HostID,
+		Name:   kubeServers[0].GetName(),
+	}.Build())
 	require.NoError(t, err)
 	kubeServers = kubeServers[1:]
 
@@ -1159,7 +1164,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, kubeServer := range kubeServers {
-		err = clt.DeleteKubernetesServer(ctx, kubeServer.Spec.HostID, kubeServer.GetName())
+		err = clt.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  kubeServer.GetScope(),
+			HostId: kubeServer.GetHostID(),
+			Name:   kubeServer.GetName(),
+		}.Build())
 		require.NoError(t, err)
 	}
 

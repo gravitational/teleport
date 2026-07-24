@@ -337,6 +337,16 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
 }
 
+// GetCursorForResource returns the pagination cursor for a
+// resource used in ListResources.
+func GetCursorForResource(r types.ResourceWithLabels) string {
+	switch res := r.(type) {
+	case types.KubeServer:
+		return GetCursorForKubeServer(res)
+	}
+	return backend.GetPaginationKey(r)
+}
+
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An
 // empty addr is treated as unset.
 func ValidatePublicAddr(appName, addr string) error {
