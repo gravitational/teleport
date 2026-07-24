@@ -23,7 +23,10 @@ import Table, { Cell } from 'design/DataTable';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { P2 } from 'design/Text';
 
-import { DeviceListProps, TrustedDevice } from 'teleport/DeviceTrust/types';
+import {
+  type DeviceListProps,
+  type TrustedDevice,
+} from 'teleport/DeviceTrust/types';
 
 export const DeviceList = ({
   items = [],
