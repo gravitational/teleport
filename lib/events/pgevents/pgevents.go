@@ -664,6 +664,9 @@ func (l *Log) searchEvents(
 
 // SearchEvents implements [events.AuditLogger].
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
+	}
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 
@@ -681,6 +684,9 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 
 // SearchUnstructuredEvents implements [events.AuditLogger].
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the postgres audit backend does not support the beam ID filter")
+	}
 	var emptyCond *utils.ToFieldsConditionConfig
 	const emptySessionID = ""
 
