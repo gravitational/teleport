@@ -37,7 +37,7 @@ func classifyAzureInstallResultIssue(installResult server.AzureInstallResult) st
 // classifyAzureSubscriptionListError classifies errors returned while
 // resolving a wildcard subscription matcher.
 func classifyAzureSubscriptionListError(err error) string {
-	if trace.IsAccessDenied(err) {
+	if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
 		return usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied
 	}
 	return ""

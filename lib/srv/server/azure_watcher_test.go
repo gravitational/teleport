@@ -365,7 +365,7 @@ func TestMatchersToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
 	require.Empty(t, fetchers)
 	require.Equal(t, "azure-integration", handledIntegration)
 	require.Error(t, handledErr)
-	require.True(t, trace.IsAccessDenied(handledErr))
+	require.True(t, trace.IsNotFound(handledErr))
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {

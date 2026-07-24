@@ -114,5 +114,9 @@ func TestClassifyAzureSubscriptionListError(t *testing.T) {
 		usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
 		classifyAzureSubscriptionListError(trace.AccessDenied("missing subscriptions/read")),
 	)
+	require.Equal(t,
+		usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
+		classifyAzureSubscriptionListError(trace.NotFound("no accessible subscriptions")),
+	)
 	require.Empty(t, classifyAzureSubscriptionListError(trace.ConnectionProblem(nil, "Azure unavailable")))
 }
