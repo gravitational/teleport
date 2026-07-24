@@ -1,0 +1,228 @@
+suite: Proxy Wrapper Config
+templates:
+  - proxy.yaml
+tests:
+  - it: appends :3025 to authServer when no port is set
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: teleport-auth\.example\.com:3025'
+
+  - it: preserves authServer when an explicit port is set
+    set:
+      clusterName: teleport.example.com
+      authServer: auth.example.com:9999
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: auth\.example\.com:9999'
+
+  - it: lets proxy.teleportConfig override generated teleport.authServer
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      teleportConfig:
+        teleport:
+          auth_server: auth.example.com:9999
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: auth\.example\.com:9999'
+      - notMatchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: teleport-auth\.example\.com:3025'
+
+  - it: writes join_params into the generated teleport config
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: iam
+        tokenName: proxy-join
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'join_params:\n\s+method: iam\n\s+token_name: proxy-join'
+
+  - it: lets proxy.teleportConfig override generated teleport.joinParams
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: generated-token
+      teleportConfig:
+        teleport:
+          join_params:
+            method: iam
+            token_name: overridden-token
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'join_params:\n\s+method: iam\n\s+token_name: overridden-token'
+      - notMatchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'join_params:\n\s+method: kubernetes\n\s+token_name: generated-token'
+
+  - it: preserves generated defaults when proxy.teleportConfig overrides only one leaf
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      teleportConfig:
+        proxy_service:
+          public_addr: custom.example.com:443
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'public_addr: custom\.example\.com:443'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: teleport-auth\.example\.com:3025'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'method: kubernetes'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'token_name: teleport-proxy'
+
+  - it: fails when join_params.method is empty
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: ""
+        tokenName: teleport-proxy
+    asserts:
+      - failedTemplate:
+          errorMessage: "joinParams.method is required"
+
+  - it: fails when join_params.tokenName is empty
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        tokenName: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "joinParams.tokenName is required"
+
+  - it: fails when joinParams.method is 'token'
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: "token"
+        tokenName: "my-token"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret join methods ('token' and 'bound_keypair') aren't supported by this Helm chart. Please consider the more secure delegated join methods. See https://goteleport.com/docs/reference/deployment/join-methods/"
+
+  - it: fails when joinParams.method is 'bound_keypair'
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: "bound_keypair" 
+        tokenName: "my-token"
+    asserts:
+      - failedTemplate:
+          errorMessage: "Secret join methods ('token' and 'bound_keypair') aren't supported by this Helm chart. Please consider the more secure delegated join methods. See https://goteleport.com/docs/reference/deployment/join-methods/"
+
+  - it: keeps wrapper-generated teleport settings in scratch mode
+    set:
+      chartMode: scratch
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data["teleport.yaml"]
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'version: v3'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_service:\n\s+enabled: false'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'proxy_service:\n\s+enabled: true'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'ssh_service:\n\s+enabled: false'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'auth_server: teleport-auth\.example\.com:3025'
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'token_name: teleport-proxy'
+
+  - it: Sets user's Azure client ID
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: azure
+        tokenName: teleport-proxy
+        azure:
+          clientId: "abc-123"
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - matchRegex:
+          path: data["teleport.yaml"]
+          pattern: 'azure:\s*\n\s*client_id:\s*abc-123'
+
+  - it: doesn't set join_params.azure if the user doesn't supply a value for clientId
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: azure
+        tokenName: teleport-proxy
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - notMatchRegex:
+          path: data["teleport.yaml"]
+          pattern: "azure:"

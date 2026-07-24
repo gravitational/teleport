@@ -130,6 +130,10 @@ Inputs are read from top-level `.Values.*` (plus `.Release`, `.Chart`,
 - `serviceAccount` — `create` the
   [ServiceAccount](https://kubernetes.io/docs/concepts/security/service-accounts/)
   and its `name` (used verbatim — no suffix appended).
+- `serviceAccountTokenAudience` — optional audience for the projected
+  Kubernetes service-account token mounted into the proxy pod.
+- `serviceAccountTokenExpirationSeconds` — optional TTL for the projected
+  Kubernetes service-account token mounted into the proxy pod.
 - `sshPublicAddr` —
   [`proxy_service.ssh_public_addr`](https://goteleport.com/docs/reference/deployment/config/#proxy-service).
 - `teleportAuthService` — sets

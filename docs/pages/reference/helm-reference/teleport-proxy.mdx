@@ -1,0 +1,57 @@
+---
+title: teleport-proxy Chart Reference
+sidebar_label: teleport-proxy
+description: Values that can be set using the teleport-proxy Helm chart
+tags:
+ - reference
+ - platform-wide
+---
+
+The `teleport-proxy` Helm chart deploys a Teleport proxy server on Kubernetes.
+This chart should be used in conjunction with the
+[teleport-cluster](./teleport-cluster.mdx) chart for cases where a Teleport
+Proxy is needed without a Teleport Auth Service. This is generally in a different
+Kubernetes cluster than ones where [teleport-cluster](./teleport-cluster.mdx) is
+deployed. For example, deploying a Teleport Proxy to a region close to Teleport
+agents or clients.
+
+The `teleport-proxy` chart configuration/values generally parallel the
+`teleport-cluster` configuration/values. The three required fields are:
+
+* `clusterName` - Should match `teleport-cluster`
+* `authServer` - The address these Proxies can use to connect to Teleport Auth
+  Service instances. As of this release, Proxies must have direct IP/L4 connectivity to
+  Teleport Auth Service instances -- routing through an L7 load balancer using SNI is not
+  yet supported.
+* `joinParams` - How these Teleport Proxies can authenticate to the Teleport
+  Cluster.
+
+These `authServer` and `joinParams` fields differ from `teleport-cluster` in
+that `teleport-cluster` can generate them automatically because its proxies are
+running on the same Kubernetes cluster as the Auth Service. See the Full
+Reference below for details.
+
+Source code is available
+[on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-proxy).
+
+`teleport-proxy` supports the same modes as `teleport-cluster` for compatibility
+and future cloud-specific behavior. However, in this release only the aws mode
+needs to provision cloud-specific behavior.
+
+| `chartMode` | Purpose | Guide |
+| - | - | - |
+| `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes](../../installation/self-hosted/helm-deployments/kubernetes-cluster.mdx) |
+| `aws` | Adds AWS load balancer annotations to Service. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../installation/self-hosted/helm-deployments/aws.mdx) |
+| `gcp` | No custom behavior needed as of this release. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../installation/self-hosted/helm-deployments/gcp.mdx) |
+| `azure` | No custom behavior needed as of this release. | [Running an HA Teleport cluster using a Microsoft Azure AKS cluster](../../installation/self-hosted/helm-deployments/azure.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode [`teleportConfig`](#teleportconfig) instead. | [Running a Teleport cluster with a custom config](../../installation/self-hosted/helm-deployments/custom.mdx) |
+
+<Admonition type="warning" title="Version Compatibility">
+The chart is versioned with Teleport. No compatibility guarantees are ensured
+between new charts and previous major Teleport versions. It is strongly recommended
+to always deploy a Teleport version with the same major version as the Helm chart.
+</Admonition>
+
+## Full reference
+
+(!docs/pages/includes/helm-reference/zz_generated.teleport-proxy.mdx!)

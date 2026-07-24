@@ -1,0 +1,14 @@
+name: teleport-proxy
+apiVersion: v2
+version: &version "19.0.0-prealpha.2"
+appVersion: *version
+description: Teleport Proxy Server
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
+
+dependencies:
+  - name: teleport-proxy-lib
+    version: *version
+  - name: teleport-util-lib
+    version: *version

@@ -1,0 +1,25 @@
+suite: Proxy Ingress
+templates:
+  - proxy.yaml
+tests:
+  - it: sets extraLabels on Ingress
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      extraLabels:
+        ingress:
+          foo: bar
+          baz: override
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override

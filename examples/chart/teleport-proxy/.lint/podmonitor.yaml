@@ -1,0 +1,10 @@
+clusterName: test-kube-cluster-name
+authServer: teleport-auth.example.com
+joinParams:
+  method: kubernetes
+  tokenName: teleport-proxy
+podMonitor:
+  enabled: true
+  additionalLabels:
+    prometheus: default
+  interval: 30s

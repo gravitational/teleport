@@ -1,0 +1,15 @@
+keeps wrapper-generated teleport settings in scratch mode:
+  1: |
+    |
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: teleport-auth.example.com:3025
+        join_params:
+          method: kubernetes
+          token_name: teleport-proxy
+      version: v3

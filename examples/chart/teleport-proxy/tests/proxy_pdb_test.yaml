@@ -1,0 +1,25 @@
+suite: Proxy PodDisruptionBudget
+templates:
+  - proxy.yaml
+tests:
+  - it: sets extraLabels on PodDisruptionBudget
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      extraLabels:
+        podDisruptionBudget:
+          foo: bar
+          baz: override
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override
