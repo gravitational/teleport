@@ -46,6 +46,11 @@ var (
 // storing it. If the existingAccessList is non-nil it also checks if this is a valid update
 // transition. It takes into account validation of the nested access lists membership.
 func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, accessList *accesslist.AccessList, members []*accesslist.AccessListMember, g AccessListAndMembersGetter) error {
+	if existingAccessList == nil {
+		if err := validateAccessListCreate(accessList); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if err := validateAccessList(accessList); err != nil {
 		return trace.Wrap(err)
 	}
@@ -55,6 +60,15 @@ func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, acce
 	if err := validateAccessListNesting(ctx, accessList, members, g); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// validateAccessListCreate enforces validation rules that only apply during creation
+func validateAccessListCreate(a *accesslist.AccessList) error {
+	if len(a.Metadata.Name) > accesslist.MaxNameLength {
+		return trace.BadParameter("name is too long (max %d)", accesslist.MaxNameLength)
+	}
+
 	return nil
 }
 
