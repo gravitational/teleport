@@ -1,0 +1,18 @@
+<Admonition title="MFA devices and SSO users" type="tip">
+
+Usually, Teleport does not require additional multi-factor authentication for
+users that authenticate using SSO (not accounting for SSO provider's own
+authentication mechanisms). However, in scenarios like per-session MFA or MFA
+for administrative actions, an SSO user is required to have an MFA device.
+These can be added as in any other case, but Teleport prevents users from
+deleting their last MFA device. Since SSO users can't have their credentials
+reset, in order to remove their last MFA, simply delete the user using `tctl`:
+
+```code
+$ tctl rm users/<Var name="sso-user-name"/>
+```
+
+The user will have their account recreated after they log in again. After that,
+they will be able to add an MFA as usual.
+
+</Admonition>
