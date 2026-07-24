@@ -17,9 +17,13 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -244,6 +248,137 @@ func TestPlatformConfigureOS_RetriesIPv6RouteAfterFailure(t *testing.T) {
 		{path: "route", args: []string{"add", "-inet6", "fdd4:a23:da97::1", "-prefixlen", "64", "-interface", "utun4"}},
 		{path: "route", args: []string{"add", "-inet6", "fdd4:a23:da97::1", "-prefixlen", "64", "-interface", "utun4"}},
 	}, recorder.cmds, "ifconfig must run only once; route must be retried")
+}
+
+func dnsTestOSConfig() *osConfig {
+	return &osConfig{
+		tunName:  "utun4",
+		tunIPv4:  "100.64.0.1",
+		dnsAddrs: []string{"100.64.0.2", "fdd4:a23:da97::2"},
+		dnsZones: []string{"example.com", "leaf.example.com"},
+	}
+}
+
+func resolverFileForZone(zone string) string {
+	return filepath.Join(resolverPath, zone)
+}
+
+func requireResolverFiles(t *testing.T, nameservers []string, zones ...string) {
+	t.Helper()
+	want := string(resolverFileContents(nameservers))
+	entries, err := os.ReadDir(resolverPath)
+	require.NoError(t, err)
+	require.Len(t, entries, len(zones))
+	for _, zone := range zones {
+		contents, err := os.ReadFile(resolverFileForZone(zone))
+		require.NoError(t, err)
+		require.Equal(t, want, string(contents))
+	}
+}
+
+func TestConfigureDNSWritesResolverFiles(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+}
+
+func TestConfigureDNSSkipsRewriteWhenUnchanged(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	// Backdate the files; if the second call rewrote them the mtime
+	// would jump back to ~now.
+	past := time.Now().Add(-time.Hour)
+	for _, zone := range cfg.dnsZones {
+		require.NoError(t, os.Chtimes(resolverFileForZone(zone), past, past))
+	}
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	for _, zone := range cfg.dnsZones {
+		info, err := os.Stat(resolverFileForZone(zone))
+		require.NoError(t, err)
+		require.True(t, info.ModTime().Equal(past),
+			"second call with unchanged config must not rewrite %s", zone)
+	}
+}
+
+func TestConfigureDNSRestoresDeletedResolverFile(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	require.NoError(t, os.Remove(resolverFileForZone("example.com")))
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+}
+
+func TestConfigureDNSRestoresModifiedResolverFile(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	// Tamper without changing the file size to make sure drift detection
+	// doesn't rely on cheap size checks.
+	tampered := bytes.ToUpper(resolverFileContents(cfg.dnsAddrs))
+	require.NoError(t, os.WriteFile(
+		resolverFileForZone("example.com"), tampered, 0644))
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+}
+
+func TestConfigureDNSReappliesOnZoneChange(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	cfg.dnsZones = []string{"example.com", "other.example.org"}
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+
+	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "other.example.org")
+}
+
+func TestConfigureDNSDeconfigureRemovesResolverFiles(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	require.NoError(t, platformConfigureOS(t.Context(), &osConfig{}, state))
+
+	entries, err := os.ReadDir(resolverPath)
+	require.NoError(t, err)
+	require.Empty(t, entries, "deconfigure must remove all managed resolver files")
+}
+
+func TestConfigureDNSLeavesUnmanagedFilesAlone(t *testing.T) {
+	setupOSConfigTest(t)
+	state := &platformOSConfigState{}
+	cfg := dnsTestOSConfig()
+
+	unmanaged := filepath.Join(resolverPath, "corp.internal")
+	require.NoError(t, os.WriteFile(unmanaged, []byte("nameserver 10.0.0.53\n"), 0644))
+
+	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	require.NoError(t, platformConfigureOS(t.Context(), &osConfig{}, state))
+
+	contents, err := os.ReadFile(unmanaged)
+	require.NoError(t, err)
+	require.Equal(t, "nameserver 10.0.0.53\n", string(contents))
 }
 
 // Covers the typical production cfg: IPv4, IPv6 and a CIDR together.

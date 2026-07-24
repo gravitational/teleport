@@ -36,6 +36,15 @@ type platformOSConfigState struct {
 	configuredIPv6       bool
 	configuredIPv6Route  bool
 	configuredCidrRanges []string
+	configuredDNS        *appliedDNSConfig
+}
+
+// appliedDNSConfig records what configureDNS last wrote.
+type appliedDNSConfig struct {
+	// fileContents is the content written to every managed resolver file.
+	fileContents []byte
+	// files holds the sorted absolute paths of the managed resolver files.
+	files []string
 }
 
 // platformConfigureOS reconciles host OS state for cfg. It is safe
@@ -45,7 +54,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	// IPs and routes are cleaned up when the TUN is deleted on exit,
 	// so no removal is needed.
 	if cfg.tunName == "" {
-		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+		if err := configureDNS(ctx, state, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 			return trace.Wrap(err, "configuring DNS")
 		}
 		*state = platformOSConfigState{}
@@ -100,7 +109,7 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 		state.configuredIPv6Route = true
 	}
 
-	if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+	if err := configureDNS(ctx, state, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
 
@@ -117,11 +126,28 @@ const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")
 
-func configureDNS(ctx context.Context, nameservers []string, zones []string) error {
+func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers []string, zones []string) error {
 	if len(nameservers) == 0 {
 		// There are no nameservers so VNet can't handle any DNS zones. Continue
 		// so that any VNet-managed resolver files can be deleted.
 		zones = nil
+	}
+
+	desiredContents := resolverFileContents(nameservers)
+	files := make([]string, 0, len(zones))
+	for _, zone := range zones {
+		files = append(files, filepath.Join(resolverPath, zone))
+	}
+	slices.Sort(files)
+
+	if state.configuredDNS != nil &&
+		bytes.Equal(state.configuredDNS.fileContents, desiredContents) &&
+		slices.Equal(state.configuredDNS.files, files) {
+		// Read the managed files to catch external drift
+		if resolverFilesMatch(files, desiredContents) {
+			return nil
+		}
+		log.InfoContext(ctx, "Resolver files changed externally, re-applying DNS configuration.")
 	}
 
 	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
@@ -138,18 +164,8 @@ func configureDNS(ctx context.Context, nameservers []string, zones []string) err
 	// errors with one or more of them.
 	var allErrors []error
 
-	var fileContents bytes.Buffer
-	fileContents.WriteString(resolverFileComment)
-	fileContents.WriteByte('\n')
-	for _, nameserver := range nameservers {
-		fileContents.WriteString("nameserver ")
-		fileContents.WriteString(nameserver)
-		fileContents.WriteByte('\n')
-	}
-
-	for _, zone := range zones {
-		fileName := filepath.Join(resolverPath, zone)
-		if err := renameio.WriteFile(fileName, fileContents.Bytes(), 0644); err != nil {
+	for _, fileName := range files {
+		if err := renameio.WriteFile(fileName, desiredContents, 0644); err != nil {
 			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
 		} else {
 			// Successfully wrote this file, don't clean it up below.
@@ -164,7 +180,37 @@ func configureDNS(ctx context.Context, nameservers []string, zones []string) err
 		}
 	}
 
+	if len(allErrors) == 0 {
+		state.configuredDNS = &appliedDNSConfig{
+			fileContents: desiredContents,
+			files:        files,
+		}
+	}
 	return trace.NewAggregate(allErrors...)
+}
+
+func resolverFileContents(nameservers []string) []byte {
+	var fileContents bytes.Buffer
+	fileContents.WriteString(resolverFileComment)
+	fileContents.WriteByte('\n')
+	for _, nameserver := range nameservers {
+		fileContents.WriteString("nameserver ")
+		fileContents.WriteString(nameserver)
+		fileContents.WriteByte('\n')
+	}
+	return fileContents.Bytes()
+}
+
+// resolverFilesMatch reports whether every managed resolver file still has
+// the expected contents.
+func resolverFilesMatch(files []string, wantContents []byte) bool {
+	for _, f := range files {
+		contents, err := os.ReadFile(f)
+		if err != nil || !bytes.Equal(contents, wantContents) {
+			return false
+		}
+	}
+	return true
 }
 
 func vnetManagedResolverFiles() (map[string]struct{}, error) {
@@ -179,18 +225,29 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 			continue
 		}
 		filePath := filepath.Join(resolverPath, entry.Name())
-		file, err := os.Open(filePath)
+		matches, err := fileStartsWithVNetComment(filePath)
 		if err != nil {
-			return nil, trace.Wrap(err, "opening %s", filePath)
+			return nil, trace.Wrap(err)
 		}
-		defer file.Close()
-
-		scanner := bufio.NewScanner(file)
-		if scanner.Scan() {
-			if resolverFileComment == scanner.Text() {
-				matchingFiles[filePath] = struct{}{}
-			}
+		if matches {
+			matchingFiles[filePath] = struct{}{}
 		}
 	}
 	return matchingFiles, nil
+}
+
+// fileStartsWithVNetComment reports whether the first line of the file at
+// path is the comment marking a VNet managed resolver file.
+func fileStartsWithVNetComment(path string) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, trace.Wrap(err, "opening %s", path)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	if !scanner.Scan() {
+		return false, trace.Wrap(scanner.Err(), "reading %s", path)
+	}
+	return scanner.Text() == resolverFileComment, nil
 }
