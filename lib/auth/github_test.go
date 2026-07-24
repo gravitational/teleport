@@ -552,6 +552,28 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 			}
 		})
 	}
+
+	// Regression test: a transient network error must not be served from the
+	// cache for the full TTL. This exercises the production cache config from
+	// NewServer so removing ReloadOnErr in auth.go fails this test.
+	t.Run("reload cached errors", func(t *testing.T) {
+		p := newAuthSuite(t)
+		orgCache := p.a.GithubOrgSSOCache()
+
+		client := mockHTTPRequester{
+			succeed: false,
+		}
+		err := auth.CheckGithubOrgSSOSupport(ctx, noSSOOrg, nil, modules.BuildOSS, orgCache, client)
+		require.Error(t, err)
+		require.True(t, trace.IsConnectionProblem(err))
+
+		client = mockHTTPRequester{
+			succeed:    true,
+			statusCode: http.StatusNotFound,
+		}
+		err = auth.CheckGithubOrgSSOSupport(ctx, noSSOOrg, nil, modules.BuildOSS, orgCache, client)
+		require.NoError(t, err)
+	})
 }
 
 func TestGithubURLFormat(t *testing.T) {

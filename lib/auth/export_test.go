@@ -214,6 +214,11 @@ func FormatGithubURL(host string, path string) string {
 	return formatGithubURL(host, path)
 }
 
+// GithubOrgSSOCache lets tests verify the production cache configuration.
+func (a *Server) GithubOrgSSOCache() *utils.FnCache {
+	return a.githubOrgSSOCache
+}
+
 func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, buildType string, orgCache *utils.FnCache, client httpRequester) error {
 	return checkGithubOrgSSOSupport(ctx, conn, userTeams, buildType, orgCache, client)
 }

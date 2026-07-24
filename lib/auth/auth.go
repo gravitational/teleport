@@ -835,6 +835,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	as.githubOrgSSOCache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL: githubCacheTimeout,
+		// Transient network errors must not be served for the full TTL,
+		// which would break GitHub SSO logins until the Auth Service
+		// restarts or the entry expires.
+		ReloadOnErr: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
