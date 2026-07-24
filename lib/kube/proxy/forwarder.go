@@ -2183,10 +2183,10 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	req.URL.Scheme = "https"
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
-	// We only have a direct host to provide when using local creds.
+	// We only have a direct host to provide when the target cluster is served locally.
 	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
 	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
-	if sess.kubeAPICreds != nil {
+	if sess.isLocalKubernetesCluster {
 		req.URL.Host = sess.kubeAPICreds.getTargetAddr()
 	}
 
@@ -2202,9 +2202,9 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
 func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error {
-	// If the request is remote or this instance is a proxy,
-	// do not set up impersonation headers.
-	if sess.teleportCluster.isRemote || sess.kubeAPICreds == nil {
+	// If the target cluster is not served locally, do not set up impersonation
+	// headers; the serving instance will do it.
+	if !sess.isLocalKubernetesCluster {
 		return nil
 	}
 
@@ -2434,7 +2434,7 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.kubeAPICreds != nil {
+	if sess.isLocalKubernetesCluster {
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
@@ -2531,7 +2531,7 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ 
 		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.kubeAPICreds != nil {
+	if sess.isLocalKubernetesCluster {
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
@@ -2598,7 +2598,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ ht
 		proxier:               sess.getProxier(),
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.kubeAPICreds != nil {
+	if sess.isLocalKubernetesCluster {
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
@@ -2650,9 +2650,12 @@ func createSPDYRequest(req *http.Request, spdyProtocols ...string) *http.Request
 type clusterSession struct {
 	authContext
 	parent *Forwarder
-	// kubeAPICreds are the credentials used to authenticate to the Kubernetes API server.
-	// It is non-nil if the kubernetes cluster is served by this teleport service,
-	// nil otherwise.
+	// kubeAPICreds are the credentials used to authenticate to the Kubernetes API
+	// server. It is non-nil iff isLocalKubernetesCluster is true (i.e. this teleport
+	// service serves the target kube cluster directly). The invariant is enforced
+	// by the newClusterSession* constructors, which are the only callers that
+	// build a clusterSession in production. Branch on isLocalKubernetesCluster,
+	// not on kubeAPICreds == nil.
 	kubeAPICreds kubeCreds
 	forwarder    *reverseproxy.Forwarder
 	// targetAddr is the address of the target cluster.
@@ -2781,7 +2784,7 @@ func (s *clusterSession) dial(ctx context.Context, network, addr string, opts ..
 func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) {
 	// When the target cluster is not served by this teleport service, the
 	// proxier must be nil to avoid using it through the reverse tunnel.
-	if s.kubeAPICreds == nil {
+	if !s.isLocalKubernetesCluster {
 		return nil
 	}
 	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
@@ -2867,6 +2870,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 	}
 	sessionCtx, sessionCancel := context.WithCancelCause(ctx)
 	f.log.DebugContext(ctx, "Handling kubernetes session using local credentials", "auth_context", logutils.StringerAttr(authCtx))
+	authCtx.isLocalKubernetesCluster = true
 	return &clusterSession{
 		parent:                 f,
 		authContext:            authCtx,
@@ -2977,22 +2981,16 @@ func (f *Forwarder) removeKubeDetails(name string) {
 	delete(f.clusterDetails, name)
 }
 
-// isLocalKubeCluster checks if the current service must hold the cluster and
-// if it's of Type KubeService.
-// KubeProxy services or remote clusters are automatically forwarded to
-// the final destination.
+// isLocalKubeCluster reports whether this teleport service serves the target
+// kube cluster directly. KubeService and LegacyProxyService can serve clusters
+// they hold details for; ProxyService never does. Requests for remote (leaf)
+// teleport clusters are always forwarded, never served locally.
 func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeClusterName string) bool {
 	switch f.cfg.KubeServiceType {
-	case KubeService:
-		// Kubernetes service is always local.
-		return true
-	case LegacyProxyService:
-		// remote clusters are always forwarded to the final destination.
+	case KubeService, LegacyProxyService:
 		if isRemoteTeleportCluster {
 			return false
 		}
-		// Legacy proxy service is local only if the kube cluster name matches
-		// with clusters served by this agent.
 		_, err := f.findKubeDetailsByClusterName(kubeClusterName)
 		return err == nil
 	default:

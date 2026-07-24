@@ -250,6 +250,7 @@ func TestDirectTransportNotCached(t *testing.T) {
 			teleportCluster: teleportClusterClient{
 				name: "a",
 			},
+			isLocalKubernetesCluster: true,
 		},
 	}
 
