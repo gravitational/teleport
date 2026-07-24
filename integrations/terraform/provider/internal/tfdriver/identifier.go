@@ -84,6 +84,18 @@ func (n CompositeIdentifier) String() string {
 	return n.Prefix + "/" + n.Name
 }
 
+// ScopeQualifiedCompositeIdentifier identifies a resource by a possibly
+// scope-qualified prefix and a possibly scope-qualified name.
+type ScopeQualifiedCompositeIdentifier struct {
+	Prefix ScopeQualifiedNameIdentifier
+	Name   ScopeQualifiedNameIdentifier
+}
+
+// String returns the Terraform import ID.
+func (n ScopeQualifiedCompositeIdentifier) String() string {
+	return n.Prefix.String() + "/" + n.Name.String()
+}
+
 // SingletonIdentifier identifies a resource with a fixed name.
 type SingletonIdentifier struct {
 	Name string
@@ -143,6 +155,16 @@ func NewScopedQualifiedNameIdentifier(s string) (ScopeQualifiedNameIdentifier, e
 	return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}, nil
 }
 
+// NewPossiblyUnscopedScopeQualifiedNameIdentifier parses an identifier that may
+// be either a scope-qualified name or an unscoped bare name.
+func NewPossiblyUnscopedScopeQualifiedNameIdentifier(s string) (ScopeQualifiedNameIdentifier, error) {
+	if strings.Contains(s, scopes.QualifiedNameSeparator) {
+		return NewScopedQualifiedNameIdentifier(s)
+	}
+
+	return ScopeQualifiedNameIdentifier{Name: s}, nil
+}
+
 // ScopeQualifiedNameIdentifierFromPath returns a scope qualified name extractor.
 func ScopeQualifiedNameIdentifierFromPath(namePath, scopePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
 	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedNameIdentifier, diag.Diagnostics) {
@@ -168,6 +190,36 @@ func ScopeQualifiedNameIdentifierFromPath(namePath, scopePath path.Path) Terrafo
 	}
 }
 
+// PossiblyUnscopedScopeQualifiedNameIdentifierFromPath returns an extractor for
+// identifiers that may be either scope-qualified or unscoped.
+func PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(namePath, scopePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedNameIdentifier] {
+	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedNameIdentifier, diag.Diagnostics) {
+		var identifier types.String
+		diags := reader.GetAttribute(ctx, namePath, &identifier)
+		if diags.HasError() {
+			return ScopeQualifiedNameIdentifier{}, diags
+		}
+
+		var scope types.String
+		diags.Append(reader.GetAttribute(ctx, scopePath, &scope)...)
+		if diags.HasError() {
+			return ScopeQualifiedNameIdentifier{}, diags
+		}
+
+		if scope.Null || scope.Unknown || scope.Value == "" {
+			return ScopeQualifiedNameIdentifier{Name: identifier.Value}, diags
+		}
+
+		sqn := scopes.QualifiedName{Name: identifier.Value, Scope: scope.Value}
+		if err := sqn.WeakValidate(); err != nil {
+			diags.Append(tfdiag.DiagFromErr("malformed scope qualified name", err))
+			return ScopeQualifiedNameIdentifier{}, diags
+		}
+
+		return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}, diags
+	}
+}
+
 // ScopeQualifiedNameIdentifierPolicy returns a policy for scope qualified names.
 func ScopeQualifiedNameIdentifierPolicy[T any](namePath, scopePath path.Path, resourceNameAndScope func(*T) (name, scope string)) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
 	return IdentifierPolicy[T, ScopeQualifiedNameIdentifier]{
@@ -177,6 +229,19 @@ func ScopeQualifiedNameIdentifierPolicy[T any](namePath, scopePath path.Path, re
 			return ScopeQualifiedNameIdentifier{Name: name, Scope: scope}
 		},
 		FromImportID: NewScopedQualifiedNameIdentifier,
+	}
+}
+
+// PossiblyUnscopedScopeQualifiedNameIdentifierPolicy returns a policy for
+// identifiers that may be either scope-qualified or unscoped.
+func PossiblyUnscopedScopeQualifiedNameIdentifierPolicy[T any](namePath, scopePath path.Path, resourceNameAndScope func(*T) (name, scope string)) IdentifierPolicy[T, ScopeQualifiedNameIdentifier] {
+	return IdentifierPolicy[T, ScopeQualifiedNameIdentifier]{
+		FromState: PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(namePath, scopePath),
+		FromResource: func(resource *T) ScopeQualifiedNameIdentifier {
+			name, scope := resourceNameAndScope(resource)
+			return ScopeQualifiedNameIdentifier{Name: name, Scope: scope}
+		},
+		FromImportID: NewPossiblyUnscopedScopeQualifiedNameIdentifier,
 	}
 }
 
@@ -228,6 +293,130 @@ func CompositeIdentifierPolicy[T any](prefixPath, namePath path.Path, resourcePr
 			return CompositeIdentifier{Prefix: prefix, Name: name}
 		},
 		FromImportID: NewCompositeIdentifier,
+	}
+}
+
+// NewScopeQualifiedCompositeIdentifier parses a scope-qualified composite
+// identifier in "prefix/name" form, where either side may be a scope-qualified
+// name. For example: "access-list/alice", "/scope::access-list/alice", or
+// "/scope::access-list//scope::child-list".
+func NewScopeQualifiedCompositeIdentifier(s string) (ScopeQualifiedCompositeIdentifier, error) {
+	prefix, name, err := splitScopeQualifiedCompositeIdentifier(s)
+	if err != nil {
+		return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
+	}
+
+	return newScopeQualifiedCompositeIdentifier(prefix, name)
+}
+
+func splitScopeQualifiedCompositeIdentifier(s string) (prefix, name string, err error) {
+	if strings.HasPrefix(s, "/") {
+		scope, rest, ok := strings.Cut(s, scopes.QualifiedNameSeparator)
+		if !ok {
+			return "", "", trace.BadParameter("expected scoped composite id %q prefix to contain %q", s, scopes.QualifiedNameSeparator)
+		}
+
+		prefixName, name, ok := strings.Cut(rest, "/")
+		if !ok {
+			return "", "", trace.BadParameter("expected id %q to have a %q separator after prefix", s, "/")
+		}
+		return scope + scopes.QualifiedNameSeparator + prefixName, name, nil
+	}
+
+	prefix, name, ok := strings.Cut(s, "/")
+	if !ok {
+		return "", "", trace.BadParameter("expected id %q to have a %q separator", s, "/")
+	}
+
+	if strings.Contains(name, "/") && !strings.HasPrefix(name, "/") {
+		return "", "", trace.BadParameter("expected unscoped member name in id %q not to contain %q", s, "/")
+	}
+
+	return prefix, name, nil
+}
+
+func newScopeQualifiedCompositeIdentifier(prefix, name string) (ScopeQualifiedCompositeIdentifier, error) {
+	if prefix == "" {
+		return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("prefix must be non-empty")
+	}
+	if name == "" {
+		return ScopeQualifiedCompositeIdentifier{}, trace.BadParameter("name must be non-empty")
+	}
+
+	prefixSQN, err := NewPossiblyUnscopedScopeQualifiedNameIdentifier(prefix)
+	if err != nil {
+		return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
+	}
+
+	nameSQN, err := NewPossiblyUnscopedScopeQualifiedNameIdentifier(name)
+	if err != nil {
+		return ScopeQualifiedCompositeIdentifier{}, trace.Wrap(err)
+	}
+
+	return ScopeQualifiedCompositeIdentifier{Prefix: prefixSQN, Name: nameSQN}, nil
+}
+
+// ScopeQualifiedCompositeIdentifierFromPath returns an extractor for a
+// scope-qualified composite identifier.
+func ScopeQualifiedCompositeIdentifierFromPath(prefixPath, namePath path.Path) TerraformIdentifierExtractor[ScopeQualifiedCompositeIdentifier] {
+	return func(ctx context.Context, reader TerraformAttributeReader) (ScopeQualifiedCompositeIdentifier, diag.Diagnostics) {
+		var prefix types.String
+		diags := reader.GetAttribute(ctx, prefixPath, &prefix)
+		if diags.HasError() {
+			return ScopeQualifiedCompositeIdentifier{}, diags
+		}
+
+		var name types.String
+		diags.Append(reader.GetAttribute(ctx, namePath, &name)...)
+		if diags.HasError() {
+			return ScopeQualifiedCompositeIdentifier{}, diags
+		}
+
+		prefixSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(prefix.Value)
+		if err != nil {
+			diags.Append(tfdiag.DiagFromErr("malformed scope qualified prefix", err))
+			return ScopeQualifiedCompositeIdentifier{}, diags
+		}
+
+		nameSQN, err := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(name.Value)
+		if err != nil {
+			diags.Append(tfdiag.DiagFromErr("malformed scope qualified name", err))
+			return ScopeQualifiedCompositeIdentifier{}, diags
+		}
+
+		return ScopeQualifiedCompositeIdentifier{Prefix: prefixSQN, Name: nameSQN}, diags
+	}
+}
+
+func scopeQualifiedNameIdentifierFromPossiblyQualifiedString(s string) (ScopeQualifiedNameIdentifier, error) {
+	if !strings.Contains(s, scopes.QualifiedNameSeparator) {
+		return ScopeQualifiedNameIdentifier{Name: s}, nil
+	}
+
+	sqn, err := scopes.ParseQualifiedName(s)
+	if err != nil {
+		return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+	}
+
+	if err := sqn.WeakValidate(); err != nil {
+		return ScopeQualifiedNameIdentifier{}, trace.Wrap(err)
+	}
+
+	return ScopeQualifiedNameIdentifier{Name: sqn.Name, Scope: sqn.Scope}, nil
+}
+
+// ScopeQualifiedCompositeIdentifierPolicy returns a policy for scope-qualified
+// composite identifiers.
+func ScopeQualifiedCompositeIdentifierPolicy[T any](prefixPath, namePath path.Path, resourcePrefixAndName func(*T) (prefix, name string)) IdentifierPolicy[T, ScopeQualifiedCompositeIdentifier] {
+	return IdentifierPolicy[T, ScopeQualifiedCompositeIdentifier]{
+		FromState: ScopeQualifiedCompositeIdentifierFromPath(prefixPath, namePath),
+		FromResource: func(resource *T) ScopeQualifiedCompositeIdentifier {
+			prefix, name := resourcePrefixAndName(resource)
+			prefixID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(prefix)
+			nameID, _ := scopeQualifiedNameIdentifierFromPossiblyQualifiedString(name)
+			return ScopeQualifiedCompositeIdentifier{Prefix: prefixID, Name: nameID}
+		},
+		FromImportID: NewScopeQualifiedCompositeIdentifier,
 	}
 }
 

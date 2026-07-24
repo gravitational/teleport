@@ -513,6 +513,11 @@ plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    # Scope is part of the scoped resource identity and must not be updated in-place.
+    AppV3.Scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    KubernetesClusterV3.Scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"

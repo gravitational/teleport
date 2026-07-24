@@ -29,16 +29,19 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 var testModules = &modulestest.Modules{
 	TestFeatures: modules.Features{
 		AdvancedAccessWorkflows: true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC:        {Enabled: true},
-			entitlements.SAML:        {Enabled: true},
-			entitlements.DeviceTrust: {Enabled: true},
-			entitlements.Policy:      {Enabled: true},
+			entitlements.OIDC:             {Enabled: true},
+			entitlements.SAML:             {Enabled: true},
+			entitlements.DeviceTrust:      {Enabled: true},
+			entitlements.Policy:           {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+			entitlements.AccessLists:      {Enabled: true},
 		},
 	},
 }
@@ -82,6 +85,28 @@ func TestTerraformEnterprise(t *testing.T) {
 	})
 }
 
+func TestTerraformEnterpriseScopedResources(t *testing.T) {
+	authPlugin, err := NewPlugin(testModules)
+	if trace.IsNotImplemented(err) {
+		t.Skip(entTestSkipMessage)
+	}
+	require.NoError(t, err)
+
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(authPlugin))
+
+	suite.Run(t, &TerraformSuiteEnterpriseScopedResources{
+		TerraformBaseSuite: TerraformBaseSuite{
+			AuthHelper: &integration.MinimalAuthHelper{
+				PluginRegistry: registry,
+				AuthConfig: authtest.AuthServerConfig{
+					Modules:        testModules,
+					ScopesFeatures: scopes.Features{Enabled: true},
+				},
+			},
+		},
+	})
+}
 func TestTerraformEnterpriseCloud(t *testing.T) {
 	authPlugin, err := NewPlugin(testModulesCloud)
 	if trace.IsNotImplemented(err) {
