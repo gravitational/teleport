@@ -103,6 +103,8 @@ func (s *TerraformSuiteEnterpriseCloud) TestClientIPRestriction() {
 					resource.TestCheckResourceAttr(name, "spec.allowed_cidrs.#", "2"),
 					resource.TestCheckResourceAttr(name, "spec.allowed_cidrs.0", "10.0.0.0/8"),
 					resource.TestCheckResourceAttr(name, "spec.allowed_cidrs.1", "192.168.0.0/16"),
+					resource.TestCheckResourceAttr(name, "spec.mode", "draft"),
+					resource.TestCheckResourceAttr(name, "spec.expires", "2035-01-01T00:00:00Z"),
 				),
 			},
 			{
