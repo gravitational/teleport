@@ -1746,6 +1746,178 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 	}
 }
 
+// TestRelativeSessionExpiry verifies that the relative-expiry sweep prunes
+// expired web, app, and snowflake sessions from the auth cache while keeping
+// live sessions and the most recent sliding-window entries.
+func TestRelativeSessionExpiry(t *testing.T) {
+	t.Parallel()
+
+	const checkInterval = time.Second
+	const sessionCount = 100
+
+	// keep the event buffer well above the number of seeded sessions so the
+	// batch insert does not block on event delivery.
+	require.Less(t, sessionCount*3, eventBufferSize)
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = checkInterval
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	// Set the expiry on the spec, which is where the backend reads the item
+	// TTL from and what the sweep keys off, not just the metadata.
+	newSession := func(subKind, name string, exp time.Time) *types.WebSessionV2 {
+		return &types.WebSessionV2{
+			Kind:    types.KindWebSession,
+			SubKind: subKind,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:    name,
+				Expires: &exp,
+			},
+			Spec: types.WebSessionSpecV2{
+				User:    "bot",
+				Expires: exp,
+			},
+		}
+	}
+
+	// seed each session kind with expiries spread across a range. The memory
+	// backend runs on the real clock and so will not delete these as the
+	// cache's fake clock advances, isolating the removals to the sweep.
+	now := clock.Now()
+	for i := range sessionCount {
+		exp := now.Add(time.Minute * time.Duration(i))
+		id := fmt.Sprintf("%d", i)
+		require.NoError(t, p.appSessionS.UpsertAppSession(ctx, newSession(types.KindAppSession, "app-"+id, exp)))
+		require.NoError(t, p.webSessionS.Upsert(ctx, newSession(types.KindWebSession, "web-"+id, exp)))
+		require.NoError(t, p.snowflakeSessionS.UpsertSnowflakeSession(ctx, newSession(types.KindSnowflakeSession, "snow-"+id, exp)))
+	}
+
+	appLen := func() int { return p.cache.collections.appSessions.store.len() }
+	webLen := func() int { return p.cache.collections.webSessions.store.len() }
+	snowLen := func() int { return p.cache.collections.snowflakeSessions.store.len() }
+
+	// wait for every session to replicate into the cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, sessionCount, appLen())
+		assert.Equal(t, sessionCount, webLen())
+		assert.Equal(t, sessionCount, snowLen())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	// advance past the earliest expiries and let one sweep run.
+	clock.Advance(25 * time.Minute)
+	drainEvents(p.eventsC)
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	// each kind should lose its earliest-expiring entries but not all of them.
+	for _, tc := range []struct {
+		kind string
+		size int
+	}{
+		{"app", appLen()},
+		{"web", webLen()},
+		{"snowflake", snowLen()},
+	} {
+		require.True(t, tc.size < sessionCount && tc.size > sessionCount*3/4, "%s_count=%d", tc.kind, tc.size)
+	}
+
+	// a session pruned from the cache but still present in the backend must
+	// self-heal on a single get rather than returning an error.
+	healed, err := p.cache.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: "app-0"})
+	require.NoError(t, err)
+	require.NotNil(t, healed)
+
+	// advancing well past the newest expiry must still leave the sliding
+	// window's most recent sessions in place, since the threshold is anchored
+	// to the latest expiry rather than to the current time.
+	clock.Advance(24 * time.Hour)
+	drainEvents(p.eventsC)
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	require.NotZero(t, appLen(), "app sessions fully drained")
+	require.NotZero(t, webLen(), "web sessions fully drained")
+	require.NotZero(t, snowLen(), "snowflake sessions fully drained")
+}
+
+// TestRelativeSessionExpiryWebUsesEarliestExpiry verifies that the sweep
+// considers a regular web session expired once its bearer token expires, even
+// though the session itself expires much later. This matches the TTL the
+// backend writes (GetEarliestExpiry), so the sweep does not retain web
+// sessions past the point the backend would delete them.
+func TestRelativeSessionExpiryWebUsesEarliestExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClockAt(time.Now().Add(time.Hour))
+	p := newTestPack(t, func(c Config) Config {
+		c.RelativeExpiryCheckInterval = time.Second
+		c.Clock = clock
+		return ForAuth(c)
+	})
+	t.Cleanup(p.Close)
+
+	now := clock.Now()
+
+	// The bearer token is about to expire while the session itself is set far
+	// in the future. Reading the session expiry alone would keep this entry;
+	// reading the earliest expiry prunes it.
+	bearerExpired := &types.WebSessionV2{
+		Kind:    types.KindWebSession,
+		SubKind: types.KindWebSession,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "bearer-expired",
+		},
+		Spec: types.WebSessionSpecV2{
+			User:               "bot",
+			Expires:            now.Add(48 * time.Hour),
+			BearerTokenExpires: now.Add(time.Minute),
+		},
+	}
+	require.NoError(t, p.webSessionS.Upsert(ctx, bearerExpired))
+
+	// A second session expiring later anchors the sliding window so the sweep
+	// has a recent reference point and does not prune everything.
+	anchorExp := now.Add(30 * time.Minute)
+	anchor := &types.WebSessionV2{
+		Kind:    types.KindWebSession,
+		SubKind: types.KindWebSession,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:    "anchor",
+			Expires: &anchorExp,
+		},
+		Spec: types.WebSessionSpecV2{
+			User:    "bot",
+			Expires: anchorExp,
+		},
+	}
+	require.NoError(t, p.webSessionS.Upsert(ctx, anchor))
+
+	store := p.cache.collections.webSessions.store
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, 2, store.len())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	// advance past the bearer-token expiry but well before the session expiry.
+	clock.Advance(20 * time.Minute)
+	drainEvents(p.eventsC)
+	expectEvent(t, p.eventsC, RelativeExpiry)
+
+	_, err := store.get(webSessionNameIndex, "bearer-expired")
+	require.True(t, trace.IsNotFound(err), "session with expired bearer token should be pruned, got err=%v", err)
+
+	_, err = store.get(webSessionNameIndex, "anchor")
+	require.NoError(t, err, "session expiring later should be kept")
+}
+
 func TestCache_Backoff(t *testing.T) {
 	t.Parallel()
 
