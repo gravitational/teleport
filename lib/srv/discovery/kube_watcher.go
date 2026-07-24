@@ -165,7 +165,18 @@ func (s *Server) currentKubeClusters(ctx context.Context) (map[string]types.Kube
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FromSlice(filterResources(kcs, types.OriginCloud, s.DiscoveryGroup), types.KubeCluster.GetName), nil
+
+	clusters := make(map[string]types.KubeCluster)
+	for _, cluster := range filterResources(kcs, types.OriginCloud, s.DiscoveryGroup) {
+		// TODO (eriktate): remove this filter once the discovery service supports
+		// scoped resources
+		if cluster.GetScope() != "" {
+			continue
+		}
+		clusters[cluster.GetName()] = cluster
+	}
+
+	return clusters, nil
 }
 
 func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster) error {

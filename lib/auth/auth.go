@@ -7802,6 +7802,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
@@ -7829,6 +7830,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
