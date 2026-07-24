@@ -44,6 +44,16 @@ var responsesSuccessStream = strings.Join([]string{
 var responsesIncompleteStream = "event: response.incomplete\n" +
 	`data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_tokens"},"usage":{"input_tokens":15,"output_tokens":60,"total_tokens":75},"sequence_number":1}}`
 
+// chatCompletionsSuccessStream is a valid chat completions API SSE stream. When
+// stream_options.include_usage is set, the usage is reported on the chunk right
+// before the terminal `[DONE]` event.
+var chatCompletionsSuccessStream = strings.Join([]string{
+	`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"}}],"usage":null}`,
+	`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"World"}}],"usage":null}`,
+	`data: {"id":"c1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":15,"completion_tokens":60,"total_tokens":75}}`,
+	`data: [DONE]`,
+}, "\n\n")
+
 // TestParseProviderError covers the OpenAI status-code to Teleport error
 // mapping.
 func TestParseProviderError(t *testing.T) {
@@ -122,6 +132,18 @@ func TestEndpointParseUsage(t *testing.T) {
 		"responses malformed body": {
 			endpointType: endpointTypeResponses,
 			body:         `{"usage":`,
+			expectedErr:  require.Error,
+		},
+		"chat completions success": {
+			endpointType:         endpointTypeChatCompletions,
+			body:                 `{"id":"chatcmpl_123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"Hello"}}],"usage":{"prompt_tokens":15,"completion_tokens":20,"total_tokens":35}}`,
+			expectedInputTokens:  15,
+			expectedOutputTokens: 20,
+			expectedErr:          require.NoError,
+		},
+		"chat malformed body": {
+			endpointType: endpointTypeChatCompletions,
+			body:         `{"usage":{`,
 			expectedErr:  require.Error,
 		},
 	} {
@@ -223,6 +245,69 @@ func TestEndpointProcessSSE(t *testing.T) {
 				require.Empty(t, body)
 			},
 		},
+		"chat completions success extracts usage and forwards events": {
+			endpointType:        endpointTypeChatCompletions,
+			stream:              chatCompletionsSuccessStream,
+			expectedInputTokens: 15,
+			expectedOutput:      60,
+			expectedErr:         require.NoError,
+			expectedDownstream: func(t *testing.T, body string) {
+				require.Equal(t, chatCompletionsSuccessStream+"\n\n", body)
+			},
+		},
+		"chat completions empty stream reports no usage": {
+			endpointType:        endpointTypeChatCompletions,
+			stream:              "",
+			expectedInputTokens: 0,
+			expectedOutput:      0,
+			expectedErr:         require.Error,
+			expectedDownstream: func(t *testing.T, body string) {
+				require.Empty(t, body)
+			},
+		},
+		"chat completions returns error": {
+			endpointType:        endpointTypeChatCompletions,
+			stream:              "event: data\n" + `data: {"error":{"message":"chat completion failure"}}`,
+			expectedInputTokens: 0,
+			expectedOutput:      0,
+			expectedErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "chat completion failure", i...)
+			},
+			expectedDownstream: func(t *testing.T, body string) {
+				require.Equal(
+					t,
+					"event: data\n"+`data: {"error":{"message":"chat completion failure"}}`+"\n\n",
+					body,
+					"expected the exact same SSE event, but got a different result",
+				)
+			},
+		},
+		"chat completions missing usage event": {
+			endpointType: endpointTypeChatCompletions,
+			stream: strings.Join([]string{
+				`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello World"}}],"usage":null}`,
+				`data: [DONE]`,
+			}, "\n\n"),
+			expectedInputTokens: 0,
+			expectedOutput:      0,
+			expectedErr:         require.Error,
+			expectedDownstream: func(t *testing.T, body string) {
+				require.NotEmpty(t, body)
+			},
+		},
+		"chat completions never sends DONE": {
+			endpointType: endpointTypeChatCompletions,
+			stream: strings.Join([]string{
+				`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello World"}}],"usage":null}`,
+				`data: {"id":"c1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":15,"completion_tokens":60,"total_tokens":75}}`,
+			}, "\n\n"),
+			expectedInputTokens: 15,
+			expectedOutput:      60,
+			expectedErr:         require.NoError,
+			expectedDownstream: func(t *testing.T, body string) {
+				require.NotEmpty(t, body)
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -301,6 +386,16 @@ func buildResponsesBody(fillerBytes int) []byte {
 	)
 }
 
+// buildChatCompletionsBody returns a valid non-streaming chat completions API
+// response whose total size is roughly fillerBytes.
+func buildChatCompletionsBody(fillerBytes int) []byte {
+	text := strings.Repeat("A", fillerBytes)
+	return fmt.Appendf(nil,
+		`{"id":"chatcmpl_123","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":%q}}],"usage":{"prompt_tokens":15,"completion_tokens":20,"total_tokens":35}}`,
+		text,
+	)
+}
+
 // buildResponsesStreamEvents returns valid responses API SSE events.
 func buildResponsesStreamEvents(numEvents int) [][]byte {
 	events := make([][]byte, 0, numEvents+2)
@@ -312,8 +407,20 @@ func buildResponsesStreamEvents(numEvents int) [][]byte {
 	return events
 }
 
-// BenchmarkResponseRecorderJSON tracks the non-streaming path for each API
-// endpoint format.
+// buildChatCompletionsStreamEvents returns valid chat completions API SSE
+// events.
+func buildChatCompletionsStreamEvents(numEvents int) [][]byte {
+	events := make([][]byte, 0, numEvents+2)
+	for range numEvents {
+		events = append(events, []byte(`data: {"id":"c1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hello world"}}],"usage":null}`+"\n\n"))
+	}
+	events = append(events, []byte(`data: {"id":"c1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":15,"completion_tokens":60,"total_tokens":75}}`+"\n\n"))
+	events = append(events, []byte(`data: [DONE]`+"\n\n"))
+	return events
+}
+
+// BenchmarkResponseRecorderJSON tracks the non-streaming path for both API
+// formats.
 //
 //	go test ./lib/srv/app/llm/openai/ -run '^$' -bench BenchmarkResponseRecorderJSON -benchmem
 func BenchmarkResponseRecorderJSON(b *testing.B) {
@@ -326,6 +433,9 @@ func BenchmarkResponseRecorderJSON(b *testing.B) {
 		{"responses/small", endpointTypeResponses, buildResponsesBody(16)},
 		{"responses/medium_32KB", endpointTypeResponses, buildResponsesBody(32 * 1024)},
 		{"responses/large_1MB", endpointTypeResponses, buildResponsesBody(1024 * 1024)},
+		{"chat/small", endpointTypeChatCompletions, buildChatCompletionsBody(16)},
+		{"chat/medium_32KB", endpointTypeChatCompletions, buildChatCompletionsBody(32 * 1024)},
+		{"chat/large_1MB", endpointTypeChatCompletions, buildChatCompletionsBody(1024 * 1024)},
 	} {
 		b.Run(bc.name, func(b *testing.B) {
 			b.SetBytes(int64(len(bc.body)))
@@ -358,6 +468,9 @@ func BenchmarkResponseRecorderStream(b *testing.B) {
 		{"responses/32_events", endpointTypeResponses, buildResponsesStreamEvents(32)},
 		{"responses/256_events", endpointTypeResponses, buildResponsesStreamEvents(256)},
 		{"responses/1024_events", endpointTypeResponses, buildResponsesStreamEvents(1024)},
+		{"chat/32_events", endpointTypeChatCompletions, buildChatCompletionsStreamEvents(32)},
+		{"chat/256_events", endpointTypeChatCompletions, buildChatCompletionsStreamEvents(256)},
+		{"chat/1024_events", endpointTypeChatCompletions, buildChatCompletionsStreamEvents(1024)},
 	} {
 		var total int
 		for _, e := range bc.events {

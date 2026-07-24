@@ -179,6 +179,9 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 				}
 				return userCert.Raw, nil
 			},
+			emitter:          c.cfg.Emitter,
+			identity:         identity,
+			targetHostPolicy: c.cfg.TargetHostPolicy,
 		})
 	if err != nil {
 		return trace.Wrap(err)

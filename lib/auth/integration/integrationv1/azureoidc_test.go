@@ -56,7 +56,7 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 
 	t.Run("only Auth, Discovery, and Proxy roles should be able to generate Azure tokens", func(t *testing.T) {
 		// A dummy user should not be able to generate Azure OIDC tokens
-		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{
 				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 			}},

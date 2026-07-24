@@ -25,6 +25,8 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,12 +45,14 @@ type SQLAdminClient interface {
 	// GetDatabaseInstance returns database instance details for the project/instance
 	// configured in a session.
 	GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error)
+	// ListDatabaseInstances lists all Cloud SQL instances in the given project, with optional region filter.
+	ListDatabaseInstances(ctx context.Context, projectID string, regions []string) ([]*sqladmin.DatabaseInstance, error)
 	// GenerateEphemeralCert returns a new PEM-encoded client certificate for
 	// the project/instance configured in a session.
 	GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time, pubKey crypto.PublicKey) (string, error)
 }
 
-// NewGCPSQLAdminClient returns a GCPSQLAdminClient interface wrapping sqladmin.Service.
+// NewSQLAdminClient returns a [SQLAdminClient] interface wrapping [sqladmin.Service].
 func NewSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 	service, err := sqladmin.NewService(ctx)
 	if err != nil {
@@ -95,6 +99,58 @@ func (g *gcpSQLAdminClient) GetDatabaseInstance(ctx context.Context, db types.Da
 		return nil, trace.Wrap(convertAPIError(err))
 	}
 	return dbi, nil
+}
+
+func regionsFilter(regions []string) (string, error) {
+	if len(regions) == 0 {
+		return "", nil
+	}
+	var parts []string
+	for _, region := range regions {
+		part, err := oneRegionFilter(region)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, " OR "), nil
+}
+
+var regionRe = regexp.MustCompile(`^[a-z]+-[a-z]+\d+$`)
+
+func oneRegionFilter(region string) (string, error) {
+	region = strings.TrimSpace(region)
+
+	if len(region) == 0 {
+		return "", trace.BadParameter("region cannot be blank")
+	}
+	if !regionRe.MatchString(region) {
+		return "", trace.BadParameter("invalid region: %q", region)
+	}
+
+	return fmt.Sprintf("region=%q", region), nil
+}
+
+// ListDatabaseInstances lists all Cloud SQL instances in the given project,
+// following pagination, with optional region filter.
+func (g *gcpSQLAdminClient) ListDatabaseInstances(ctx context.Context, projectID string, regions []string) ([]*sqladmin.DatabaseInstance, error) {
+	filter, err := regionsFilter(regions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	call := g.service.Instances.List(projectID)
+	if filter != "" {
+		call = call.Filter(filter)
+	}
+	var instances []*sqladmin.DatabaseInstance
+	err = call.Pages(ctx, func(page *sqladmin.InstancesListResponse) error {
+		instances = append(instances, page.Items...)
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(convertAPIError(err))
+	}
+	return instances, nil
 }
 
 // GenerateEphemeralCert returns a new client certificate created using the

@@ -20,6 +20,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/presence/v1/relay_server.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1";
 
@@ -57,6 +58,13 @@ service PresenceService {
   rpc UpsertProxyServer(UpsertProxyServerRequest) returns (UpsertProxyServerResponse);
   // DeleteProxyServer removes an existing Proxy server heartbeat by name.
   rpc DeleteProxyServer(DeleteProxyServerRequest) returns (DeleteProxyServerResponse);
+
+  // Fetches a kube cluster resource from the backend.
+  rpc GetKubeCluster(GetKubeClusterRequest) returns (GetKubeClusterResponse);
+  // Lists kube cluster resources within the backend.
+  rpc ListKubeClusters(ListKubeClustersRequest) returns (ListKubeClustersResponse);
+  // Deletes a kube cluster resource from the backend.
+  rpc DeleteKubeCluster(DeleteKubeClusterRequest) returns (DeleteKubeClusterResponse);
 }
 
 // Request for GetRemoteCluster
@@ -228,3 +236,49 @@ message DeleteProxyServerRequest {
 
 // Response message for the PresenceService.DeleteProxyServer rpc.
 message DeleteProxyServerResponse {}
+
+// The request for fetching a specific scoped or unscoped kube cluster resource.
+message GetKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+}
+
+// The response for fetching a kube cluster.
+message GetKubeClusterResponse {
+  types.KubernetesClusterV3 cluster = 1;
+}
+
+// The request to list kube cluster resources within the backend.
+message ListKubeClustersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Filters kube clusters by scope.
+  teleport.scopes.v1.Filter scope_filter = 3;
+}
+
+// The response for listing kube cluster resources within the backend.
+message ListKubeClustersResponse {
+  // The page of kube clusters that matched the request.
+  repeated types.KubernetesClusterV3 clusters = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterRequest {
+  // The name of the kube cluster resource.
+  string name = 1;
+  // The scope the kube cluster resource belongs to. Can be empty.
+  string scope = 2;
+}
+
+// The response for deleting a specific scoped or unscoped kube cluster resource.
+message DeleteKubeClusterResponse {}

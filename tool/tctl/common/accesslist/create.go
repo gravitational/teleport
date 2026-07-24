@@ -32,7 +32,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,7 +49,7 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
-	members, err := c.buildMembers(newAccessList.GetName())
+	members, err := c.buildMembers(accesslists.ScopeQualifiedName(newAccessList).ToScopesQualifiedName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -85,15 +87,23 @@ func (c *Command) validateCreate() error {
 	return nil
 }
 
-func (c *Command) buildOwners() []accesslist.Owner {
+func (c *Command) buildOwners() ([]accesslist.Owner, error) {
 	var owners []accesslist.Owner
 	for _, name := range utils.SplitIdentifiers(c.owners) {
 		owners = append(owners, accesslist.Owner{Name: name, MembershipKind: accesslist.MembershipKindUser})
 	}
-	for _, name := range utils.SplitIdentifiers(c.ownerAccessLists) {
-		owners = append(owners, accesslist.Owner{Name: name, MembershipKind: accesslist.MembershipKindList})
+	ownerNames, err := splitQualifiedNames(c.ownerAccessLists)
+	if err != nil {
+		return nil, trace.BadParameter("parsing owner access list name")
 	}
-	return owners
+	for _, ownerName := range ownerNames {
+		kind := accesslist.MembershipKindList
+		if ownerName.Scope != "" {
+			kind = accesslist.MembershipKindScopedList
+		}
+		owners = append(owners, accesslist.Owner{Name: ownerName.String(), MembershipKind: kind})
+	}
+	return owners, nil
 }
 
 func (c *Command) buildAccessListForCreate() (*accesslist.AccessList, error) {
@@ -105,6 +115,10 @@ func (c *Command) buildAccessListForCreate() (*accesslist.AccessList, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	owners, err := c.buildOwners()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	newAccessList, err := accesslist.NewAccessList(
 		header.Metadata{
@@ -113,7 +127,7 @@ func (c *Command) buildAccessListForCreate() (*accesslist.AccessList, error) {
 		accesslist.Spec{
 			Title:       strings.TrimSpace(c.title),
 			Description: strings.TrimSpace(c.description),
-			Owners:      c.buildOwners(),
+			Owners:      owners,
 			Audit: accesslist.Audit{
 				Recurrence: accesslist.Recurrence{
 					Frequency:  reviewFreq,
@@ -273,17 +287,25 @@ func (c *Command) buildResourceAccessRoles() ([]*types.RoleV6, error) {
 	return roles, nil
 }
 
-func (c *Command) buildMembers(accessListID string) ([]*accesslist.AccessListMember, error) {
+func (c *Command) buildMembers(accessListName scopes.QualifiedName) ([]*accesslist.AccessListMember, error) {
 	var members []*accesslist.AccessListMember
 	for _, name := range utils.SplitIdentifiers(c.members) {
-		m, err := newMember(accessListID, name, accesslist.MembershipKindUser)
+		m, err := newMember(accessListName, scopes.QualifiedName{Name: name}, accesslist.MembershipKindUser)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		members = append(members, m)
 	}
-	for _, name := range utils.SplitIdentifiers(c.memberAccessLists) {
-		m, err := newMember(accessListID, name, accesslist.MembershipKindList)
+	memberListNames, err := splitQualifiedNames(c.memberAccessLists)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing member access list name")
+	}
+	for _, name := range memberListNames {
+		kind := accesslist.MembershipKindList
+		if name.Scope != "" {
+			kind = accesslist.MembershipKindScopedList
+		}
+		m, err := newMember(accessListName, name, kind)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
