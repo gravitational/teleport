@@ -63,8 +63,8 @@ type Config struct {
 	TracingProvider *tracing.Provider
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
-	// TODO(russjones)
-	HealthMetric *cache.HealthMetric
+	// TODO(russjones): Write comment.
+	HealthReporter *cache.HealthReporter
 
 	// The following services are provided to the Cache to allow it to
 	// populate its resource collections. They will either be the local service
@@ -163,7 +163,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,
 		Registerer:              cfg.Registerer,
-		HealthMetric:            cfg.HealthMetric,
+		HealthReporter:          cfg.HealthReporter,
 		MaxRetryPeriod:          cfg.MaxRetryPeriod,
 		Unstarted:               cfg.Unstarted,
 		Access:                  cfg.Access,

@@ -760,8 +760,8 @@ type TeleportProcess struct {
 	// Teleport's metric service.
 	metricsRegistry *metrics.Registry
 
-	// TODO(russjones)
-	healthMetric *cache.HealthReporter
+	// TODO(russjones): Write comment.
+	healthReporter *cache.HealthReporter
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
@@ -1160,10 +1160,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err, "creating metrics registry")
 	}
 
-	// Create a health metric that will be used to report a caches health across
-	// multiple running caches.
-	// TODO(russjones): Explain the need for this further here.
-	healthMetric, err := cache.NewHealthMetric()
+	// TODO(russjones): Write comment.
+	healthReporter, err := cache.NewHealthReporter(metricsRegistry)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating health metric")
 	}
@@ -1371,7 +1369,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		scopesFeatures:         scopesFeatures,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
-		healthMetric:           healthMetric,
+		healthReporter:         healthReporter,
 		SyncGatherers: metrics.NewSyncGatherers(
 			rootMetricRegistry,
 			prometheus.DefaultGatherer,
@@ -3147,7 +3145,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 	cfg.Registerer = process.metricsRegistry
-	cfg.HealthMetric = process.healthMetric
+	cfg.HealthReporter = process.healthReporter
 
 	cfg.Access = services.AccessInternal
 	cfg.AccessLists = services.AccessListsInternal
@@ -3213,7 +3211,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 	cfg.Registerer = process.metricsRegistry
-	cfg.HealthMetric = process.healthMetric
+	cfg.HealthReporter = process.healthReporter
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()

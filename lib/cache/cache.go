@@ -66,7 +66,6 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
-
 	cacheStaleEventsReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
@@ -890,8 +889,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Registerer == nil {
 		c.Registerer = prometheus.DefaultRegisterer
 	}
-	// TODO(russjones): here it should fail right? because if i
-	// register it here it will just cause the old bug to reoccur?
+	if c.HealthReporter == nil {
+		return trace.BadParameter("health reporter is missing")
+	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
@@ -935,7 +935,6 @@ func New(config Config) (*Cache, error) {
 	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
-		//cacheHealth,
 		cacheLastReset,
 	); err != nil {
 		return nil, trace.Wrap(err)
