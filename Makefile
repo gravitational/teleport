@@ -574,7 +574,7 @@ build-ironrdp-wasm:
 	@echo "Skipping ironrdp WASM build (IRONRDP_SKIP_BUILD=1)"
 else
 build-ironrdp-wasm: ensure-wasm-deps
-	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' CC="$(WASM_CC)" AR="$(WASM_AR)" cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -1961,10 +1961,15 @@ ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen
 .PHONY: ensure-llvm-macos
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 BREW_DIR = $(shell brew --prefix)
+unexport BREW_DIR
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+unexport LLVM_PREFIX
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
-CC = $(LLVM_DIR)/bin/clang
-AR = $(LLVM_DIR)/bin/llvm-ar
+unexport LLVM_DIR
+WASM_CC = $(LLVM_DIR)/bin/clang
+unexport WASM_CC
+WASM_AR = $(LLVM_DIR)/bin/llvm-ar
+unexport WASM_AR
 ensure-llvm-macos:
 	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
@@ -1972,6 +1977,8 @@ ensure-llvm-macos:
 	fi
 
 else
+WASM_CC = clang
+WASM_AR = llvm-ar
 ensure-llvm-macos:
 endif
 
@@ -1979,6 +1986,7 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
+unexport WASM_BINDGEN_VERSION
 
 # Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
 # from a per-version path under target/ rather than the shared ~/.cargo/bin.
@@ -1995,6 +2003,7 @@ print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
 RUST_TOOLCHAIN_VERSION = $(shell awk '$$1 == "channel" && $$2 == "=" { gsub(/"/, "", $$3); print $$3 }' rust-toolchain.toml )
+unexport RUST_TOOLCHAIN_VERSION
 
 .PHONY: print-rust-toolchain-version
 print-rust-toolchain-version:
@@ -2005,7 +2014,7 @@ ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --vers
 ensure-wasm-bindgen:
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
+		CC="$(WASM_CC)" AR="$(WASM_AR)" cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
 endif
@@ -2013,7 +2022,7 @@ endif
 .PHONY: ensure-wasm-opt
 ensure-wasm-opt: WASM_OPT_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-wasm-opt-version)
 ensure-wasm-opt:
-	cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
+	CC="$(WASM_CC)" AR="$(WASM_AR)" cargo install --locked wasm-opt@$(WASM_OPT_VERSION)
 
 .PHONY: build-ui
 build-ui: ensure-js-deps ensure-wasm-deps
