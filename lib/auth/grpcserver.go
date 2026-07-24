@@ -1134,7 +1134,11 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 			)
 			return trace.Errorf("encountered unexpected role type")
 		}
-		if err := stream.Send(v6); err != nil {
+		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(downgraded); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2308,8 +2312,88 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
+	// Order matters. v9 downgrades to v8 first, then v8 to v7. Both steps
+	// stamp TeleportDowngradedLabel, so on a pre-18 client the v7 reason
+	// overwrites the v9 one. The stripped app labels persist regardless.
+	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
+}
+
+var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
+
+// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for agents below
+// minSupportedRoleV9Version (v19), which cannot enforce the v9 app
+// restriction. A plain v8 copy would grant unrestricted app access, so unless
+// the role already grants that (an allow_all rule), the copy moves its allow
+// app selector to the deny side. A pre-v19 agent cannot apply the finer v9
+// restriction, so it denies these apps outright, never granting more than v9
+// would, and no other v8 role can grant them either. Composing with
+// maybeDowngradeRoleVersionToV7 lets a v9 role reach a pre-v18 agent as v7.
+//
+// TODO(@juliaogris): Delete in v20.0.0 when pre-19 client support ends.
+func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetVersion() != types.V9 {
+		return role
+	}
+	supported, err := utils.MinVerWithoutPreRelease(clientVersion.String(), minSupportedRoleV9Version.String())
+	if supported || err != nil {
+		return role
+	}
+
+	// Deep-copy the role before mutating it. The same role is shared
+	// across client sessions when watchers notify about changes. Mutating
+	// the original races other readers.
+	role = apiutils.CloneProtoMsg(role)
+	role.Version = types.V8
+
+	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
+	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) {
+		if denyDowngradedAppAccess(role) {
+			slog.WarnContext(ctx,
+				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
+				"role", role.GetName(), "client_version", clientVersion)
+		}
+		detail = "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
+	}
+	role.Spec.Allow.AppResources = nil
+	role.Spec.Deny.AppResources = nil
+
+	reason := fmt.Sprintf("Role v9 is only supported from client version %q and above. %s", minSupportedRoleV9Version, detail)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+
+	return role
+}
+
+// denyDowngradedAppAccess moves the role's allow app labels and expression to
+// its deny app labels and expression. If the role already denies apps by label,
+// it falls back to a wildcard deny and reports it, for the caller to log.
+func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
+	allowLabels := role.Spec.Allow.AppLabels
+	allowExpression := role.Spec.Allow.AppLabelsExpression
+	role.Spec.Allow.AppLabels = nil
+	role.Spec.Allow.AppLabelsExpression = ""
+
+	switch {
+	case len(allowLabels) == 0:
+	case len(role.Spec.Deny.AppLabels) == 0:
+		role.Spec.Deny.AppLabels = allowLabels
+	default:
+		role.Spec.Deny.AppLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+		wildcardFallback = true
+	}
+
+	switch {
+	case allowExpression == "":
+	case role.Spec.Deny.AppLabelsExpression == "":
+		role.Spec.Deny.AppLabelsExpression = allowExpression
+	default:
+		role.Spec.Deny.AppLabelsExpression = "(" + role.Spec.Deny.AppLabelsExpression + ") || (" + allowExpression + ")"
+	}
+	return wildcardFallback
 }
 
 var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}

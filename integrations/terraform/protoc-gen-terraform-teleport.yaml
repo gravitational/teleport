@@ -211,6 +211,7 @@ exclude_fields:
     # Role
     - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
     - "RoleV6.Spec.Deny.Namespaces"
+    - "RoleV6.Spec.Deny.AppResources" # app_resources is valid only under allow
 
     # Server
     - "ServerSpecV2.CmdLabels"
@@ -565,7 +566,7 @@ validators:
   ProvisionTokenV2.Version:
     - UseVersionBetween(2,2)
   RoleV6.Version:
-    - UseVersionBetween(3,8)
+    - UseVersionBetween(3,9)
   SAMLConnectorV2.Version:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:

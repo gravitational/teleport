@@ -34,6 +34,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -7038,6 +7039,300 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						require.NoError(t, err)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
+	t.Parallel()
+
+	// Some cases use rule forms accepted only for forward compatibility.
+	// The downgrade must strip app access from such roles too.
+	newV9Role := func(rules []types.AppResource) *types.RoleV6 {
+		return &types.RoleV6{
+			Kind:     types.KindRole,
+			Metadata: types.Metadata{Name: "dev"},
+			Version:  types.V9,
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabelsExpression: `labels["vendor"] == "gitlab"`,
+					AppResources:        rules,
+				},
+			},
+		}
+	}
+	clientVersion := func(t *testing.T, version string) *semver.Version {
+		t.Helper()
+		ver, err := semver.NewVersion(version)
+		require.NoError(t, err)
+		return ver
+	}
+	allowAll := []types.AppResource{{AllowAll: true}}
+	ruleWithoutAllowAll := []types.AppResource{{}}
+
+	for _, tc := range []struct {
+		desc          string
+		clientVersion string
+		wantVersion   string
+	}{
+		{
+			desc:          "v19 boundary keeps v9",
+			clientVersion: "19.0.0",
+			wantVersion:   types.V9,
+		},
+		{
+			desc:          "just below the v19 boundary downgrades to v8",
+			clientVersion: "18.999.999",
+			wantVersion:   types.V8,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			input := newV9Role(allowAll)
+			got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, tc.clientVersion))
+			require.Equal(t, tc.wantVersion, got.GetVersion())
+
+			if tc.wantVersion == types.V9 {
+				require.NotEmpty(t, got.Spec.Allow.AppResources)
+				require.Empty(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel])
+				return
+			}
+
+			require.Empty(t, got.Spec.Allow.AppResources)
+			require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role v9 is only supported")
+
+			// The input is shared cache state and must never be mutated.
+			require.Equal(t, types.V9, input.GetVersion())
+			require.NotEmpty(t, input.Spec.Allow.AppResources)
+			require.NotEmpty(t, input.Spec.Allow.AppLabels)
+			require.Empty(t, input.GetMetadata().Labels[types.TeleportDowngradedLabel])
+		})
+	}
+
+	t.Run("allow_all keeps app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(allowAll), clientVersion(t, "18.1.2"))
+		require.NotEmpty(t, got.Spec.Allow.AppLabels)
+		require.NotEmpty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "app access is unchanged")
+	})
+
+	// The strip path moves the role's own allow app selector to the deny side,
+	// so the downgrade fails closed on exactly the apps this role governed and
+	// no other role can re-open them. newV9Role selects with wildcard labels and
+	// a vendor expression, so both deny channels carry over.
+	wantDenyLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
+	const wantDenyExpression = `labels["vendor"] == "gitlab"`
+	assertAppAccessDenied := func(t *testing.T, got *types.RoleV6) {
+		t.Helper()
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
+		require.Equal(t, wantDenyExpression, got.Spec.Deny.AppLabelsExpression)
+		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "no app access")
+	}
+
+	t.Run("rules without allow_all strip app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(ruleWithoutAllowAll), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+	})
+
+	t.Run("default-deny role strips app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(nil), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+	})
+
+	t.Run("deny app rules strip app access even with allow_all", func(t *testing.T) {
+		input := newV9Role(allowAll)
+		input.Spec.Deny.AppResources = ruleWithoutAllowAll
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
+		require.Empty(t, got.Spec.Deny.AppResources)
+	})
+
+	t.Run("deny scopes to the role's own labels, not a blanket wildcard", func(t *testing.T) {
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, types.Labels{"vendor": []string{"gitlab"}}, got.Spec.Deny.AppLabels)
+		require.Empty(t, got.Spec.Deny.AppLabelsExpression)
+	})
+
+	t.Run("existing deny labels force a wildcard fallback", func(t *testing.T) {
+		// The role already denies apps by label, so there is no free label
+		// channel to hold the moved allow labels. The downgrade falls back to a
+		// wildcard deny rather than drop the existing deny and fail open.
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		input.Spec.Deny.AppLabels = types.Labels{"env": []string{"prod"}}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
+	})
+
+	t.Run("pre-v9 role untouched", func(t *testing.T) {
+		v8, err := types.NewRoleWithVersion("legacy", types.V8, types.RoleSpecV6{})
+		require.NoError(t, err)
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), v8.(*types.RoleV6), clientVersion(t, "17.0.0"))
+		require.Equal(t, types.V8, got.GetVersion())
+		require.Empty(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel])
+	})
+}
+
+// TestRoleVersionV9Downgrade proves the v9 downgrade is wired into the role
+// serving surfaces and composes with the v8-to-v7 downgrade, the way
+// TestRoleVersionV8ToV7Downgrade proves the v8 path.
+func TestRoleVersionV9Downgrade(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+
+	srv := newTestTLSServer(t)
+
+	newV9Role := func(name string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion(name, types.V9, spec)
+		require.NoError(t, err)
+		return role
+	}
+	allowAllRole := newV9Role("v9_allow_all", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppResources: []types.AppResource{{AllowAll: true}},
+			Rules:        []types.Rule{types.NewRule(types.KindRole, services.RW())},
+		},
+	})
+	denyByDefaultRole := newV9Role("v9_deny_by_default", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+
+	user, err := authtest.CreateUser(t.Context(), srv.Auth(), "v9-downgrade-user", allowAllRole, denyByDefaultRole)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc          string
+		clientVersion string
+		roleName      string
+		wantVersion   string
+		wantAppLabels bool
+	}{
+		{
+			desc:          "v19 client keeps v9 allow-all",
+			clientVersion: "19.0.0",
+			roleName:      "v9_allow_all",
+			wantVersion:   types.V9,
+			wantAppLabels: true,
+		},
+		{
+			desc:          "v18 client gets v8 with app labels kept for allow_all",
+			clientVersion: "18.1.2",
+			roleName:      "v9_allow_all",
+			wantVersion:   types.V8,
+			wantAppLabels: true,
+		},
+		{
+			desc:          "v18 client gets v8 with app labels stripped for default-deny",
+			clientVersion: "18.1.2",
+			roleName:      "v9_deny_by_default",
+			wantVersion:   types.V8,
+			wantAppLabels: false,
+		},
+		{
+			desc:          "v17 client gets v7 via composition with app labels stripped",
+			clientVersion: "17.2.7",
+			roleName:      "v9_deny_by_default",
+			wantVersion:   types.V7,
+			wantAppLabels: false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx := metadata.AddMetadataToContext(t.Context(), map[string]string{
+				metadata.VersionKey: tc.clientVersion,
+			})
+
+			gotRole, err := client.GetRole(ctx, tc.roleName)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantVersion, gotRole.GetVersion())
+			if tc.wantAppLabels {
+				require.NotEmpty(t, gotRole.GetAppLabels(types.Allow))
+			} else {
+				require.Empty(t, gotRole.GetAppLabels(types.Allow))
+			}
+
+			downgraded := tc.wantVersion != types.V9
+			if downgraded {
+				require.Empty(t, gotRole.GetAppResources(types.Allow))
+				require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+			} else {
+				require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+			}
+
+			gotRoles, err := client.GetRoles(ctx)
+			require.NoError(t, err)
+			found := false
+			for _, role := range gotRoles {
+				if role.GetName() != tc.roleName {
+					continue
+				}
+				require.Equal(t, tc.wantVersion, role.GetVersion())
+				found = true
+				break
+			}
+			require.True(t, found, "GetRoles result does not include expected role")
+
+			currentRoles, err := client.GetCurrentUserRoles(ctx)
+			require.NoError(t, err)
+			found = false
+			for _, role := range currentRoles {
+				if role.GetName() != tc.roleName {
+					continue
+				}
+				require.Equal(t, tc.wantVersion, role.GetVersion())
+				found = true
+				break
+			}
+			require.True(t, found, "GetCurrentUserRoles result does not include expected role")
+
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+			require.NoError(t, err)
+			defer watcher.Close()
+
+			e := <-watcher.Events()
+			require.Equal(t, types.OpInit, e.Type)
+
+			// Re-upsert the role on the auth server directly so the watcher
+			// sees it without tripping the TeleportDowngradedLabel guard.
+			storedRole, err := srv.Auth().GetRole(ctx, tc.roleName)
+			require.NoError(t, err)
+			_, err = srv.Auth().UpsertRole(ctx, storedRole)
+			require.NoError(t, err)
+			watched, err := func() (types.Role, error) {
+				for {
+					select {
+					case <-watcher.Done():
+						return nil, watcher.Error()
+					case e := <-watcher.Events():
+						if role, ok := e.Resource.(types.Role); ok && role.GetName() == tc.roleName {
+							return role, nil
+						}
+					}
+				}
+			}()
+			require.NoError(t, err)
+			require.Equal(t, tc.wantVersion, watched.GetVersion())
+
+			// A downgraded copy must be rejected on write by the
+			// TeleportDowngradedLabel guard.
+			if downgraded {
+				_, err := client.UpsertRole(ctx, gotRole)
+				require.Error(t, err)
 			}
 		})
 	}

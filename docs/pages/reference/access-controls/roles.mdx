@@ -90,13 +90,13 @@ Teleport provides several preset roles:
 
 ### Role versions
 
-There are currently six supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, and `v8`.
+There are currently seven supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`,
+and `v9`.
+
+#### Role v4
 
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles 'v5` or higher
-must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -105,10 +105,22 @@ Label              | `v3` Default   | `v4` and higher Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
+#### Role v5
+
+Roles with version `v5` or higher do not allow joining sessions by default. The
+[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles `v5` or higher
+must be set to allow for joining sessions.
+
+#### Role v6
+
 Role v6 introduced a new field, `kubernetes_resources`, that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
+#### Role v7
+
 Role v7 added support for more `kind` values in the `kubernetes_resources` field.
+
+#### Role v8
 
 Role v8 added support for Kubernetes CRDs and introduced changes in how
 `kubernetes_resources` behave and are defined. Role v8 is not compatible with
@@ -118,6 +130,35 @@ cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
 before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
+
+The SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
+See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
+
+#### Role v9
+
+Role v9 makes application access deny-by-default. When a v9 role grants an
+app via `app_labels` or `app_labels_expression`, HTTP requests to that app
+are denied unless a rule under `spec.allow.app_resources` grants them.
+Currently, the only supported rule is `allow_all: true`, which restores
+unrestricted access. Fine-grained path and method rules are not yet
+supported. When v8 and v9 roles grant the same app, Teleport drops the v8
+roles from the decision so they cannot re-open unrestricted access. Role
+v9 does not affect TCP, MCP, cloud (AWS console, Azure, and GCP), or LLM
+apps.
+
+Only v9-aware agents enforce this. For agents running Teleport 18 or
+earlier, the Auth Service serves a downgraded v8 copy of each role. With
+`allow_all: true`, the copy grants exactly the v8 access. Without it, the
+copy moves the allow `app_labels` and `app_labels_expression` to the deny
+side, so the downgraded role denies those apps instead of granting them,
+including TCP, MCP, and cloud apps, since a role does not distinguish app
+types. Because deny rules override allow rules across all of a user's
+roles, a separate v8-or-older role can no longer reopen the same app on
+older agents. The moved selector denies conservatively, so in a
+mixed-version cluster it can deny more apps than the v9 role allowed.
+Upgrade all Application Service agents to Teleport 19 before using role v9
+to restrict app access.
 
 #### Default values for `kubernetes_resources`
 
@@ -130,10 +171,6 @@ Version              |  `kubernetes_resources`
 `v6` |  `[]`
 `v7` |  `[{"kind":"*","name":"*","namespace":"*","verbs":["*"]}]`
 `v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
-
-SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
-See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 ## RBAC for infrastructure resources
 
