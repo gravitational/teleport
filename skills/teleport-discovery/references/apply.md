@@ -50,8 +50,14 @@ secret.
 
 ## Confirm the apply
 
-From the apply output, read `integration_name` and `discovery_config_name`. Link the user to the
-integration's overview page in the web UI, using the host of `proxy_addr` without the port:
+From the apply output, read `integration_name` and `discovery_config_name`.
+
+For AWS Organization discovery, first confirm `organization_credentials_confirmed` is set.
+Then read the `aws_child_account_iam_role_template` output and present its role name, trust policy, and permissions without exposing unrelated Terraform state.
+Ask the user to create that role in every included account, including the management or delegated administrator account when `*` or the root is included.
+Do not create the roles without an explicit request, report the deployment healthy, or start Monitor until the user confirms all required roles exist.
+
+Link the user to the integration's overview page in the web UI, using the host of `proxy_addr` without the port:
 `https://<proxy_host>/web/integrations/overview/<integration_type>/<integration_name>`, where
 `<integration_type>` is `aws-oidc` for AWS and `azure-oidc` for Azure.
 
