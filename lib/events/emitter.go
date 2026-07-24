@@ -214,15 +214,26 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 	// interface. I suspect that having first-class batching will have a greater
 	// improvement on performance over parallelism alone. It will also have less
 	// overhead than parallelism over multiple events.
+	var failed int
+	var firstErr error
 	for _, item := range items {
 		if ctx.Err() != nil {
-			return successfullyDelivered
+			break
 		}
 		if err := a.cfg.Inner.EmitAuditEvent(ctx, item.Event); err != nil {
-			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		successfullyDelivered = append(successfullyDelivered, item)
+	}
+	if failed > 0 && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "Failed to emit audit events.",
+			"count", failed,
+			"error", firstErr,
+		)
 	}
 	return successfullyDelivered
 }

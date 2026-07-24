@@ -47,6 +47,7 @@ const (
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
+	maxDrainKickBackoff            = 30 * time.Second
 
 	// We've run benchmarks and found a batch size of 25 to be a good middle
 	// ground between insertion performance and memory overhead of
@@ -509,18 +510,19 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
+	policy := newDrainKickPolicy()
 	var lastErr error
 	for {
-		mainEmpty, deadLetterEmpty, err := drainQueueState(q.db)
+		mainEmpty, deadLetterCount, err := drainQueueState(q.db)
 		lastErr = err
 		if err != nil {
 			slog.ErrorContext(ctx,
 				"Failed to check whether audit queue is empty while draining.",
 				"error", err,
 			)
-		} else if mainEmpty && deadLetterEmpty {
+		} else if mainEmpty && deadLetterCount == 0 {
 			return nil
-		} else if mainEmpty {
+		} else if mainEmpty && policy.shouldKick(deadLetterCount) {
 			q.kickDeadLetterSweep()
 		}
 
@@ -531,18 +533,50 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 			return trace.NewAggregate(q.ctx.Err(), lastErr)
 		case <-ticker.C:
 		}
+		policy.tick()
 	}
+}
+
+type drainKickPolicy struct {
+	backoff       time.Duration
+	sinceLastKick time.Duration
+	lastCount     int64
+}
+
+func newDrainKickPolicy() *drainKickPolicy {
+	return &drainKickPolicy{
+		backoff:   pollInterval,
+		lastCount: -1,
+	}
+}
+
+func (p *drainKickPolicy) shouldKick(deadLetterCount int64) bool {
+	progressed := p.lastCount >= 0 && deadLetterCount < p.lastCount
+	p.lastCount = deadLetterCount
+	if progressed {
+		p.backoff = pollInterval
+	} else if p.sinceLastKick < p.backoff {
+		return false
+	} else {
+		p.backoff = min(p.backoff*2, maxDrainKickBackoff)
+	}
+	p.sinceLastKick = 0
+	return true
+}
+
+func (p *drainKickPolicy) tick() {
+	p.sinceLastKick += pollInterval
 }
 
 const drainQueueStateQuery = `SELECT
 	NOT EXISTS(SELECT 1 FROM audit_queue),
-	NOT EXISTS(SELECT 1 FROM audit_dead_letter)`
+	(SELECT COUNT(*) FROM audit_dead_letter)`
 
-func drainQueueState(db *sql.DB) (mainEmpty, deadLetterEmpty bool, _ error) {
-	if err := db.QueryRow(drainQueueStateQuery).Scan(&mainEmpty, &deadLetterEmpty); err != nil {
-		return false, false, trace.Wrap(err)
+func drainQueueState(db *sql.DB) (mainEmpty bool, deadLetterCount int64, _ error) {
+	if err := db.QueryRow(drainQueueStateQuery).Scan(&mainEmpty, &deadLetterCount); err != nil {
+		return false, 0, trace.Wrap(err)
 	}
-	return mainEmpty, deadLetterEmpty, nil
+	return mainEmpty, deadLetterCount, nil
 }
 
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
@@ -675,6 +709,7 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 			// Trigger a sweep on-demand.
 			q.runSweeps(ctx, handler)
 			close(req.done)
+			timer.Reset(q.deadLetterSweepInterval)
 		case <-timer.C:
 			// Trigger a sweep on a timer.
 			q.runSweeps(ctx, handler)
