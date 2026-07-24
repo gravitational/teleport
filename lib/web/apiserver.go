@@ -613,6 +613,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
+		scopedRoleReader:          cfg.AccessPoint.ScopedRoleReader(),
 		servers:                   []utils.NetAddr{cfg.AuthServers},
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
@@ -855,7 +856,7 @@ func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
-	resp, err := newSessionResponse(ctx)
+	resp, err := newSessionResponse(r.Context(), ctx)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
@@ -2879,14 +2880,26 @@ type CreateSessionResponse struct {
 	TrustedDeviceRequirement int32 `json:"trustedDeviceRequirement,omitempty"`
 }
 
-func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
+func newSessionResponse(ctx context.Context, sctx *SessionContext) (*CreateSessionResponse, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = accessChecker.CheckLoginDuration(0)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	if accessChecker.AccessInfo().ScopePin == nil {
+		_, err = accessChecker.CheckLoginDuration(0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		checkerContext, err := sctx.GetUserScopedAccessCheckerContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_, err = checkerContext.CertParams().GetSSHLoginsForTTL(ctx, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := sctx.getToken()
@@ -2967,7 +2980,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	res, err := newSessionResponse(ctx)
+	res, err := newSessionResponse(r.Context(), ctx)
 	return res, trace.Wrap(err)
 }
 
@@ -3096,7 +3109,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := newSessionResponse(newContext)
+	res, err := newSessionResponse(r.Context(), newContext)
 	return res, trace.Wrap(err)
 }
 
@@ -3174,7 +3187,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Checks for at least one valid login.
-	if _, err := newSessionResponse(ctx); err != nil {
+	if _, err := newSessionResponse(r.Context(), ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3395,7 +3408,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	return newSessionResponse(r.Context(), ctx)
 }
 
 // getClusters returns a list of cluster and its data.
