@@ -272,6 +272,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
+		withStripe      bool
 		urlPath         string
 		expectedCspVals map[string]string
 	}{
@@ -354,14 +355,45 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"connect-src":     "'self' wss:",
 			},
 		},
+		{
+			name:       "for stripe-managed tenant (no wasm)",
+			withStripe: true,
+			urlPath:    "/web/index.js",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' https://js.stripe.com https://*.js.stripe.com",
+				"frame-src":       "https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
+				"connect-src":     "'self' wss: https://api.stripe.com",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+			},
+		},
+		{
+			name:       "for stripe-managed tenant on desktop session (with wasm)",
+			withStripe: true,
+			urlPath:    "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCspVals: map[string]string{
+				"script-src":  "'self' https://js.stripe.com https://*.js.stripe.com 'wasm-unsafe-eval'",
+				"frame-src":   "https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
+				"connect-src": "'self' wss: https://api.stripe.com",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := make(http.Header)
-			SetIndexContentSecurityPolicy(h, tt.urlPath)
+			SetIndexContentSecurityPolicy(h, tt.withStripe, tt.urlPath)
 			actualCsp := h.Get("Content-Security-Policy")
 			for k, v := range tt.expectedCspVals {
 				expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
 				require.Contains(t, actualCsp, expectedCspSubString)
+			}
+			if !tt.withStripe {
+				require.NotContains(t, actualCsp, "stripe.com")
 			}
 		})
 	}
