@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"testing"
@@ -27,11 +28,17 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
+)
+
+const (
+	testDisplayNameTrait = "displayName"
+	testEmailTrait       = "email"
 )
 
 func TestTrimDurationSuffix(t *testing.T) {
@@ -425,4 +432,91 @@ func TestUserUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUserListDisplaysUserIdentity(t *testing.T) {
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	var stdout bytes.Buffer
+	command := &UserCommand{
+		format: teleport.Text,
+		stdout: &stdout,
+	}
+	err = command.List(ctx, client)
+	require.NoError(t, err)
+	require.Equal(t, "No users found\n", stdout.String())
+
+	users := []types.User{
+		newUserWithDisplayTraits(t, "display-both", "Alice Adams", "alice@example.com", "access", "editor"),
+		newUserWithDisplayTraits(t, "display-primary", "Bob Baker", "", "access"),
+		newUserWithDisplayTraits(t, "display-secondary", "", "secondary@example.com", "auditor"),
+		newUserWithDisplayTraits(t, "display-none", "", "", "access"),
+		newUserWithDisplayTraits(t, "alice@example.com", "alice@example.com", "alice@example.com", "access"),
+		newUserWithDisplayTraits(t, "display-sanitized", "Eve\x1b[31m\nAdmin", "eve@example.com\r\n", "access"),
+	}
+	for _, user := range users {
+		_, err := client.UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	stdout.Reset()
+	err = command.List(ctx, client)
+	require.NoError(t, err)
+
+	for _, want := range []string{
+		"User",
+		"Roles",
+		"access,editor",
+		"display-both (Alice Adams) <alice@example.com>",
+		"display-primary (Bob Baker)",
+		"display-secondary <secondary@example.com>",
+		"display-none",
+		"alice@example.com",
+		"display-sanitized (Eve Admin) <eve@example.com>",
+	} {
+		require.Contains(t, stdout.String(), want)
+	}
+
+	for _, notWant := range []string{
+		"alice@example.com (alice@example.com)",
+		"\x1b",
+		"\r",
+		"Eve\nAdmin",
+	} {
+		require.NotContains(t, stdout.String(), notWant)
+	}
+}
+
+func newUserWithDisplayTraits(t *testing.T, username, primary, secondary string, roles ...string) types.User {
+	t.Helper()
+
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetRoles(roles)
+
+	traits := make(map[string][]string)
+	if primary != "" {
+		traits[testDisplayNameTrait] = []string{primary}
+	}
+	if secondary != "" {
+		traits[testEmailTrait] = []string{secondary}
+	}
+	user.SetTraits(traits)
+	return user
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/common"
 )
 
 type userCollection struct {
@@ -49,10 +50,13 @@ func (u *userCollection) Resources() []types.Resource {
 func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"User"})
 	for _, user := range u.users {
-		t.AddRow([]string{user.GetName()})
+		display := user.GetDisplay()
+		t.AddRow([]string{
+			common.FormatUserDisplay(display.Primary, display.Secondary, user.GetName()),
+		})
 	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 func userHandler() Handler {
