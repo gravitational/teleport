@@ -179,7 +179,7 @@ Flags:
 |`--cert-file`|*no default*|Path to a TLS certificate file for the proxy.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--key-file`|*no default*|Path to a TLS key file for the proxy.|
 |`--[no-]acme`|`false`|Get automatic certificate from Letsencrypt.org using ACME.|
 |`--node-labels`|*no default*|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
@@ -879,7 +879,7 @@ Flags:
 |`--ca-pin`|*no default*|Comma-separated list of SKPI hashes for the CA used to verify the auth server.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--labels`|*no default*|Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.|
 |`--node-name`|*no default*|Name for the Teleport node.|
 |`--[no-]silent`|`false`|Suppress user hint message.|

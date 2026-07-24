@@ -3966,6 +3966,44 @@ teleport:
 				},
 			},
 		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
