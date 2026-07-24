@@ -932,6 +932,112 @@ func (b0 ListBeamsResponse_builder) Build() *ListBeamsResponse {
 	return m0
 }
 
+// RegenerateBeamSummaryRequest contains the parameters to the
+// RegenerateBeamSummary RPC.
+type RegenerateBeamSummaryRequest struct {
+	state           protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RegenerateBeamSummaryRequest) Reset() {
+	*x = RegenerateBeamSummaryRequest{}
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegenerateBeamSummaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegenerateBeamSummaryRequest) ProtoMessage() {}
+
+func (x *RegenerateBeamSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RegenerateBeamSummaryRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *RegenerateBeamSummaryRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+type RegenerateBeamSummaryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the UUID name of the beam whose summary and replay artifact should
+	// be regenerated.
+	Name string
+}
+
+func (b0 RegenerateBeamSummaryRequest_builder) Build() *RegenerateBeamSummaryRequest {
+	m0 := &RegenerateBeamSummaryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	return m0
+}
+
+// RegenerateBeamSummaryResponse contains the results of the
+// RegenerateBeamSummary RPC.
+type RegenerateBeamSummaryResponse struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegenerateBeamSummaryResponse) Reset() {
+	*x = RegenerateBeamSummaryResponse{}
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegenerateBeamSummaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegenerateBeamSummaryResponse) ProtoMessage() {}
+
+func (x *RegenerateBeamSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type RegenerateBeamSummaryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RegenerateBeamSummaryResponse_builder) Build() *RegenerateBeamSummaryResponse {
+	m0 := &RegenerateBeamSummaryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 // Filters contains fields that will be used to filter the results. When
 // multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
@@ -943,7 +1049,7 @@ type ListBeamsRequest_Filters struct {
 
 func (x *ListBeamsRequest_Filters) Reset() {
 	*x = ListBeamsRequest_Filters{}
-	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +1061,7 @@ func (x *ListBeamsRequest_Filters) String() string {
 func (*ListBeamsRequest_Filters) ProtoMessage() {}
 
 func (x *ListBeamsRequest_Filters) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +1134,10 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +
 	"\x05beams\x18\x01 \x03(\v2\x17.teleport.beams.v1.BeamR\x05beams\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x9c\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"2\n" +
+	"\x1cRegenerateBeamSummaryRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x1f\n" +
+	"\x1dRegenerateBeamSummaryResponse*\x9c\x01\n" +
 	"\rBeamSortField\x12\x1f\n" +
 	"\x1bBEAM_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14BEAM_SORT_FIELD_NAME\x10\x01\x12\x19\n" +
@@ -1038,7 +1147,7 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\rBeamSortOrder\x12\x1f\n" +
 	"\x1bBEAM_SORT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19BEAM_SORT_ORDER_ASCENDING\x10\x01\x12\x1e\n" +
-	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\xb9\x03\n" +
+	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\xb5\x04\n" +
 	"\vBeamService\x12Y\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a%.teleport.beams.v1.CreateBeamResponse\x12Y\n" +
@@ -1047,49 +1156,54 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\n" +
 	"DeleteBeam\x12$.teleport.beams.v1.DeleteBeamRequest\x1a\x16.google.protobuf.Empty\x12P\n" +
 	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\".teleport.beams.v1.GetBeamResponse\x12V\n" +
-	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponse\x12z\n" +
+	"\x15RegenerateBeamSummary\x12/.teleport.beams.v1.RegenerateBeamSummaryRequest\x1a0.teleport.beams.v1.RegenerateBeamSummaryResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
-	(BeamSortField)(0),               // 0: teleport.beams.v1.BeamSortField
-	(BeamSortOrder)(0),               // 1: teleport.beams.v1.BeamSortOrder
-	(*CreateBeamRequest)(nil),        // 2: teleport.beams.v1.CreateBeamRequest
-	(*CreateBeamResponse)(nil),       // 3: teleport.beams.v1.CreateBeamResponse
-	(*UpdateBeamRequest)(nil),        // 4: teleport.beams.v1.UpdateBeamRequest
-	(*UpdateBeamResponse)(nil),       // 5: teleport.beams.v1.UpdateBeamResponse
-	(*DeleteBeamRequest)(nil),        // 6: teleport.beams.v1.DeleteBeamRequest
-	(*GetBeamRequest)(nil),           // 7: teleport.beams.v1.GetBeamRequest
-	(*GetBeamResponse)(nil),          // 8: teleport.beams.v1.GetBeamResponse
-	(*ListBeamsRequest)(nil),         // 9: teleport.beams.v1.ListBeamsRequest
-	(*ListBeamsResponse)(nil),        // 10: teleport.beams.v1.ListBeamsResponse
-	(*ListBeamsRequest_Filters)(nil), // 11: teleport.beams.v1.ListBeamsRequest.Filters
-	(EgressMode)(0),                  // 12: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                     // 13: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),            // 14: google.protobuf.Empty
+	(BeamSortField)(0),                    // 0: teleport.beams.v1.BeamSortField
+	(BeamSortOrder)(0),                    // 1: teleport.beams.v1.BeamSortOrder
+	(*CreateBeamRequest)(nil),             // 2: teleport.beams.v1.CreateBeamRequest
+	(*CreateBeamResponse)(nil),            // 3: teleport.beams.v1.CreateBeamResponse
+	(*UpdateBeamRequest)(nil),             // 4: teleport.beams.v1.UpdateBeamRequest
+	(*UpdateBeamResponse)(nil),            // 5: teleport.beams.v1.UpdateBeamResponse
+	(*DeleteBeamRequest)(nil),             // 6: teleport.beams.v1.DeleteBeamRequest
+	(*GetBeamRequest)(nil),                // 7: teleport.beams.v1.GetBeamRequest
+	(*GetBeamResponse)(nil),               // 8: teleport.beams.v1.GetBeamResponse
+	(*ListBeamsRequest)(nil),              // 9: teleport.beams.v1.ListBeamsRequest
+	(*ListBeamsResponse)(nil),             // 10: teleport.beams.v1.ListBeamsResponse
+	(*RegenerateBeamSummaryRequest)(nil),  // 11: teleport.beams.v1.RegenerateBeamSummaryRequest
+	(*RegenerateBeamSummaryResponse)(nil), // 12: teleport.beams.v1.RegenerateBeamSummaryResponse
+	(*ListBeamsRequest_Filters)(nil),      // 13: teleport.beams.v1.ListBeamsRequest.Filters
+	(EgressMode)(0),                       // 14: teleport.beams.v1.EgressMode
+	(*Beam)(nil),                          // 15: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),                 // 16: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
-	12, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
-	13, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
-	13, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
+	14, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
+	15, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	15, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
+	15, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	15, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
 	0,  // 6: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
 	1,  // 7: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
-	13, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	15, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
 	2,  // 9: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
 	4,  // 10: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
 	6,  // 11: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
 	7,  // 12: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
 	9,  // 13: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	3,  // 14: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	5,  // 15: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
-	14, // 16: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	8,  // 17: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	10, // 18: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
+	11, // 14: teleport.beams.v1.BeamService.RegenerateBeamSummary:input_type -> teleport.beams.v1.RegenerateBeamSummaryRequest
+	3,  // 15: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	5,  // 16: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	16, // 17: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
+	8,  // 18: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	10, // 19: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	12, // 20: teleport.beams.v1.BeamService.RegenerateBeamSummary:output_type -> teleport.beams.v1.RegenerateBeamSummaryResponse
+	15, // [15:21] is the sub-list for method output_type
+	9,  // [9:15] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1111,7 +1225,7 @@ func file_teleport_beams_v1_beam_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
