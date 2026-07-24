@@ -58,3 +58,13 @@ minimumReleaseAgeExclude:
   - '@gravitational/swc-plugin-styled-components'
 # The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
 updateNotifier: false
+supportedArchitectures:
+# We explicitly set darwin and arm64 (macOS) and `current` here, so if `pnpm install` is ran inside a VM that is neither
+# darwin or arm64, we don't lose the correct architecture bindings.
+  os:
+  - darwin
+  - linux
+  - current
+  cpu:
+  - arm64
+  - current

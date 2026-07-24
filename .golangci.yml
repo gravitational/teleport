@@ -108,6 +108,7 @@ linters:
             - '!**/lib/auth/test/**'
             - '!**/lib/services/suite/**'
             - '!**/build.assets/tooling/**'
+            - '!**/e/tests/antithesis/workloads/**'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'

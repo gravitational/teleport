@@ -21,6 +21,8 @@ package azure
 import (
 	"context"
 	"log/slog"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +35,8 @@ import (
 	cloudazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const defaultScopeSuffix = "/.default"
 
 // credentialProvider defines an interface that manages a particular type of
 // credential.
@@ -178,16 +182,41 @@ func (w *workloadIdentityCredentialProvider) MakeCredential(ctx context.Context,
 	return credential, trace.Wrap(err)
 }
 
+// MapScope maps a single resource audience to the workload identity scope
+// format expected by Microsoft identity platform.
+//
+// Azure CLI may send resource-style audiences such as "https://vault.azure.net".
+// Workload identity uses OAuth scopes, so a bare resource audience must be
+// converted to "{resource}/.default". Do not normalize multi-token scope lists
+// here; .default is not compatible with dynamic or OIDC scopes in the same
+// token request.
 func (w *workloadIdentityCredentialProvider) MapScope(scope string) string {
-	// This scope ("https://management.core.windows.net/") from `az` CLI tool
-	// will fail for workload identity as workload identity is only expected to
-	// be used with compatible SDKs, whereas the SDK adds ".default" to the
-	// audience:
-	//
-	// https://github.com/Azure/azure-sdk-for-go/blob/9e78ee2b86f0f4989098dd7e545b73841fc8df47/sdk/azcore/arm/runtime/pipeline.go#L35
-	if scope == "https://management.core.windows.net/" {
-		return scope + ".default"
+	if strings.HasSuffix(scope, defaultScopeSuffix) {
+		return scope
 	}
+
+	// If the input contains multiple scope tokens, for example
+	// https://graph.microsoft.com/User.Read openid profile, leave it
+	// unchanged.
+	tokens := strings.Fields(scope)
+	if len(tokens) > 1 {
+		return scope
+	}
+
+	parsed, err := url.Parse(scope)
+	// Bare delegated scopes such as User.Read are interpreted by Microsoft
+	// identity platform as Microsoft Graph scopes; leave them unchanged.
+	// https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc#admin-restricted-permissions
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return scope
+	}
+
+	if parsed.Path == "" || parsed.Path == "/" {
+		// Specifically do not strip the trailing slash as required by Microsoft documentation:
+		// https://learn.microsoft.com/en-us/entra/identity-platform/scopes-oidc#trailing-slash-and-default
+		return scope + defaultScopeSuffix
+	}
+
 	return scope
 }
 
