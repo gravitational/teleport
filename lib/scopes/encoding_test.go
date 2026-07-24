@@ -65,20 +65,73 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
+// TestEncodeForKeyExamples runs through some known examples.
+func TestEncodeForKeyExamples(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		scope string
+		enc   string
+	}{
+		{scope: "", enc: "00"},  // unscoped
+		{scope: "/", enc: "04"}, // root
+		{scope: "/staging", enc: "04076x31cxmpwsr0"},
+		{scope: "/staging/west", enc: "04076x31cxmpwsr001vpawvm00"},
+		{scope: "/staging/west/testbed", enc: "04076x31cxmpwsr001vpawvm00078sbkehh6as00"},
+		{scope: "/prod", enc: "04070wkfcg00"},
+		{scope: "/prod/west", enc: "04070wkfcg000xv5edt00"},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.scope, func(t *testing.T) {
+			encoded, err := EncodeForKey(tt.scope)
+			require.NoError(t, err)
+			require.Equal(t, tt.enc, encoded, "encoding of %q mismatch", tt.scope)
+
+			decoded, err := DecodeFromKey(tt.enc)
+			require.NoError(t, err)
+			require.Equal(t, tt.scope, decoded)
+		})
+	}
+}
+
 // TestEncodeForKeyErrors asserts that EncodeForKeys returns an error in expected cases.
 func TestEncodeForKeyErrors(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []string{
+		// empty segments break the ordering/prefix guarantees and are rejected.
 		"//",
 		"/aa//",
-		"/.a",
-		"/aa/.b",
-		"/aa/.b",
+		"/a//b",
+		"///",
+		// non-printable bytes are rejected by weak validation.
 		string([]byte{0, 1, 2, 3}),
 	} {
 		_, err := EncodeForKey(tc)
 		require.Error(t, err, "expected an error encoding %s", tc)
+	}
+}
+
+// TestEncodeForKeyWeaklyValid asserts that scopes which are weakly valid but not
+// strongly valid (e.g. segments with a leading dot or uppercase characters)
+// still encode and round-trip. The scope key encoding intentionally relies only
+// on weak validation so that it is forward-compatible with future expansions of
+// the valid scope character set.
+func TestEncodeForKeyWeaklyValid(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []string{
+		"/.a",
+		"/aa/.b",
+		"/UPPER",
+		"/a/.hidden/b",
+	} {
+		encoded, err := EncodeForKey(tc)
+		require.NoError(t, err, "expected %q to encode", tc)
+		decoded, err := DecodeFromKey(encoded)
+		require.NoError(t, err)
+		require.Equal(t, NormalizeForEquality(tc), decoded)
 	}
 }
 
@@ -159,20 +212,17 @@ func generateScope() string {
 }
 
 // generateSegment generates a scope segment considered valid by EncodeForKey,
-// meaning it must be weakly valid and start with a byte that sorts after '/'.
+// meaning it must be weakly valid. Weak validation accepts any non-space
+// printable ASCII byte (i.e. [33, 126]) that is not a breaking character, at any
+// position within the segment.
 func generateSegment(segmentLen int) string {
 	const (
-		minStartingByte = '/' + 1
-		minByte         = encodedSeparator + 1
-		maxByte         = 126
+		minByte = 33
+		maxByte = 126
 	)
 	b := make([]byte, segmentLen)
 	for i := range segmentLen {
-		if i == 0 {
-			b[i] = randomValidByteInRange(minStartingByte, maxByte)
-		} else {
-			b[i] = randomValidByteInRange(minByte, maxByte)
-		}
+		b[i] = randomValidByteInRange(minByte, maxByte)
 	}
 	return string(b)
 }
