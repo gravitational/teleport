@@ -58,18 +58,17 @@ export default defineConfig({
         testDir: './tests/web/authenticated',
         use: { ...browserDevices[browser] },
       },
-      // TODO(ryan): fix these tests
-      // Unauthenticated Firefox tests sometimes get rate-limited and sometimes thinks the cluster name is
-      // `localhost`, for reasons I haven't been able to figure out, so don't run them for now.
-      ...(browser === 'firefox'
-        ? []
-        : [
-            {
-              name: `${browser}:unauthenticated`,
-              testDir: './tests/web/unauthenticated',
-              use: { ...browserDevices[browser] },
-            },
-          ]),
+      {
+        name: `${browser}:unauthenticated`,
+        testDir: './tests/web/unauthenticated',
+        use: { ...browserDevices[browser] },
+        // TODO(ryan): fix these tests
+        // Unauthenticated Firefox tests sometimes get rate-limited and sometimes think the cluster name is
+        // `localhost`, for reasons I haven't been able to figure out, so don't run them for now. The project
+        // stays defined because the runner selects projects by exact name, and Playwright fails selection
+        // outright on an unknown one.
+        ...(browser === 'firefox' ? { testIgnore: /.*/ } : {}),
+      },
     ]),
 
     {
