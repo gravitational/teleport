@@ -1,0 +1,457 @@
+source: ../../../../lib
+destination: ../../../../docs/pages/reference/deployment/monitoring/metrics.mdx
+introduction: |
+  <Admonition scope={["cloud"]} type="tip">
+
+  Teleport Cloud does not expose monitoring endpoints for the Auth Service and Proxy Service.
+
+  </Admonition>
+
+  Teleport metrics are intended for performance monitoring. If you'd like to
+  monitor Teleport usage, consider utilizing our Event Handler plugin to push Audit Events into your
+  preferred logging aggregation system (Elastic, Splunk, Sumo Logic, etc). 
+
+  - [Audit Events and Records](audit.mdx)  
+  - [Forwarding events with Fluentd](../../../zero-trust-access/export-audit-events/fluentd.mdx)  
+  - [Monitor Teleport Audit Events with the Elastic Stack](../../../zero-trust-access/export-audit-events/elastic-stack.mdx)
+
+# Map Prometheus metrics to their respective components by filtering based on metric name prefixes.
+components:
+  - name: Teleport Audit Log
+    filters:
+      - audit_
+      - teleport_audit_
+  - name: Teleport Auth
+    filters:
+      - auth_
+      - cluster_name_
+      - grpc_server_
+      - heartbeat_connections_
+      - heartbeats_missed_total
+      - teleport_ca_
+      - teleport_connected_
+      - teleport_registered_
+      - teleport_roles_
+      - teleport_migrations
+      - teleport_bot_instances
+      - user_login_total
+  - name: cache
+    filters:
+      - backend_
+      - teleport_backend_
+      - watcher_
+  - name: DynamoDB
+    filters:
+      - dynamo_
+  - name: etcd
+    filters:
+      - etcd_
+      - teleport_etcd_
+  - name: GCP Cloud Firestore
+    filters:
+      - firestore_events_
+  - name: GCP GCS
+    filters:
+      - gcs_event_
+  - name: Amazon S3
+    filters:
+      - s3_
+  - name: Postgres (Events)
+    filters:
+      - teleport_postgres_
+  - name: Teleport Proxy
+    filters:
+      - reversetunnel_conn_latency
+  - name: Teleport Machine ID
+    filters:
+      - tbot_
+
+# Define sections for grouping related metrics together.
+sections:
+  - title: Auth Service and backends
+    filters:
+      - audit_
+      - auth_
+      - backend_
+      - cluster_name_
+      - dynamo_
+      - etcd_
+      - teleport_etcd_
+      - teleport_backend_
+      - firestore_events_
+      - gcs_event_
+      - grpc_server_
+      - heartbeat
+      - s3_
+      - teleport_audit_
+      - teleport_connected_
+      - teleport_postgres_
+      - teleport_registered_
+      - teleport_roles_
+      - teleport_migrations
+      - teleport_bot_instances
+      - user_login_total
+      - watcher_event_sizes
+      - watcher_events
+    # Manually add metrics not found in the source.
+    metrics:
+      - name: grpc_server_started_total
+        type: counter
+        component: Teleport Auth
+        description: Total number of RPCs started on the server.
+      - name: grpc_server_handled_total
+        type: counter
+        component: Teleport Auth
+        description: Total number of RPCs completed on the server, regardless of success or failure.
+      - name: grpc_server_msg_received_total
+        type: counter
+        component: Teleport Auth
+        description: Total number of RPC stream messages received on the server.
+      - name: grpc_server_msg_sent_total
+        type: counter
+        component: Teleport Auth
+        description: Total number of gRPC stream messages sent by the server.
+  - title: Session recording summarizer
+    description: These metrics are exported by the Auth Service. They are all labeled with an `inference_model_name` label, which is the `metadata.name` field of the corresponding `inference_model` resource.
+    sections:
+      - title: General metrics
+        description: These metrics apply to all inference providers.
+        filters:
+          - teleport_summarizer_summarization
+        metrics:
+          - name: teleport_summarizer_summarizations_total
+            type: counter
+            component: Teleport Auth
+            description: Total number of summarization jobs started
+          - name: teleport_summarizer_summarization_errors
+            type: counter
+            component: Teleport Auth
+            description: Number of failed summarization jobs
+          - name: teleport_summarizer_summarization_jobs_pending
+            type: gauge
+            component: Teleport Auth
+            description: Number of summarization jobs currently awaiting execution
+          - name: teleport_summarizer_summarization_jobs_running
+            type: gauge
+            component: Teleport Auth
+            description: Number of summarization jobs currently being executed
+      - title: OpenAI-specific metrics
+        description: These metrics apply to jobs executed using OpenAI inference provider, including OpenAI-compatible proxies.
+        filters:
+          - teleport_summarizer_openai_
+        metrics:
+          - name: teleport_summarizer_openai_api_requests
+            type: counter
+            component: Teleport Auth
+            description: Total number of OpenAI API requests
+          - name: teleport_summarizer_openai_api_errors
+            type: counter
+            component: Teleport Auth
+            description: Number of errors returned by the OpenAI API. Additionally labeled with `api_error_code` which denotes the OpenAI API error code.
+          - name: teleport_summarizer_openai_api_requests_in_flight
+            type: gauge
+            component: Teleport Auth
+            description: Number of OpenAI requests currently awaiting response
+  - title: Enhanced Session Recording / BPF
+    component: BPF
+    filters:
+      - bpf_lost_
+  - title: Proxy Service
+    component: Teleport Proxy
+    filters:
+      - failed_
+      - grpc_client_
+      - proxy_
+      - remote_clusters
+      - teleport_connect_
+      - teleport_reverse_
+      - teleport_proxy_db_
+      - trusted_clusters
+    metrics:
+      - name: grpc_client_started_total
+        type: counter
+        component: Teleport Proxy
+        description: Total number of RPCs started on the client.
+      - name: grpc_client_handled_total
+        type: counter
+        component: Teleport Proxy
+        description: Total number of RPCs completed on the client, regardless of success or failure.
+      - name: grpc_client_msg_received_total
+        type: counter
+        component: Teleport Proxy
+        description: Total number of RPC stream messages received on the client.
+      - name: grpc_client_msg_sent_total
+        type: counter
+        component: Teleport Proxy
+        description: Total number of gRPC stream messages sent by the client.
+    sections:
+      - title: Kubernetes
+        description: |
+          The following tables identify all metrics available in the [Teleport Proxy Service](../../config#proxy-service) if at least one Kubernetes cluster is enrolled in your Teleport cluster.
+
+          The same metrics are also reported by the `kubernetes_service`, but apply to the agent leg of Kubernetes connections.
+        sections:
+          - title: Client
+            component: Teleport Kubernetes Proxy
+            description: The following table identifies all metrics available when the service connects to upstream servers. In the case of `proxy`, the upstream server can be a `kubernetes_service` or Kubernetes Cluster if it's running in legacy mode.
+            filters:
+              - teleport_kubernetes_client_
+          - title: Server
+            component: Teleport Kubernetes Proxy
+            description: The following table identifies all metrics available for incoming connections from clients (`tsh`, `kubectl`) to a Teleport Proxy.
+            filters:
+              - teleport_kubernetes_server_
+  - title: Database Service
+    component: Teleport Database Service
+    filters:
+      - teleport_db_
+  - title: Application Service
+    component: Teleport Application Service
+    filters:
+      - teleport_app_
+  - title: Teleport SSH Service
+    component: Teleport SSH
+    filters:
+      - user_max_
+  - title: Teleport Kubernetes Service
+    component: Teleport Kubernetes Service
+    description:
+      These metrics are available when the Teleport process is configured with [kubernetes_service](../../config#kubernetes-service) and apply to traffic between the agent and Kubernetes API.
+
+      The same metrics are also reported by the Proxy service, but apply to the proxy leg of Kubernetes connections.
+    sections:
+      - title: Client
+        component: Teleport Kubernetes Service
+        description: The following table identifies all metrics available when the `kubernetes_service` connects to the API of a Kubernetes cluster.
+        filters:
+          - teleport_kubernetes_client_
+      - title: Server
+        component: Teleport Kubernetes Service
+        description: The following table identifies all metrics available for connections from clients/Teleport proxies to the Teleport `kubernetes_service`.
+        filters:
+          - teleport_kubernetes_server_
+  - title: Integrations
+    sections:
+      - title: Microsoft Entra ID integration
+        description: The following metrics are emmited by the [Teleport Microsoft Entra ID integration service](../../../../identity-governance/integrations/entra-id/).
+        sections:
+          - title: Resource discovery
+            component: Teleport Auth
+            metrics:
+              - name: teleport_plugin_entra_id_directory_discovered_groups
+                type: gauge
+                component: Teleport Auth
+                description: Number of Entra ID groups discovered during the most recent sync.
+              - name: teleport_plugin_entra_id_directory_discovered_users
+                type: gauge
+                component: Teleport Auth
+                description: Number of Entra ID users discovered during the most recent sync.
+              - name: teleport_plugin_entra_id_directory_discovered_memberships
+                type: gauge
+                component: Teleport Auth
+                description: Number of Entra ID group memberships discovered during the most recent sync.
+          - title: Resource reconciliation
+            component: Teleport Auth
+            metrics:
+              - name: teleport_plugin_entra_id_directory_reconciliation_count
+                type: counter
+                component: Teleport Auth
+                description: Number of times the Entra ID directory reconciliation ran. Labeled with `result` (`success` or `error`).
+              - name: teleport_plugin_entra_id_directory_reconciliation_duration_seconds
+                type: histogram
+                component: Teleport Auth
+                description: Duration of each Entra ID directory reconciliation run. Labeled with `section`.
+          - description: |
+              The `section` label on `teleport_plugin_entra_id_directory_reconciliation_duration_seconds` breaks a sync down into its phases:
+
+              | Value                     | Description                                                                                                 |
+              |---------------------------|-------------------------------------------------------------------------------------------------------------|
+              | `read_entra_groups`       | Reading groups from the Microsoft Graph API. Emitted only on full sync.                                     |
+              | `read_entra_groups_delta` | Reading group changes from the Microsoft Graph API. Emitted only on delta sync.                             |
+              | `read_entra_members`      | Reading group memberships from the Microsoft Graph API. Emitted only on full sync.                          |
+              | `read_entra_users`        | Reading users from the Microsoft Graph API. Emitted only on full sync.                                      |
+              | `read_entra_users_delta`  | Reading user changes from the Microsoft Graph API. Emitted only on delta sync.                              |
+              | `reconcile_users`         | Reconciling discovered users into the Teleport backend. Emitted on full and delta sync.                     |
+              | `reconcile_access_lists`  | Reconciling discovered groups into Teleport Access Lists. Emitted on full and delta sync.                   |
+              | `total`                   | End-to-end duration of the reconciliation run, covering all sections above. Emitted on full and delta sync. |
+
+              Reconciliation is also measured for each individual resource:
+            filters:
+              - teleport_plugin_entra_id_directory_user_
+              - teleport_plugin_entra_id_directory_accesslist_
+              - teleport_plugin_entra_id_directory_reconciled_
+          - description: |
+              The `operation` and `result` labels break down into the following values:
+
+              | Label       | Values                                                                                                           |
+              |-------------|------------------------------------------------------------------------------------------------------------------|
+              | `operation` | `create`, `update`, or `delete`.                                                                                 |
+              | `result`    | `success`, `error`, or `noop`. `noop` is emitted when a user or Access List scheduled for deletion is not found. |
+  - title: All Teleport instances
+    component: Teleport
+    filters:
+      - process_state
+      - certificate_
+      - rx
+      - tx
+      - server_interactive_
+      - teleport_build_
+      - teleport_breaker_
+      - teleport_cache_
+  - title: Teleport Health Checks
+    component: Teleport Health Check
+    filters:
+      - teleport_resources_health_
+  - title: Go runtime metrics
+    description: These metrics are surfaced by the Go runtime and are not specific to Teleport.
+    metrics:
+      - name: go_gc_duration_seconds
+        type: summary
+        description: A summary of GC invocation durations.
+        component: Internal Go
+      - name: go_goroutines
+        type: gauge
+        description: Number of goroutines that currently exist.
+        component: Internal Go
+      - name: go_info
+        type: gauge
+        description: Information about the Go environment.
+        component: Internal Go
+      - name: go_memstats_alloc_bytes_total
+        type: counter
+        description: Total number of bytes allocated, even if freed.
+        component: Internal Go
+      - name: go_memstats_alloc_bytes
+        type: gauge
+        description: Number of bytes allocated and still in use.
+        component: Internal Go
+      - name: go_memstats_buck_hash_sys_bytes
+        type: gauge
+        description: Number of bytes used by the profiling bucket hash table.
+        component: Internal Go
+      - name: go_memstats_frees_total
+        type: counter
+        description: Total number of frees.
+        component: Internal Go
+      - name: go_memstats_gc_cpu_fraction
+        type: gauge
+        description: The fraction of this program's available CPU time used by the GC since the program started.
+        component: Internal Go
+      - name: go_memstats_gc_sys_bytes
+        type: gauge
+        description: Number of bytes used for garbage collection system metadata.
+        component: Internal Go
+      - name: go_memstats_heap_alloc_bytes
+        type: gauge
+        description: Number of heap bytes allocated and still in use.
+        component: Internal Go
+      - name: go_memstats_heap_idle_bytes
+        type: gauge
+        description: Number of heap bytes waiting to be used.
+        component: Internal Go
+      - name: go_memstats_heap_inuse_bytes
+        type: gauge
+        description: Number of heap bytes that are in use.
+        component: Internal Go
+      - name: go_memstats_heap_objects
+        type: gauge
+        description: Number of allocated objects.
+        component: Internal Go
+      - name: go_memstats_heap_released_bytes
+        type: gauge
+        description: Number of heap bytes released to the OS.
+        component: Internal Go
+      - name: go_memstats_heap_sys_bytes
+        type: gauge
+        description: Number of heap bytes obtained from the system.
+        component: Internal Go
+      - name: go_memstats_last_gc_time_seconds
+        type: gauge
+        description: Number of seconds since the Unix epoch of the last garbage collection.
+        component: Internal Go
+      - name: go_memstats_lookups_total
+        type: counter
+        description: Total number of pointer lookups.
+        component: Internal Go
+      - name: go_memstats_mallocs_total
+        type: counter
+        description: Total number of mallocs.
+        component: Internal Go
+      - name: go_memstats_mcache_inuse_bytes
+        type: gauge
+        description: Number of bytes in use by mcache structures.
+        component: Internal Go
+      - name: go_memstats_mcache_sys_bytes
+        type: gauge
+        description: Number of bytes used by mcache structures obtained from system.
+        component: Internal Go
+      - name: go_memstats_mspan_inuse_bytes
+        type: gauge
+        description: Number of bytes in use by mspan structures.
+        component: Internal Go
+      - name: go_memstats_mspan_sys_bytes
+        type: gauge
+        description: Number of bytes used by mspan structures obtained from system.
+        component: Internal Go
+      - name: go_memstats_next_gc_bytes
+        type: gauge
+        description: Number of heap bytes when next the garbage collection will take place.
+        component: Internal Go
+      - name: go_memstats_other_sys_bytes
+        type: gauge
+        description: Number of bytes used for other system allocations.
+        component: Internal Go
+      - name: go_memstats_stack_inuse_bytes
+        type: gauge
+        description: Number of bytes in use by the stack allocator.
+        component: Internal Go
+      - name: go_memstats_stack_sys_bytes
+        type: gauge
+        description: Number of bytes obtained from the system for stack allocator.
+        component: Internal Go
+      - name: go_memstats_sys_bytes
+        type: gauge
+        description: Number of bytes obtained from the system.
+        component: Internal Go
+      - name: go_threads
+        type: gauge
+        description: Number of OS threads created.
+        component: Internal Go
+      - name: process_cpu_seconds_total
+        type: counter
+        description: Total user and system CPU time spent in seconds.
+        component: Internal Go
+      - name: process_max_fds
+        type: gauge
+        description: Maximum number of open file descriptors.
+        component: Internal Go
+      - name: process_open_fds
+        type: gauge
+        description: Number of open file descriptors.
+        component: Internal Go
+      - name: process_resident_memory_bytes
+        type: gauge
+        description: Resident memory size in bytes.
+        component: Internal Go
+      - name: process_start_time_seconds
+        type: gauge
+        description: Start time of the process since the Unix epoch in seconds.
+        component: Internal Go
+      - name: process_virtual_memory_bytes
+        type: gauge
+        description: Virtual memory size in bytes.
+        component: Internal Go
+      - name: process_virtual_memory_max_bytes
+        type: gauge
+        description: Maximum amount of virtual memory available in bytes.
+        component: Internal Go
+  - title: Prometheus
+    metrics:
+      - name: promhttp_metric_handler_requests_in_flight
+        type: gauge
+        component: prometheus
+        description: Current number of scrapes being served.
+      - name: promhttp_metric_handler_requests_total
+        type: counter
+        component: prometheus
+        description: Total number of scrapes by HTTP status code.
