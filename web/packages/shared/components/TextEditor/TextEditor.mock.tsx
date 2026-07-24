@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// Jest-only: a module mock must be a literal jest.mock/vi.mock (hoisted), so it
+// can't use the mockFn shim. Swap for vi.mock when TextEditor.test.tsx migrates.
 jest.mock('./TextEditor', () => {
   return {
     __esModule: true,

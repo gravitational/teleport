@@ -19,6 +19,8 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 
+import '@testing-library/jest-dom';
+import 'jest-styled-components';
 import { configure as configureTestingLibrary } from '@testing-library/react';
 import failOnConsole from 'jest-fail-on-console';
 import { configMocks } from 'jsdom-testing-mocks';

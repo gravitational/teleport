@@ -21,6 +21,7 @@ import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import type { ComponentType } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { vi, expect, test, afterEach } from 'vitest';
 
 import {
   enableMswServer,
@@ -31,7 +32,6 @@ import {
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { MockAuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket.mock';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   type RecordingType,
@@ -42,19 +42,23 @@ import type { RecordingWithSummaryProps } from 'teleport/SessionRecordings/view/
 import { createMetadataHandler } from './mock';
 import { ViewSessionRecordingRoute } from './ViewSessionRecordingRoute';
 
-jest.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockImplementation(() => {
-  return 'ws://localhost/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws';
-});
+vi.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockReturnValue(
+  'ws://localhost/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws'
+);
 
-jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
-  AuthenticatedWebSocket: MockAuthenticatedWebSocket,
+// Import the mock inside the factory: vi.mock is hoisted above the file's imports, so referencing a top-level
+// import binding here risks a before-initialization error.
+vi.mock('teleport/lib/AuthenticatedWebSocket', async () => ({
+  AuthenticatedWebSocket: (
+    await import('teleport/lib/AuthenticatedWebSocket.mock')
+  ).MockAuthenticatedWebSocket,
 }));
 
 enableMswServer();
 
 afterEach(() => {
   testQueryClient.clear();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 const mockMetadata: SessionRecordingMetadata = {
@@ -71,7 +75,7 @@ const mockMetadata: SessionRecordingMetadata = {
 };
 
 // mock the RecordingPlayer component
-jest.mock('./RecordingPlayer', () => ({
+vi.mock('./RecordingPlayer', () => ({
   RecordingPlayer: ({ clusterId, sessionId, durationMs, recordingType }) => (
     <div data-testid="recording-player">
       RecordingPlayer: {clusterId}/{sessionId}/{durationMs}/{recordingType}
@@ -176,7 +180,7 @@ test('renders non-SSH recordings correctly', async () => {
 });
 
 test('falls back to the player when the custom summary component fails to load', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(createMetadataHandler({ ...mockMetadata, type: 'desktop' }, []));
 
@@ -278,7 +282,7 @@ test('falls back to loading the duration if metadata is not available and no URL
 });
 
 test('falls back to the session player if metadata is not available', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     createMetadataHandler(mockMetadata, [], {
@@ -304,7 +308,7 @@ test('falls back to the session player if metadata is not available', async () =
 });
 
 test('shows error if metadata and duration are not available', async () => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 
   server.use(
     createMetadataHandler(mockMetadata, [], {
