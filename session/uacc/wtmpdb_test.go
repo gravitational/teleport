@@ -43,12 +43,26 @@ func assertDBEntry(t *testing.T, db *sql.DB, key int64, expectUsername, expectTT
 	assert.Equal(t, expectLogoutTime.UnixMicro(), logoutTs.Int64)
 }
 
+func isUserLoggedInWtmpdb(db *sql.DB, user string) (bool, error) {
+	var count int
+	if err := db.QueryRow("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL", user).Scan(&count); err != nil {
+		return false, err
+	}
+	return count != 0, nil
+}
+
 func TestWtmpdb(t *testing.T) {
 	t.Parallel()
+
+	if err := WtmpdbBackendAvailable(); err != nil {
+		t.Skipf("TestWtmpdb requires linux, cgo and libwtmpdb installed: %v", err)
+	}
+
 	// Create database.
 	dbFile := filepath.Join(t.TempDir(), "wtmp.db")
 	db, err := sql.Open("sqlite", dbFile)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, db.Close()) }()
 	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
 	require.NoError(t, err)
@@ -67,16 +81,16 @@ func TestWtmpdb(t *testing.T) {
 	require.NotEmpty(t, key)
 
 	// Check that user was logged.
-	assertDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, time.Unix(0, 0))
-	isUserLoggedIn, err := wtmpdb.IsUserLoggedIn("testuser")
+	assertDBEntry(t, db, key, "testuser", "pts/99", remote.Addr, loginTime, time.Unix(0, 0))
+	isUserLoggedIn, err := isUserLoggedInWtmpdb(db, "testuser")
 	require.NoError(t, err)
 	require.True(t, isUserLoggedIn)
 
 	// Check that logout is logged.
 	logoutTime := loginTime.Add(time.Hour)
 	require.NoError(t, wtmpdb.Logout(key, logoutTime))
-	assertDBEntry(t, wtmpdb.db, key, "testuser", "pts/99", remote.Addr, loginTime, logoutTime)
-	isUserLoggedIn, err = wtmpdb.IsUserLoggedIn("testuser")
+	assertDBEntry(t, db, key, "testuser", "pts/99", remote.Addr, loginTime, logoutTime)
+	isUserLoggedIn, err = isUserLoggedInWtmpdb(db, "testuser")
 	require.NoError(t, err)
 	require.False(t, isUserLoggedIn)
 }
