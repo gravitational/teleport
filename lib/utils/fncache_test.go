@@ -599,12 +599,12 @@ func TestFnCacheRemove(t *testing.T) {
 		k any
 		v any
 	}
-	expiredC := make(chan item, 5)
+	removedC := make(chan item, 1)
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:     time.Hour,
 		Context: ctx,
-		OnExpiry: func(ctx context.Context, key, expired any) {
-			expiredC <- item{k: key, v: expired}
+		OnRemove: func(ctx context.Context, key, expired any) {
+			removedC <- item{k: key, v: expired}
 		},
 	})
 	require.NoError(t, err)
@@ -627,6 +627,10 @@ func TestFnCacheRemove(t *testing.T) {
 	// Remove the entry explicitly.
 	cache.Remove("test")
 
+	// Verify that the OnRemove callback executed
+	removedItem := <-removedC
+	require.Equal(t, "test", removedItem.k)
+
 	// Retrieve the entry again, this time the loadFn should
 	// be called because the item was explicitly removed.
 	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
@@ -642,18 +646,10 @@ func TestFnCacheSet(t *testing.T) {
 	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
-	type item struct {
-		k any
-		v any
-	}
-	expiredC := make(chan item, 5)
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:     time.Hour,
 		Context: ctx,
 		Clock:   clock,
-		OnExpiry: func(ctx context.Context, key, expired any) {
-			expiredC <- item{k: key, v: expired}
-		},
 	})
 	require.NoError(t, err)
 
@@ -888,21 +884,10 @@ func TestGetIfExists(t *testing.T) {
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
-		for i := 0; i < 100; i++ {
-			wg.Add(3)
-			go func() {
-				defer wg.Done()
-				cache.GetIfExists("key")
-			}()
-			go func() {
-				defer wg.Done()
-				cache.Remove("key")
-			}()
-
-			go func() {
-				defer wg.Done()
-				cache.Set("key", "value")
-			}()
+		for range 100 {
+			wg.Go(func() { cache.GetIfExists("key") })
+			wg.Go(func() { cache.Remove("key") })
+			wg.Go(func() { cache.Set("key", "value") })
 		}
 		wg.Wait()
 	})

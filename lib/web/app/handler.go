@@ -138,6 +138,14 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		h.logger.InfoContext(ctx, "Application access DBSC support disabled via TELEPORT_UNSTABLE_DISABLE_DBSC")
 	}
 
+	closeSession := func(ctx context.Context, key, value any) {
+		session, ok := value.(*session)
+		if !ok {
+			return
+		}
+		session.Close()
+	}
+
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
 	h.cache, err = utils.NewFnCache(utils.FnCacheConfig{
@@ -146,6 +154,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		Context:         ctx,
 		CleanupInterval: time.Second,
 		ReloadOnErr:     true,
+		OnExpiry:        closeSession,
+		OnRemove:        closeSession,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
