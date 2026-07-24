@@ -45,17 +45,16 @@ import (
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
-// multiplexed streams. After RoundTrip() is invoked, Conn will be set
-// and usable. SpdyRoundTripper implements the UpgradeRoundTripper interface.
+// multiplexed streams. After RoundTrip() is invoked, the upgraded connection
+// can be obtained by passing the response to NewConnection. SpdyRoundTripper
+// implements the UpgradeRoundTripper interface.
+//
+// A SpdyRoundTripper is single-use and not safe for concurrent use:
+// callers create one, use it for a single RoundTrip, and discard it.
+// Its conn is tied to that one request rather than kept in a per-request map.
 type SpdyRoundTripper struct {
 	roundTripperConfig
 
-	/* TODO according to http://golang.org/pkg/net/http/#RoundTripper, a RoundTripper
-	   must be safe for use by multiple concurrent goroutines. If this is absolutely
-	   necessary, we could keep a map from http.Request to net.Conn. In practice,
-	   a client will create an http.Client, set the transport to a new insteace of
-	   SpdyRoundTripper, and use it a single time, so this hopefully won't be an issue.
-	*/
 	// conn is the underlying network connection to the remote server.
 	conn net.Conn
 
@@ -212,8 +211,7 @@ func (s *SpdyRoundTripper) dialWithProxy(req *http.Request, proxyURL *url.URL) (
 }
 
 // RoundTrip executes the Request and upgrades it. After a successful upgrade,
-// clients may call SpdyRoundTripper.Connection() to retrieve the upgraded
-// connection.
+// clients may call SpdyRoundTripper.NewConnection() to retrieve the upgraded connection.
 func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	header := utilnet.CloneHeader(req.Header)
 	// copyImpersonationHeaders copies the headers from the original request to the new
@@ -279,7 +277,8 @@ func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connec
 	return streamspdy.NewClientConnectionWithPings(s.conn, s.pingPeriod)
 }
 
-// statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
+// statusScheme is a minimal scheme registering only metav1.Status,
+// used to decode the status returned in an upgrade error response (see extractKubeAPIStatusFromReq).
 var statusScheme = runtime.NewScheme()
 
 // ParameterCodec knows about query parameters used with the meta v1 API spec.
