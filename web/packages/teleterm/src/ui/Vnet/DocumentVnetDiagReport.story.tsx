@@ -66,6 +66,7 @@ type StoryProps = {
   networkStackAttempt: 'ok' | 'error';
   ipv4CidrRanges: string[];
   dnsZones: string[];
+  hostIpv6Disabled: boolean;
   routeConflictAttempt: 'ok' | 'issues-found' | 'error';
   routeConflicts: RouteConflict[];
   routeConflictCommandAttempt: 'ok' | 'error';
@@ -107,6 +108,9 @@ const meta: Meta<StoryProps> = {
     },
     ipv4CidrRanges: { control: { type: 'object' } },
     dnsZones: { control: { type: 'object' } },
+    hostIpv6Disabled: {
+      control: { type: 'boolean' },
+    },
     routeConflictAttempt: {
       control: { type: 'inline-radio' },
       options: ['ok', 'issues-found', 'error'],
@@ -151,6 +155,7 @@ const meta: Meta<StoryProps> = {
     networkStackAttempt: 'ok',
     ipv4CidrRanges: ['100.64.0.0/10'],
     dnsZones: ['teleport.example.com', 'company.test'],
+    hostIpv6Disabled: false,
     routeConflictAttempt: 'issues-found',
     routeConflicts: [
       makeRouteConflict({
@@ -219,6 +224,9 @@ export function DocumentVnetDiagReport(props: StoryProps) {
     report.networkStackAttempt.networkStack.ipv4CidrRanges =
       props.ipv4CidrRanges;
     report.networkStackAttempt.networkStack.dnsZones = props.dnsZones;
+    if (props.hostIpv6Disabled) {
+      report.networkStackAttempt.networkStack.ipv6Prefix = '';
+    }
   }
 
   const routeConflictReport: RouteConflictReport = { routeConflicts: [] };
