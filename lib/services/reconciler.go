@@ -304,14 +304,55 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 
 	start := time.Now()
 
+	var errs []error
+	if r.cfg.Concurrency > 1 {
+		errs = r.reconcileConcurrent(ctx, currentResources, newResources)
+	} else {
+		errs = r.reconcileSequential(ctx, currentResources, newResources)
+	}
+
+	if r.stats.hasChanges() {
+		r.logger.InfoContext(ctx, "Reconciliation completed",
+			"kind", r.resourceKind(currentResources, newResources),
+			"took", time.Since(start).String(),
+			"stats", r.stats,
+		)
+	}
+
+	// TODO(zmb3): with a large number of resources, this can return a lengthy
+	// error message that is difficult to parse
+	return trace.NewAggregate(errs...)
+}
+
+// reconcileSequential processes resources inline without goroutines.
+// This is used when Concurrency == 1 (the default) to avoid unnecessary
+// goroutine creation overhead.
+func (r *GenericReconciler[K, T]) reconcileSequential(ctx context.Context, currentResources, newResources map[K]T) []error {
+	var errs []error
+	// Process already registered resources to see if any of them were removed.
+	for key, current := range currentResources {
+		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+	// Add new resources if there are any or refresh those that were updated.
+	for key, newResource := range newResources {
+		if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+	return errs
+}
+
+// reconcileConcurrent processes resources using an errgroup with the configured
+// concurrency limit. This is used when Concurrency > 1.
+func (r *GenericReconciler[K, T]) reconcileConcurrent(ctx context.Context, currentResources, newResources map[K]T) []error {
 	var g errgroup.Group
 	g.SetLimit(r.cfg.Concurrency)
-
 	var (
 		mu   sync.Mutex
 		errs []error
 	)
-
 	// Process already registered resources to see if any of them were removed.
 	for key, current := range currentResources {
 		g.Go(func() error {
@@ -323,7 +364,6 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 			return nil
 		})
 	}
-
 	// Add new resources if there are any or refresh those that were updated.
 	for key, newResource := range newResources {
 		g.Go(func() error {
@@ -335,21 +375,9 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 			return nil
 		})
 	}
-
-	// Error are collected separately.
+	// Errors are collected separately.
 	_ = g.Wait()
-
-	if r.stats.hasChanges() {
-		r.logger.InfoContext(ctx, "Reconciliation completed",
-			"kind", r.resourceKind(currentResources, newResources),
-			"took", time.Since(start),
-			"stats", r.stats,
-		)
-	}
-
-	// TODO(zmb3): with a large number of resources, this can return a lengthy
-	// error message that is difficult to parse
-	return trace.NewAggregate(errs...)
+	return errs
 }
 
 // resourceKind extracts the resource kind from the first available resource.
