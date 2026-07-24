@@ -1,0 +1,112 @@
+suite: Test operator custom resources
+templates:
+  - operator_crs.yaml
+tests:
+  - it: should match the snapshot (tokenSpecOverride set)
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+        tokenSpecOverride:
+          join_method: kubernetes
+          kubernetes:
+            type: static_jwks
+            static_jwks:
+              jwks: |
+                test-jwks
+    asserts:
+      - matchSnapshot: {}
+  - it: creates custom resources when crd.create is true
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: TeleportBotV1
+          apiVersion: resources.teleport.dev/v1
+          name: RELEASE-NAME-teleport-plugin-discord
+      - containsDocument:
+          kind: TeleportProvisionToken
+          apiVersion: resources.teleport.dev/v2
+          name: RELEASE-NAME-tbot
+  - it: creates custom resources in specified namespace
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+        namespace: test-namespace
+    asserts:
+      - hasDocuments:
+          count: 2
+      - containsDocument:
+          kind: TeleportBotV1
+          apiVersion: resources.teleport.dev/v1
+          name: RELEASE-NAME-teleport-plugin-discord
+          namespace: test-namespace
+      - containsDocument:
+          kind: TeleportProvisionToken
+          apiVersion: resources.teleport.dev/v2
+          name: RELEASE-NAME-tbot
+          namespace: test-namespace
+  - it: creates no custom resources when crd.create is false
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: should fail if crd.create is true but tbot not enabled
+    set:
+      crd:
+        create: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Custom resources cannot be deployed without tbot enabled"
+  - it: should fail if tokenSpecOverride set and does not match tbot.joinMethod
+    values:
+      - ../.lint/tbot-enabled.yaml
+    set:
+      crd:
+        create: true
+        tokenSpecOverride:
+          join_method: github
+          github: |
+            test-github-config
+    asserts:
+      - failedTemplate:
+          errorMessage: "crd.tokenSpecOverride.join_method must be same as tbot.joinMethod"
+  - it: should fail if tbot.joinMethod not kubernetes and tokenSpecOverride not set
+    set:
+      tbot:
+        enabled: true
+        clusterName: "test.teleport.sh"
+        teleportProxyAddress: "test.teleport.sh:443"
+        joinMethod: "github"
+      crd:
+        create: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "crd.tokenSpecOverride cannot be empty in chart values"
+  - it: should fail if tbot.joinMethod not kubernetes and tokenSpecOverride not contains join_method
+    set:
+      tbot:
+        enabled: true
+        clusterName: "test.teleport.sh"
+        teleportProxyAddress: "test.teleport.sh:443"
+        joinMethod: "github"
+      crd:
+        create: true
+        tokenSpecOverride:
+          github: |
+            test-github-config
+    asserts:
+      - failedTemplate:
+          errorMessage: "crd.tokenSpecOverride.join_method cannot be empty in chart values"
