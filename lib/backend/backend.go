@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -296,10 +297,28 @@ type KeyedItem interface {
 // have the HostID part.
 func GetPaginationKey(ki KeyedItem) string {
 	if h, ok := ki.(HostID); ok {
-		return h.GetHostID() + SeparatorString + h.GetName()
+		return HostIDPaginationKey(h.GetHostID(), h.GetName())
 	}
 
 	return ki.GetName()
+}
+
+// HostIDPaginationKey returns a pagination key for resources identified by host ID and name.
+func HostIDPaginationKey(hostID, name string) string {
+	return hostID + SeparatorString + name
+}
+
+// ParseHostIDPaginationKey parses a pagination key for resources identified by host ID and name.
+func ParseHostIDPaginationKey(paginationKey string) (hostID, name string, err error) {
+	// TODO(wethreetrees): if Metadata.Name == Spec.Database.GetName() becomes a
+	// DatabaseServerV3.CheckAndSetDefaults invariant or server name validation
+	// is added (e.g. no separator allowed), we can simplify this function by
+	// parsing with KeyFromString and validating the components and their values.
+	hostID, name, ok := strings.Cut(paginationKey, SeparatorString)
+	if !ok || hostID == "" || name == "" {
+		return "", "", trace.BadParameter("invalid host ID pagination key %q", paginationKey)
+	}
+	return hostID, name, nil
 }
 
 // MaskKeyName masks the given key name.
