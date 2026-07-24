@@ -15,8 +15,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Command enroll is a throwaway tool that calls the public Device Trust
-// CreatePairedDeviceEnrollToken RPC against a proxy server with a given
-// pairing token and constant fake device data.
+// CreatePairedDeviceEnrollToken and EnrollDevice RPCs against a proxy server
+// with a given token and constant fake device data.
 package main
 
 import (
@@ -37,7 +37,8 @@ var fakeDeviceData = enroll.DeviceCollectedData{
 
 func main() {
 	proxyServer := flag.String("proxy", "", "proxy server address (host:port)")
-	token := flag.String("token", "", "enroll pairing token")
+	rpc := flag.String("rpc", "create-token", "RPC to call: create-token or enroll")
+	token := flag.String("token", "", "enroll pairing token for create-token, device enrollment token for enroll")
 	flag.Parse()
 
 	if *proxyServer == "" || *token == "" {
@@ -46,10 +47,25 @@ func main() {
 	}
 
 	client := enroll.NewClient(*proxyServer, false)
-	enrollToken, err := client.CreatePairedDeviceEnrollToken(*token, &fakeDeviceData)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+
+	switch *rpc {
+	case "create-token":
+		enrollToken, err := client.CreatePairedDeviceEnrollToken(*token, &fakeDeviceData)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println(enrollToken.Token)
+	case "enroll":
+		device, err := client.EnrollDevice(*token, &fakeDeviceData)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Printf("enrolled device %s (asset tag %s)\n", device.DeviceID, device.AssetTag)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown rpc %q\n", *rpc)
+		flag.Usage()
 		os.Exit(1)
 	}
-	fmt.Println(enrollToken.Token)
 }
