@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
@@ -314,4 +316,38 @@ func generateExecRequest(config generateExecRequestConfig) (*rest.Request, error
 		}, scheme.ParameterCodec)
 
 	return req, nil
+}
+
+// testKubeProxyCertReissuer covers the local kube proxy's cert reissuer,
+// which the proxy middleware invokes when it holds no valid cert for a cluster.
+// It must return a fresh routed cert.
+func (p *kubeTestPack) testKubeProxyCertReissuer(t *testing.T) {
+	t.Setenv(proxyKubeConfigEnvVar, filepath.Join(t.TempDir(), "config"))
+
+	cf := &CLIConf{
+		Context:            t.Context(),
+		HomePath:           os.Getenv(types.HomeEnvVar),
+		InsecureSkipVerify: true,
+	}
+	tc, err := makeClient(cf)
+	require.NoError(t, err)
+
+	clusters := kubeconfig.LocalProxyClusters{
+		{TeleportCluster: p.rootClusterName, KubeCluster: p.rootKubeCluster1},
+	}
+	kubeProxy, err := makeKubeLocalProxy(cf, tc, clusters, clientcmdapi.NewConfig(), "0",
+		kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}"))
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeProxy.Close() })
+	require.NoError(t, kubeProxy.WriteKubeConfig())
+
+	reissuer := kubeProxy.getCertReissuer()
+	reissued, err := reissuer(t.Context(), p.rootClusterName, p.rootKubeCluster1)
+	require.NoError(t, err)
+
+	require.NotNil(t, reissued.Leaf, "reissued cert should have a parsed leaf")
+	require.True(t, reissued.Leaf.NotAfter.After(time.Now().Add(time.Minute)), "reissued cert should be fresh")
+	identity, err := tlsca.FromSubject(reissued.Leaf.Subject, reissued.Leaf.NotAfter)
+	require.NoError(t, err)
+	require.Equal(t, p.rootKubeCluster1, identity.KubernetesCluster)
 }

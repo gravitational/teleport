@@ -554,6 +554,36 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			},
 		},
 		{
+			name:        "reusable MFA expired with FailOnExpiredReusableMFAResponse",
+			mfaRequired: proto.MFARequired_MFA_REQUIRED_NO,
+			params: ReissueParams{
+				RouteToDatabase: proto.RouteToDatabase{
+					ServiceName: "test",
+					Username:    "test",
+				},
+				RequesterName:                    proto.UserCertsRequest_TSH_DB_EXEC,
+				ReusableMFAResponse:              &proto.MFAAuthenticateResponse{},
+				FailOnExpiredReusableMFAResponse: true,
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						// This is the fake reusable MFA response passed in the first call.
+						if req.MFAResponse != nil && req.MFAResponse.Response == nil {
+							return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+						}
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			prompt: failedPrompt, // no ceremony fallback: the error is returned instead
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+				require.Nil(t, result)
+			},
+		},
+		{
 			name:          "session MFA from a leaf cluster mentions the leaf in the prompt reason",
 			mfaRequired:   proto.MFARequired_MFA_REQUIRED_YES,
 			clientCluster: "leaf",

@@ -63,6 +63,7 @@ func TestKube(t *testing.T) {
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
 	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
+	t.Run("proxy kube cert reissuer", pack.testKubeProxyCertReissuer)
 }
 
 func TestKubeLogin(t *testing.T) {
