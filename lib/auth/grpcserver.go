@@ -5305,6 +5305,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
+			case installers.InstallerScriptNameWindowsDesktop:
+				return installer.DefaultWindowsDesktopInstaller, nil
 			}
 		}
 		return nil, trace.Wrap(err)
@@ -5334,8 +5336,9 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 
 	defaultInstallers := map[string]*types.InstallerV1{
-		types.DefaultInstallerScriptName:        defaultInstaller,
-		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+		types.DefaultInstallerScriptName:             defaultInstaller,
+		installers.InstallerScriptNameAgentless:      installers.DefaultAgentlessInstaller,
+		installers.InstallerScriptNameWindowsDesktop: installer.DefaultWindowsDesktopInstaller,
 	}
 
 	for _, inst := range res {
@@ -5390,6 +5393,10 @@ func (g *GRPCServer) rangeDefaultInstallers(ctx context.Context, start, end stri
 				}
 			}
 			defaultInstallers = append(defaultInstallers, defaultInstaller)
+		}
+
+		if isInRange(installers.InstallerScriptNameWindowsDesktop, start, end) {
+			defaultInstallers = append(defaultInstallers, installer.DefaultWindowsDesktopInstaller)
 		}
 
 		// Sort in case the names change in the future as the streams must be sorted.
