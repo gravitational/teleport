@@ -894,6 +894,12 @@ storage:
   # storage.requests(string) -- is the size of the persistent volume to create.
   requests: 128Mi
 
+  # storage.emptyDirSizeLimit(string) -- sets a sizeLimit on the emptyDir volume used when
+  # storage.enabled is false. Useful when admission policies (e.g. OPA/Kyverno/CEL) require
+  # all emptyDir volumes to have an explicit size limit. Leave empty for no limit (default).
+  # Example: "512Mi"
+  emptyDirSizeLimit: ""
+
 # adminClusterRoleBinding -- optionally creates a cluster admin role binding.
 # This is useful for granting cluster admin permissions to a Kubernetes Group
 # other than the default `system:masters` group.
