@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -92,7 +91,7 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 	createScopedRole := func(name string, verbs []string) *scopedaccessv1.ScopedRole {
 		scopedRole, err := srv.Auth().ScopedAccess().CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: scopedaccessv1.ScopedRole_builder{
-				Kind:    access.KindScopedRole,
+				Kind:    scopedaccess.KindScopedRole,
 				Version: types.V1,
 				Metadata: headerv1.Metadata_builder{
 					Name: name,
