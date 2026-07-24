@@ -1,0 +1,28 @@
+[
+  {
+    "kind": "windows_desktop",
+    "metadata": {
+      "name": "win-prod-1",
+      "labels": {
+        "env": "prod",
+        "team": "helpdesk"
+      }
+    },
+    "spec": {
+      "addr": "10.10.1.20:3389"
+    }
+  },
+  {
+    "kind": "windows_desktop",
+    "metadata": {
+      "name": "win-staging-1",
+      "labels": {
+        "env": "staging",
+        "team": "helpdesk"
+      }
+    },
+    "spec": {
+      "addr": "10.10.2.20:3389"
+    }
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "kube_cluster",
+    "metadata": {
+      "name": "prod-cluster-1",
+      "labels": { "env": "production", "team": "sre" }
+    },
+    "spec": {}
+  },
+  {
+    "kind": "kube_cluster",
+    "metadata": {
+      "name": "prod-cluster-2",
+      "labels": { "env": "production", "team": "sre" }
+    },
+    "spec": {}
+  },
+  {
+    "kind": "kube_cluster",
+    "metadata": {
+      "name": "staging-cluster-1",
+      "labels": { "env": "staging", "team": "sre" }
+    },
+    "spec": {}
+  }
+]
