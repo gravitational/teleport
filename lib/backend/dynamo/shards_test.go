@@ -21,11 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -35,6 +38,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -42,6 +46,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/dynamo/mockstream"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
@@ -656,4 +661,244 @@ func TestBackend_deleteShardsWithParents(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestPollStreamsSingleSplitShardHappyPath(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mockstream.Config{
+			TableName: "test",
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		mock := mockstream.NewMockDynamoStreamsAPI(ctx, cfg)
+		t.Cleanup(func() {
+			mock.Close()
+		})
+		b := newMockBackend(t, mock, cfg)
+
+		var errPoll error
+		go func() {
+			errPoll = b.pollStreams(ctx)
+		}()
+		synctest.Wait()
+
+		w := testInitializeWatcher(t, ctx, b)
+		require.NotNil(t, w)
+		synctest.Wait()
+
+		shards := slices.Collect(mock.GetShards())
+		require.Len(t, shards, 1)
+
+		parent := shards[0]
+		recs, err := mock.GetShardRecords(parent)
+		require.Empty(t, recs)
+		require.NoError(t, err)
+
+		// Prepare hooks to ensure any future shards use the correct iter type
+		mock.SetGetShardIteratorHook(func(ctx context.Context, input *dynamodbstreams.GetShardIteratorInput) error {
+			if input.ShardIteratorType != streamtypes.ShardIteratorTypeAtSequenceNumber {
+				return trace.BadParameter("expected ShardIteratorTypeAtSequenceNumber")
+			}
+			return nil
+		})
+
+		written := make(map[string]record)
+		recieved := make(map[string]backend.Item)
+
+		var children []string
+		for i := range 1024 {
+			r := record{
+				HashKey:   "hello",
+				FullPath:  fmt.Sprintf("hello/world/%d", i),
+				Value:     []byte("foobar"),
+				Timestamp: time.Now().UTC().Unix(),
+			}
+			av, err := attributevalue.MarshalMap(r)
+			require.NoError(t, err)
+
+			_, err = mock.PutItem(ctx, &dynamodb.PutItemInput{
+				Item:      av,
+				TableName: aws.String(cfg.TableName),
+			})
+			require.NoError(t, err)
+
+			written[r.FullPath] = r
+
+			if i == 15 {
+				children, err = mock.SplitShard(shards[0])
+				require.NoError(t, err)
+				require.Len(t, children, 2)
+			}
+
+			synctest.Wait()
+		}
+
+		shards = slices.Collect(mock.GetShards())
+		require.Len(t, shards, 3)
+		synctest.Wait()
+
+		for range 1024 {
+			ev := <-w.Events()
+			recieved[ev.Item.Key.String()] = ev.Item
+		}
+
+		assert.Len(t, recieved, len(written))
+		for w, r := range written {
+			assert.Equal(t, r.FullPath, recieved[w].Key.String())
+		}
+
+		recs, err = mock.GetShardRecords(parent)
+		require.Len(t, recs, 16)
+		require.NoError(t, err)
+
+		recs, err = mock.GetShardRecords(children[0])
+		require.Len(t, recs, 500)
+		require.NoError(t, err)
+
+		recs, err = mock.GetShardRecords(children[1])
+		require.Len(t, recs, 508)
+		require.NoError(t, err)
+
+		cancel()
+		synctest.Wait()
+
+		require.NoError(t, errPoll)
+	})
+}
+
+func TestPollStreamsShardReadFailureResetsClosingWatcher(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mockstream.Config{
+			TableName: "test",
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		mock := mockstream.NewMockDynamoStreamsAPI(ctx, cfg)
+		t.Cleanup(func() {
+			mock.Close()
+		})
+		b := newMockBackend(t, mock, cfg)
+
+		var errPoll error
+
+		go func() {
+			errPoll = b.pollStreams(ctx)
+		}()
+		synctest.Wait()
+
+		w := testInitializeWatcher(t, ctx, b)
+		require.NotNil(t, w)
+		synctest.Wait()
+
+		for i := range 1024 {
+			r := record{
+				HashKey:   "hello",
+				FullPath:  fmt.Sprintf("hello/world/%d", i),
+				Value:     []byte("foobar"),
+				Timestamp: time.Now().UTC().Unix(),
+			}
+			av, err := attributevalue.MarshalMap(r)
+			require.NoError(t, err)
+
+			mock.PutItem(ctx, &dynamodb.PutItemInput{
+				Item:      av,
+				TableName: aws.String(cfg.TableName),
+			})
+
+			if i%8 == 0 {
+				shards := slices.Collect(mock.GetShards())
+				random := shards[rand.Intn(len(shards))]
+				mock.SplitShard(random)
+			}
+			<-w.Events()
+		}
+
+		mock.SetGetRecordsHook(func(ctx context.Context, input *dynamodbstreams.GetRecordsInput) error {
+			return trace.BadParameter("shard failure")
+		})
+
+		done := false
+		select {
+		case <-w.Events():
+			assert.Fail(t, "unexpected event after shard failure")
+		case <-w.Done():
+			done = true
+		}
+
+		cancel()
+		synctest.Wait()
+		require.ErrorContains(t, errPoll, "shard failure")
+		require.True(t, done)
+	})
+}
+
+func TestPollStreamsGetRecordsResetsStream(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mockstream.Config{
+			TableName: "test",
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		mock := mockstream.NewMockDynamoStreamsAPI(ctx, cfg)
+		t.Cleanup(func() {
+			mock.Close()
+		})
+		b := newMockBackend(t, mock, cfg)
+		mock.SetGetRecordsHook(func(ctx context.Context, input *dynamodbstreams.GetRecordsInput) error {
+			return trace.NotFound("failed to get records")
+		})
+
+		var errPoll error
+		go func() {
+			errPoll = b.pollStreams(ctx)
+		}()
+
+		synctest.Wait()
+		require.Error(t, errPoll)
+		require.ErrorContains(t, errPoll, "failed to get records")
+	})
+}
+
+func TestPollStreamsFailsOnInit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mockstream.Config{
+			TableName: "test",
+		}
+		ctx := t.Context()
+		mock := mockstream.NewMockDynamoStreamsAPI(ctx, cfg)
+		t.Cleanup(func() {
+			mock.Close()
+		})
+		b := newMockBackend(t, mock, cfg)
+
+		// Inject failure before the first registration
+		mock.SetGetShardIteratorHook(func(ctx context.Context, input *dynamodbstreams.GetShardIteratorInput) error {
+			assert.Equal(t, streamtypes.ShardIteratorTypeLatest, input.ShardIteratorType)
+			return trace.NotFound("failed to get shard iterator")
+		})
+		var errPoll error
+		go func() {
+			errPoll = b.pollStreams(ctx)
+		}()
+		synctest.Wait()
+		require.Error(t, errPoll)
+		require.ErrorContains(t, errPoll, "failed to get shard iterator")
+	})
+}
+
+func newMockBackend(t *testing.T, mock *mockstream.MockDynamoStreamsAPI, cfg mockstream.Config) *Backend {
+	t.Helper()
+	b := &Backend{
+		clock:   clockwork.NewRealClock(),
+		logger:  slog.With(teleport.ComponentKey, BackendName),
+		buf:     backend.NewCircularBuffer(backend.BufferCapacity(1024)),
+		svc:     mock,
+		streams: mock,
+		Config: Config{
+			TableName:        cfg.TableName,
+			PollStreamPeriod: time.Millisecond,
+		},
+	}
+	t.Cleanup(func() {
+		b.Close()
+	})
+	return b
 }
