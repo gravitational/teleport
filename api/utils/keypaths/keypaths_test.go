@@ -25,6 +25,11 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 )
 
+func TestAccessGraphTLSCertPath(t *testing.T) {
+	path := keypaths.AccessGraphTLSCertPath("~/tsh", "proxy", "user")
+	require.Equal(t, "~/tsh/keys/proxy/user-access-graph.crt", path)
+}
+
 func TestIsProfileKubeConfigPath(t *testing.T) {
 	path := ""
 	isKubeConfig, err := keypaths.IsProfileKubeConfigPath(path)

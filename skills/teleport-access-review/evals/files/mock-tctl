@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-access-review evals: returns fixtures from this
+# directory based on the access-review --query, instead of hitting a real
+# cluster. Endpoint-absent and activity-unavailable states have their own mock
+# variants alongside this one.
+#
+# The mock mirrors the real command rather than policing flags, so the evals can
+# assert on how the skill invokes it:
+#   * Activity is requested by default; --no-activity skips the IAC lookup, so we
+#     then strip every activity field and the activity-unavailable message.
+#   * Output is always JSON (we only model the JSON path), regardless of --format.
+
+import json
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename, *, with_activity):
+    """Print a fixture, dropping activity data and the activity-unavailable message when activity was not requested."""
+    with open(os.path.join(dir, filename)) as f:
+        text = f.read()
+    if with_activity:
+        print(text, end="")
+        return
+    data = json.loads(text)
+    for identity in data.get("identities", []):
+        for resource in identity.get("resources", []):
+            resource.pop("activity", None)
+    # No activity requested -> the CLI never contacts IAC, so there is no
+    # activity-unavailable message either.
+    data.pop("activity_unavailable", None)
+    print(json.dumps(data, indent=2), end="")
+
+
+def query():
+    for i, a in enumerate(args):
+        if a == "--query" and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith("--query="):
+            return a.split("=", 1)[1]
+    return ""
+
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt", with_activity=True)
+elif args[:1] == ["access-review"]:
+    if "--help" in args:
+        print("usage: tctl access-review --query=QUERY [<flags>]\n")
+        print("Review which identities can access which resources.")
+    else:
+        # Activity is on by default; only --no-activity skips the IAC lookup.
+        activity_on = "--no-activity" not in args
+        # Dispatch on the query so a discovery (ILIKE) query and the scoped
+        # query for the same scenario resolve to one dataset.
+        q = query().lower()
+        if "payments-db" in q:
+            read("injection.json", with_activity=activity_on)
+        elif "staging-db" in q:
+            read("multi-grantor.json", with_activity=activity_on)
+        elif "alice" in q:
+            read("alice-standing.json", with_activity=activity_on)
+        elif "prod-db" in q:
+            read("who-can-access.json", with_activity=activity_on)
+        else:
+            print('{"identities": []}')
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)
