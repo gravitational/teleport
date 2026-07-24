@@ -67,7 +67,6 @@ func (l LocalFS) ReadDir(path string) ([]os.FileInfo, error) {
 }
 
 func (l LocalFS) Open(path string) (File, error) {
-
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
