@@ -784,6 +784,11 @@ Service reads these parameters to configure its interactions with S3:
 - `use_fips_endpoint=true` -  [Configure S3 FIPS
   endpoints](#configuring-aws-fips-endpoints)
 
+- `disablechecksum=true` - set to `true` or `false`. If `true`, Teleport will
+  disable automatic trailing checksum calculation for S3 multipart uploads.
+  This is useful for S3-compatible services that do not support trailing
+  checksums. Default value is `false`.
+
 - `use_s3_virtual_style_addressing` - Whether to use virtual-host-style instead of path-style URLs for the
   bucket. Only applies when a custom endpoint is set. Defaults to false when unset. If used
   without a custom endpoint set, this option has no effect.
