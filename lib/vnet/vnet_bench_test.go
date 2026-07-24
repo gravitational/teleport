@@ -36,10 +36,10 @@ import (
 // goarch: arm64
 // pkg: github.com/gravitational/teleport/lib/vnet
 // cpu: Apple M4 Pro
-// BenchmarkNetstackThroughput/smallChunks-14                 19382             60683 ns/op                14.86 allocs/KiB            2275 B/op         59 allocs/op
-// BenchmarkNetstackThroughput/largeChunks-14                   296           3979262 ns/op                 8.559 allocs/KiB         386486 B/op       8764 allocs/op
+// BenchmarkNetstackThroughput/smallChunks-14                 24172             49279 ns/op                 8.011 allocs/KiB           1327 B/op         32 allocs/op
+// BenchmarkNetstackThroughput/largeChunks-14                  1010           1183470 ns/op                 1.839 allocs/KiB          81177 B/op       1883 allocs/op
 // PASS
-// ok      github.com/gravitational/teleport/lib/vnet      3.316s
+// ok      github.com/gravitational/teleport/lib/vnet      3.693s
 func BenchmarkNetstackThroughput(b *testing.B) {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelError)
 	b.Cleanup(func() { utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug) })

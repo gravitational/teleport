@@ -53,7 +53,7 @@ const (
 	logComponent                     = "vnet"
 	dnsLogComponent                  = "dns"
 	nicID                            = 1
-	mtu                              = 1500
+	vnetTUNMTU                       = 16 * 1024
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
 )
@@ -122,6 +122,11 @@ type udpHandler interface {
 type TUNDevice interface {
 	// Name returns the current name of the Device.
 	Name() (string, error)
+
+	// MTU returns the MTU of the Device. The network stack sizes its link
+	// endpoint and packet buffers from this value, so it must not change over
+	// the lifetime of a Device.
+	MTU() (int, error)
 
 	// Write one or more packets to the device (without any additional headers).
 	// On a successful write it returns the number of packets written. A nonzero
@@ -285,7 +290,11 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	logger := slog.With(teleport.ComponentKey, logComponent)
 	dnsLogger := slog.With(teleport.ComponentKey, teleport.Component(logComponent, dnsLogComponent))
 
-	stack, linkEndpoint, err := createStack()
+	mtu, err := cfg.tunDevice.MTU()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting TUN device MTU")
+	}
+	stack, linkEndpoint, err := createStack(uint32(mtu))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +358,7 @@ func newNetworkStack(cfg *networkStackConfig) (*networkStack, error) {
 	return ns, nil
 }
 
-func createStack() (*stack.Stack, *channel.Endpoint, error) {
+func createStack(mtu uint32) (*stack.Stack, *channel.Endpoint, error) {
 	netStack := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4network.NewProtocol, ipv6network.NewProtocol},
 		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
@@ -742,6 +751,10 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoi
 }
 
 func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun TUNDevice) error {
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
@@ -773,6 +786,10 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 // returning os.ErrClosed from tun.Read.
 func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
+	mtu, err := tun.MTU()
+	if err != nil {
+		return trace.Wrap(err, "getting TUN device MTU")
+	}
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {
 		bufs[i] = make([]byte, device.MessageTransportHeaderSize+mtu)

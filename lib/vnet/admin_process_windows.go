@@ -33,6 +33,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/windows"
 	"golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
@@ -89,16 +90,33 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "authenticating user process")
 	}
 
-	device, err := tun.CreateTUN(tunInterfaceName, mtu)
+	// wireguard-go's Windows TUN implementation only stores and reports this MTU;
+	// it does not configure the Windows IP interfaces. Configure the MTU for each
+	// enabled address family separately below.
+	device, err := tun.CreateTUN(tunInterfaceName, vnetTUNMTU)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
 	defer device.Close()
+	nativeTUN, ok := device.(*tun.NativeTun)
+	if !ok {
+		return trace.BadParameter("unexpected Windows TUN device type %T", device)
+	}
+	ipv6Disabled, err := hostIPv6Disabled(tunInterfaceName)
+	if err != nil {
+		// Could not determine, assume IPv6 is enabled. If it is actually
+		// disabled, setting the IPv6 interface MTU will surface the error.
+		log.WarnContext(ctx, "Failed to check whether IPv6 is disabled while configuring the TUN device, assuming IPv6 is enabled.",
+			"error", err)
+	}
+	if err := setWindowsTUNDeviceMTU(nativeTUN, vnetTUNMTU, ipv6Disabled); err != nil {
+		return trace.Wrap(err, "setting TUN device MTU")
+	}
 	tunName, err := device.Name()
 	if err != nil {
 		return trace.Wrap(err, "getting TUN device name")
 	}
-	log.InfoContext(ctx, "Created TUN interface", "tun", tunName)
+	log.InfoContext(ctx, "Created TUN interface", "tun", tunName, "mtu", vnetTUNMTU)
 
 	networkStackConfig, err := newNetworkStackConfig(ctx, device, clt)
 	if err != nil {
@@ -155,6 +173,29 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		}
 	})
 	return trace.Wrap(g.Wait(), "running VNet admin process")
+}
+
+func setWindowsTUNDeviceMTU(device *tun.NativeTun, mtu int, ipv6Disabled bool) error {
+	luid := winipcfg.LUID(device.LUID())
+	if luid == 0 {
+		return trace.NotFound("TUN interface LUID is unavailable")
+	}
+
+	families := []winipcfg.AddressFamily{windows.AF_INET}
+	if !ipv6Disabled {
+		families = append(families, windows.AF_INET6)
+	}
+	for _, family := range families {
+		row, err := luid.IPInterface(family)
+		if err != nil {
+			return trace.Wrap(err, "getting Windows IP interface for address family %d", family)
+		}
+		row.NLMTU = uint32(mtu)
+		if err := row.Set(); err != nil {
+			return trace.Wrap(err, "setting Windows IP interface MTU for address family %d", family)
+		}
+	}
+	return nil
 }
 
 func authenticateUserProcess(ctx context.Context, clt *clientApplicationServiceClient, userSID string) error {
