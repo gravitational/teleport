@@ -105,6 +105,7 @@ func GenSchemaClientIPRestriction(ctx context.Context) (github_com_hashicorp_ter
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is the time at which the restriction is disabled and mode reverts to \"draft\". An unset value means the restriction never expires. When set, it must be at least 20 minutes in the future.  Note: we do not use the `metadata.expires` field for this, because that conventionally denotes that the resource should be deleted once it elapses. Here expiry only stops enforcement on the Cloud side; the resource itself keeps existing, reverting to a \"draft\" state rather than being removed.  Writes fully replace the resource, so a client editing other fields must re-send a still-valid expiry or clear it. An expiry read earlier and passed back unchanged can be rejected once it is under 20 minutes away.",
 					Optional:    true,
+					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"mode": {
 					Description: "mode is the user-controlled operational mode of the restriction. It denotes intent; the actual enforcement state is reported by status.state. Possible values: \"draft\" (configured but not enforced) and \"enforced\" (should be enforced by Teleport Cloud). An empty value is treated as \"enforced\" for backward compatibility.",

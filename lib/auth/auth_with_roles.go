@@ -4371,6 +4371,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			MFAVerified:       verifiedMFADeviceID,
 			DeviceExtensions:  a.scopedContext.Identity.GetIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
+			TargetScope:       req.RouteToApp.Scope,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
 			// Propagate the caller's identity so CreateAppSessionFromReq can build a scoped
@@ -4497,6 +4498,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		certReq.Usage = []string{teleport.UsageDatabaseOnly}
 	case proto.UserCertsRequest_App:
 		certReq.Usage = []string{teleport.UsageAppsOnly}
+		certReq.TargetScope = req.RouteToApp.Scope
 	case proto.UserCertsRequest_Kubernetes:
 		certReq.Usage = []string{teleport.UsageKubeOnly}
 	case proto.UserCertsRequest_AccessGraphAPI:
@@ -6699,20 +6701,26 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
-// DeleteAppSession removes an application web session.
-func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
+// DeleteAppSession removes an application web session. Scoped users may only
+// delete their own sessions. The unscoped path additionally allows users with
+// web_session delete privileges to delete other users' sessions.
+func (a *ScopedServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
-		return trace.Wrap(err)
+
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		if err := unscoped.canDeleteWebSession(session.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := a.scopedCurrentUserAction(session.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(a.authServer.DeleteAppSession(ctx, req))
 }
 
 // SetAppSessionDBSCPublicKey verifies a DBSC response for an application web session
