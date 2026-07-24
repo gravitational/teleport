@@ -227,7 +227,7 @@ func expandAzureMatcherSubscriptions(
 		subs, err := listSubs(ctx, integration)
 		// Azure can return a successful response with no subscriptions when the
 		// identity has no subscription-scoped access. Treat this as an access
-		// failure so wildcard discovery silently produces no fetchers.
+		// failure so wildcard discovery doesn't silently produce 0 fetchers.
 		if err == nil && len(subs) == 0 {
 			err = trace.AccessDenied("Azure returned no subscriptions for wildcard in discovery configuration")
 		}
