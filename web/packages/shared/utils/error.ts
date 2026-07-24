@@ -83,3 +83,35 @@ export class AbortError extends DOMException {
     super(message, 'AbortError');
   }
 }
+
+/**
+ * Type guard for Node.js system errors (errno exceptions).
+ * Works with both Error instances and serialized errors.
+ *
+ * @example
+ * try {
+ *   await fs.stat(path);
+ * } catch (err) {
+ *   if (isErrnoException(err, 'ENOENT')) {
+ *     // The file does not exist
+ *   }
+ * }
+ */
+export function isErrnoException(
+  error: unknown,
+  code?: string
+): error is NodeJS.ErrnoException {
+  const isErrnoException =
+    error &&
+    typeof error === 'object' &&
+    error['name'] === 'Error' &&
+    'code' in error &&
+    typeof error.code === 'string';
+  if (!isErrnoException) {
+    return false;
+  }
+  if (code) {
+    return error.code === code;
+  }
+  return true;
+}
