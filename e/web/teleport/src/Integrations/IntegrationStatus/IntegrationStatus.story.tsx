@@ -1,9 +1,10 @@
 import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { Route, Switch } from 'teleport/components/Router';
 import { ContextProvider } from 'teleport/index';
 
 import { IntegrationStatus } from './IntegrationStatus';
@@ -51,6 +52,7 @@ export const EntraID: StoryObj = {
                 entra: {
                   imported_users: 600,
                   imported_groups: 200,
+                  sync_mode: 'delta',
                 },
               },
             },
@@ -72,11 +74,13 @@ const render = (pathname: string) => {
 
   return (
     <MemoryRouter initialEntries={[{ pathname }]}>
-      <Route path={cfg.oss.routes.integrationStatus}>
-        <ContextProvider ctx={ctx}>
-          <IntegrationStatus />
-        </ContextProvider>
-      </Route>
+      <ContextProvider ctx={ctx}>
+        <Switch>
+          <Route path={cfg.oss.routes.integrationStatus}>
+            <IntegrationStatus />
+          </Route>
+        </Switch>
+      </ContextProvider>
     </MemoryRouter>
   );
 };

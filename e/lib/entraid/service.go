@@ -273,7 +273,7 @@ func (s *Service) runScheduled(ctx context.Context) error {
 				)
 			}
 
-			s.emitStatus(ctx, err, result)
+			s.emitStatus(ctx, err, result, e.Mode)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -299,7 +299,7 @@ func (s *Service) handleReconcilerError(ctx context.Context, err error, syncMode
 	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "sync_mode", directory.FriendlySyncMode(syncMode), "took", took.String(), "error", err)
 }
 
-func (s *Service) emitStatus(ctx context.Context, err error, result directory.Result) {
+func (s *Service) emitStatus(ctx context.Context, err error, result directory.Result, syncMode mdmsync.SyncMode) {
 	if s.pluginStatusSink == nil {
 		s.log.DebugContext(ctx, "Failed to emit Entra ID plugin status, status sink is not available")
 		return
@@ -325,6 +325,7 @@ func (s *Service) emitStatus(ctx context.Context, err error, result directory.Re
 			EntraId: &types.PluginEntraIDStatusV1{
 				ImportedUsers:  uint32(result.ImportedUsers),
 				ImportedGroups: uint32(result.ImportedGroups),
+				SyncMode:       directory.FriendlySyncMode(syncMode),
 			},
 		},
 	}); err != nil {

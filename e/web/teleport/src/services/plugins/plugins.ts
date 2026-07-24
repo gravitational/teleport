@@ -284,10 +284,12 @@ function makeOktaPluginStatus(rawOktaDetails): PluginStatusOkta {
 function makeEntraIDPluginStatus(
   rawEntraIDStatusDetails: any
 ): PluginEntraIDStatusDetails {
-  const { imported_users, imported_groups } = rawEntraIDStatusDetails;
+  const { imported_users, imported_groups, sync_mode } =
+    rawEntraIDStatusDetails;
   return {
     imported_users: imported_users ?? 0,
     imported_groups: imported_groups ?? 0,
+    sync_mode,
   };
 }
 

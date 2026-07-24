@@ -53,7 +53,7 @@ export function DirectorySyncDetails({
   const navigate = useNavigate();
 
   function lastSynced() {
-    let msg = `Last Synced: ${getDurationText(status?.lastRun)}`;
+    let msg = `Last Synced: ${getDurationText(status?.lastRun)}, Sync Mode: ${getSyncMode(status?.details?.sync_mode)}`;
     if (status?.code === IntegrationStatusCode.Running) {
       return msg;
     }
@@ -369,6 +369,11 @@ function getDurationText(date: Date | undefined) {
     return 'not recorded yet';
   }
   return formatDistanceStrict(date, new Date(), { addSuffix: true });
+}
+
+function getSyncMode(mode?: PluginEntraIDStatusDetails['sync_mode']) {
+  // Returning default "Full" is backward compatible.
+  return mode === 'delta' ? 'Delta' : 'Full';
 }
 
 const ErrorPre = styled(Box).attrs({ as: 'pre' })`

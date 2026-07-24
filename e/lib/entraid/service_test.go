@@ -123,75 +123,109 @@ func TestServiceRetryAndCancelation(t *testing.T) {
 }
 
 func TestDirectoryReconcilerStatus(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		backend, err := memory.New(memory.Config{})
-		require.NoError(t, err)
-		semaphoreSvc := local.NewPresenceService(backend)
-		clock := clockwork.NewRealClock()
+	t.Parallel()
 
-		directoryReconciler := &fakeDirectoryReconciler{
-			importedUsers:  34,
-			importedGroups: 12,
-		}
+	expectEntraStatus := func(t *testing.T, status types.PluginStatus, wantMode mdmsync.SyncMode) {
+		t.Helper()
 
-		statusSink := &integration.FakeStatusSink{}
-
-		shedules, err := newScheduler(SyncIntervals{
-			Full:  DefaultFullSyncInterval,
-			Delta: 0,
-		})
-		require.NoError(t, err)
-
-		svc := &Service{
-			clock:                   clock,
-			log:                     logtest.NewLogger(),
-			pluginStatusSink:        statusSink,
-			semaphoreSvc:            semaphoreSvc,
-			hostID:                  "foo",
-			directoryReconciler:     directoryReconciler,
-			accessGraphSynchronizer: &fakeTAGSynchronizer{},
-			syncIntervals:           shedules,
-		}
-
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-
-		go func() {
-			svc.Run(ctx)
-		}()
-
-		synctest.Wait()
-		// Expect directory reconciler to get called once.
-		require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
-
-		// Expect a "running" status and details.
-		status := statusSink.Get()
-		require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
 		entraStatus := status.GetEntraId()
 		require.NotNil(t, entraStatus)
 		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
 		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
+		require.Equal(t, directory.FriendlySyncMode(wantMode), entraStatus.SyncMode)
+	}
 
-		// Mock an error and advance to the next sync interval
-		syncErr := errors.New("something bad happened")
-		directoryReconciler.setErr(syncErr)
-		time.Sleep(DefaultFullSyncInterval)
-		synctest.Wait()
-		// Expect directory reconciler to get called a second time.
-		require.Equal(t, int64(2), atomic.LoadInt64(&directoryReconciler.timesCalled))
+	tests := []struct {
+		name         string
+		syncInterval SyncIntervals
+		wantSyncMode mdmsync.SyncMode
+	}{
+		{
+			name: "full",
+			syncInterval: SyncIntervals{
+				Full:  DefaultFullSyncInterval,
+				Delta: 0, // disable delta sync
+			},
+			wantSyncMode: mdmsync.SyncModeFull,
+		},
+		{
+			name: "delta",
+			syncInterval: SyncIntervals{
+				Full:  0, // disable full sync
+				Delta: DefaultFullSyncInterval,
+			},
+			wantSyncMode: mdmsync.SyncModePartial,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := clockwork.NewRealClock()
+				directoryReconciler := &fakeDirectoryReconciler{
+					importedUsers:  34,
+					importedGroups: 12,
+				}
+				statusSink := &integration.FakeStatusSink{}
+				shedules, err := newScheduler(tc.syncInterval)
+				require.NoError(t, err)
 
-		// Expect an error status with a message, and details to remain.
-		status = statusSink.Get()
-		require.Equal(t, types.PluginStatusCode_OTHER_ERROR, status.GetCode())
-		require.Contains(t, status.GetErrorMessage(), "completed with partial success")
-		statusV1, ok := status.(*types.PluginStatusV1)
-		require.True(t, ok, "expected type PluginStatusV1 but got %T", statusV1)
-		require.Contains(t, statusV1.LastRawError, syncErr.Error())
-		entraStatus = statusSink.Get().GetEntraId()
-		require.NotNil(t, entraStatus)
-		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
-		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
-	})
+				svc := &Service{
+					clock:               clock,
+					log:                 logtest.NewLogger(),
+					pluginStatusSink:    statusSink,
+					directoryReconciler: directoryReconciler,
+					syncIntervals:       shedules,
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				go func() {
+					svc.runScheduled(ctx)
+				}()
+
+				// First sync.
+				synctest.Wait()
+				// Expect directory reconciler to get called once.
+				require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+				// Expect a "running" status and details.
+				status := statusSink.Get()
+				require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
+				entraStatus := status.GetEntraId()
+				require.NotNil(t, entraStatus)
+				require.Equal(t, uint32(34), entraStatus.ImportedUsers)
+				require.Equal(t, uint32(12), entraStatus.ImportedGroups)
+				// First sync mode is always a "full" sync.
+				require.Equal(t, directory.FriendlySyncMode(mdmsync.SyncModeFull), entraStatus.SyncMode)
+
+				// Second sync, simulates successful sync.
+				time.Sleep(DefaultFullSyncInterval)
+				synctest.Wait()
+				// Expect directory reconciler to have been called for a second time.
+				require.Equal(t, int64(2), atomic.LoadInt64(&directoryReconciler.timesCalled))
+				status = statusSink.Get()
+				require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
+				expectEntraStatus(t, status, tc.wantSyncMode)
+
+				// Third sync, simulates sync error.
+				// Mock an error and advance to the next sync interval
+				syncErr := errors.New("something bad happened")
+				directoryReconciler.setErr(syncErr)
+				time.Sleep(DefaultFullSyncInterval)
+				synctest.Wait()
+				// Expect directory reconciler to have been called for a third time.
+				require.Equal(t, int64(3), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+				// Expect an error status with a message, and details to remain.
+				status = statusSink.Get()
+				require.Equal(t, types.PluginStatusCode_OTHER_ERROR, status.GetCode())
+				require.Contains(t, status.GetErrorMessage(), "completed with partial success")
+				require.Contains(t, status.GetLastRawError(), syncErr.Error())
+				expectEntraStatus(t, status, tc.wantSyncMode)
+			})
+		})
+	}
 }
 
 func TestFullSyncOnStart(t *testing.T) {
