@@ -22,9 +22,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/gravitational/trace"
 )
@@ -58,9 +61,14 @@ func ConvertResponseError(err error) error {
 		case http.StatusNotFound:
 			return trace.NotFound("%s", responseErr)
 		case http.StatusTooManyRequests:
-			// TODO(marco): Extract the Retry-After header or any other indication of when we can retry the request.
-			return trace.LimitExceeded("%s", responseErr)
-
+			var header http.Header
+			if responseErr.RawResponse != nil {
+				header = responseErr.RawResponse.Header
+			}
+			return wrapWithRetryAfterHeader(
+				header,
+				trace.LimitExceeded("%s", responseErr),
+			)
 		case http.StatusBadRequest:
 			// Azure API return BadRequest in multiple scenarios, so we need to inspect the error details to ensure we return the most accurate error type.
 			if errorDetails := apiResponseErr.errorDetails(); errorDetails != nil {
@@ -80,7 +88,7 @@ func ConvertResponseError(err error) error {
 }
 
 func apiErrorFromResponse(responseErr *azcore.ResponseError) *apiResponseError {
-	if responseErr == nil || responseErr.RawResponse == nil {
+	if responseErr == nil || responseErr.RawResponse == nil || responseErr.RawResponse.Body == nil {
 		return nil
 	}
 	body := responseErr.RawResponse.Body
@@ -196,4 +204,69 @@ func (e *VMAgentNotAvailableError) Is(target error) bool {
 // Error returns a message indicating that the virtual machine's agent is not available.
 func (e *VMAgentNotAvailableError) Error() string {
 	return "VM agent is not available"
+}
+
+// ErrorFromResponse converts an HTTP response into an error.
+func ErrorFromResponse(response *http.Response) error {
+	return ConvertResponseError(runtime.NewResponseError(response))
+}
+
+// RateLimitError is returned by Azure API when the server signals a rate or concurrency limit.
+// It wraps a [trace.LimitExceededError] and carries the retry-after duration extracted from the API response.
+type RateLimitError struct {
+	// RetryAfter is the value of the "retry-after" header, or 0 if the header was absent.
+	RetryAfter time.Duration
+	// Err is the underlying LimitExceeded trace error.
+	Err error
+}
+
+// Error returns the underlying error message.
+func (e *RateLimitError) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying error, allowing errors.Is and errors.As to work with RateLimitError.
+func (e *RateLimitError) Unwrap() error {
+	return e.Err
+}
+
+// wrapWithRetryAfterHeader wraps apiErr in a [*RateLimitError], setting its
+// retry-after value from the supplied header. Callers are responsible for only
+// invoking it with a limit-exceeded error.
+func wrapWithRetryAfterHeader(header http.Header, apiErr error) error {
+	return &RateLimitError{
+		Err:        apiErr,
+		RetryAfter: extractRetryAfterDuration(header),
+	}
+}
+
+// extractRetryAfterDuration extracts the retry-after duration as documented by Azure.
+// When it is not present or cannot be parsed, it returns 0.
+func extractRetryAfterDuration(header http.Header) time.Duration {
+	const (
+		retryAfterHeader              = "Retry-After"
+		xMsUserQuotaResetsAfterHeader = "X-Ms-User-Quota-Resets-After"
+	)
+	// See https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/request-limits-and-throttling#error-code
+	// > When you reach the limit, you receive the HTTP status code 429 Too many requests.
+	// > The response includes a Retry-After value, which specifies the number of seconds your application should wait before sending the next request.
+	retryAfterSeconds, err := strconv.Atoi(header.Get(retryAfterHeader))
+	if err == nil {
+		return time.Duration(retryAfterSeconds) * time.Second
+	}
+
+	// Specifically for Azure Resource Graph, the API can also return the "X-Ms-User-Quota-Resets-After" header.
+	// See https://learn.microsoft.com/en-us/azure/governance/resource-graph/concepts/guidance-for-throttled-requests#understand-throttling-headers
+	// This comes in the following format: X-Ms-User-Quota-Resets-After: 00:00:05
+	timeParts := strings.Split(header.Get(xMsUserQuotaResetsAfterHeader), ":")
+	if len(timeParts) == 3 {
+		hours, err1 := strconv.Atoi(timeParts[0])
+		minutes, err2 := strconv.Atoi(timeParts[1])
+		seconds, err3 := strconv.Atoi(timeParts[2])
+		if err1 == nil && err2 == nil && err3 == nil {
+			return time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute + time.Duration(seconds)*time.Second
+		}
+	}
+
+	return 0
 }
