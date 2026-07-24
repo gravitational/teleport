@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -805,7 +806,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string, opts .
 
 		// Similarly, if this identity has any app certs, copy them in.
 		if parsedIdent.RouteToApp.Name != "" {
-			keyRing.AppTLSCredentials[parsedIdent.RouteToApp.Name] = client.TLSCredential{
+			keyRing.AppTLSCredentials[client.ScopedAppName(scopes.QualifiedName{Name: parsedIdent.RouteToApp.Name, Scope: parsedIdent.RouteToApp.Scope})] = client.TLSCredential{
 				// Identity files only have room for one private key and TLS
 				// cert, it must match the app cert.
 				PrivateKey: priv,
