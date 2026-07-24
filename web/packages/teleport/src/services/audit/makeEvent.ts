@@ -675,6 +675,12 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.APP_SESSION_REQUEST_DENIED]: {
+    type: 'app.session.request.denied',
+    desc: 'App Request Denied',
+    format: ({ user, app_name, method, path }) =>
+      `User [${user}] was denied request [${method} ${path}] to application [${app_name}]`,
+  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',
