@@ -64,6 +64,11 @@ func validateAuditCode(code string) error {
 // misplaced call can record a stray code or hint but can never flip
 // the boolean result, and no placement check is needed.
 //
+// It also rejects a constant reason over the reason byte cap, so the
+// expression surface bounds a reason the same way the sugared
+// allow_reason and deny_reason_hint fields do. A dynamic reason is not
+// length-checked.
+//
 // The predicate uses the same Go expression syntax the engine parses,
 // so this reuses go/parser to walk the AST. An expression that does
 // not parse is left to the engine, which reports the parse error.
@@ -81,20 +86,33 @@ func validateAuditCodes(expr string) error {
 		if !isIdentCall(call, "allow_code") && !isIdentCall(call, "deny_hint") {
 			return true
 		}
-		lit, ok := ast.Unparen(call.Args[0]).(*ast.BasicLit)
-		if !ok || lit.Kind != token.STRING {
+		if code, ok := stringLiteral(call.Args[0]); ok {
+			if err := validateAuditCode(code); err != nil && bad == nil {
+				bad = err
+			}
+		}
+		if len(call.Args) < 2 {
 			return true
 		}
-		s, err := strconv.Unquote(lit.Value)
-		if err != nil {
-			return true
-		}
-		if err := validateAuditCode(s); err != nil && bad == nil {
-			bad = err
+		if reason, ok := stringLiteral(call.Args[1]); ok && len(reason) > maxReasonBytes && bad == nil {
+			bad = trace.BadParameter("reason is %d bytes, over the %d byte cap", len(reason), maxReasonBytes)
 		}
 		return true
 	})
 	return trace.Wrap(bad)
+}
+
+// stringLiteral returns the value of a string-constant argument.
+func stringLiteral(arg ast.Expr) (string, bool) {
+	lit, ok := ast.Unparen(arg).(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	s, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", false
+	}
+	return s, true
 }
 
 // isIdentCall reports whether call is a bare name(...) call, such as
