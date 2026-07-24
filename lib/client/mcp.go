@@ -167,7 +167,7 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
+	cert, err := keyRing.AppTLSCert(appCertParams.RouteToApp.Name, appCertParams.RouteToApp.Scope)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

@@ -486,7 +486,7 @@ func onAppLogout(cf *CLIConf) error {
 
 		if len(logout) == 0 {
 			// Not logged in but still try to delete any dangling files.
-			if err := tc.LogoutApp(cf.AppName); err != nil {
+			if err := tc.LogoutApp(cf.AppName, cf.AppScope); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.BadParameter("not logged into app %q", cf.AppName)
@@ -501,17 +501,17 @@ func onAppLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		err = tc.LogoutApp(app.Name)
+		err = tc.LogoutApp(app.Name, app.Scope)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// remove generated local files for the provided app.
-		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
+		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name, app.Scope))
 		if err != nil {
 			logger.WarnContext(cf.Context, "Failed to clean up app session",
 				"error", err,
-				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
+				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name, app.Scope))
 		}
 
 		if err := removeExternalFilesForApp(app); err != nil {
@@ -603,8 +603,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag = "--insecure "
 	}
 
-	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name)
-	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name)
+	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name, routeToApp.Scope)
+	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name, routeToApp.Scope)
 	appName := scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope}.String()
 
 	curlCmd := fmt.Sprintf(`curl %s\
