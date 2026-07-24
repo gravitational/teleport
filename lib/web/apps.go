@@ -197,6 +197,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		AppName:     result.App.GetName(),
 		URI:         result.App.GetURI(),
 		ClientAddr:  r.RemoteAddr,
+		Scope:       result.App.GetScope(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
