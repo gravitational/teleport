@@ -431,7 +431,8 @@ function Build-Tsh {
         # look for it.
         cargo build -p rdp-decoder --release --locked --target x86_64-pc-windows-gnu
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags "piv rust_rdp_decoder" -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        # -Wl,--gc-sections lets the linker drop unreachable native code.
+        go build -tags "piv rust_rdp_decoder" -trimpath -ldflags "-s -w $BuildTypeLDFlags -extldflags=-Wl,--gc-sections" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
