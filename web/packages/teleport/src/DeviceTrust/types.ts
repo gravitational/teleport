@@ -21,7 +21,7 @@ import { PagerPosition } from 'design/DataTable/types';
 export type TrustedDevice = {
   id: string;
   assetTag: string;
-  osType: TrustedDeviceOSType;
+  osType: 'Windows' | 'Linux' | 'macOS' | 'iOS' | 'iPadOS';
   enrollStatus: 'enrolled' | 'not enrolled';
   owner: string;
   createTime?: Date;
@@ -50,12 +50,11 @@ export type DeviceSource = {
   origin: DeviceOrigin;
 };
 
-export type TrustedDeviceOSType =
-  | 'Windows'
-  | 'Linux'
-  | 'macOS'
-  | 'iOS'
-  | 'iPadOS';
+/**
+ * @deprecated Use TrustedDevice['osType'] instead.
+ * TODO(ravicious): Remove once teleport.e no longer imports it.
+ */
+export type TrustedDeviceOSType = TrustedDevice['osType'];
 
 export type TrustedDeviceResponse = {
   items: TrustedDevice[];
