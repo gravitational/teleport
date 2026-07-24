@@ -11,7 +11,7 @@ import { P2 } from 'design/Text';
 import {
   DeviceListProps,
   deviceSource,
-  TrustedDeviceOSType,
+  type TrustedDevice,
 } from 'teleport/DeviceTrust/types';
 
 export const DeviceList = ({
@@ -75,7 +75,7 @@ const EnrollmentStatusCell = ({ status }: { status: string }) => {
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
+export const IconCell = ({ osType }: { osType: TrustedDevice['osType'] }) => {
   let resourceIconName: ResourceIconName;
   let Icon: ComponentType<IconProps>;
   switch (osType) {
