@@ -307,7 +307,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 	ticker := time.NewTicker(q.orphanScanInterval)
 	defer ticker.Stop()
-	for {
+	for !q.isDraining() {
 		q.sweepStaleTmp()
 		q.adoptOrphans(ctx)
 
@@ -316,8 +316,19 @@ func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 			return
 		case <-q.ctx.Done():
 			return
+		case <-q.drainCh:
+			return
 		case <-ticker.C:
 		}
+	}
+}
+
+func (q *sqliteQueue) isDraining() bool {
+	select {
+	case <-q.drainCh:
+		return true
+	default:
+		return false
 	}
 }
 

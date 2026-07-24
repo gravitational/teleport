@@ -47,6 +47,7 @@ const (
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
+	maxDrainKickBackoff            = 30 * time.Second
 
 	// We've run benchmarks and found a batch size of 25 to be a good middle
 	// ground between insertion performance and memory overhead of
@@ -119,6 +120,10 @@ type writeRequest struct {
 	resp    chan error
 }
 
+type sweepRequest struct {
+	done chan struct{}
+}
+
 type sqliteQueue struct {
 	db   *sql.DB
 	path string
@@ -132,6 +137,9 @@ type sqliteQueue struct {
 	cancel                  context.CancelFunc
 	wg                      sync.WaitGroup
 	closeOnce               sync.Once
+	drainOnce               sync.Once
+	drainCh                 chan struct{}
+	sweepCh                 chan sweepRequest
 	parentDir               string
 	selfStat                os.FileInfo
 	unlock                  func() error
@@ -194,6 +202,8 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 	q := &sqliteQueue{
 		db:                      db,
 		toBeWritten:             make(chan writeRequest),
+		drainCh:                 make(chan struct{}),
+		sweepCh:                 make(chan sweepRequest),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -473,6 +483,102 @@ func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
 	}
 }
 
+// Drain exits when both the main audit queue and the dead-letter queue are
+// empty. It allows one to await the draining of the queue on shutdown. Run is
+// executed in the background and will continue to drain the queue. Corrupt
+// events are excluded. They cannot be delivered, so waiting on them would
+// stall every shutdown until the drain deadline.
+func (q *sqliteQueue) Drain(ctx context.Context) error {
+	q.drainOnce.Do(func() { close(q.drainCh) })
+
+	// Trigger and wait for a dead letter sweep.
+	req := sweepRequest{done: make(chan struct{})}
+	select {
+	case q.sweepCh <- req:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
+	select {
+	case <-req.done:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	policy := newDrainKickPolicy()
+	var lastErr error
+	for {
+		mainEmpty, deadLetterCount, err := drainQueueState(ctx, q.db)
+		lastErr = err
+		if err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to check whether audit queue is empty while draining.",
+				"error", err,
+			)
+		} else if mainEmpty && deadLetterCount == 0 {
+			return nil
+		} else if mainEmpty && policy.shouldKick(deadLetterCount) {
+			q.kickDeadLetterSweep()
+		}
+
+		select {
+		case <-ctx.Done():
+			return trace.NewAggregate(ctx.Err(), lastErr)
+		case <-q.ctx.Done():
+			return trace.NewAggregate(q.ctx.Err(), lastErr)
+		case <-ticker.C:
+		}
+		policy.tick()
+	}
+}
+
+type drainKickPolicy struct {
+	backoff       time.Duration
+	sinceLastKick time.Duration
+	lastCount     int64
+}
+
+func newDrainKickPolicy() *drainKickPolicy {
+	return &drainKickPolicy{
+		backoff:   pollInterval,
+		lastCount: -1,
+	}
+}
+
+func (p *drainKickPolicy) shouldKick(deadLetterCount int64) bool {
+	progressed := p.lastCount >= 0 && deadLetterCount < p.lastCount
+	p.lastCount = deadLetterCount
+	if progressed {
+		p.backoff = pollInterval
+	} else if p.sinceLastKick < p.backoff {
+		return false
+	} else {
+		p.backoff = min(p.backoff*2, maxDrainKickBackoff)
+	}
+	p.sinceLastKick = 0
+	return true
+}
+
+func (p *drainKickPolicy) tick() {
+	p.sinceLastKick += pollInterval
+}
+
+const drainQueueStateQuery = `SELECT
+	NOT EXISTS(SELECT 1 FROM audit_queue),
+	(SELECT COUNT(*) FROM audit_dead_letter)`
+
+func drainQueueState(ctx context.Context, db *sql.DB) (mainEmpty bool, deadLetterCount int64, _ error) {
+	if err := db.QueryRowContext(ctx, drainQueueStateQuery).Scan(&mainEmpty, &deadLetterCount); err != nil {
+		return false, 0, trace.Wrap(err)
+	}
+	return mainEmpty, deadLetterCount, nil
+}
+
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
 	failed := itemsNotIn(items, successfullyDelivered)
 	if len(failed) == 0 {
@@ -599,14 +705,20 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 			return
 		case <-q.ctx.Done():
 			return
+		case req := <-q.sweepCh:
+			// Trigger a sweep on-demand.
+			q.runSweeps(ctx, handler)
+			close(req.done)
+			timer.Reset(q.deadLetterSweepInterval)
 		case <-timer.C:
+			// Trigger a sweep on a timer.
+			q.runSweeps(ctx, handler)
+			timer.Reset(q.deadLetterSweepInterval)
 		case <-q.deadLetterKick:
+			// Trigger a sweep when delivery recovers after failing.
+			q.runSweeps(ctx, handler)
+			timer.Reset(q.deadLetterSweepInterval)
 		}
-		q.sweepDeadLetter(ctx, handler)
-		q.expireDeadLetter()
-		q.recoverCorruptEvents()
-		q.expireCorruptEvents()
-		timer.Reset(q.deadLetterSweepInterval)
 	}
 }
 
@@ -617,6 +729,13 @@ func (q *sqliteQueue) kickDeadLetterSweep() {
 	case q.deadLetterKick <- struct{}{}:
 	default:
 	}
+}
+
+func (q *sqliteQueue) runSweeps(ctx context.Context, handler Handler) {
+	q.sweepDeadLetter(ctx, handler)
+	q.expireDeadLetter()
+	q.recoverCorruptEvents()
+	q.expireCorruptEvents()
 }
 
 func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
@@ -675,22 +794,6 @@ func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]I
 	rows, err := q.db.QueryContext(q.ctx,
 		"SELECT id, payload FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
 		afterID, maxID, limit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items, corrupt, err := scanItems(rows)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	handleCorrupt(q.ctx, q.db, auditDeadLetterTable, corrupt)
-	return items, nil
-}
-
-// fetchDeadLetter reads up to `limit` oldest items from the audit_dead_letter
-// table, quarantining any rows whose payload fails to deserialize.
-func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
-	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, payload FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

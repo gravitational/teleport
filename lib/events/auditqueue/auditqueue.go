@@ -112,6 +112,12 @@ type Queue interface {
 	// Run is the single consumer that drains the queue and forwards the audit
 	// log events to `handler`.
 	Run(ctx context.Context, handler Handler) error
+	// Drain blocks until the queue is drained. It makes a best-effort attempt
+	// to forward all pending events to the consumer before shutdown. It stops
+	// adopting new orphans and waits for both the main queue and the
+	// dead-letter queue to empty or for ctx to be done, whichever comes first.
+	// Callers must still call Close.
+	Drain(ctx context.Context) error
 	// Close releases resources held by the queue.
 	Close() error
 }

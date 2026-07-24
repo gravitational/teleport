@@ -169,6 +169,22 @@ func (a *AsyncEmitter) Close() error {
 	return nil
 }
 
+// Shutdown makes a best effort attempt to flush pending audit events to the
+// inner emitter before closing.
+func (a *AsyncEmitter) Shutdown(ctx context.Context) error {
+	if a.queue != nil {
+		if err := a.queue.Drain(ctx); err != nil {
+			slog.WarnContext(ctx,
+				"Audit queue drain returned an error during graceful shutdown.",
+				"error", err,
+			)
+		}
+		return trace.Wrap(a.Close())
+	}
+
+	return trace.Wrap(a.Close())
+}
+
 func (a *AsyncEmitter) forward() {
 	for {
 		select {
@@ -198,15 +214,26 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 	// interface. I suspect that having first-class batching will have a greater
 	// improvement on performance over parallelism alone. It will also have less
 	// overhead than parallelism over multiple events.
+	var failed int
+	var firstErr error
 	for _, item := range items {
 		if ctx.Err() != nil {
-			return successfullyDelivered
+			break
 		}
 		if err := a.cfg.Inner.EmitAuditEvent(ctx, item.Event); err != nil {
-			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		successfullyDelivered = append(successfullyDelivered, item)
+	}
+	if failed > 0 && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "Failed to emit audit events.",
+			"count", failed,
+			"error", firstErr,
+		)
 	}
 	return successfullyDelivered
 }
@@ -332,6 +359,12 @@ func NewCheckingAsyncEmitter(checkingCfg CheckingEmitterConfig, asyncCfg AsyncEm
 // Close closes the underlying AsyncEmitter.
 func (c *CheckingAsyncEmitter) Close() error {
 	return c.asyncEmitter.Close()
+}
+
+// Shutdown attempts to drain the underlying AsyncEmitter before closing.
+// See AsyncEmitter.Shutdown.
+func (c *CheckingAsyncEmitter) Shutdown(ctx context.Context) error {
+	return c.asyncEmitter.Shutdown(ctx)
 }
 
 // checkAndSetEventFields updates passed event fields with additional information
