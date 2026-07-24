@@ -1,5 +1,5 @@
 variable "teleport_version" {
-  default     = "19.0.0-dev.probakowski.webassets.2"
+  default     = "19.0.0-dev.probakowski.webassets.3"
   description = <<EOD
 The version of Teleport to deploy.
 Generally, the version of Teleport should be controlled by using the appropriate version of this module.
