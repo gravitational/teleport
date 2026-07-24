@@ -52,7 +52,7 @@ func TestThirdpartyStreams(t *testing.T) {
 		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 			return aws.Credentials{}, nil
 		}),
-		Region:       "us-west-1",
+		Region:       "us-west-1", //nolint:nostructfieldassign // valid region
 		BaseEndpoint: aws.String(server.URL),
 	}
 

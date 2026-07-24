@@ -106,7 +106,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 		// IAM Service does not support regions, however a value is required:
 		// https://github.com/aws/aws-sdk-go-v2/issues/1778#issuecomment-1210031692
 		// Providing an invalid region here, ensures the service uses the default AWS Partition.
-		cfg.Region = " "
+		cfg.Region = " " //nolint:nostructfieldassign // reset the region.
 	}
 
 	return &defaultAWSAppAccessConfigureClient{
