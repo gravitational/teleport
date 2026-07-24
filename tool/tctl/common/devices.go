@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -64,19 +65,22 @@ type DevicesCommand struct {
 
 type osType = string
 
-const (
-	linuxType   osType = "linux"
-	macosType   osType = "macos"
-	windowsType osType = "windows"
-)
-
-var osTypes = []string{linuxType, macosType, windowsType}
-
-var osTypeToEnum = map[osType]devicepb.OSType{
-	linuxType:   devicepb.OSType_OS_TYPE_LINUX,
-	macosType:   devicepb.OSType_OS_TYPE_MACOS,
-	windowsType: devicepb.OSType_OS_TYPE_WINDOWS,
-}
+// osTypes (accepted --os values) and osTypeToEnum are derived from
+// devicepb.OSType, minus UNSPECIFIED.
+var osTypes, osTypeToEnum = func() (osTypes []osType, osTypeToEnum map[osType]devicepb.OSType) {
+	osTypeToEnum = make(map[osType]devicepb.OSType, len(devicepb.OSType_value)-1)
+	for name, v := range devicepb.OSType_value {
+		ost := devicepb.OSType(v)
+		if ost == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+			continue
+		}
+		s := strings.ToLower(strings.TrimPrefix(name, "OS_TYPE_"))
+		osTypeToEnum[s] = ost
+		osTypes = append(osTypes, s)
+	}
+	sort.Strings(osTypes)
+	return osTypes, osTypeToEnum
+}()
 
 func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
