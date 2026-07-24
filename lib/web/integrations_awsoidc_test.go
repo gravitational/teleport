@@ -1141,8 +1141,11 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		Kind:    types.KindAppServer,
 		Version: types.V3,
 		Metadata: types.Metadata{
-			Name:   "my-integration",
-			Labels: map[string]string{"aws_account_id": "123456789012"},
+			Name: "my-integration",
+			Labels: map[string]string{
+				"aws_account_id":       "123456789012",
+				types.IntegrationLabel: "my-integration",
+			},
 		},
 		Spec: types.AppServerSpecV3{
 			Version: api.Version,
@@ -1151,8 +1154,11 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 				Kind:    types.KindApp,
 				Version: types.V3,
 				Metadata: types.Metadata{
-					Name:   "my-integration",
-					Labels: map[string]string{"aws_account_id": "123456789012"},
+					Name: "my-integration",
+					Labels: map[string]string{
+						"aws_account_id":       "123456789012",
+						types.IntegrationLabel: "my-integration",
+					},
 				},
 				Spec: types.AppSpecV3{
 					URI:         "https://console.aws.amazon.com",
@@ -1279,7 +1285,11 @@ func TestAWSOIDCAppAccessAppServerCreationWithUserProvidedLabels(t *testing.T) {
 	var app ui.App
 	require.NoError(t, json.Unmarshal(re.Bytes(), &app))
 
-	require.ElementsMatch(t, app.Labels, []libui.Label{{Name: "env", Value: "testing"}, {Name: "aws_account_id", Value: "123456789012"}})
+	require.ElementsMatch(t, app.Labels, []libui.Label{
+		{Name: "env", Value: "testing"},
+		{Name: "aws_account_id", Value: "123456789012"},
+		{Name: "teleport.dev/integration", Value: "my-integration"},
+	})
 }
 
 type mockDeployedDatabaseServices struct {
