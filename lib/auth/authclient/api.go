@@ -1079,8 +1079,15 @@ type OktaAccessPoint interface {
 	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
 	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
 
-	// DeleteApplicationServer removes specified application server.
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
 
 	// UpsertLock creates or updates a given lock
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -1921,7 +1928,14 @@ func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name,
 	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
 }
 
+// DeleteAppServer removes a scoped or unscoped application server.
+func (w *OktaWrapper) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
+	return w.NoCache.DeleteAppServer(ctx, req)
+}
+
 // DeleteApplicationServer removes specified application server.
+//
+// Deprecated: Use [DeleteAppServer] instead.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
 }
