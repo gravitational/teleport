@@ -1,0 +1,35 @@
+/**
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { MonoIcon, type MonoIconProps } from '../MonoIcon';
+
+/*
+
+THIS FILE IS GENERATED. DO NOT EDIT.
+
+*/
+
+export const Navan = (props: MonoIconProps) => (
+  <MonoIcon
+    className="resource-icon resource-icon-navan"
+    viewBox="0 0 72 72"
+    {...props}
+  >
+    <path d="M13.84 43.865h-3.28c-.182-10.469-.631-13.032-2.064-13.032-1.959 0-3.686 5.912-5.575 13.032H0V28.137h3.216v7.19c1.37-4.27 2.984-7.415 5.75-7.415 4.003 0 4.67 4.901 4.874 15.953m16.135 0h-2.99c-2.985-2.787-5.66-4.943-7.324-4.943-.717 0-1.145.421-1.328 1.285l-.779 3.658h-2.422c1.853-7.527 2.843-15.953 7.429-15.953 4.585 0 5.568 8.405 7.414 15.953m-10.813-7.232c.183-.028.386-.05.59-.05 1.84 0 3.84 1.265 5.954 2.992-1.193-5.393-2.177-8.742-3.574-8.742-1.165 0-2.064 2.226-2.963 5.8zm9.529-8.496h3.328c1.573 7.373 2.668 13.032 4.353 13.032s2.935-5.884 4.459-13.032h2.422c-1.867 7.527-2.83 15.953-7.281 15.953-4.445 0-5.435-8.426-7.282-15.953m28.114 15.728h-2.991c-2.991-2.787-5.66-4.943-7.324-4.943-.723 0-1.144.421-1.327 1.285l-.786 3.658h-2.43c1.868-7.527 2.858-15.953 7.443-15.953s5.569 8.405 7.415 15.953m-10.813-7.232a4 4 0 0 1 .59-.05c1.84 0 3.84 1.265 5.954 2.992-1.194-5.393-2.177-8.742-3.581-8.742-1.166 0-2.064 2.226-2.963 5.8m26.001 7.232h-3.286c-.176-10.469-.632-13.032-2.064-13.032-1.953 0-3.687 5.912-5.576 13.032h-2.92V28.137h3.222v7.19c1.362-4.27 2.984-7.415 5.758-7.415 3.995 0 4.67 4.901 4.873 15.953z" />
+  </MonoIcon>
+);

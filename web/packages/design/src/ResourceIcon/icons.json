@@ -1,0 +1,96 @@
+{
+  "colors": {
+    "altisales": {
+      "dark": "#fff",
+      "light": "#071d72"
+    },
+    "clickhouse": {
+      "dark": "#fcff74",
+      "light": "#000"
+    },
+    "coefficient": {
+      "dark": "#fff",
+      "light": "#3053ff"
+    },
+    "cursor": {
+      "dark": "#edecec",
+      "light": "#26251e"
+    },
+    "customerio": {
+      "dark": "#fff",
+      "light": "#0b363b"
+    },
+    "digicert": {
+      "dark": "#fff",
+      "light": "#0174c3"
+    },
+    "docker": {
+      "dark": "#fff",
+      "light": "#1d63ed"
+    },
+    "gem": {
+      "dark": "#fff",
+      "light": "#0d62ff"
+    },
+    "git": {
+      "dark": "#fff",
+      "light": "#f03c2e"
+    },
+    "glean": {
+      "dark": "#fff",
+      "light": "#343ced"
+    },
+    "go1": {
+      "dark": "#d4ff26",
+      "light": "#114954"
+    },
+    "instantly": {
+      "dark": "#fff",
+      "light": "#0281ff"
+    },
+    "kaiser": {
+      "dark": "#fff",
+      "light": "#006ba6"
+    },
+    "linkedin": {
+      "dark": "#fff",
+      "light": "#0a66c2"
+    },
+    "mongo": {
+      "dark": "#00ed64",
+      "light": "#001e2b"
+    },
+    "mysql-small": {
+      "dark": "#fff",
+      "light": "#00758f"
+    },
+    "sequoia": {
+      "dark": "#3cab48",
+      "light": "#007354"
+    },
+    "temporal": {
+      "dark": "#f2f2f2",
+      "light": "#141414"
+    },
+    "troops.ai": {
+      "dark": "#fff",
+      "light": "#1c437b"
+    },
+    "varicent": {
+      "dark": "#fff",
+      "light": "#2b4ff4"
+    },
+    "windows": {
+      "dark": "#0dadea",
+      "light": "#0078d4"
+    },
+    "wiz": {
+      "dark": "#fff",
+      "light": "#0254ec"
+    },
+    "workshop": {
+      "dark": "#fff",
+      "light": "#0156d7"
+    }
+  }
+}
