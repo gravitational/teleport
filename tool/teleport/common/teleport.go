@@ -97,6 +97,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		ccf                              config.CommandLineFlags
 		scpFlags                         scp.Flags
 		dumpFlags                        dumpFlags
+		reconfigureFlags                 reconfigureFlags
 		configureDatabaseAWSPrintFlags   configureDatabaseAWSPrintFlags
 		configureDatabaseAWSCreateFlags  configureDatabaseAWSCreateFlags
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
@@ -459,25 +460,23 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
-	// "teleport reconfigure" command for modifying an existing config file in place.
-	reconfigure := app.Command("reconfigure", "Modify an existing Teleport configuration file.").Hidden()
-	var reconfFlags reconfigureFlags
-	reconfigure.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&reconfFlags.input)
-	reconfigure.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&reconfFlags.output)
-	reconfigure.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&reconfFlags.overwrite)
-	reconfigure.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&reconfFlags.enableService)
-	reconfigure.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&reconfFlags.disableService)
-	reconfigure.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&reconfFlags.roles)
-	reconfigure.Flag("token", "Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.").StringVar(&reconfFlags.token)
-	reconfigure.Flag("join-method", "Set teleport.join_params.method.").StringVar(&reconfFlags.joinMethod)
-	reconfigure.Flag("registration-secret", "Set teleport.join_params.bound_keypair.registration_secret_value for a bound_keypair join.").StringVar(&reconfFlags.registrationSecret)
-	reconfigure.Flag("auth-server", "Set teleport.auth_server.").StringVar(&reconfFlags.authServer)
-	reconfigure.Flag("proxy", "Set teleport.proxy_server.").StringVar(&reconfFlags.proxy)
-	reconfigure.Flag("data-dir", "Set teleport.data_dir.").StringVar(&reconfFlags.dataDir)
-	reconfigure.Flag("config-version", "Set the configuration version (v1, v2, v3). Required to write proxy_server/auth_server onto a pre-v3 config.").StringVar(&reconfFlags.configVersion)
-	reconfigure.Flag("ssh-listen-addr", "Set ssh_service.listen_addr (host:port), e.g. to move a second agent off the default 3022.").StringVar(&reconfFlags.sshListenAddr)
-	reconfigure.Flag("ssh-public-addr", "Set ssh_service.public_addr, the SSH node's advertised address for direct dial.").StringVar(&reconfFlags.sshPublicAddr)
-	reconfigure.Flag("force-listen", "Enable ssh_service.force_listen so a reverse-tunnel node also listens for direct dial.").BoolVar(&reconfFlags.forceListen)
+	reconf := app.Command("reconfigure", "Generate a new agent config file from an existing one, applying changes given by flags.").Hidden()
+	reconf.Flag("input", "Path to the source config file.").Default(defaults.ConfigFilePath).StringVar(&reconfigureFlags.input)
+	reconf.Flag("output", "Path to write the new config file to. Writes to stdout when omitted.").StringVar(&reconfigureFlags.output)
+	reconf.Flag("overwrite", "Replace the output file if it already exists.").BoolVar(&reconfigureFlags.overwrite)
+	reconf.Flag("proxy", "Proxy address of the target cluster; sets proxy_server (v3 configs only).").StringVar(&reconfigureFlags.proxy)
+	reconf.Flag("auth-server", "Auth server address of the target cluster; sets auth_server (v3) or auth_servers (v1/v2).").StringVar(&reconfigureFlags.authServer)
+	reconf.Flag("ca-pin", "CA pin of the target cluster (can be repeated for multiple pins).").StringsVar(&reconfigureFlags.caPins)
+	reconf.Flag("token", "Name of the join token to register with the target cluster.").StringVar(&reconfigureFlags.token)
+	reconf.Flag("registration-secret", "Bound keypair registration secret. Prefer --registration-secret-path, which keeps the secret off the command line.").StringVar(&reconfigureFlags.registrationSecret)
+	reconf.Flag("registration-secret-path", "Path to a file containing the bound keypair registration secret; the agent reads it at join time.").StringVar(&reconfigureFlags.registrationSecretPath)
+	reconf.Flag("node-labels", "Comma-separated labels to merge into ssh_service labels, for example env=dev,team=a; new values win on conflict.").StringVar(&reconfigureFlags.nodeLabels)
+	reconf.Flag("data-dir", "Path to the new agent's data directory.").StringVar(&reconfigureFlags.dataDir)
+	reconf.Flag("pid-file", "Full path to the new agent's PID file.").StringVar(&reconfigureFlags.pidFile)
+	reconf.Flag("diag-addr", "Address for the new agent's diagnostic endpoint.").StringVar(&reconfigureFlags.diagAddr)
+	reconf.Flag("ssh-listen-addr", "Listen address for the new agent's SSH service.").StringVar(&reconfigureFlags.sshListenAddr)
+	reconf.Flag("kube-listen-addr", "Listen address for the new agent's Kubernetes service.").StringVar(&reconfigureFlags.kubeListenAddr)
+	reconf.Flag("metrics-listen-addr", "Listen address for the new agent's metrics service.").StringVar(&reconfigureFlags.metricsListenAddr)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
@@ -775,11 +774,11 @@ Examples:
 		err = onStatus()
 	case dump.FullCommand():
 		err = onConfigDump(dumpFlags)
+	case reconf.FullCommand():
+		err = onReconfigure(reconfigureFlags)
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
-	case reconfigure.FullCommand():
-		err = onReconfigure(reconfFlags)
 
 	case exec.FullCommand(),
 		networking.FullCommand(),
