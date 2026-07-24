@@ -84,6 +84,9 @@ type App struct {
 	// MCP includes MCP specific configuration.
 	MCP *MCP `json:"mcp,omitempty"`
 
+	// LLM includes LLM inference endpoint specific configuration.
+	LLM *LLM `json:"llm,omitempty"`
+
 	// SupportedFeatureIDs contains ComponentFeatures supported by this App and all other involved components.
 	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
@@ -118,6 +121,16 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `json:"runAsHostUser,omitempty"`
+}
+
+// LLM includes LLM inference endpoint specific configuration.
+type LLM struct {
+	// Format is the inference API format clients use to talk to the endpoint,
+	// e.g. "anthropic" or "openai".
+	Format string `json:"format,omitempty"`
+	// Provider is the inference provider serving the endpoint, e.g.
+	// "anthropic", "openai", or "bedrock".
+	Provider string `json:"provider,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -237,6 +250,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			Command:       mcpSpec.Command,
 			Args:          mcpSpec.Args,
 			RunAsHostUser: mcpSpec.RunAsHostUser,
+		}
+	}
+
+	if llmSpec := app.GetLLM(); llmSpec != nil {
+		resultApp.LLM = &LLM{
+			Format:   llmSpec.Format,
+			Provider: llmSpec.Provider,
 		}
 	}
 
