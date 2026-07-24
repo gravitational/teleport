@@ -171,7 +171,7 @@ func TestStartTeleportExecXSession(t *testing.T) {
 	logger := slog.Default()
 	cfg := func() *XSessionConfig {
 		config := reexec.ExecLogConfig{
-			Level: slog.LevelDebug,
+			Level: &slog.LevelVar{},
 		}
 		return &XSessionConfig{
 			Logger:   logger,
