@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
@@ -3481,6 +3482,88 @@ func TestAccessListService_EnsureNestedAccessListStatuses(t *testing.T) {
 	requireStatusMemberOf(t, service, a5, []string{ghost, a1})
 }
 
+// TestUpsertAccessListToleratesStaleSpecAccessList verifies that UpsertAccessList
+// succeeds even when existing members have a stale Spec.AccessList. Before
+// #65122, reconcileMembers could write members under the correct backend prefix
+// without normalizing Spec.AccessList. UpsertAccessList must not re-validate
+// stored members, otherwise these legacy members block all access list updates.
+func TestUpsertAccessListToleratesStaleSpecAccessList(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{Context: ctx, Clock: clock})
+	require.NoError(t, err)
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	al := createAccessList(t, service, "some-list-production", clock)
+	createAccessListMember(t, service, al.GetName(), "good-user@example.com")
+
+	// Simulate a pre-#65122 member: stored under the correct prefix
+	// but with a stale Spec.AccessList.
+	stale, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: "stale-user@example.com",
+	}, accesslist.AccessListMemberSpec{
+		AccessList:     "some-list",
+		Name:           "stale-user@example.com",
+		Joined:         clock.Now(),
+		AddedBy:        "okta-importer",
+		MembershipKind: accesslist.MembershipKindUser,
+	})
+	require.NoError(t, err)
+	value, err := services.MarshalAccessListMember(stale)
+	require.NoError(t, err)
+	_, err = mem.Put(ctx, backend.Item{
+		Key:   backend.NewKey("access_list_member", "some-list-production", stale.GetName()),
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	// UpsertAccessList should succeed despite the stale member.
+	al.Spec.Description = "updated"
+	_, err = service.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+}
+
+// TestDeleteMemberWithStaleSpecAccessList verifies that backend-level
+// deletion works for members with a stale Spec.AccessList, since
+// DeleteAccessListMember resolves members by backend key prefix.
+func TestDeleteMemberWithStaleSpecAccessList(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{Context: ctx, Clock: clock})
+	require.NoError(t, err)
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	al := createAccessList(t, service, "some-list-production", clock)
+
+	// Write a member with stale Spec.AccessList directly to the backend.
+	stale, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: "stale-user@example.com",
+	}, accesslist.AccessListMemberSpec{
+		AccessList:     "some-list",
+		Name:           "stale-user@example.com",
+		Joined:         clock.Now(),
+		AddedBy:        "okta-importer",
+		MembershipKind: accesslist.MembershipKindUser,
+	})
+	require.NoError(t, err)
+	value, err := services.MarshalAccessListMember(stale)
+	require.NoError(t, err)
+	_, err = mem.Put(ctx, backend.Item{
+		Key:   backend.NewKey("access_list_member", al.GetName(), stale.GetName()),
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	err = service.DeleteAccessListMember(ctx, al.GetName(), stale.GetName())
+	require.NoError(t, err)
+
+	members, _, err := service.ListAccessListMembers(ctx, al.GetName(), 0, "")
+	require.NoError(t, err)
+	require.Empty(t, members)
+}
+
 type testAccessListGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
 }
@@ -3497,7 +3580,7 @@ func (fn testAccessListGetterFunc) GetAccessList(ctx context.Context, name strin
 
 func requireStatusOwnerOf(t *testing.T, service testAccessListGetter, accessListName string, ownerOf []string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
 	require.ElementsMatch(t, ownerOf, accessList.Status.OwnerOf)
