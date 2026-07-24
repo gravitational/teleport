@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1931,7 +1932,11 @@ func syncTestAppServerWatcher(t *testing.T) {
 	require.Empty(t, diffAppServers(appServers, current))
 
 	// Delete the first app server, ensure watcher correctly removes the entry
-	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].GetHostID(),
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	synctest.Wait()

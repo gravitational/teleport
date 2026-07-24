@@ -65,6 +65,9 @@ service PresenceService {
   rpc ListKubeClusters(ListKubeClustersRequest) returns (ListKubeClustersResponse);
   // Deletes a kube cluster resource from the backend.
   rpc DeleteKubeCluster(DeleteKubeClusterRequest) returns (DeleteKubeClusterResponse);
+
+  // Deletes a specific scoped or unscoped application server.
+  rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -282,3 +285,17 @@ message DeleteKubeClusterRequest {
 
 // The response for deleting a specific scoped or unscoped kube cluster resource.
 message DeleteKubeClusterResponse {}
+
+// The request to delete a specific scoped or unscoped application server.
+message DeleteAppServerRequest {
+  // HostId is the app server host uuid.
+  string host_id = 1;
+  // Name is the name of the application to delete.
+  string name = 2;
+  // Scope is the scope of the application to delete. Empty for unscoped
+  // applications.
+  string scope = 3;
+}
+
+// The response for deleting an application server.
+message DeleteAppServerResponse {}

@@ -1509,7 +1509,10 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(appServersPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, appServersPrefix),
+		),
 	}
 }
 
@@ -1520,6 +1523,34 @@ type appServerV3Parser struct {
 func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Scoped app servers live under
+		// /scoped/appServers/<encoded-scope>/<host-id>/<name>.
+		scopedAppServersKey := backend.NewKey(scopedPrefix, appServersPrefix)
+		if event.Item.Key.HasPrefix(scopedAppServersKey) {
+			components := event.Item.Key.TrimPrefix(scopedAppServersKey).Components()
+			if len(components) != 3 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from app server key %q", event.Item.Key.String())
+			}
+			return &types.AppServerV3{
+				Kind:    types.KindAppServer,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name: components[2],
+					// The host ID is stored in the description for compatibility
+					// with resource header stubs; some caches rely on it
+					Description: components[1],
+				},
+				Scope: scope,
+				Spec: types.AppServerSpecV3{
+					HostID: components[1],
+				},
+			}, nil
+		}
+
 		components := event.Item.Key.TrimPrefix(backend.NewKey(appServersPrefix, apidefaults.Namespace)).Components()
 		if len(components) != 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())

@@ -29,14 +29,19 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -44,12 +49,19 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 )
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1434,5 +1446,260 @@ func TestUpsertReverseTunnel(t *testing.T) {
 			}
 		})
 	}
+}
 
+// TestDeleteAppServer is an integration test that uses a real gRPC
+// client/server to exercise deleting scoped and unscoped application servers
+// through the presence service with authorized and unauthorized callers.
+func TestDeleteAppServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+	const (
+		parentScope     = "/aa"
+		scope           = "/aa/aa"
+		orthogonalScope = "/aa/bb"
+	)
+
+	deleteUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"app-server-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindAppServer},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+	unprivilegedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"app-server-no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	createScopedRole := func(name string, verbs []string) *scopedaccessv1.ScopedRole {
+		scopedRole, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1.ScopedRole_builder{
+				Kind:    scopedaccess.KindScopedRole,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: name,
+				}.Build(),
+				Scope: parentScope,
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{scope, orthogonalScope},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindAppServer},
+							Verbs:     verbs,
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		return scopedRole.GetRole()
+	}
+
+	scopedDeleteRole := createScopedRole("app-server-delete-role", []string{types.VerbDelete})
+	scopedReadRole := createScopedRole("app-server-read-role", []string{types.VerbRead})
+
+	createAssignment := func(role *scopedaccessv1.ScopedRole, username, assignedScope string) *scopedaccessv1.ScopedRoleAssignment {
+		sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: uuid.NewString(),
+				}.Build(),
+				Scope: assignedScope,
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					User: username,
+					Assignments: []*scopedaccessv1.Assignment{
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Scope: assignedScope,
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		return sra.GetAssignment()
+	}
+
+	waitForSRACache(t, srv,
+		createAssignment(scopedDeleteRole, deleteUser.GetName(), scope),
+		createAssignment(scopedReadRole, unprivilegedUser.GetName(), scope),
+	)
+
+	// newAppServer registers a fresh app server in the given scope. Each test
+	// case gets its own server since successful deletions are destructive.
+	newAppServer := func(t *testing.T, scope string) types.AppServer {
+		t.Helper()
+		name := "app-" + uuid.NewString()
+		spec := types.AppSpecV3{URI: "http://localhost:8080"}
+		if scope != "" {
+			// Scoped apps must register with their derived public address.
+			spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
+		}
+		app, err := types.NewAppV3(types.Metadata{Name: name}, spec, scope)
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(app, "localhost", uuid.NewString())
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+		return server
+	}
+
+	tests := []struct {
+		name        string
+		identity    authtest.TestIdentity
+		targetScope string
+		// req overrides the request derived from a freshly created target.
+		req          *presencev1pb.DeleteAppServerRequest
+		assertError  require.ErrorAssertionFunc
+		checkDeleted bool
+	}{
+		{
+			name:         "unscoped user with delete rule deletes unscoped server",
+			identity:     authtest.TestUser(deleteUser.GetName()),
+			targetScope:  "",
+			assertError:  require.NoError,
+			checkDeleted: true,
+		},
+		{
+			name:         "unscoped user with delete rule deletes scoped server",
+			identity:     authtest.TestUser(deleteUser.GetName()),
+			targetScope:  scope,
+			assertError:  require.NoError,
+			checkDeleted: true,
+		},
+		{
+			name:        "unscoped user without delete rule cannot delete unscoped server",
+			identity:    authtest.TestUser(unprivilegedUser.GetName()),
+			targetScope: "",
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			},
+		},
+		{
+			name:        "unscoped user without delete rule cannot delete scoped server",
+			identity:    authtest.TestUser(unprivilegedUser.GetName()),
+			targetScope: scope,
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			},
+		},
+		{
+			name:         "scoped user with delete rule deletes server in its scope",
+			identity:     authtest.TestScopedUser(deleteUser.GetName(), scope),
+			targetScope:  scope,
+			assertError:  require.NoError,
+			checkDeleted: true,
+		},
+		{
+			name:        "scoped user with delete rule cannot delete server in orthogonal scope",
+			identity:    authtest.TestScopedUser(deleteUser.GetName(), scope),
+			targetScope: orthogonalScope,
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			},
+		},
+		{
+			name:        "scoped user with delete rule cannot delete unscoped server",
+			identity:    authtest.TestScopedUser(deleteUser.GetName(), scope),
+			targetScope: "",
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			},
+		},
+		{
+			name:        "scoped user with read-only rule cannot delete server in its scope",
+			identity:    authtest.TestScopedUser(unprivilegedUser.GetName(), scope),
+			targetScope: scope,
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			},
+		},
+		{
+			name:     "missing host_id",
+			identity: authtest.TestUser(deleteUser.GetName()),
+			req: presencev1pb.DeleteAppServerRequest_builder{
+				Name: "some-app",
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+			},
+		},
+		{
+			name:     "missing name",
+			identity: authtest.TestUser(deleteUser.GetName()),
+			req: presencev1pb.DeleteAppServerRequest_builder{
+				HostId: uuid.NewString(),
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+			},
+		},
+		{
+			name:     "non existent server",
+			identity: authtest.TestUser(deleteUser.GetName()),
+			req: presencev1pb.DeleteAppServerRequest_builder{
+				HostId: uuid.NewString(),
+				Name:   "does-not-exist",
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "expected not found, got %v", err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(tt.identity)
+			require.NoError(t, err)
+			t.Cleanup(func() { client.Close() })
+
+			req := tt.req
+			var target types.AppServer
+			if req == nil {
+				target = newAppServer(t, tt.targetScope)
+				req = presencev1pb.DeleteAppServerRequest_builder{
+					HostId: target.GetHostID(),
+					Name:   target.GetName(),
+					Scope:  target.GetScope(),
+				}.Build()
+			}
+
+			_, err = client.PresenceServiceClient().DeleteAppServer(t.Context(), req)
+			tt.assertError(t, err)
+
+			if tt.checkDeleted {
+				servers, err := srv.Auth().GetApplicationServers(t.Context(), apidefaults.Namespace)
+				require.NoError(t, err)
+				for _, s := range servers {
+					require.NotEqual(t, target.GetHostID(), s.GetHostID(), "app server should be deleted")
+				}
+			}
+		})
+	}
+}
+
+func waitForSRACache(t *testing.T, srv *authtest.TLSServer, sras ...*scopedaccessv1.ScopedRoleAssignment) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, sra := range sras {
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    sra.GetMetadata().GetName(),
+				SubKind: sra.GetSubKind(),
+				Scope:   sra.GetScope(),
+			}.Build())
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
 }

@@ -1890,7 +1890,7 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 			return nil, trace.Wrap(err)
 		case match:
 			if len(resp.Resources) == limit {
-				resp.NextKey = backend.GetPaginationKey(r)
+				resp.NextKey = services.GetCursorForResource(r)
 				return &resp, nil
 			}
 

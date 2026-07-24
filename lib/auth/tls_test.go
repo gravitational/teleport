@@ -2049,7 +2049,11 @@ func TestAppServerCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Remove the application.
-	err = clt.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server.GetHostID(),
+		Name:   server.GetName(),
+		Scope:  server.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.

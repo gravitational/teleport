@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -26,7 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -165,7 +168,11 @@ var appServerRangeFuncs = rangeServersWithTargetNameFuncs[types.AppServer]{
 		return err
 	},
 	delete: func(ctx context.Context, presence services.Presence, s types.AppServer) error {
-		return presence.DeleteApplicationServer(ctx, s.GetNamespace(), s.GetHostID(), s.GetName())
+		return presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: s.GetHostID(),
+			Name:   s.GetName(),
+			Scope:  s.GetScope(),
+		}.Build())
 	},
 	rangeByName: (*Cache).RangeApplicationServersWithName,
 }
@@ -173,6 +180,93 @@ var appServerRangeFuncs = rangeServersWithTargetNameFuncs[types.AppServer]{
 func TestRangeApplicationServersWithName(t *testing.T) {
 	t.Parallel()
 	testRangeServersWithTargetName(t, appServerRangeFuncs)
+}
+
+// TestListResourcesAppServerScopedPagination verifies that ListResources
+// pagination spanning unscoped and scoped app servers returns every server
+func TestListResourcesAppServerScopedPagination(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		neverOK bool
+	}{
+		{name: "HealthyCache", neverOK: false},
+		{name: "Fallback", neverOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				p := newTestPack(t, func(cfg Config) Config {
+					cfg = ForAuth(cfg)
+					cfg.neverOK = tt.neverOK
+					return cfg
+				})
+				t.Cleanup(p.Close)
+
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-p.eventsC:
+							// Discard events to avoid blocking the test.
+						}
+					}
+				}()
+
+				key := func(s types.AppServer) string {
+					return s.GetScope() + "/" + s.GetHostID() + "/" + s.GetName()
+				}
+
+				var expectedKeys []string
+				for _, scope := range []string{"", "", "", "/prod", "/prod", "/staging"} {
+					server := mustCreateAppServer(t, uuid.New().String(), "graf").(*types.AppServerV3)
+					server.Scope = scope
+					server.Spec.App.Scope = scope
+					_, err := p.presenceS.UpsertApplicationServer(ctx, server)
+					require.NoError(t, err)
+					expectedKeys = append(expectedKeys, key(server))
+				}
+
+				// Wait for the cache to replicate all servers.
+				synctest.Wait()
+
+				var actualKeys []string
+				startKey := ""
+				for {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindAppServer,
+						Namespace:    apidefaults.Namespace,
+						Limit:        1,
+						StartKey:     startKey,
+					})
+					require.NoError(t, err)
+					r := resp.Resources[0]
+					server, ok := r.(types.AppServer)
+					require.True(t, ok)
+					if startKey != "" { // first entry
+						if startKey == scopes.ResourceCursorScopedStart() {
+							// The unscoped range ended exactly at a page boundary;
+							// next entry should be scoped
+							require.NotEmpty(t, server.GetScope())
+						} else {
+							require.Equal(t, startKey, services.GetCursorForAppServer(server))
+						}
+					}
+					actualKeys = append(actualKeys, key(server))
+
+					if resp.NextKey == "" {
+						break
+					}
+					startKey = resp.NextKey
+				}
+
+				require.ElementsMatch(t, expectedKeys, actualKeys)
+			})
+		})
+	}
 }
 
 func BenchmarkRangeApplicationServersWithName(b *testing.B) {
