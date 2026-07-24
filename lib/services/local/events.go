@@ -1680,10 +1680,6 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		components := event.Item.Key.Components()
-		if len(components) != 3 {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
 		return &types.KubernetesServerV3{
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
