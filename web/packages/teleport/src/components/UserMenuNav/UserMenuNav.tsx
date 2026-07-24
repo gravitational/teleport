@@ -42,10 +42,6 @@ import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { DeviceTrustStatus } from 'teleport/TopBar/DeviceTrustStatus';
 import { useUser } from 'teleport/User/UserContext';
 
-interface UserMenuNavProps {
-  username: string;
-}
-
 const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
 const Container = styled.div`
@@ -117,7 +113,13 @@ const Arrow = styled.div<{ open?: boolean }>`
   }
 `;
 
-export function UserMenuNav({ username }: UserMenuNavProps) {
+export function UserMenuNav({
+  username,
+  hideFeatures,
+}: {
+  username: string;
+  hideFeatures?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const theme = useTheme();
 
@@ -140,9 +142,12 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const initial =
     username && username.length ? username.trim().charAt(0).toUpperCase() : '';
 
-  const topMenuItems = features.filter(
-    feature => Boolean(feature.topMenuItem) && feature.category === undefined
-  );
+  const topMenuItems = hideFeatures
+    ? []
+    : features.filter(
+        feature =>
+          Boolean(feature.topMenuItem) && feature.category === undefined
+      );
 
   const items = [];
 
@@ -219,7 +224,7 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         <DeviceTrustStatus />
         {items}
 
-        <DropdownDivider />
+        {items.length > 0 && <DropdownDivider />}
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (

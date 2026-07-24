@@ -139,6 +139,8 @@ type WebConfig struct {
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
 	// BeamsUI indicates whether the Beams lite-mode UI is enabled
 	BeamsUI bool `json:"beamsUi"`
+	// ScopesEnabled indicates whether authorization scopes are enabled.
+	ScopesEnabled bool `json:"scopesEnabled"`
 }
 
 // IdentitySecurity contains identity security features and settings.

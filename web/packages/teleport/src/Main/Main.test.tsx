@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
@@ -40,6 +41,7 @@ import { Context, ContextProvider } from 'teleport';
 import { apps } from 'teleport/Apps/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { clusters } from 'teleport/Clusters/fixtures';
+import cfg from 'teleport/config';
 import { databases } from 'teleport/Databases/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 import { getOSSFeatures } from 'teleport/features';
@@ -49,6 +51,8 @@ import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
+import history from 'teleport/services/history/history';
+import { KeysEnum } from 'teleport/services/storageService';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
 import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
@@ -61,7 +65,15 @@ import { Main, MainProps } from './Main';
 
 enableMswServer();
 
+const defaultScopesEnabled = cfg.scopesEnabled;
+
+afterEach(() => {
+  cfg.scopesEnabled = defaultScopesEnabled;
+  localStorage.removeItem(KeysEnum.USE_LOGIN_SCOPE_PICKER);
+});
+
 beforeEach(() => {
+  history.init(createMemoryHistory());
   server.use(
     userEventCaptureSuccess(),
     successGetUsersV2([]),
@@ -115,6 +127,35 @@ test('renders', () => {
 
   expect(screen.getByTestId('teleport-logo')).toBeInTheDocument();
   expect(screen.queryAllByTestId(/toast-note/i)).toHaveLength(0);
+});
+
+test('redirects users with available scopes to the scope picker before rendering the app', async () => {
+  cfg.scopesEnabled = true;
+  localStorage.setItem(KeysEnum.USE_LOGIN_SCOPE_PICKER, JSON.stringify(true));
+  mockUserContextProviderWith(makeTestUserContext());
+  const ctx = setupContext();
+  ctx.storeUser.setState({
+    ...ctx.storeUser.state,
+    availableScopes: ['/prod', '/staging'],
+  });
+
+  render(
+    <MemoryRouter>
+      <LayoutContextProvider>
+        <ContextProvider ctx={ctx}>
+          <ToastNotificationProvider>
+            <Main features={getOSSFeatures()} />
+          </ToastNotificationProvider>
+        </ContextProvider>
+      </LayoutContextProvider>
+    </MemoryRouter>
+  );
+
+  // No navigation expected.
+  expect(screen.queryAllByText('Zero Trust Access')).toHaveLength(0);
+  expect(
+    screen.getByRole('heading', { name: 'Choose a scope for your session:' })
+  ).toBeVisible();
 });
 
 test('toggle rendering of info guide panel', async () => {

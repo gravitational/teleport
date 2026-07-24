@@ -78,6 +78,27 @@ const history = {
     this._pageRefresh(url);
   },
 
+  /**
+   * Returns an URL to a scope picker that redirects to the current URL once
+   * the scope has been picked.
+   */
+  getScopePickerUrl() {
+    const params: string[] = [];
+
+    const { search, pathname } = this.getLocation();
+    const knownRoute = this.ensureKnownRoute(pathname);
+    const knownRedirect = this.ensureBaseUrl(knownRoute);
+    const query = search ? encodeURIComponent(search) : '';
+    params.push(`redirect_uri=${knownRedirect}${query}`);
+
+    const queryString = params.join('&');
+    const url = queryString
+      ? `${cfg.routes.scopePicker}?${queryString}`
+      : cfg.routes.scopePicker;
+
+    return url;
+  },
+
   // TODO (avatus): make this return a path only if a full URI is present
   getRedirectParam() {
     return getUrlParameter('redirect_uri', this.original().location.search);
