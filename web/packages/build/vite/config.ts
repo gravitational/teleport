@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, realpathSync } from 'fs';
 import { Agent as HttpsAgent, type RequestOptions } from 'https';
 import { isIP } from 'net';
-import { resolve } from 'path';
+import { resolve, sep } from 'path';
 import type { Duplex } from 'stream';
 
 import { visualizer } from 'rollup-plugin-visualizer';
@@ -140,6 +140,12 @@ export function createViteConfig(
       },
     };
 
+    const pnpmStoreRoot = resolvePnpmStoreRoot(rootDirectory);
+
+    if (pnpmStoreRoot) {
+      config.server.fs.allow.push(pnpmStoreRoot);
+    }
+
     // When using a local design system, the browser will try to load the Ubuntu font from the
     // design system directory, which is outside the root directory.
     // These environment variables allow specifying a local design system path for development,
@@ -188,7 +194,7 @@ export function createViteConfig(
 
       // All teleport websocket endpoints live under
       // `/v{N}/webapi/(sites/<site>/{connect, desktops/<d>/connect, kube/exec,
-      // db/exec, (desktopplayback|sessionrecording|ttyplayback)/...} |
+      // db/exec, (desktopplayback|sessionrecording|ttyplayback|beamreplay)/...} |
       // command/<cmd>/execute)`. One alternation covers the lot.
       const wsPath =
         `^\\/v[0-9]+\\/webapi\\/(` +
@@ -196,7 +202,7 @@ export function createViteConfig(
           `sites\\/${siteName}\\/connect`,
           `sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`,
           `sites\\/${siteName}\\/(kube|db)\\/exec`,
-          `sites\\/${siteName}\\/(desktopplayback|sessionrecording|ttyplayback)\\/.+`,
+          `sites\\/${siteName}\\/(desktopplayback|sessionrecording|ttyplayback|beamreplay)\\/.+`,
           `command\\/.+\\/execute`,
         ].join('|') +
         `)`;
@@ -234,6 +240,32 @@ export function createViteConfig(
 
     return config;
   });
+}
+
+// pnpm's global virtual store symlinks node_modules entries into a store outside the project
+// (e.g. ~/Library/pnpm/store/v11/links). Vite resolves realpaths before serving, so those files
+// fall outside fs.allow. Return the store version root when that layout is in use, so deps like
+// @fontsource fonts and vite's own dev client are servable.
+function resolvePnpmStoreRoot(rootDirectory: string): string | undefined {
+  try {
+    const viteRealPath = realpathSync(
+      resolve(rootDirectory, 'node_modules/vite')
+    );
+    const marker = `${sep}store${sep}`;
+    const markerIndex = viteRealPath.indexOf(marker);
+
+    if (markerIndex === -1) {
+      return undefined;
+    }
+
+    const versionSegment = viteRealPath
+      .slice(markerIndex + marker.length)
+      .split(sep)[0];
+
+    return viteRealPath.slice(0, markerIndex + marker.length) + versionSegment;
+  } catch {
+    return undefined;
+  }
 }
 
 function resolveAllowedHosts(target: string) {

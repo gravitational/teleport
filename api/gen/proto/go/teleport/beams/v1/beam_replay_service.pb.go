@@ -1420,6 +1420,8 @@ type ReplayManifest struct {
 	xxx_hidden_BlobPartNames    []string               `protobuf:"bytes,11,rep,name=blob_part_names,json=blobPartNames,proto3"`
 	xxx_hidden_CommandPageRefs  *[]*PayloadRef         `protobuf:"bytes,12,rep,name=command_page_refs,json=commandPageRefs,proto3"`
 	xxx_hidden_PublishedAppName string                 `protobuf:"bytes,13,opt,name=published_app_name,json=publishedAppName,proto3"`
+	xxx_hidden_AgentPageRefs    *[]*PayloadRef         `protobuf:"bytes,14,rep,name=agent_page_refs,json=agentPageRefs,proto3"`
+	xxx_hidden_ActivityPageRefs *[]*PayloadRef         `protobuf:"bytes,15,rep,name=activity_page_refs,json=activityPageRefs,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -1542,6 +1544,24 @@ func (x *ReplayManifest) GetPublishedAppName() string {
 	return ""
 }
 
+func (x *ReplayManifest) GetAgentPageRefs() []*PayloadRef {
+	if x != nil {
+		if x.xxx_hidden_AgentPageRefs != nil {
+			return *x.xxx_hidden_AgentPageRefs
+		}
+	}
+	return nil
+}
+
+func (x *ReplayManifest) GetActivityPageRefs() []*PayloadRef {
+	if x != nil {
+		if x.xxx_hidden_ActivityPageRefs != nil {
+			return *x.xxx_hidden_ActivityPageRefs
+		}
+	}
+	return nil
+}
+
 func (x *ReplayManifest) SetVersion(v int32) {
 	x.xxx_hidden_Version = v
 }
@@ -1592,6 +1612,14 @@ func (x *ReplayManifest) SetCommandPageRefs(v []*PayloadRef) {
 
 func (x *ReplayManifest) SetPublishedAppName(v string) {
 	x.xxx_hidden_PublishedAppName = v
+}
+
+func (x *ReplayManifest) SetAgentPageRefs(v []*PayloadRef) {
+	x.xxx_hidden_AgentPageRefs = &v
+}
+
+func (x *ReplayManifest) SetActivityPageRefs(v []*PayloadRef) {
+	x.xxx_hidden_ActivityPageRefs = &v
 }
 
 func (x *ReplayManifest) HasCreatedAt() bool {
@@ -1659,6 +1687,18 @@ type ReplayManifest_builder struct {
 	// from it (published_app_name + the cluster's public address), so a beam's
 	// published app remains visible in its history after the beam is gone.
 	PublishedAppName string
+	// AgentPageRefs references the pages of the artifact's agent index -- the
+	// per-agent lanes the segmenter derived from the recording, each with its
+	// goal/outcome. It is empty for artifacts recorded before segmentation, or
+	// where segmentation was unavailable. Each page is a separate object served
+	// through FetchPayload with a negative exchange ordinal, like
+	// command_page_refs.
+	AgentPageRefs []*PayloadRef
+	// ActivityPageRefs references the pages of the artifact's activity index --
+	// the bounded, human-readable timeline of activities the segmenter grouped
+	// per agent lane, each referencing its member commands/exchanges. Empty and
+	// served like agent_page_refs.
+	ActivityPageRefs []*PayloadRef
 }
 
 func (b0 ReplayManifest_builder) Build() *ReplayManifest {
@@ -1678,6 +1718,8 @@ func (b0 ReplayManifest_builder) Build() *ReplayManifest {
 	x.xxx_hidden_BlobPartNames = b.BlobPartNames
 	x.xxx_hidden_CommandPageRefs = &b.CommandPageRefs
 	x.xxx_hidden_PublishedAppName = b.PublishedAppName
+	x.xxx_hidden_AgentPageRefs = &b.AgentPageRefs
+	x.xxx_hidden_ActivityPageRefs = &b.ActivityPageRefs
 	return m0
 }
 
@@ -1821,6 +1863,14 @@ type ReplayCommand struct {
 	xxx_hidden_ArgumentsPreview string                 `protobuf:"bytes,6,opt,name=arguments_preview,json=argumentsPreview,proto3"`
 	xxx_hidden_At               *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=at,proto3"`
 	xxx_hidden_Risk             string                 `protobuf:"bytes,8,opt,name=risk,proto3"`
+	xxx_hidden_Title            string                 `protobuf:"bytes,9,opt,name=title,proto3"`
+	xxx_hidden_Description      string                 `protobuf:"bytes,10,opt,name=description,proto3"`
+	xxx_hidden_CallId           string                 `protobuf:"bytes,11,opt,name=call_id,json=callId,proto3"`
+	xxx_hidden_CommandDisplay   string                 `protobuf:"bytes,12,opt,name=command_display,json=commandDisplay,proto3"`
+	xxx_hidden_OutputDisplay    string                 `protobuf:"bytes,13,opt,name=output_display,json=outputDisplay,proto3"`
+	xxx_hidden_ExitCode         int32                  `protobuf:"varint,14,opt,name=exit_code,json=exitCode,proto3"`
+	xxx_hidden_Escalated        bool                   `protobuf:"varint,15,opt,name=escalated,proto3"`
+	xxx_hidden_EscalationReason string                 `protobuf:"bytes,16,opt,name=escalation_reason,json=escalationReason,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -1906,6 +1956,62 @@ func (x *ReplayCommand) GetRisk() string {
 	return ""
 }
 
+func (x *ReplayCommand) GetTitle() string {
+	if x != nil {
+		return x.xxx_hidden_Title
+	}
+	return ""
+}
+
+func (x *ReplayCommand) GetDescription() string {
+	if x != nil {
+		return x.xxx_hidden_Description
+	}
+	return ""
+}
+
+func (x *ReplayCommand) GetCallId() string {
+	if x != nil {
+		return x.xxx_hidden_CallId
+	}
+	return ""
+}
+
+func (x *ReplayCommand) GetCommandDisplay() string {
+	if x != nil {
+		return x.xxx_hidden_CommandDisplay
+	}
+	return ""
+}
+
+func (x *ReplayCommand) GetOutputDisplay() string {
+	if x != nil {
+		return x.xxx_hidden_OutputDisplay
+	}
+	return ""
+}
+
+func (x *ReplayCommand) GetExitCode() int32 {
+	if x != nil {
+		return x.xxx_hidden_ExitCode
+	}
+	return 0
+}
+
+func (x *ReplayCommand) GetEscalated() bool {
+	if x != nil {
+		return x.xxx_hidden_Escalated
+	}
+	return false
+}
+
+func (x *ReplayCommand) GetEscalationReason() string {
+	if x != nil {
+		return x.xxx_hidden_EscalationReason
+	}
+	return ""
+}
+
 func (x *ReplayCommand) SetCommandOrdinal(v int64) {
 	x.xxx_hidden_CommandOrdinal = v
 }
@@ -1936,6 +2042,38 @@ func (x *ReplayCommand) SetAt(v *timestamppb.Timestamp) {
 
 func (x *ReplayCommand) SetRisk(v string) {
 	x.xxx_hidden_Risk = v
+}
+
+func (x *ReplayCommand) SetTitle(v string) {
+	x.xxx_hidden_Title = v
+}
+
+func (x *ReplayCommand) SetDescription(v string) {
+	x.xxx_hidden_Description = v
+}
+
+func (x *ReplayCommand) SetCallId(v string) {
+	x.xxx_hidden_CallId = v
+}
+
+func (x *ReplayCommand) SetCommandDisplay(v string) {
+	x.xxx_hidden_CommandDisplay = v
+}
+
+func (x *ReplayCommand) SetOutputDisplay(v string) {
+	x.xxx_hidden_OutputDisplay = v
+}
+
+func (x *ReplayCommand) SetExitCode(v int32) {
+	x.xxx_hidden_ExitCode = v
+}
+
+func (x *ReplayCommand) SetEscalated(v bool) {
+	x.xxx_hidden_Escalated = v
+}
+
+func (x *ReplayCommand) SetEscalationReason(v string) {
+	x.xxx_hidden_EscalationReason = v
 }
 
 func (x *ReplayCommand) HasAt() bool {
@@ -1977,6 +2115,32 @@ type ReplayCommand_builder struct {
 	// (none/low/medium/high/critical). Empty for artifacts recorded before
 	// command-risk scoring, or when no beam inference policy is configured.
 	Risk string
+	// Title is a short, human-readable name for this tool use, assigned by the
+	// segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
+	// before segmentation existed, or when segmentation was unavailable.
+	Title string
+	// Description is a one-line, human-readable summary of what this tool use did
+	// and its result, assigned by the segmenter. Empty when unavailable.
+	Description string
+	// CallID is the provider-assigned identifier for this tool call (OpenAI
+	// function_call/custom_tool_call call_id, Anthropic tool_use id), used to
+	// pair the call with its later output. Empty when the provider issued none.
+	CallId string
+	// CommandDisplay is the cleaned, single-line command (or apply_patch file
+	// summary) rendered from the call's arguments for the timeline. Empty when
+	// the arguments carried nothing displayable.
+	CommandDisplay string
+	// OutputDisplay is the cleaned, length-capped tool output paired to this call
+	// by call_id (head plus trailing lines). Empty when no output was recorded.
+	OutputDisplay string
+	// ExitCode is the process exit code parsed from the tool output, when the
+	// output reported one.
+	ExitCode int32
+	// Escalated reports whether the call requested escalated sandbox permissions.
+	Escalated bool
+	// EscalationReason is the justification the agent gave for requesting
+	// escalated permissions, when escalated is true.
+	EscalationReason string
 }
 
 func (b0 ReplayCommand_builder) Build() *ReplayCommand {
@@ -1991,6 +2155,626 @@ func (b0 ReplayCommand_builder) Build() *ReplayCommand {
 	x.xxx_hidden_ArgumentsPreview = b.ArgumentsPreview
 	x.xxx_hidden_At = b.At
 	x.xxx_hidden_Risk = b.Risk
+	x.xxx_hidden_Title = b.Title
+	x.xxx_hidden_Description = b.Description
+	x.xxx_hidden_CallId = b.CallId
+	x.xxx_hidden_CommandDisplay = b.CommandDisplay
+	x.xxx_hidden_OutputDisplay = b.OutputDisplay
+	x.xxx_hidden_ExitCode = b.ExitCode
+	x.xxx_hidden_Escalated = b.Escalated
+	x.xxx_hidden_EscalationReason = b.EscalationReason
+	return m0
+}
+
+// ReplayAgentIndex is one page of the artifact's agent index: the per-agent
+// lanes the segmenter derived from the recording. The full index is split
+// across ReplayManifest.agent_page_refs and fetched page by page, stored as
+// protojson so the browser replay client can decode it directly.
+type ReplayAgentIndex struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Agents *[]*ReplayAgent        `protobuf:"bytes,1,rep,name=agents,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ReplayAgentIndex) Reset() {
+	*x = ReplayAgentIndex{}
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplayAgentIndex) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplayAgentIndex) ProtoMessage() {}
+
+func (x *ReplayAgentIndex) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReplayAgentIndex) GetAgents() []*ReplayAgent {
+	if x != nil {
+		if x.xxx_hidden_Agents != nil {
+			return *x.xxx_hidden_Agents
+		}
+	}
+	return nil
+}
+
+func (x *ReplayAgentIndex) SetAgents(v []*ReplayAgent) {
+	x.xxx_hidden_Agents = &v
+}
+
+type ReplayAgentIndex_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Agents is this page's ordered list of agent lanes.
+	Agents []*ReplayAgent
+}
+
+func (b0 ReplayAgentIndex_builder) Build() *ReplayAgentIndex {
+	m0 := &ReplayAgentIndex{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Agents = &b.Agents
+	return m0
+}
+
+// ReplayActivityIndex is one page of the artifact's activity index: the
+// bounded, human-readable timeline of activities grouped per agent lane. The
+// full index is split across ReplayManifest.activity_page_refs and fetched page
+// by page, stored as protojson.
+type ReplayActivityIndex struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Activities *[]*ReplayActivity     `protobuf:"bytes,1,rep,name=activities,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ReplayActivityIndex) Reset() {
+	*x = ReplayActivityIndex{}
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplayActivityIndex) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplayActivityIndex) ProtoMessage() {}
+
+func (x *ReplayActivityIndex) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReplayActivityIndex) GetActivities() []*ReplayActivity {
+	if x != nil {
+		if x.xxx_hidden_Activities != nil {
+			return *x.xxx_hidden_Activities
+		}
+	}
+	return nil
+}
+
+func (x *ReplayActivityIndex) SetActivities(v []*ReplayActivity) {
+	x.xxx_hidden_Activities = &v
+}
+
+type ReplayActivityIndex_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Activities is this page's ordered list of activities.
+	Activities []*ReplayActivity
+}
+
+func (b0 ReplayActivityIndex_builder) Build() *ReplayActivityIndex {
+	m0 := &ReplayActivityIndex{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Activities = &b.Activities
+	return m0
+}
+
+// ReplayAgent is one agent lane the segmenter identified in the recording: the
+// main loop, or a subagent, distinguished by the identity headers the beam
+// proxy recorded. Its goal and outcome are the segmenter's read of what the
+// agent was asked to do versus what it actually did.
+type ReplayAgent struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AgentOrdinal  int64                  `protobuf:"varint,1,opt,name=agent_ordinal,json=agentOrdinal,proto3"`
+	xxx_hidden_AgentId       string                 `protobuf:"bytes,2,opt,name=agent_id,json=agentId,proto3"`
+	xxx_hidden_SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3"`
+	xxx_hidden_ParentAgentId string                 `protobuf:"bytes,4,opt,name=parent_agent_id,json=parentAgentId,proto3"`
+	xxx_hidden_Kind          string                 `protobuf:"bytes,5,opt,name=kind,proto3"`
+	xxx_hidden_Title         string                 `protobuf:"bytes,6,opt,name=title,proto3"`
+	xxx_hidden_Goal          string                 `protobuf:"bytes,7,opt,name=goal,proto3"`
+	xxx_hidden_Outcome       string                 `protobuf:"bytes,8,opt,name=outcome,proto3"`
+	xxx_hidden_FirstAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=first_at,json=firstAt,proto3"`
+	xxx_hidden_LastAt        *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=last_at,json=lastAt,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *ReplayAgent) Reset() {
+	*x = ReplayAgent{}
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplayAgent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplayAgent) ProtoMessage() {}
+
+func (x *ReplayAgent) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReplayAgent) GetAgentOrdinal() int64 {
+	if x != nil {
+		return x.xxx_hidden_AgentOrdinal
+	}
+	return 0
+}
+
+func (x *ReplayAgent) GetAgentId() string {
+	if x != nil {
+		return x.xxx_hidden_AgentId
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetSessionId() string {
+	if x != nil {
+		return x.xxx_hidden_SessionId
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetParentAgentId() string {
+	if x != nil {
+		return x.xxx_hidden_ParentAgentId
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetKind() string {
+	if x != nil {
+		return x.xxx_hidden_Kind
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetTitle() string {
+	if x != nil {
+		return x.xxx_hidden_Title
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetGoal() string {
+	if x != nil {
+		return x.xxx_hidden_Goal
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetOutcome() string {
+	if x != nil {
+		return x.xxx_hidden_Outcome
+	}
+	return ""
+}
+
+func (x *ReplayAgent) GetFirstAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_FirstAt
+	}
+	return nil
+}
+
+func (x *ReplayAgent) GetLastAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_LastAt
+	}
+	return nil
+}
+
+func (x *ReplayAgent) SetAgentOrdinal(v int64) {
+	x.xxx_hidden_AgentOrdinal = v
+}
+
+func (x *ReplayAgent) SetAgentId(v string) {
+	x.xxx_hidden_AgentId = v
+}
+
+func (x *ReplayAgent) SetSessionId(v string) {
+	x.xxx_hidden_SessionId = v
+}
+
+func (x *ReplayAgent) SetParentAgentId(v string) {
+	x.xxx_hidden_ParentAgentId = v
+}
+
+func (x *ReplayAgent) SetKind(v string) {
+	x.xxx_hidden_Kind = v
+}
+
+func (x *ReplayAgent) SetTitle(v string) {
+	x.xxx_hidden_Title = v
+}
+
+func (x *ReplayAgent) SetGoal(v string) {
+	x.xxx_hidden_Goal = v
+}
+
+func (x *ReplayAgent) SetOutcome(v string) {
+	x.xxx_hidden_Outcome = v
+}
+
+func (x *ReplayAgent) SetFirstAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_FirstAt = v
+}
+
+func (x *ReplayAgent) SetLastAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_LastAt = v
+}
+
+func (x *ReplayAgent) HasFirstAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_FirstAt != nil
+}
+
+func (x *ReplayAgent) HasLastAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_LastAt != nil
+}
+
+func (x *ReplayAgent) ClearFirstAt() {
+	x.xxx_hidden_FirstAt = nil
+}
+
+func (x *ReplayAgent) ClearLastAt() {
+	x.xxx_hidden_LastAt = nil
+}
+
+type ReplayAgent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AgentOrdinal is this agent's position in the agent index.
+	AgentOrdinal int64
+	// AgentID is the lane identifier from the recording's identity headers (the
+	// Claude Code agent id, or the Codex thread id). Empty for the main loop.
+	AgentId string
+	// SessionID is the agent run's root session identifier from the identity
+	// headers, shared across the run's lanes.
+	SessionId string
+	// ParentAgentID is the identifier of the agent that spawned this one, when
+	// the recording reports a parent. Empty for the main loop.
+	ParentAgentId string
+	// Kind categorizes the agent (e.g. the Codex subagent_kind), when the
+	// recording reports one.
+	Kind string
+	// Title is the segmenter's short label for the agent's objective.
+	Title string
+	// Goal is the segmenter's one-sentence statement of what the agent was asked
+	// or set out to do (intent), as opposed to what it did.
+	Goal string
+	// Outcome is the segmenter's short summary of what the agent actually did and
+	// whether it succeeded, noting any deviation from the goal.
+	Outcome string
+	// FirstAt is when this agent lane's earliest activity occurred.
+	FirstAt *timestamppb.Timestamp
+	// LastAt is when this agent lane's latest activity occurred.
+	LastAt *timestamppb.Timestamp
+}
+
+func (b0 ReplayAgent_builder) Build() *ReplayAgent {
+	m0 := &ReplayAgent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_AgentOrdinal = b.AgentOrdinal
+	x.xxx_hidden_AgentId = b.AgentId
+	x.xxx_hidden_SessionId = b.SessionId
+	x.xxx_hidden_ParentAgentId = b.ParentAgentId
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_Title = b.Title
+	x.xxx_hidden_Goal = b.Goal
+	x.xxx_hidden_Outcome = b.Outcome
+	x.xxx_hidden_FirstAt = b.FirstAt
+	x.xxx_hidden_LastAt = b.LastAt
+	return m0
+}
+
+// ReplayActivity is one grouped step in an agent lane's timeline: a small
+// number of consecutive commands/exchanges the segmenter merged into a single
+// meaningful, human-readable action. It references its member commands and
+// exchanges by ordinal rather than duplicating them, so the viewer joins them
+// back to the command/exchange indexes.
+type ReplayActivity struct {
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ActivityOrdinal     int64                  `protobuf:"varint,1,opt,name=activity_ordinal,json=activityOrdinal,proto3"`
+	xxx_hidden_AgentOrdinal        int64                  `protobuf:"varint,2,opt,name=agent_ordinal,json=agentOrdinal,proto3"`
+	xxx_hidden_Title               string                 `protobuf:"bytes,3,opt,name=title,proto3"`
+	xxx_hidden_ShortDescription    string                 `protobuf:"bytes,4,opt,name=short_description,json=shortDescription,proto3"`
+	xxx_hidden_DetailedDescription string                 `protobuf:"bytes,5,opt,name=detailed_description,json=detailedDescription,proto3"`
+	xxx_hidden_Reasoning           string                 `protobuf:"bytes,6,opt,name=reasoning,proto3"`
+	xxx_hidden_Flagged             bool                   `protobuf:"varint,7,opt,name=flagged,proto3"`
+	xxx_hidden_Risk                string                 `protobuf:"bytes,8,opt,name=risk,proto3"`
+	xxx_hidden_At                  *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=at,proto3"`
+	xxx_hidden_EndAt               *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=end_at,json=endAt,proto3"`
+	xxx_hidden_CommandOrdinals     []int64                `protobuf:"varint,11,rep,packed,name=command_ordinals,json=commandOrdinals,proto3"`
+	xxx_hidden_ExchangeOrdinals    []int64                `protobuf:"varint,12,rep,packed,name=exchange_ordinals,json=exchangeOrdinals,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
+}
+
+func (x *ReplayActivity) Reset() {
+	*x = ReplayActivity{}
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplayActivity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplayActivity) ProtoMessage() {}
+
+func (x *ReplayActivity) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ReplayActivity) GetActivityOrdinal() int64 {
+	if x != nil {
+		return x.xxx_hidden_ActivityOrdinal
+	}
+	return 0
+}
+
+func (x *ReplayActivity) GetAgentOrdinal() int64 {
+	if x != nil {
+		return x.xxx_hidden_AgentOrdinal
+	}
+	return 0
+}
+
+func (x *ReplayActivity) GetTitle() string {
+	if x != nil {
+		return x.xxx_hidden_Title
+	}
+	return ""
+}
+
+func (x *ReplayActivity) GetShortDescription() string {
+	if x != nil {
+		return x.xxx_hidden_ShortDescription
+	}
+	return ""
+}
+
+func (x *ReplayActivity) GetDetailedDescription() string {
+	if x != nil {
+		return x.xxx_hidden_DetailedDescription
+	}
+	return ""
+}
+
+func (x *ReplayActivity) GetReasoning() string {
+	if x != nil {
+		return x.xxx_hidden_Reasoning
+	}
+	return ""
+}
+
+func (x *ReplayActivity) GetFlagged() bool {
+	if x != nil {
+		return x.xxx_hidden_Flagged
+	}
+	return false
+}
+
+func (x *ReplayActivity) GetRisk() string {
+	if x != nil {
+		return x.xxx_hidden_Risk
+	}
+	return ""
+}
+
+func (x *ReplayActivity) GetAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_At
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_EndAt
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetCommandOrdinals() []int64 {
+	if x != nil {
+		return x.xxx_hidden_CommandOrdinals
+	}
+	return nil
+}
+
+func (x *ReplayActivity) GetExchangeOrdinals() []int64 {
+	if x != nil {
+		return x.xxx_hidden_ExchangeOrdinals
+	}
+	return nil
+}
+
+func (x *ReplayActivity) SetActivityOrdinal(v int64) {
+	x.xxx_hidden_ActivityOrdinal = v
+}
+
+func (x *ReplayActivity) SetAgentOrdinal(v int64) {
+	x.xxx_hidden_AgentOrdinal = v
+}
+
+func (x *ReplayActivity) SetTitle(v string) {
+	x.xxx_hidden_Title = v
+}
+
+func (x *ReplayActivity) SetShortDescription(v string) {
+	x.xxx_hidden_ShortDescription = v
+}
+
+func (x *ReplayActivity) SetDetailedDescription(v string) {
+	x.xxx_hidden_DetailedDescription = v
+}
+
+func (x *ReplayActivity) SetReasoning(v string) {
+	x.xxx_hidden_Reasoning = v
+}
+
+func (x *ReplayActivity) SetFlagged(v bool) {
+	x.xxx_hidden_Flagged = v
+}
+
+func (x *ReplayActivity) SetRisk(v string) {
+	x.xxx_hidden_Risk = v
+}
+
+func (x *ReplayActivity) SetAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_At = v
+}
+
+func (x *ReplayActivity) SetEndAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_EndAt = v
+}
+
+func (x *ReplayActivity) SetCommandOrdinals(v []int64) {
+	x.xxx_hidden_CommandOrdinals = v
+}
+
+func (x *ReplayActivity) SetExchangeOrdinals(v []int64) {
+	x.xxx_hidden_ExchangeOrdinals = v
+}
+
+func (x *ReplayActivity) HasAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_At != nil
+}
+
+func (x *ReplayActivity) HasEndAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_EndAt != nil
+}
+
+func (x *ReplayActivity) ClearAt() {
+	x.xxx_hidden_At = nil
+}
+
+func (x *ReplayActivity) ClearEndAt() {
+	x.xxx_hidden_EndAt = nil
+}
+
+type ReplayActivity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ActivityOrdinal is this activity's position across the whole activity
+	// index.
+	ActivityOrdinal int64
+	// AgentOrdinal is the ordinal of the ReplayAgent lane this activity belongs
+	// to.
+	AgentOrdinal int64
+	// Title is the segmenter's short title for the activity.
+	Title string
+	// ShortDescription is a one-to-two-sentence factual summary of the activity
+	// and its outcome.
+	ShortDescription string
+	// DetailedDescription is a longer explanation of the activity, when the
+	// segmenter produced one.
+	DetailedDescription string
+	// Reasoning is a short paraphrase of the agent's stated intent for this
+	// activity, when available.
+	Reasoning string
+	// Flagged marks the activity for reviewer attention (privilege escalation,
+	// destructive actions, or other security risk).
+	Flagged bool
+	// Risk is the segmenter's risk level for the activity
+	// (none/low/medium/high/critical).
+	Risk string
+	// At is when the activity started.
+	At *timestamppb.Timestamp
+	// EndAt is when the activity ended.
+	EndAt *timestamppb.Timestamp
+	// CommandOrdinals lists the command ordinals (into the command index) this
+	// activity groups.
+	CommandOrdinals []int64
+	// ExchangeOrdinals lists the exchange ordinals (into the exchange index) this
+	// activity spans.
+	ExchangeOrdinals []int64
+}
+
+func (b0 ReplayActivity_builder) Build() *ReplayActivity {
+	m0 := &ReplayActivity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ActivityOrdinal = b.ActivityOrdinal
+	x.xxx_hidden_AgentOrdinal = b.AgentOrdinal
+	x.xxx_hidden_Title = b.Title
+	x.xxx_hidden_ShortDescription = b.ShortDescription
+	x.xxx_hidden_DetailedDescription = b.DetailedDescription
+	x.xxx_hidden_Reasoning = b.Reasoning
+	x.xxx_hidden_Flagged = b.Flagged
+	x.xxx_hidden_Risk = b.Risk
+	x.xxx_hidden_At = b.At
+	x.xxx_hidden_EndAt = b.EndAt
+	x.xxx_hidden_CommandOrdinals = b.CommandOrdinals
+	x.xxx_hidden_ExchangeOrdinals = b.ExchangeOrdinals
 	return m0
 }
 
@@ -2023,7 +2807,7 @@ type ReplayExchangeEntry struct {
 
 func (x *ReplayExchangeEntry) Reset() {
 	*x = ReplayExchangeEntry{}
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[15]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2035,7 +2819,7 @@ func (x *ReplayExchangeEntry) String() string {
 func (*ReplayExchangeEntry) ProtoMessage() {}
 
 func (x *ReplayExchangeEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[15]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2403,7 +3187,7 @@ type PayloadRef struct {
 
 func (x *PayloadRef) Reset() {
 	*x = PayloadRef{}
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[16]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2415,7 +3199,7 @@ func (x *PayloadRef) String() string {
 func (*PayloadRef) ProtoMessage() {}
 
 func (x *PayloadRef) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[16]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2494,7 +3278,7 @@ type ReplayAttachment struct {
 
 func (x *ReplayAttachment) Reset() {
 	*x = ReplayAttachment{}
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[17]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2506,7 +3290,7 @@ func (x *ReplayAttachment) String() string {
 func (*ReplayAttachment) ProtoMessage() {}
 
 func (x *ReplayAttachment) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[17]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2607,7 +3391,7 @@ type ReplayEventBatch struct {
 
 func (x *ReplayEventBatch) Reset() {
 	*x = ReplayEventBatch{}
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[18]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2619,7 +3403,7 @@ func (x *ReplayEventBatch) String() string {
 func (*ReplayEventBatch) ProtoMessage() {}
 
 func (x *ReplayEventBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[18]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2673,7 +3457,7 @@ type ReplayAuditEvent struct {
 
 func (x *ReplayAuditEvent) Reset() {
 	*x = ReplayAuditEvent{}
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[19]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2685,7 +3469,7 @@ func (x *ReplayAuditEvent) String() string {
 func (*ReplayAuditEvent) ProtoMessage() {}
 
 func (x *ReplayAuditEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[19]
+	mi := &file_teleport_beams_v1_beam_replay_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2855,7 +3639,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12\x17\n" +
 	"\ais_last\x18\x02 \x01(\bR\x06isLast\"'\n" +
 	"\vReplayError\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"\x9a\x04\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"\xae\x05\n" +
 	"\x0eReplayManifest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x05R\aversion\x12\x17\n" +
 	"\abeam_id\x18\x02 \x01(\tR\x06beamId\x12\x14\n" +
@@ -2875,11 +3659,13 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	" \x03(\tR\x0eindexPageNames\x12&\n" +
 	"\x0fblob_part_names\x18\v \x03(\tR\rblobPartNames\x12I\n" +
 	"\x11command_page_refs\x18\f \x03(\v2\x1d.teleport.beams.v1.PayloadRefR\x0fcommandPageRefs\x12,\n" +
-	"\x12published_app_name\x18\r \x01(\tR\x10publishedAppName\"S\n" +
+	"\x12published_app_name\x18\r \x01(\tR\x10publishedAppName\x12E\n" +
+	"\x0fagent_page_refs\x18\x0e \x03(\v2\x1d.teleport.beams.v1.PayloadRefR\ragentPageRefs\x12K\n" +
+	"\x12activity_page_refs\x18\x0f \x03(\v2\x1d.teleport.beams.v1.PayloadRefR\x10activityPageRefs\"S\n" +
 	"\x0fReplayIndexPage\x12@\n" +
 	"\aentries\x18\x01 \x03(\v2&.teleport.beams.v1.ReplayExchangeEntryR\aentries\"R\n" +
 	"\x12ReplayCommandIndex\x12<\n" +
-	"\bcommands\x18\x01 \x03(\v2 .teleport.beams.v1.ReplayCommandR\bcommands\"\xa6\x02\n" +
+	"\bcommands\x18\x01 \x03(\v2 .teleport.beams.v1.ReplayCommandR\bcommands\"\xaf\x04\n" +
 	"\rReplayCommand\x12'\n" +
 	"\x0fcommand_ordinal\x18\x01 \x01(\x03R\x0ecommandOrdinal\x12)\n" +
 	"\x10exchange_ordinal\x18\x02 \x01(\x03R\x0fexchangeOrdinal\x12!\n" +
@@ -2888,7 +3674,49 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\x05phase\x18\x05 \x01(\tR\x05phase\x12+\n" +
 	"\x11arguments_preview\x18\x06 \x01(\tR\x10argumentsPreview\x12*\n" +
 	"\x02at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x12\x12\n" +
-	"\x04risk\x18\b \x01(\tR\x04risk\"\xaa\x06\n" +
+	"\x04risk\x18\b \x01(\tR\x04risk\x12\x14\n" +
+	"\x05title\x18\t \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\n" +
+	" \x01(\tR\vdescription\x12\x17\n" +
+	"\acall_id\x18\v \x01(\tR\x06callId\x12'\n" +
+	"\x0fcommand_display\x18\f \x01(\tR\x0ecommandDisplay\x12%\n" +
+	"\x0eoutput_display\x18\r \x01(\tR\routputDisplay\x12\x1b\n" +
+	"\texit_code\x18\x0e \x01(\x05R\bexitCode\x12\x1c\n" +
+	"\tescalated\x18\x0f \x01(\bR\tescalated\x12+\n" +
+	"\x11escalation_reason\x18\x10 \x01(\tR\x10escalationReason\"J\n" +
+	"\x10ReplayAgentIndex\x126\n" +
+	"\x06agents\x18\x01 \x03(\v2\x1e.teleport.beams.v1.ReplayAgentR\x06agents\"X\n" +
+	"\x13ReplayActivityIndex\x12A\n" +
+	"\n" +
+	"activities\x18\x01 \x03(\v2!.teleport.beams.v1.ReplayActivityR\n" +
+	"activities\"\xd8\x02\n" +
+	"\vReplayAgent\x12#\n" +
+	"\ragent_ordinal\x18\x01 \x01(\x03R\fagentOrdinal\x12\x19\n" +
+	"\bagent_id\x18\x02 \x01(\tR\aagentId\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x03 \x01(\tR\tsessionId\x12&\n" +
+	"\x0fparent_agent_id\x18\x04 \x01(\tR\rparentAgentId\x12\x12\n" +
+	"\x04kind\x18\x05 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05title\x18\x06 \x01(\tR\x05title\x12\x12\n" +
+	"\x04goal\x18\a \x01(\tR\x04goal\x12\x18\n" +
+	"\aoutcome\x18\b \x01(\tR\aoutcome\x125\n" +
+	"\bfirst_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\afirstAt\x123\n" +
+	"\alast_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x06lastAt\"\xd9\x03\n" +
+	"\x0eReplayActivity\x12)\n" +
+	"\x10activity_ordinal\x18\x01 \x01(\x03R\x0factivityOrdinal\x12#\n" +
+	"\ragent_ordinal\x18\x02 \x01(\x03R\fagentOrdinal\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12+\n" +
+	"\x11short_description\x18\x04 \x01(\tR\x10shortDescription\x121\n" +
+	"\x14detailed_description\x18\x05 \x01(\tR\x13detailedDescription\x12\x1c\n" +
+	"\treasoning\x18\x06 \x01(\tR\treasoning\x12\x18\n" +
+	"\aflagged\x18\a \x01(\bR\aflagged\x12\x12\n" +
+	"\x04risk\x18\b \x01(\tR\x04risk\x12*\n" +
+	"\x02at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x02at\x121\n" +
+	"\x06end_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x05endAt\x12)\n" +
+	"\x10command_ordinals\x18\v \x03(\x03R\x0fcommandOrdinals\x12+\n" +
+	"\x11exchange_ordinals\x18\f \x03(\x03R\x10exchangeOrdinals\"\xaa\x06\n" +
 	"\x13ReplayExchangeEntry\x12\x18\n" +
 	"\aordinal\x18\x01 \x01(\x03R\aordinal\x12\x1d\n" +
 	"\n" +
@@ -2937,7 +3765,7 @@ const file_teleport_beams_v1_beam_replay_service_proto_rawDesc = "" +
 	"\x11BeamReplayService\x12Q\n" +
 	"\x06Replay\x12 .teleport.beams.v1.ReplayRequest\x1a!.teleport.beams.v1.ReplayResponse(\x010\x01BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
-var file_teleport_beams_v1_beam_replay_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_beams_v1_beam_replay_service_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_beams_v1_beam_replay_service_proto_goTypes = []any{
 	(*ReplayRequest)(nil),         // 0: teleport.beams.v1.ReplayRequest
 	(*OpenRequest)(nil),           // 1: teleport.beams.v1.OpenRequest
@@ -2954,13 +3782,17 @@ var file_teleport_beams_v1_beam_replay_service_proto_goTypes = []any{
 	(*ReplayIndexPage)(nil),       // 12: teleport.beams.v1.ReplayIndexPage
 	(*ReplayCommandIndex)(nil),    // 13: teleport.beams.v1.ReplayCommandIndex
 	(*ReplayCommand)(nil),         // 14: teleport.beams.v1.ReplayCommand
-	(*ReplayExchangeEntry)(nil),   // 15: teleport.beams.v1.ReplayExchangeEntry
-	(*PayloadRef)(nil),            // 16: teleport.beams.v1.PayloadRef
-	(*ReplayAttachment)(nil),      // 17: teleport.beams.v1.ReplayAttachment
-	(*ReplayEventBatch)(nil),      // 18: teleport.beams.v1.ReplayEventBatch
-	(*ReplayAuditEvent)(nil),      // 19: teleport.beams.v1.ReplayAuditEvent
-	(*timestamppb.Timestamp)(nil), // 20: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),       // 21: google.protobuf.Struct
+	(*ReplayAgentIndex)(nil),      // 15: teleport.beams.v1.ReplayAgentIndex
+	(*ReplayActivityIndex)(nil),   // 16: teleport.beams.v1.ReplayActivityIndex
+	(*ReplayAgent)(nil),           // 17: teleport.beams.v1.ReplayAgent
+	(*ReplayActivity)(nil),        // 18: teleport.beams.v1.ReplayActivity
+	(*ReplayExchangeEntry)(nil),   // 19: teleport.beams.v1.ReplayExchangeEntry
+	(*PayloadRef)(nil),            // 20: teleport.beams.v1.PayloadRef
+	(*ReplayAttachment)(nil),      // 21: teleport.beams.v1.ReplayAttachment
+	(*ReplayEventBatch)(nil),      // 22: teleport.beams.v1.ReplayEventBatch
+	(*ReplayAuditEvent)(nil),      // 23: teleport.beams.v1.ReplayAuditEvent
+	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),       // 25: google.protobuf.Struct
 }
 var file_teleport_beams_v1_beam_replay_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.beams.v1.ReplayRequest.open:type_name -> teleport.beams.v1.OpenRequest
@@ -2968,36 +3800,44 @@ var file_teleport_beams_v1_beam_replay_service_proto_depIdxs = []int32{
 	3,  // 2: teleport.beams.v1.ReplayRequest.fetch_events:type_name -> teleport.beams.v1.FetchEventsRequest
 	4,  // 3: teleport.beams.v1.ReplayRequest.fetch_payload:type_name -> teleport.beams.v1.FetchPayloadRequest
 	5,  // 4: teleport.beams.v1.ReplayRequest.cancel:type_name -> teleport.beams.v1.CancelRequest
-	16, // 5: teleport.beams.v1.FetchPayloadRequest.ref:type_name -> teleport.beams.v1.PayloadRef
+	20, // 5: teleport.beams.v1.FetchPayloadRequest.ref:type_name -> teleport.beams.v1.PayloadRef
 	11, // 6: teleport.beams.v1.ReplayResponse.manifest:type_name -> teleport.beams.v1.ReplayManifest
 	7,  // 7: teleport.beams.v1.ReplayResponse.exchange_page:type_name -> teleport.beams.v1.ExchangePage
 	8,  // 8: teleport.beams.v1.ReplayResponse.event_page:type_name -> teleport.beams.v1.EventPage
 	9,  // 9: teleport.beams.v1.ReplayResponse.payload_chunk:type_name -> teleport.beams.v1.PayloadChunk
 	10, // 10: teleport.beams.v1.ReplayResponse.error:type_name -> teleport.beams.v1.ReplayError
-	15, // 11: teleport.beams.v1.ExchangePage.exchanges:type_name -> teleport.beams.v1.ReplayExchangeEntry
-	19, // 12: teleport.beams.v1.EventPage.events:type_name -> teleport.beams.v1.ReplayAuditEvent
-	20, // 13: teleport.beams.v1.ReplayManifest.created_at:type_name -> google.protobuf.Timestamp
-	20, // 14: teleport.beams.v1.ReplayManifest.expires_at:type_name -> google.protobuf.Timestamp
-	16, // 15: teleport.beams.v1.ReplayManifest.command_page_refs:type_name -> teleport.beams.v1.PayloadRef
-	15, // 16: teleport.beams.v1.ReplayIndexPage.entries:type_name -> teleport.beams.v1.ReplayExchangeEntry
-	14, // 17: teleport.beams.v1.ReplayCommandIndex.commands:type_name -> teleport.beams.v1.ReplayCommand
-	20, // 18: teleport.beams.v1.ReplayCommand.at:type_name -> google.protobuf.Timestamp
-	20, // 19: teleport.beams.v1.ReplayExchangeEntry.at:type_name -> google.protobuf.Timestamp
-	16, // 20: teleport.beams.v1.ReplayExchangeEntry.request_body:type_name -> teleport.beams.v1.PayloadRef
-	16, // 21: teleport.beams.v1.ReplayExchangeEntry.response_body:type_name -> teleport.beams.v1.PayloadRef
-	17, // 22: teleport.beams.v1.ReplayExchangeEntry.attachments:type_name -> teleport.beams.v1.ReplayAttachment
-	16, // 23: teleport.beams.v1.ReplayExchangeEntry.events:type_name -> teleport.beams.v1.PayloadRef
-	16, // 24: teleport.beams.v1.ReplayAttachment.ref:type_name -> teleport.beams.v1.PayloadRef
-	19, // 25: teleport.beams.v1.ReplayEventBatch.events:type_name -> teleport.beams.v1.ReplayAuditEvent
-	20, // 26: teleport.beams.v1.ReplayAuditEvent.at:type_name -> google.protobuf.Timestamp
-	21, // 27: teleport.beams.v1.ReplayAuditEvent.data:type_name -> google.protobuf.Struct
-	0,  // 28: teleport.beams.v1.BeamReplayService.Replay:input_type -> teleport.beams.v1.ReplayRequest
-	6,  // 29: teleport.beams.v1.BeamReplayService.Replay:output_type -> teleport.beams.v1.ReplayResponse
-	29, // [29:30] is the sub-list for method output_type
-	28, // [28:29] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	19, // 11: teleport.beams.v1.ExchangePage.exchanges:type_name -> teleport.beams.v1.ReplayExchangeEntry
+	23, // 12: teleport.beams.v1.EventPage.events:type_name -> teleport.beams.v1.ReplayAuditEvent
+	24, // 13: teleport.beams.v1.ReplayManifest.created_at:type_name -> google.protobuf.Timestamp
+	24, // 14: teleport.beams.v1.ReplayManifest.expires_at:type_name -> google.protobuf.Timestamp
+	20, // 15: teleport.beams.v1.ReplayManifest.command_page_refs:type_name -> teleport.beams.v1.PayloadRef
+	20, // 16: teleport.beams.v1.ReplayManifest.agent_page_refs:type_name -> teleport.beams.v1.PayloadRef
+	20, // 17: teleport.beams.v1.ReplayManifest.activity_page_refs:type_name -> teleport.beams.v1.PayloadRef
+	19, // 18: teleport.beams.v1.ReplayIndexPage.entries:type_name -> teleport.beams.v1.ReplayExchangeEntry
+	14, // 19: teleport.beams.v1.ReplayCommandIndex.commands:type_name -> teleport.beams.v1.ReplayCommand
+	24, // 20: teleport.beams.v1.ReplayCommand.at:type_name -> google.protobuf.Timestamp
+	17, // 21: teleport.beams.v1.ReplayAgentIndex.agents:type_name -> teleport.beams.v1.ReplayAgent
+	18, // 22: teleport.beams.v1.ReplayActivityIndex.activities:type_name -> teleport.beams.v1.ReplayActivity
+	24, // 23: teleport.beams.v1.ReplayAgent.first_at:type_name -> google.protobuf.Timestamp
+	24, // 24: teleport.beams.v1.ReplayAgent.last_at:type_name -> google.protobuf.Timestamp
+	24, // 25: teleport.beams.v1.ReplayActivity.at:type_name -> google.protobuf.Timestamp
+	24, // 26: teleport.beams.v1.ReplayActivity.end_at:type_name -> google.protobuf.Timestamp
+	24, // 27: teleport.beams.v1.ReplayExchangeEntry.at:type_name -> google.protobuf.Timestamp
+	20, // 28: teleport.beams.v1.ReplayExchangeEntry.request_body:type_name -> teleport.beams.v1.PayloadRef
+	20, // 29: teleport.beams.v1.ReplayExchangeEntry.response_body:type_name -> teleport.beams.v1.PayloadRef
+	21, // 30: teleport.beams.v1.ReplayExchangeEntry.attachments:type_name -> teleport.beams.v1.ReplayAttachment
+	20, // 31: teleport.beams.v1.ReplayExchangeEntry.events:type_name -> teleport.beams.v1.PayloadRef
+	20, // 32: teleport.beams.v1.ReplayAttachment.ref:type_name -> teleport.beams.v1.PayloadRef
+	23, // 33: teleport.beams.v1.ReplayEventBatch.events:type_name -> teleport.beams.v1.ReplayAuditEvent
+	24, // 34: teleport.beams.v1.ReplayAuditEvent.at:type_name -> google.protobuf.Timestamp
+	25, // 35: teleport.beams.v1.ReplayAuditEvent.data:type_name -> google.protobuf.Struct
+	0,  // 36: teleport.beams.v1.BeamReplayService.Replay:input_type -> teleport.beams.v1.ReplayRequest
+	6,  // 37: teleport.beams.v1.BeamReplayService.Replay:output_type -> teleport.beams.v1.ReplayResponse
+	37, // [37:38] is the sub-list for method output_type
+	36, // [36:37] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_replay_service_proto_init() }
@@ -3025,7 +3865,7 @@ func file_teleport_beams_v1_beam_replay_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_replay_service_proto_rawDesc), len(file_teleport_beams_v1_beam_replay_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

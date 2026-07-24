@@ -215,6 +215,20 @@ message ReplayManifest {
   // from it (published_app_name + the cluster's public address), so a beam's
   // published app remains visible in its history after the beam is gone.
   string published_app_name = 13;
+
+  // AgentPageRefs references the pages of the artifact's agent index -- the
+  // per-agent lanes the segmenter derived from the recording, each with its
+  // goal/outcome. It is empty for artifacts recorded before segmentation, or
+  // where segmentation was unavailable. Each page is a separate object served
+  // through FetchPayload with a negative exchange ordinal, like
+  // command_page_refs.
+  repeated PayloadRef agent_page_refs = 14;
+
+  // ActivityPageRefs references the pages of the artifact's activity index --
+  // the bounded, human-readable timeline of activities the segmenter grouped
+  // per agent lane, each referencing its member commands/exchanges. Empty and
+  // served like agent_page_refs.
+  repeated PayloadRef activity_page_refs = 15;
 }
 
 // ReplayIndexPage is a page of the replay artifact's exchange index.
@@ -270,6 +284,152 @@ message ReplayCommand {
   // (none/low/medium/high/critical). Empty for artifacts recorded before
   // command-risk scoring, or when no beam inference policy is configured.
   string risk = 8;
+
+  // Title is a short, human-readable name for this tool use, assigned by the
+  // segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
+  // before segmentation existed, or when segmentation was unavailable.
+  string title = 9;
+
+  // Description is a one-line, human-readable summary of what this tool use did
+  // and its result, assigned by the segmenter. Empty when unavailable.
+  string description = 10;
+
+  // CallID is the provider-assigned identifier for this tool call (OpenAI
+  // function_call/custom_tool_call call_id, Anthropic tool_use id), used to
+  // pair the call with its later output. Empty when the provider issued none.
+  string call_id = 11;
+
+  // CommandDisplay is the cleaned, single-line command (or apply_patch file
+  // summary) rendered from the call's arguments for the timeline. Empty when
+  // the arguments carried nothing displayable.
+  string command_display = 12;
+
+  // OutputDisplay is the cleaned, length-capped tool output paired to this call
+  // by call_id (head plus trailing lines). Empty when no output was recorded.
+  string output_display = 13;
+
+  // ExitCode is the process exit code parsed from the tool output, when the
+  // output reported one.
+  int32 exit_code = 14;
+
+  // Escalated reports whether the call requested escalated sandbox permissions.
+  bool escalated = 15;
+
+  // EscalationReason is the justification the agent gave for requesting
+  // escalated permissions, when escalated is true.
+  string escalation_reason = 16;
+}
+
+// ReplayAgentIndex is one page of the artifact's agent index: the per-agent
+// lanes the segmenter derived from the recording. The full index is split
+// across ReplayManifest.agent_page_refs and fetched page by page, stored as
+// protojson so the browser replay client can decode it directly.
+message ReplayAgentIndex {
+  // Agents is this page's ordered list of agent lanes.
+  repeated ReplayAgent agents = 1;
+}
+
+// ReplayActivityIndex is one page of the artifact's activity index: the
+// bounded, human-readable timeline of activities grouped per agent lane. The
+// full index is split across ReplayManifest.activity_page_refs and fetched page
+// by page, stored as protojson.
+message ReplayActivityIndex {
+  // Activities is this page's ordered list of activities.
+  repeated ReplayActivity activities = 1;
+}
+
+// ReplayAgent is one agent lane the segmenter identified in the recording: the
+// main loop, or a subagent, distinguished by the identity headers the beam
+// proxy recorded. Its goal and outcome are the segmenter's read of what the
+// agent was asked to do versus what it actually did.
+message ReplayAgent {
+  // AgentOrdinal is this agent's position in the agent index.
+  int64 agent_ordinal = 1;
+
+  // AgentID is the lane identifier from the recording's identity headers (the
+  // Claude Code agent id, or the Codex thread id). Empty for the main loop.
+  string agent_id = 2;
+
+  // SessionID is the agent run's root session identifier from the identity
+  // headers, shared across the run's lanes.
+  string session_id = 3;
+
+  // ParentAgentID is the identifier of the agent that spawned this one, when
+  // the recording reports a parent. Empty for the main loop.
+  string parent_agent_id = 4;
+
+  // Kind categorizes the agent (e.g. the Codex subagent_kind), when the
+  // recording reports one.
+  string kind = 5;
+
+  // Title is the segmenter's short label for the agent's objective.
+  string title = 6;
+
+  // Goal is the segmenter's one-sentence statement of what the agent was asked
+  // or set out to do (intent), as opposed to what it did.
+  string goal = 7;
+
+  // Outcome is the segmenter's short summary of what the agent actually did and
+  // whether it succeeded, noting any deviation from the goal.
+  string outcome = 8;
+
+  // FirstAt is when this agent lane's earliest activity occurred.
+  google.protobuf.Timestamp first_at = 9;
+
+  // LastAt is when this agent lane's latest activity occurred.
+  google.protobuf.Timestamp last_at = 10;
+}
+
+// ReplayActivity is one grouped step in an agent lane's timeline: a small
+// number of consecutive commands/exchanges the segmenter merged into a single
+// meaningful, human-readable action. It references its member commands and
+// exchanges by ordinal rather than duplicating them, so the viewer joins them
+// back to the command/exchange indexes.
+message ReplayActivity {
+  // ActivityOrdinal is this activity's position across the whole activity
+  // index.
+  int64 activity_ordinal = 1;
+
+  // AgentOrdinal is the ordinal of the ReplayAgent lane this activity belongs
+  // to.
+  int64 agent_ordinal = 2;
+
+  // Title is the segmenter's short title for the activity.
+  string title = 3;
+
+  // ShortDescription is a one-to-two-sentence factual summary of the activity
+  // and its outcome.
+  string short_description = 4;
+
+  // DetailedDescription is a longer explanation of the activity, when the
+  // segmenter produced one.
+  string detailed_description = 5;
+
+  // Reasoning is a short paraphrase of the agent's stated intent for this
+  // activity, when available.
+  string reasoning = 6;
+
+  // Flagged marks the activity for reviewer attention (privilege escalation,
+  // destructive actions, or other security risk).
+  bool flagged = 7;
+
+  // Risk is the segmenter's risk level for the activity
+  // (none/low/medium/high/critical).
+  string risk = 8;
+
+  // At is when the activity started.
+  google.protobuf.Timestamp at = 9;
+
+  // EndAt is when the activity ended.
+  google.protobuf.Timestamp end_at = 10;
+
+  // CommandOrdinals lists the command ordinals (into the command index) this
+  // activity groups.
+  repeated int64 command_ordinals = 11;
+
+  // ExchangeOrdinals lists the exchange ordinals (into the exchange index) this
+  // activity spans.
+  repeated int64 exchange_ordinals = 12;
 }
 
 // ReplayExchangeEntry describes a single recorded HTTP exchange.

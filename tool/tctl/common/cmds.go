@@ -54,6 +54,7 @@ func Commands() []CLICommand {
 		&InventoryCommand{},
 		&discovery.Command{},
 		&RecordingsCommand{},
+		&BeamsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},
 		&ResourceCommand{},
