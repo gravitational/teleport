@@ -1,17 +1,17 @@
 {
-  "resources":  [
+  "resources": [
     {
-      "@type":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
-      "name":  "spiffe://example.com/second",
-      "tlsCertificate":  {
-        "certificateChain":  {
-          "inlineBytes":  "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tClEwVlNWQzF6Y0dsbVptVTZMeTlsZUdGdGNHeGxMbU52YlM5elpXTnZibVE9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+      "@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+      "name": "spiffe://example.com/second",
+      "tlsCertificate": {
+        "certificateChain": {
+          "inlineBytes": "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUNZekNDQVV1Z0F3SUJBZ0lJR01SK1hvRGpuR2d3RFFZSktvWklodmNOQVFFTEJRQXdRREVWTUJNR0ExVUUKQ2hNTVZHVnNaWEJ2Y25RZ1QxTlRNU2N3SlFZRFZRUURFeDUwWld4bGNHOXlkQzVzYjJOaGJHaHZjM1F1Ykc5agpZV3hrYjIxaGFXNHdJQmNOTWpBd01UQXhNREF3TURBd1doZ1BNakV3TURBeE1ERXdNREF3TURCYU1BQXdXVEFUCkJnY3Foa2pPUFFJQkJnZ3Foa2pPUFFNQkJ3TkNBQVJjMys4R2dCK1AxZXlxNjE0TFNIS1BNNmlyMUptby9Tb2UKVXFPaGNIbmJGWkppdkpZZXJkZ3FNbDViNVl0U05PVm9RTEJKTmZGVUlwNDVWeHZzS1hZam8yb3dhREFPQmdOVgpIUThCQWY4RUJBTUNBNmd3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdFR0NDc0dBUVVGQndNQ01Bd0dBMVVkCkV3RUIvd1FDTUFBd0tRWURWUjBSQVFIL0JCOHdIWVliYzNCcFptWmxPaTh2WlhoaGJYQnNaUzVqYjIwdmMyVmoKYjI1a01BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQk5WL2hiUklELzhhRjF0eGZncGg2a3ExMEFlejFzOUhwNgpLcWdZQTZqbUVBWERLUWI1UUt5dWgzMVFJVlF1ejdNSUF1VExjWkNTQm9hVmVjamlzM2JpT05yaFBpdkg1L2xGCis3VXNkZFlocEhJeE1ETmljZXJlTS9aNGE3UmdJK05IK0R3YVI4TFVsMFNRQnZ1cDlPUHJ3SVdsVVhLOHI2K1cKZ1JjMXpRSEpVSnhROHlGbThOSW9rUEUrRjQ2aE14dExkR0d4ZXkxSThHTkg4bVNtaW9RcVdxSUQ3Ny9aV1d1RwppWGZBMUtIQlgrK1MramZ1Q0VVdm1NRnB1TWhHU0Y1ZTNqVWsvS05Tb3hVeVpxL2l2SlhMbk8xWVIwcjdhcllQCmx2QVBXNFdQWnBidk9mUmNTbWpIbmxKdU0wL29jUUh5T1lHd3B3U2FDN3g1eDBieGJCaCsKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo="
         },
-        "privateKey":  {
-          "inlineBytes":  "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tClMwVlpMWE53YVdabVpUb3ZMMlY0WVcxd2JHVXVZMjl0TDNObFkyOXVaQT09Ci0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K"
+        "privateKey": {
+          "inlineBytes": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JR0hBZ0VBTUJNR0J5cUdTTTQ5QWdFR0NDcUdTTTQ5QXdFSEJHMHdhd0lCQVFRZ3Y3NTc5d2hueWNrY3NZbVcKMklmUGJEUDAxbTFFMFBxOGZLL3k3WExkODNhaFJBTkNBQVJjMys4R2dCK1AxZXlxNjE0TFNIS1BNNmlyMUptbwovU29lVXFPaGNIbmJGWkppdkpZZXJkZ3FNbDViNVl0U05PVm9RTEJKTmZGVUlwNDVWeHZzS1hZagotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg=="
         }
       }
     }
   ],
-  "typeUrl":  "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
+  "typeUrl": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret"
 }
