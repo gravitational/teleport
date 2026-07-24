@@ -21,6 +21,7 @@ package common
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
@@ -489,6 +490,19 @@ func (c *mcpConnectCommand) run() error {
 	}
 
 	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
+
+	// Wire up OAuth credentials from `tsh mcp login`, if there are any. The
+	// Authorization header is produced per request so that expired access
+	// tokens get silently refreshed. An explicit -H "Authorization: ..."
+	// always wins.
+	var getAuthHeader func(context.Context) (string, error)
+	if _, ok := httpHeaders["Authorization"]; !ok {
+		getAuthHeader, err = newMCPOAuthGetAuthHeader(dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{
@@ -498,6 +512,7 @@ func (c *mcpConnectCommand) run() error {
 			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
 			AutoReconnect:            c.autoReconnect,
 			HTTPHeaders:              httpHeaders,
+			GetHTTPAuthHeader:        getAuthHeader,
 		},
 	)
 }
@@ -519,7 +534,12 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 
 func makeMCPReconnectUserMessage(err error) string {
 	var userMessage string
+	var loginRequiredErr *mcpOAuthLoginRequiredError
 	switch {
+	case errors.As(err, &loginRequiredErr):
+		userMessage = fmt.Sprintf("Authentication with MCP server %q is required or has expired."+
+			" Run `tsh mcp login %s` in your terminal and complete the authorization in your browser, then retry.",
+			loginRequiredErr.appName, loginRequiredErr.appName)
 	case clientmcp.IsLikelyTemporaryNetworkError(err):
 		userMessage = "A network error occurred while trying to connect to Teleport." +
 			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +

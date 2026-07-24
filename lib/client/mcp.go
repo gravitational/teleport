@@ -158,6 +158,9 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 			URI:         mcpServer.GetURI(),
 		},
 		AccessRequests: profile.ActiveRequests,
+		// Declares the in-memory cert flow; without it the server caps
+		// MFA-verified certs at one minute.
+		RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
 	// Do NOT write the keyring to avoid race condition when AI clients run

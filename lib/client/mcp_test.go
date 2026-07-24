@@ -95,6 +95,9 @@ func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, par
 	if params.RouteToCluster != m.GetSiteName() {
 		return nil, trace.BadParameter("wrong cluster")
 	}
+	if params.RequesterName != proto.UserCertsRequest_TSH_APP_LOCAL_PROXY {
+		return nil, trace.BadParameter("expected in-memory requester name, got %v", params.RequesterName)
+	}
 	subject, err := m.identity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)

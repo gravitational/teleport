@@ -222,6 +222,58 @@ func TestHTTPReaderWriter(t *testing.T) {
 	})
 }
 
+// TestHTTPReaderWriterOmitsNilParams verifies requests without params are sent
+// without a "params" key. Spec-strict servers reject "params":null.
+func TestHTTPReaderWriterOmitsNilParams(t *testing.T) {
+	t.Parallel()
+
+	var bodies [][]byte
+	listener := listenerutils.NewInMemoryListener()
+	httpServer := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			bodies = append(bodies, body)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"jsonrpc":"2.0","id":%s,"result":{}}`, mustExtractID(t, body))
+		}),
+	}
+	go httpServer.Serve(listener)
+	t.Cleanup(func() { httpServer.Close() })
+
+	rw, err := NewHTTPReaderWriter(
+		t.Context(),
+		"http://memory/mcp",
+		mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { rw.Close() })
+
+	require.NoError(t, rw.WriteMessage(t.Context(), &JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(int64(1)),
+		Method:  "tools/list",
+	}))
+	require.NoError(t, rw.WriteMessage(t.Context(), &JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(int64(2)),
+		Method:  "tools/call",
+		Params:  JSONRPCParams{"name": "test"},
+	}))
+
+	require.Len(t, bodies, 2)
+	require.NotContains(t, string(bodies[0]), `"params"`)
+	require.Contains(t, string(bodies[1]), `"params":{"name":"test"}`)
+}
+
+func mustExtractID(t *testing.T, body []byte) json.RawMessage {
+	t.Helper()
+	var m map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(body, &m))
+	require.Contains(t, m, "id")
+	return m["id"]
+}
+
 func proxyReaderWriter(
 	t *testing.T,
 	clientTransportReader TransportReader,
