@@ -686,9 +686,11 @@ var (
 	// the Machine ID bot the certificate was issued to, if any.
 	BotScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
 
-	// AppScopeASN1ExtensionOID is an extension OID used to encode the scope of the
-	// target application.
-	AppScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
+	// TargetScopeASN1ExtensionOID is an extension OID used to encode the scope of the
+	// target resource. A single TargetScope OID hinges on the fact that
+	// certificates are only issued for one resource at a time.
+	// If this is changed, we will need additional per protocol target scopes.
+	TargetScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -828,7 +830,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	if id.RouteToApp.Scope != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  AppScopeASN1ExtensionOID,
+				Type:  TargetScopeASN1ExtensionOID,
 				Value: id.RouteToApp.Scope,
 			})
 	}
@@ -1305,7 +1307,7 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.RouteToApp.Name = val
 			}
-		case attr.Type.Equal(AppScopeASN1ExtensionOID):
+		case attr.Type.Equal(TargetScopeASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.Scope = val
