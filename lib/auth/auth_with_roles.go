@@ -1157,6 +1157,11 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
+	// ComponentFeatures is server-managed. SSH agents advertise it over the inventory
+	// control stream, which never routes through this wrapper. Anything arriving here
+	// is a client write; drop it so clients can't over-report support.
+	s.SetComponentFeatures(nil)
+
 	return a.authServer.UpsertNode(ctx, s)
 }
 
@@ -2960,6 +2965,12 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 func (a *ServerWithRoles) UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error) {
 	if err := a.authorizeAction(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// ComponentFeatures is server-managed. This API is Proxy's own heartbeat; the
+	// field survives only for the builtin Proxy identity. Any other caller is a
+	// client write and can't claim support the component doesn't have.
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		s.SetComponentFeatures(nil)
 	}
 	return a.authServer.UpsertProxyServer(ctx, s)
 }
@@ -6563,6 +6574,10 @@ func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server ty
 	if server.GetScope() != "" {
 		return nil, trace.BadParameter("scoped app server must register a control stream")
 	}
+	// ComponentFeatures is server-managed. App agents advertise over the inventory
+	// control stream which never routes through this wrapper. Anything arriving here
+	// is a client write; drop it so clients can't over-report support.
+	server.SetComponentFeatures(nil)
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }
 

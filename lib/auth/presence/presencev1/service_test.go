@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -1335,6 +1336,42 @@ func TestUpsertProxyServer(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("component features stripped on client write", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		clientProxy, err := types.NewServer("proxy-client-written", types.KindProxy, types.ServerSpecV2{
+			Addr: "127.0.0.1:2024",
+		})
+		require.NoError(t, err)
+		clientProxy.SetComponentFeatures(componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1))
+
+		resp, err := client.PresenceServiceClient().UpsertProxyServer(ctx, presencev1pb.UpsertProxyServerRequest_builder{
+			Server: clientProxy.(*types.ServerV2),
+		}.Build())
+		require.NoError(t, err)
+		require.Nil(t, resp.GetServer().GetComponentFeatures(),
+			"client-set ComponentFeatures must not be persisted on a proxy server")
+	})
+
+	t.Run("component features preserved on own heartbeat", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+		require.NoError(t, err)
+
+		hbProxy, err := types.NewServer("proxy-heartbeat", types.KindProxy, types.ServerSpecV2{
+			Addr: "127.0.0.1:2025",
+		})
+		require.NoError(t, err)
+		hbProxy.SetComponentFeatures(componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1))
+
+		resp, err := client.PresenceServiceClient().UpsertProxyServer(ctx, presencev1pb.UpsertProxyServerRequest_builder{
+			Server: hbProxy.(*types.ServerV2),
+		}.Build())
+		require.NoError(t, err)
+		require.NotNil(t, resp.GetServer().GetComponentFeatures(),
+			"the proxy's own heartbeat must keep ComponentFeatures")
+	})
 }
 
 func TestUpsertReverseTunnel(t *testing.T) {
