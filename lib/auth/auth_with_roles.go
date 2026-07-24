@@ -4303,8 +4303,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	}
 
 	if req.Usage == proto.UserCertsRequest_AccessGraphAPI {
-		if !a.authServer.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
-			return nil, trace.AccessDenied("access graph requires a Teleport Policy license")
+		if !a.authServer.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled {
+			return nil, trace.AccessDenied("access graph requires a Teleport Access Graph license")
 		}
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "access graph is not permitted")

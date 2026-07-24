@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -198,18 +199,12 @@ func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, c
 	return trace.Wrap(issueAndStoreAccessGraphCert(ctx, creds, authClient))
 }
 
-// checkAccessGraphSupported gates on the `Policy` entitlement.
+// checkAccessGraphSupported gates on the `AccessGraph` entitlement.
 // Endpoint reachability is checked at AG call time, not here.
 func checkAccessGraphSupported(ctx context.Context, ping proto.PingResponse) error {
 	features := ping.GetServerFeatures()
 
-	// This gate routes the "not licensed" error message and accepts the legacy
-	// `Policy` submessage from older clusters that predate the entitlements map.
-	//
-	// TODO(ghassan): when #66571's follow-ups split Identity Security out of Policy,
-	//  gate on the more specific entitlement here and keep Policy as the legacy fallback.
-	policy := features.GetEntitlements()[string(entitlements.Policy)]
-	licensed := policy.GetEnabled() || features.GetPolicy().GetEnabled()
+	licensed := modules.GetProtoEntitlement(features, entitlements.AccessGraph).Enabled
 	if !licensed {
 		return trace.AccessDenied(unlicensedAccessGraphMessage)
 	}

@@ -35,10 +35,10 @@ var testModules = &modulestest.Modules{
 	TestFeatures: modules.Features{
 		AdvancedAccessWorkflows: true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.OIDC:        {Enabled: true},
-			entitlements.SAML:        {Enabled: true},
-			entitlements.DeviceTrust: {Enabled: true},
-			entitlements.Policy:      {Enabled: true},
+			entitlements.OIDC:             {Enabled: true},
+			entitlements.SAML:             {Enabled: true},
+			entitlements.DeviceTrust:      {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
 		},
 	},
 }

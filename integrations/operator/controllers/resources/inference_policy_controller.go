@@ -92,7 +92,7 @@ func NewInferencePolicyReconciler(
 		client,
 		inferencePolicyClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

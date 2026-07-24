@@ -25,6 +25,73 @@ import cfg, {
 } from './config';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 
+describe('legacy Policy entitlement fallback', () => {
+  const original = {
+    isPolicyEnabled: cfg.isPolicyEnabled,
+    Policy: { ...cfg.entitlements.Policy },
+    AccessGraph: { ...cfg.entitlements.AccessGraph },
+    ActivityCenter: { ...cfg.entitlements.ActivityCenter },
+    SessionSummaries: { ...cfg.entitlements.SessionSummaries },
+  };
+
+  afterEach(() => {
+    cfg.isPolicyEnabled = original.isPolicyEnabled;
+    cfg.entitlements.Policy = { ...original.Policy };
+    cfg.entitlements.AccessGraph = { ...original.AccessGraph };
+    cfg.entitlements.ActivityCenter = { ...original.ActivityCenter };
+    cfg.entitlements.SessionSummaries = { ...original.SessionSummaries };
+  });
+
+  test('enables missing split entitlements from the Policy entitlement', () => {
+    cfg.init({
+      entitlements: {
+        Policy: { enabled: true, limit: 0 },
+      },
+    });
+
+    expect(cfg.entitlements.AccessGraph.enabled).toBe(true);
+    expect(cfg.entitlements.ActivityCenter.enabled).toBe(true);
+    expect(cfg.entitlements.SessionSummaries.enabled).toBe(true);
+  });
+
+  test('uses the old isPolicyEnabled flag when entitlements are absent', () => {
+    cfg.init({
+      isPolicyEnabled: true,
+    });
+
+    expect(cfg.entitlements.Policy.enabled).toBe(true);
+    expect(cfg.entitlements.AccessGraph.enabled).toBe(true);
+    expect(cfg.entitlements.ActivityCenter.enabled).toBe(true);
+    expect(cfg.entitlements.SessionSummaries.enabled).toBe(true);
+  });
+
+  test('does not apply fallback when any split entitlement is present', () => {
+    cfg.init({
+      isPolicyEnabled: true,
+      entitlements: {
+        AccessGraph: { enabled: false, limit: 0 },
+      },
+    });
+
+    expect(cfg.entitlements.AccessGraph.enabled).toBe(false);
+    expect(cfg.entitlements.ActivityCenter.enabled).toBe(false);
+    expect(cfg.entitlements.SessionSummaries.enabled).toBe(false);
+  });
+
+  test('an explicit Policy entitlement overrides the deprecated flag', () => {
+    cfg.init({
+      isPolicyEnabled: true,
+      entitlements: {
+        Policy: { enabled: false, limit: 0 },
+      },
+    });
+
+    expect(cfg.entitlements.AccessGraph.enabled).toBe(false);
+    expect(cfg.entitlements.ActivityCenter.enabled).toBe(false);
+    expect(cfg.entitlements.SessionSummaries.enabled).toBe(false);
+  });
+});
+
 test('getDeployServiceIamConfigureScriptPath formatting', () => {
   const params: UrlDeployServiceIamConfigureScriptParams = {
     integrationName: 'int-name',

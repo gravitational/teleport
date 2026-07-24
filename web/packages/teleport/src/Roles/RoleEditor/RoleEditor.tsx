@@ -90,7 +90,8 @@ export const RoleEditor = ({
   onMinimizedChange,
 }: RoleEditorProps) => {
   const roleTesterEnabled =
-    (cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled()) ||
+    (cfg.entitlements.AccessGraph.enabled &&
+      storageService.getAccessGraphRoleTesterEnabled()) ||
     demoMode;
   const idPrefix = useId();
   // These IDs are needed to connect accessibility attributes between the
