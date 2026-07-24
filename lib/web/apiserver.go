@@ -471,11 +471,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handler.accessGraphHandler.ServeHTTP(w, r)
 		return
 	}
-	// If the request is either to the fragment authentication endpoint or if the
-	// request has a session cookie or a client cert, forward to
-	// application handlers. If the request is requesting a
-	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r) || app.IsHTTPSTunnelConn(r)) {
+	// If the request is either to the fragment authentication endpoint, a DBSC
+	// endpoint, or if the request has a session cookie or a client cert, forward
+	// to application handlers. If the request is requesting a FQDN that is not of
+	// the proxy, redirect to application launcher.
+	if h.appHandler != nil && shouldForwardToAppHandler(r) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -510,6 +510,14 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+func shouldForwardToAppHandler(r *http.Request) bool {
+	return app.HasFragment(r) ||
+		app.IsDBSCRequest(r) ||
+		app.HasSessionCookie(r) ||
+		app.HasClientCert(r) ||
+		app.IsHTTPSTunnelConn(r)
 }
 
 // SetAccessGraphHandler sets the handler used to serve Access Graph API

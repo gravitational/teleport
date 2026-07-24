@@ -101,6 +101,7 @@ type Services struct {
 	services.Beams
 	services.BeamsConfigService
 	services.SubCAService
+	services.PendingCSRRequestService
 	services.EnrollPairing
 }
 

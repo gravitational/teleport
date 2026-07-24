@@ -303,6 +303,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:
 			parser = newCertAuthorityOverrideParser()
+		case types.KindPendingCSRRequest:
+			parser = newPendingCSRRequestParser()
 		case types.KindValidatedMFAChallenge:
 			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
