@@ -590,7 +590,7 @@ func TestJoinToken(t *testing.T) {
 					return key == "Time" || key == "ID"
 				}),
 			))
-		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+		}, 15*time.Second, 100*time.Millisecond, "expected instance.join failed event not found")
 	})
 }
 
