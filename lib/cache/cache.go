@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
-	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -67,22 +66,12 @@ var (
 		},
 		[]string{teleport.TagCacheComponent},
 	)
+
 	cacheStaleEventsReceived = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: teleport.MetricNamespace,
 			Name:      teleport.MetricStaleCacheEventsReceived,
 			Help:      "Number of stale events received by a Teleport service cache. A high percentage of stale events can indicate a degraded backend.",
-		},
-		[]string{teleport.TagCacheComponent},
-	)
-
-	// TODO(russjones): move this somewhere else!
-	cacheHealth = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "cache",
-			Name:      "health",
-			Help:      "Whether the cache for a particular Teleport service is healthy.",
 		},
 		[]string{teleport.TagCacheComponent},
 	)
@@ -605,16 +594,15 @@ func (c *Cache) setInitError(err error) {
 		close(c.initC)
 	})
 
-	// c.Config.HealthMetric
-
 	if err == nil {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
+		//cacheHealth.WithLabelValues(c.target).Set(1.0)
 	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
+		//cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	c.Config.HealthMetric.Report(c, err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -819,7 +807,7 @@ type Config struct {
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
 	// TODO(russjones):
-	HealthMetric *cache.HealthMetric
+	HealthMetric *CacheHealth
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -950,7 +938,7 @@ func New(config Config) (*Cache, error) {
 	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
-		cacheHealth,
+		//cacheHealth,
 		cacheLastReset,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -1556,6 +1544,8 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
+	c.Config.HealthMetric.Deregister(c)
+
 	return nil
 }
 

@@ -21,27 +21,26 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"pgregory.net/rapid"
 )
 
 type machine struct {
 	up        map[*Cache]bool
 	healthyUp map[*Cache]bool
+	closed    map[*Cache]bool
 
 	all []*Cache
 }
 
 func (m *machine) init(t *rapid.T) {
-	// TODO(russjones): This is only needed until the issue is actually fixed.
-	// Reset the value of the metric so previous runs don't pollute the results
-	// for this run.
-	cacheHealth.Reset()
-
 	m.up = map[*Cache]bool{}
 	m.healthyUp = map[*Cache]bool{}
+	m.closed = map[*Cache]bool{}
+
+	hm, _ := NewHealthMetric(metrics.NoopRegistry())
 
 	// Create 2, 3, or 4 caches.
 	for range rapid.IntRange(2, 4).Draw(t, "n") {
@@ -50,7 +49,10 @@ func (m *machine) init(t *rapid.T) {
 		// this test deterministic, only this test should call setInitError.
 		ctx, cancel := context.WithCancel(context.Background())
 		c := &Cache{
-			Config:                Config{target: "auth"},
+			Config: Config{
+				target:       "auth",
+				HealthMetric: hm,
+			},
 			ctx:                   ctx,
 			cancel:                cancel,
 			initC:                 make(chan struct{}),
@@ -58,7 +60,10 @@ func (m *machine) init(t *rapid.T) {
 			eventsFanout:          services.NewFanoutV2(services.FanoutV2Config{}),
 			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{services.NewFanoutV2(services.FanoutV2Config{})}),
 		}
+
 		c.setInitError(nil)
+		m.up[c] = true
+		m.healthyUp[c] = true
 
 		m.all = append(m.all, c)
 	}
@@ -71,6 +76,12 @@ func (m *machine) SetCacheHealthy(t *rapid.T) {
 
 	c.setInitError(nil)
 
+	// If the cache is closed, we can toggle setInitError as much as we want,
+	// but it won't ever be a up or health cache.
+	if m.closed[c] {
+		return
+	}
+
 	m.up[c] = true
 	m.healthyUp[c] = true
 }
@@ -81,6 +92,12 @@ func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 	c := m.all[rapid.IntRange(0, len(m.all)-1).Draw(t, "i")]
 
 	c.setInitError(errors.New("unhealthy"))
+
+	// If the cache is closed, we can toggle setInitError as much as we want,
+	// but it won't ever be a up or health cache.
+	if m.closed[c] {
+		return
+	}
 
 	m.up[c] = true
 	delete(m.healthyUp, c)
@@ -93,6 +110,7 @@ func (m *machine) SetCacheDown(t *rapid.T) {
 
 	c.Close()
 
+	m.closed[c] = true
 	delete(m.up, c)
 	delete(m.healthyUp, c)
 }
@@ -110,11 +128,14 @@ func (m *machine) expected() float64 {
 // (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown) and asserts the expected
 // value matches the received value of the gauge.
 func (m *machine) Check(t *rapid.T) {
-	got := testutil.ToFloat64(cacheHealth.WithLabelValues("auth"))
-	want := m.expected()
+	for _, c := range m.all {
+		//got := testutil.ToFloat64(cacheHealth.WithLabelValues("auth"))
+		got := c.HealthMetric.anyHealthy(c.target)
+		want := m.expected()
 
-	if got != want {
-		t.Fatalf("got gauge %v, want: %v", got, want)
+		if got != want {
+			t.Fatalf("got gauge %v, want: %v", got, want)
+		}
 	}
 }
 
