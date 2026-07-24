@@ -122,6 +122,10 @@ func TestResolveEndpoints(t *testing.T) {
 				forwardedHost: "example.amazonaws.com.cn",
 				wantHost:      "example.amazonaws.com.cn",
 			},
+			{
+				forwardedHost: "aws-mcp.us-east-1.api.aws",
+				wantHost:      "aws-mcp.us-east-1.api.aws",
+			},
 		} {
 			t.Run(tt.forwardedHost, func(t *testing.T) {
 				req, err := http.NewRequest("GET", "http://localhost/some/path?q=1", nil)

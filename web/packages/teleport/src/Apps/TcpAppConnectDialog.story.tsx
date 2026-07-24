@@ -26,7 +26,7 @@ import {
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { tcpApp } from './fixtures';
+import { tcpApp, tlsApp } from './fixtures';
 import { TcpAppConnectDialog as Component } from './TcpAppConnectDialog';
 
 type StoryProps = {
@@ -64,4 +64,10 @@ export default meta;
 
 export function TcpAppConnectDialog() {
   return <Component app={tcpApp} onClose={() => {}} />;
+}
+
+// Tls shows that a `tls://` app renders through the same dialog as a `tcp://`
+// app - from the client's perspective they are identical.
+export function Tls() {
+  return <Component app={tlsApp} onClose={() => {}} />;
 }

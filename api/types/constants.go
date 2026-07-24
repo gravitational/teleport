@@ -742,6 +742,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
@@ -934,6 +937,9 @@ const (
 	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
 	// group for the managed identity created by the Azure discovery Terraform module.
 	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -1793,8 +1799,9 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. This map has been duplicated in lib/scopes/access/access.go.
+// Any changes should also be made there.
 //
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
 // The format is "<plural>.<apigroup>".

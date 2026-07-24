@@ -210,6 +210,48 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestShouldForwardToAppHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "DBSC refresh without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc/refresh", nil),
+			want: true,
+		},
+		{
+			name: "DBSC registration without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc", nil),
+			want: true,
+		},
+		{
+			name: "normal app request without app cookies",
+			req:  httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			want: false,
+		},
+		{
+			name: "normal app request with app cookie",
+			req: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
+				req.AddCookie(&http.Cookie{Name: app.CookieName, Value: "session-id"})
+				return req
+			}(),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldForwardToAppHandler(tt.req))
+		})
+	}
+}
+
 //go:embed testdata/no-history-shell.sh
 var noHistoryShellScript []byte
 

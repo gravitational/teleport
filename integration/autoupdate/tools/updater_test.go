@@ -200,7 +200,7 @@ func TestParallelUpdate(t *testing.T) {
 	var progressCount int
 	for i := range cap(outputs) {
 		matchVersion(t, outputs[i].String(), testVersions[1])
-		if strings.Contains(outputs[i].String(), "Update progress:") {
+		if strings.Contains(outputs[i].String(), "Update progress") {
 			progressCount++
 		}
 	}
@@ -261,7 +261,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	case err := <-errChan:
 		require.NoError(t, err)
 	}
-	assert.Contains(t, output.String(), "Update progress:")
+	assert.Contains(t, output.String(), "Update progress")
 
 	matches := pattern.FindStringSubmatch(output.String())
 	require.Len(t, matches, 2)

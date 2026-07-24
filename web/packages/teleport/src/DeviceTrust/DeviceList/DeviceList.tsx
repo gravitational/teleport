@@ -24,8 +24,8 @@ import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { P2 } from 'design/Text';
 
 import {
-  DeviceListProps,
-  TrustedDeviceOSType,
+  type DeviceListProps,
+  type TrustedDevice,
 } from 'teleport/DeviceTrust/types';
 
 export const DeviceList = ({
@@ -84,7 +84,7 @@ const EnrollmentStatusCell = ({ status }: { status: string }) => {
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
+export const IconCell = ({ osType }: { osType: TrustedDevice['osType'] }) => {
   let iconName: ResourceIconName;
   switch (osType) {
     case 'Windows':

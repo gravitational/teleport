@@ -175,7 +175,7 @@ func MatchAllRequests(req *http.Request) bool {
 // MatchAWSRequests is a MatchFunc that returns true if request is an AWS API
 // request.
 func MatchAWSRequests(req *http.Request) bool {
-	return awsapiutils.IsAWSEndpoint(req.Host) &&
+	return awsapiutils.IsAWSOwnedEndpoint(req.Host) &&
 		// Avoid proxying SSM session WebSocket requests and let the forward proxy
 		// send it directly to AWS.
 		//
@@ -194,7 +194,7 @@ func MatchAWSRequests(req *http.Request) bool {
 }
 
 func isAWSSSMWebsocketRequest(req *http.Request) bool {
-	return awsapiutils.IsAWSEndpoint(req.Host) &&
+	return awsapiutils.IsAWSOwnedEndpoint(req.Host) &&
 		strings.HasPrefix(req.Host, "ssmmessages.")
 }
 
