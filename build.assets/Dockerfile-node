@@ -36,10 +36,12 @@ RUN apt-get -y update && \
     apt-get install -q -y --no-install-recommends \
     build-essential \
     ca-certificates \
+    clang \
     git \
     golang \
     libc6-dev \
     libssl-dev \
+    llvm \
     locales \
     openssh-client \
     pkg-config \
