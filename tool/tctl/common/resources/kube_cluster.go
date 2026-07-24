@@ -94,8 +94,14 @@ func kubeClusterHandler() Handler {
 }
 
 func getKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	listFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-	clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
+	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,8 +148,14 @@ func createKubeCluster(ctx context.Context, client *authclient.Client, raw servi
 }
 
 func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref services.Ref) error {
+	listFn := func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+	}
 	// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-	clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
+	clusters, err := clientutils.CollectWithFallback(ctx, listFn, client.GetKubernetesClusters)
 	if err != nil {
 		return trace.Wrap(err)
 	}

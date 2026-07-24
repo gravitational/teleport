@@ -38,8 +38,6 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
-const testClusterName = "test-cluster"
-
 func TestPresenceServiceKubeClusters(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
