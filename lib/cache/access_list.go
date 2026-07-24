@@ -44,6 +44,10 @@ const (
 	accessListAuditNextDateIndex accessListIndex = "auditNextDate"
 )
 
+type accessListMatchingLister interface {
+	ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, matchAccessListSearchTerm func(al *accesslist.AccessList, term string) bool) ([]*accesslist.AccessList, string, error)
+}
+
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AccessLists")
@@ -118,7 +122,12 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAccessListsV2")
+	return c.ListMatchingAccessLists(ctx, req, nil)
+}
+
+// ListMatchingAccessLists returns a filtered and sorted paginated list of access lists.
+func (c *Cache) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, matchAccessListSearchTerm func(al *accesslist.AccessList, term string) bool) ([]*accesslist.AccessList, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListMatchingAccessLists")
 	defer span.End()
 
 	scopeFilter := req.GetScopeFilter()
@@ -151,10 +160,13 @@ func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAcc
 		index:           index,
 		defaultPageSize: 100,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
+			if matchingLister, ok := c.Config.AccessLists.(accessListMatchingLister); ok {
+				return matchingLister.ListMatchingAccessLists(ctx, req, matchAccessListSearchTerm)
+			}
 			return c.Config.AccessLists.ListAccessListsV2(ctx, req)
 		},
 		filter: func(al *accesslist.AccessList) bool {
-			return services.MatchAccessList(al, req.GetFilter()) && scopes.MatchScope(scopeFilter, al.GetScope())
+			return services.MatchAccessList(al, req.GetFilter(), matchAccessListSearchTerm) && scopes.MatchScope(scopeFilter, al.GetScope())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
 			// ignore error because CreateAccessListNextKey only errors
