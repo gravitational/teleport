@@ -16,7 +16,7 @@ package utils
 
 import (
 	"regexp"
-    "strings"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,24 +51,24 @@ func TestProperty_DecodeClusterName_NeverPanics(t *testing.T) {
 }
 
 func TestProperty_EncodeClusterName_OutputIsHexPlusSuffix(t *testing.T) {
-    const suffix = "." + constants.APIDomain
-    hexRegex := regexp.MustCompile(`^[0-9a-f]*$`)
+	const suffix = "." + constants.APIDomain
+	hexRegex := regexp.MustCompile(`^[0-9a-f]*$`)
 
-    rapid.Check(t, func(t *rapid.T) {
-        name := string(rapid.SliceOf(rapid.Byte()).Draw(t, "clusterName"))
-        encoded := EncodeClusterName(name)
-        subdomain, ok := strings.CutSuffix(encoded, suffix)
-        require.True(t, ok, "expected %q to end with %q", encoded, suffix)
-        require.Regexp(t, hexRegex, subdomain)
-    })
+	rapid.Check(t, func(t *rapid.T) {
+		name := string(rapid.SliceOf(rapid.Byte()).Draw(t, "clusterName"))
+		encoded := EncodeClusterName(name)
+		subdomain, ok := strings.CutSuffix(encoded, suffix)
+		require.True(t, ok, "expected %q to end with %q", encoded, suffix)
+		require.Regexp(t, hexRegex, subdomain)
+	})
 }
 
 func TestProperty_EncodeClusterName_OutputIsCorrectLength(t *testing.T) {
-    const suffix = "." + constants.APIDomain
+	const suffix = "." + constants.APIDomain
 
-    rapid.Check(t, func(t *rapid.T) {
-        name := string(rapid.SliceOf(rapid.Byte()).Draw(t, "clusterName"))
-        encoded := EncodeClusterName(name)
-        require.Len(t, encoded, 2*len(name) + len(suffix))
-    })
+	rapid.Check(t, func(t *rapid.T) {
+		name := string(rapid.SliceOf(rapid.Byte()).Draw(t, "clusterName"))
+		encoded := EncodeClusterName(name)
+		require.Len(t, encoded, 2*len(name)+len(suffix))
+	})
 }
