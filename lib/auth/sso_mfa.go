@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
@@ -100,28 +101,22 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	const notFoundErrMsg = "mfa sso session data not found"
-	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
-	if trace.IsNotFound(err) {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
-	} else if err != nil {
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify the user's name and sso device matches.
-	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
-	}
-
-	// Verify this is an SSO MFA session and not a Browser MFA session.
-	if mfaSess.TSHRedirectURL != "" || mfaSess.ConnectorType == constants.BrowserMFA {
+	// Verify the session was created by the SSO MFA flow:
+	// SSO MFA sessions are created with an SSO connector and no client redirect URL.
+	isSSOMFASession := slices.Contains([]string{constants.SAML, constants.OIDC}, mfaSess.ConnectorType) && mfaSess.TSHRedirectURL == ""
+	if !isSSOMFASession {
 		a.logger.WarnContext(ctx,
-			"The SSO MFA flow was used to access a Browser MFA session.",
+			"Rejecting an MFA session that was not created by the SSO MFA flow.",
 			"request_id", mfaSess.RequestID,
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
 		)
-		return nil, trace.NotFound("%s", notFoundErrMsg)
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
@@ -140,16 +135,6 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	// Verify the token matches.
 	if subtle.ConstantTimeCompare([]byte(mfaSess.Token), []byte(token)) == 0 {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
-	}
-
-	// Check if the given scope is satisfied by the challenge scope.
-	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
-		return nil, trace.AccessDenied("required scope %q is not satisfied by the given sso mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
-	}
-
-	// If this session is reusable, but this context forbids reusable sessions, return an error.
-	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-		return nil, trace.AccessDenied("the given sso mfa session allows reuse, but reuse is not permitted in this context")
 	}
 
 	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
@@ -223,21 +208,11 @@ func (a *Server) UpsertMFASessionWithToken(ctx context.Context, sd *services.MFA
 	return sd.Token, nil
 }
 
-// GetMFASession returns the MFA session for the given username and sessionID.
-func (a *Server) GetMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
-	sd, err := a.GetMFASessionData(ctx, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sd, nil
-}
-
 // TODO(danielashare): Remove these wrapper functions once `e` points to the renamed versions
 func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
 	return a.UpsertMFASessionWithToken(ctx, sd)
 }
 
 func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
-	return a.GetMFASession(ctx, sessionID)
+	return a.GetMFASessionData(ctx, sessionID)
 }
