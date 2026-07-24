@@ -152,7 +152,7 @@ func TestMiddleware(t *testing.T) {
 				require.NoError(tt, err, i2...)
 
 				middlewareErr := trace.ReadError(res.StatusCode, body)
-				require.NotNil(tt, middlewareErr, i2...)
+				require.Error(tt, middlewareErr, i2...)
 				require.True(tt, trace.IsNotImplemented(middlewareErr), "expected NotImplementedError but got %T", middlewareErr)
 			},
 		},
