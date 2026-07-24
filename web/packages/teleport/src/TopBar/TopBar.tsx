@@ -70,8 +70,8 @@ export function TopBar({
         <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
         {scope && !feature?.logoOnlyTopbar && (
           <HoverTooltip tipContent="Current scope">
-            <Flex alignItems="center">
-              <Icon.Contract mr={1} aria-label="scope" />
+            <Flex alignItems="center" gap={1}>
+              <Icon.Contract aria-label="scope" />
               <Text typography="body1">{scope}</Text>
             </Flex>
           </HoverTooltip>
@@ -79,7 +79,7 @@ export function TopBar({
       </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
-          <Notifications iconSize={iconSize} />
+          {!scope && <Notifications iconSize={iconSize} />}
           <UserMenuNav hideFeatures={feature instanceof FeatureScopes} />
         </Flex>
       )}

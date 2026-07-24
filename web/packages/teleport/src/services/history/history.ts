@@ -27,6 +27,12 @@ interface NavigationFunctions {
 
 let _nav: NavigationFunctions | null = null;
 
+export type LoginOptions = {
+  rememberLocation?: boolean;
+  withAccessChangedMessage?: boolean;
+  scope?: string;
+};
+
 const history = {
   /**
    * Initialize with navigation functions from React Router.
@@ -62,7 +68,7 @@ const history = {
     rememberLocation = false,
     withAccessChangedMessage = false,
     scope = '',
-  } = {}) {
+  }: LoginOptions = {}) {
     const params: string[] = [];
 
     // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that

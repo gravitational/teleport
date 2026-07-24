@@ -332,6 +332,6 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   getScope() {
-    return this.state.scope;
+    return this.state?.scope ?? '';
   }
 }

@@ -79,13 +79,12 @@ describe.each([
     render(<LoginTest initialURL={url} />);
 
     // fill form
-    const username = screen.getByPlaceholderText(/username/i);
-    const password = screen.getByPlaceholderText(/password/i);
-    fireEvent.change(username, { target: { value: 'username' } });
-    fireEvent.change(password, { target: { value: '123' } });
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(/username/i), 'username');
+    await user.type(screen.getByPlaceholderText(/password/i), '123');
 
     // test login and redirect
-    fireEvent.click(screen.getByText('Sign In'));
+    await user.click(screen.getByText('Sign In'));
     await waitFor(() => {
       expect(auth.login).toHaveBeenCalledWith('username', '123', '', scope);
     });
