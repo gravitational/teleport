@@ -63,6 +63,7 @@ import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
 import { getResourceId } from './shared/StatusInfo';
 import { mapResourceToViewItem } from './shared/viewItemsFactory';
+import './unifiedStyles.css';
 import {
   IncludedResourceMode,
   PinningSupport,
@@ -74,7 +75,6 @@ import {
   VisibleFilterPanelFields,
   VisibleResourceItemFields,
 } from './types';
-import './unifiedStyles.css';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -911,8 +911,13 @@ const ListFooter = styled.div`
  */
 export function getResourceAvailabilityFilter(
   availableResourceMode: AvailableResourceMode,
-  canRequestAllResources: boolean
+  canRequestAllResources: boolean,
+  // TODO(bl-nero): This parameter should be mandatory once the enterprise code catches up.
+  scopedSession?: boolean
 ): ResourceAvailabilityFilter {
+  if (scopedSession) {
+    return { mode: 'accessible', canRequestAll: false };
+  }
   switch (availableResourceMode) {
     case AvailableResourceMode.NONE:
       if (!canRequestAllResources) {

@@ -38,6 +38,7 @@ import {
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
 import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { useStore } from 'shared/libs/stores';
 
 import { BannerList } from 'teleport/components/BannerList';
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
@@ -72,6 +73,7 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
+  const storeUser = useStore(ctx.storeUser);
   const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
@@ -89,9 +91,14 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
+  const scope = storeUser?.getScope();
   const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
-    [featureFlags, props.features]
+    () =>
+      props.features.filter(
+        feature =>
+          feature.hasAccess(featureFlags) && (!scope || feature.supportsScopes)
+      ),
+    [featureFlags, props.features, scope]
   );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
@@ -130,7 +137,8 @@ export function Main(props: MainProps) {
     if (
       cfg.scopesEnabled &&
       availableScopes.length > 0 &&
-      !isScopePickerRoute
+      !isScopePickerRoute &&
+      !storageService.getScopeSelected()
     ) {
       return <Redirect to={history.getScopePickerUrl()} />;
     }

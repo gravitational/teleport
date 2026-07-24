@@ -20,8 +20,10 @@ import React, { type JSX } from 'react';
 import { Link, matchPath, useLocation } from 'react-router';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, breakpointsPx, Flex, Image, TopNav } from 'design';
+import { Box, breakpointsPx, Flex, Image, Text, TopNav } from 'design';
+import * as Icon from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { useStore } from 'shared/libs/stores';
 
 import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -31,6 +33,7 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
+import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({
   CustomLogo,
@@ -42,6 +45,9 @@ export function TopBar({
   const location = useLocation();
   const features = useFeatures();
   const { currentWidth } = useLayout();
+  const ctx = useTeleport();
+  const storeUser = useStore(ctx.storeUser);
+  const scope = storeUser.getScope();
 
   // find active feature
   const feature = features.find(
@@ -60,10 +66,20 @@ export function TopBar({
 
   return (
     <TopBarContainer>
-      <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
+      <Flex alignItems="center">
+        <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
+        {scope && !feature?.logoOnlyTopbar && (
+          <HoverTooltip tipContent="Current scope">
+            <Flex alignItems="center" gap={1}>
+              <Icon.Contract aria-label="scope" />
+              <Text typography="body1">{scope}</Text>
+            </Flex>
+          </HoverTooltip>
+        )}
+      </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
-          <Notifications iconSize={iconSize} />
+          {!scope && <Notifications iconSize={iconSize} />}
           <UserMenuNav hideFeatures={feature instanceof FeatureScopes} />
         </Flex>
       )}
@@ -135,12 +151,6 @@ const commonLogoWrapperStyles = css`
   align-items: center;
   height: 100%;
   margin-right: 0px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-    margin-right: 76px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-    margin-right: 67px;
-  }
 `;
 
 const BoxLogoWrapper = styled(Box)`

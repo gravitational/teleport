@@ -27,6 +27,12 @@ interface NavigationFunctions {
 
 let _nav: NavigationFunctions | null = null;
 
+export type LoginOptions = {
+  rememberLocation?: boolean;
+  withAccessChangedMessage?: boolean;
+  scope?: string;
+};
+
 const history = {
   /**
    * Initialize with navigation functions from React Router.
@@ -61,7 +67,8 @@ const history = {
   goToLogin({
     rememberLocation = false,
     withAccessChangedMessage = false,
-  } = {}) {
+    scope = '',
+  }: LoginOptions = {}) {
     const params: string[] = [];
 
     // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that
@@ -76,6 +83,10 @@ const history = {
       const knownRedirect = this.ensureBaseUrl(knownRoute);
       const query = search ? encodeURIComponent(search) : '';
       params.push(`redirect_uri=${knownRedirect}${query}`);
+    }
+
+    if (scope) {
+      params.push(`scope=${encodeURIComponent(scope)}`);
     }
 
     const queryString = params.join('&');
@@ -173,6 +184,22 @@ const history = {
 
   _pageRefresh(route: string) {
     window.location.href = this.ensureBaseUrl(route);
+  },
+
+  /**
+   * getEntryRoute returns a base ensured redirect URL value that is safe
+   * for redirect.
+   * @returns base ensured URL string.
+   */
+  getEntryRoute() {
+    let entryUrl = this.getRedirectParam();
+    if (entryUrl) {
+      entryUrl = this.ensureKnownRoute(entryUrl);
+    } else {
+      entryUrl = cfg.routes.root;
+    }
+
+    return this.ensureBaseUrl(entryUrl);
   },
 };
 

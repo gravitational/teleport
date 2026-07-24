@@ -34,6 +34,7 @@ export default function makeUserContext(json: any): UserContext {
   const passwordState =
     json.passwordState || PasswordState.PASSWORD_STATE_UNSPECIFIED;
   const availableScopes = json.availableScopes || [];
+  const scope = json.scope || '';
 
   return {
     username,
@@ -48,6 +49,7 @@ export default function makeUserContext(json: any): UserContext {
     allowedSearchAsRoles,
     passwordState,
     availableScopes,
+    scope,
   };
 }
 
