@@ -37,7 +37,7 @@ import { enableMapSet, enablePatches } from 'immer';
 
 import { AutoUpdateServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb.client';
 import { TerminalServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/v1/service_pb.client';
-import { AbortError, ensureError } from 'shared/utils/error';
+import { AbortError } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 import { ClusterLifecycleManager } from 'teleterm/mainProcess/clusterLifecycleManager';
@@ -1054,7 +1054,7 @@ function ipcHandle(
     try {
       return { result: await Promise.try(listener, ...args) };
     } catch (e) {
-      return { error: serializeError(ensureError(e)) };
+      return { error: serializeError(e) };
     }
   });
 }
