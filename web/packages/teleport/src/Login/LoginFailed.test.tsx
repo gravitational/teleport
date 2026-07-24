@@ -56,7 +56,7 @@ test('unauthorized error path shows unauthorized error', () => {
   );
   expect(
     screen.getByText(
-      'You are not authorized, please contact your SSO administrator.'
+      'You are not authorized. Please contact your Teleport administrator.'
     )
   ).toBeInTheDocument();
 });
