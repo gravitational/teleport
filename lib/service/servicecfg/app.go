@@ -21,6 +21,7 @@ package servicecfg
 import (
 	"fmt"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -54,6 +55,14 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// AllowedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are allowed to resolve to.
+	AllowedHosts []netip.Prefix
+
+	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are not allowed to resolve to.
+	DeniedHosts []netip.Prefix
 
 	// MonitorCloseChannel will be signaled when a monitor closes a connection.
 	// Used only for testing. Optional.
@@ -221,6 +230,54 @@ func (a *App) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// ParseTargetHostPrefixes parses IP addresses and CIDR prefixes from an app
+// service target host policy.
+func ParseTargetHostPrefixes(hosts []string) ([]netip.Prefix, error) {
+	if len(hosts) == 0 {
+		return nil, nil
+	}
+	prefixes := make([]netip.Prefix, 0, len(hosts))
+	for _, host := range hosts {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			return nil, trace.BadParameter("target host restriction contains an empty entry")
+		}
+
+		if addr, err := netip.ParseAddr(host); err == nil {
+			if addr.Zone() != "" {
+				return nil, trace.BadParameter("target host restriction %q must not include an IPv6 zone identifier", host)
+			}
+			// IPv4-in-IPv6 notation is rejected so that rules are written
+			// unambiguously: resolved targets are unmapped before evaluation,
+			// so a rule must use plain IPv4 (e.g. 192.0.2.10) to match them.
+			if addr.Is4In6() {
+				return nil, trace.BadParameter("target host restriction %q must use IPv4 notation (e.g. 192.0.2.10) instead of IPv4-in-IPv6 notation", host)
+			}
+			prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+			continue
+		}
+
+		prefix, err := netip.ParsePrefix(host)
+		if err != nil {
+			return nil, trace.BadParameter("target host restriction %q must be an IP address or CIDR range", host)
+		}
+		// IPv4-in-IPv6 CIDRs are rejected: their bit count is offset by 96
+		// (e.g. ::ffff:169.254.0.0/112 is really /16), which silently fails to
+		// match the unmapped IPv4 addresses the policy evaluates against.
+		if prefix.Addr().Is4In6() {
+			return nil, trace.BadParameter("target host restriction %q must use IPv4 CIDR notation (e.g. 169.254.0.0/16) instead of IPv4-in-IPv6 notation (e.g. ::ffff:169.254.0.0/112)", host)
+		}
+		// Reject non-canonical CIDRs (host bits set) instead of silently
+		// masking them, which would otherwise turn a typo like 10.0.0.5/8 into
+		// a different range than the operator wrote.
+		if masked := prefix.Masked(); masked != prefix {
+			return nil, trace.BadParameter("target host restriction %q is not a canonical CIDR range; use %q", host, masked.String())
+		}
+		prefixes = append(prefixes, prefix)
+	}
+	return prefixes, nil
 }
 
 func (a *App) checkPorts() error {

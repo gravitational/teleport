@@ -115,13 +115,13 @@ SELECT * FROM access_path
 WHERE resource IN (<resources from step 1>) AND identity IN (<identities from step 1>)
 ```
 
-To isolate _why_ one row is granted, narrow `identity_group` to just the grantor
+To isolate _why_ one row is granted, narrow `identity_group` to just the grant
 returned for that row:
 
 ```sql
 SELECT * FROM access_path
 WHERE identity = '<identity>' AND resource = '<resource>'
-  AND identity_group IN ('<grantor for this row>')
+  AND identity_group IN ('<grant for this row>')
 ```
 
 ## Examples

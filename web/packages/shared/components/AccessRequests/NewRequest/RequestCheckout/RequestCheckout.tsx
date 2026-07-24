@@ -780,9 +780,7 @@ export function RequestCheckout<T extends PendingListItem>({
                   {!isLongTerm && (
                     <Box my={4}>
                       <SelectReviewers
-                        reviewers={
-                          dryRunResponse?.reviewers.map(r => r.name) ?? []
-                        }
+                        reviewers={dryRunResponse?.reviewers ?? []}
                         selectedReviewers={selectedReviewers}
                         setSelectedReviewers={setSelectedReviewers}
                       />

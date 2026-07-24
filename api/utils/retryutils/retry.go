@@ -223,6 +223,19 @@ func (e *permanentRetryError) Error() string {
 	return e.err.Error()
 }
 
+// Unwrap returns the original error.
+func (e *permanentRetryError) Unwrap() error {
+	return e.err
+}
+
+// IsPermanent returns true if the error is a permanent retry error.
+// Useful when testing functions used in the retry loop.
+func IsPermanent(err error) bool {
+	var permanentRetryError *permanentRetryError
+	ok := errors.As(err, &permanentRetryError)
+	return ok
+}
+
 // RetryStaticFor retries a function repeatedly for a set amount of
 // time before returning an error.
 //
