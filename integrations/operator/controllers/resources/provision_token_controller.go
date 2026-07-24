@@ -37,8 +37,8 @@ type provisionTokenClient struct {
 }
 
 // Get gets the Teleport provision token of a given name
-func (r provisionTokenClient) Get(ctx context.Context, name string) (types.ProvisionToken, error) {
-	token, err := r.teleportClient.GetToken(ctx, name)
+func (r provisionTokenClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.ProvisionToken, error) {
+	token, err := r.teleportClient.GetToken(ctx, key.Name)
 	return token, trace.Wrap(err)
 }
 
@@ -53,8 +53,8 @@ func (r provisionTokenClient) Update(ctx context.Context, token types.ProvisionT
 }
 
 // Delete deletes a Teleport provision token
-func (r provisionTokenClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteToken(ctx, name))
+func (r provisionTokenClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteToken(ctx, key.Name))
 }
 
 // NewProvisionTokenReconciler instantiates a new Kubernetes controller reconciling provision token resources

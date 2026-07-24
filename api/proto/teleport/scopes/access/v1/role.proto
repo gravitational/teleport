@@ -91,18 +91,23 @@ message ScopedRoleSpec {
 message ScopedRoleDefaults {
   // ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
   // that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+  // The cluster-wide default is used only when neither this nor the protocol's equivalent
+  // control is set.
   string client_idle_timeout = 1;
 
   // SessionRecording configures the session recording strategy for all protocols that don't
-  // explicitly set their session recording mode.
+  // explicitly set their session recording mode. If neither this nor the protocol's equivalent control
+  // is set, best_effort is used.
   SessionRecording session_recording = 2;
 
-  // DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
-  // If unset, cluster wide defaults are used.
+  // DisconnectExpiredCert defines the default behavior of all protocols when certs expire for
+  // a session. The cluster-wide default is used only when neither this nor the protocol's
+  // equivalent control is set.
   optional bool disconnect_expired_cert = 3;
 
   // Lock specifies the default locking mode for access sessions across all protocols that
-  // do not specify their own value. If unset, cluster wide defaults are used.
+  // do not specify their own value. The cluster-wide default is used only when neither this
+  // nor the protocol's equivalent control is set.
   Lock lock = 4;
 }
 
@@ -154,11 +159,16 @@ message ScopedRoleSSH {
 
   // DisconnectExpiredCert controls whether SSH sessions are disconnected when the
   // user certificate expires.
-  // Defaults to value cluster wide auth preference if not set.
+  // If empty, the defaults block value (or global default) applies.
   optional bool disconnect_expired_cert = 14;
 
   // Lock configures the role's locking behavior for SSH sessions.
+  // If empty, the defaults block value (or global default) applies.
   Lock lock = 15;
+
+  // LabelExpression is an optional predicate expression evaluated against an
+  // ssh node's labels.
+  string label_expression = 16;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -185,10 +195,16 @@ message ScopedRoleKube {
   string client_idle_timeout = 5;
 
   // DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+  // If empty, the defaults block value (or global default) applies.
   optional bool disconnect_expired_cert = 6;
 
   // Lock configures the role's locking behavior for kubernetes sessions.
+  // If empty, the defaults block value (or global default) applies.
   Lock lock = 7;
+
+  // LabelExpression is an optional predicate expression evaluated against a
+  // kubernetes server's labels.
+  string label_expression = 8;
 }
 
 // ScopedRoleWorkloadIdentity groups all scoped role fields relevant to issuing
@@ -213,6 +229,19 @@ message ScopedRoleApp {
   // LabelExpression is an optional predicate expression evaluated against an
   // application's labels.
   string label_expression = 2;
+
+  // Overrides the defaults block idle timeout specifically for app sessions.
+  // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+  // (or global default) applies.
+  string client_idle_timeout = 3;
+
+  // DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.
+  // If empty, the defaults block value (or global default) applies.
+  optional bool disconnect_expired_cert = 4;
+
+  // Lock configures the role's locking behavior for app sessions.
+  // If empty, the defaults block value (or global default) applies.
+  Lock lock = 5;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe

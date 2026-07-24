@@ -2148,6 +2148,8 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Name is not empty
 // - Namespace is not empty
 // - APIGroup is empty for roles <=v7 and not empty for >=v8
+// This function is duplicated for scoped roles in lib/scopes/access/access.go. Any changes to role v8 behavior should
+// also be made there.
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		for _, verb := range kubeResource.Verbs {

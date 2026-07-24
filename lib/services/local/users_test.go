@@ -25,8 +25,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -573,6 +577,20 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
 	require.NoError(t, err)
 
+	var metadataRequests atomic.Int64
+	idpMetadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metadataRequests.Add(1)
+		_, err := w.Write([]byte(entityDescriptor))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(idpMetadataServer.Close)
+
+	samlConnectorWithMatchingSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithMatchingSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL)
+	samlConnectorWithDifferentSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithDifferentSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL+"/mfa")
+
+	// Reset so we can check the GetMFADevices does not call the endpoint.
+	metadataRequests.Store(0)
+
 	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
 		ClientSecret: "678910",
@@ -619,6 +637,28 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 				DisplayName:   samlConnector.GetDisplay(),
 			},
 		}, {
+			name: "saml user, with entity descriptor URL, matching SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
+			name: "saml user, with entity descriptor URL, different SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
 			name: "oidc user",
 			connectorRef: &types.ConnectorRef{
 				Type: "oidc",
@@ -644,6 +684,8 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 
 			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
 			require.NoError(t, err)
+			// Expected zero attempts to fetch the entity descriptor.
+			require.Zero(t, metadataRequests.Load())
 
 			if test.expectSSODevice == nil {
 				assert.Empty(t, devs)
@@ -1745,6 +1787,69 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// An SSO MFA device cannot be created. Instead it is deduced based on the MFA settings being
+	// enabled in the SSO connector spec. It is simulated by creating a SAML connector below.
+	samlConnectorWithSSOMFA, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnectorWithSSOMFA)
+	require.NoError(t, err)
+
+	// Update bob to be an SSO user by setting CreatedBy matching with samlConnectorWithSSOMFA.
+	// This will start resolving bob's SSO MFA device.
+	bob1, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	bob1.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: bob1.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.UpdateUser(ctx, bob1)
+	require.NoError(t, err)
+
+	// Weakest device still remains the TOTP.
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// Delete TOTP device
+	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
+	require.NoError(t, err)
+
+	// Expect the new weakest device to be SSO MFA.
+	got, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
+
+	// New SAML user that has a referenced connector with MFA settings enabled should
+	// get the MFADeviceKind_MFA_DEVICE_KIND_SSO at the time of resource creation.
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: alice.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.CreateUser(ctx, alice)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
 }
 
 func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
@@ -1784,4 +1889,40 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
+}
+
+const entityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="samlSSOIdP">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://localhost:65535/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+// newSAMlConenctorWithEDURL returns a new SAML connector configured with Entity Descriptor URL.
+// It expects the endpoint configured in `samlEDURL` and `samlMFAEDURL` to serve a valid SAML metadata.
+func newSAMlConenctorWithEDURL(t *testing.T, idSvc *local.IdentityService, name, samlEDURL, samlMFAEDURL string) types.SAMLConnector {
+	t.Helper()
+
+	connector, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://localhost:65535/sso", // not called
+		EntityDescriptorURL:      samlEDURL,
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled:             true,
+			EntityDescriptorUrl: samlMFAEDURL,
+		},
+	})
+	require.NoError(t, err)
+	upserted, err := idSvc.UpsertSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	// Check that entity descriptor was fetched and set, i.e. URL was followed in general connector validation path.
+	require.NotEmpty(t, upserted.GetEntityDescriptor())
+	require.NotNil(t, upserted.GetMFASettings())
+	require.NotEmpty(t, upserted.GetMFASettings().EntityDescriptor)
+
+	return upserted
 }

@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-access-review evals, simulating a cluster where
+# Identity Activity Center is unavailable.
+#
+# The mock mirrors the real command rather than policing flags:
+#   * Activity is requested by default; IAC is down here, so we serve the access
+#     paths with no per-resource activity plus the `activity_unavailable` message.
+#   * With --no-activity the CLI skips the IAC lookup, so there is nothing to
+#     report unavailable: access paths only, no message.
+#   * Output is always JSON (we only model the JSON path), regardless of --format.
+
+import json
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename, *, with_activity):
+    """Print a fixture, dropping activity data and the activity-unavailable message when activity was not requested."""
+    with open(os.path.join(dir, filename)) as f:
+        text = f.read()
+    if with_activity:
+        print(text, end="")
+        return
+    data = json.loads(text)
+    for identity in data.get("identities", []):
+        for resource in identity.get("resources", []):
+            resource.pop("activity", None)
+    # No activity requested -> the CLI never contacts IAC, so there is no
+    # activity-unavailable message either.
+    data.pop("activity_unavailable", None)
+    print(json.dumps(data, indent=2), end="")
+
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt", with_activity=True)
+elif args[:1] == ["access-review"]:
+    if "--help" in args:
+        print("usage: tctl access-review --query=QUERY [<flags>]\n")
+        print("Review which identities can access which resources.")
+    else:
+        # Activity is on by default; only --no-activity skips the IAC lookup.
+        read("no-activity.json", with_activity="--no-activity" not in args)
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)

@@ -430,6 +430,17 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	err = service.DeleteOktaAssignment(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
+	// Create a new assignment.
+	assignment, err = service.CreateOktaAssignment(ctx, oktaAssignment(t, "assignment3", "test-user@test.user", constants.OktaAssignmentStatusProcessing, clock.Now()))
+	require.NoError(t, err)
+
+	// Conditionally delete assignment.
+	require.NoError(t, service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), assignment.GetRevision()))
+
+	// Verify assignment deleted.
+	_, err = service.GetOktaAssignment(ctx, assignment.GetName())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
 	// Delete all assignments.
 	err = service.DeleteAllOktaAssignments(ctx)
 	require.NoError(t, err)
@@ -458,7 +469,6 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 
 func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
 	id string) *types.OktaAssignmentTargetV1 {
-
 	target := &types.OktaAssignmentTargetV1{
 		Type: targetType,
 		Id:   id,

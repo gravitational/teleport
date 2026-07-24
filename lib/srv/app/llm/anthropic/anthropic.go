@@ -37,7 +37,7 @@ import (
 
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, error) {
 	var (
 		info            = &RequestInfo{}
 		providerPath    string
@@ -89,12 +89,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
 			return nil, info, trace.NotFound("unsupported endpoint")
 		}
 	case types.LLMProviderAWSBedrock:
-		var err error
-		cfg.ProviderURL, err = bedrock.BuildURL(cfg.Logger, cfg.App)
-		if err != nil {
-			return nil, info, trace.Wrap(err)
-		}
-
+		cfg.ProviderURL = bedrock.BuildAnthropicURL(cfg.Logger, cfg.App)
 		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
 		case "/messages":
 			if cfg.DownstreamRequest.Method != http.MethodPost {
@@ -189,7 +184,7 @@ func marshalError(apiErr *errorEnvelope) []byte {
 	enc, err := utils.FastMarshal(apiErr)
 	if err != nil {
 		return []byte(
-			`{"type": "error", "error": {"type": "api_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"type": "error", "error": {"type": "api_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc

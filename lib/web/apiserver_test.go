@@ -210,6 +210,48 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestShouldForwardToAppHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "DBSC refresh without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc/refresh", nil),
+			want: true,
+		},
+		{
+			name: "DBSC registration without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc", nil),
+			want: true,
+		},
+		{
+			name: "normal app request without app cookies",
+			req:  httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			want: false,
+		},
+		{
+			name: "normal app request with app cookie",
+			req: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
+				req.AddCookie(&http.Cookie{Name: app.CookieName, Value: "session-id"})
+				return req
+			}(),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldForwardToAppHandler(tt.req))
+		})
+	}
+}
+
 //go:embed testdata/no-history-shell.sh
 var noHistoryShellScript []byte
 
@@ -9965,11 +10007,11 @@ func TestUerContextWithScopes(t *testing.T) {
 					// Deliberately put these out of order to make sure that the result
 					// is sorted.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-b",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-b"}.String(),
 						Scope: "/test/b1",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -9990,12 +10032,12 @@ func TestUerContextWithScopes(t *testing.T) {
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a1",
 					}.Build(),
 					// Add a duplicate to make sure that the result is deduplicated.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -10030,6 +10072,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}

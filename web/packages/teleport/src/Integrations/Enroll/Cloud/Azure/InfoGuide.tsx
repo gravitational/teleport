@@ -53,15 +53,19 @@ export function InfoGuideContent() {
         >
           <li>
             <strong>Configure what to discover.</strong> <br />
-            Specify resource types, subscriptions, regions, and tag filters to
-            control which resources are discovered.
+            <Text as="span" color="text.slightlyMuted">
+              Specify resource types, subscriptions, regions, and tag filters to
+              control which resources are discovered.
+            </Text>
           </li>
           <li>
             <strong>Use the generated Terraform module.</strong> <br />
-            The generated Terraform module configuration will create an Azure
-            managed identity that grants Teleport read-only access and
-            configures Teleport discovery service to scan for your Azure
-            resources.
+            <Text as="span" color="text.slightlyMuted">
+              The generated Terraform module configuration will create an Azure
+              managed identity that grants Teleport read-only access and
+              configures Teleport discovery service to scan for your Azure
+              resources.
+            </Text>
           </li>
           <li>
             <strong>

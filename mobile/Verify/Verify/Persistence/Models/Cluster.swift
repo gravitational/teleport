@@ -18,8 +18,36 @@ import Foundation
 import SQLiteData
 
 @Table("clusters")
-struct Cluster {
+struct Cluster: Identifiable {
 	let id: UUID
 	var host: String
 	var port: Int
+}
+
+// MARK: - CustomDebugStringConvertible
+
+extension Cluster: CustomDebugStringConvertible {
+	var debugDescription: String {
+		"\(id):\(host):\(port)"
+	}
+}
+
+extension Cluster {
+	var url: URL? {
+		var components = URLComponents()
+		components.host = host
+		components.port = port
+		components.scheme = "https"
+		return components.url
+	}
+}
+
+// MARK: - Preview Data
+
+extension Cluster {
+	static let previews: [Cluster] = [
+		Cluster(id: UUID(0), host: "production.teleport.example.com", port: 443),
+		Cluster(id: UUID(1), host: "staging.teleport.example.com", port: 3080),
+		Cluster(id: UUID(2), host: "development.teleport.example.com", port: 443),
+	]
 }

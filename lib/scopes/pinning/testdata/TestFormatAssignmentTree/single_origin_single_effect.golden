@@ -1,2 +1,2 @@
 └── /staging
-    └── /staging - admin, user
+    └── /staging - /staging::admin, /staging::user

@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_scoped_role_assignment Terraform data-source
 sidebar_label: scoped_role_assignment
-description: This page describes the supported values of the teleport_scoped_role_assignment data-source of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_scoped_role_assignment data-source of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_scoped_rol
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the `teleport_scoped_role_assignment` data source of the
+This page lists the supported values of the `teleport_scoped_role_assignment` data source of the
 Teleport Terraform provider.
 
 
@@ -57,6 +58,6 @@ Optional:
 
 Optional:
 
-- `role` (String) Roles is the name of the role that is assigned by this assignment.
+- `role` (String) Role is the scope-qualified name of the role that is assigned by this assignment.
 - `scope` (String) Scope is the scope to which the role is assigned. This must be a member/child of the scope of the [ScopedRoleAssignment] in which this assignment is contained.
 

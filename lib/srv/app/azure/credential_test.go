@@ -74,6 +74,46 @@ func Test_getAccessTokenFromCredentialProvider(t *testing.T) {
 	require.Equal(t, "test-scope.mapped", fakeCredProvider.cred.lastSeenScope)
 }
 
+func Test_managedIdentityCredentialProvider_MapScope(t *testing.T) {
+	t.Parallel()
+
+	credProvider := managedIdentityCredentialProvider{}
+
+	tests := []struct {
+		name       string
+		inputScope string
+		wantScope  string
+	}{
+		{
+			name:       "resource with trailing slash unchanged",
+			inputScope: "https://vault.azure.net/",
+			wantScope:  "https://vault.azure.net/",
+		},
+		{
+			name:       "resource without trailing slash unchanged",
+			inputScope: "https://vault.azure.net",
+			wantScope:  "https://vault.azure.net",
+		},
+		{
+			name:       "default scope unchanged",
+			inputScope: "https://vault.azure.net/.default",
+			wantScope:  "https://vault.azure.net/.default",
+		},
+		{
+			name:       "dynamic scope list unchanged",
+			inputScope: "https://graph.microsoft.com/User.Read openid profile offline_access",
+			wantScope:  "https://graph.microsoft.com/User.Read openid profile offline_access",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotScope := credProvider.MapScope(tt.inputScope)
+			require.Equal(t, tt.wantScope, gotScope)
+		})
+	}
+}
+
 func Test_workloadIdentityCredentialProvider(t *testing.T) {
 	ctx := context.Background()
 	fakeAgentIdentity := &fakeTokenCredential{}
@@ -109,21 +149,81 @@ func Test_workloadIdentityCredentialProvider(t *testing.T) {
 
 	t.Run("MapScope", func(t *testing.T) {
 		tests := []struct {
-			inputScope  string
-			outputScope string
+			name       string
+			inputScope string
+			wantScope  string
 		}{
 			{
-				inputScope:  "https://management.core.windows.net/",
-				outputScope: "https://management.core.windows.net/.default",
+				name:       "management resource preserves trailing slash",
+				inputScope: "https://management.core.windows.net/",
+				wantScope:  "https://management.core.windows.net//.default",
 			},
 			{
-				inputScope:  "some-other-scope",
-				outputScope: "some-other-scope",
+				name:       "management resource without trailing slash",
+				inputScope: "https://management.azure.com",
+				wantScope:  "https://management.azure.com/.default",
+			},
+			{
+				name:       "resource without trailing slash",
+				inputScope: "https://vault.azure.net",
+				wantScope:  "https://vault.azure.net/.default",
+			},
+			{
+				name:       "resource with trailing slash",
+				inputScope: "https://vault.azure.net/",
+				wantScope:  "https://vault.azure.net//.default",
+			},
+			{
+				name:       "default scope unchanged",
+				inputScope: "https://vault.azure.net/.default",
+				wantScope:  "https://vault.azure.net/.default",
+			},
+			{
+				name:       "storage resource preserves trailing slash",
+				inputScope: "https://storage.azure.com/",
+				wantScope:  "https://storage.azure.com//.default",
+			},
+			{
+				name:       "database resource preserves trailing slash",
+				inputScope: "https://database.windows.net/",
+				wantScope:  "https://database.windows.net//.default",
+			},
+			{
+				name:       "only global OIDC scopes",
+				inputScope: "openid profile offline_access",
+				wantScope:  "openid profile offline_access",
+			},
+			{
+				name:       "dynamic delegated scope",
+				inputScope: "User.Read",
+				wantScope:  "User.Read",
+			},
+			{
+				name:       "fully qualified dynamic delegated scope",
+				inputScope: "https://graph.microsoft.com/User.Read",
+				wantScope:  "https://graph.microsoft.com/User.Read",
+			},
+			{
+				name:       "dynamic delegated scope with global OIDC scopes",
+				inputScope: "https://graph.microsoft.com/User.Read openid profile offline_access",
+				wantScope:  "https://graph.microsoft.com/User.Read openid profile offline_access",
+			},
+			{
+				name:       "multiple dynamic delegated scopes",
+				inputScope: "User.Read Files.Read.All",
+				wantScope:  "User.Read Files.Read.All",
+			},
+			{
+				name:       "custom API dynamic delegated scope",
+				inputScope: "api://00000000-0000-0000-0000-000000000000/access_as_user",
+				wantScope:  "api://00000000-0000-0000-0000-000000000000/access_as_user",
 			},
 		}
-		for _, test := range tests {
-			t.Run(test.inputScope, func(t *testing.T) {
-				require.Equal(t, test.outputScope, credProvider.MapScope(test.inputScope))
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				gotScope := credProvider.MapScope(tt.inputScope)
+				require.Equal(t, tt.wantScope, gotScope)
 			})
 		}
 	})

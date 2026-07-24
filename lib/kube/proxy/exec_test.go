@@ -72,6 +72,27 @@ var (
 	stdinContent             = []byte("stdin_data")
 )
 
+func wildcardResource() []*accessv1.KubeResource {
+	return []*accessv1.KubeResource{
+		accessv1.KubeResource_builder{
+			Kind:      types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			ApiGroup:  types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		}.Build(),
+	}
+}
+
+func wildcardLabel() []*labelv1.Label {
+	return []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   types.Wildcard,
+			Values: []string{types.Wildcard},
+		}.Build(),
+	}
+}
+
 func testExecKubeService(t *testing.T, testCtx *TestContext) {
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
@@ -118,14 +139,10 @@ func testExecKubeService(t *testing.T, testCtx *TestContext) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
 			}.Build(),
 		}.Build())
 
@@ -136,14 +153,10 @@ func testExecKubeService(t *testing.T, testCtx *TestContext) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  append(slices.Clone(roleKubeUsers), "admin"),
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
+				Users:     append(slices.Clone(roleKubeUsers), "admin"),
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
 			}.Build(),
 		}.Build(),
 	)
@@ -692,14 +705,10 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 					accessv1.ScopedRoleSpec_builder{
 						AssignableScopes: []string{scopedTestScope},
 						Kube: accessv1.ScopedRoleKube_builder{
-							Users:  roleKubeUsers,
-							Groups: roleKubeGroups,
-							Labels: []*labelv1.Label{
-								labelv1.Label_builder{
-									Name:   types.Wildcard,
-									Values: []string{types.Wildcard},
-								}.Build(),
-							},
+							Users:     roleKubeUsers,
+							Groups:    roleKubeGroups,
+							Resources: wildcardResource(),
+							Labels:    wildcardLabel(),
 						}.Build(),
 					}.Build())
 
@@ -921,6 +930,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.C
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
