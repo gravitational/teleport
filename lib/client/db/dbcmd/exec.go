@@ -45,7 +45,10 @@ func (c *CLICommandBuilder) GetExecCommand(_ context.Context, query string) (*ex
 }
 
 func (c *CLICommandBuilder) getPostgresExecCommand(query string) (*exec.Cmd, error) {
-	cmd := c.getPostgresCommand()
+	cmd, err := c.getPostgresCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cmd.Args = append(cmd.Args, "-c", query)
 	return cmd, nil
 }
