@@ -738,6 +738,13 @@ type TeleportProcess struct {
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
+	// auditQueueStatsMu guards auditQueueStats.
+	auditQueueStatsMu sync.Mutex
+	// auditQueueStats holds an audit-queue depth getter per emitter the process
+	// has created, keyed by the emitter pointer. AuditQueueStatus sums across
+	// them so the instance heartbeat reports the process total.
+	auditQueueStats map[any]auditQueueStatsFn
+
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
 
@@ -1468,6 +1475,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.makeInventoryControlStreamWhenReady,
 		getHello,
 		inventory.WithDownstreamClock(process.Clock),
+		inventory.WithAuditQueueStatusGetter(process.AuditQueueStatus),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
@@ -3503,7 +3511,7 @@ func isAuditQueueEnabled() bool {
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
-	return events.NewCheckingAsyncEmitter(
+	emitter, err := events.NewCheckingAsyncEmitter(
 		events.CheckingEmitterConfig{
 			Clock: process.Clock,
 		},
@@ -3515,16 +3523,79 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 			AuditQueueBackends: process.auditQueueBackends(),
 		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.registerAuditQueueStats(emitter)
+	return emitter, nil
+}
+
+type auditQueueStatsGetter interface {
+	Stats(ctx context.Context) (auditqueue.Stats, error)
+}
+
+type auditQueueStatsFn func(ctx context.Context) (auditqueue.Stats, error)
+
+func (process *TeleportProcess) registerAuditQueueStats(emitter auditQueueStatsGetter) {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+	if process.auditQueueStats == nil {
+		process.auditQueueStats = make(map[any]auditQueueStatsFn)
+	}
+	process.auditQueueStats[emitter] = emitter.Stats
+}
+
+func (process *TeleportProcess) unregisterAuditQueueStats(emitter auditQueueStatsGetter) {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+	delete(process.auditQueueStats, emitter)
+}
+
+func (process *TeleportProcess) auditStatGetters() []auditQueueStatsFn {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+
+	getters := make([]auditQueueStatsFn, 0, len(process.auditQueueStats))
+	for _, g := range process.auditQueueStats {
+		getters = append(getters, g)
+	}
+
+	return getters
+}
+
+func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.AuditQueueStatus {
+	getters := process.auditStatGetters()
+
+	if len(getters) == 0 {
+		return nil
+	}
+	var status types.AuditQueueStatus
+	for _, g := range getters {
+		stats, err := g(ctx)
+		if err != nil {
+			process.logger.DebugContext(ctx, "Failed to read audit queue stats for heartbeat.", "error", err)
+			continue
+		}
+		status.PendingCount += stats.PendingCount
+		status.DeadLetterCount += stats.DeadLetterCount
+		status.CorruptCount += stats.CorruptCount
+	}
+	return &status
 }
 
 func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter) (*events.FallbackEmitter, error) {
-	return events.NewFallbackEmitter(events.FallbackEmitterConfig{
+	emitter, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
 		Primary:            primary,
 		DataDir:            process.Config.DataDir,
 		EnableAuditQueue:   isAuditQueueEnabled(),
 		AuditQueueCfg:      process.auditQueueConfig(),
 		AuditQueueBackends: process.auditQueueBackends(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.registerAuditQueueStats(emitter)
+	return emitter, nil
 }
 
 func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
@@ -7278,6 +7349,7 @@ func (process *TeleportProcess) initApps() {
 
 // drainableEmitter is an audit emitter whose queue can be drained on shutdown.
 type drainableEmitter interface {
+	auditQueueStatsGetter
 	Shutdown(context.Context) error
 	Close() error
 }
@@ -7288,6 +7360,7 @@ const emitterDrainTimeout = time.Hour
 // carries a graceful shutdown context, otherwise it closes the emitter
 // immediately.
 func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
+	process.unregisterAuditQueueStats(emitter)
 	if payload == nil {
 		warnOnErr(process.ExitContext(), emitter.Close(), logger)
 		return

@@ -241,6 +241,8 @@ message InventoryHeartbeat {
   teleport.presence.v1.RelayServer relay_server = 5;
   // LinuxDesktop is a complete linux desktop spec to be heartbeated.
   teleport.linuxdesktop.v1.LinuxDesktop linux_desktop = 6;
+  // AuditQueue reports the depth of the instance's audit-log queue.
+  types.AuditQueueStatus audit_queue = 7;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

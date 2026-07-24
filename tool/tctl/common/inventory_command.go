@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -62,6 +63,7 @@ type InventoryCommand struct {
 
 	upgrader    string
 	updateGroup string
+	sort        string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -85,6 +87,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	c.inventoryList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
 	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
+	c.inventoryList.Flag("sort", "Sort output by column. Supported: audit-queue (largest audit queue backlog first, including dead-letter and corrupt events).").EnumVar(&c.sort, "", "audit-queue")
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -238,7 +241,11 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group"})
+		type instanceRow struct {
+			cells             []string
+			auditQueueBacklog int64
+		}
+		var rows []instanceRow
 		for instances.Next() {
 			instance := instances.Item()
 
@@ -268,19 +275,48 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				updateGroup = updateInfo.UpdateGroup
 			}
 
-			table.AddRow([]string{
-				instance.GetName(),
-				instance.GetHostname(),
-				strings.Join(services, ","),
-				instance.GetTeleportVersion(),
-				upgrader,
-				upgraderVersion,
-				updateGroup,
+			var auditQueueBacklog int64
+			auditQueue := "" // unknown / not reported
+			if aq := instance.GetAuditQueueStatus(); aq != nil {
+				auditQueueBacklog = aq.PendingCount + aq.DeadLetterCount + aq.CorruptCount
+				auditQueue = fmt.Sprintf("%d", aq.PendingCount)
+				if aq.DeadLetterCount > 0 {
+					auditQueue += fmt.Sprintf(" (%d DL)", aq.DeadLetterCount)
+				}
+				if aq.CorruptCount > 0 {
+					auditQueue += fmt.Sprintf(" (%d corrupt)", aq.CorruptCount)
+				}
+			}
+
+			rows = append(rows, instanceRow{
+				auditQueueBacklog: auditQueueBacklog,
+				cells: []string{
+					instance.GetName(),
+					instance.GetHostname(),
+					strings.Join(services, ","),
+					instance.GetTeleportVersion(),
+					upgrader,
+					upgraderVersion,
+					updateGroup,
+					auditQueue,
+				},
 			})
 		}
 
 		if err := instances.Done(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		if c.sort == "audit-queue" {
+			slices.SortStableFunc(rows, func(a, b instanceRow) int {
+				// Largest audit queue backlog first.
+				return cmp.Compare(b.auditQueueBacklog, a.auditQueueBacklog)
+			})
+		}
+
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group", "Audit Queue"})
+		for _, row := range rows {
+			table.AddRow(row.cells)
 		}
 
 		_, err := table.AsBuffer().WriteTo(os.Stdout)

@@ -624,6 +624,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
+				if m.AuditQueue != nil {
+					handle.setAuditQueueStatus(m.AuditQueue)
+				}
+
 			case *proto.UpstreamInventoryPong:
 				c.handlePong(handle, m)
 			case *proto.UpstreamInventoryGoodbye:
@@ -861,7 +865,7 @@ func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Tim
 		fn()
 	}
 
-	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID)
+	instance, err := tracker.nextHeartbeat(now, handle.Hello(), c.authID, handle.AuditQueueStatus())
 	if err != nil {
 		slog.WarnContext(c.closeContext, "Failed to construct next heartbeat value for instance (this is a bug)",
 			"server_id", handle.Hello().GetServerID(),

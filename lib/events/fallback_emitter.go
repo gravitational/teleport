@@ -201,3 +201,12 @@ func (f *FallbackEmitter) Shutdown(ctx context.Context) error {
 	}
 	return trace.Wrap(f.Close())
 }
+
+// Stats reports the current depth of the fallback queue. It returns a zero Stats
+// when the fallback queue is disabled.
+func (f *FallbackEmitter) Stats(ctx context.Context) (auditqueue.Stats, error) {
+	if f.queue == nil {
+		return auditqueue.Stats{}, nil
+	}
+	return f.queue.Stats(ctx)
+}
