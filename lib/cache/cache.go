@@ -138,6 +138,10 @@ func makeAllKnownCAsFilter() types.CertAuthorityFilter {
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
 	cfg.EnableRelativeExpiry = true
+	// Scope-aware kinds default (for unscoped callers) to matching only unscoped instances. Auth must have
+	// access to all instances (scoped and unscoped) of the resources it manages, so it watches those kinds with an
+	// explicit MODE_ALL filter.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindCertAuthorityOverride},
@@ -155,14 +159,14 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: scopedaccess.KindScopedRole},
 		{Kind: scopedaccess.KindScopedRoleAssignment},
-		{Kind: types.KindNode},
+		{Kind: types.KindNode, ScopeFilter: allScopes},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAccessRequest},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindApp},
+		{Kind: types.KindAppServer, ScopeFilter: allScopes},
+		{Kind: types.KindApp, ScopeFilter: allScopes},
 		{Kind: types.KindBeam},
 		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
@@ -170,7 +174,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseServer, ScopeFilter: allScopes},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
@@ -179,9 +183,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindLinuxDesktop},
-		{Kind: types.KindKubeServer},
+		{Kind: types.KindKubeServer, ScopeFilter: allScopes},
 		{Kind: types.KindInstaller},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes},
 		{Kind: types.KindCrownJewel},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
