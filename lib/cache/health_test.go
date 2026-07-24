@@ -24,6 +24,8 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"pgregory.net/rapid"
 )
 
@@ -56,12 +58,13 @@ func (m *machine) init(t *rapid.T) {
 				target:         "auth",
 				HealthReporter: healthReporter,
 			},
-			ctx:                   ctx,
-			cancel:                cancel,
-			initC:                 make(chan struct{}),
-			firstTimeInitC:        make(chan struct{}),
-			eventsFanout:          services.NewFanoutV2(services.FanoutV2Config{}),
-			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{services.NewFanoutV2(services.FanoutV2Config{})}),
+			ctx:            ctx,
+			cancel:         cancel,
+			initC:          make(chan struct{}),
+			firstTimeInitC: make(chan struct{}),
+			eventsFanout:   services.NewFanoutV2(services.FanoutV2Config{}),
+			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{
+				services.NewFanoutV2(services.FanoutV2Config{})}),
 		}
 
 		c.setInitError(nil)
@@ -80,7 +83,7 @@ func (m *machine) SetCacheHealthy(t *rapid.T) {
 	c.setInitError(nil)
 
 	// If the cache is closed, we can toggle setInitError as much as we want,
-	// but it won't ever be a up or health cache.
+	// but it won't ever be a up or healthy cache.
 	if m.closed[c] {
 		return
 	}
@@ -97,7 +100,7 @@ func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 	c.setInitError(errors.New("unhealthy"))
 
 	// If the cache is closed, we can toggle setInitError as much as we want,
-	// but it won't ever be a up or health cache.
+	// but it won't ever be a up or healthy cache.
 	if m.closed[c] {
 		return
 	}
@@ -132,7 +135,8 @@ func (m *machine) expected() float64 {
 // value matches the received value of the gauge.
 func (m *machine) Check(t *rapid.T) {
 	for _, c := range m.all {
-		got := c.HealthReporter.anyHealthy(c.target)
+		got := testutil.ToFloat64(c.HealthReporter.gauge.WithLabelValues(c.target))
+		//got := c.HealthReporter.anyHealthy(c.target)
 		want := m.expected()
 
 		if got != want {
