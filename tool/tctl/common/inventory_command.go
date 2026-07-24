@@ -87,7 +87,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	c.inventoryList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
 	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
-	c.inventoryList.Flag("sort", "Sort output by column. Supported: audit-queue (largest pending audit queue first).").EnumVar(&c.sort, "", "audit-queue")
+	c.inventoryList.Flag("sort", "Sort output by column. Supported: audit-queue (largest audit queue backlog first, including dead-letter and corrupt events).").EnumVar(&c.sort, "", "audit-queue")
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -243,7 +243,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 	case teleport.Text:
 		type instanceRow struct {
 			cells             []string
-			auditQueuePending int64
+			auditQueueBacklog int64
 		}
 		var rows []instanceRow
 		for instances.Next() {
@@ -275,10 +275,10 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				updateGroup = updateInfo.UpdateGroup
 			}
 
-			var auditQueuePending int64
+			var auditQueueBacklog int64
 			auditQueue := "" // unknown / not reported
 			if aq := instance.GetAuditQueueStatus(); aq != nil {
-				auditQueuePending = aq.PendingCount
+				auditQueueBacklog = aq.PendingCount + aq.DeadLetterCount + aq.CorruptCount
 				auditQueue = fmt.Sprintf("%d", aq.PendingCount)
 				if aq.DeadLetterCount > 0 {
 					auditQueue += fmt.Sprintf(" (%d DL)", aq.DeadLetterCount)
@@ -289,7 +289,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			}
 
 			rows = append(rows, instanceRow{
-				auditQueuePending: auditQueuePending,
+				auditQueueBacklog: auditQueueBacklog,
 				cells: []string{
 					instance.GetName(),
 					instance.GetHostname(),
@@ -309,8 +309,8 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 
 		if c.sort == "audit-queue" {
 			slices.SortStableFunc(rows, func(a, b instanceRow) int {
-				// Largest pending audit queue first.
-				return cmp.Compare(b.auditQueuePending, a.auditQueuePending)
+				// Largest audit queue backlog first.
+				return cmp.Compare(b.auditQueueBacklog, a.auditQueueBacklog)
 			})
 		}
 
