@@ -14697,3 +14697,161 @@ func TestRoleWindowsDesktopLeastPrivilege(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 	})
 }
+
+func TestGetAccessCapabilitiesRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	targetUser, err := types.NewUser("target")
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		allowRules       []types.Rule
+		callerUser       string
+		queriedUser      string
+		wantAccessDenied bool
+	}{
+		{
+			name:        "querying for self doesn't require permissions is allowed",
+			callerUser:  "caller-self-default",
+			queriedUser: "",
+		},
+		{
+			name:        "querying for self doesn't require permissions is allowed (explicit user name)",
+			callerUser:  "caller-self-explicit",
+			queriedUser: "caller-self-explicit",
+		},
+		{
+			name:             "querying for other user without permissions is denied",
+			callerUser:       "caller-other-denied",
+			queriedUser:      "target",
+			wantAccessDenied: true,
+		},
+		{
+			name: "querying for other user with permissions is allowed",
+			allowRules: []types.Rule{
+				types.NewRule(types.KindUser, []string{types.VerbRead}),
+				types.NewRule(types.KindRole, []string{types.VerbList, types.VerbRead}),
+			},
+			callerUser:  "caller-other-allowed",
+			queriedUser: "target",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			callerRole, err := types.NewRole(tt.callerUser+"-role", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Rules: tt.allowRules,
+				},
+			})
+			require.NoError(t, err)
+			callerUser, err := authtest.CreateUser(ctx, srv.AuthServer, tt.callerUser, callerRole)
+			require.NoError(t, err)
+
+			callerIdentity := authz.LocalUser{
+				Username: tt.callerUser,
+				Identity: tlsca.Identity{
+					Username: tt.callerUser,
+					Groups:   callerUser.GetRoles(),
+				},
+			}
+			authCtx, err := authz.ContextForLocalUser(
+				ctx, callerIdentity, srv.AuthServer.Services, srv.ClusterName, true, /* disableDeviceAuthz */
+			)
+			require.NoError(t, err)
+			authCtx.AdminActionAuthState = authz.AdminActionAuthMFAVerified
+
+			server := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
+			_, err = server.GetAccessCapabilities(authz.ContextWithUser(ctx, callerIdentity), types.AccessCapabilitiesRequest{
+				User: tt.queriedUser,
+			})
+			if tt.wantAccessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetAccessCapabilitiesScopedRBAC(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	targetUser, err := types.NewUser("target")
+	require.NoError(t, err)
+	_, err = srv.AuthServer.CreateUser(ctx, targetUser)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		callerUser       string
+		queriedUser      string
+		wantAccessDenied bool
+	}{
+		{
+			name:        "querying for self is allowed",
+			callerUser:  "scoped-caller-self",
+			queriedUser: "",
+		},
+		{
+			name:             "querying for other user is denied",
+			callerUser:       "scoped-caller-other",
+			queriedUser:      "target",
+			wantAccessDenied: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			callerUser, err := types.NewUser(tt.callerUser)
+			require.NoError(t, err)
+			callerUser, err = srv.AuthServer.CreateUser(ctx, callerUser)
+			require.NoError(t, err)
+
+			callerIdentity := authz.LocalUser{
+				Username: tt.callerUser,
+				Identity: tlsca.Identity{
+					Username: tt.callerUser,
+					ScopePin: scopesv1.Pin_builder{
+						Kind:  scopesv1.PinKind_PIN_KIND_USER,
+						Scope: "/test",
+					}.Build(),
+				},
+			}
+
+			server := auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, &authz.ScopedContext{
+				User:     callerUser,
+				Identity: callerIdentity,
+			})
+			t.Cleanup(func() { server.Close() })
+
+			_, err = server.GetAccessCapabilities(authz.ContextWithUser(ctx, callerIdentity), types.AccessCapabilitiesRequest{
+				User: tt.queriedUser,
+			})
+			if tt.wantAccessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %T: %v", err, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

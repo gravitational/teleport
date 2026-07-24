@@ -145,7 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/scopes/access"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -324,6 +324,9 @@ type webSuiteConfig struct {
 
 	// middleware adds optional middleware to the test handler.
 	middleware func(next http.Handler) http.Handler
+
+	// scopesFeatures controls scoped access feature flags.
+	scopesFeatures scopes.Features
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -365,6 +368,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ClusterNetworkingConfig: networkingConfig,
 			AuthPreferenceSpec:      cfg.authPreferenceSpec,
 			Modules:                 cfg.modules,
+			ScopesFeatures:          cfg.scopesFeatures,
 		},
 	}
 
@@ -675,6 +679,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   s.server.Auth(),
 		},
+		ScopesFeatures: cfg.scopesFeatures,
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(proxySessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -3226,10 +3231,14 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	ctx := t.Context()
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		scopesFeatures: scopes.Features{Enabled: true},
+	})
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
 	_, err = s.server.Auth().UpsertAuthPreference(s.ctx, ap)
@@ -3239,63 +3248,129 @@ func TestLogin(t *testing.T) {
 	const user = "user1"
 	const pass = "password1234"
 	s.createUser(t, user, "root", pass, "")
+	otpSecret := newOTPSharedSecret()
+	dev, err := services.NewTOTPDevice("otp-device", otpSecret, s.clock.Now())
+	require.NoError(t, err)
+	err = s.server.Auth().UpsertMFADevice(ctx, user, dev)
+	require.NoError(t, err)
+
+	_, err = s.server.Auth().ScopedAccess().CreateScopedRole(
+		ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1.ScopedRole_builder{
+				Kind:    scopedaccess.KindScopedRole,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: "prod-role",
+				}.Build(),
+				Scope: "/prod",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/prod/east"},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	_, err = s.server.Auth().ScopedAccess().CreateScopedRoleAssignment(
+		ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: "prod-role-assignment",
+				}.Build(),
+				Scope: "/prod",
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					User: "user1",
+					Assignments: []*scopedaccessv1.Assignment{
+						scopedaccessv1.Assignment_builder{
+							Role:  "/prod::prod-role",
+							Scope: "/prod/east",
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	)
+	require.NoError(t, err)
 
 	clt := s.client(t)
-	ctx := context.Background()
 
-	const ua = "test-ua"
-	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
-		webClient: clt,
-		user:      user,
-		password:  pass,
-		userAgent: ua,
-	})
+	cases := []struct {
+		name  string
+		scope string
+	}{
+		{name: "unscoped", scope: ""},
+		{name: "scoped", scope: "/prod/east"},
+	}
 
-	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		From:       s.clock.Now().Add(-time.Hour),
-		To:         s.clock.Now().Add(time.Hour),
-		EventTypes: []string{events.UserLoginEvent},
-		Limit:      1,
-		Order:      types.EventOrderDescending,
-	})
-	require.NoError(t, err)
-	event := events[0].(*apievents.UserLogin)
-	require.True(t, event.Success)
-	require.Equal(t, ua, event.UserAgent)
-	require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			const ua = "test-ua"
+			s.clock.Advance(time.Minute) // Prevent reusing old OTP
+			sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
+				webClient: clt,
+				clock:     s.clock,
+				user:      user,
+				password:  pass,
+				otpSecret: otpSecret,
+				scope:     tc.scope,
+				userAgent: ua,
+			})
 
-	cookies := httpResp.Cookies()
-	require.Len(t, cookies, 1)
-	require.NotEmpty(t, sessionResp.SessionExpires)
+			events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+				From:       s.clock.Now().Add(-time.Hour),
+				To:         s.clock.Now().Add(time.Hour),
+				EventTypes: []string{events.UserLoginEvent},
+				Limit:      1,
+				Order:      types.EventOrderDescending,
+			})
+			require.NoError(t, err)
+			event := events[0].(*apievents.UserLogin)
+			require.True(t, event.Success)
+			require.Equal(t, ua, event.UserAgent)
+			require.True(t, strings.HasPrefix(event.RemoteAddr, "127.0.0.1:"))
 
-	// now make sure we are logged in by calling authenticated method
-	// we need to supply both session cookie and bearer token for
-	// request to succeed
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
+			cookies := httpResp.Cookies()
+			require.Len(t, cookies, 1)
+			require.NotEmpty(t, sessionResp.SessionExpires)
 
-	clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), cookies)
+			// now make sure we are logged in by calling authenticated method
+			// we need to supply both session cookie and bearer token for
+			// request to succeed
+			jar, err := cookiejar.New(nil)
+			require.NoError(t, err)
 
-	re, err := clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
-	require.NoError(t, err)
+			clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token), roundtrip.CookieJar(jar))
+			jar.SetCookies(s.url(), cookies)
 
-	var clusters []webui.Cluster
-	require.NoError(t, json.Unmarshal(re.Bytes(), &clusters))
+			re, err := clt.Get(
+				s.ctx,
+				clt.Endpoint("webapi", "sites", s.server.ClusterName(), "context"),
+				url.Values{},
+			)
+			require.NoError(t, err)
 
-	// in absence of session cookie or bearer auth the same request fill fail
+			var userContext webui.UserContext
+			require.NoError(t, json.Unmarshal(re.Bytes(), &userContext))
+			assert.Equal(t, tc.scope, userContext.Scope)
 
-	// no session cookie:
-	clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token))
-	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+			// in absence of session cookie or bearer auth the same request fill fail
 
-	// no bearer token:
-	clt = s.client(t, roundtrip.CookieJar(jar))
-	_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+			// no session cookie:
+			clt = s.client(t, roundtrip.BearerAuth(sessionResp.Token))
+			_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+
+			// no bearer token:
+			clt = s.client(t, roundtrip.CookieJar(jar))
+			_, err = clt.Get(s.ctx, clt.Endpoint("webapi", "sites"), url.Values{})
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	}
 }
 
 // TestEmptyMotD ensures that responses returned by both /webapi/ping and
@@ -9662,20 +9737,16 @@ type testProxy struct {
 	webURL  url.URL
 }
 
-// authPack returns new authenticated package consisting of created valid
-// user, otp token, created web session and authenticated client.
-func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
+// authPackWithLoginParams returns new authenticated package consisting of
+// created valid user, otp token, created web session and authenticated client
+// with given login params.
+func (r *testProxy) authPackWithLoginParams(
+	t *testing.T, teleportUser string, loginParams loginWebOTPParams, roles []types.Role,
+) *authPack {
 	ctx := context.Background()
-	const (
-		pass      = "abcdef123456"
-		rawSecret = "def456"
-	)
-
 	u, err := user.Current()
 	require.NoError(t, err)
 	loginUser := u.Username
-
-	otpSecret := newOTPSharedSecret()
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -9686,15 +9757,11 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	_, err = r.auth.Auth().UpsertAuthPreference(ctx, ap)
 	require.NoError(t, err)
 
-	r.createUser(context.Background(), t, teleportUser, loginUser, pass, otpSecret, roles)
+	r.createUser(
+		context.Background(), t, teleportUser, loginUser, loginParams.password, loginParams.otpSecret, roles,
+	)
 
-	sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
-		webClient: r.newClient(t),
-		clock:     r.clock,
-		user:      teleportUser,
-		password:  pass,
-		otpSecret: otpSecret,
-	})
+	sessionResp, httpResp := loginWebOTP(t, ctx, loginParams)
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
@@ -9703,17 +9770,46 @@ func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Ro
 	jar.SetCookies(&r.webURL, httpResp.Cookies())
 
 	return &authPack{
-		otpSecret: otpSecret,
+		otpSecret: loginParams.otpSecret,
 		user:      teleportUser,
 		login:     loginUser,
 		session:   sessionResp,
 		clt:       clt,
 		cookies:   httpResp.Cookies(),
-		password:  pass,
+		password:  loginParams.password,
 		device: &authtest.Device{
-			TOTPSecret: otpSecret,
+			TOTPSecret: loginParams.otpSecret,
 		},
 	}
+}
+
+func (r *testProxy) authPack(t *testing.T, teleportUser string, roles []types.Role) *authPack {
+	return r.authPackWithLoginParams(
+		t, teleportUser,
+		loginWebOTPParams{
+			webClient: r.newClient(t),
+			clock:     r.clock,
+			user:      teleportUser,
+			password:  "abcdef123456",
+			otpSecret: newOTPSharedSecret(),
+		},
+		roles,
+	)
+}
+
+func (r *testProxy) scopedAuthPack(t *testing.T, teleportUser string, scope string, roles []types.Role) *authPack {
+	return r.authPackWithLoginParams(
+		t, teleportUser,
+		loginWebOTPParams{
+			webClient: r.newClient(t),
+			clock:     r.clock,
+			user:      teleportUser,
+			password:  "abcdef123456",
+			otpSecret: newOTPSharedSecret(),
+			scope:     scope,
+		},
+		roles,
+	)
 }
 
 func (r *testProxy) authPackFromPack(t *testing.T, pack *authPack) *authPack {
@@ -9931,7 +10027,7 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
 }
 
-func TestUerContextWithScopesNoAssignments(t *testing.T) {
+func TestUserContextWithScopesNoAssignments(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1, withScopesFeatures(scopes.Features{Enabled: true}))
 	proxy := env.proxies[0]
@@ -9954,7 +10050,7 @@ func TestUerContextWithScopesNoAssignments(t *testing.T) {
 	require.Empty(t, userContext.AvailableScopes)
 }
 
-func TestUerContextWithScopes(t *testing.T) {
+func TestUserContextWithScopes(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1, withScopesFeatures(scopes.Features{Enabled: true}))
 	proxy := env.proxies[0]
@@ -9963,7 +10059,7 @@ func TestUerContextWithScopes(t *testing.T) {
 	// Create scoped roles.
 	_, err := env.server.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: scopedaccessv1.ScopedRole_builder{
-			Kind:    access.KindScopedRole,
+			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "role-a",
@@ -9977,7 +10073,7 @@ func TestUerContextWithScopes(t *testing.T) {
 	require.NoError(t, err)
 	_, err = env.server.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: scopedaccessv1.ScopedRole_builder{
-			Kind:    access.KindScopedRole,
+			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "role-b",
@@ -9994,8 +10090,8 @@ func TestUerContextWithScopes(t *testing.T) {
 	username := "dave"
 	assignment1, err := env.server.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
-			Kind:    access.KindScopedRoleAssignment,
-			SubKind: access.SubKindDynamic,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "assignment-1",
@@ -10021,8 +10117,8 @@ func TestUerContextWithScopes(t *testing.T) {
 	require.NoError(t, err)
 	assignment2, err := env.server.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
-			Kind:    access.KindScopedRoleAssignment,
-			SubKind: access.SubKindDynamic,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Name: "assignment-2",
@@ -10048,7 +10144,7 @@ func TestUerContextWithScopes(t *testing.T) {
 	waitForSRACache(t, env.server.TLS, assignment1, assignment2)
 
 	// Create and authenticate the test user.
-	pack := proxy.authPack(t, username, []types.Role{})
+	pack := proxy.scopedAuthPack(t, username, "/test/a2", []types.Role{})
 
 	// Make a request to fetch the userContext.
 	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "context")
@@ -10061,7 +10157,8 @@ func TestUerContextWithScopes(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the userContext returned contains the assigned scopes.
-	require.Equal(t, []string{"/test/a1", "/test/a2", "/test/b1"}, userContext.AvailableScopes)
+	assert.Equal(t, []string{"/test/a1", "/test/a2", "/test/b1"}, userContext.AvailableScopes)
+	assert.Equal(t, "/test/a2", userContext.Scope)
 }
 
 func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
