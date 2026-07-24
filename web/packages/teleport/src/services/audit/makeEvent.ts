@@ -1341,6 +1341,8 @@ export const formatters: Formatters = {
       return `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop}]`;
     },
   },
+  // Formatters for DEVICE_* event codes need to check for the presence of a
+  // status field to support legacy events.
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
     desc: 'Device Registered',
@@ -1444,7 +1446,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.UPGRADE_WINDOW_UPDATED]: {
-    type: 'upgradewindow.update',
+    type: 'upgradewindowstart.update',
     desc: 'Upgrade Window Start Updated',
     format: ({ user, upgrade_window_start }) => {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
@@ -1877,7 +1879,7 @@ export const formatters: Formatters = {
       `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
-    type: 'secreports.audit.query.run"',
+    type: 'secreports.audit.query.run',
     desc: 'Access Monitoring Query Executed',
     format: ({ user, query }) =>
       `User [${user}] executed Access Monitoring query [${truncateStr(
@@ -1886,7 +1888,7 @@ export const formatters: Formatters = {
       )}]`,
   },
   [eventCodes.SECURITY_REPORT_RUN]: {
-    type: 'secreports.report.run""',
+    type: 'secreports.report.run',
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
