@@ -1959,7 +1959,7 @@ else
 ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
 .PHONY: ensure-llvm
-ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+ifeq ("$(OS)","darwin")
 BREW_DIR = $(shell brew --prefix)
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
@@ -1979,7 +1979,7 @@ ensure-llvm:
 		exit 1; \
 	fi
 
-else ifeq ("$(OS)-$(ARCH)","windows-amd64")
+else ifeq ("$(OS)","windows")
 LLVM_DIR=$(shell vswhere.exe -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath)
 unexport LLVM_DIR
 build-ironrdp-wasm: CC = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/clang
