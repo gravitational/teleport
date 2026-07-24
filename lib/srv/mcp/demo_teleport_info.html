@@ -1,0 +1,56 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;padding:8px;background:transparent}
+.c{background:#fff;border-radius:8px;padding:16px 14px;color:#111;text-align:center}
+.logo{margin:0 auto 12px;width:56px;height:58px}
+@keyframes spin{to{transform:rotate(360deg)}}.gear{animation:spin 8s linear infinite;transform-origin:20.315px 21.055px}
+.name{font-size:16px;font-weight:700;color:#512FC9;margin-bottom:3px}.tag{font-size:11px;color:#666;margin-bottom:12px}
+.r{margin-bottom:6px;text-align:left}.l{font-size:10px;text-transform:uppercase;color:#888;letter-spacing:.4px;margin-bottom:2px}
+.v{font-weight:500;color:#111;word-break:break-word}.b{background:#e8f4fd;color:#1a73e8;border-radius:3px;padding:1px 5px;font-size:11px;display:inline-block;margin:1px}
+</style></head><body><div class="c">
+<svg class="logo" viewBox="0 0 40.63 42.11" xmlns="http://www.w3.org/2000/svg">
+<path class="gear" fill="#512FC9" d="m40.31 27-4.11-3.5.08-.47c.09-.64.11-1.31.11-1.97 0-.82-.04-1.67-.19-2.45l4.11-3.49.09-.08c.11-.11.18-.25.21-.4.03-.15 0-.31-.05-.45-.84-2.53-2.28-4.94-4.06-6.93-.25-.29-.61-.39-.94-.24l-5.17 1.77-.43-.33c-1.18-.88-2.47-1.59-3.84-2.11L25.1 1.09l-.03-.11a.847.847 0 0 0-.68-.57c-2.68-.54-5.44-.54-8.12 0a.877.877 0 0 0-.71.68l-1.02 5.26-.46.19a14.98 14.98 0 0 0-3.81 2.26L5.1 7.03l-.11-.04a.803.803 0 0 0-.46.02.76.76 0 0 0-.37.26C2.35 9.26.9 11.67.07 14.2c-.07.16-.09.34-.04.51.05.17.15.32.29.42l4.11 3.49-.08.47c-.09.64-.11 1.31-.11 1.97-.01.82.05 1.64.19 2.45L.32 27l-.09.07a.778.778 0 0 0-.16.85c.84 2.53 2.28 4.93 4.06 6.93.25.29.61.39.94.25l5.17-1.77.38.3c1.19.9 2.5 1.62 3.89 2.14l1.02 5.26.03.11a.847.847 0 0 0 .68.57c1.34.24 2.68.39 4.06.39s2.72-.14 4.06-.39a.877.877 0 0 0 .71-.68l1.03-5.26.51-.21c1.35-.57 2.62-1.33 3.76-2.24l5.17 1.77.11.04c.3.08.6-.03.83-.29 1.78-1.99 3.22-4.4 4.06-6.93.07-.16.09-.34.04-.51a.784.784 0 0 0-.29-.42Zm-20 6.37c-6.82 0-12.34-5.52-12.34-12.32S13.49 8.73 20.31 8.73s12.35 5.52 12.35 12.32-5.53 12.32-12.34 12.32Z"/>
+<path fill="#512FC9" d="M20.31 12.63c-4.65 0-8.43 3.78-8.43 8.42s3.78 8.42 8.43 8.42 8.43-3.78 8.43-8.42-3.78-8.42-8.43-8.42Zm0 13.37c-2.74 0-4.96-2.22-4.96-4.95s2.23-4.95 4.96-4.95 4.96 2.22 4.96 4.95S23.04 26 20.31 26Z"/>
+</svg>
+<div class="name">Teleport</div>
+<div class="tag" id="tag">&#8230;</div>
+<div id="a"></div></div>
+<script>(function(){
+var i=0,p={};
+window.addEventListener('message',function(e){
+  var m=e.data;if(!m||typeof m!='object')return;
+  if(m.id!=null&&p[m.id]){p[m.id](m.result);delete p[m.id];return}
+  if(m.method=='ui/notifications/tool-result')r(m.params);
+});
+function s(msg){window.parent.postMessage(msg,'*')}
+function q(method,params){return new Promise(function(res){var id=++i;p[id]=res;s({jsonrpc:'2.0',id:id,method:method,params:params||{}})})}
+function n(method,params){s({jsonrpc:'2.0',method:method,params:params||{}})}
+function x(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function resize(){n('ui/notifications/size-changed',{height:document.documentElement.scrollHeight})}
+function r(params){
+  var c=params&&params.content&&params.content[0];if(!c)return;
+  try{draw(JSON.parse(c.text))}catch(e){document.getElementById('a').textContent=c.text}
+}
+function draw(d){
+  if(d.tagline)document.getElementById('tag').textContent=d.tagline;
+  var h='',skip={tagline:1};
+  for(var k in d){
+    if(!Object.prototype.hasOwnProperty.call(d,k)||skip[k])continue;
+    var v=d[k];
+    if(Array.isArray(v)){
+      h+='<div class="r"><div class="l">'+x(k)+'</div><div>'+v.map(function(b){return'<span class="b">'+x(b)+'</span>'}).join('')+'</div></div>';
+    }else{
+      h+='<div class="r"><div class="l">'+x(k)+'</div><div class="v">'+x(v)+'</div></div>';
+    }
+  }
+  document.getElementById('a').innerHTML=h;
+  if(typeof ResizeObserver!='undefined'){
+    new ResizeObserver(resize).observe(document.body);
+  }else{
+    requestAnimationFrame(resize);
+  }
+}
+q('ui/initialize',{protocolVersion:'2026-01-26',appCapabilities:{availableDisplayModes:['inline','fullscreen']}})
+  .then(function(){n('ui/notifications/initialized')})
+  .catch(console.error);
+})();</script></body></html>
