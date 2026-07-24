@@ -273,6 +273,8 @@ linters:
               desc: testing packages should not be imported outside of _test.go files
             - pkg: github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest
               desc: testing packages should not be imported outside of _test.go files
+            - pkg: github.com/gravitational/teleport/lib/join/jointest
+              desc: testing packages should not be imported outside of _test.go files
         testify:
           files:
             - '!$test'
@@ -309,6 +311,7 @@ linters:
             - '!**/lib/auth/keystore/testhelpers.go'
             - '!**/lib/backend/test/**'
             - '!**/lib/events/test/**'
+            - '!**/lib/join/jointest/**'
             - '!**/lib/services/suite/**'
             - '!**/lib/subca/testenv/**'
             - '!**/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest/sigstoretest.go'
@@ -345,6 +348,7 @@ linters:
             - '!**/lib/cryptosuites/internal/rsa/rsa.go'
             - '!**/lib/cryptosuites/precompute.go'
             - '!**/lib/events/test/**'
+            - '!**/lib/join/jointest/**'
             - '!**/lib/modules/modulestest/**'
             - '!**/lib/modules/test.go'
             - '!**/lib/service/service.go'

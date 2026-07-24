@@ -38,6 +38,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |generic_oidc|[object](#specgeneric_oidc)|Configuration specific to the "generic_oidc" join method.|
+|github|[object](#specgithub)|Configuration specific to the "github" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|
 |join_method|string|The joining method required in order to use this token. Note that not all join methods support joining with scoped tokens.|
 |kubernetes|[object](#speckubernetes)|The Kubernetes-specific configuration used with the "kubernetes" join method.|
@@ -186,6 +187,30 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |values|[]string||
+
+### spec.github
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specgithuballow-items)|allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token.|
+|enterprise_server_host|string|enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.|
+|enterprise_slug|string|enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.|
+|static_jwks|string|static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.|
+
+### spec.github.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|actor|string||
+|enterprise|string||
+|enterprise_id|string||
+|environment|string||
+|ref|string||
+|ref_type|string||
+|repository|string||
+|repository_owner|string||
+|sub|string||
+|workflow|string||
 
 ### spec.immutable_labels
 
