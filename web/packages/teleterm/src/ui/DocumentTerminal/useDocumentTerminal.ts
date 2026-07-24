@@ -89,7 +89,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
     return () => {
       if (attempt.status === 'success') {
         void attempt.data.ptyProcess.dispose().catch(error => {
-          logger.error(`Failed to dispose of the PTY process: ${error}`);
+          logger.error('Failed to dispose of the PTY process', error);
         });
       }
     };

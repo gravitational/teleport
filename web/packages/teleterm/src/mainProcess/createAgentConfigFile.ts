@@ -22,6 +22,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import * as connectMyComputer from 'shared/connectMyComputer';
+import { isErrnoException } from 'shared/utils/error';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
@@ -127,7 +128,7 @@ export async function isAgentConfigFileCreated(
     await fs.access(configFile);
     return true;
   } catch (e) {
-    if (e.code === 'ENOENT') {
+    if (isErrnoException(e, 'ENOENT')) {
       return false;
     }
     throw e;

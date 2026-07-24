@@ -71,7 +71,11 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
   } catch (error) {
     // `error instanceof TypeError` doesn't work in tests. The URL constructor shouldn't throw other
     // errors anyway.
-    return { status: 'error', reason: 'malformed-url', error };
+    return {
+      status: 'error',
+      reason: 'malformed-url',
+      error: error as TypeError,
+    };
   }
 
   if (parsedURL.protocol !== `${CUSTOM_PROTOCOL}:`) {

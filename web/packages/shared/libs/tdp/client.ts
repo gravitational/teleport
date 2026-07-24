@@ -26,7 +26,7 @@ import init, {
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 // Inlines the wasm module as a static asset bundled with our app.
 import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
-import { ensureError, isAbortError } from 'shared/utils/error';
+import { ensureError, getErrorMessage, isAbortError } from 'shared/utils/error';
 
 import {
   Alert,
@@ -737,7 +737,7 @@ export class TdpClient extends EventEmitter<EventMap> {
           path: req.path,
         },
       });
-      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
+      this.handleWarning(getErrorMessage(e), TdpClientEvent.CLIENT_WARNING);
     }
   }
 
@@ -762,7 +762,7 @@ export class TdpClient extends EventEmitter<EventMap> {
         directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Failed,
       });
-      this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
+      this.handleWarning(getErrorMessage(e), TdpClientEvent.CLIENT_WARNING);
     }
   }
 

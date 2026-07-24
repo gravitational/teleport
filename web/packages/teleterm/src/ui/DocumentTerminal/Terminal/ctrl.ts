@@ -238,14 +238,15 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.onData(data => {
       this.ptyProcess.write(data).catch(error => {
-        this.logger.error(`Failed to write to the PTY process: ${error}`);
+        this.logger.error('Failed to write to the PTY process', error);
       });
     });
 
     this.term.onResize(size => {
       this.ptyProcess.resize(size.cols, size.rows).catch(error => {
         this.logger.error(
-          `Failed to send resize request to the PTY process: ${error}`
+          'Failed to send resize request to the PTY process',
+          error
         );
       });
     });
@@ -259,7 +260,7 @@ export default class TtyTerminal implements TerminalSearcher {
     // The shared process version of PtyProcess knows whether it was started or not (the status
     // field), so it's a matter of exposing this field through gRPC and reading it here.
     this.ptyProcess.start(this.term.cols, this.term.rows).catch(error => {
-      this.logger.error(`Failed to start the PTY process: ${error}`);
+      this.logger.error('Failed to start the PTY process', error);
     });
 
     window.addEventListener('resize', this.debouncedResize);

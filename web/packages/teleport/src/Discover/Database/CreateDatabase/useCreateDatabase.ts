@@ -330,7 +330,7 @@ export function useCreateDatabase() {
     setAttempt({ status: '' });
   }
 
-  function handleRequestError(err: Error, preErrMsg = '') {
+  function handleRequestError(err: unknown, preErrMsg = '') {
     const message = getErrMessage(err);
     setAttempt({ status: 'failed', statusText: `${preErrMsg}${message}` });
     emitErrorEvent(`${preErrMsg}${message}`);

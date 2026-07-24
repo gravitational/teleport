@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ensureError, isAbortError } from './error';
+import { ensureError, isAbortError, isErrnoException } from './error';
 
 class CustomErrorClass extends Error {
   constructor(message: string) {
@@ -112,6 +112,78 @@ describe('isAbortError', () => {
     it('is abort error', () => {
       expect(isAbortError(ErrorType())).toBe(true);
     });
+  });
+});
+
+describe('isErrnoException', () => {
+  const cases: {
+    name: string;
+    input: unknown;
+    code?: string;
+    expected: boolean;
+  }[] = [
+    {
+      name: 'Error with a code, no expected code',
+      input: Object.assign(new Error('failed'), { code: 'ENOENT' }),
+      expected: true,
+    },
+    {
+      name: 'Error without a code, no expected code',
+      input: new Error('failed'),
+      expected: false,
+    },
+    {
+      name: 'Error with a matching code',
+      input: Object.assign(new Error('failed'), { code: 'ENOENT' }),
+      code: 'ENOENT',
+      expected: true,
+    },
+    {
+      name: 'Error with a non-matching code',
+      input: Object.assign(new Error('failed'), { code: 'EPERM' }),
+      code: 'ENOENT',
+      expected: false,
+    },
+    {
+      name: 'Error without a code, expected code',
+      input: new Error('failed'),
+      code: 'ENOENT',
+      expected: false,
+    },
+    {
+      name: 'serialized error with a code',
+      input: {
+        name: 'Error',
+        message: 'failed',
+        code: 'ENOENT',
+      },
+      code: 'ENOENT',
+      expected: true,
+    },
+    {
+      name: 'object with a non-string code',
+      input: { code: 123 },
+      expected: false,
+    },
+    {
+      name: 'string',
+      input: 'ENOENT',
+      expected: false,
+    },
+    {
+      name: 'null',
+      input: null,
+      expected: false,
+    },
+    {
+      name: 'undefined',
+      input: undefined,
+      expected: false,
+    },
+  ];
+
+  test.each(cases)('$name', ({ input, code, expected }) => {
+    expect(isErrnoException(input, code)).toBe(expected);
   });
 });
 
