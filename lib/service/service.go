@@ -761,7 +761,7 @@ type TeleportProcess struct {
 	metricsRegistry *metrics.Registry
 
 	// TODO(russjones)
-	healthMetric *cache.CacheHealth
+	healthMetric *cache.HealthReporter
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).

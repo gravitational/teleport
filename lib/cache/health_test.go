@@ -40,7 +40,10 @@ func (m *machine) init(t *rapid.T) {
 	m.healthyUp = map[*Cache]bool{}
 	m.closed = map[*Cache]bool{}
 
-	hm, _ := NewHealthMetric(metrics.NoopRegistry())
+	healthReporter, err := NewHealthReporter(metrics.NoopRegistry())
+	if err != nil {
+		t.Fatalf("Failed to create health reporter: %v.", err)
+	}
 
 	// Create 2, 3, or 4 caches.
 	for range rapid.IntRange(2, 4).Draw(t, "n") {
@@ -50,8 +53,8 @@ func (m *machine) init(t *rapid.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		c := &Cache{
 			Config: Config{
-				target:       "auth",
-				HealthMetric: hm,
+				target:         "auth",
+				HealthReporter: healthReporter,
 			},
 			ctx:                   ctx,
 			cancel:                cancel,
@@ -129,8 +132,7 @@ func (m *machine) expected() float64 {
 // value matches the received value of the gauge.
 func (m *machine) Check(t *rapid.T) {
 	for _, c := range m.all {
-		//got := testutil.ToFloat64(cacheHealth.WithLabelValues("auth"))
-		got := c.HealthMetric.anyHealthy(c.target)
+		got := c.HealthReporter.anyHealthy(c.target)
 		want := m.expected()
 
 		if got != want {

@@ -25,20 +25,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// TODO(russjones): Rename to CacheHealth.
-type CacheHealth struct {
+// TODO(russjones): Write comment. Think of a better name?
+type HealthReporter struct {
 	mu sync.Mutex
 
 	// gauge is the underlying Prometheus metric that is emitted.
 	gauge *prometheus.GaugeVec
 	// health maps a caches target to an instance of a cache to the health of a
-	// cache. A single CacheHealth is created for a TeleportProcess which means
+	// cache. A single HealthReporter is created for a TeleportProcess which means
 	// caches for many different targets must be tracked. For example: okta,
 	// auth, discovery.
 	health map[string]map[*Cache]bool
 }
 
-func NewHealthMetric(registry *metrics.Registry) (*CacheHealth, error) {
+func NewHealthReporter(registry *metrics.Registry) (*HealthReporter, error) {
 	gauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: registry.Namespace(),
@@ -48,18 +48,17 @@ func NewHealthMetric(registry *metrics.Registry) (*CacheHealth, error) {
 		},
 		[]string{teleport.TagCacheComponent},
 	)
-
 	if err := metrics.RegisterCollectors(registry, gauge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &CacheHealth{
+	return &HealthReporter{
 		gauge:  gauge,
 		health: make(map[string]map[*Cache]bool),
 	}, nil
 }
 
-func (m *CacheHealth) Report(c *Cache, health bool) {
+func (m *HealthReporter) Report(c *Cache, health bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -77,8 +76,7 @@ func (m *CacheHealth) Report(c *Cache, health bool) {
 	m.gauge.WithLabelValues(c.target).Set(m.anyHealthy(c.target))
 }
 
-// TODO(russjones): Rename to Close().
-func (m *CacheHealth) Deregister(c *Cache) {
+func (m *HealthReporter) Deregister(c *Cache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -90,18 +88,16 @@ func (m *CacheHealth) Deregister(c *Cache) {
 	m.gauge.WithLabelValues(c.target).Set(m.anyHealthy(c.target))
 }
 
-func (m *CacheHealth) anyHealthy(target string) float64 {
-	cm := m.health[target]
-
+func (m *HealthReporter) anyHealthy(target string) float64 {
 	// If no cache is up, report healthy. This is a valid state and
 	// alternative to deleting this metric.
-	if len(cm) == 0 {
+	if len(m.health[target]) == 0 {
 		return 1.0
 	}
 
 	// If any cache is is healthy, report healthy status.
-	for _, v := range cm {
-		if v {
+	for _, healthy := range m.health[target] {
+		if healthy {
 			return 1.0
 		}
 	}

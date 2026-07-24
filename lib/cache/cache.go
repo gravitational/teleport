@@ -598,11 +598,8 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		//cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		//cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
-	c.Config.HealthMetric.Report(c, err == nil)
+	c.Config.HealthReporter.Report(c, err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -806,8 +803,8 @@ type Config struct {
 	Tracer oteltrace.Tracer
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
-	// TODO(russjones):
-	HealthMetric *CacheHealth
+	// TODO(russjones): Write comment.
+	HealthReporter *HealthReporter
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -1544,7 +1541,7 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
-	c.Config.HealthMetric.Deregister(c)
+	c.Config.HealthReporter.Deregister(c)
 
 	return nil
 }
