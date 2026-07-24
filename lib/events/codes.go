@@ -525,6 +525,11 @@ const (
 	DeviceWebTokenCreateCode = "TV008I"
 	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
 	DeviceAuthenticateConfirmCode = "TV009I"
+	// DeviceEnrollPairingRequestCode is the device enroll pairing request code.
+	DeviceEnrollPairingRequestCode = "TV010I"
+	// DeviceEnrollPairingRequestFailureCode is the device enroll pairing request
+	// failure code.
+	DeviceEnrollPairingRequestFailureCode = "TV010W"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

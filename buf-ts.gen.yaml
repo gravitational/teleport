@@ -5,6 +5,7 @@ inputs:
     paths:
       - api/proto/teleport/userpreferences/
       - api/proto/teleport/desktop/
+      - api/proto/teleport/devicetrust/v1/os_type.proto
       - proto/prehog/
       - proto/teleport/lib/teleterm/
       - proto/teleport/lib/vnet/diag/
