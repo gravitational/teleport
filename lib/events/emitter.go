@@ -245,39 +245,51 @@ func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []a
 	}
 
 	var successfullyDelivered []auditqueue.Item
+	var failed int
+	var firstErr error
 	for _, item := range items {
 		if ctx.Err() != nil {
-			return successfullyDelivered
+			break
 		}
-		if a.deliverBatch(ctx, batchEmitter, item) {
-			successfullyDelivered = append(successfullyDelivered, item)
+		if err := a.deliverBatch(ctx, batchEmitter, item); err != nil {
+			failed++
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
+		successfullyDelivered = append(successfullyDelivered, item)
+	}
+	if failed > 0 && ctx.Err() == nil {
+		slog.ErrorContext(ctx, "Failed to emit audit events.",
+			"count", failed,
+			"error", firstErr,
+		)
 	}
 	return successfullyDelivered
 }
 
-func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.BatchEmitter, item auditqueue.Item) bool {
+func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.BatchEmitter, item auditqueue.Item) error {
 	if batchEmitter != nil {
 		err := batchEmitter.EmitAuditEvents(ctx, item.Events)
 		if err == nil {
-			return true
+			return nil
 		}
 		if ctx.Err() != nil {
-			return false
+			return trace.Wrap(err)
 		}
 		slog.WarnContext(ctx, "Failed to emit audit events as a batch, falling back to per-event delivery.", "error", err)
 	}
 
 	for _, event := range item.Events {
-		if ctx.Err() != nil {
-			return false
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
 		}
 		if err := a.cfg.Inner.EmitAuditEvent(ctx, event); err != nil {
-			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
-			return false
+			return trace.Wrap(err)
 		}
 	}
-	return true
+	return nil
 }
 
 // EmitAuditEvent emits audit event without blocking the caller. It will start

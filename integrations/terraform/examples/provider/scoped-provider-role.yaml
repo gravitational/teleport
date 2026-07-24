@@ -1,0 +1,22 @@
+version: v1
+kind: scoped_role
+metadata:
+  name: terraform-provider
+scope: "/"
+spec:
+  assignable_scopes: ["/**"]
+  rules:
+    - resources: ["scoped_role", "scoped_role_assignment", "bot"]
+      verbs:
+        - list
+        - create
+        - readnosecrets
+        - update
+        - delete
+    - resources: ["scoped_token"]
+      verbs:
+        - list
+        - create
+        - read
+        - update
+        - delete

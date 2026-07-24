@@ -28,6 +28,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
@@ -136,6 +137,12 @@ func (g *scopedRoleTestingPrimitives) ModifyKubernetesResource(ctx context.Conte
 	}
 	role.Spec.AssignableScopes = []string{"/staging/aa", "/staging/bb"}
 	role.Spec.Ssh = accessv1.ScopedRoleSSH_builder{
+		Labels: []*labelv1.Label{
+			labelv1.Label_builder{
+				Name:   "*",
+				Values: []string{"*"},
+			}.Build(),
+		},
 		HostSudoers: []string{"test"},
 	}.Build()
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, role))

@@ -88,6 +88,134 @@ func TestDrain_DrainsMainQueue(t *testing.T) {
 	}
 }
 
+func TestDrain_FlushesDeadLetter(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             1,
+				DeadLetterSweepInterval: time.Hour, // only Drain may trigger sweeps
+			})
+
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
+
+			var failing atomic.Bool
+			failing.Store(true)
+			var delivered atomic.Int64
+			handler := func(_ context.Context, items []Item) []Item {
+				if failing.Load() {
+					return nil
+				}
+				delivered.Add(int64(len(items)))
+				return items
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			// Wait for the event to exhaust its attempts and land in the
+			// dead-letter queue, emptying the main queue.
+			sq := underlyingQueue(t, q)
+			require.Eventually(t, func() bool {
+				dl, err := fetchDeadLetter(ctx, sq.db, 10)
+				return err == nil && len(dl) == 1
+			}, testDefaultTimeout, 10*time.Millisecond)
+
+			drainCtx, drainCancel := context.WithTimeout(ctx, testDefaultTimeout)
+			t.Cleanup(drainCancel)
+
+			drainDone := make(chan error, 1)
+			go func() { drainDone <- q.Drain(drainCtx) }()
+
+			select {
+			case <-drainDone:
+				t.Fatal("Drain returned while dead-letter events were pending")
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			failing.Store(false)
+			select {
+			case err := <-drainDone:
+				require.NoError(t, err)
+			case <-time.After(testDefaultTimeout):
+				t.Fatal("Drain did not return after the dead-letter queue drained")
+			}
+			require.Equal(t, int64(1), delivered.Load())
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
+func TestDrainKickPolicy(t *testing.T) {
+	t.Parallel()
+
+	// ticksUntilKick advances the policy until shouldKick reports true and
+	// returns how many ticks that took.
+	ticksUntilKick := func(t *testing.T, p *drainKickPolicy, deadLetterCount int64, maxTicks int) int {
+		t.Helper()
+		for i := 0; i <= maxTicks; i++ {
+			if p.shouldKick(deadLetterCount) {
+				return i
+			}
+			p.tick()
+		}
+		t.Fatalf("no kick after %d ticks", maxTicks)
+		return 0
+	}
+
+	t.Run("no kick before first tick", func(t *testing.T) {
+		t.Parallel()
+		p := newDrainKickPolicy()
+		require.False(t, p.shouldKick(10), "must not kick immediately after the initial synchronous sweep")
+		p.tick()
+		require.True(t, p.shouldKick(10))
+	})
+
+	t.Run("backoff doubles without progress", func(t *testing.T) {
+		t.Parallel()
+		p := newDrainKickPolicy()
+		ticksUntilKick(t, p, 10, 1)
+		require.Equal(t, 2, ticksUntilKick(t, p, 10, 10))
+		require.Equal(t, 4, ticksUntilKick(t, p, 10, 10))
+		require.Equal(t, 8, ticksUntilKick(t, p, 10, 10))
+	})
+
+	t.Run("backoff caps at maxDrainKickBackoff", func(t *testing.T) {
+		t.Parallel()
+		p := newDrainKickPolicy()
+		maxTicks := int(maxDrainKickBackoff/pollInterval) + 1
+		for range 20 {
+			ticksUntilKick(t, p, 10, maxTicks)
+		}
+		require.Equal(t, int(maxDrainKickBackoff/pollInterval), ticksUntilKick(t, p, 10, maxTicks))
+	})
+
+	t.Run("progress kicks immediately and resets backoff", func(t *testing.T) {
+		t.Parallel()
+		p := newDrainKickPolicy()
+		ticksUntilKick(t, p, 10, 1)
+		ticksUntilKick(t, p, 10, 10)
+		ticksUntilKick(t, p, 10, 10)
+		require.True(t, p.shouldKick(9), "shrinking dead-letter queue must kick immediately")
+		require.Equal(t, 1, ticksUntilKick(t, p, 9, 10), "backoff must reset after progress")
+	})
+
+	t.Run("growing count is not progress", func(t *testing.T) {
+		t.Parallel()
+		p := newDrainKickPolicy()
+		ticksUntilKick(t, p, 10, 1)
+		require.False(t, p.shouldKick(15), "new dead-letter promotions must not bypass the backoff")
+		require.Equal(t, 2, ticksUntilKick(t, p, 15, 10))
+	})
+}
+
 func TestDrain_RespectsContextDeadline(t *testing.T) {
 	t.Parallel()
 

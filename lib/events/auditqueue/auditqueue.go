@@ -107,6 +107,9 @@ type Stats struct {
 	PendingCount int64
 	// DeadLetterCount is the number of events in the dead-letter queue.
 	DeadLetterCount int64
+	// CorruptCount is the number of events quarantined because their payloads
+	// failed to deserialize.
+	CorruptCount int64
 }
 
 // Sealer encrypts audit event payloads before they are written to disk.
@@ -133,9 +136,9 @@ type Queue interface {
 	Run(ctx context.Context, handler Handler) error
 	// Drain blocks until the queue is drained. It makes a best-effort attempt
 	// to forward all pending events to the consumer before shutdown. It stops
-	// adopting new orphans and waits for the main queue to empty or for ctx to
-	// be done, whichever comes first. Drain does not close the queue. Callers
-	// must still call Close.
+	// adopting new orphans and waits for both the main queue and the
+	// dead-letter queue to empty or for ctx to be done, whichever comes first.
+	// Callers must still call Close.
 	Drain(ctx context.Context) error
 	// Stats reports the current depth of the queue (pending and dead-letter
 	// counts).
