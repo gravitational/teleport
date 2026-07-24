@@ -427,13 +427,20 @@ func parseLDAPReferral(raw string) (ldapReferral, error) {
 	}
 
 	isValidHostPort := func(host string) error {
+		// As a first pass, run it through the standard URL parser.
+		if _, err := url.Parse(scheme + host); err != nil {
+			return trace.BadParameter("malformed LDAP URL - invalid address or hostname: %v", err)
+		}
+
+		// url.Parse misses invalid characters in hostnames. ex, "host_name:8080" contains
+		// an illegal underscore, but passes validation above. We'll be a little more strict.
 		const subDelims = "!$&'()*+,;=:"
 		for _, r := range host {
 			switch {
 			case r >= 'A' && r <= 'Z':
 			case r >= 'a' && r <= 'z':
 			case r >= '0' && r <= '9':
-			case r == '-' || r == '.' || r == '_' || r == '~':
+			case r == '-' || r == '.' || r == '_' || r == '~' || r == '[' || r == ']':
 			case strings.ContainsRune(subDelims, r):
 			case r == '%':
 			default:
