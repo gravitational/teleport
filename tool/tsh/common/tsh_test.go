@@ -98,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/reexec"
@@ -953,6 +954,69 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	for _, oldKey := range keysAfterMax {
 		require.NotContains(t, keysAfterMaxRescoped, oldKey)
 	}
+}
+
+// TestLoginForceReauth verifies that "tsh login --force" re-authenticates even
+// when the active profile is still valid, so a role granted server-side is
+// picked up without a separate logout. A plain "tsh login" on a valid session
+// short-circuits and keeps the existing certificate, so the new role does not
+// appear until --force is used.
+func TestLoginForceReauth(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tmpHomePath := t.TempDir()
+
+	// A role alice does not hold at first login.
+	extra, err := types.NewRole("extra", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, extra, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	login := func(t *testing.T, extraArgs ...string) string {
+		t.Helper()
+		out := &output{}
+		args := append([]string{
+			"login",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+			"--user", alice.GetName(),
+		}, extraArgs...)
+		err := Run(ctx, args,
+			setHomePath(tmpHomePath),
+			setMockSSOLogin(authServer, alice, connector.GetName()),
+			func(cf *CLIConf) error {
+				cf.OverrideStdout = out
+				return nil
+			})
+		require.NoError(t, err)
+		return out.String()
+	}
+
+	// Initial login: the certificate carries only "access".
+	require.NotContains(t, login(t), extra.GetName())
+
+	// Grant the extra role server-side.
+	alice.SetRoles([]string{"access", extra.GetName()})
+	_, err = authServer.UpsertUser(ctx, alice)
+	require.NoError(t, err)
+
+	// A plain login on a still-valid session short-circuits: the certificate is
+	// not reissued, so the new role is not reflected.
+	require.NotContains(t, login(t), extra.GetName())
+
+	// --force re-authenticates and reissues the certificate, picking up the new
+	// role without a separate logout.
+	require.Regexp(t, regexp.MustCompile(`Roles:\s.*\bextra\b`), login(t, "--force"))
 }
 
 func TestRelogin(t *testing.T) {
@@ -8163,6 +8227,28 @@ func prepareCLIOptionForReadingLoggingOpts() (func(t *testing.T) loggingOpts, Cl
 	return mustReadLoggingOpts, setLoggingOptsFromCLIConf
 }
 
+func Test_validateKingpinAppHelp(t *testing.T) {
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			issues := testutils.FindKingpinAppHelpIssues(cf.kingpinApp)
+			if len(issues) > 0 {
+				t.Log("Found", len(issues), "issues")
+				for _, issue := range issues {
+					t.Log(issue)
+				}
+			}
+			require.Empty(t, issues)
+			return trace.BadParameter("no need to continue")
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter("no need to continue"))
+}
+
 func TestSSHForkAfterAuthentication(t *testing.T) {
 	u, err := user.Current()
 	require.NoError(t, err)
@@ -8482,4 +8568,179 @@ func TestSSHEnv(t *testing.T) {
 			require.Empty(t, stderr.String())
 		})
 	}
+}
+
+func TestConfigureProxyStatusOutput(t *testing.T) {
+	t.Run("stdout preserves override", func(t *testing.T) {
+		stdout := &bytes.Buffer{}
+		cf := &CLIConf{
+			OverrideStdout: stdout,
+		}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStdout))
+
+		require.Same(t, stdout, cf.ProxyStatusOutput())
+	})
+
+	t.Run("stderr uses stderr writer", func(t *testing.T) {
+		stderr := &bytes.Buffer{}
+		cf := &CLIConf{
+			OverrideStdout: &bytes.Buffer{},
+			overrideStderr: stderr,
+		}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputStderr))
+
+		require.Same(t, stderr, cf.ProxyStatusOutput())
+		require.NotSame(t, stderr, cf.Stdout())
+	})
+
+	t.Run("none discards output", func(t *testing.T) {
+		cf := &CLIConf{}
+
+		require.NoError(t, configureProxyStatusOutput(cf, proxyStatusOutputNone))
+
+		require.Equal(t, io.Discard, cf.ProxyStatusOutput())
+	})
+
+	t.Run("empty output defaults to stderr", func(t *testing.T) {
+		cf := &CLIConf{}
+
+		require.NoError(t, configureProxyStatusOutput(cf, ""))
+
+		require.Equal(t, os.Stderr, cf.ProxyStatusOutput())
+	})
+
+	t.Run("unknown output fails", func(t *testing.T) {
+		err := configureProxyStatusOutput(&CLIConf{}, "unknown")
+
+		require.ErrorContains(t, err, "unreachable code")
+	})
+}
+
+func TestProxyStatusOutputParsing(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		env      map[string]string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "default stderr",
+			expected: proxyStatusOutputStderr,
+		},
+		// Kingpin treats an empty environment variable as unset, so the default
+		// value is used. An explicitly empty flag is rejected as an invalid enum.
+		{
+			name: "empty env defaults to stderr",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: "",
+			},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name: "env stdout",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStdout,
+			},
+			expected: proxyStatusOutputStdout,
+		},
+		{
+			name: "env stderr",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
+			},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name: "env none",
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputNone,
+			},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name:     "flag stdout",
+			args:     []string{"--proxy-log-output=stdout"},
+			expected: proxyStatusOutputStdout,
+		},
+		{
+			name:    "empty flag fails parsing",
+			args:    []string{"--proxy-log-output="},
+			wantErr: true,
+		},
+		{
+			name:     "flag stderr",
+			args:     []string{"--proxy-log-output=stderr"},
+			expected: proxyStatusOutputStderr,
+		},
+		{
+			name:     "flag none",
+			args:     []string{"--proxy-log-output=none"},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name: "flag overrides env",
+			args: []string{"--proxy-log-output=none"},
+			env: map[string]string{
+				proxyStatusOutputEnvVar: proxyStatusOutputStderr,
+			},
+			expected: proxyStatusOutputNone,
+		},
+		{
+			name:    "invalid env",
+			env:     map[string]string{proxyStatusOutputEnvVar: "foobar"},
+			wantErr: true,
+		},
+		{
+			name:    "invalid flag",
+			args:    []string{"--proxy-log-output=foobar"},
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			var proxyStatusOutput string
+			app := utils.InitCLIParser("tsh", "Teleport Command Line Client.")
+			app.Flag("proxy-log-output", "Test fixture only, help message not tested in this test").
+				Envar(proxyStatusOutputEnvVar).
+				Hidden().
+				Default(proxyStatusOutputDefault).
+				EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
+			_, err := app.Parse(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, proxyStatusOutput)
+		})
+	}
+}
+
+func TestProxyStatusOutputHelp(t *testing.T) {
+	const success_param = "parameters-verified, short-circuit success"
+	err := Run(
+		context.Background(),
+		[]string{"version"},
+		setHomePath(t.TempDir()),
+		func(cf *CLIConf) error {
+			require.NotNil(t, cf.kingpinApp)
+
+			var buf bytes.Buffer
+			cf.kingpinApp.UsageWriter(&buf)
+			ctx, err := cf.kingpinApp.ParseContext([]string{"proxy", "--help"})
+			require.NoError(t, err)
+			require.NoError(t, cf.kingpinApp.UsageForContext(ctx))
+
+			help := buf.String()
+			require.Contains(t, help, "--proxy-log-output")
+			return trace.BadParameter(success_param)
+		},
+	)
+	require.ErrorIs(t, err, trace.BadParameter(success_param))
 }

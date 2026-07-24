@@ -30,6 +30,7 @@ import (
 	"maps"
 	"net"
 	"os"
+	goslices "slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -987,7 +988,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
 		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:           append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
+		LockTargets:           goslices.AppendSeq([]types.LockTarget{{WindowsDesktop: desktop.GetName()}}, services.LockTargetsFromTLSIdentity(identity)),
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
 		UserOriginClusterName: identity.OriginClusterName,

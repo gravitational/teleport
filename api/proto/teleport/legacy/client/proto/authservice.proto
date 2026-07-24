@@ -193,6 +193,8 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
+    AccessGraphAPI = 6;
     // LinuxDesktop means a request for a TLS certificate for access to a specific
     // linux desktop.
     // Field number 7 matches master

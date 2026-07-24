@@ -117,6 +117,10 @@ type WebSession interface {
 	// requirement.
 	// See [TrustedDeviceRequirement].
 	GetTrustedDeviceRequirement() TrustedDeviceRequirement
+	// GetUsage returns the intended usage of the session.
+	GetUsage() WebSessionUsage
+	// SetUsage sets the intended usage of the session.
+	SetUsage(WebSessionUsage)
 	// GetDBSCPublicKey returns the device-bound public key (JWK format) for
 	// Device Bound Session Credentials.
 	GetDBSCPublicKey() []byte
@@ -266,6 +270,16 @@ func (ws *WebSessionV2) SetTrustedDeviceRequirement(r TrustedDeviceRequirement) 
 // requirement.
 func (ws *WebSessionV2) GetTrustedDeviceRequirement() TrustedDeviceRequirement {
 	return ws.Spec.TrustedDeviceRequirement
+}
+
+// GetUsage returns the intended usage of the session.
+func (ws *WebSessionV2) GetUsage() WebSessionUsage {
+	return ws.Spec.Usage
+}
+
+// SetUsage sets the intended usage of the session.
+func (ws *WebSessionV2) SetUsage(usage WebSessionUsage) {
+	ws.Spec.Usage = usage
 }
 
 // GetDBSCPublicKey returns the device-bound public key (JWK format) for

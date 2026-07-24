@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/autoupdate/v1/autoupdate.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package autoupdate
 

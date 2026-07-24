@@ -16,6 +16,10 @@ on:
       - "lib/srv/desktop/rdp/decoder/Cargo.toml"
       - "lib/srv/desktop/rdp/decoder/src/**.rs"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     name: Build on Windows

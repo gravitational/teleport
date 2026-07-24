@@ -30,9 +30,11 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -64,6 +66,151 @@ func unwrapResource153[T types.Resource153](t *testing.T, r types.Resource) T {
 
 	dst := u.UnwrapT()
 	return dst
+}
+
+func mustEncodeScopeForKey(t *testing.T, scope string) string {
+	t.Helper()
+
+	encoded, err := scopes.EncodeForKey(scope)
+	require.NoError(t, err)
+	return encoded
+}
+
+func TestAccessListParserScopedDelete(t *testing.T) {
+	const scope = "/eng/platform"
+	key := backend.NewKey(scopedPrefix, accessListPrefix, mustEncodeScopeForKey(t, scope), "reviewed")
+	event := backend.Event{
+		Type: types.OpDelete,
+		Item: backend.Item{Key: key},
+	}
+
+	parser := newAccessListParser()
+	require.True(t, parser.match(key))
+
+	resource, err := parser.parse(event)
+	require.NoError(t, err)
+
+	accessList, ok := resource.(*accesslist.AccessList)
+	require.True(t, ok)
+	require.Equal(t, types.KindAccessList, accessList.GetKind())
+	require.Equal(t, "reviewed", accessList.GetName())
+	require.Equal(t, scope, accessList.Scope)
+}
+
+func TestAccessListMemberParserScopedDelete(t *testing.T) {
+	const listScope = "/eng/platform"
+
+	tests := []struct {
+		name                   string
+		member                 scopes.QualifiedName
+		expectedMembershipKind string
+	}{
+		{
+			name:                   "unscoped member",
+			member:                 scopes.QualifiedName{Name: "alice"},
+			expectedMembershipKind: accesslist.MembershipKindUnspecified,
+		},
+		{
+			name:                   "scoped list member",
+			member:                 scopes.QualifiedName{Scope: "/eng", Name: "team"},
+			expectedMembershipKind: accesslist.MembershipKindScopedList,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			key := backend.NewKey(
+				scopedPrefix,
+				accessListMemberPrefix,
+				mustEncodeScopeForKey(t, listScope),
+				"reviewed",
+				mustEncodeScopeForKey(t, test.member.Scope),
+				test.member.Name,
+			)
+			event := backend.Event{
+				Type: types.OpDelete,
+				Item: backend.Item{Key: key},
+			}
+
+			parser := newAccessListMemberParser()
+			require.True(t, parser.match(key))
+
+			resource, err := parser.parse(event)
+			require.NoError(t, err)
+
+			member, ok := resource.(*accesslist.AccessListMember)
+			require.True(t, ok)
+			require.Equal(t, types.KindAccessListMember, member.GetKind())
+			require.Equal(t, test.member.String(), member.GetName())
+			require.Equal(t, listScope, member.Scope)
+			require.Equal(t, scopes.QualifiedName{Scope: listScope, Name: "reviewed"}.String(), member.Spec.AccessList)
+			require.Equal(t, test.member.String(), member.Spec.Name)
+			require.Equal(t, test.expectedMembershipKind, member.Spec.MembershipKind)
+		})
+	}
+}
+
+func TestAccessListReviewParserScopedDelete(t *testing.T) {
+	const scope = "/eng/platform"
+	key := backend.NewKey(scopedPrefix, accessListReviewPrefix, mustEncodeScopeForKey(t, scope), "reviewed", "review-1")
+	event := backend.Event{
+		Type: types.OpDelete,
+		Item: backend.Item{Key: key},
+	}
+
+	parser := newAccessListReviewParser()
+	require.True(t, parser.match(key))
+
+	resource, err := parser.parse(event)
+	require.NoError(t, err)
+
+	review, ok := resource.(*accesslist.Review)
+	require.True(t, ok)
+	require.Equal(t, types.KindAccessListReview, review.GetKind())
+	require.Equal(t, "review-1", review.GetName())
+	require.Equal(t, scope, review.Scope)
+	require.Equal(t, scopes.QualifiedName{Scope: scope, Name: "reviewed"}.String(), review.Spec.AccessList)
+}
+
+func TestAccessListScopedDeleteParserRejectsMalformedKeys(t *testing.T) {
+	tests := []struct {
+		name   string
+		parser resourceParser
+		key    backend.Key
+	}{
+		{
+			name:   "access list missing name",
+			parser: newAccessListParser(),
+			key:    backend.NewKey(scopedPrefix, accessListPrefix, mustEncodeScopeForKey(t, "/eng/platform")),
+		},
+		{
+			name:   "member missing member name",
+			parser: newAccessListMemberParser(),
+			key: backend.NewKey(
+				scopedPrefix,
+				accessListMemberPrefix,
+				mustEncodeScopeForKey(t, "/eng/platform"),
+				"reviewed",
+				mustEncodeScopeForKey(t, "/eng"),
+			),
+		},
+		{
+			name:   "review has bad encoded scope",
+			parser: newAccessListReviewParser(),
+			key:    backend.NewKey(scopedPrefix, accessListReviewPrefix, "bad-scope", "reviewed", "review-1"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.True(t, test.parser.match(test.key))
+			_, err := test.parser.parse(backend.Event{
+				Type: types.OpDelete,
+				Item: backend.Item{Key: test.key},
+			})
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestWatchers(t *testing.T) {

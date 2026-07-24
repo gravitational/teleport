@@ -459,7 +459,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Name:         "anthropic",
+					Name:         "anthropic-bedrock",
 					StaticLabels: Labels,
 					LLM: &LLM{
 						Format:   "anthropic",
@@ -471,6 +471,17 @@ func TestConfigReading(t *testing.T) {
 							},
 						},
 						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
 					},
 				},
 				{
@@ -1694,7 +1705,7 @@ func makeConfigFixture() string {
 			},
 		},
 		{
-			Name:         "anthropic",
+			Name:         "anthropic-bedrock",
 			StaticLabels: Labels,
 			LLM: &LLM{
 				Format:   "anthropic",
@@ -1706,6 +1717,17 @@ func makeConfigFixture() string {
 					},
 				},
 				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
 			},
 		},
 		{
@@ -2357,6 +2379,7 @@ uQM=
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2427,6 +2450,19 @@ uQM=
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2463,6 +2499,30 @@ uQM=
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},
@@ -2794,6 +2854,21 @@ app_service:
 `,
 			name:   "App TLS configuration fails to read file",
 			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
@@ -3945,6 +4020,44 @@ teleport:
 			expectParsed: &servicecfg.JoinParams{
 				BoundKeypair: servicecfg.BoundKeypairParams{
 					StaticPrivateKeyPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
 				},
 			},
 		},

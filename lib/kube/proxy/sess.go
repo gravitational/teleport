@@ -720,13 +720,12 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		s.log.WarnContext(s.forwarder.ctx, "Failed to set tracker state to running", "error", err)
 	}
 
-	var executor remotecommand.Executor
-
-	executor, err = s.forwarder.getExecutor(s.sess, s.req)
+	executor, executorCleanup, err := s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
 		s.log.WarnContext(s.forwarder.ctx, "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 
 	options := remotecommand.StreamOptions{
 		Stdin:             s.io,

@@ -36,7 +36,11 @@ export type AzureTag = {
   value: string;
 };
 
+export type AzureScope = 'managementGroup' | 'subscription';
+
 export type AzureManagedIdentity = {
   region: AzureRegion;
   resourceGroup: string;
+  scope: AzureScope;
+  managementGroupId?: string;
 };

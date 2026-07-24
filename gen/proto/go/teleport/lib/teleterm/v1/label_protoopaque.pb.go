@@ -21,7 +21,7 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/label.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package teletermv1
 

@@ -293,6 +293,7 @@ func (a *Server) newWebSession(
 		LoginTime:           req.LoginTime,
 		IdleTimeout:         types.Duration(idleTimeout),
 		HasDeviceExtensions: hasDeviceExtensions,
+		Usage:               req.Usage,
 	}
 
 	UserLoginCount.Inc()

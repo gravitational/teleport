@@ -86,7 +86,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available Kubernetes clusters")
+	kube := app.Command("kube", "Manage available Kubernetes clusters.")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -492,19 +492,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
-	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen.").Short('c').StringVar(&c.container)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
-	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
-	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
+	c.Flag("filename", "To use to exec into the resource.").Short('f').StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session.").Short('q').BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container.").Short('s').BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY.").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
-	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
-	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
+	c.Arg("target", "Pod or deployment name.").Required().StringVar(&c.target)
+	c.Arg("command", "Command to execute in the container.").Required().StringsVar(&c.command)
 	return c
 }
 
@@ -578,7 +578,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -619,7 +619,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	c := &kubeCredentialsCommand{
 		// This command is always hidden. It's called from the kubeconfig that
 		// tsh generates and never by users directly.
-		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
+		CmdClause: parent.Command("credentials", "Get credentials for kubectl access.").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
@@ -835,6 +835,15 @@ func isNetworkError(err error) bool {
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
 	if profile.RequireKubeLocalProxy() {
+		// If we're inside an active `tsh proxy kube --exec` shell.
+		// Reaching this exec plugin means a Kubernetes client bypassed the local proxy,
+		// typically because KUBECONFIG was overridden (e.g. by a shell startup file).
+		// Point the user at the fix instead of the generic message.
+		if sessionKubeconfig := os.Getenv(kubeLocalProxyEnvVar); sessionKubeconfig != "" {
+			return trace.BadParameter(`this Kubernetes client invoked "tsh kube credentials" from inside an active "tsh proxy kube" session, bypassing the local proxy.
+Your KUBECONFIG no longer points at the session config, usually because a shell startup file or another tool overrode it.
+Run 'export KUBECONFIG=%s' to use the local proxy, or check your shell configuration.`, sessionKubeconfig)
+		}
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
@@ -1242,13 +1251,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\".").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
-	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
+	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource access requests.").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
@@ -1434,7 +1443,7 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
 	if tc.Profile().RequireKubeLocalProxy() {
-		c.printLocalProxyUserMessage(cf, names)
+		c.printLocalProxyUserMessage(cf, names, tc.Profile().PrivateKeyPolicy.IsHardwareKeyPolicy())
 		return
 	}
 
@@ -1452,7 +1461,7 @@ Select a context and try 'kubectl version' to test the connection.
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string) {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string, hardwareKey bool) {
 	switch {
 	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
@@ -1461,6 +1470,22 @@ func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []strin
 %v`, strings.Join(names, "\n"))
 	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	if hardwareKey {
+		fmt.Fprintf(cf.Stdout(), `
+
+This cluster requires a hardware-backed private key, which native Kubernetes
+clients cannot use directly, so Kubernetes access must go through a local proxy.
+
+To access the cluster, use "tsh kubectl" to run the Kubernetes client:
+  tsh kubectl version
+
+Or start a local proxy and drop into a shell where native Kubernetes clients are
+ready to use, so you can re-run the same command:
+  tsh proxy kube --exec
+`)
+		return
 	}
 
 	fmt.Fprintf(cf.Stdout(), `

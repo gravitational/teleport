@@ -1,8 +1,11 @@
 packages:
   - web/packages/*
   - e/web/*
+  - e2e
+  - e/e2e
 allowBuilds:
   '@swc/core': true
+  cbor-extract: true
   esbuild: true
   msw: true
   node-pty: true

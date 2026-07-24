@@ -11,3 +11,4 @@ config/*.yaml
 node/*.yaml
 *.log
 .auth/
+!config/resources/*.yaml

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/v1/scopes.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package scopesv1
 
@@ -86,37 +86,79 @@ func (x PinKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
-// one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"
-// a given scope, or what policies are "applicable to" a given scope.
+// Mode determines how a Filter matches resource scopes relative to the scope specified by the
+// filter. Most modes select resources by their relationship to Filter.Scope (exact, descendants,
+// ancestors, or all relatives). Two special modes (MODE_UNSCOPED and MODE_ALL) do not select by
+// relationship and instead match the unscoped subset or everything the caller may see, respectively.
+//
+// NOTE: Our internals treat an unspecified filter and a MODE_ALL filter is both being "match all",
+// *however* the API/authz layer treats them differently. A MODE_ALL filter is interpreted as being
+// intentional. However, an omitted filter is replaced by an identity-dependent default (MODE_EXACT
+// for scoped callers and MODE_UNSCOPED for unscoped callers). This conservative defaulting is a key
+// component of the backwards comatibility and safety story for scope-enabled APIs. Any callsite being
+// updated to use an inclusive filtering mode like MODE_ALL must be carefully validated to ensure that
+// it is safe in the context of issues like the "confused deputy" problem.
 type Mode int32
 
 const (
-	// MODE_UNSPECIFIED indicates that no scope-based filtering has been specified.
+	// MODE_UNSPECIFIED indicates that no scope-based filtering has been specified. Cache/backend impls
+	// treat this as equivalent to MODE_ALL. The API/authz layer replaces this with one of MODE_EXACT or
+	// MODE_UNSCOPED depending on whether the caller is scoped or unscoped, respectively.
 	Mode_MODE_UNSPECIFIED Mode = 0
-	// MODE_RESOURCES_SUBJECT_TO_SCOPE matches scopes by the resource subjugation rules. In the
-	// terminology of scope comparison, this means Equivalent and Descendant scopes. This is the mode that most
-	// user-facing scoped queries should use, as it intuitively answers the question of "what is the contents of
-	// scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
-	Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE Mode = 1
 	// MODE_POLICIES_APPLICABLE_TO_SCOPE matches scopes by the policy application rules. In the
 	// terminology of scope comparison, this means Ancestor and Equivalent scopes. This is the mode that most caching
 	// and access-control related queries should use as it answers the question "what policies might affect access to
 	// this resource at scope X?". See the 'lib/scopes' package for more detailed discussion of scope comparison/heirarchy.
+	//
+	// Deprecated: Marked as deprecated in teleport/scopes/v1/scopes.proto.
 	Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE Mode = 2
+	// MODE_EXACT matches resources in the exact scope specified by Filter.Scope (Equivalent only). This is
+	// the minimal/safe default for watch/list requests initiated by scoped callers that do not specify an
+	// explicit filter.
+	Mode_MODE_EXACT Mode = 3
+	// MODE_DESCENDANTS matches the scope specified by Filter.Scope and all of its descendants. For example,
+	// a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging/west/test`, but not
+	// `/staging` or `/prod/west`.
+	Mode_MODE_DESCENDANTS Mode = 4
+	// MODE_ANCESTORS matches the scope specified by Filter.Scope and all of its ancestors. For example,
+	// a Filter.Scope of `/staging/west` would match `/staging/west` and `/staging`, but not
+	// `/staging/west/test` or `/prod/west`.
+	Mode_MODE_ANCESTORS Mode = 5
+	// MODE_RELATIVES matches the scope specified by Filter.Scope, all of its ancestors, and all of its
+	// descendants (i.e. any non-orthogonal scope). For example, a Filter.Scope of `/staging/west` would match
+	// `/staging/west`, `/staging`, and `/staging/west/test, but not `/prod/west`.
+	Mode_MODE_RELATIVES Mode = 6
+	// MODE_UNSCOPED matches unscoped resources only. Filter.Scope must be empty when this mode is selected.
+	// This is the safe default for watch/list requests initiated by unscoped callers that do not specify an
+	// explicit filter.
+	Mode_MODE_UNSCOPED Mode = 7
+	// MODE_ALL matches all resources that the caller has permission to see (scoped and unscoped). Filter.Scope
+	// must be empty when this mode is selected. This is the mode that most exhaustive user-facing views (e.g. `tctl get`)
+	// should use.
+	Mode_MODE_ALL Mode = 8
 )
 
 // Enum value maps for Mode.
 var (
 	Mode_name = map[int32]string{
 		0: "MODE_UNSPECIFIED",
-		1: "MODE_RESOURCES_SUBJECT_TO_SCOPE",
 		2: "MODE_POLICIES_APPLICABLE_TO_SCOPE",
+		3: "MODE_EXACT",
+		4: "MODE_DESCENDANTS",
+		5: "MODE_ANCESTORS",
+		6: "MODE_RELATIVES",
+		7: "MODE_UNSCOPED",
+		8: "MODE_ALL",
 	}
 	Mode_value = map[string]int32{
 		"MODE_UNSPECIFIED":                  0,
-		"MODE_RESOURCES_SUBJECT_TO_SCOPE":   1,
 		"MODE_POLICIES_APPLICABLE_TO_SCOPE": 2,
+		"MODE_EXACT":                        3,
+		"MODE_DESCENDANTS":                  4,
+		"MODE_ANCESTORS":                    5,
+		"MODE_RELATIVES":                    6,
+		"MODE_UNSCOPED":                     7,
+		"MODE_ALL":                          8,
 	}
 )
 
@@ -363,12 +405,14 @@ func (b0 AssignmentNode_builder) Build() *AssignmentNode {
 
 // RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
 // that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+// The role tree is *relative to* the Scope of Origin that references it (i.e. if assignment node `/staging` contains a role tree
+// with roles at `/west`, the full Scope of Effect for those roles is `/staging/west`).
 type RoleNode struct {
-	state               protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Children map[string]*RoleNode   `protobuf:"bytes,1,rep,name=children,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	xxx_hidden_Roles    []string               `protobuf:"bytes,2,rep,name=roles,proto3"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Children     map[string]*RoleNode   `protobuf:"bytes,1,rep,name=children,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	xxx_hidden_RolesByScope *[]*RolesByScope       `protobuf:"bytes,3,rep,name=roles_by_scope,json=rolesByScope,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *RoleNode) Reset() {
@@ -403,9 +447,11 @@ func (x *RoleNode) GetChildren() map[string]*RoleNode {
 	return nil
 }
 
-func (x *RoleNode) GetRoles() []string {
+func (x *RoleNode) GetRolesByScope() []*RolesByScope {
 	if x != nil {
-		return x.xxx_hidden_Roles
+		if x.xxx_hidden_RolesByScope != nil {
+			return *x.xxx_hidden_RolesByScope
+		}
 	}
 	return nil
 }
@@ -414,17 +460,17 @@ func (x *RoleNode) SetChildren(v map[string]*RoleNode) {
 	x.xxx_hidden_Children = v
 }
 
-func (x *RoleNode) SetRoles(v []string) {
-	x.xxx_hidden_Roles = v
+func (x *RoleNode) SetRolesByScope(v []*RolesByScope) {
+	x.xxx_hidden_RolesByScope = &v
 }
 
 type RoleNode_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// children are the child role nodes, keyed by scope segment.
+	// children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
 	Children map[string]*RoleNode
-	// roles are the roles assigned at this scope level.
-	Roles []string
+	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
+	RolesByScope []*RolesByScope
 }
 
 func (b0 RoleNode_builder) Build() *RoleNode {
@@ -432,7 +478,84 @@ func (b0 RoleNode_builder) Build() *RoleNode {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Children = b.Children
-	x.xxx_hidden_Roles = b.Roles
+	x.xxx_hidden_RolesByScope = &b.RolesByScope
+	return m0
+}
+
+// RolesByScope groups a set of roles that share the same resource scope. Because pins are subject to size constraints when encoded
+// to certificates, we only store the depth (segment count) of the resource scope associated with this set of roles.  Roles are only
+// assignable to equivalent/descendant scopes, and so their resource scope is always a prefix of the Scope of Effect, which is already
+// known at the RoleNode where this entry appears.
+type RolesByScope struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Depth uint32                 `protobuf:"varint,1,opt,name=depth,proto3"`
+	xxx_hidden_Names []string               `protobuf:"bytes,2,rep,name=names,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RolesByScope) Reset() {
+	*x = RolesByScope{}
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RolesByScope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RolesByScope) ProtoMessage() {}
+
+func (x *RolesByScope) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RolesByScope) GetDepth() uint32 {
+	if x != nil {
+		return x.xxx_hidden_Depth
+	}
+	return 0
+}
+
+func (x *RolesByScope) GetNames() []string {
+	if x != nil {
+		return x.xxx_hidden_Names
+	}
+	return nil
+}
+
+func (x *RolesByScope) SetDepth(v uint32) {
+	x.xxx_hidden_Depth = v
+}
+
+func (x *RolesByScope) SetNames(v []string) {
+	x.xxx_hidden_Names = v
+}
+
+type RolesByScope_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// depth is the number of path segments in the roles' resource scope (root=0, /staging/west=2, etc).
+	Depth uint32
+	// names are the role names whose resource scope is at this depth.
+	Names []string
+}
+
+func (b0 RolesByScope_builder) Build() *RolesByScope {
+	m0 := &RolesByScope{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Depth = b.Depth
+	x.xxx_hidden_Names = b.Names
 	return m0
 }
 
@@ -446,7 +569,7 @@ type PinnedAssignments struct {
 
 func (x *PinnedAssignments) Reset() {
 	*x = PinnedAssignments{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +581,7 @@ func (x *PinnedAssignments) String() string {
 func (*PinnedAssignments) ProtoMessage() {}
 
 func (x *PinnedAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -506,7 +629,7 @@ type SystemRoles struct {
 
 func (x *SystemRoles) Reset() {
 	*x = SystemRoles{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +641,7 @@ func (x *SystemRoles) String() string {
 func (*SystemRoles) ProtoMessage() {}
 
 func (x *SystemRoles) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -571,8 +694,13 @@ func (b0 SystemRoles_builder) Build() *SystemRoles {
 	return m0
 }
 
-// Filter is a query parameter that matches other scopes based on a specified scope and mode. Used for
-// filtering resources that are subject to or policies that apply to a given scope.
+// Filter is a query parameter that matches scopes based on a specified scope and mode. See the
+// Mode enum for the semantics of each matching mode, and the 'lib/scopes' package (MatchScope/ValidateFilter)
+// for the authoritative matching and validation logic.
+//
+// Conventionally, list and watch requests for scope-aware types include a `scope_filter` field of this type
+// which matches the resource scope of the associated resource type. Some APIs may also support additional
+// filters (e.g. scoped roles can be filtered by assignable scope).
 type Filter struct {
 	state            protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Scope string                 `protobuf:"bytes,1,opt,name=scope,proto3"`
@@ -583,7 +711,7 @@ type Filter struct {
 
 func (x *Filter) Reset() {
 	*x = Filter{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -595,7 +723,7 @@ func (x *Filter) String() string {
 func (*Filter) ProtoMessage() {}
 
 func (x *Filter) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +759,8 @@ func (x *Filter) SetMode(v Mode) {
 type Filter_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Scope is the scope value to match against.
+	// Scope is the scope value to match against. Must be empty for MODE_UNSCOPED, MODE_ALL, and
+	// MODE_UNSPECIFIED, and non-empty for all relationship-based modes.
 	Scope string
 	// Mode determines the mode of matching.
 	Mode Mode
@@ -661,13 +790,16 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\trole_tree\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\broleTree\x1a_\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\xc3\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\x82\x02\n" +
 	"\bRoleNode\x12F\n" +
-	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12\x14\n" +
-	"\x05roles\x18\x02 \x03(\tR\x05roles\x1aY\n" +
+	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12F\n" +
+	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x1aY\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
-	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01\")\n" +
+	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01J\x04\b\x02\x10\x03R\x05roles\":\n" +
+	"\fRolesByScope\x12\x14\n" +
+	"\x05depth\x18\x01 \x01(\rR\x05depth\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\")\n" +
 	"\x11PinnedAssignments\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\"G\n" +
 	"\vSystemRoles\x12\x18\n" +
@@ -681,41 +813,49 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\aPinKind\x12\x18\n" +
 	"\x14PIN_KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rPIN_KIND_USER\x10\x01\x12\x12\n" +
-	"\x0ePIN_KIND_AGENT\x10\x02*h\n" +
+	"\x0ePIN_KIND_AGENT\x10\x02*\xdd\x01\n" +
 	"\x04Mode\x12\x14\n" +
-	"\x10MODE_UNSPECIFIED\x10\x00\x12#\n" +
-	"\x1fMODE_RESOURCES_SUBJECT_TO_SCOPE\x10\x01\x12%\n" +
-	"!MODE_POLICIES_APPLICABLE_TO_SCOPE\x10\x02BPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
+	"\x10MODE_UNSPECIFIED\x10\x00\x12)\n" +
+	"!MODE_POLICIES_APPLICABLE_TO_SCOPE\x10\x02\x1a\x02\b\x01\x12\x0e\n" +
+	"\n" +
+	"MODE_EXACT\x10\x03\x12\x14\n" +
+	"\x10MODE_DESCENDANTS\x10\x04\x12\x12\n" +
+	"\x0eMODE_ANCESTORS\x10\x05\x12\x12\n" +
+	"\x0eMODE_RELATIVES\x10\x06\x12\x11\n" +
+	"\rMODE_UNSCOPED\x10\a\x12\f\n" +
+	"\bMODE_ALL\x10\b\"\x04\b\x01\x10\x01*\x1fMODE_RESOURCES_SUBJECT_TO_SCOPEBPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
 
 var file_teleport_scopes_v1_scopes_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_scopes_v1_scopes_proto_goTypes = []any{
 	(PinKind)(0),              // 0: teleport.scopes.v1.PinKind
 	(Mode)(0),                 // 1: teleport.scopes.v1.Mode
 	(*Pin)(nil),               // 2: teleport.scopes.v1.Pin
 	(*AssignmentNode)(nil),    // 3: teleport.scopes.v1.AssignmentNode
 	(*RoleNode)(nil),          // 4: teleport.scopes.v1.RoleNode
-	(*PinnedAssignments)(nil), // 5: teleport.scopes.v1.PinnedAssignments
-	(*SystemRoles)(nil),       // 6: teleport.scopes.v1.SystemRoles
-	(*Filter)(nil),            // 7: teleport.scopes.v1.Filter
-	nil,                       // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry
-	nil,                       // 9: teleport.scopes.v1.RoleNode.ChildrenEntry
+	(*RolesByScope)(nil),      // 5: teleport.scopes.v1.RolesByScope
+	(*PinnedAssignments)(nil), // 6: teleport.scopes.v1.PinnedAssignments
+	(*SystemRoles)(nil),       // 7: teleport.scopes.v1.SystemRoles
+	(*Filter)(nil),            // 8: teleport.scopes.v1.Filter
+	nil,                       // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	nil,                       // 10: teleport.scopes.v1.RoleNode.ChildrenEntry
 }
 var file_teleport_scopes_v1_scopes_proto_depIdxs = []int32{
-	0, // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
-	3, // 1: teleport.scopes.v1.Pin.assignment_tree:type_name -> teleport.scopes.v1.AssignmentNode
-	6, // 2: teleport.scopes.v1.Pin.system_roles:type_name -> teleport.scopes.v1.SystemRoles
-	8, // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
-	4, // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
-	9, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
-	1, // 6: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
-	3, // 7: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
-	4, // 8: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	0,  // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
+	3,  // 1: teleport.scopes.v1.Pin.assignment_tree:type_name -> teleport.scopes.v1.AssignmentNode
+	7,  // 2: teleport.scopes.v1.Pin.system_roles:type_name -> teleport.scopes.v1.SystemRoles
+	9,  // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	4,  // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
+	10, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
+	5,  // 6: teleport.scopes.v1.RoleNode.roles_by_scope:type_name -> teleport.scopes.v1.RolesByScope
+	1,  // 7: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
+	3,  // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
+	4,  // 9: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_v1_scopes_proto_init() }
@@ -729,7 +869,7 @@ func file_teleport_scopes_v1_scopes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_v1_scopes_proto_rawDesc), len(file_teleport_scopes_v1_scopes_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

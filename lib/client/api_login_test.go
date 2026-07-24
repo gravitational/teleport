@@ -365,7 +365,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/aa",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-						"/aa": {"/aa": {"role-a"}},
+						"/aa": {"/aa": {"/aa::role-a"}},
 					}),
 				}, sshIdent.ScopePin, protocmp.Transform()))
 				require.Empty(t, sshIdent.Roles)
@@ -793,10 +793,10 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: username,
 					Assignments: []*scopedaccessv1.Assignment{
-						{
-							Role:  role.GetMetadata().GetName(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
 				},
 				Version: types.V1,

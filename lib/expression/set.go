@@ -19,6 +19,8 @@
 package expression
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -34,6 +36,45 @@ type Set struct {
 // NewSet constructs a new set from an arbitrary collection of elements
 func NewSet(values ...string) Set {
 	return Set{set.New(values...)}
+}
+
+// NewFlattenedSet constructs a new string set from `any` elements. It supports
+// plain strings, string arrays, []any containing only strings, and other Sets
+// containing strings, and returns the flattened union of all strings across all
+// provided values. If any unsupported types are provided, an error is returned.
+//
+// Library users use this implementation to override the default `set()`
+// behavior if they need to handle lists, e.g. from JSON.
+func NewFlattenedSet(values ...any) (Set, error) {
+	var elements []string
+
+	for _, e := range values {
+		switch element := e.(type) {
+		case string:
+			elements = append(elements, element)
+		case []string:
+			// Unlikely for data parsed via JSON, but other callers might pass
+			// a []string and it's easy to support.
+			elements = append(elements, element...)
+		case []any:
+			// Flatten []any to strings if possible. We won't bother recursing
+			// further unless an actual use case for doing so presents itself;
+			// for now, just expect strings.
+			for _, item := range element {
+				s, ok := item.(string)
+				if !ok {
+					return Set{}, trace.BadParameter("unsupported set element type, got %T", item)
+				}
+				elements = append(elements, s)
+			}
+		case Set:
+			elements = append(elements, element.items()...)
+		default:
+			return Set{}, trace.BadParameter("unsupported set element type, got: %T", e)
+		}
+	}
+
+	return Set{set.New(elements...)}, nil
 }
 
 // add creates a new Set containing all values in the receiver Set and adds

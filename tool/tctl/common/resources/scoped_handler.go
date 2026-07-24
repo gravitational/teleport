@@ -38,6 +38,7 @@ func ScopedHandlers() map[string]ScopedHandler {
 		scopedaccess.KindScopedRole:           scopedRoleScopedHandler(),
 		types.KindScopedToken:                 scopedTokenScopedHandler(),
 		scopedaccess.KindScopedRoleAssignment: scopedRoleAssignmentScopedHandler(),
+		types.KindAccessList:                  accessListScopedHandler(),
 	}
 }
 

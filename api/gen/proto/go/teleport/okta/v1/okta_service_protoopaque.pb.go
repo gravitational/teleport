@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/okta/v1/okta_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package oktav1
 

@@ -230,8 +230,10 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AZURERUN_FAIL]: Icons.Warning,
   [eventCodes.BOT_JOIN]: Icons.Info,
   [eventCodes.BOT_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.BOT_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.INSTANCE_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.INSTANCE_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
   [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
@@ -374,6 +376,14 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_CREATE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_UPSERT]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_UPDATE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_DELETE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

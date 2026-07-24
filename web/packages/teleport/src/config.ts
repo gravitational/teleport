@@ -1001,7 +1001,7 @@ const cfg = {
     if (options?.activeTab) {
       search.set('tab', options.activeTab);
     }
-    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+    return `${generatePath(cfg.routes.botInstances)}?${search.toString()}`;
   },
 
   getInstancesRoute() {
