@@ -1,7 +1,8 @@
-const { env, platform } = require('process');
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { env, platform } from 'node:process';
+
 const isMac = platform === 'darwin';
 const isWindows = platform === 'win32';
 
@@ -69,7 +70,7 @@ const entitlementsMacOS = shouldBeSignedOnMacOS
 /**
  * @type { import('electron-builder').Configuration }
  */
-module.exports = {
+const config = {
   appId,
   asar: true,
   publish: [{ provider: 'custom' }],
@@ -270,28 +271,28 @@ module.exports = {
       },
       {
         from: path.resolve(
-          __dirname,
+          import.meta.dirname,
           '../../../examples/systemd/vnet/polkit/org.teleport.vnet1.policy'
         ),
         to: './vnet/polkit/org.teleport.vnet1.policy',
       },
       {
         from: path.resolve(
-          __dirname,
+          import.meta.dirname,
           '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.conf'
         ),
         to: './vnet/dbus/org.teleport.vnet1.conf',
       },
       {
         from: path.resolve(
-          __dirname,
+          import.meta.dirname,
           '../../../examples/systemd/vnet/dbus/org.teleport.vnet1.service'
         ),
         to: './vnet/dbus/org.teleport.vnet1.service',
       },
       {
         from: path.resolve(
-          __dirname,
+          import.meta.dirname,
           '../../../examples/systemd/vnet/teleport-vnet.service'
         ),
         to: './vnet/teleport-vnet.service',
@@ -309,6 +310,8 @@ module.exports = {
     output: 'build/release',
   },
 };
+
+export default config;
 
 function promisifiedSpawn(cmd, args, options) {
   return new Promise((resolve, reject) => {
