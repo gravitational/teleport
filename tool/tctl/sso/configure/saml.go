@@ -66,7 +66,7 @@ func (lst samlPresetList) getPreset(name string) *samlPreset {
 var samlPresets = samlPresetList([]samlPreset{
 	{name: "okta", description: "Okta", display: "Okta"},
 	{name: "onelogin", description: "OneLogin", display: "OneLogin"},
-	{name: "ad", description: "Azure Active Directory", display: "Microsoft"},
+	{name: "ad", description: "Entra ID (formerly Azure Active Directory)", display: "Microsoft"},
 	{name: "adfs", description: "Active Directory Federation Services", display: "ADFS", modifySpec: func(spec *types.SAMLConnectorSpecV2) error {
 		spec.Provider = teleport.ADFS
 		return nil
