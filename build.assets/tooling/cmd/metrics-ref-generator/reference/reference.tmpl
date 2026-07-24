@@ -1,0 +1,38 @@
+---
+title: Teleport Metrics
+description: Comprehensive list of all metrics exposed by Teleport.
+tags:
+ - reference
+ - platform-wide
+---
+
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated */}
+{/* DO NOT EDIT */}
+
+{{ .Introduction }}
+The following metrics are available:
+
+{{ define "section" -}}
+{{- if .SectionName }}
+{{ .Heading }} {{ .SectionName }}
+{{- end }}
+{{ with .Description }}
+{{ . }}
+{{- end }}
+
+{{ with .Fields -}}
+|Name|Type|Component|Description|
+|---|---|---|---|
+{{ range . -}}
+|{{.Name}}|{{.Type}}|{{.Component}}|{{.Description}}|
+{{ end }}
+{{- end }}
+{{- range .Sections -}}
+{{ template "section" . }}
+{{ end -}}
+{{ end }}
+{{ range .Sections -}}
+{{ template "section" . }}
+{{- end -}}

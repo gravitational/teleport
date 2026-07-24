@@ -2142,7 +2142,7 @@ access-monitoring-reference-up-to-date: access-monitoring-reference
 	fi
 
 .PHONY: gen-docs
-gen-docs: gen-resource-docs audit-event-reference
+gen-docs: gen-resource-docs gen-metrics-docs audit-event-reference
 	$(MAKE) -C integrations/terraform docs
 	$(MAKE) -C integrations/operator crd-docs
 	$(MAKE) -C examples/chart render-chart-ref
@@ -2150,6 +2150,10 @@ gen-docs: gen-resource-docs audit-event-reference
 .PHONY: gen-resource-docs
 gen-resource-docs:
 	cd build.assets/tooling/cmd/resource-ref-generator && go run . -config config.yaml
+
+.PHONY: gen-metrics-docs
+gen-metrics-docs:
+	cd build.assets/tooling/cmd/metrics-ref-generator && go run . -config config.yaml
 
 .PHONY: resource-docs-up-to-date
 resource-docs-up-to-date: must-start-clean/host gen-resource-docs
