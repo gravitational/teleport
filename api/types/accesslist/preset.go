@@ -17,7 +17,6 @@ limitations under the License.
 package accesslist
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -33,23 +32,7 @@ const (
 	// This is used to track which roles should be deleted when they're removed
 	// from the configuration.
 	AccessListPresetRolesLabel = types.TeleportInternalLabelPrefix + "access-list-preset-roles"
-
-	// AccessListPresetRoleInfix is the infix used in the names of roles
-	// auto-created for a preset-backed access list. The full role name
-	// format is "{prefix}-{AccessListPresetRoleInfix}-{accessListUUID}".
-	AccessListPresetRoleInfix = "acl-preset"
 )
-
-// PresetType defines the type of access list preset.
-type PresetType string
-
-// LongTermPresetType grants members access roles directly.
-// Owners receive the reviewer role.
-const LongTermPresetType PresetType = "long-term"
-
-// ShortTermPresetType grants members a requester role for on-demand access.
-// Members receive the requester role to request access, owners receive the reviewer role.
-const ShortTermPresetType PresetType = "short-term"
 
 // PresetRoleNames returns the role names recorded on this access list's
 // label or nil if the label is unset.
@@ -65,11 +48,4 @@ func (a *AccessList) PresetRoleNames() []string {
 // by the preset label the backend sets at create time.
 func (a *AccessList) IsPreset() bool {
 	return a.GetAllLabels()[AccessListPresetLabel] != ""
-}
-
-// RoleName generates a role name for preset access list roles.
-// The format is: {prefix}-acl-preset-{accessListName}.
-// For example: "reviewer-acl-preset-my-access-list".
-func RoleName(prefix, accessListName string) string {
-	return fmt.Sprintf("%s-%s-%s", prefix, AccessListPresetRoleInfix, accessListName)
 }
