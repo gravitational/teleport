@@ -165,6 +165,13 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
 }
 
+// AbortUpload aborts a multipart upload, cleaning up any parts that
+// were uploaded. This prevents the periodic completer from finalizing
+// a truncated recording after part failures.
+func (h *Handler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	return h.cleanupUpload(ctx, upload)
+}
+
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
 	if err := checkUpload(upload); err != nil {

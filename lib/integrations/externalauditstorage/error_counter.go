@@ -491,6 +491,13 @@ func (c *ErrorCountingSessionHandler) ListUploads(ctx context.Context) ([]events
 	return uploads, err
 }
 
+// AbortUpload calls [c.wrapped.AbortUpload] and counts the error or success.
+func (c *ErrorCountingSessionHandler) AbortUpload(ctx context.Context, upload events.StreamUpload) error {
+	err := c.wrapped.AbortUpload(ctx, upload)
+	c.uploads.observe(err)
+	return err
+}
+
 // GetUploadMetadata calls [c.wrapped.GetUploadMetadata] and counts the error or success.
 func (c *ErrorCountingSessionHandler) GetUploadMetadata(sessionID session.ID) events.UploadMetadata {
 	return c.wrapped.GetUploadMetadata(sessionID)

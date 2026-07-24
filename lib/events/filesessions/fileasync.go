@@ -831,8 +831,22 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 
 	if err := stream.Complete(ctx); err != nil {
 		log.ErrorContext(ctx, "Failed to complete upload.", "error", err)
+		// When the upload fails (e.g., due to persistent storage backend errors
+		// or retry exhaustion on the auth server), we must NOT delete the local
+		// recording file. The file is the only copy of the session recording,
+		// and deleting it would cause permanent data loss. The upload completer
+		// on the auth server will retry later, or an operator can investigate.
+		//
+		// This is a critical safety measure for issue #65895 where failed
+		// uploads were silently dropping recordings after 8.5 hours of retries.
 		return trace.Wrap(err)
 	}
+
+	// Only remove local files after the server has confirmed the upload
+	// is complete. If we reach this point, stream.Complete returned
+	// successfully, meaning all parts were uploaded and the multipart
+	// upload was finalized.
+	log.DebugContext(ctx, "Upload completed successfully, removing local files")
 
 	// make sure that checkpoint writer goroutine finishes
 	// before the files are closed to avoid async writes
