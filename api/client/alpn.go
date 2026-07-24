@@ -124,6 +124,15 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 
 // DialContext implements ContextDialer.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	// Bound the entire dial, not just the TCP connect: the TLS handshakes
+	// and the ALPN connection upgrade exchange (if required) must complete
+	// within the timeout too.
+	if d.cfg.DialTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, d.cfg.DialTimeout)
+		defer cancel()
+	}
+
 	tlsConfig, err := d.getTLSConfig(ctx, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
