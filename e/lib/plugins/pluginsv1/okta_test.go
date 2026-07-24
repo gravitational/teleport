@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -577,7 +578,7 @@ func deleteAppServers(t *testing.T, ap services.Presence, appServers []types.App
 	ctx := t.Context()
 
 	for _, as := range appServers {
-		err := ap.DeleteApplicationServer(ctx, defaults.Namespace, as.GetHostID(), as.GetName())
+		err := ap.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{HostId: as.GetHostID(), Name: as.GetName()}.Build())
 		require.NoError(t, err)
 	}
 }

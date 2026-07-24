@@ -10,6 +10,7 @@ import (
 
 	ossteleport "github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -304,7 +305,10 @@ func (s *Service) seedAppsReconciler(ctx context.Context) error {
 			if _, err := s.accessPoint.UpsertApplicationServer(ctx, appServer); err != nil {
 				return trace.Wrap(err, "re-creating app_server with fixed host id")
 			}
-			if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, legacyHostID, appServer.GetName()); err != nil {
+			if err := s.accessPoint.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+				HostId: legacyHostID,
+				Name:   appServer.GetName(),
+			}.Build()); err != nil {
 				return trace.Wrap(err, "deleting app_server with legacy host_id")
 			}
 		}
@@ -446,7 +450,10 @@ func (s *Service) onDeleteAppServer(ctx context.Context, appServer types.AppServ
 		return trace.Wrap(err)
 	}
 
-	if err := s.accessPoint.DeleteApplicationServer(ctx, defaults.Namespace, appServer.GetHostID(), appServer.GetName()); err != nil && !trace.IsNotFound(err) {
+	if err := s.accessPoint.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServer.GetHostID(),
+		Name:   appServer.GetName(),
+	}.Build()); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err, "deleting app_server")
 	}
 	s.appServers.Delete(appServer.GetName())

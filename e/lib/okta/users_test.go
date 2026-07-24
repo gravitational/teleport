@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
@@ -86,8 +86,8 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 
 	t.Run("test appserver deletion", func(t *testing.T) {
-		require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app1.GetHostID(), app1.GetName()))
-		require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, appDupe.GetHostID(), appDupe.GetName()))
+		require.NoError(t, ap.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{HostId: app1.GetHostID(), Name: app1.GetName()}.Build()))
+		require.NoError(t, ap.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{HostId: appDupe.GetHostID(), Name: appDupe.GetName()}.Build()))
 		require.NoError(t, ap.CreateUserGroup(ctx, group1))
 
 		assertResourceCount(t, ctx, ap, 0)
@@ -235,7 +235,7 @@ func TestUserAssignmentCreator_set_CleanupTime_only_if_needed(t *testing.T) {
 
 	time1 := clock.Now()
 
-	require.NoError(t, ap.DeleteApplicationServer(ctx, defaults.Namespace, app2.GetHostID(), app2.GetName()))
+	require.NoError(t, ap.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{HostId: app2.GetHostID(), Name: app2.GetName()}.Build()))
 	assertResourceCount(t, ctx, ap, 1)
 
 	require.NoError(t, uac.OnLogin(ctx, user))

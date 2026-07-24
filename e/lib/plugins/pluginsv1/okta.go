@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -125,7 +126,10 @@ func (s *Service) cleanupOkta(ctx context.Context) error {
 		oktaID, oktaName := labels[types.OktaAppIDLabel], labels[types.OktaAppNameLabel]
 		asName, asHostID := as.GetName(), as.GetHostID()
 		s.logger.InfoContext(ctx, "Deleting Okta app server", "app_server_name", asName, "okta_app_id", oktaID, "okta_app_name", oktaName)
-		if err := s.authServer.DeleteApplicationServer(ctx, defaults.Namespace, asHostID, asName); err != nil && !trace.IsNotFound(err) {
+		if err := s.authServer.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: asHostID,
+			Name:   asName,
+		}.Build()); err != nil && !trace.IsNotFound(err) {
 			s.logger.ErrorContext(ctx, "Failed to delete app_server during plugin cleanup", "app_server_host_id", asHostID, "app_server_name", asName, "error", err)
 			return trace.Wrap(err)
 		}
