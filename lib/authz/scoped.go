@@ -375,9 +375,13 @@ func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRol
 	// Unscoped agents must be only allowed to delete unscoped resources.
 	// Scoped pinned agents must have matching agent and resource scopes.
 	// TODO (williamo/scopes): We most likely will relax this rule in the future.
-	if scopes.Compare(agentScope, scope) != scopes.Equivalent {
-		return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
+	if agentScope == "" && scope == "" {
+		return nil
 	}
 
-	return nil
+	if scopes.Compare(agentScope, scope) == scopes.Equivalent {
+		return nil
+	}
+
+	return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
 }
