@@ -282,6 +282,8 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Server", trace.Errorf("Can not convert %T to ServerV2", serverI), "node"))
 		return
 	}
+	server = serverResource
+
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -346,4 +348,54 @@ func (r resourceTeleportServer) ImportState(ctx context.Context, req tfsdk.Impor
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportServer) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	server := &apitypes.ServerV2{}
+	resp.Diagnostics.Append(tfschema.CopyServerV2FromTerraform(ctx, config, server)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	serverResource := server
+	serverResource.Kind = apitypes.KindNode
+
+	if err := serverResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting Server defaults", trace.Wrap(err), "node"))
+		return
+	}
+
+	server = serverResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyServerV2ToTerraformPreserveUnknown(ctx, server, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

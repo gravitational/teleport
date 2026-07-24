@@ -279,6 +279,8 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.Updat
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Integration", trace.Errorf("Can not convert %T to IntegrationV1", integrationI), "integration"))
 		return
 	}
+	integration = integrationResource
+
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -343,4 +345,53 @@ func (r resourceTeleportIntegration) ImportState(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	integration := &apitypes.IntegrationV1{}
+	resp.Diagnostics.Append(tfschema.CopyIntegrationV1FromTerraform(ctx, config, integration)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	integrationResource := integration
+
+	if err := integrationResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting Integration defaults", trace.Wrap(err), "integration"))
+		return
+	}
+
+	integration = integrationResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraformPreserveUnknown(ctx, integration, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

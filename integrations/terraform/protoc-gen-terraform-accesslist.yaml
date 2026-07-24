@@ -42,35 +42,44 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "AccessList.header.metadata.id"
+    - "AccessList.header.metadata.revision"
     # Read only field
+    - "AccessList.spec.audit.next_audit_date"
     - "AccessList.spec.owners.ineligible_status"
     - "AccessList.status"
+
     # Metadata (we id resources by name on our side)
     - "Member.header.metadata.id"
+    - "Member.header.metadata.revision"
     # Read only field
+    - "Member.spec.added_by"
     - "Member.spec.ineligible_status"
+    - "Member.spec.joined"
+    - "Member.spec.name"
     - "Member.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
     - "AccessList.header.kind"
-    - "AccessList.header.metadata.expires"
     - "AccessList.header.metadata.namespace"
-    - "AccessList.header.metadata.revision"
-    - "AccessList.spec.audit.next_audit_date"
+    - "AccessList.spec.audit"
+    - "AccessList.spec.audit.notifications"
+    - "AccessList.spec.audit.notifications.start"
+    - "AccessList.spec.audit.recurrence"
+    - "AccessList.spec.grants"
+    - "AccessList.spec.owner_grants"
+    - "AccessList.spec.membership_requires"
+    - "AccessList.spec.ownership_requires"
+
     - "Member.header.kind"
-    - "Member.header.metadata.expires"
     - "Member.header.metadata.namespace"
-    - "Member.header.metadata.revision"
-    - "Member.spec.name"
-    - "Member.spec.joined"
-    - "Member.spec.added_by"
 
 # These fields will be marked as Required: true
 required_fields:
     - "Metadata.name"
     - "AccessList.header.version"
     - "AccessList.spec.owners"
+    - "AccessList.spec.title"
     - "Member.header.version"
     - "Member.spec.access_list"
     - "Member.spec.membership_kind"

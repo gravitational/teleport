@@ -33,6 +33,7 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "AccessMonitoringRule.metadata.id"
+    - "AccessMonitoringRule.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:

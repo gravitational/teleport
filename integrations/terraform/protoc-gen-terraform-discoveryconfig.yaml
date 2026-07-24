@@ -33,20 +33,22 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - 'DiscoveryConfig.header.metadata.id'
+  - 'DiscoveryConfig.header.metadata.revision'
+
   # Read only field
   - 'DiscoveryConfig.status'
 
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
-  - 'DiscoveryConfig.header.metadata.expires'
   - 'DiscoveryConfig.header.metadata.namespace'
-  - 'DiscoveryConfig.header.metadata.revision'
   - 'DiscoveryConfig.header.kind'
   - 'DiscoveryConfig.header.sub_kind'
   - 'DiscoveryConfig.spec.azure.Params'
   - 'DiscoveryConfig.spec.azure.Params.ScriptName'
   - 'DiscoveryConfig.spec.azure.Params.Azure'
+  - 'DiscoveryConfig.spec.aws.Params'
+  - 'DiscoveryConfig.spec.aws.SSM'
 
 # These fields will be marked as Required: true
 required_fields:

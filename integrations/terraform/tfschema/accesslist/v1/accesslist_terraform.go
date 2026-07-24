@@ -59,21 +59,23 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"metadata": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"description": {
-							Description: "description is object description.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
-							Description:   "expires is a global expiry time header can be set on any resource in the system.",
+							Description:   "description is object description.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 						}),
 						"labels": {
-							Description: "labels is a set of labels.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "labels is a set of labels.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"name": {
 							Description:   "name is an object name.",
@@ -88,21 +90,16 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"revision": {
-							Computed:      true,
-							Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
 					}),
 					Description: "metadata is resource metadata.",
 					Optional:    true,
 				},
 				"sub_kind": {
-					Description: "sub_kind is an optional resource sub kind, used in some resources.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "sub_kind is an optional resource sub kind, used in some resources.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"version": {
 					Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
@@ -121,182 +118,240 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"scope": {
-			Description: "scope is the scope of the Access List.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "scope is the scope of the Access List.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"audit": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"next_audit_date": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "next_audit_date is when the next audit date should be done by.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						}),
 						"notifications": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-								Description: "start specifies when to start notifying users that the next audit date is coming up.",
-								Optional:    true,
+								Computed:      true,
+								Description:   "start specifies when to start notifying users that the next audit date is coming up.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							})}),
-							Description: "notifications is the configuration for notifying users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "notifications is the configuration for notifying users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"recurrence": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"day_of_month": {
-									Description: "day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Computed:      true,
+									Description:   "day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 								"frequency": {
-									Description: "frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+									Computed:      true,
+									Description:   "frequency is the frequency of reviews. This represents the period in months between two reviews. Supported values are 0, 1, 3, 6, and 12.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
 							}),
-							Description: "recurrence is the recurrence definition",
-							Optional:    true,
+							Computed:      true,
+							Description:   "recurrence is the recurrence definition",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "audit describes the frequency that this Access List must be audited.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "audit describes the frequency that this Access List must be audited.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"description": {
-					Description: "description is an optional plaintext description of the Access List.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is an optional plaintext description of the Access List.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the names of roles to be granted to users.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "roles are the names of roles to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"scoped_roles": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"role": {
-									Description: "role is the scope-qualified name of the scoped role to be granted.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "role is the scope-qualified name of the scoped role to be granted.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"scope": {
-									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "scoped_roles are scoped roles to be granted to users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "scoped_roles are scoped roles to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"key": {
-									Description: "key is the name of the trait.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "key is the name of the trait.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"values": {
-									Description: "values is the list of trait values.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "values is the list of trait values.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits to be granted to users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "traits are the traits to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "grants describes the access granted by membership to this Access List.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "grants describes the access granted by membership to this Access List.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"membership_requires": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the user roles that must be present for the user to obtain access.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "roles are the user roles that must be present for the user to obtain access.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"key": {
-									Description: "key is the name of the trait.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "key is the name of the trait.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"values": {
-									Description: "values is the list of trait values.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "values is the list of trait values.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that must be present for the user to obtain access.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "traits are the traits that must be present for the user to obtain access.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "membership_requires describes the requirements for a user to be a member of the Access List. For a membership to an Access List to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"owner_grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the names of roles to be granted to users.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "roles are the names of roles to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"scoped_roles": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"role": {
-									Description: "role is the scope-qualified name of the scoped role to be granted.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "role is the scope-qualified name of the scoped role to be granted.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"scope": {
-									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "scoped_roles are scoped roles to be granted to users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "scoped_roles are scoped roles to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"key": {
-									Description: "key is the name of the trait.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "key is the name of the trait.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"values": {
-									Description: "values is the list of trait values.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "values is the list of trait values.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits to be granted to users.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "traits are the traits to be granted to users.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "owner_grants describes the access granted by owners to this Access List.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "owner_grants describes the access granted by owners to this Access List.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"owners": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"description": {
-							Description: "description is the plaintext description of the owner and why they are an owner.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "description is the plaintext description of the owner and why they are an owner.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"membership_kind": {
-							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+							Computed:      true,
+							Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 						"name": {
-							Description: "name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "owners is a list of owners of the Access List.",
@@ -305,39 +360,51 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"ownership_requires": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the user roles that must be present for the user to obtain access.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "roles are the user roles that must be present for the user to obtain access.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"key": {
-									Description: "key is the name of the trait.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "key is the name of the trait.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"values": {
-									Description: "values is the list of trait values.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "values is the list of trait values.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that must be present for the user to obtain access.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "traits are the traits that must be present for the user to obtain access.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 					}),
-					Description: "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "ownership_requires describes the requirements for a user to be an owner of the Access List. For ownership of an Access List to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"title": {
 					Description: "title is a plaintext short description of the Access List.",
-					Optional:    true,
+					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"type": {
-					Description: "type can be an empty string which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "type can be an empty string which denotes a regular Access List, \"scim\" which represents an Access List created from SCIM group or \"static\" for Access Lists managed by IaC tools.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "spec is the specification for the Access List.",
@@ -361,21 +428,23 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				"metadata": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"description": {
-							Description: "description is object description.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Computed:      true,
-							Description:   "expires is a global expiry time header can be set on any resource in the system.",
+							Description:   "description is object description.",
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+							Description: "expires is a global expiry time header can be set on any resource in the system.",
+							Optional:    true,
+							Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 						}),
 						"labels": {
-							Description: "labels is a set of labels.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "labels is a set of labels.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"name": {
 							Description:   "name is an object name.",
@@ -390,21 +459,16 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
-						"revision": {
-							Computed:      true,
-							Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
 					}),
 					Description: "metadata is resource metadata.",
 					Optional:    true,
 				},
 				"sub_kind": {
-					Description: "sub_kind is an optional resource sub kind, used in some resources.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "sub_kind is an optional resource sub kind, used in some resources.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"version": {
 					Description: "Version is the API version used to create the resource. It must be specified. Based on this version, Teleport will apply different defaults on resource creation or deletion. It must be an integer prefixed by \"v\". For example: `v1`",
@@ -423,9 +487,11 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"scope": {
-			Description: "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -435,22 +501,9 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"added_by": {
-					Computed:      true,
-					Description:   "added_by is the user that added this user to the Access List.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is when the user's membership to the Access List expires.",
 					Optional:    true,
-				}),
-				"joined": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Computed:      true,
-					Description:   "joined is when the user joined the Access List.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"membership_kind": {
 					Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
@@ -458,17 +511,12 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
-				"name": {
+				"reason": {
 					Computed:      true,
-					Description:   "name is the name of the member of the Access List, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the member. MEMBERSHIP_KIND_LIST: the name of the member Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.",
+					Description:   "reason is the reason this user was added to the Access List.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"reason": {
-					Description: "reason is the reason this user was added to the Access List.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "spec is the specification for the Access List member.",
@@ -644,23 +692,6 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 										}
 										CopyFromTimestamp(diags, a, &obj.Expires)
 									}
-									{
-										a, ok := tf.Attrs["revision"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AccessList.header.metadata.revision"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AccessList.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.Revision = t
-											}
-										}
-									}
 								}
 							}
 						}
@@ -794,13 +825,6 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									tf := v
 									obj.Audit = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessListAudit{}
 									obj := obj.Audit
-									{
-										a, ok := tf.Attrs["next_audit_date"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										}
-										CopyFromTimestamp(diags, a, &obj.NextAuditDate)
-									}
 									{
 										a, ok := tf.Attrs["recurrence"]
 										if !ok {
@@ -1540,6 +1564,12 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 
 // CopyAccessListToTerraform copies contents of the source Terraform object into a target struct
 func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessList, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyAccessListToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyAccessListToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessList, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -1570,6 +1600,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if obj.Header == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Header
 					tf := &v
 					{
@@ -1579,6 +1610,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["kind"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.header.kind", err})
@@ -1587,10 +1621,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Kind) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Kind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -1601,6 +1638,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["sub_kind"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.header.sub_kind", err})
@@ -1609,10 +1649,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.SubKind) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.SubKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -1623,6 +1666,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["version"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.header.version", err})
@@ -1631,10 +1677,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Version) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Version)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["version"] = v
 						}
 					}
@@ -1662,6 +1711,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.Metadata == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Metadata
 									tf := &v
 									{
@@ -1671,6 +1721,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										} else {
 											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["name"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessList.header.metadata.name", err})
@@ -1679,10 +1732,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessList.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Name) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -1693,6 +1749,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										} else {
 											v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["namespace"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessList.header.metadata.namespace", err})
@@ -1701,10 +1760,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessList.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Namespace) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Namespace)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -1715,6 +1777,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										} else {
 											v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["description"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessList.header.metadata.description", err})
@@ -1723,10 +1788,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessList.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Description) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Description)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["description"] = v
 										}
 									}
@@ -1752,11 +1820,14 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 													}
 												}
-												if obj.Labels != nil {
+												{
 													t := o.ElemType
 													for k, a := range obj.Labels {
-														v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessList.header.metadata.labels", err})
@@ -1765,17 +1836,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessList.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = false
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Labels) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -1785,40 +1859,22 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AccessList.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 											tf.Attrs["expires"] = v
 										}
 									}
-									{
-										t, ok := tf.AttrTypes["revision"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessList.header.metadata.revision"})
-										} else {
-											v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AccessList.header.metadata.revision", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AccessList.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.Revision) == ""
-											}
-											v.Value = string(obj.Revision)
-											v.Unknown = false
-											tf.Attrs["revision"] = v
-										}
-									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["header"] = v
 			}
 		}
@@ -1847,6 +1903,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1856,6 +1913,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.spec.description", err})
@@ -1864,10 +1924,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -1893,13 +1956,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Owners))
 									}
 								}
-								if obj.Owners != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Owners) != len(c.Elems) {
-										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Owners))
+										newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Owners))
+										copy(newElems, c.Elems)
+										c.Elems = newElems
 									}
 									for k, a := range obj.Owners {
-										v, ok := tf.Attrs["owners"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1914,6 +1979,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -1923,6 +1989,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												} else {
 													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["name"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owners.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"AccessList.spec.owners.name", err})
@@ -1931,10 +2000,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owners.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Name) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Name)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["name"] = v
 												}
 											}
@@ -1945,6 +2017,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												} else {
 													v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["description"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owners.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"AccessList.spec.owners.description", err})
@@ -1953,10 +2028,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owners.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Description) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Description)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["description"] = v
 												}
 											}
@@ -1967,6 +2045,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												} else {
 													v, ok := tf.Attrs["membership_kind"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 													if !ok {
+														if tf.Attrs["membership_kind"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"AccessList.spec.owners.membership_kind", err})
@@ -1975,22 +2056,27 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owners.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 														}
-														v.Null = int64(obj.MembershipKind) == 0
 													}
+
+													v.Null = false
 													v.Value = int64(obj.MembershipKind)
-													v.Unknown = false
+													if !preserveUnknown {
+														v.Unknown = false
+													}
 													tf.Attrs["membership_kind"] = v
 												}
 											}
 										}
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Owners) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["owners"] = c
 							}
 						}
@@ -2019,17 +2105,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.Audit == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Audit
 									tf := &v
-									{
-										t, ok := tf.AttrTypes["next_audit_date"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										} else {
-											v := CopyToTimestamp(diags, obj.NextAuditDate, t, tf.Attrs["next_audit_date"])
-											tf.Attrs["next_audit_date"] = v
-										}
-									}
 									{
 										a, ok := tf.AttrTypes["recurrence"]
 										if !ok {
@@ -2054,6 +2132,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if obj.Recurrence == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.Recurrence
 													tf := &v
 													{
@@ -2063,6 +2142,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														} else {
 															v, ok := tf.Attrs["frequency"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 															if !ok {
+																if tf.Attrs["frequency"] != nil {
+																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.audit.recurrence.frequency", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"AccessList.spec.audit.recurrence.frequency", err})
@@ -2071,10 +2153,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.audit.recurrence.frequency", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																}
-																v.Null = int64(obj.Frequency) == 0
 															}
+
+															v.Null = false
 															v.Value = int64(obj.Frequency)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["frequency"] = v
 														}
 													}
@@ -2085,6 +2170,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														} else {
 															v, ok := tf.Attrs["day_of_month"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 															if !ok {
+																if tf.Attrs["day_of_month"] != nil {
+																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.audit.recurrence.day_of_month", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"AccessList.spec.audit.recurrence.day_of_month", err})
@@ -2093,15 +2181,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.audit.recurrence.day_of_month", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 																}
-																v.Null = int64(obj.DayOfMonth) == 0
 															}
+
+															v.Null = false
 															v.Value = int64(obj.DayOfMonth)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["day_of_month"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["recurrence"] = v
 											}
 										}
@@ -2130,6 +2223,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 												if obj.Notifications == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.Notifications
 													tf := &v
 													{
@@ -2137,18 +2231,22 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if !ok {
 															diags.Append(attrWriteMissingDiag{"AccessList.spec.audit.notifications.start"})
 														} else {
-															v := CopyToDuration(diags, obj.Start, t, tf.Attrs["start"])
+															v := CopyToDuration(diags, obj.Start, t, tf.Attrs["start"], preserveUnknown)
 															tf.Attrs["start"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["notifications"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["audit"] = v
 							}
 						}
@@ -2177,6 +2275,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.MembershipRequires == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.MembershipRequires
 									tf := &v
 									{
@@ -2201,14 +2300,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 													}
 												}
-												if obj.Roles != nil {
+												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
-														v, ok := tf.Attrs["roles"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.membership_requires.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessList.spec.membership_requires.roles", err})
@@ -2217,17 +2321,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.membership_requires.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = string(a) == ""
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Roles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2254,13 +2361,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
 													}
 												}
-												if obj.Traits != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
-														v, ok := tf.Attrs["traits"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -2275,6 +2384,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -2284,6 +2394,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["key"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.membership_requires.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.membership_requires.traits.key", err})
@@ -2292,10 +2405,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.membership_requires.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Key) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2321,14 +2437,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																			}
 																		}
-																		if obj.Values != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
-																				v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.membership_requires.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"AccessList.spec.membership_requires.traits.values", err})
@@ -2337,36 +2458,43 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.membership_requires.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Values) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Traits) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["membership_requires"] = v
 							}
 						}
@@ -2395,6 +2523,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.OwnershipRequires == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.OwnershipRequires
 									tf := &v
 									{
@@ -2419,14 +2548,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 													}
 												}
-												if obj.Roles != nil {
+												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
-														v, ok := tf.Attrs["roles"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.ownership_requires.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessList.spec.ownership_requires.roles", err})
@@ -2435,17 +2569,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.ownership_requires.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = string(a) == ""
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Roles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2472,13 +2609,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
 													}
 												}
-												if obj.Traits != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
-														v, ok := tf.Attrs["traits"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -2493,6 +2632,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -2502,6 +2642,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["key"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.ownership_requires.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.ownership_requires.traits.key", err})
@@ -2510,10 +2653,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.ownership_requires.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Key) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2539,14 +2685,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																			}
 																		}
-																		if obj.Values != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
-																				v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.ownership_requires.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"AccessList.spec.ownership_requires.traits.values", err})
@@ -2555,36 +2706,43 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.ownership_requires.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Values) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Traits) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["ownership_requires"] = v
 							}
 						}
@@ -2613,6 +2771,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.Grants == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Grants
 									tf := &v
 									{
@@ -2637,14 +2796,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 													}
 												}
-												if obj.Roles != nil {
+												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
-														v, ok := tf.Attrs["roles"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.grants.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessList.spec.grants.roles", err})
@@ -2653,17 +2817,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = string(a) == ""
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Roles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -2690,13 +2857,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
 													}
 												}
-												if obj.Traits != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
-														v, ok := tf.Attrs["traits"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -2711,6 +2880,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -2720,6 +2890,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["key"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.grants.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.grants.traits.key", err})
@@ -2728,10 +2901,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Key) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -2757,14 +2933,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																			}
 																		}
-																		if obj.Values != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
-																				v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.grants.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"AccessList.spec.grants.traits.values", err})
@@ -2773,30 +2954,35 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Values) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Traits) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
@@ -2823,13 +3009,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
 													}
 												}
-												if obj.ScopedRoles != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.ScopedRoles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.ScopedRoles {
-														v, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -2844,6 +3032,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -2853,6 +3042,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["role"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.grants.scoped_roles.role", err})
@@ -2861,10 +3053,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Role) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Role)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role"] = v
 																}
 															}
@@ -2875,6 +3070,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["scope"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.grants.scoped_roles.scope", err})
@@ -2883,28 +3081,35 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Scope) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Scope)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["scope"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.ScopedRoles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["scoped_roles"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["grants"] = v
 							}
 						}
@@ -2916,6 +3121,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["title"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["title"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.title", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.spec.title", err})
@@ -2924,10 +3132,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.title", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Title) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Title)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["title"] = v
 						}
 					}
@@ -2955,6 +3166,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if obj.OwnerGrants == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.OwnerGrants
 									tf := &v
 									{
@@ -2979,14 +3191,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
 													}
 												}
-												if obj.Roles != nil {
+												{
 													t := o.ElemType
 													if len(obj.Roles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Roles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Roles {
-														v, ok := tf.Attrs["roles"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owner_grants.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.roles", err})
@@ -2995,17 +3212,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.roles", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = string(a) == ""
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Roles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["roles"] = c
 											}
 										}
@@ -3032,13 +3252,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
 													}
 												}
-												if obj.Traits != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Traits) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Traits))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Traits {
-														v, ok := tf.Attrs["traits"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -3053,6 +3275,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -3062,6 +3285,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["key"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["key"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owner_grants.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.traits.key", err})
@@ -3070,10 +3296,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.traits.key", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Key) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Key)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["key"] = v
 																}
 															}
@@ -3099,14 +3328,19 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																			}
 																		}
-																		if obj.Values != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Values) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Values {
-																				v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owner_grants.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.traits.values", err})
@@ -3115,30 +3349,35 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.traits.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Values) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["values"] = c
 																	}
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Traits) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["traits"] = c
 											}
 										}
@@ -3165,13 +3404,15 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
 													}
 												}
-												if obj.ScopedRoles != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.ScopedRoles) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.ScopedRoles {
-														v, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -3186,6 +3427,7 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -3195,6 +3437,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["role"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owner_grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.scoped_roles.role", err})
@@ -3203,10 +3448,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Role) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Role)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["role"] = v
 																}
 															}
@@ -3217,6 +3465,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																} else {
 																	v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["scope"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.owner_grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.scoped_roles.scope", err})
@@ -3225,28 +3476,35 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Scope) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Scope)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["scope"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.ScopedRoles) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["scoped_roles"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["owner_grants"] = v
 							}
 						}
@@ -3258,6 +3516,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 						} else {
 							v, ok := tf.Attrs["type"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["type"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.spec.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessList.spec.type", err})
@@ -3266,15 +3527,20 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.type", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Type) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Type)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["type"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -3286,6 +3552,9 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 		} else {
 			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["scope"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessList.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AccessList.scope", err})
@@ -3294,10 +3563,13 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AccessList.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Scope) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -3471,23 +3743,6 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 										}
 										CopyFromTimestamp(diags, a, &obj.Expires)
 									}
-									{
-										a, ok := tf.Attrs["revision"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"Member.header.metadata.revision"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"Member.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.Revision = t
-											}
-										}
-									}
 								}
 							}
 						}
@@ -3528,30 +3783,6 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 						}
 					}
 					{
-						a, ok := tf.Attrs["name"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.name"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"Member.spec.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Name = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["joined"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.joined"})
-						}
-						CopyFromTimestamp(diags, a, &obj.Joined)
-					}
-					{
 						a, ok := tf.Attrs["expires"]
 						if !ok {
 							diags.Append(attrReadMissingDiag{"Member.spec.expires"})
@@ -3572,23 +3803,6 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 									t = string(v.Value)
 								}
 								obj.Reason = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["added_by"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"Member.spec.added_by"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"Member.spec.added_by", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.AddedBy = t
 							}
 						}
 					}
@@ -3635,6 +3849,12 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 
 // CopyMemberToTerraform copies contents of the source Terraform object into a target struct
 func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.Member, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyMemberToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyMemberToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyMemberToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.Member, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -3665,6 +3885,7 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 				if obj.Header == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Header
 					tf := &v
 					{
@@ -3674,6 +3895,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["kind"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.header.kind", err})
@@ -3682,10 +3906,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.header.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Kind) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Kind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["kind"] = v
 						}
 					}
@@ -3696,6 +3923,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["sub_kind"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.header.sub_kind", err})
@@ -3704,10 +3934,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.header.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.SubKind) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.SubKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["sub_kind"] = v
 						}
 					}
@@ -3718,6 +3951,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["version"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.header.version", err})
@@ -3726,10 +3962,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.header.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Version) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Version)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["version"] = v
 						}
 					}
@@ -3757,6 +3996,7 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if obj.Metadata == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Metadata
 									tf := &v
 									{
@@ -3766,6 +4006,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										} else {
 											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["name"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"Member.header.metadata.name", err})
@@ -3774,10 +4017,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"Member.header.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Name) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Name)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["name"] = v
 										}
 									}
@@ -3788,6 +4034,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										} else {
 											v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["namespace"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"Member.header.metadata.namespace", err})
@@ -3796,10 +4045,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"Member.header.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Namespace) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Namespace)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["namespace"] = v
 										}
 									}
@@ -3810,6 +4062,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										} else {
 											v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["description"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"Member.header.metadata.description", err})
@@ -3818,10 +4073,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"Member.header.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Description) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Description)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["description"] = v
 										}
 									}
@@ -3847,11 +4105,14 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 														c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 													}
 												}
-												if obj.Labels != nil {
+												{
 													t := o.ElemType
 													for k, a := range obj.Labels {
-														v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"Member.header.metadata.labels", err})
@@ -3860,17 +4121,20 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"Member.header.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = false
 														}
+
+														v.Null = false
 														v.Value = string(a)
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Labels) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["labels"] = c
 											}
 										}
@@ -3880,40 +4144,22 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Member.header.metadata.expires"})
 										} else {
-											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+											v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 											tf.Attrs["expires"] = v
 										}
 									}
-									{
-										t, ok := tf.AttrTypes["revision"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"Member.header.metadata.revision"})
-										} else {
-											v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"Member.header.metadata.revision", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"Member.header.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.Revision) == ""
-											}
-											v.Value = string(obj.Revision)
-											v.Unknown = false
-											tf.Attrs["revision"] = v
-										}
-									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["metadata"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["header"] = v
 			}
 		}
@@ -3942,6 +4188,7 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -3951,6 +4198,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["access_list"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["access_list"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.spec.access_list", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.spec.access_list", err})
@@ -3959,42 +4209,14 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.spec.access_list", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.AccessList) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.AccessList)
-							v.Unknown = false
-							tf.Attrs["access_list"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["name"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.name"})
-						} else {
-							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"Member.spec.name", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"Member.spec.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.Name) == ""
+							if !preserveUnknown {
+								v.Unknown = false
 							}
-							v.Value = string(obj.Name)
-							v.Unknown = false
-							tf.Attrs["name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["joined"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.joined"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Joined, t, tf.Attrs["joined"])
-							tf.Attrs["joined"] = v
+							tf.Attrs["access_list"] = v
 						}
 					}
 					{
@@ -4002,7 +4224,7 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"Member.spec.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
@@ -4013,6 +4235,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["reason"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["reason"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.spec.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.spec.reason", err})
@@ -4021,33 +4246,14 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.spec.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Reason) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Reason)
-							v.Unknown = false
-							tf.Attrs["reason"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["added_by"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"Member.spec.added_by"})
-						} else {
-							v, ok := tf.Attrs["added_by"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"Member.spec.added_by", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"Member.spec.added_by", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.AddedBy) == ""
+							if !preserveUnknown {
+								v.Unknown = false
 							}
-							v.Value = string(obj.AddedBy)
-							v.Unknown = false
-							tf.Attrs["added_by"] = v
+							tf.Attrs["reason"] = v
 						}
 					}
 					{
@@ -4057,6 +4263,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 						} else {
 							v, ok := tf.Attrs["membership_kind"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
 							if !ok {
+								if tf.Attrs["membership_kind"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.spec.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"Member.spec.membership_kind", err})
@@ -4065,15 +4274,20 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"Member.spec.membership_kind", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
 								}
-								v.Null = int64(obj.MembershipKind) == 0
 							}
+
+							v.Null = false
 							v.Value = int64(obj.MembershipKind)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["membership_kind"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -4085,6 +4299,9 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 		} else {
 			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["scope"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"Member.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"Member.scope", err})
@@ -4093,10 +4310,13 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"Member.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Scope) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Scope)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["scope"] = v
 		}
 	}
@@ -4208,5 +4428,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

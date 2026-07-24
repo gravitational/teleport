@@ -263,6 +263,8 @@ func (r resourceTeleportClassifier) Update(ctx context.Context, req tfsdk.Update
 
 	classifierResource = classifierI
 	
+	classifier = classifierResource
+
 	diags = schemav1.CopyClassifierToTerraform(ctx, classifier, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -327,4 +329,49 @@ func (r resourceTeleportClassifier) ImportState(ctx context.Context, req tfsdk.I
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportClassifier) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	classifier := &summarizerv1.Classifier{}
+	resp.Diagnostics.Append(schemav1.CopyClassifierFromTerraform(ctx, config, classifier)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	classifierResource := classifier
+	classifierResource.Kind = apitypes.KindClassifier
+
+	classifier = classifierResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyClassifierToTerraformPreserveUnknown(ctx, classifier, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

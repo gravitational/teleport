@@ -263,6 +263,8 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 
 	scopedTokenResource = scopedTokenI
 	
+	scopedToken = scopedTokenResource
+
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -327,4 +329,49 @@ func (r resourceTeleportScopedToken) ImportState(ctx context.Context, req tfsdk.
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportScopedToken) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	scopedToken := &joiningv1.ScopedToken{}
+	resp.Diagnostics.Append(schemav1.CopyScopedTokenFromTerraform(ctx, config, scopedToken)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	scopedTokenResource := scopedToken
+	scopedTokenResource.Kind = apitypes.KindScopedToken
+
+	scopedToken = scopedTokenResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyScopedTokenToTerraformPreserveUnknown(ctx, scopedToken, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

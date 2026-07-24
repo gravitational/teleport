@@ -88,7 +88,7 @@ func (r resourceTeleportDeviceV1) Create(ctx context.Context, req tfsdk.CreateRe
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("DeviceV1 exists in Teleport. Either remove it (tctl rm device/%v)"+
-				" or import it to the existing state (terraform import teleport_device_trust.%v %v)", id, id, id)
+				" or import it to the existing state (terraform import teleport_trusted_device.%v %v)", id, id, id)
 
 			resp.Diagnostics.Append(tfdiag.DiagFromErr("DeviceV1 exists in Teleport", trace.Errorf(existErr)))
 			return
@@ -264,6 +264,8 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 
 	trustedDeviceResource = trustedDeviceI
 	
+	trustedDevice = trustedDeviceResource
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -328,4 +330,48 @@ func (r resourceTeleportDeviceV1) ImportState(ctx context.Context, req tfsdk.Imp
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportDeviceV1) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedDevice := &apitypes.DeviceV1{}
+	resp.Diagnostics.Append(schemav1.CopyDeviceV1FromTerraform(ctx, config, trustedDevice)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedDeviceResource := trustedDevice
+
+	trustedDevice = trustedDeviceResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyDeviceV1ToTerraformPreserveUnknown(ctx, trustedDevice, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

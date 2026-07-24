@@ -142,6 +142,9 @@ type payload struct {
 	// not specify one in the resource config. The user-provided sub_kind (on
 	// the resource or in state) takes precedence; this is only a fallback.
 	DefaultSubKind string
+	// WithoutModifyPlan skips generation of the ModifyPlan function, which may
+	// not be supported, or may have been manually implemented.
+	WithoutModifyPlan bool
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -434,6 +437,11 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
+		// TODO: The Teleport SAML IdP API mutates the generated
+		// `spec.entity_descriptor` based on `spec.attribute_mapping`. This can
+		// result in `inconsistent state after apply` errors.
+		SaveSpecStateFromPlan: true,
+		WithoutModifyPlan:     true,
 	}
 
 	provisionToken = payload{
@@ -553,6 +561,10 @@ var (
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1",
 		IsPlainStruct:         true,
 		TerraformResourceType: "teleport_login_rule",
+		// The default implementation of ModifyPlan expects that the `spec` field
+		// is present within the resource. `login_rule` does not contain a `spec`
+		// field and results in a panic.
+		WithoutModifyPlan: true,
 	}
 
 	deviceTrust = payload{
@@ -571,7 +583,7 @@ var (
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1",
 		IsPlainStruct:         true,
 		UUIDMetadataName:      true,
-		TerraformResourceType: "teleport_device_trust",
+		TerraformResourceType: "teleport_trusted_device",
 	}
 
 	oktaImportRule = payload{

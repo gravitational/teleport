@@ -191,6 +191,7 @@ injected_fields:
 exclude_fields:
     # Metadata (we id resources by name on our side)
     - "Metadata.ID"
+    - "Metadata.Revision"
 
     # AuthPreference
     - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
@@ -198,6 +199,9 @@ exclude_fields:
 
     # ClusterMaintenanceConfig
     - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
+
+    # Nonce value is opaque and can be hidden from users.
+    - "ClusterMaintenanceConfigV1.Nonce"
 
     # NetworkingConfig
     - "ClusterNetworkingConfigV2.Metadata.Name" # It's a singleton resource
@@ -221,7 +225,6 @@ exclude_fields:
 
     # UIConfig
     - "UIConfigV1.Metadata.Name" # It's a singleton resource
-    - "UIConfigV1.Metadata.Revision"
 
     # User
     - "UserSpecV2.LocalAuth" # We do not need to set user auth data
@@ -239,6 +242,10 @@ exclude_fields:
     # Uses a google.protobuf.Struct field that isn't supported (see
     # https://github.com/gravitational/protoc-gen-terraform/issues/52)
     - "ProvisionTokenV2.Spec.GenericOIDC.MustMatchFields"
+
+    # Lock
+    - "LockV2.Spec.CreatedAt"
+    - "LockV2.Spec.CreatedBy"
 
 name_overrides:
 
@@ -260,6 +267,9 @@ computed_fields:
     - "AuthPreferenceV2.Spec.SecondFactor"
     - "AuthPreferenceV2.Spec.Type"
     - "AuthPreferenceV2.Spec.LockingMode"
+    - "AuthPreferenceV2.Spec.IDP"
+    - "AuthPreferenceV2.Spec.IDP.SAML"
+    - "AuthPreferenceV2.Spec.Okta"
     - "AuthPreferenceV2.Metadata.Namespace"
     - "AuthPreferenceV2.Metadata.Labels"
     - "AuthPreferenceV2.Kind"
@@ -270,6 +280,9 @@ computed_fields:
     # Cluster networking
     - "ClusterNetworkingConfigV2.Spec.KeepAliveCountMax"
     - "ClusterNetworkingConfigV2.Spec.KeepAliveInterval"
+    - "ClusterNetworkingConfigV2.Spec.TunnelStrategy"
+    - "ClusterNetworkingConfigV2.Spec.TunnelStrategy.AgentMesh"
+    - "ClusterNetworkingConfigV2.Spec.TunnelStrategy.ProxyPeering"
     - "ClusterNetworkingConfigV2.Kind"
     - "ClusterNetworkingConfigV2.Version"
 
@@ -331,6 +344,8 @@ computed_fields:
     - "RoleV6.Spec.Options.CreateDesktopUser"
     - "RoleV6.Spec.Options.DesktopClipboard"
     - "RoleV6.Spec.Options.DesktopDirectorySharing"
+    - "RoleV6.Spec.Options.RecordSession"
+    - "RoleV6.Spec.Options.IDP"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"
@@ -398,7 +413,6 @@ required_fields:
 
     # Auth preference
     - "AuthPreferenceV2.Spec"
-    - "AuthPreferenceV2.Metadata.Name"
 
     # Database
     - "DatabaseV3.Spec.Protocol"

@@ -263,6 +263,8 @@ func (r resourceTeleportAppAuthConfig) Update(ctx context.Context, req tfsdk.Upd
 
 	appauthconfigResource = appauthconfigI
 	
+	appauthconfig = appauthconfigResource
+
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -327,4 +329,49 @@ func (r resourceTeleportAppAuthConfig) ImportState(ctx context.Context, req tfsd
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportAppAuthConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	appauthconfig := &appauthconfigv1.AppAuthConfig{}
+	resp.Diagnostics.Append(schemav1.CopyAppAuthConfigFromTerraform(ctx, config, appauthconfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	appauthconfigResource := appauthconfig
+	appauthconfigResource.Kind = apitypes.KindAppAuthConfig
+
+	appauthconfig = appauthconfigResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyAppAuthConfigToTerraformPreserveUnknown(ctx, appauthconfig, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

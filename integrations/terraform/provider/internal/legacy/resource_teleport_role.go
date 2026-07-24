@@ -279,6 +279,8 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Role", trace.Errorf("Can not convert %T to RoleV6", roleI), "role"))
 		return
 	}
+	role = roleResource
+
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -343,4 +345,53 @@ func (r resourceTeleportRole) ImportState(ctx context.Context, req tfsdk.ImportR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportRole) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	role := &apitypes.RoleV6{}
+	resp.Diagnostics.Append(tfschema.CopyRoleV6FromTerraform(ctx, config, role)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	roleResource := role
+
+	if err := roleResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting Role defaults", trace.Wrap(err), "role"))
+		return
+	}
+
+	role = roleResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyRoleV6ToTerraformPreserveUnknown(ctx, role, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
