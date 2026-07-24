@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
+	"github.com/gravitational/teleport/lib/httplib/compress"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -218,7 +219,7 @@ func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionCh
 }
 
 func (c *ConnectionsHandler) withLLMHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	sess.handler = c.llmHandler
+	sess.handler = compress.Middleware(c.llmHandler, compress.WithWriteError(c.llmHandler.HandleError))
 	return nil
 }
 

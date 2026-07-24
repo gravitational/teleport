@@ -496,7 +496,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 			t.Run("HTTPS", func(t *testing.T) {
 				for _, publicAddr := range httpsPublicAddrs {
 					t.Run(publicAddr, func(t *testing.T) {
-						cert := s.generateCertificate(t, s.user, publicAddr, "")
+						cert := s.generateCertificate(t, s.user, publicAddr, "", "")
 
 						s.checkHTTPResponse(t, cert, func(resp *http.Response) {
 							if tc.expectError {
@@ -532,7 +532,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 
 						// This is dialing the app server not the upstream
 						// target. We should expect no errors in this phase.
-						cert := s.generateCertificate(t, s.user, publicAddr, "")
+						cert := s.generateCertificate(t, s.user, publicAddr, "", "")
 						tlsConn := tls.Client(serverConn, &tls.Config{
 							RootCAs:      s.hostCertPool,
 							Certificates: []tls.Certificate{cert},
