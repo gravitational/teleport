@@ -23,6 +23,10 @@
 	final class DebugViewModel {
 		@CasePathable
 		enum Destination {
+			// MARK: - Debug Settings
+
+			case debugSettingsView(DebugSettingsViewModel)
+
 			// MARK: - Feature Demos
 
 			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)

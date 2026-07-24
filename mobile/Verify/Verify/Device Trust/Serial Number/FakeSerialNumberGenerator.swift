@@ -14,17 +14,20 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Core
-import Dependencies
-import DependenciesMacros
+#if DEBUG
+	import Foundation
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
+	/// A small utility for generating a fake serial number, mostly to support
+	struct FakeSerialNumberGenerator {
+		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
-	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
-
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	nonisolated var serialNumberClient = SerialNumberClient()
-}
+		static func generate() -> String {
+			func chunk() -> String {
+				(0 ..< 4)
+					.compactMap { _ in Self.base.randomElement() }
+					.reduce(into: "") { $0.append($1) }
+			}
+			return "\(chunk())-\(chunk())"
+		}
+	}
+#endif

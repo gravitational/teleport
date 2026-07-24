@@ -14,17 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Core
-import Dependencies
-import DependenciesMacros
+import Foundation
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
-
-	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
-	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
-
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	nonisolated var serialNumberClient = SerialNumberClient()
+extension String? {
+	var emptyIfNil: String {
+		get {
+			guard let self else { return "" }
+			return self
+		}
+		set {
+			self = newValue
+		}
+	}
 }

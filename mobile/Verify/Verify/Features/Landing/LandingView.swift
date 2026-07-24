@@ -47,7 +47,7 @@ struct LandingView: View {
 			.background(Color.Background.depth3)
 
 			// MARK: Toolbar
-			
+
 			.toolbarVisibility(viewModel.shouldShowToolbar ? .visible : .hidden)
 			.toolbar {
 				ToolbarItem {
@@ -101,7 +101,6 @@ struct LandingView: View {
 			}
 			#endif
 			// swiftformat:enable indent
-
 		}
 	}
 }

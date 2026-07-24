@@ -14,17 +14,31 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Core
-import Dependencies
 import DependenciesMacros
+import Foundation
+import Sharing
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
+@DependencyClient
+struct SerialNumberClient {
+	var getDeviceSerialNumber: @Sendable () -> String = { "" }
+}
 
-	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
-	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
+extension SerialNumberClient {
+	static let liveValue = SerialNumberClient(
+		getDeviceSerialNumber: {
+			#if DEBUG
+				@Shared(.debugStorage(.debugSerialNumber))
+				var debugSerialNumber: String? = nil
 
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	nonisolated var serialNumberClient = SerialNumberClient()
+				guard let debugSerialNumber else {
+					let newDebugSerialNumber = FakeSerialNumberGenerator.generate()
+					$debugSerialNumber.withLock { $0 = newDebugSerialNumber }
+					return newDebugSerialNumber
+				}
+				return debugSerialNumber
+			#else
+				fatalError("Production path has not yet been implemented. Requires messing around in Jamf.")
+			#endif
+		},
+	)
 }
