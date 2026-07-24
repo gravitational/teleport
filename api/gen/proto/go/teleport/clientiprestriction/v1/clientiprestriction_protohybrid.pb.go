@@ -26,6 +26,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -216,7 +217,26 @@ type ClientIPRestrictionSpec struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster.
 	// An empty list disables restrictions and allows all traffic.
-	AllowedCidrs  []string `protobuf:"bytes,1,rep,name=allowed_cidrs,json=allowedCidrs,proto3" json:"allowed_cidrs,omitempty"`
+	AllowedCidrs []string `protobuf:"bytes,1,rep,name=allowed_cidrs,json=allowedCidrs,proto3" json:"allowed_cidrs,omitempty"`
+	// mode is the user-controlled operational mode of the restriction. It denotes
+	// intent; the actual enforcement state is reported by status.state.
+	// Possible values: "draft" (configured but not enforced) and "enforced"
+	// (should be enforced by Teleport Cloud). An empty value is treated as
+	// "enforced" for backward compatibility.
+	Mode string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	// expires is the time at which the restriction is disabled and mode reverts
+	// to "draft". An unset value means the restriction never expires. When set,
+	// it must be at least 20 minutes in the future.
+	//
+	// Note: we do not use the `metadata.expires` field for this, because that
+	// conventionally denotes that the resource should be deleted once it elapses.
+	// Here expiry only stops enforcement on the Cloud side; the resource itself
+	// keeps existing, reverting to a "draft" state rather than being removed.
+	//
+	// Writes fully replace the resource, so a client editing other fields must
+	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
+	// back unchanged can be rejected once it is under 20 minutes away.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires,proto3" json:"expires,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -253,8 +273,41 @@ func (x *ClientIPRestrictionSpec) GetAllowedCidrs() []string {
 	return nil
 }
 
+func (x *ClientIPRestrictionSpec) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *ClientIPRestrictionSpec) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
+	}
+	return nil
+}
+
 func (x *ClientIPRestrictionSpec) SetAllowedCidrs(v []string) {
 	x.AllowedCidrs = v
+}
+
+func (x *ClientIPRestrictionSpec) SetMode(v string) {
+	x.Mode = v
+}
+
+func (x *ClientIPRestrictionSpec) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *ClientIPRestrictionSpec) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *ClientIPRestrictionSpec) ClearExpires() {
+	x.Expires = nil
 }
 
 type ClientIPRestrictionSpec_builder struct {
@@ -263,6 +316,25 @@ type ClientIPRestrictionSpec_builder struct {
 	// allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster.
 	// An empty list disables restrictions and allows all traffic.
 	AllowedCidrs []string
+	// mode is the user-controlled operational mode of the restriction. It denotes
+	// intent; the actual enforcement state is reported by status.state.
+	// Possible values: "draft" (configured but not enforced) and "enforced"
+	// (should be enforced by Teleport Cloud). An empty value is treated as
+	// "enforced" for backward compatibility.
+	Mode string
+	// expires is the time at which the restriction is disabled and mode reverts
+	// to "draft". An unset value means the restriction never expires. When set,
+	// it must be at least 20 minutes in the future.
+	//
+	// Note: we do not use the `metadata.expires` field for this, because that
+	// conventionally denotes that the resource should be deleted once it elapses.
+	// Here expiry only stops enforcement on the Cloud side; the resource itself
+	// keeps existing, reverting to a "draft" state rather than being removed.
+	//
+	// Writes fully replace the resource, so a client editing other fields must
+	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
+	// back unchanged can be rejected once it is under 20 minutes away.
+	Expires *timestamppb.Timestamp
 }
 
 func (b0 ClientIPRestrictionSpec_builder) Build() *ClientIPRestrictionSpec {
@@ -270,6 +342,8 @@ func (b0 ClientIPRestrictionSpec_builder) Build() *ClientIPRestrictionSpec {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.AllowedCidrs = b.AllowedCidrs
+	x.Mode = b.Mode
+	x.Expires = b.Expires
 	return m0
 }
 
@@ -278,7 +352,8 @@ func (b0 ClientIPRestrictionSpec_builder) Build() *ClientIPRestrictionSpec {
 type ClientIPRestrictionStatus struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// state is the current enforcement state of the restrictions at the ingress layer.
-	// Possible values: "pending", "active".
+	// Possible values: "pending" (written but not yet applied), "active" (applied
+	// and enforced), and "draft" (saved but not enforced because mode is "draft").
 	State         string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -324,7 +399,8 @@ type ClientIPRestrictionStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	// state is the current enforcement state of the restrictions at the ingress layer.
-	// Possible values: "pending", "active".
+	// Possible values: "pending" (written but not yet applied), "active" (applied
+	// and enforced), and "draft" (saved but not enforced because mode is "draft").
 	State string
 }
 
@@ -340,16 +416,18 @@ var File_teleport_clientiprestriction_v1_clientiprestriction_proto protoreflect.
 
 const file_teleport_clientiprestriction_v1_clientiprestriction_proto_rawDesc = "" +
 	"\n" +
-	"9teleport/clientiprestriction/v1/clientiprestriction.proto\x12\x1fteleport.clientiprestriction.v1\x1a!teleport/header/v1/metadata.proto\"\xba\x02\n" +
+	"9teleport/clientiprestriction/v1/clientiprestriction.proto\x12\x1fteleport.clientiprestriction.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xba\x02\n" +
 	"\x13ClientIPRestriction\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12L\n" +
 	"\x04spec\x18\x05 \x01(\v28.teleport.clientiprestriction.v1.ClientIPRestrictionSpecR\x04spec\x12R\n" +
-	"\x06status\x18\x06 \x01(\v2:.teleport.clientiprestriction.v1.ClientIPRestrictionStatusR\x06status\">\n" +
+	"\x06status\x18\x06 \x01(\v2:.teleport.clientiprestriction.v1.ClientIPRestrictionStatusR\x06status\"\x88\x01\n" +
 	"\x17ClientIPRestrictionSpec\x12#\n" +
-	"\rallowed_cidrs\x18\x01 \x03(\tR\fallowedCidrs\"1\n" +
+	"\rallowed_cidrs\x18\x01 \x03(\tR\fallowedCidrs\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\x124\n" +
+	"\aexpires\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"1\n" +
 	"\x19ClientIPRestrictionStatus\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\tR\x05stateBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1b\x06proto3"
 
@@ -359,16 +437,18 @@ var file_teleport_clientiprestriction_v1_clientiprestriction_proto_goTypes = []a
 	(*ClientIPRestrictionSpec)(nil),   // 1: teleport.clientiprestriction.v1.ClientIPRestrictionSpec
 	(*ClientIPRestrictionStatus)(nil), // 2: teleport.clientiprestriction.v1.ClientIPRestrictionStatus
 	(*v1.Metadata)(nil),               // 3: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),     // 4: google.protobuf.Timestamp
 }
 var file_teleport_clientiprestriction_v1_clientiprestriction_proto_depIdxs = []int32{
 	3, // 0: teleport.clientiprestriction.v1.ClientIPRestriction.metadata:type_name -> teleport.header.v1.Metadata
 	1, // 1: teleport.clientiprestriction.v1.ClientIPRestriction.spec:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionSpec
 	2, // 2: teleport.clientiprestriction.v1.ClientIPRestriction.status:type_name -> teleport.clientiprestriction.v1.ClientIPRestrictionStatus
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 3: teleport.clientiprestriction.v1.ClientIPRestrictionSpec.expires:type_name -> google.protobuf.Timestamp
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_clientiprestriction_v1_clientiprestriction_proto_init() }
