@@ -87,28 +87,28 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 		require.Equal(t, "Production DB", ra.Resource.Alias)
 		require.Equal(t, "standing", ra.Level)
 		require.True(t, ra.Temporary)
-		require.Equal(t, grantorCounts{Standing: 1, Request: 1}, ra.GrantorCounts)
-		require.Len(t, ra.Grantors, 2)
+		require.Equal(t, grantCounts{Standing: 1, Request: 1}, ra.GrantCounts)
+		require.Len(t, ra.GrantedBy, 2)
 		require.NotNil(t, ra.Activity)
 		require.EqualValues(t, 14, ra.Activity.Count)
 		require.Equal(t, &lastAccess, ra.Activity.LastAccess)
 	})
 
-	t.Run("primary grantor is the first grantor", func(t *testing.T) {
+	t.Run("primary grant is the first grant", func(t *testing.T) {
 		out := buildAccessReviewOutput(resp)
-		// The backend lists the primary grantor first, so index 0 is primary
+		// The backend lists the primary grant first, so index 0 is primary
 		// regardless of the resolved level.
-		g, ok := primaryGrantor(out.Identities[0].Resources[0])
+		g, ok := primaryGrant(out.Identities[0].Resources[0])
 		require.True(t, ok)
 		require.Equal(t, "oncall", g.Node.Name)
 		require.True(t, g.Node.Temporary)
 	})
 
-	t.Run("grantor temporary propagates from node", func(t *testing.T) {
+	t.Run("grant temporary propagates from node", func(t *testing.T) {
 		out := buildAccessReviewOutput(resp)
-		grantors := out.Identities[0].Resources[0].Grantors
-		require.Equal(t, "oncall", grantors[0].Node.Name)
-		require.True(t, grantors[0].Node.Temporary)
+		grantedBy := out.Identities[0].Resources[0].GrantedBy
+		require.Equal(t, "oncall", grantedBy[0].Node.Name)
+		require.True(t, grantedBy[0].Node.Temporary)
 	})
 
 	t.Run("missing node tolerated", func(t *testing.T) {
@@ -144,40 +144,40 @@ func TestBuildAccessReviewOutput(t *testing.T) {
 	})
 }
 
-func TestPrimaryGrantor(t *testing.T) {
-	g := func(name, level string) grantor {
-		return grantor{Node: node{Name: name}, Level: level}
+func TestPrimaryGrant(t *testing.T) {
+	g := func(name, level string) grant {
+		return grant{Node: node{Name: name}, Level: level}
 	}
 
-	t.Run("returns the first grantor", func(t *testing.T) {
-		// The primary is index 0 even when a later grantor matches the level.
-		ra := resourceAccess{Level: "standing", Grantors: []grantor{g("req", "request"), g("std", "standing")}}
-		got, ok := primaryGrantor(ra)
+	t.Run("returns the first grant", func(t *testing.T) {
+		// The primary is index 0 even when a later grant matches the level.
+		ra := resourceAccess{Level: "standing", GrantedBy: []grant{g("req", "request"), g("std", "standing")}}
+		got, ok := primaryGrant(ra)
 		require.True(t, ok)
 		require.Equal(t, "req", got.Node.Name)
 	})
 
-	t.Run("none when no grantors", func(t *testing.T) {
-		_, ok := primaryGrantor(resourceAccess{Level: "standing"})
+	t.Run("none when no grants", func(t *testing.T) {
+		_, ok := primaryGrant(resourceAccess{Level: "standing"})
 		require.False(t, ok)
 	})
 }
 
-func TestGrantorSummary(t *testing.T) {
+func TestGrantSummary(t *testing.T) {
 	cases := []struct {
 		name string
-		in   grantorCounts
+		in   grantCounts
 		want string
 	}{
-		{"empty", grantorCounts{}, ""},
-		{"standing only", grantorCounts{Standing: 2}, "2 standing"},
-		{"impersonate only", grantorCounts{Impersonate: 1}, "1 impersonate"},
-		{"mixed in fixed order", grantorCounts{Standing: 1, Impersonate: 2, Request: 3}, "1 standing, 2 impersonate, 3 request"},
-		{"zero levels omitted", grantorCounts{Standing: 1, Request: 1}, "1 standing, 1 request"},
+		{"empty", grantCounts{}, ""},
+		{"standing only", grantCounts{Standing: 2}, "2 standing"},
+		{"impersonate only", grantCounts{Impersonate: 1}, "1 impersonate"},
+		{"mixed in fixed order", grantCounts{Standing: 1, Impersonate: 2, Request: 3}, "1 standing, 2 impersonate, 3 request"},
+		{"zero levels omitted", grantCounts{Standing: 1, Request: 1}, "1 standing, 1 request"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, grantorSummary(tc.in))
+			require.Equal(t, tc.want, grantSummary(tc.in))
 		})
 	}
 }
@@ -189,21 +189,21 @@ func TestDisplayAccessReviewText(t *testing.T) {
 			Identity: node{ID: "i1", Name: "alice@corp", SubKind: "user"},
 			Resources: []resourceAccess{
 				{
-					Resource:      node{Name: "prod-db", SubKind: "db"},
-					Level:         "standing",
-					GrantorCounts: grantorCounts{Standing: 1, Request: 1},
-					Grantors: []grantor{
+					Resource:    node{Name: "prod-db", SubKind: "db"},
+					Level:       "standing",
+					GrantCounts: grantCounts{Standing: 1, Request: 1},
+					GrantedBy: []grant{
 						{Node: node{Name: "admins"}, Level: "standing"},
 						{Node: node{Name: "break-glass", Temporary: true}, Level: "request"},
 					},
 					Activity: &activity{Count: 14, LastAccess: &last},
 				},
 				{
-					Resource:      node{Name: "prod-web", SubKind: "app"},
-					Level:         "request",
-					Temporary:     true,
-					GrantorCounts: grantorCounts{Request: 1},
-					Grantors:      []grantor{{Node: node{Name: "oncall"}, Level: "request"}},
+					Resource:    node{Name: "prod-web", SubKind: "app"},
+					Level:       "request",
+					Temporary:   true,
+					GrantCounts: grantCounts{Request: 1},
+					GrantedBy:   []grant{{Node: node{Name: "oncall"}, Level: "request"}},
 				},
 			},
 		}},
@@ -221,7 +221,7 @@ func TestDisplayAccessReviewText(t *testing.T) {
 		require.Contains(t, out, "Resource Kind")
 		require.Contains(t, out, "db")
 		require.Contains(t, out, "app")
-		require.NotContains(t, out, "break-glass", "summary shows only the primary grantor")
+		require.NotContains(t, out, "break-glass", "summary shows only the primary grant")
 	})
 
 	t.Run("summary with window shows activity and period", func(t *testing.T) {
@@ -243,22 +243,22 @@ func TestDisplayAccessReviewText(t *testing.T) {
 		require.Equal(t, 1, bytes.Count(buf.Bytes(), []byte("alice@corp")))
 	})
 
-	t.Run("temporary primary grantor is marked", func(t *testing.T) {
+	t.Run("temporary primary grant is marked", func(t *testing.T) {
 		o := accessReviewOutput{Identities: []identityAccess{{
 			Identity: node{Name: "bob@corp", SubKind: "user"},
 			Resources: []resourceAccess{{
-				Resource: node{Name: "vault", SubKind: "db"},
-				Level:    "request",
-				Grantors: []grantor{{Node: node{Name: "break-glass", Temporary: true}, Level: "request"}},
+				Resource:  node{Name: "vault", SubKind: "db"},
+				Level:     "request",
+				GrantedBy: []grant{{Node: node{Name: "break-glass", Temporary: true}, Level: "request"}},
 			}},
 		}}}
 		var buf bytes.Buffer
 		require.NoError(t, displayAccessReviewText(&buf, o, time.Time{}, time.Time{}, false, false))
-		require.Contains(t, buf.String(), "break-glass*", "a temporary primary grantor should be marked")
+		require.Contains(t, buf.String(), "break-glass*", "a temporary primary grant should be marked")
 	})
 
 	t.Run("legend keys the marker in both views", func(t *testing.T) {
-		const legend = "* marks self-expiring access or a temporary grantor"
+		const legend = "* marks self-expiring access or a temporary grant"
 		var summary, detailed bytes.Buffer
 		require.NoError(t, displayAccessReviewText(&summary, output, time.Time{}, time.Time{}, false, false))
 		require.NoError(t, displayAccessReviewText(&detailed, output, time.Time{}, time.Time{}, false, true))
@@ -283,10 +283,10 @@ func TestDisplayAccessReviewText(t *testing.T) {
 
 // TestBuildAccessTable pins the layout policy: every column renders in full
 // when the table fits the terminal, and only the Resource column is ever
-// bounded — so naturally wide columns like Grantor Counts and Last Access are never
+// bounded — so naturally wide columns like Grants and Last Access are never
 // truncated just because the table has many columns.
 func TestBuildAccessTable(t *testing.T) {
-	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Counts", "Accesses", "Last Access"}
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Granted By", "Grants", "Accesses", "Last Access"}
 	rows := [][]string{
 		{"ghassan", "user", "teleport-mcp-demo", "app", "standing", "Local DB ACL", "3 standing, 1 request", "6", "2026-06-05T19:15:32-07:00"},
 	}
@@ -422,8 +422,9 @@ func TestAccessReviewFlags(t *testing.T) {
 		require.Equal(t, 50, c.accessReview.limit)
 		require.Equal(t, teleport.Text, c.accessReview.format)
 		require.False(t, c.accessReview.detailed)
-		require.True(t, c.accessReview.from.IsZero())
-		require.True(t, c.accessReview.to.IsZero())
+		require.True(t, c.accessReview.activity)
+		require.WithinDuration(t, time.Now().Add(-24*time.Hour), c.accessReview.from, time.Minute)
+		require.WithinDuration(t, time.Now(), c.accessReview.to, time.Minute)
 	})
 
 	t.Run("query required", func(t *testing.T) {
@@ -449,18 +450,12 @@ func TestAccessReviewValidation(t *testing.T) {
 		err := c.AccessReview(context.Background(), client)
 		return buf.String(), err
 	}
-	base := accessReviewArgs{query: "SELECT * FROM access_path", limit: 50, format: teleport.Text}
+	// The window fields mirror the --from/--to kingpin defaults (24h ago to now).
+	base := accessReviewArgs{query: "SELECT * FROM access_path", limit: 50, format: teleport.Text, activity: true, from: time.Now().Add(-24 * time.Hour), to: time.Now()}
 
 	t.Run("limit below range", func(t *testing.T) {
 		args := base
 		args.limit = 0
-		_, err := run(args)
-		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
-	})
-
-	t.Run("--to without --from", func(t *testing.T) {
-		args := base
-		args.to = time.Now()
 		_, err := run(args)
 		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
 	})
@@ -472,9 +467,38 @@ func TestAccessReviewValidation(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
 	})
 
-	t.Run("valid no-window review renders", func(t *testing.T) {
+	t.Run("--to at or before --from is rejected", func(t *testing.T) {
+		args := base
+		args.from = time.Now().Add(-time.Hour)
+		args.to = time.Now().Add(-2 * time.Hour)
+		_, err := run(args)
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+	})
+
+	t.Run("default window review renders with a period", func(t *testing.T) {
 		out, err := run(base)
 		require.NoError(t, err)
+		require.Contains(t, out, "Period:")
+		require.Contains(t, out, "No access found.")
+	})
+
+	t.Run("--no-activity hides the period and activity columns", func(t *testing.T) {
+		args := base
+		args.activity = false
+		out, err := run(args)
+		require.NoError(t, err)
+		require.NotContains(t, out, "Period:")
+		require.Contains(t, out, "No access found.")
+	})
+
+	t.Run("--no-activity takes priority over an invalid window", func(t *testing.T) {
+		// --no-activity skips window validation, so a future --from does not error.
+		args := base
+		args.activity = false
+		args.from = time.Now().Add(time.Hour)
+		out, err := run(args)
+		require.NoError(t, err)
+		require.NotContains(t, out, "Period:")
 		require.Contains(t, out, "No access found.")
 	})
 }
@@ -489,7 +513,7 @@ func TestAccessReviewSurfacesWarnings(t *testing.T) {
 		require.NoError(t, c.AccessReview(context.Background(), client))
 		return buf.String()
 	}
-	base := accessReviewArgs{query: "SELECT * FROM access_path", limit: 50, format: teleport.Text}
+	base := accessReviewArgs{query: "SELECT * FROM access_path", limit: 50, format: teleport.Text, activity: true, from: time.Now().Add(-24 * time.Hour), to: time.Now()}
 
 	t.Run("truncation warning", func(t *testing.T) {
 		args := base
@@ -500,10 +524,15 @@ func TestAccessReviewSurfacesWarnings(t *testing.T) {
 		require.Contains(t, out, "truncated at 1 identities")
 	})
 
-	t.Run("iac_error warning", func(t *testing.T) {
+	t.Run("iac_error is a note and hides activity columns", func(t *testing.T) {
 		out := run(t, []accessgraph.IdentityAccessResponse{
 			{Data: []accessgraph.IdentityAccessRow{{Identity: uuid.New()}}, IacError: new("activity center down")},
 		}, base)
-		require.Contains(t, out, "activity unavailable: activity center down")
+		// The backend message surfaces verbatim under a "Note:" prefix, not a "Warning:".
+		require.Contains(t, out, "Note: activity center down")
+		require.NotContains(t, out, "Warning: activity center down")
+		// With activity unavailable, the activity columns are omitted.
+		require.NotContains(t, out, "Period:")
+		require.NotContains(t, out, "Last Access")
 	})
 }

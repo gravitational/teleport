@@ -97,9 +97,7 @@ CREATE TABLE IF NOT EXISTS teleport_info (
 
 -- We need AUTOINCREMENT here to ensure the recoveryWatermark has a
 -- monotonically incrementing id. We need to ensure that the 'id' is never
--- re-used for this table. Other tables do not have this requirement, which is
--- why this is the only table that requires AUTOINCREMENT.
--- See: https://sqlite.org/autoinc.html
+-- re-used for this table.
 CREATE TABLE IF NOT EXISTS corrupt_events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     payload   BLOB    NOT NULL,

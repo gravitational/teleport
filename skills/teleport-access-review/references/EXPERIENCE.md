@@ -5,10 +5,10 @@
 A successful review answers an access-governance question — "who can reach
 prod-db, and is that access used?", "what does the Prod Admins list grant?",
 "what can Alice access and does she still need it?", "which standing grants are
-dormant?" — with the right `(identity, resource)` rows, the grantor responsible
+dormant?" — with the right `(identity, resource)` rows, the grant responsible
 for each, and (when asked about usage) the activity. The reviewer's next step is
 almost always a remediation they run themselves: trim a list, fix a role, revoke
-a grant. Give them the rows and the grantor to act on; don't dump the whole
+a grant. Give them the rows and the grant to act on; don't dump the whole
 graph.
 
 ## Mental model: standing topology, not a timeline
@@ -52,9 +52,9 @@ $TCTL access-review --from 90d \
 
 ### 3. Use `--detailed` when "how" has more than one answer
 
-The summary shows the primary grantor — `grantors[0]`, the one backing the
+The summary shows the primary grant — `granted_by[0]`, the one backing the
 resolved level. When a pair is granted by several
-grantors and you need to see each one and its level (e.g. standing via a role
+grants and you need to see each one and its level (e.g. standing via a role
 _and_ request via a break-glass list), switch to `--detailed`.
 
 ### 4. Project with jq while iterating
@@ -96,8 +96,8 @@ resource the member reaches solely via another role or list never appears here.
 (2) **"Unused" does not mean "safe to de-list":** a resource shown here may also
 be granted by other paths, so removing the member from the list drops only _this_
 grant — if the `access` role (or another list) also grants it, their access
-persists. `grantor_counts` is the quick tell: more than one grant at the resolved
-level means a single de-listing won't revoke — confirm which grantors with
+persists. `grant_counts` is the quick tell: more than one grant at the resolved
+level means a single de-listing won't revoke — confirm which grants with
 `--detailed` or the cross-path follow-up below.
 
 **Gate — before recommending you trim the list, run the cross-path follow-up.**
@@ -105,7 +105,7 @@ It answers two different questions, each with its own query.
 
 _Will de-listing actually revoke?_ Re-query the list's members against the
 resources the list reached, dropping the `identity_group` scope so **every**
-grantor of those pairs shows — not just the paths through this list (optionally
+grant of those pairs shows — not just the paths through this list (optionally
 `--detailed`):
 
 ```sh
@@ -115,8 +115,8 @@ $TCTL access-review --from 90d \
            WHERE identity IN ('alice@example.com','bob@example.com') AND resource IN ('prod-db','prod-web')"
 ```
 
-The activity counts won't change — they're path-agnostic — but the grantors
-will. If Prod Admins is the _only_ grantor of a resource, de-listing genuinely
+The activity counts won't change — they're path-agnostic — but the grants
+will. If Prod Admins is the _only_ grant of a resource, de-listing genuinely
 revokes that access; if the `access` role also grants it, de-listing changes
 nothing. That's the difference between "trim the list" and "revoke the access".
 
@@ -141,10 +141,10 @@ Scope by the resource; no window needed if you only care about _who_ and _how_:
 ```sh
 $TCTL access-review --query "SELECT * FROM access_path WHERE resource = 'prod-db'" --format json \
   | jq -r '.identities[] | select(.resources|length>0) | .resources[0] as $r
-           | [(.identity.alias // .identity.name), $r.level, ($r.grantors[0].node | .alias // .name)] | @tsv'
+           | [(.identity.alias // .identity.name), $r.level, ($r.granted_by[0].node | .alias // .name)] | @tsv'
 ```
 
-Report identities, their level, and the grantor. Remember empty rows: an
+Report identities, their level, and the grant. Remember empty rows: an
 identity listed with no resource is _in scope but without a qualifying path_ (a
 missing requirement or only non-access edges) — not an accessor. Note `denied`
 rows explicitly: a deny means they are blocked, not allowed.
@@ -161,9 +161,9 @@ $TCTL access-review --from 90d --query "SELECT * FROM access_path WHERE resource
 
 The `// 0` treats missing `activity` as zero, which is only correct once you've
 ruled out an activity outage. If Identity Activity Center is unavailable the
-pull carries an `activity unavailable` root warning and omits activity on every
-row — check `.warnings` first (as the unused-access flow below does), or you'll
-read an outage as "nobody used it".
+pull sets the top-level `activity_unavailable` field and omits activity on every
+row — check it first (as the unused-access flow below does), or you'll read an
+outage as "nobody used it".
 
 **`access-review` only counts usage on access paths that still exist.** If
 someone accessed prod-db and their access was _since removed_, the pair has no
@@ -185,20 +185,20 @@ f=$(mktemp) && $TCTL access-review --from 90d \
   --query "SELECT * FROM access_path WHERE identity = 'alice@example.com'" --format json > "$f"
 # Activity is what separates used from unused, but two very different states both
 # leave `activity` absent: a genuinely unused pair (IAC succeeded, zero events) and
-# an IAC outage (no data at all). Gate on the warning first — if the lookup failed,
-# every row would look unused, so bail out rather than recommend revocations you
-# can't back up. Once the outage is ruled out, absent activity *is* zero.
-if jq -e '(.warnings // []) | any(test("activity unavailable"))' "$f" >/dev/null; then
-  echo "activity unavailable — cannot classify unused access; see .warnings"
+# an IAC outage (no data at all). Gate on the activity_unavailable field first — if
+# the lookup failed, every row would look unused, so bail out rather than recommend
+# revocations you can't back up. Once the outage is ruled out, absent activity *is* zero.
+if jq -e 'has("activity_unavailable")' "$f" >/dev/null; then
+  echo "activity unavailable — cannot classify unused access; see .activity_unavailable"
 else
-  # Standing access never used in the window — candidates to revoke, with the grantor
-  # to act on (grantors[0] is the primary grantor, i.e. the one backing the standing
+  # Standing access never used in the window — candidates to revoke, with the grant
+  # to act on (granted_by[0] is the primary grant, i.e. the one backing the standing
   # level). Missing `activity` means zero events here, so `// 0` is correct. `sub_kind`
   # is printed because activity is session-based: a zero on a non-session kind is "not
   # tracked", not "unused" — see the caveat below.
   jq -r '.identities[].resources[]
          | select(.level=="standing" and (.activity.count // 0)==0 and (.temporary|not))
-         | [(.resource.alias // .resource.name), .resource.sub_kind, (.grantors[0].node | .alias // .name // "?")] | @tsv' "$f"
+         | [(.resource.alias // .resource.name), .resource.sub_kind, (.granted_by[0].node | .alias // .name // "?")] | @tsv' "$f"
   # Used standing access — keep:
   jq -r '.identities[].resources[] | select(.level=="standing" and (.activity.count // 0)>0)
          | [(.resource.alias // .resource.name), .activity.count, .activity.last_access] | @tsv' "$f"
@@ -206,7 +206,7 @@ fi
 # rm "$f" when done.
 ```
 
-Present it as a concrete table: resource, kind, grantor, used/last-used — so the
+Present it as a concrete table: resource, kind, grant, used/last-used — so the
 reviewer can prioritise. Skip `temporary` (`*`) access: it self-expires, so
 there's no point trimming it. If you can tell sensitive resources (crown jewels,
 specific prod accounts) from low-risk ones, surface those first.
@@ -222,7 +222,7 @@ before recommending revocation.
 
 ### "What over-privileged access exists via the junior-dev role?"
 
-Scope to the grantor and look for access that looks wrong for it:
+Scope to the granting role and look for access that looks wrong for it:
 
 ```sh
 $TCTL access-review --query "SELECT * FROM access_path WHERE identity_group IN ('junior-dev')" --format json
@@ -275,13 +275,15 @@ resource, then `access-review` to show _how_ each of them is granted it.
 - **Truncation warning** (`results truncated at N identities; narrow --query`) —
   more identities matched than `--limit`. Raise `--limit` or narrow the query;
   don't present a truncated set as the complete answer.
-- **`activity unavailable: …` warning** (`iac_error`) — the audit-log lookup
-  failed (or Identity Activity Center isn't enabled). The access decisions are
-  still valid; the usage columns are not. Say so rather than reporting `0`/`never`
+- **`activity_unavailable` field** (`iac_error`) — the audit-log lookup failed
+  (or Identity Activity Center isn't enabled). The access decisions are still
+  valid; the activity columns are omitted. Say so rather than reporting `0`/`never`
   as fact.
-- **Activity requires a window.** No `--from` → no activity columns at all.
-  `--to` without `--from` is rejected; `--from` must be before `--to`, which
-  defaults to now — so a future `--from` with no `--to` is rejected.
+- **Activity is on by default (last 24h); widen or skip it.** `--from` defaults
+  to 24h ago and `--to` to now; set either to widen the window. `--no-activity`
+  skips the lookup for a faster, structural-only review and takes priority over
+  `--from`/`--to`. `--from` must be before `--to` — a future `--from`, or a `--to`
+  at or before `--from`, is rejected.
 - **`standing_privileges` is filter-only and sparse.** You can filter on it but
   it isn't returned, and it isn't populated for every identity — verify against a
   broad query before trusting a threshold; prefer counting standing rows from the
@@ -295,10 +297,10 @@ resource, then `access-review` to show _how_ each of them is granted it.
 
 - State the query (and window) alongside the results, so the user can trust and
   refine the scope — especially the scope caveat when you reviewed by access list.
-- Summarise: counts, the dormant/over-privileged candidates, and the grantor to
+- Summarise: counts, the dormant/over-privileged candidates, and the grant to
   act on — don't dump every row. Offer the full table on request.
 - When a finding implies remediation (trim a list, fix a role, revoke a grant),
-  recommend it and name the exact grantor — but do not run any write command
+  recommend it and name the exact grant — but do not run any write command
   yourself (see [SECURITY.md](SECURITY.md)).
 - Before an unscoped or very broad review (`WHERE`-less `SELECT *` on a large
   cluster), confirm with the user — it can be slow and large.

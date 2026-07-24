@@ -57,6 +57,21 @@ export interface App {
    */
   cloudInstance?: CloudInstance;
   isCloud?: boolean;
+  /**
+   * isLLM is true when the app is an LLM inference endpoint
+   * (URI scheme `llm://`).
+   */
+  isLLM?: boolean;
+  /**
+   * llmFormat is the inference API format an LLM app exposes, e.g. `anthropic`
+   * or `openai`. Only set when isLLM is true and the back-end reports it.
+   */
+  llmFormat?: LLMFormat;
+  /**
+   * llmProvider is the inference provider serving an LLM app, e.g. `anthropic`,
+   * `openai`, or `bedrock`.
+   */
+  llmProvider?: LLMProvider;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
@@ -142,6 +157,17 @@ export type SamlAppLaunchUrl = {
   /* friendly name of the URL. */
   friendlyName?: string;
 };
+
+/**
+ * LLMFormat is the inference API format an LLM app exposes to clients.
+ * It mirrors the back-end `types.LLMFormat` values.
+ */
+export type LLMFormat = 'anthropic' | 'openai';
+
+/**
+ * LLMProvider is the inference provider serving an LLM app.
+ */
+export type LLMProvider = 'anthropic' | 'openai' | 'bedrock';
 
 /**
  * AppMCP contains MCP server specific configurations.

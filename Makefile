@@ -980,16 +980,17 @@ helmunit/installed:
 	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
 	if [ -z "$$actual" ]; then \
 		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts. Run:'; \
+			'Helm unittest plugin is required to test Helm charts.'; \
 	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
 		printf '%s\n' \
 			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
-			'Run:'; \
+			''; \
 	else \
 		exit 0; \
 	fi; \
 	printf '%s\n' \
 		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
+		'Run:' \
 		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
 		'  rm -rf "$$plugin_dir"' \
 		'  mkdir -p "$$plugin_dir"' \
