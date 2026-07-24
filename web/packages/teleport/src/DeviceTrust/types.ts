@@ -17,11 +17,12 @@
  */
 
 import { PagerPosition } from 'design/DataTable/types';
+import { OSType } from 'gen-proto-ts/teleport/devicetrust/v1/os_type_pb';
 
 export type TrustedDevice = {
   id: string;
   assetTag: string;
-  osType: TrustedDeviceOSType;
+  osType: 'Windows' | 'Linux' | 'macOS' | 'iOS' | 'iPadOS';
   enrollStatus: 'enrolled' | 'not enrolled';
   owner: string;
   createTime?: Date;
@@ -50,12 +51,33 @@ export type DeviceSource = {
   origin: DeviceOrigin;
 };
 
-export type TrustedDeviceOSType =
-  | 'Windows'
-  | 'Linux'
-  | 'macOS'
-  | 'iOS'
-  | 'iPadOS';
+/**
+ * @deprecated Use TrustedDevice['osType'] instead.
+ * TODO(ravicious): Remove once teleport.e no longer imports it.
+ */
+export type TrustedDeviceOSType = TrustedDevice['osType'];
+
+export function osTypeLabel(
+  osType: OSType
+): TrustedDevice['osType'] | undefined {
+  switch (osType) {
+    case OSType.OS_TYPE_LINUX:
+      return 'Linux';
+    case OSType.OS_TYPE_MACOS:
+      return 'macOS';
+    case OSType.OS_TYPE_WINDOWS:
+      return 'Windows';
+    case OSType.OS_TYPE_IOS:
+      return 'iOS';
+    case OSType.OS_TYPE_IPADOS:
+      return 'iPadOS';
+    case OSType.OS_TYPE_UNSPECIFIED:
+      return undefined;
+    default:
+      osType satisfies never;
+      return undefined;
+  }
+}
 
 export type TrustedDeviceResponse = {
   items: TrustedDevice[];

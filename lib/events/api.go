@@ -429,6 +429,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionTargetDialDeniedEvent is emitted when an application target
+	// dial is denied by app_service target host restrictions.
+	AppSessionTargetDialDeniedEvent = "app.session.target.dial.denied"
+
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
@@ -703,6 +707,11 @@ const (
 	// A confirmed web authentication means the WebSession itself now holds
 	// augmented TLS and SSH certificates.
 	DeviceAuthenticateConfirmEvent = "device.authenticate.confirm"
+	// DeviceEnrollPairingRequestEvent is emitted when a device presents an enroll
+	// pairing token to request enrollment. On success the pairing transitions to
+	// awaiting approval. It is also emitted on failure (e.g. an invalid token),
+	// before any transition, in which case there is no associated user.
+	DeviceEnrollPairingRequestEvent = "device.enroll_pairing.request"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"

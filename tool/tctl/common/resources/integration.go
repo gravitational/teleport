@@ -78,9 +78,8 @@ func integrationHandler() Handler {
 		updateHandler: updateIntegration,
 		deleteHandler: deleteIntegration,
 		singleton:     false,
-		// TODO(greedy52) add admin action MFA for integrations.
-		mfaRequired: false,
-		description: "An integration with an external service such as AWS, GitHub, or Azure.",
+		mfaRequired:   true,
+		description:   "An integration with an external service such as AWS, GitHub, or Azure.",
 	}
 }
 

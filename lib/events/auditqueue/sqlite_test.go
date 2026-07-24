@@ -434,6 +434,31 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 		"Enqueue should map SQLITE_FULL to ErrQueueFull; got %v", got)
 }
 
+func TestEnqueue_FileSizeStaysWithinMaxBytes(t *testing.T) {
+	t.Parallel()
+
+	const maxBytes = 50 * sqlitePageSize
+	path := filepath.Join(t.TempDir(), "queue")
+	q, err := newSQLiteQueue(Config{
+		Path:     path,
+		MaxBytes: maxBytes,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	for i := range 10000 {
+		if err := q.Enqueue(newTestEvent(int64(i))); err != nil {
+			require.ErrorIs(t, err, ErrQueueFull)
+			break
+		}
+	}
+
+	info, err := os.Stat(filepath.Join(path, queueDBFile))
+	require.NoError(t, err)
+	require.LessOrEqual(t, info.Size(), int64(maxBytes),
+		"queue.db size %d exceeded MaxBytes %d", info.Size(), maxBytes)
+}
+
 func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
@@ -842,7 +867,7 @@ func TestIsSQLiteFullError(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", getDSN(dbPath, 10*sqlitePageSize))
+	db, err := sql.Open("sqlite", getDSN(dbPath, 10*sqlitePageSize, SynchronousNormal))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
