@@ -90,7 +90,9 @@ jobs:
 
       - name: Clear runtime values
         id: clear_kvstore_env
-        run: truncate -s 0 $GITHUB_ENV
+        run: |
+            echo "REVIEWERS=" >> $GITHUB_ENV
+            echo "REVIEWERS_PRIVATE_KEY=" >> $GITHUB_ENV
 
       - name: Run base difftest
         uses: ./.github/actions/difftest

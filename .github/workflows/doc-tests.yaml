@@ -108,7 +108,7 @@ jobs:
 
       - name: Clear runtime values
         id: clear_kvstore_env
-        run: truncate -s 0 $GITHUB_ENV
+        run: echo "REVIEWERS_PRIVATE_KEY=" >> $GITHUB_ENV
 
       - name: Check out shared-workflows
         uses: actions/checkout@v6
