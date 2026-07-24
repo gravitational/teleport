@@ -1092,7 +1092,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
 
-	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
+	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName(), scope: appServer.GetScope()}
 
 	srv := handle.appServers[appKey]
 	if srv == nil {
@@ -1170,7 +1170,7 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		handle.databaseServers = make(map[resourceKey]*heartBeatInfo[*types.DatabaseServerV3])
 	}
 
-	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName()}
+	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName(), scope: databaseServer.GetScope()}
 
 	if _, ok := handle.databaseServers[dbKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveDatabase)
@@ -1239,8 +1239,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 		handle.kubernetesServers = make(map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3])
 	}
 
-	kubeKey := resourceKey{hostID: kubernetesServer.GetHostID(), name: kubernetesServer.GetCluster().GetName()}
-
+	kubeKey := resourceKey{hostID: kubernetesServer.GetHostID(), name: kubernetesServer.GetCluster().GetName(), scope: kubernetesServer.GetScope()}
 	if _, ok := handle.kubernetesServers[kubeKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveKube)
 		if c.kubeHBVariableDuration != nil {

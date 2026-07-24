@@ -732,7 +732,7 @@ type upstreamHandle struct {
 }
 
 type resourceKey struct {
-	hostID, name string
+	hostID, name, scope string
 }
 
 type heartBeatInfo[T any] struct {

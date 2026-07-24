@@ -361,8 +361,9 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return &types.KeepAlive{}, nil
 	}
 	return &types.KeepAlive{
-		Type: types.KeepAlive_NODE,
-		Name: server.GetName(),
+		Type:  types.KeepAlive_NODE,
+		Name:  server.GetName(),
+		Scope: server.GetScope(),
 	}, nil
 }
 
@@ -1038,6 +1039,7 @@ func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server typ
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
 		Expires:   server.Expiry(),
+		Scope:     server.GetScope(),
 	}, nil
 }
 
@@ -1284,6 +1286,7 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
 		Expires:   upserted.Expiry(),
+		Scope:     server.GetScope(),
 	}, nil
 }
 
