@@ -318,6 +318,9 @@ message AccessListMemberMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // AccessListScope is the scope of the access list.
+  string access_list_scope = 5;
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -345,6 +348,9 @@ message AccessListMember {
   // MembershipKind describes the kind of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
+
+  // MemberScope is the scope of the member.
+  string member_scope = 6;
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
@@ -378,6 +384,9 @@ message AccessListReviewMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // ScopedRemovedMembers are the scoped members that were removed as part of the review.
+  repeated string scoped_removed_members = 8;
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -5172,6 +5181,9 @@ message OneOf {
     events.RetrievalModelDelete RetrievalModelDelete = 252;
     events.AzureRun AzureRun = 253;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
+    events.BeamsConfigCreate BeamsConfigCreate = 257;
+    events.BeamsConfigUpdate BeamsConfigUpdate = 258;
+    events.BeamsConfigDelete BeamsConfigDelete = 259;
     events.ScopedTokenCreate ScopedTokenCreate = 263;
     events.ScopedTokenUpdate ScopedTokenUpdate = 264;
     events.ScopedTokenDelete ScopedTokenDelete = 265;
@@ -10487,4 +10499,97 @@ message X509OverrideMetadata {
   string serial_number = 3 [(gogoproto.jsontag) = "serial_number,omitempty"];
   // Public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
   string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
+}
+
+// BeamsConfigCreate is emitted when a BeamsConfig is created.
+message BeamsConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BeamsConfigUpdate is emitted when a BeamsConfig is updated.
+message BeamsConfigUpdate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// BeamsConfigDelete is emitted when a BeamsConfig is deleted.
+message BeamsConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

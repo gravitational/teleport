@@ -3157,8 +3157,12 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// Determine if JoinParams is set to something beyond its zero value using
+	// a go-derive generated helper.
+	joinParamsSet := !fc.JoinParams.IsEqual(&JoinParams{})
+
 	if fc.AuthToken != "" {
-		if fc.JoinParams != (JoinParams{}) {
+		if joinParamsSet {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -3168,7 +3172,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	if fc.JoinParams != (JoinParams{}) {
+	if joinParamsSet {
 		cfg.SetToken(fc.JoinParams.TokenName)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
@@ -3191,6 +3195,16 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
 					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
 					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
+				},
+			}
+		}
+
+		if fc.JoinParams.GenericOIDC.IsSet() {
+			cfg.JoinParams = servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env:     fc.JoinParams.GenericOIDC.Env,
+					Command: fc.JoinParams.GenericOIDC.Command,
+					Timeout: fc.JoinParams.GenericOIDC.Timeout,
 				},
 			}
 		}

@@ -719,6 +719,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
@@ -727,6 +730,12 @@ const (
 
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
+
+	// KindBeamsConfig is the user-provided configuration for Beams.
+	KindBeamsConfig = "beams_config"
+
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"

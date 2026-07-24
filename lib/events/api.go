@@ -1049,6 +1049,13 @@ const (
 	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
 	// resources.
 	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
+
+	// BeamsConfigCreateEvent is emitted when a Beams config resource is created.
+	BeamsConfigCreateEvent = "beams.config.create"
+	// BeamsConfigUpdateEvent is emitted when a Beams config resource is updated.
+	BeamsConfigUpdateEvent = "beams.config.update"
+	// BeamsConfigDeleteEvent is emitted when a Beams config resource is deleted.
+	BeamsConfigDeleteEvent = "beams.config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

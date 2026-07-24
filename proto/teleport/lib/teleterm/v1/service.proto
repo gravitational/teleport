@@ -754,6 +754,8 @@ message SetSharedDirectoryForDesktopSessionRequest {
   string login = 2;
   // Path to share with a remote machine. Must be a directory.
   string path = 3;
+  // DirectoryId assigned to this directory.
+  uint32 directory_id = 4;
 }
 
 // Response for SetSharedDirectoryForDesktopSession.

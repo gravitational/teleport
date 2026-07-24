@@ -1000,6 +1000,11 @@ func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSession
 	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
+// BeamsConfigServiceClient returns a client for the beams config service.
+func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
+	return beamsv1.NewBeamsConfigServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})

@@ -232,6 +232,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -845,6 +846,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -916,6 +918,7 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RO()),
 				},
 			},
 		},
@@ -951,6 +954,7 @@ func NewPresetBeamAdminRole(buildType string) types.Role {
 						Resources: []string{types.KindBeam},
 						Verbs:     []string{types.Wildcard},
 					},
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -1089,22 +1093,32 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	}
 }
 
-var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName:                    NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:                     NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
-	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
-	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
-	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
-}
-
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
 // on auth server restart. Rules defined in preset template should be
 // exactly the same rule when added here.
-func defaultAllowRules() map[string][]types.Rule {
-	return defaultAllowRulesMap
+func defaultAllowRules(buildType string) map[string][]types.Rule {
+	roles := []types.Role{
+		NewPresetAuditorRole(),
+		NewPresetEditorRole(),
+		NewPresetAccessRole(),
+		NewPresetTerraformProviderRole(),
+		NewPresetAccessPluginRole(),
+		NewPresetListAccessRequestResourcesRole(),
+		NewPresetDeviceAdminRole(buildType),
+		NewPresetBeamUserRole(buildType),
+		NewPresetBeamAdminRole(buildType),
+	}
+
+	allowRules := make(map[string][]types.Rule, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		allowRules[role.GetName()] = role.GetRules(types.Allow)
+	}
+	return allowRules
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
@@ -1254,7 +1268,7 @@ func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (ty
 	}
 
 	// Resource Rules
-	defaultRules, ok := defaultAllowRules()[role.GetName()]
+	defaultRules, ok := defaultAllowRules(buildType)[role.GetName()]
 	if ok {
 		existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 

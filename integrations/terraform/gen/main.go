@@ -252,27 +252,11 @@ const (
 	pluralDataSource        = "plural_data_source.go.tpl"
 	singularResource        = "singular_resource.go.tpl"
 	singularDataSource      = "singular_data_source.go.tpl"
-	outFileResourceFormat   = "provider/resource_%s.go"
-	outFileDataSourceFormat = "provider/data_source_%s.go"
+	outFileResourceFormat   = "provider/internal/legacy/resource_%s.go"
+	outFileDataSourceFormat = "provider/internal/legacy/data_source_%s.go"
 )
 
 var (
-	app = payload{
-		Name:                   "App",
-		TypeName:               "AppV3",
-		VarName:                "app",
-		IfaceName:              "Application",
-		GetMethod:              "GetApp",
-		CreateMethod:           "CreateApp",
-		UpdateMethod:           "UpdateApp",
-		DeleteMethod:           "DeleteApp",
-		ID:                     `app.Metadata.Name`,
-		Kind:                   "app",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_app",
-		HasCheckAndSetDefaults: true,
-	}
-
 	authPreference = payload{
 		Name:                   "AuthPreference",
 		TypeName:               "AuthPreferenceV2",
@@ -1217,8 +1201,6 @@ func main() {
 }
 
 func genTFSchema() {
-	generateResource(app, pluralResource)
-	generateDataSource(app, pluralDataSource)
 	generateResource(authPreference, singularResource)
 	generateDataSource(authPreference, singularDataSource)
 	generateResource(clusterMaintenance, singularResource)
