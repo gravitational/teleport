@@ -126,6 +126,52 @@ func TestDocumentDBFetcher(t *testing.T) {
 			},
 			wantDatabases: clusterProdDatabases,
 		},
+		{
+			name: "unsupported region",
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						// DBEngineVersions is not set, simulating a region where
+						// DocumentDB is not supported.
+					},
+				},
+			},
+			inputMatchers: []types.AWSMatcher{
+				{
+					Types:   []string{types.AWSMatcherDocumentDB},
+					Regions: []string{"us-west-1"},
+					Tags:    toTypeLabels(wildcardLabels),
+				},
+			},
+			wantDatabases: nil,
+			wantLogContains: []string{
+				"DocumentDB is not supported in this AWS region",
+				"region=us-west-1",
+			},
+		},
+		{
+			name: "mixed supported and unsupported regions",
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: newRegionalFakeRDSClientProvider(map[string]RDSClient{
+					"us-east-1": &mocks.RDSClient{
+						DBClusters:       []rdstypes.DBCluster{*clusterProd},
+						DBEngineVersions: []rdstypes.DBEngineVersion{*docdbEngine},
+					},
+					"us-west-1": &mocks.RDSClient{
+						// DBEngineVersions is not set, simulating a region where
+						// DocumentDB is not supported.
+					},
+				}),
+			},
+			inputMatchers: []types.AWSMatcher{
+				{
+					Types:   []string{types.AWSMatcherDocumentDB},
+					Regions: []string{"us-east-1", "us-west-1"},
+					Tags:    toTypeLabels(wildcardLabels),
+				},
+			},
+			wantDatabases: clusterProdDatabases,
+		},
 	}
 	testAWSFetchers(t, tests...)
 }
