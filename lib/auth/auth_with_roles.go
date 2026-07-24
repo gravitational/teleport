@@ -3888,10 +3888,18 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 	}
 
 	if dropAnyRequests := len(req.DropAccessRequests) > 0; dropAnyRequests {
-		// Reset to the base roles and traits stored in the backend user,
-		// currently active requests (not being dropped) and new access requests
-		// will be filled in below.
-		accessInfo = services.AccessInfoFromUserState(user)
+		// When dropping access requests, reset to the base roles and traits
+		// from a freshly regenerated user login state, which extends user object
+		// by roles and traits granted through access lists. The login state is
+		// regenerated rather than read from the backend because the user may
+		// have been modified since it was last computed, leaving the stored
+		// user_login_state stale. Using the raw user object here instead
+		// would strip access list grants from the reissued certificate.
+		userState, err := a.authServer.regenerateUserLoginState(ctx, user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		accessInfo = services.AccessInfoFromUserState(userState)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
