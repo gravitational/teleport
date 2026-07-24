@@ -272,7 +272,7 @@ require (
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
+	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
 	helm.sh/helm/v3 v3.21.3
 	k8s.io/api v0.36.2
 	k8s.io/apiextensions-apiserver v0.36.2
