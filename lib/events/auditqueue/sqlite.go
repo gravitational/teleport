@@ -513,7 +513,7 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 	policy := newDrainKickPolicy()
 	var lastErr error
 	for {
-		mainEmpty, deadLetterCount, err := drainQueueState(q.db)
+		mainEmpty, deadLetterCount, err := drainQueueState(ctx, q.db)
 		lastErr = err
 		if err != nil {
 			slog.ErrorContext(ctx,
@@ -572,8 +572,8 @@ const drainQueueStateQuery = `SELECT
 	NOT EXISTS(SELECT 1 FROM audit_queue),
 	(SELECT COUNT(*) FROM audit_dead_letter)`
 
-func drainQueueState(db *sql.DB) (mainEmpty bool, deadLetterCount int64, _ error) {
-	if err := db.QueryRow(drainQueueStateQuery).Scan(&mainEmpty, &deadLetterCount); err != nil {
+func drainQueueState(ctx context.Context, db *sql.DB) (mainEmpty bool, deadLetterCount int64, _ error) {
+	if err := db.QueryRowContext(ctx, drainQueueStateQuery).Scan(&mainEmpty, &deadLetterCount); err != nil {
 		return false, 0, trace.Wrap(err)
 	}
 	return mainEmpty, deadLetterCount, nil
