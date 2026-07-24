@@ -20,16 +20,20 @@ import (
 	"context"
 	"iter"
 	"testing"
+	"testing/synctest"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -227,7 +231,93 @@ func TestKubernetesServers(t *testing.T) {
 			},
 		})
 	})
+}
 
+// TestListResourcesKubeServerScopedPagination verifies that ListResources
+// pagination spanning unscoped and scoped kube servers returns every server
+func TestListResourcesKubeServerScopedPagination(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		neverOK bool
+	}{
+		{name: "HealthyCache", neverOK: false},
+		{name: "Fallback", neverOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				p := newTestPack(t, func(cfg Config) Config {
+					cfg = ForAuth(cfg)
+					cfg.neverOK = tt.neverOK
+					return cfg
+				})
+				t.Cleanup(p.Close)
+
+				go func() {
+					for {
+						select {
+						case <-ctx.Done():
+							return
+						case <-p.eventsC:
+							// Discard events to avoid blocking the test.
+						}
+					}
+				}()
+
+				key := func(s types.KubeServer) string {
+					return s.GetScope() + "/" + s.GetHostID() + "/" + s.GetName()
+				}
+
+				var expectedKeys []string
+				for _, scope := range []string{"", "", "", "/prod", "/prod", "/staging"} {
+					server := mustCreateKubeServer(t, uuid.New().String(), "testcluster").(*types.KubernetesServerV3)
+					server.Scope = scope
+					server.Spec.Cluster.Scope = scope
+					_, err := p.presenceS.UpsertKubernetesServer(ctx, server)
+					require.NoError(t, err)
+					expectedKeys = append(expectedKeys, key(server))
+				}
+
+				// Wait for the cache to replicate all servers.
+				synctest.Wait()
+
+				var actualKeys []string
+				startKey := ""
+				for {
+					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: types.KindKubeServer,
+						Namespace:    apidefaults.Namespace,
+						Limit:        1,
+						StartKey:     startKey,
+					})
+					require.NoError(t, err)
+					r := resp.Resources[0]
+					server, ok := r.(types.KubeServer)
+					require.True(t, ok)
+					if startKey != "" { // first entry
+						if startKey == scopes.ResourceCursorScopedStart() {
+							// The unscoped range ended exactly at a page boundary;
+							// next entry should be scoped
+							require.NotEmpty(t, server.GetScope())
+						} else {
+							require.Equal(t, startKey, services.GetCursorForKubeServer(server))
+						}
+					}
+					actualKeys = append(actualKeys, key(server))
+
+					if resp.NextKey == "" {
+						break
+					}
+					startKey = resp.NextKey
+				}
+
+				require.ElementsMatch(t, expectedKeys, actualKeys)
+			})
+		})
+	}
 }
 
 func mustCreateKubeServer(t testing.TB, hostID, clusterName string) types.KubeServer {
