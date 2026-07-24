@@ -6199,6 +6199,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		inbandVerifier, err := newInbandVerifier(process.ExitContext(), conn.Client, clusterName, process.Clock)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -6227,8 +6232,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				GetConnTLSRoots:       conn.ClientGetPool,
 				ConnTLSCipherSuites:   cfg.CipherSuites,
 				ClusterFeatures:       process.GetClusterFeatures,
+				InbandVerifier:        inbandVerifier,
 			},
-			TLS:                      serverTLSConfig.Clone(),
+			// The proxy terminates the user's kube TLS for proxy-mediated paths
+			// (RFD 0325 A/B/C), so it advertises the teleport-kube-1.1 in-band-MFA
+			// capability marker ahead of h2/http-1.1.
+			TLS: func() *tls.Config {
+				cfg := serverTLSConfig.Clone()
+				cfg.NextProtos = []string{
+					string(alpncommon.ProtocolKube),
+					string(alpncommon.ProtocolHTTP2),
+					string(alpncommon.ProtocolHTTP),
+				}
+				return cfg
+			}(),
 			LimiterConfig:            cfg.Proxy.Limiter,
 			AccessPoint:              accessPoint,
 			GetRotation:              process.GetRotation,

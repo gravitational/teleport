@@ -19,12 +19,14 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -32,16 +34,19 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/relaytunnel"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -242,6 +247,10 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// The kube agent terminates the user's TLS end-to-end on the relay path
+	// (RFD 0325 path D), so it advertises the teleport-kube-1.1 in-band-MFA
+	// capability marker ahead of h2/http-1.1.
+	tlsConfig.NextProtos = []string{string(common.ProtocolKube), string(common.ProtocolHTTP2), string(common.ProtocolHTTP)}
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
@@ -282,6 +291,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if scopePin != nil {
 		agentScope = ""
 	}
+
+	inbandVerifier, err := newInbandVerifier(process.ExitContext(), conn.Client, teleportClusterName, process.Clock)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:                     apidefaults.Namespace,
@@ -304,6 +319,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			ClusterFeatures:               process.GetClusterFeatures,
 			ScopePin:                      scopePin,
 			Scope:                         agentScope,
+			InbandVerifier:                inbandVerifier,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
@@ -378,4 +394,20 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
+}
+
+func newInbandVerifier(ctx context.Context, client authclient.ClientI, clusterName string, clock clockwork.Clock) (*mfa.Verifier, error) {
+	ca, err := client.GetCertAuthority(
+		ctx,
+		types.CertAuthID{
+			DomainName: clusterName,
+			Type:       types.InBandCA,
+		},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return mfa.NewVerifier(ca, clock)
 }

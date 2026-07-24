@@ -83,6 +83,9 @@ const (
 	// AppClientCA is the certificate authority used to issue app access client
 	// certificates.
 	AppClientCA CertAuthType = "app_client"
+	// InBandCA identifies the signer used to sign in-band JWTs. It is not a certificate authority because it does not
+	// issue certificates but rather signs tokens; however, it behaves like a CA in terms of rotation and storage.
+	InBandCA CertAuthType = "in_band"
 )
 
 // CertAuthTypes lists all certificate authority types.
@@ -101,6 +104,7 @@ var CertAuthTypes = []CertAuthType{
 	AWSRACA,
 	BoundKeypairCA,
 	AppClientCA,
+	InBandCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
@@ -134,6 +138,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		// Note: WindowsCA and AppClientCA were added in an 18.x minor release,
 		// so unlike others they are considered "new" in both versions 18 and 19.
 		// That is to allow for, at least, a full release cycle.
+		return 19
+	case InBandCA:
 		return 19
 	default:
 		// We don't care about other CAs added before v4.0.0

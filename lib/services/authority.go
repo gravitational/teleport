@@ -50,7 +50,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
-	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.OktaCA, types.BoundKeypairCA, types.InBandCA:
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)

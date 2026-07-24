@@ -55,13 +55,12 @@ service MFAService {
 
 // CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
 message CreateSessionChallengeRequest {
-  // Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
-  // verify it matches the payload supplied to CreateSessionChallengeRequest.
-  SessionIdentifyingPayload payload = 1;
-  // Name of the target cluster where the SSH session is being established. If unset, the server assumes the challenge
-  // is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
-  // Required when the SSH session is being established in a leaf cluster.
-  string target_cluster = 2;
+  // Value that uniquely identifies the user's session. If unset, the payload will not be included in the response token
+  // and will not be required to be verified.
+  optional SessionIdentifyingPayload payload = 1;
+  // Name of the target cluster where the session is being established. If unset, the target cluster will not be
+  // included in the response token and will not be required to be verified.
+  optional string target_cluster = 2;
   // Used to construct the IdP redirect URL in SSO MFA challenges. If the client does not support SSO MFA, this field
   // may be left unset and no SSO challenge will be included in the response. If set, the server will include SSO
   // challenges in the response.
@@ -88,7 +87,10 @@ message ValidateSessionChallengeRequest {
 }
 
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
-message ValidateSessionChallengeResponse {}
+message ValidateSessionChallengeResponse {
+  // Signed by the InBandCA and represents proof of possession of the MFA device at the time of the challenge.
+  string token = 1;
+}
 
 // ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
 message ListValidatedMFAChallengesFilter {

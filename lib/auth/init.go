@@ -1630,7 +1630,8 @@ func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore
 			case types.JWTSigner,
 				types.OIDCIdPCA,
 				types.OktaCA,
-				types.BoundKeypairCA:
+				types.BoundKeypairCA,
+				types.InBandCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

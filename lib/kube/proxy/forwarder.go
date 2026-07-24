@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -89,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -189,6 +191,8 @@ type ForwarderConfig struct {
 	Scope string
 	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
 	ScopePin *scopesv1.Pin
+	// InbandVerifier verifies in-band authentication tokens. Nil disables verification.
+	InbandVerifier *mfa.Verifier
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -237,6 +241,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.ClusterFeatures == nil {
 		return trace.BadParameter("missing parameter ClusterFeatures")
+	}
+	if f.InbandVerifier == nil {
+		return trace.BadParameter("missing parameter InbandVerifier")
 	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
@@ -467,6 +474,7 @@ type authContext struct {
 	kubeClusterName   string
 	teleportCluster   teleportClusterClient
 	recordingConfig   types.SessionRecordingConfig
+
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// clientIdleTimeoutMessage is the message to be displayed to the user
@@ -501,6 +509,11 @@ type authContext struct {
 
 	// LockingMode determines the kubernetes' behavior when locks are stale
 	LockingMode constants.LockingMode
+
+	// alpnClient is true when the client negotiated teleport-kube-1.1 ALPN.
+	alpnClient bool
+	// inbandVerified is true when an in-band authentication token was verified.
+	inbandVerified bool
 }
 
 func (c authContext) String() string {
@@ -721,6 +734,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := f.verifyInbandToken(req, authContext); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		if err := f.authorize(ctx, authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -776,6 +792,16 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 // with a Retry-After header set to inform clients that they should retry the request. All
 // other errors are formatted as a [metav1.Status] and written to the [http.ResponseWriter].
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	if _, ok := errors.AsType[*errInbandAuthRequired](respErr); ok {
+		encoded, err := mfa.MarshalAuthPrompt(mfa.NewAuthPromptWithMFA())
+		if err != nil {
+			trace.WriteError(rw, err)
+			return
+		}
+
+		rw.Header().Set("X-Teleport-Auth-Prompt", encoded)
+	}
+
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
 	// standard library, so we have to match on the error message. The two error strings come from:
@@ -843,12 +869,24 @@ func kubeStatusCodeAndReason(respErr error) (int, metav1.StatusReason) {
 	if errors.As(respErr, &statusErr) && statusErr.ErrStatus.Code != 0 {
 		return int(statusErr.ErrStatus.Code), statusErr.ErrStatus.Reason
 	}
+
+	if _, ok := errors.AsType[*errInbandAuthRequired](respErr); ok {
+		return http.StatusForbidden, metav1.StatusReasonForbidden
+	}
+
 	code := trace.ErrorToCode(respErr)
 	reason := errorToKubeStatusReason(respErr, code)
 	return code, reason
 }
 
 var errAmbiguousCluster = &trace.AccessDeniedError{Message: "could not disambiguate between two or more scoped kube clusters with the same name, please login with credentials for a narrower scope"}
+
+// errInbandAuthRequired signals that in-band authentication is required.
+type errInbandAuthRequired struct{}
+
+func (e *errInbandAuthRequired) Error() string {
+	return "in-band authentication required"
+}
 
 func (f *Forwarder) setupContext(
 	ctx context.Context,
@@ -1297,6 +1335,18 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		roleMatchers...,
 	)
 	if errors.Is(err, services.ErrTrustedDeviceRequired) {
+		return trace.Wrap(err)
+	}
+
+	if errors.Is(err, services.ErrSessionMFARequired) {
+		if actx.inbandVerified {
+			return nil
+		}
+
+		if actx.alpnClient {
+			return &errInbandAuthRequired{}
+		}
+
 		return trace.Wrap(err)
 	}
 
@@ -3134,4 +3184,51 @@ func allHTTPMethods() []string {
 		http.MethodPut,
 		http.MethodTrace,
 	}
+}
+
+// isALPNClient checks if the client negotiated the teleport-kube-1.1 ALPN protocol.
+func isALPNClient(req *http.Request) bool {
+	if req.TLS == nil {
+		return false
+	}
+
+	return req.TLS.NegotiatedProtocol == string(common.ProtocolKube)
+}
+
+// verifyInbandToken verifies an in-band authentication token from the request. If the client presents a valid token,
+// marks authContext as verified.
+func (f *Forwarder) verifyInbandToken(req *http.Request, actx *authContext) error {
+	actx.alpnClient = isALPNClient(req)
+
+	if !actx.alpnClient || f.cfg.InbandVerifier == nil {
+		return nil
+	}
+
+	token := req.Header.Get("X-Teleport-Auth-Prompt-Response")
+	if token == "" {
+		return nil
+	}
+
+	tokens, err := mfa.UnmarshalAuthPromptResponse(token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(tokens) == 0 {
+		return nil
+	}
+
+	username, err := authz.GetClientUsername(req.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = f.cfg.InbandVerifier.Verify(tokens[0], username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	actx.inbandVerified = true
+
+	return nil
 }

@@ -84,7 +84,7 @@ type SessionBoundCeremony struct {
 func (c *SessionBoundCeremony) Run(ctx context.Context, payload *mfav2.SessionIdentifyingPayload, promptOpts ...PromptOpt) (string, error) {
 	createReq := mfav2.CreateSessionChallengeRequest_builder{
 		Payload:       payload,
-		TargetCluster: c.targetCluster,
+		TargetCluster: &c.targetCluster,
 	}.Build()
 
 	// If a callback ceremony is provided, set the client callback URL in the create challenge request to request an SSO

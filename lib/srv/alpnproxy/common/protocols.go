@@ -128,6 +128,10 @@ const (
 	// it always has the "-ping" suffix. See callers to IsPingProtocol for more
 	// details on ping handling.
 	ProtocolAppHTTPS Protocol = "teleport-app-https-ping"
+
+	// ProtocolKube is TLS ALPN protocol value used to indicate Kubernetes protocol
+	// with in-band MFA support. Modern clients advertise this alongside h2/http/1.1.
+	ProtocolKube Protocol = "teleport-kube-1.1"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.

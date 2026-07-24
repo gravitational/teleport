@@ -6684,12 +6684,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	mfav1pb.RegisterMFAServiceServer(server, mfav1Service) //nolint: staticcheck // TODO(danielashare): Delete when browser MFA has migrated to mfav2.
 
 	mfav2Service, err := mfav2.NewService(mfav2.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		AuthServer: cfg.AuthServer,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-		Identity:   cfg.AuthServer.IdentityInternal,
-		Storage:    cfg.AuthServer.MFAService,
+		Authorizer:         cfg.Authorizer,
+		AuthServer:         cfg.AuthServer,
+		Cache:              cfg.AuthServer.Cache,
+		Emitter:            cfg.Emitter,
+		Identity:           cfg.AuthServer.IdentityInternal,
+		Storage:            cfg.AuthServer.MFAService,
+		CertAuthorityCache: cfg.AuthServer.Cache,
+		KeyStore:           cfg.AuthServer.GetKeyStore(),
+		Clock:              cfg.AuthServer.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
