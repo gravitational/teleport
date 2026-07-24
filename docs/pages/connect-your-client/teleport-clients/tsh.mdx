@@ -1024,6 +1024,74 @@ add_headers:
       "Authorization": "Bearer tokentokentoken"
 ```
 
+### Profiles
+
+If you work with more than one Teleport cluster, you can define named
+*profiles* in the `tsh` configuration file. A profile is a reusable bundle of
+global connection settings (proxy address, cluster, user, and other global
+overrides) that you select at invocation time with the `--profile` flag (or the
+`TELEPORT_PROFILE` environment variable):
+
+```yaml
+profiles:
+  prod:
+    proxy: teleport.prod.example.com:443
+    cluster: prod
+    user: alice
+    mfa_mode: sso
+  staging:
+    proxy: teleport.staging.example.com:443
+    user: alice
+# Optionally select a profile to use when --profile is not provided.
+default_profile: staging
+```
+
+With the configuration above, the following are equivalent:
+
+```code
+$ tsh --profile prod login
+$ tsh --proxy teleport.prod.example.com:443 --cluster prod --user alice --mfa-mode sso login
+```
+
+Each profile supports the following fields, all optional. At minimum a profile
+typically sets `proxy`. Every field overrides the corresponding `tsh` global
+flag:
+
+| Field                  | Equivalent flag         |
+| ---------------------- | ----------------------- |
+| `proxy`                | `--proxy`               |
+| `cluster`              | `--cluster`             |
+| `user`                 | `--user`                |
+| `login`                | `--login`               |
+| `auth`                 | `--auth`                |
+| `kube_cluster`         | `--kube-cluster`        |
+| `mfa_mode`             | `--mfa-mode`            |
+| `headless`             | `--headless`            |
+| `add_keys_to_agent`    | `--add-keys-to-agent`   |
+| `use_local_ssh_agent`  | `--use-local-ssh-agent` |
+| `home`                 | `TELEPORT_HOME`         |
+
+Selection precedence, from highest to lowest, is: an explicit command-line flag
+or environment variable, then the selected profile, then `tsh` defaults. In
+other words, a value you pass explicitly always wins over a profile, so you can
+select a profile and still override individual settings:
+
+```code
+# Use the "prod" profile but connect as a different user.
+$ tsh --profile prod --user bob login
+```
+
+If `--profile` (or `TELEPORT_PROFILE`) is not set, `tsh` falls back to
+`default_profile` when it is defined. Selecting a profile that does not exist,
+or defining a `default_profile` that is not present in `profiles`, is an error.
+
+<Admonition type="note">
+A `tsh` configuration profile is distinct from the per-cluster login profiles
+that `tsh` stores under `$TELEPORT_HOME` (`~/.tsh`) after you log in. The former
+is a convenience bundle of connection settings you author yourself; the latter
+is managed by `tsh` and shown by `tsh status`.
+</Admonition>
+
 ### Aliases
 
 You can configure `tsh` to define aliases, custom commands and command-specific
