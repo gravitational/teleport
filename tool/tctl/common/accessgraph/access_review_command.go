@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -47,6 +48,7 @@ type accessReviewArgs struct {
 	query    string
 	from     time.Time
 	to       time.Time
+	activity bool
 	limit    int
 	detailed bool
 	format   string
@@ -61,14 +63,19 @@ func (c *AccessGraphCommand) initAccessReview(app *kingpin.Application) {
 	cmd.Flag("query", "SQL SELECT against access_path scoping the identities to review.").
 		Required().
 		StringVar(&c.accessReview.query)
-	cmd.Flag("from", fmt.Sprintf("Show access activity at or after this time; enables the activity columns. (Examples: %s, %s, 24h, 7d). Default: activity hidden.", time.RFC3339, time.DateOnly)).
+	cmd.Flag("from", fmt.Sprintf("Show access activity at or after this time. (Examples: %s, %s, 24h, 7d).", time.RFC3339, time.DateOnly)).
+		Default("24h").
 		SetValue(timeValue{target: &c.accessReview.from})
-	cmd.Flag("to", "Upper bound for access activity. Defaults to now when --from is set; requires --from.").
+	cmd.Flag("to", "Upper bound for access activity.").
+		Default("now").
 		SetValue(timeValue{target: &c.accessReview.to})
+	cmd.Flag("activity", "Use --no-activity to skip the activity lookup (on by default) for a faster, structural-only review; takes priority over --from/--to.").
+		Default("true").
+		BoolVar(&c.accessReview.activity)
 	cmd.Flag("limit", "Maximum number of identities to return.").
 		Default("50").
 		IntVar(&c.accessReview.limit)
-	cmd.Flag("detailed", "In text output, show each grantor with its individual access level instead of the summary counts.").
+	cmd.Flag("detailed", "In text output, show each grant with its individual access level instead of the summary counts.").
 		BoolVar(&c.accessReview.detailed)
 	cmd.Flag("format", "Output format. (Values: text, json, yaml)").
 		Default(teleport.Text).
@@ -86,22 +93,15 @@ func (c *AccessGraphCommand) AccessReview(ctx context.Context, client *accessgra
 		return trace.BadParameter("--limit must be at least 1")
 	}
 
-	from, to := args.from, args.to
-	showActivity := !from.IsZero() || !to.IsZero()
-	if !to.IsZero() && from.IsZero() {
-		return trace.BadParameter("--to requires --from")
-	}
-	if !from.IsZero() && to.IsZero() {
-		to = time.Now()
-	}
+	// --no-activity skips the IAC lookup and takes priority over --from/--to.
+	params := accessgraph.ListIdentityAccessParams{Query: args.query}
+	showActivity := args.activity
+	var from, to time.Time
 	if showActivity {
+		from, to = args.from, args.to
 		if err := validateTimeWindow(from, to); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	params := accessgraph.ListIdentityAccessParams{Query: args.query}
-	if showActivity {
 		fromUTC, toUTC := from.UTC(), to.UTC()
 		params.StartTime = &fromUTC
 		params.EndTime = &toUTC
@@ -119,7 +119,10 @@ func (c *AccessGraphCommand) AccessReview(ctx context.Context, client *accessgra
 
 	output := buildAccessReviewOutput(resp)
 	if resp.IacError != nil && *resp.IacError != "" {
-		output.Warnings = append(output.Warnings, fmt.Sprintf("activity unavailable: %s", utils.EscapeControl(*resp.IacError)))
+		// The activity lookup couldn't run: hide the columns and surface the
+		// backend's message as a note.
+		showActivity = false
+		output.ActivityUnavailable = utils.EscapeControl(*resp.IacError)
 	}
 	if truncated {
 		output.Warnings = append(output.Warnings, fmt.Sprintf("results truncated at %d identities; narrow --query for the full set", args.limit))
@@ -214,7 +217,9 @@ func indexNodesByID(nodes []accessgraph.IdentityAccessNode) map[uuid.UUID]access
 // raw API response are resolved to full Node values here.
 type accessReviewOutput struct {
 	Identities []identityAccess `json:"identities" yaml:"identities"`
-	Warnings   []string         `json:"warnings,omitempty" yaml:"warnings,omitempty"`
+	// ActivityUnavailable is the backend's message when the activity lookup could not run; the columns are then omitted.
+	ActivityUnavailable string   `json:"activity_unavailable,omitempty" yaml:"activity_unavailable,omitempty"`
+	Warnings            []string `json:"warnings,omitempty" yaml:"warnings,omitempty"`
 }
 
 type identityAccess struct {
@@ -223,15 +228,15 @@ type identityAccess struct {
 }
 
 type resourceAccess struct {
-	Resource      node          `json:"resource" yaml:"resource"`
-	Level         string        `json:"level" yaml:"level"`
-	Temporary     bool          `json:"temporary,omitempty" yaml:"temporary,omitempty"`
-	GrantorCounts grantorCounts `json:"grantor_counts" yaml:"grantor_counts"`
-	Grantors      []grantor     `json:"grantors" yaml:"grantors"`
-	Activity      *activity     `json:"activity,omitempty" yaml:"activity,omitempty"`
+	Resource    node        `json:"resource" yaml:"resource"`
+	Level       string      `json:"level" yaml:"level"`
+	Temporary   bool        `json:"temporary,omitempty" yaml:"temporary,omitempty"`
+	GrantCounts grantCounts `json:"grant_counts" yaml:"grant_counts"`
+	GrantedBy   []grant     `json:"granted_by" yaml:"granted_by"`
+	Activity    *activity   `json:"activity,omitempty" yaml:"activity,omitempty"`
 }
 
-type grantor struct {
+type grant struct {
 	Node  node   `json:"node" yaml:"node"`
 	Level string `json:"level" yaml:"level"`
 }
@@ -247,7 +252,7 @@ type node struct {
 	Temporary bool   `json:"temporary,omitempty" yaml:"temporary,omitempty"`
 }
 
-type grantorCounts struct {
+type grantCounts struct {
 	Standing    int `json:"standing" yaml:"standing"`
 	Impersonate int `json:"impersonate" yaml:"impersonate"`
 	Request     int `json:"request" yaml:"request"`
@@ -261,7 +266,7 @@ type activity struct {
 // --- restructuring ----------------------------------------------------------
 
 // buildAccessReviewOutput resolves the identity-centric API response into the
-// materialized output, looking up every identity/resource/grantor id against
+// materialized output, looking up every identity/resource/grant id against
 // the response node list.
 func buildAccessReviewOutput(resp *accessgraph.IdentityAccessResponse) accessReviewOutput {
 	nodesByID := indexNodesByID(resp.Nodes)
@@ -277,19 +282,18 @@ func buildAccessReviewOutput(resp *accessgraph.IdentityAccessResponse) accessRev
 			ra := resourceAccess{
 				Resource: resolveNode(nodesByID, r.Resource),
 				Level:    string(info.Level),
-				GrantorCounts: grantorCounts{
+				GrantCounts: grantCounts{
 					Standing:    info.GrantorCounts.Standing,
 					Impersonate: info.GrantorCounts.Impersonate,
 					Request:     info.GrantorCounts.Request,
 				},
-				Grantors: make([]grantor, 0, len(info.Grantors)),
+				GrantedBy: make([]grant, 0, len(info.Grantors)),
 			}
 			if info.Temporary != nil {
 				ra.Temporary = *info.Temporary
 			}
 			for _, g := range info.Grantors {
-				grantor := grantor{Node: resolveNode(nodesByID, g.Id), Level: string(g.Level)}
-				ra.Grantors = append(ra.Grantors, grantor)
+				ra.GrantedBy = append(ra.GrantedBy, grant{Node: resolveNode(nodesByID, g.Id), Level: string(g.Level)})
 			}
 			if info.Activity != nil {
 				ra.Activity = &activity{Count: info.Activity.Count, LastAccess: info.Activity.LastAccess}
@@ -323,16 +327,16 @@ func resolveNode(nodesByID map[uuid.UUID]accessgraph.IdentityAccessNode, id uuid
 	return node
 }
 
-// primaryGrantor returns the primary grantor for the access. The backend lists
-// grantors primary-first, so index 0 is authoritative.
-func primaryGrantor(ra resourceAccess) (grantor, bool) {
-	if len(ra.Grantors) == 0 {
-		return grantor{}, false
+// primaryGrant returns the primary grant for the access. The backend lists
+// grants primary-first, so index 0 is authoritative.
+func primaryGrant(ra resourceAccess) (grant, bool) {
+	if len(ra.GrantedBy) == 0 {
+		return grant{}, false
 	}
-	return ra.Grantors[0], true
+	return ra.GrantedBy[0], true
 }
 
-func grantorSummary(p grantorCounts) string {
+func grantSummary(p grantCounts) string {
 	var parts []string
 	if p.Standing > 0 {
 		parts = append(parts, fmt.Sprintf("%d standing", p.Standing))
@@ -359,7 +363,7 @@ func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to 
 		if _, err := fmt.Fprintln(out, "No access found."); err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(writeWarnings(out, output.Warnings))
+		return trace.Wrap(writeFooter(out, output))
 	}
 
 	render := renderAccessReviewSummary
@@ -369,16 +373,35 @@ func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to 
 	if err := render(out, output, showActivity); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := fmt.Fprintln(out, "* marks self-expiring access or a temporary grantor"); err != nil {
+	if _, err := fmt.Fprintln(out, "* marks self-expiring access or a temporary grant"); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(writeFooter(out, output))
+}
+
+// noteStyle bolds the "Note:" prefix so the note reads as guidance, not a warning.
+var noteStyle = lipgloss.NewStyle().Bold(true)
+
+// writeFooter prints the activity-unavailable note then any warnings, blank-line separated.
+func writeFooter(out io.Writer, output accessReviewOutput) error {
+	if output.ActivityUnavailable != "" {
+		if _, err := fmt.Fprintf(out, "\n%s %s\n", noteStyle.Render("Note:"), output.ActivityUnavailable); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if len(output.Warnings) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(out); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(writeWarnings(out, output.Warnings))
 }
 
 // renderAccessReviewSummary shows one row per (identity, resource) with the
-// resolved level, the primary grantor, and the grantor path counts.
+// resolved level, the primary grant, and the grant path counts.
 func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showActivity bool) error {
-	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Counts"}
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Granted By", "Grants"}
 	if showActivity {
 		headers = append(headers, "Accesses", "Last Access")
 	}
@@ -396,10 +419,10 @@ func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showAct
 			}
 
 			granted := ""
-			if g, ok := primaryGrantor(ra); ok {
-				granted = grantorName(g)
+			if g, ok := primaryGrant(ra); ok {
+				granted = grantName(g)
 			}
-			row := []string{identity, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), granted, grantorSummary(ra.GrantorCounts)}
+			row := []string{identity, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), granted, grantSummary(ra.GrantCounts)}
 			if showActivity {
 				accesses, last := activityCells(ra)
 				row = append(row, accesses, last)
@@ -417,9 +440,9 @@ func renderAccessReviewDetailed(out io.Writer, output accessReviewOutput, showAc
 }
 
 // accessReviewDetailedRows builds the detailed table rows, breaking each
-// (identity, resource) pair down by grantor.
+// (identity, resource) pair down by grant.
 func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]string, [][]string) {
-	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Level"}
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Granted By", "Grant Level"}
 	if showActivity {
 		headers = append(headers, "Accesses", "Last Access")
 	}
@@ -443,15 +466,15 @@ func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]s
 		for _, ra := range ia.Resources {
 			id, kind := identityCells()
 
-			// A single grantor shares the resource's row; its activity is
-			// unambiguous. Zero grantors leave the grantor cells blank.
-			if len(ra.Grantors) <= 1 {
-				grantor, grantorLevel := "", ""
-				if len(ra.Grantors) == 1 {
-					g := ra.Grantors[0]
-					grantor, grantorLevel = grantorName(g), utils.EscapeControl(g.Level)
+			// A single grant shares the resource's row; its activity is
+			// unambiguous. Zero grants leave the grant cells blank.
+			if len(ra.GrantedBy) <= 1 {
+				grantedBy, grantLevel := "", ""
+				if len(ra.GrantedBy) == 1 {
+					g := ra.GrantedBy[0]
+					grantedBy, grantLevel = grantName(g), utils.EscapeControl(g.Level)
 				}
-				row := []string{id, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), grantor, grantorLevel}
+				row := []string{id, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), grantedBy, grantLevel}
 				if showActivity {
 					accesses, last := activityCells(ra)
 					row = append(row, accesses, last)
@@ -460,8 +483,8 @@ func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]s
 				continue
 			}
 
-			// Multiple grantors: summary row carries the pair-level activity,
-			// then one indented row per grantor.
+			// Multiple grants: summary row carries the pair-level activity,
+			// then one indented row per grant.
 			summary := []string{id, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), "", ""}
 			if showActivity {
 				accesses, last := activityCells(ra)
@@ -469,8 +492,8 @@ func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]s
 			}
 			rows = append(rows, summary)
 
-			for _, g := range ra.Grantors {
-				rows = append(rows, padActivity([]string{"", "", "", "", "", "↳ " + grantorName(g), utils.EscapeControl(g.Level)}, showActivity))
+			for _, g := range ra.GrantedBy {
+				rows = append(rows, padActivity([]string{"", "", "", "", "", "↳ " + grantName(g), utils.EscapeControl(g.Level)}, showActivity))
 			}
 		}
 	}
@@ -547,8 +570,8 @@ func cellKind(n node) string {
 	return utils.EscapeControl(n.SubKind)
 }
 
-// grantorName renders a grantor's display label, marking temporary grantors.
-func grantorName(g grantor) string {
+// grantName renders a grant's display label, marking temporary grants.
+func grantName(g grant) string {
 	name := cellName(g.Node)
 	if g.Node.Temporary {
 		name += "*"

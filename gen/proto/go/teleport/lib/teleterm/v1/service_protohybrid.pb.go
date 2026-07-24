@@ -6441,7 +6441,9 @@ type SetSharedDirectoryForDesktopSessionRequest struct {
 	// Login for the desktop session.
 	Login string `protobuf:"bytes,2,opt,name=login,proto3" json:"login,omitempty"`
 	// Path to share with a remote machine. Must be a directory.
-	Path          string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	// DirectoryId assigned to this directory.
+	DirectoryId   uint32 `protobuf:"varint,4,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6492,6 +6494,13 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) GetPath() string {
 	return ""
 }
 
+func (x *SetSharedDirectoryForDesktopSessionRequest) GetDirectoryId() uint32 {
+	if x != nil {
+		return x.DirectoryId
+	}
+	return 0
+}
+
 func (x *SetSharedDirectoryForDesktopSessionRequest) SetDesktopUri(v string) {
 	x.DesktopUri = v
 }
@@ -6504,6 +6513,10 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) SetPath(v string) {
 	x.Path = v
 }
 
+func (x *SetSharedDirectoryForDesktopSessionRequest) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
+}
+
 type SetSharedDirectoryForDesktopSessionRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -6513,6 +6526,8 @@ type SetSharedDirectoryForDesktopSessionRequest_builder struct {
 	Login string
 	// Path to share with a remote machine. Must be a directory.
 	Path string
+	// DirectoryId assigned to this directory.
+	DirectoryId uint32
 }
 
 func (b0 SetSharedDirectoryForDesktopSessionRequest_builder) Build() *SetSharedDirectoryForDesktopSessionRequest {
@@ -6522,6 +6537,7 @@ func (b0 SetSharedDirectoryForDesktopSessionRequest_builder) Build() *SetSharedD
 	x.DesktopUri = b.DesktopUri
 	x.Login = b.Login
 	x.Path = b.Path
+	x.DirectoryId = b.DirectoryId
 	return m0
 }
 
@@ -7199,12 +7215,13 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12N\n" +
 	"\x0etarget_desktop\x18\x02 \x01(\v2'.teleport.lib.teleterm.v1.TargetDesktopR\rtargetDesktop\".\n" +
 	"\x18ConnectToDesktopResponse\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"w\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\x9a\x01\n" +
 	"*SetSharedDirectoryForDesktopSessionRequest\x12\x1f\n" +
 	"\vdesktop_uri\x18\x01 \x01(\tR\n" +
 	"desktopUri\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"-\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12!\n" +
+	"\fdirectory_id\x18\x04 \x01(\rR\vdirectoryId\"-\n" +
 	"+SetSharedDirectoryForDesktopSessionResponse*\x97\x01\n" +
 	"\x12PasswordlessPrompt\x12#\n" +
 	"\x1fPASSWORDLESS_PROMPT_UNSPECIFIED\x10\x00\x12\x1b\n" +

@@ -104,6 +104,30 @@ func TestParser(t *testing.T) {
 				}
 				return matchingLabels, nil
 			}),
+			"cluster": typical.NullaryFunction[env](func() (string, error) {
+				return "default-cluster", nil
+			}),
+			"nullary_error": typical.NullaryFunction[env](func() (string, error) {
+				return "", errors.New("nullary error")
+			}),
+			"path": typical.TernaryFunctionWithEnv(func(e env, a, b, c string) (string, error) {
+				return e.labels["env"] + "/" + a + "/" + b + "/" + c, nil
+			}),
+			"ternary_error": typical.TernaryFunctionWithEnv(func(e env, a, b, c string) (string, error) {
+				return "", errors.New("ternary error")
+			}),
+			"all_have_label_prefix": typical.BinaryVariadicFunctionWithEnv(func(e env, key string, vals ...string) (bool, error) {
+				prefix := e.labels[key]
+				for _, v := range vals {
+					if !strings.HasPrefix(v, prefix) {
+						return false, nil
+					}
+				}
+				return true, nil
+			}),
+			"variadic_error": typical.BinaryVariadicFunctionWithEnv(func(e env, key string, vals ...string) (bool, error) {
+				return false, errors.New("variadic error")
+			}),
 		},
 		Methods: map[string]typical.Function{
 			"add_trait_values": typical.TernaryVariadicFunction[env](func(m map[string][]string, key string, values ...string) (map[string][]string, error) {
@@ -168,7 +192,7 @@ func TestParser(t *testing.T) {
 			desc: "unary function wrong type",
 			expr: `not("true")`,
 			expectParseError: []string{
-				"parsing argument to (not)",
+				"parsing argument to function (not)",
 				"expected type bool, got value (true) with type (string)",
 			},
 		},
@@ -271,7 +295,7 @@ func TestParser(t *testing.T) {
 			desc: "argument is expression returning wrong type",
 			expr: `contains(traits, "root")`,
 			expectParseError: []string{
-				"parsing first argument to (contains)",
+				"parsing first argument to function (contains)",
 				"expected type []string, got expression returning type (map[string][]string)",
 			},
 		},
@@ -356,7 +380,7 @@ func TestParser(t *testing.T) {
 			desc: "unary func with env wrong type",
 			expr: `contains_all(labels_matching(traits["username"]), "staging", "dev")`,
 			expectParseError: []string{
-				"parsing argument to (labels_matching)",
+				"parsing argument to function (labels_matching)",
 				"expected type string, got expression returning type ([]string)",
 			},
 		},
@@ -464,6 +488,116 @@ func TestParser(t *testing.T) {
 			expr: `traits != traits`,
 			expectParseError: []string{
 				"operator (!=) not supported for type: map[string][]string",
+			},
+		},
+		{
+			desc:        "nullary function",
+			expr:        `cluster() == "default-cluster"`,
+			expectMatch: true,
+		},
+		{
+			desc: "nullary function with argument",
+			expr: `cluster("x") == "default-cluster"`,
+			expectParseError: []string{
+				"function (cluster) accepts 0 arguments, given 1",
+			},
+		},
+		{
+			desc: "nullary function evaluation error",
+			expr: `nullary_error() == "x"`,
+			expectEvaluationError: []string{
+				"evaluating function (nullary_error)",
+				"nullary error",
+			},
+		},
+		{
+			desc:        "ternary function with env",
+			expr:        `path("a", "b", "c") == "staging/a/b/c"`,
+			expectMatch: true,
+		},
+		{
+			desc: "ternary function wrong argument count",
+			expr: `path("a", "b") == "x"`,
+			expectParseError: []string{
+				"function (path) accepts 3 arguments, given 2",
+			},
+		},
+		{
+			desc: "ternary function wrong argument type",
+			expr: `path("a", "b", true) == "x"`,
+			expectParseError: []string{
+				"parsing third argument to function (path)",
+				"expected type string, got value (true) with type (bool)",
+			},
+		},
+		{
+			desc: "ternary function argument evaluation error",
+			expr: `path(nullary_error(), "b", "c") == "x"`,
+			expectEvaluationError: []string{
+				"evaluating first argument to function (path)",
+				"nullary error",
+			},
+		},
+		{
+			desc: "ternary function implementation error",
+			expr: `ternary_error("a", "b", "c") == "x"`,
+			expectEvaluationError: []string{
+				"evaluating function (ternary_error)",
+				"ternary error",
+			},
+		},
+		{
+			desc:        "binary variadic function with env all match",
+			expr:        `all_have_label_prefix("team", "dev", "developer")`,
+			expectMatch: true,
+		},
+		{
+			desc:        "binary variadic function with env one mismatch",
+			expr:        `all_have_label_prefix("team", "dev", "ops")`,
+			expectMatch: false,
+		},
+		{
+			desc:        "binary variadic function with only the fixed argument",
+			expr:        `all_have_label_prefix("team")`,
+			expectMatch: true,
+		},
+		{
+			desc: "binary variadic function no arguments",
+			expr: `all_have_label_prefix()`,
+			expectParseError: []string{
+				"function (all_have_label_prefix) accepts 1 or more arguments, given 0",
+			},
+		},
+		{
+			desc: "binary variadic function wrong first argument type",
+			expr: `all_have_label_prefix(true, "x")`,
+			expectParseError: []string{
+				"parsing first argument to function (all_have_label_prefix)",
+				"expected type string, got value (true) with type (bool)",
+			},
+		},
+		{
+			desc: "binary variadic function wrong variadic argument type",
+			expr: `all_have_label_prefix("team", true)`,
+			expectParseError: []string{
+				"parsing argument 2 to function (all_have_label_prefix)",
+				"expected type string, got value (true) with type (bool)",
+			},
+		},
+		{
+			desc: "binary variadic function variadic evaluation error",
+			expr: `all_have_label_prefix("team", nullary_error())`,
+			expectEvaluationError: []string{
+				"evaluating argument 2 to function (all_have_label_prefix)",
+				"nullary error",
+			},
+		},
+		{
+			desc: "binary variadic function implementation error",
+			expr: `variadic_error("team", "v")`,
+			expectEvaluationError: []string{
+				"evaluating function (variadic_error)",
+				"variadic error",
 			},
 		},
 	} {

@@ -85,6 +85,71 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 	})
 }
 
+func TestMakeApp_LLM(t *testing.T) {
+	t.Parallel()
+
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:  "root",
+		LocalProxyDNSName: "proxy.example.com",
+		AppClusterName:    "root",
+		UserGroupLookup:   map[string]types.UserGroup{},
+	}
+
+	t.Run("non-LLM app has no LLM configuration", func(t *testing.T) {
+		t.Parallel()
+
+		app, err := types.NewAppV3(
+			types.Metadata{Name: "web-app"},
+			types.AppSpecV3{URI: "http://localhost:8080"},
+		)
+		require.NoError(t, err)
+
+		out := MakeApp(app, baseCfg)
+		require.Nil(t, out.LLM)
+	})
+
+	tests := []struct {
+		name     string
+		format   types.LLMFormat
+		provider types.LLMProvider
+	}{
+		{
+			name:     "anthropic",
+			format:   types.LLMFormatAnthropic,
+			provider: types.LLMProviderAnthropic,
+		},
+		{
+			name:     "openai",
+			format:   types.LLMFormatOpenAI,
+			provider: types.LLMProviderOpenAI,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app, err := types.NewAppV3(
+				types.Metadata{Name: test.name},
+				types.AppSpecV3{
+					URI:        "llm://",
+					PublicAddr: test.name + ".example.com",
+					LLM: &types.LLM{
+						Format:   test.format,
+						Provider: test.provider,
+					},
+				},
+			)
+			require.NoError(t, err)
+
+			out := MakeApp(app, baseCfg)
+			require.Equal(t, &LLM{
+				Format:   test.format,
+				Provider: test.provider,
+			}, out.LLM)
+		})
+	}
+}
+
 func TestMakeApp_AWSRolesVisibility(t *testing.T) {
 	t.Parallel()
 
