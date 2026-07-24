@@ -457,6 +457,26 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	// "teleport reconfigure" command for modifying an existing config file in place.
+	reconfigure := app.Command("reconfigure", "Modify an existing Teleport configuration file.").Hidden()
+	var reconfFlags reconfigureFlags
+	reconfigure.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&reconfFlags.input)
+	reconfigure.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&reconfFlags.output)
+	reconfigure.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&reconfFlags.overwrite)
+	reconfigure.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&reconfFlags.enableService)
+	reconfigure.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&reconfFlags.disableService)
+	reconfigure.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&reconfFlags.roles)
+	reconfigure.Flag("token", "Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.").StringVar(&reconfFlags.token)
+	reconfigure.Flag("join-method", "Set teleport.join_params.method.").StringVar(&reconfFlags.joinMethod)
+	reconfigure.Flag("registration-secret", "Set teleport.join_params.bound_keypair.registration_secret_value for a bound_keypair join.").StringVar(&reconfFlags.registrationSecret)
+	reconfigure.Flag("auth-server", "Set teleport.auth_server.").StringVar(&reconfFlags.authServer)
+	reconfigure.Flag("proxy", "Set teleport.proxy_server.").StringVar(&reconfFlags.proxy)
+	reconfigure.Flag("data-dir", "Set teleport.data_dir.").StringVar(&reconfFlags.dataDir)
+	reconfigure.Flag("config-version", "Set the configuration version (v1, v2, v3). Required to write proxy_server/auth_server onto a pre-v3 config.").StringVar(&reconfFlags.configVersion)
+	reconfigure.Flag("ssh-listen-addr", "Set ssh_service.listen_addr (host:port), e.g. to move a second agent off the default 3022.").StringVar(&reconfFlags.sshListenAddr)
+	reconfigure.Flag("ssh-public-addr", "Set ssh_service.public_addr, the SSH node's advertised address for direct dial.").StringVar(&reconfFlags.sshPublicAddr)
+	reconfigure.Flag("force-listen", "Enable ssh_service.force_listen so a reverse-tunnel node also listens for direct dial.").BoolVar(&reconfFlags.forceListen)
+
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
 	dumpNode := app.Command("node", "SSH Node configuration commands")
@@ -755,6 +775,8 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
+	case reconfigure.FullCommand():
+		err = onReconfigure(reconfFlags)
 
 	case exec.FullCommand(),
 		networking.FullCommand(),
