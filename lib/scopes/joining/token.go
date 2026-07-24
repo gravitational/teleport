@@ -348,9 +348,11 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	return nil
 }
 
-// validates the Github-specific join token.
-// It requires that the rules have at least one option set
-// and it also checks enterprise_server_host constraints, so the comment undersells the function.
+// validateGithub validates the GitHub-specific scoped token configuration.
+// It checks that the token usage mode is compatible, that enterprise_server_host
+// does not contain a scheme or path, that enterprise_server_host and enterprise_slug
+// are mutually exclusive, and that at least one allow rule with a non-empty
+// field is set.
 func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error {
 	if spec == nil {
 		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
@@ -362,7 +364,7 @@ func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error
 		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
 	}
 	if spec.GetEnterpriseServerHost() != "" && spec.GetEnterpriseSlug() != "" {
-		return trace.BadParameter("'github.enterprise_server_host' and `github.enterprise_slug` cannot both be set")
+		return trace.BadParameter("'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set")
 	}
 
 	if len(spec.GetAllow()) == 0 {

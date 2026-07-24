@@ -1208,8 +1208,8 @@ func TestValidateScopedToken(t *testing.T) {
 					},
 				}.Build())
 			},
-			expectedStrongErr: "'github.enterprise_server_host' and `github.enterprise_slug` cannot both be set",
-			expectedWeakErr:   "'github.enterprise_server_host' and `github.enterprise_slug` cannot both be set",
+			expectedStrongErr: "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
+			expectedWeakErr:   "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
 		},
 		{
 			name: "github token with EnterpriseServerHost with a path",

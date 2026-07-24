@@ -885,4 +885,46 @@ func TestJoinGHABot(t *testing.T) {
 
 	// Bot results should not contain immutable labels (host-only).
 	require.Nil(t, result.ImmutableLabels)
+
+	t.Run("must fail when claims do not match allow rules", func(t *testing.T) {
+		nonMatchingToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodGitHub,
+			Roles:      []types.SystemRole{types.RoleBot},
+			GitHub: &types.ProvisionTokenSpecV2GitHub{
+				Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+					{
+						Repository:      "other-org/other-repo",
+						RepositoryOwner: "other-org",
+					},
+				},
+			},
+		}, joiningv1.ScopedToken_builder{
+			Scope: "/test",
+			Metadata: headerv1.Metadata_builder{
+				Name: "github-bot-token-no-match",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				UsageMode: joining.TokenUsageModeBot,
+				Bot:       qualifiedBotName,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		_, err = authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+			Token: nonMatchingToken,
+		}.Build())
+		require.NoError(t, err)
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token:      "github-bot-token-no-match",
+			JoinMethod: types.JoinMethodGitHub,
+			ID: state.IdentityID{
+				Role: types.RoleBot,
+			},
+			IDToken:    validIDToken,
+			AuthClient: nopClient,
+		})
+		require.ErrorContains(t, err, "id token claims did not match any allow rules")
+		require.True(t, trace.IsAccessDenied(err))
+	})
 }

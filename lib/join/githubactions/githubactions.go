@@ -196,6 +196,9 @@ func CheckGithubIDToken(ctx context.Context, m modules.Modules, params *CheckGit
 	}
 
 	githubCfg := params.ProvisionToken.GetGithub()
+	if githubCfg == nil {
+		return nil, trace.BadParameter("required github configuration is missing from the join token")
+	}
 
 	// enterpriseOverride is a hostname to use instead of github.com when
 	// validating tokens. This allows GHES instances to be connected.
