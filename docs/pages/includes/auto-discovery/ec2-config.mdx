@@ -47,7 +47,8 @@ Static configuration while simpler at first, has less flexibility because enroll
   Create a Discovery Config resource, that has the same discovery group you configured earlier, to enable EC2 instance discovery.
 
   Create a file named `discovery-aws-prod.yaml` with the following content:
-  ```yaml
+
+```yaml
   kind: discovery_config
   version: v1
   metadata:
@@ -60,13 +61,23 @@ Static configuration while simpler at first, has less flexibility because enroll
       tags:
         "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
-        document_name: "AWS-RunShellScript"
+        document_name: "TeleportDiscoveryInstaller"
       install:
         enroll_mode: 1
         install_teleport: true
         join_method: iam
         join_token: aws-discovery-iam-token
-  ```
+```
+
+  <Admonition type="tip">
+  `document_name` defaults to `TeleportDiscoveryInstaller`, a custom SSM
+  document created by `teleport discovery bootstrap` (or manually, as shown in
+  the [Manual EC2 Auto-Discovery
+  guide](../../enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-manual.mdx)).
+  You can also set `document_name` to the built-in `AWS-RunShellScript`
+  document, which is available in every AWS account and requires no setup.
+  </Admonition>
+ 
   Adjust the keys under `spec.aws` to match your EC2 environment,
   specifically the regions and tags you want to associate with the Discovery Service.
 
@@ -96,7 +107,7 @@ Static configuration while simpler at first, has less flexibility because enroll
       tags:
         "env": "prod" # Match EC2 instances where tag:env=prod
       ssm:
-        document_name: "AWS-RunShellScript"
+        document_name: "TeleportDiscoveryInstaller"
       install:
         enroll_mode: script
         install_teleport: true

@@ -49,6 +49,14 @@ receive commands from the Discovery Service. For a list of permissions included
 in the policy, see the [AWS
 documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
 
+<Admonition type="note">
+The SSM agent must be installed and running on target EC2 instances. Amazon
+Linux 2 and Amazon Linux 2023 include it by default. For Ubuntu and Debian
+instances, install it manually or via user data before discovery can enroll
+them. See the [AWS Systems Manager documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-ssm-agent.html)
+for installation instructions.
+</Admonition>
+
 ## Step 1/5. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
@@ -92,6 +100,11 @@ Linux servers running on your AWS infrastructure and install Teleport on them.
    $ aws iam attach-role-policy --role-name TeleportDiscoveryService \
      --policy-arn ${POLICY_ARN}
    ```
+
+   <Admonition type="note">
+   IAM policy changes can take 1–2 minutes to propagate. Wait before
+   proceeding to avoid permission errors when the Discovery Service starts.
+   </Admonition>
 
 ## Step 3/5. Install Teleport on the Discovery Node
 

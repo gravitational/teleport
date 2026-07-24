@@ -53,6 +53,13 @@ For this tutorial, verify your environment meets the following requirements:
 
 ### Subdomains and applications
 
+<Admonition type="warning">
+If you are self-hosting Teleport, you must configure wildcard DNS and TLS
+certificates before applications will be accessible. Without this, browsers
+will fail to connect to application subdomains like
+`https://grafana.teleport.example.com`.
+</Admonition>
+
 (!docs/pages/includes/dns-app-access.mdx!)
 
 ### Rights and permissions

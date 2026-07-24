@@ -49,6 +49,14 @@ receive commands from the Discovery Service. For a list of permissions included
 in the policy, see the [AWS
 documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
 
+<Admonition type="note">
+The SSM agent must be installed and running on target EC2 instances. Amazon
+Linux 2 and Amazon Linux 2023 include it by default. For Ubuntu and Debian
+instances, install it manually or via user data before discovery can enroll
+them. See the [AWS Systems Manager documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-ssm-agent.html)
+for installation instructions.
+</Admonition>
+
 ## Step 1/6. Create an EC2 invite token
 
 (!docs/pages/includes/auto-discovery/ec2-invite-token.mdx!)
@@ -97,6 +105,11 @@ the command.
      --policy-arn ${POLICY_ARN}
    ```
 
+   <Admonition type="note">
+   IAM policy changes can take 1–2 minutes to propagate. Wait before
+   proceeding to avoid permission errors when the Discovery Service starts.
+   </Admonition>
+
 ## Step 3/6. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
@@ -117,8 +130,9 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 ## Step 5/6. Bootstrap the Discovery Service AWS configuration
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
-will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
-required to enable the Discovery Service:
+reads the configuration from Step 4 and creates the IAM policies and SSM
+documents that the Discovery Service requires, including the SSM document
+referenced by `document_name` in the configuration:
 
 ```code
 $ sudo teleport discovery bootstrap
