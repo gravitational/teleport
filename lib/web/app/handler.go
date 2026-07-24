@@ -364,7 +364,6 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -385,7 +384,6 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -421,7 +419,14 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		// Missing, expired, or invalid sessions are expected because clients
+		// replay stale cookies, so they are logged at debug rather than
+		// warning level.
+		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
+			h.logger.DebugContext(r.Context(), "Failed to fetch application session", "error", err)
+		} else {
+			h.logger.WarnContext(r.Context(), "Failed to fetch application session", "error", err)
+		}
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
@@ -615,12 +620,12 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 
 // extractCookie extracts the cookie from the *http.Request.
 func extractCookie(r *http.Request, cookieName string) (string, error) {
-	rawCookie, err := r.Cookie(cookieName)
-	if err != nil {
-		return "", trace.Wrap(err)
+	rawCookie, _ := r.Cookie(cookieName)
+	if rawCookie == nil {
+		return "", trace.NotFound("cookie %+q not found", cookieName)
 	}
-	if rawCookie != nil && rawCookie.Value == "" {
-		return "", trace.BadParameter("cookie missing")
+	if rawCookie.Value == "" {
+		return "", trace.NotFound("cookie %+q is empty", cookieName)
 	}
 
 	return rawCookie.Value, nil
