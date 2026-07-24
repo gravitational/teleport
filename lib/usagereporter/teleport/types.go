@@ -2254,14 +2254,20 @@ func (e *SessionSummaryCreateEvent) Anonymize(a utils.Anonymizer) *prehogv1a.Sub
 	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionSummaryCreateEvent{
 			SessionSummaryCreateEvent: &prehogv1a.SessionSummaryCreateEvent{
-				SessionType:         e.SessionType,
-				Provider:            e.Provider,
-				TotalInputTokens:    e.TotalInputTokens,
-				TotalOutputTokens:   e.TotalOutputTokens,
-				Success:             e.Success,
-				ResourceName:        a.AnonymizeString(e.ResourceName),
-				IsCloudDefaultModel: e.IsCloudDefaultModel,
-				HasStoredEmbeddings: e.HasStoredEmbeddings,
+				SessionType:          e.SessionType,
+				Provider:             e.Provider,
+				TotalInputTokens:     e.TotalInputTokens,
+				TotalOutputTokens:    e.TotalOutputTokens,
+				Success:              e.Success,
+				ResourceName:         a.AnonymizeString(e.ResourceName),
+				IsCloudDefaultModel:  e.IsCloudDefaultModel,
+				HasStoredEmbeddings:  e.HasStoredEmbeddings,
+				SessionDurationMs:    e.SessionDurationMs,
+				ProcessingDurationMs: e.ProcessingDurationMs,
+				LlmCalls:             e.LlmCalls,
+				EventsAnalyzed:       e.EventsAnalyzed,
+				Screenshots:          e.Screenshots,
+				Chunks:               e.Chunks,
 			},
 		},
 	}
