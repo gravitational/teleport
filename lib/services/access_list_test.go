@@ -398,7 +398,7 @@ func TestMatchAccessList(t *testing.T) {
 				Roles:  tt.roles,
 				Origin: tt.origin,
 			}.Build()
-			result := MatchAccessList(al, filter, nil)
+			result := MatchAccessList(al, filter)
 			if result != tt.expected {
 				t.Errorf("MatchAccessList(search: %q, owners: %v, roles: %v) = %v, want %v",
 					tt.search, tt.owners, tt.roles, result, tt.expected)
@@ -407,7 +407,7 @@ func TestMatchAccessList(t *testing.T) {
 	}
 }
 
-func TestMatchAccessListSearchTermMatcher(t *testing.T) {
+func TestMatchAccessListSearchTermMatchers(t *testing.T) {
 	t.Parallel()
 
 	al := &accesslist.AccessList{
@@ -426,12 +426,24 @@ func TestMatchAccessListSearchTermMatcher(t *testing.T) {
 	al.SetName("prod-db-access")
 
 	filter := accesslistv1.AccessListsFilter_builder{
-		Search: "prod Garcia",
+		Search: "prod Garcia engineer",
 	}.Build()
 
-	require.True(t, MatchAccessList(al, filter, func(matchedAccessList *accesslist.AccessList, term string) bool {
+	var firstMatcherTerms []string
+	firstMatcher := func(_ *accesslist.AccessList, term string) bool {
+		firstMatcherTerms = append(firstMatcherTerms, term)
 		return term == "Garcia"
-	}))
+	}
+
+	var secondMatcherTerms []string
+	secondMatcher := func(_ *accesslist.AccessList, term string) bool {
+		secondMatcherTerms = append(secondMatcherTerms, term)
+		return term == "engineer"
+	}
+
+	require.True(t, MatchAccessList(al, filter, firstMatcher, secondMatcher))
+	require.Equal(t, []string{"Garcia", "engineer"}, firstMatcherTerms)
+	require.Equal(t, []string{"engineer"}, secondMatcherTerms)
 }
 
 // TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.

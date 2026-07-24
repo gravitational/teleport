@@ -45,7 +45,7 @@ const (
 )
 
 type accessListMatchingLister interface {
-	ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, matchAccessListSearchTerm func(al *accesslist.AccessList, term string) bool) ([]*accesslist.AccessList, string, error)
+	ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, searchTermMatchers ...services.AccessListSearchTermMatcherFunc) ([]*accesslist.AccessList, string, error)
 }
 
 func newAccessListCollection(upstream services.AccessLists, w types.WatchKind) (*collection[*accesslist.AccessList, accessListIndex], error) {
@@ -122,11 +122,12 @@ func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, e
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (c *Cache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
-	return c.ListMatchingAccessLists(ctx, req, nil)
+	return c.ListMatchingAccessLists(ctx, req)
 }
 
 // ListMatchingAccessLists returns a filtered and sorted paginated list of access lists.
-func (c *Cache) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, matchAccessListSearchTerm func(al *accesslist.AccessList, term string) bool) ([]*accesslist.AccessList, string, error) {
+// Search term matchers are evaluated in order for terms that do not match stored access list fields.
+func (c *Cache) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, searchTermMatchers ...services.AccessListSearchTermMatcherFunc) ([]*accesslist.AccessList, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListMatchingAccessLists")
 	defer span.End()
 
@@ -161,12 +162,12 @@ func (c *Cache) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.L
 		defaultPageSize: 100,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*accesslist.AccessList, string, error) {
 			if matchingLister, ok := c.Config.AccessLists.(accessListMatchingLister); ok {
-				return matchingLister.ListMatchingAccessLists(ctx, req, matchAccessListSearchTerm)
+				return matchingLister.ListMatchingAccessLists(ctx, req, searchTermMatchers...)
 			}
 			return c.Config.AccessLists.ListAccessListsV2(ctx, req)
 		},
 		filter: func(al *accesslist.AccessList) bool {
-			return services.MatchAccessList(al, req.GetFilter(), matchAccessListSearchTerm) && scopes.MatchScope(scopeFilter, al.GetScope())
+			return services.MatchAccessList(al, req.GetFilter(), searchTermMatchers...) && scopes.MatchScope(scopeFilter, al.GetScope())
 		},
 		nextToken: func(al *accesslist.AccessList) string {
 			// ignore error because CreateAccessListNextKey only errors
