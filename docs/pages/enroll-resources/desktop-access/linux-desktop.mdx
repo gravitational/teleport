@@ -1,0 +1,302 @@
+---
+title: Configure Access for Linux Desktops
+sidebar_label: Linux Desktop Access
+description: Use Teleport to configure secure, audited access to Linux desktops running X11 desktop environments.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+---
+
+This guide demonstrates how to configure Teleport to provide secure, audited access
+to Linux desktops running X11 desktop environments.
+
+## How it works
+
+The Teleport Linux Desktop Service runs directly on the Linux host you want to access.
+When a user connects, the service starts a virtual X11 display using
+[Xvfb](https://www.x.org/releases/X11R7.6/doc/man/man1/Xvfb.1.xhtml) (X virtual
+framebuffer) and launches the user's chosen desktop environment inside it.
+
+The Linux Desktop Service establishes a reverse tunnel to the Teleport Proxy Service,
+so only a single outbound connection from the host is required—no inbound firewall
+rules are needed.
+
+Available desktop sessions are discovered from `.desktop` files in
+`/usr/share/xsessions`. You can restrict which sessions are offered using the
+`xsessions.included` and `xsessions.excluded` filters in the service configuration.
+
+## Prerequisites
+
+To complete the steps in this guide, verify your environment meets the following requirements:
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Linux host running an X11-compatible desktop environment with session definitions
+  in `/usr/share/xsessions`.
+
+- **Xvfb** installed on the Linux host. Xvfb provides the virtual framebuffer that
+  Teleport uses to render the desktop. Install it with your distribution's package
+  manager:
+
+  <Tabs>
+  <TabItem label="Debian/Ubuntu">
+
+  ```code
+  $ sudo apt-get install xvfb
+  ```
+
+  </TabItem>
+  <TabItem label="RHEL/CentOS/Amazon Linux">
+
+  ```code
+  $ sudo dnf install xorg-x11-server-Xvfb
+  ```
+
+  </TabItem>
+  <TabItem label="Fedora">
+
+  ```code
+  $ sudo dnf install xorg-x11-server-Xvfb
+  ```
+
+  </TabItem>
+  </Tabs>
+
+  Verify that `Xvfb` is available in `PATH`:
+
+  ```code
+  $ which Xvfb
+  ```
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/3. Configure the Linux Desktop Service
+
+The Linux Desktop Service runs on the Linux host that users will connect to.
+
+To configure the Linux Desktop Service:
+
+1. Sign in to the Teleport cluster from your administrative workstation.
+
+1. Generate an invitation token for the Linux Desktop Service:
+
+   ```code
+   $ tctl tokens add --type=linux_desktop
+   ```
+
+   The command displays information similar to the following:
+
+   ```text
+   The invite token: (=presets.tokens.first=)
+   This token will expire in 60 minutes.
+   ```
+
+1. Copy the token and save it to a file on the Linux host:
+
+   ```code
+   $ echo "(=presets.tokens.first=)" > /tmp/token
+   ```
+
+1. Verify that Teleport is installed on the Linux host:
+
+   ```code
+   $ teleport version
+   ```
+
+   If Teleport isn't installed, follow the appropriate [Installation
+   instructions](../../installation/single-machine/linux.mdx) for your environment.
+
+1. Configure `/etc/teleport.yaml` on the Linux host:
+
+   ```yaml
+   version: v3
+   teleport:
+     nodename: <Var name="linux-desktop.example.com" />
+     proxy_server: <Var name="teleport.example.com" />:443
+     auth_token: "/tmp/token"
+   linux_desktop_service:
+     enabled: true
+
+   auth_service:
+     enabled: false
+   proxy_service:
+     enabled: false
+   ssh_service:
+     enabled: false
+   ```
+
+   Set `proxy_server` to the address of your Teleport cluster.
+
+1. (Optional) Add labels to the Linux Desktop Service. Labels are used to control
+   which users can connect to this host.
+
+   ```diff
+   version: v3
+   teleport:
+     nodename: <Var name="linux-desktop.example.com" />
+     proxy_server: <Var name="teleport.example.com" />:443
+     auth_token: "/tmp/token"
+   linux_desktop_service:
+     enabled: true
+   + labels:
+   +   datacenter: us-east
+   +   env: production
+   ```
+
+1. (Optional) Filter the desktop sessions available to users. Teleport discovers
+   available session types from `.desktop` files in `/usr/share/xsessions`. You
+   can restrict which sessions are offered using regular expressions matched against
+   the session name (the filename without the `.desktop` extension):
+
+   ```diff
+   linux_desktop_service:
+     enabled: true
+   + xsessions:
+   +   # Only expose GNOME, KDE, and XFCE sessions.
+   +   included: "^(gnome|kde|xfce4)$"
+   +   # Exclude classic or fallback variants.
+   +   excluded: ".*-classic$"
+   ```
+
+   The `included` pattern is applied first. If set, only sessions whose name
+   matches the pattern are offered. The `excluded` pattern is applied next and
+   removes sessions whose name matches it.
+
+1. (!docs/pages/includes/start-teleport.mdx service="the Teleport Linux Desktop Service"!)
+
+<Checkpoint
+  title="Verify the Linux Desktop Service is running"
+  description="Confirm that the Teleport Linux Desktop Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
+
+  - Check the service status:
+
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify that `Xvfb` is available in `PATH`:
+
+    ```code
+    $ which Xvfb
+    ```
+
+    If the command returns no output, Xvfb is not installed. See the Prerequisites
+    section above for installation instructions.
+
+  - Confirm that at least one `.desktop` file exists in `/usr/share/xsessions`:
+
+    ```code
+    $ ls /usr/share/xsessions/
+    ```
+
+  - Ensure the token hasn't expired (tokens are valid for 60 minutes by default).
+
+</Checkpoint>
+
+## Step 2/3. Configure a role for Linux desktop access
+
+To access a Linux desktop, a Teleport user must have a role that grants the
+appropriate permissions.
+
+To configure a role for Linux desktop access:
+
+1. Sign in to the Teleport cluster from your administrative workstation.
+
+1. Create a `linux-desktop-admins.yaml` file to define a new role:
+
+   ```yaml
+   kind: role
+   version: v6
+   metadata:
+     name: linux-desktop-admins
+   spec:
+     allow:
+       linux_desktop_labels:
+         "*": "*"
+       linux_desktop_logins: ["alice"]
+   ```
+
+   In this file:
+
+   - Set `linux_desktop_labels` to specify which Linux desktops users assigned
+     to this role can access. Use `"*": "*"` to allow access to all desktops, or
+     specify labels to restrict access to desktops with matching labels.
+   - Set `linux_desktop_logins` to the Linux user accounts that members of this
+     role can connect as. The specified user must already exist on the Linux host.
+
+1. Apply the new role to your cluster:
+
+   ```code
+   $ tctl create -f linux-desktop-admins.yaml
+   ```
+
+   (!docs/pages/includes/create-role-using-web.mdx!)
+
+1. (\!docs/pages/includes/add-role-to-user.mdx role="linux-desktop-admins" \!)
+
+## Step 3/3. Connect
+
+Now that the Linux Desktop Service is running and a role has been configured, you
+can connect to the Linux desktop from the Teleport Web UI or Teleport Connect.
+
+To connect to a Linux desktop:
+
+1. Sign in to the Teleport cluster using an account assigned the
+   `linux-desktop-admins` role.
+
+1. Select **Resources**.
+
+1. Click **Type**, then select **Desktops**.
+
+1. Click **Connect** for the Linux desktop you want to access, then select the
+   Linux user account to use for the connection.
+
+   Teleport opens a remote desktop connection and starts recording the desktop
+   session. When you are finished, click the **More items** menu, then click
+   **Disconnect**.
+
+   To view the recording, select **Audit** in the Teleport Web UI, then click
+   **Session Recordings**.
+
+<Checkpoint
+  title="Verify Linux desktop access"
+  description="Confirm that you can connect to the Linux desktop and see the desktop environment."
+>
+  Here are some troubleshooting tips:
+
+  - Ensure your Teleport user is assigned the `linux-desktop-admins` role (or an
+    equivalent role with Linux desktop permissions).
+
+  - Verify that the Linux user account you selected exists on the host.
+
+  - Confirm that Xvfb is installed and in `PATH` on the Linux host.
+
+  - Check that at least one session type is available after applying your
+    `xsessions` filters: review `/usr/share/xsessions/` and compare against
+    the `included`/`excluded` patterns in your configuration.
+
+  - If the connection fails, review the Linux Desktop Service logs on the host:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+</Checkpoint>
+
+## Next steps
+
+- To learn more about controlling who can access which desktops, see
+  [Role-Based Access Control for Desktops](./rbac.mdx).
+- To configure session recording options, see
+  [Session Recording and Playback](reference/sessions.mdx).
+- For a full list of `linux_desktop_service` configuration options, see the
+  [Desktop Access Configuration Reference](reference/configuration.mdx).

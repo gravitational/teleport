@@ -12,8 +12,19 @@ page_type: reference
 This page lists the Teleport configuration fields that you can use to configure
 the Teleport Desktop Service.
 
+`teleport.yaml` fields for the Linux Desktop Service:
+
 ```yaml
-# Main service responsible for desktop access.
+# Service responsible for Linux desktop access.
+# The Linux Desktop Service runs directly on the Linux host being accessed
+# and requires Xvfb to be installed on that host.
+(!docs/pages/includes/config-reference/linux-desktop-config.yaml!)
+```
+
+`teleport.yaml` fields for the Windows Desktop Service:
+
+```yaml
+# Main service responsible for Windows desktop access.
 #
 # You can have multiple Desktop Service instances in your cluster (but not in the
 # same teleport.yaml), connected to the same or different Active Directory
