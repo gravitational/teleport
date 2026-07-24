@@ -226,6 +226,95 @@ type of output using the `services` value of the Helm chart and setting
 Follow one of the [access guides](../access-guides/access-guides.mdx) to find
 out more about how to configure `tbot` for your use case.
 
+## Requirements for deployments without Helm
+
+The Helm chart handles several requirements for `tbot` automatically. If you
+deploy `tbot` yourself — with your own Deployment, ServiceAccount, and `tbot`
+configuration — you must configure the following in addition to the standard
+`tbot` setup.
+
+### Token audience projection
+
+The Kubernetes join method requires that the service account JWT presented to
+Teleport has an audience matching the Teleport cluster name. The service
+account token mounted in a Pod by default is not issued with the Teleport
+cluster name as its audience.
+
+You must project a service account token volume with the correct audience and
+tell `tbot` where to find it via the `KUBERNETES_TOKEN_PATH` environment
+variable:
+
+```yaml
+spec:
+  containers:
+  - name: tbot
+    env:
+    - name: KUBERNETES_TOKEN_PATH
+      value: "/var/run/secrets/teleport/token"
+    volumeMounts:
+    - name: teleport-token
+      mountPath: /var/run/secrets/teleport
+  volumes:
+  - name: teleport-token
+    projected:
+      sources:
+      - serviceAccountToken:
+          path: token
+          audience: example.teleport.sh
+          expirationSeconds: 600
+```
+
+Replace `example.teleport.sh` with the name of your Teleport cluster (the
+value of `clusterName`, not the proxy address).
+
+### Writing credentials to a Kubernetes secret
+
+When using `destination.type: kubernetes_secret` in the `tbot` configuration,
+the following additional setup is required:
+
+- Set the `POD_NAMESPACE` environment variable so `tbot` knows which namespace
+  to write the secret to. Use the Kubernetes downward API:
+
+  ```yaml
+  env:
+  - name: POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  ```
+
+- Grant the `tbot` service account permission to manage secrets in its
+  namespace. The `create` verb is required because `tbot` creates the
+  destination secret automatically if it does not already exist:
+
+  ```yaml
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: Role
+  metadata:
+    name: tbot-secret-writer
+    namespace: default
+  rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+  ---
+  apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: tbot-secret-writer
+    namespace: default
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: tbot-secret-writer
+  subjects:
+  - kind: ServiceAccount
+    name: tbot
+    namespace: default
+  ```
+
+  Replace `default` with the namespace `tbot` runs in.
+
 ## Further reading
 
 - Explore the [Helm chart configuration reference](../../reference/helm-reference/tbot.mdx).

@@ -1,3 +1,11 @@
+<Admonition type="note">
+If your Teleport Proxy Service uses a self-signed TLS certificate, `tbot`
+output services that contact the proxy (such as the `identity` service) will
+fail to generate some files (for example, `ssh_config` and `known_hosts`).
+Add the proxy certificate to the system CA trust store, or configure ACME or
+a valid TLS certificate for your Proxy Service.
+</Admonition>
+
 Now, you must decide if you want to run `tbot` as a daemon or in one-shot mode.
 
 In daemon mode, `tbot` runs continually, renewing the short-lived credentials
