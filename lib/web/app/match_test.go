@@ -21,10 +21,14 @@ package app
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 func TestMatchAppServerForRoute(t *testing.T) {
@@ -149,6 +153,168 @@ func TestMatchAppServerForRoute(t *testing.T) {
 			)
 		})
 	}
+}
+
+func TestHostIsProxyOrSubdomain(t *testing.T) {
+	t.Parallel()
+	const proxy = "teleport.example.com"
+	for _, test := range []struct {
+		desc  string
+		host  string
+		proxy string
+		want  bool
+	}{
+		{
+			desc:  "exact match",
+			host:  proxy,
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			desc:  "subdomain",
+			host:  "app.teleport.example.com",
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			desc:  "multi-label subdomain",
+			host:  "a.b.teleport.example.com",
+			proxy: proxy,
+			want:  true,
+		},
+		{
+			// The bug this guards against: a raw suffix check would accept this
+			// because it ends in "teleport.example.com" with no label boundary.
+			desc:  "no label boundary",
+			host:  "evilteleport.example.com",
+			proxy: proxy,
+			want:  false,
+		},
+		{
+			desc:  "proxy name as a lower-level domain",
+			host:  "teleport.example.com.evil.com",
+			proxy: proxy,
+			want:  false,
+		},
+		{
+			desc:  "unrelated domain",
+			host:  "app.somewebsite.com",
+			proxy: proxy,
+			want:  false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			require.Equal(t, test.want, hostIsProxyOrSubdomain(test.host, test.proxy))
+		})
+	}
+}
+
+func TestExtractHostname(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		desc         string
+		fqdn         string
+		wantHostname string
+		wantErr      bool
+	}{
+		{
+			desc:         "plain hostname",
+			fqdn:         "blah.teleport.example.com",
+			wantHostname: "blah.teleport.example.com",
+		},
+		{
+			desc:         "numeric port is stripped",
+			fqdn:         "blah.teleport.example.com:8443",
+			wantHostname: "blah.teleport.example.com",
+		},
+		{
+			// App names may contain underscores and start with a digit
+			desc:         "underscore in app label",
+			fqdn:         "my_app.teleport.example.com",
+			wantHostname: "my_app.teleport.example.com",
+		},
+		{
+			desc:         "label starting with a digit",
+			fqdn:         "1stapp.teleport.example.com",
+			wantHostname: "1stapp.teleport.example.com",
+		},
+		{
+			desc:         "all-digit label",
+			fqdn:         "123.teleport.example.com",
+			wantHostname: "123.teleport.example.com",
+		},
+		{
+			desc:    "suffix disguised as a port",
+			fqdn:    "bloo.example.com:443@malicious.com",
+			wantErr: true,
+		},
+		{
+			desc:    "empty port",
+			fqdn:    "bloo.example.com:",
+			wantErr: true,
+		},
+		{
+			desc:    "empty host",
+			fqdn:    ":443",
+			wantErr: true,
+		},
+		{
+			desc:    "too many colons",
+			fqdn:    "a:b:c",
+			wantErr: true,
+		},
+		{
+			desc:    "empty string",
+			fqdn:    "",
+			wantErr: true,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			host, err := extractHostname(test.fqdn)
+			if test.wantErr {
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantHostname, host)
+		})
+	}
+}
+
+// emptyCluster is a minimal reversetunnelclient.Cluster without an app-server watcher.
+type emptyCluster struct {
+	reversetunnelclient.Cluster
+	name string
+}
+
+func (c emptyCluster) GetName() string { return c.name }
+
+func (c emptyCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return nil, trace.NotFound("no app server watcher in test")
+}
+
+// TestResolveFQDN_ProxyWithPort verifies that a request under a proxy whose DNS
+// name includes a port does not get rejected as BadParameter.
+func TestResolveFQDN_ProxyWithPort(t *testing.T) {
+	t.Parallel()
+
+	getter := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{emptyCluster{name: "local"}},
+	}
+	proxyDNSNames := []string{"proxy.example.com:3080"}
+
+	_, _, err := ResolveFQDN(
+		t.Context(),
+		getter,
+		"local",
+		proxyDNSNames,
+		"myapp.proxy.example.com",
+		nil,
+	)
+
+	require.Error(t, err)
+	require.False(t, trace.IsBadParameter(err),
+		"proxy with port must not be rejected, got %v", err)
 }
 
 func TestPickAppServer(t *testing.T) {
