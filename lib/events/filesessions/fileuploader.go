@@ -118,11 +118,17 @@ func (l *Handler) Close() error {
 
 // StreamSessionRecording reads a session recording from a local directory.
 func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return openFile(l.recordingPath(sessionID))
 }
 
 // StreamSessionSummary reads a session summary from a local directory.
 func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	filePathsToTest := [3]string{
 		l.summaryPath(sessionID),
 		l.pendingSummaryPath(sessionID),
@@ -144,16 +150,25 @@ func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID
 
 // StreamSessionMetadata reads session metadata from a local directory.
 func (l *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return openFile(l.metadataPath(sessionID))
 }
 
 // StreamSessionThumbnail reads a session thumbnail from a local directory.
 func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return openFile(l.thumbnailPath(sessionID))
 }
 
 // Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if err := sessionID.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	s, err := uploadFile(l.recordingPath(sessionID), reader)
 	return s, trace.Wrap(err)
 }
@@ -162,6 +177,9 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // This function can be called multiple times for a given sessionID to update
 // the state.
 func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if err := sessionID.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	return uploadFile(l.pendingSummaryPath(sessionID), reader, withOverwrite())
 }
 
@@ -169,6 +187,9 @@ func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID
 // pending one. This function can be called only once for a given sessionID;
 // subsequent calls will return an error.
 func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if err := sessionID.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	name, err := uploadFile(l.summaryPath(sessionID), reader)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -184,11 +205,17 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if err := sessionID.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	return uploadFile(l.metadataPath(sessionID), reader)
 }
 
 // UploadThumbnail writes a session thumbnail to a local directory.
 func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	if err := sessionID.Check(); err != nil {
+		return "", trace.Wrap(err)
+	}
 	return uploadFile(l.thumbnailPath(sessionID), reader)
 }
 
