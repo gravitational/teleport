@@ -13773,17 +13773,17 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	username := "scoped-user"
 	scope := "/test"
 	scopedAccess := srv.Auth().ScopedAccess()
-	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	roleResp, err := scopedAccess.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: username,
 			},
 			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
-				Kube: &scopedaccessv1.ScopedRoleKube{
+				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
 					Resources: []*scopedaccessv1.KubeResource{

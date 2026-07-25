@@ -702,16 +702,16 @@ func TestValidateRole(t *testing.T) {
 		},
 		{
 			name: "empty defaults.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
 				Metadata: &headerv1.Metadata{
 					Name: "test",
 				},
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						Lock: &scopedaccessv1.Lock{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
 						}.Build(),
 					}.Build(),
@@ -2108,7 +2108,7 @@ func TestScopedRoleSpecTopLevelFieldsAreMessages(t *testing.T) {
 func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 	t.Parallel()
 
-	spec := &scopedaccessv1.ScopedRoleSpec{
+	spec := scopedaccessv1.ScopedRoleSpec_builder{
 		AssignableScopes: []string{"/foo"},
 		Defaults: &scopedaccessv1.ScopedRoleDefaults{
 			ClientIdleTimeout: "30m",
@@ -2159,7 +2159,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			},
 			DisconnectExpiredCert: proto.Bool(true),
 		},
-		Kube: &scopedaccessv1.ScopedRoleKube{
+		Kube: scopedaccessv1.ScopedRoleKube_builder{
 			Groups: []string{"viewer"},
 			Users:  []string{"alice"},
 			Labels: []*labelv1.Label{
