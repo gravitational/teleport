@@ -17,7 +17,7 @@ resource "teleport_scoped_role" "scoped_admin" {
     assignable_scopes = [local.scope_path]
     rules = [{
       resources = ["scoped_role", "scoped_token", "scoped_role_assignment"]
-      verbs     = ["create", "readnosecrets", "list", "update", "delete"]
+      verbs     = ["create", "read", "list", "update", "delete"]
     }]
   }
 }

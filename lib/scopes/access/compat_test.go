@@ -149,17 +149,18 @@ func TestRulesConversion(t *testing.T) {
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRoleAssignment},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets, types.VerbCreate, types.VerbUpdate, types.VerbDelete},
+					Verbs:     EncodeScopedVerbs(List, Read, Create, Update, Delete),
 				}.Build(),
 			},
 			expect: []types.Rule{
 				{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					// the secret-exclusive spec "read" compiles to the classic "readnosecrets".
+					Verbs: []string{types.VerbList, types.VerbReadNoSecrets},
 				},
 				{
 					Resources: []string{KindScopedRoleAssignment},
@@ -168,11 +169,44 @@ func TestRulesConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported verb",
+			name: "secrets opt-in on secret-bearing kind",
+			rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{types.KindScopedToken},
+					Verbs:     EncodeScopedVerbs(List, Read, Secrets),
+				}.Build(),
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{types.KindScopedToken},
+					// scoped "read" verb becomes classic "readnosecrets" verb, and the scoped "secrets" verb becomes classic "read" verb.
+					Verbs: []string{types.VerbList, types.VerbReadNoSecrets, types.VerbRead},
+				},
+			},
+		},
+		{
+			name: "secrets dropped on non-secret kind",
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbRead},
+					Verbs:     EncodeScopedVerbs(List, Secrets),
+				}.Build(),
+			},
+			expect: []types.Rule{
+				{
+					Resources: []string{KindScopedRole},
+					// "secrets" is not valid on a kind that carries no secrets, and is dropped during compilation.
+					Verbs: []string{types.VerbList},
+				},
+			},
+		},
+		{
+			name: "legacy readnosecrets dropped",
+			rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{KindScopedRole},
+					// the classic "readnosecrets" string is not a scoped verb and is dropped during compilation.
+					Verbs: []string{List.String(), types.VerbReadNoSecrets},
 				}.Build(),
 			},
 			expect: []types.Rule{
@@ -187,11 +221,11 @@ func TestRulesConversion(t *testing.T) {
 			rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{types.KindCertAuthority},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{KindScopedRole},
-					Verbs:     []string{types.VerbList, types.VerbReadNoSecrets},
+					Verbs:     EncodeScopedVerbs(List, Read),
 				}.Build(),
 			},
 			expect: []types.Rule{
