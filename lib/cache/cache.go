@@ -846,6 +846,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
 	}
+	if c.HealthReporter == nil {
+		return trace.BadParameter("missing health reporter parameter")
+	}
+
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
@@ -888,9 +892,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Registerer == nil {
 		c.Registerer = prometheus.DefaultRegisterer
-	}
-	if c.HealthReporter == nil {
-		return trace.BadParameter("health reporter is missing")
 	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1

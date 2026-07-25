@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libcache "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -88,13 +89,18 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
+
+	healthReporter, err := libcache.NewHealthReporter(metrics.NoopRegistry())
+	require.NoError(t, err)
+
 	aclCache, err := libcache.New(libcache.Config{
 		Events: events,
 		Watches: []types.WatchKind{
 			{Kind: types.KindAccessList},
 			{Kind: types.KindAccessListMember},
 		},
-		AccessLists: aclService,
+		AccessLists:    aclService,
+		HealthReporter: healthReporter,
 	})
 	require.NoError(t, err)
 	defer aclCache.Close()
@@ -321,14 +327,19 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
+
+	healthReporter, err := libcache.NewHealthReporter(metrics.NoopRegistry())
+	require.NoError(t, err)
+
 	aclCache, err := libcache.New(libcache.Config{
 		Events: events,
 		Watches: []types.WatchKind{
 			{Kind: types.KindAccessList},
 			{Kind: types.KindAccessListMember},
 		},
-		AccessLists: aclService,
-		Unstarted:   true,
+		AccessLists:    aclService,
+		HealthReporter: healthReporter,
+		Unstarted:      true,
 	})
 	require.NoError(t, err)
 	defer aclCache.Close()

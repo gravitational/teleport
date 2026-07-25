@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -136,6 +137,7 @@ type testPack struct {
 	backend                 *backend.Wrapper
 	eventsC                 chan Event
 	cache                   *Cache
+	healthReporter          *HealthReporter
 	eventsS                 *proxyEvents
 	trustS                  *local.CA
 	provisionerS            *local.ProvisioningService
@@ -317,7 +319,8 @@ func NewTestPackWithoutCache(t *testing.T) *testPack {
 }
 
 type packCfg struct {
-	ignoreKinds []types.WatchKind
+	ignoreKinds    []types.WatchKind
+	healthReporter *HealthReporter
 }
 
 type packOption func(cfg *packCfg)
@@ -327,6 +330,12 @@ type packOption func(cfg *packCfg)
 func ignoreKinds(kinds []types.WatchKind) packOption {
 	return func(cfg *packCfg) {
 		cfg.ignoreKinds = kinds
+	}
+}
+
+func withHealthReporter(hr *HealthReporter) packOption {
+	return func(cfg *packCfg) {
+		cfg.healthReporter = hr
 	}
 }
 
@@ -366,6 +375,14 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if cfg.healthReporter == nil {
+		cfg.healthReporter, err = NewHealthReporter(metrics.NoopRegistry())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	p.healthReporter = cfg.healthReporter
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
@@ -580,6 +597,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
+		HealthReporter:          p.healthReporter,
 		Provisioner:             p.provisionerS,
 		Trust:                   p.trustS,
 		Users:                   p.usersS,
@@ -856,6 +874,7 @@ func TestCompletenessInit(t *testing.T) {
 			Context:                 ctx,
 			Events:                  p.eventsS,
 			ClusterConfig:           p.clusterConfigS,
+			HealthReporter:          p.healthReporter,
 			Provisioner:             p.provisionerS,
 			Trust:                   p.trustS,
 			Users:                   p.usersS,
@@ -951,6 +970,7 @@ func TestCompletenessReset(t *testing.T) {
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
+		HealthReporter:          p.healthReporter,
 		Provisioner:             p.provisionerS,
 		Trust:                   p.trustS,
 		Users:                   p.usersS,
@@ -1121,6 +1141,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
+		HealthReporter:          p.healthReporter,
 		Provisioner:             p.provisionerS,
 		Trust:                   p.trustS,
 		Users:                   p.usersS,
@@ -1228,6 +1249,7 @@ func initStrategy(t *testing.T) {
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
+		HealthReporter:          p.healthReporter,
 		Provisioner:             p.provisionerS,
 		Trust:                   p.trustS,
 		Users:                   p.usersS,
