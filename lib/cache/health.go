@@ -26,20 +26,47 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// HealthReporter allows multiple Cache to report to a single GaugeVec and not
-// clobber each other.
+// HealthReporter aggregates cache health by target so multiple Cache instances
+// can share one GaugeVec without overwriting one another's reports.
 type HealthReporter struct {
 	mu sync.Mutex
 
-	// gauge is the underlying Prometheus metric that is emitted.
+	// gauge is the underlying Prometheus GaugeVec metric.
 	gauge *prometheus.GaugeVec
-	// health maps a caches target to an instance of a cache to the health of a
-	// cache. A single HealthReporter is created for a TeleportProcess which means
-	// caches for many different targets must be tracked. For example: okta,
-	// auth, discovery.
-	health map[string]map[*Cache]bool
+
+	// health groups cache instances by target to allow every cache instance
+	// within the same target to publish to one GaugeVec metric.
+	health map[string]*targetHealth
 }
 
+type targetHealth struct {
+	// live is a set that tracks caches that are still running.
+	live map[*Cache]struct{}
+
+	// healthy is a subset of live caches that are still running and have
+	// reported themselves as healthy.
+	healthy map[*Cache]struct{}
+}
+
+func (h *targetHealth) value() float64 {
+	// Having no live caches is valid, so retain the gauge series and report it
+	// as healthy.
+	if len(h.live) == 0 {
+		return 1.0
+	}
+
+	// A target remains healthy while at least one live cache is healthy, so an
+	// unhealthy cache that is restarting cannot clobber the shared gauge.
+	if len(h.healthy) > 0 {
+		return 1.0
+	}
+
+	// Live caches exist but none are healthy, report the target as unhealthy.
+	return 0
+}
+
+// NewHealthReporter returns a new HealthReporter whose GaugeVec has been
+// registered with the registry.
 func NewHealthReporter(registry *metrics.Registry) (*HealthReporter, error) {
 	gauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -56,7 +83,7 @@ func NewHealthReporter(registry *metrics.Registry) (*HealthReporter, error) {
 
 	return &HealthReporter{
 		gauge:  gauge,
-		health: make(map[string]map[*Cache]bool),
+		health: make(map[string]*targetHealth),
 	}, nil
 }
 
@@ -64,46 +91,47 @@ func (m *HealthReporter) Report(c *Cache, health bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// If Close() has been called on a cache, do no report any
-	// additional health information.
+	// Ignore reports racing with Close so a late report cannot undo Deregister.
 	if c.closed.Load() {
 		return
 	}
 
-	if m.health[c.target] == nil {
-		m.health[c.target] = make(map[*Cache]bool)
+	// Get (or create) target for specific service, for example: "auth", "okta".
+	target, ok := m.health[c.target]
+	if !ok {
+		target = &targetHealth{
+			live:    make(map[*Cache]struct{}),
+			healthy: make(map[*Cache]struct{}),
+		}
+		m.health[c.target] = target
 	}
-	m.health[c.target][c] = health
 
-	m.gauge.WithLabelValues(c.target).Set(m.anyHealthy(c.target))
+	// If a cache has reported it's health it must be live. Update healthy
+	// set depending on what was reported.
+	target.live[c] = struct{}{}
+	if health {
+		target.healthy[c] = struct{}{}
+	} else {
+		delete(target.healthy, c)
+	}
+
+	m.gauge.WithLabelValues(c.target).Set(target.value())
 }
 
 func (m *HealthReporter) Deregister(c *Cache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.health[c.target]; !ok {
+	// Get target for specific service, for example: "auth", "okta", etc.
+	target, ok := m.health[c.target]
+	if !ok {
 		return
 	}
-	delete(m.health[c.target], c)
 
-	m.gauge.WithLabelValues(c.target).Set(m.anyHealthy(c.target))
-}
+	// Remove the cache from both sets because a deregistered cache is neither
+	// healthy or live.
+	delete(target.live, c)
+	delete(target.healthy, c)
 
-func (m *HealthReporter) anyHealthy(target string) float64 {
-	// If no cache is up, report healthy. This is a valid state and
-	// alternative to deleting this metric.
-	if len(m.health[target]) == 0 {
-		return 1.0
-	}
-
-	// If any cache is is healthy, report healthy status.
-	for _, healthy := range m.health[target] {
-		if healthy {
-			return 1.0
-		}
-	}
-
-	// If nothing is healthy, then report unhealthy.
-	return 0
+	m.gauge.WithLabelValues(c.target).Set(target.value())
 }
