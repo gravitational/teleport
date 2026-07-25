@@ -29,6 +29,16 @@ import (
 	"pgregory.net/rapid"
 )
 
+// TestMetricConverges ensures that caches correctly report their health to the
+// prometheus metric.
+func TestMetricConverges(tt *testing.T) {
+	rapid.Check(tt, func(rt *rapid.T) {
+		m := &machine{}
+		m.init(rt)
+		rt.Repeat(rapid.StateMachineActions(m))
+	})
+}
+
 type machine struct {
 	up        map[*Cache]bool
 	healthyUp map[*Cache]bool
@@ -62,7 +72,8 @@ func (m *machine) init(t *rapid.T) {
 			cancel:         cancel,
 			initC:          make(chan struct{}),
 			firstTimeInitC: make(chan struct{}),
-			eventsFanout:   services.NewFanoutV2(services.FanoutV2Config{}),
+			// TODO(russjones): Can these just be removed?
+			eventsFanout: services.NewFanoutV2(services.FanoutV2Config{}),
 			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{
 				services.NewFanoutV2(services.FanoutV2Config{})}),
 		}
@@ -121,15 +132,6 @@ func (m *machine) SetCacheDown(t *rapid.T) {
 	delete(m.healthyUp, c)
 }
 
-// expected is the health property that enforces correctness. The metric is
-// healthy if any cache is up or no cache is up. Otherwise it's unhealthy.
-func (m *machine) expected() float64 {
-	if len(m.up) == 0 || len(m.healthyUp) > 0 {
-		return 1.0
-	}
-	return 0
-}
-
 // Check enforces the state machine invariant. It's run after every action
 // (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown) and asserts the expected
 // value matches tracked in "machine" match the value the Cache reports to the
@@ -145,12 +147,11 @@ func (m *machine) Check(t *rapid.T) {
 	}
 }
 
-// TestMetricConverges ensures that caches correctly report their health to the
-// prometheus metric.
-func TestMetricConverges(tt *testing.T) {
-	rapid.Check(tt, func(rt *rapid.T) {
-		m := &machine{}
-		m.init(rt)
-		rt.Repeat(rapid.StateMachineActions(m))
-	})
+// expected is the health property that enforces correctness. The metric is
+// healthy if any cache is up or no cache is up. Otherwise it's unhealthy.
+func (m *machine) expected() float64 {
+	if len(m.up) == 0 || len(m.healthyUp) > 0 {
+		return 1.0
+	}
+	return 0
 }
