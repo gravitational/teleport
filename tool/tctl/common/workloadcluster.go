@@ -32,7 +32,7 @@ type workloadClusterCollection struct {
 	workloadClusters []*workloadclusterv1pb.WorkloadCluster
 }
 
-func (c *workloadClusterCollection) resources() []types.Resource {
+func (c *workloadClusterCollection) Resources() []types.Resource {
 	resources := make([]types.Resource, 0, len(c.workloadClusters))
 
 	for _, cc := range c.workloadClusters {
@@ -42,7 +42,7 @@ func (c *workloadClusterCollection) resources() []types.Resource {
 	return resources
 }
 
-func (c *workloadClusterCollection) writeText(w io.Writer, verbose bool) error {
+func (c *workloadClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, cc := range c.workloadClusters {
 		t.AddRow([]string{

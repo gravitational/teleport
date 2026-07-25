@@ -19,12 +19,16 @@
 package proxy
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 func Test_patchPod(t *testing.T) {
@@ -87,6 +91,87 @@ func Test_patchPod(t *testing.T) {
 			got, err := patchPod(tt.args.podData, tt.args.patchData, tt.args.pod, tt.args.pt)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// Test_patchPodWithDebugContainer checks that the patch applied to a pod adds
+// exactly one ephemeral container and that the added container is interactive
+// (TTY). A strategic merge patch can append more than one entry to
+// Spec.EphemeralContainers, so the validation must account for every container
+// the patch adds rather than only the last one in the list.
+func Test_patchPodWithDebugContainer(t *testing.T) {
+	// Decoder built the same way as production code (ephemeral_containers.go),
+	// using the package-global Kube codecs so no cluster or live API server is
+	// required.
+	codecs := globalKubeCodecs
+	_, decoder, err := newEncoderAndDecoderForContentType(
+		responsewriters.JSONContentType,
+		newClientNegotiator(&codecs),
+	)
+	require.NoError(t, err)
+
+	// Base pod with a single normal container and no ephemeral containers yet.
+	basePod := corev1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "target",
+			Namespace: "default",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "main", Image: "nginx"}},
+		},
+	}
+	podJSON, err := json.Marshal(basePod)
+	require.NoError(t, err)
+
+	requireAccessDenied := func(t require.TestingT, err error, _ ...any) {
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	}
+
+	tests := []struct {
+		name      string
+		patch     string
+		assertErr require.ErrorAssertionFunc
+		// wantContainerName, when set, is the ephemeral container name expected
+		// to be returned (only meaningful when the patch is accepted).
+		wantContainerName string
+	}{
+		{
+			name:              "single interactive container is accepted",
+			patch:             `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":true}]}}`,
+			assertErr:         require.NoError,
+			wantContainerName: "debugger",
+		},
+		{
+			name:      "single non-interactive container is rejected",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":false}]}}`,
+			assertErr: requireAccessDenied,
+		},
+		{
+			// Validating only the last entry would accept this; the
+			// non-interactive container must reject the whole patch.
+			name:      "multiple added containers are rejected even when the last is interactive",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false},{"name":"debugger","image":"alpine","tty":true}]}}`,
+			assertErr: requireAccessDenied,
+		},
+		{
+			name:      "multiple added containers are rejected when the last is non-interactive",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":true},{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false}]}}`,
+			assertErr: requireAccessDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patchedPod, ephemeralContName, err := patchPodWithDebugContainer(
+				decoder, podJSON, []byte(tt.patch), basePod, apimachinerytypes.StrategicMergePatchType,
+			)
+			tt.assertErr(t, err)
+			if tt.wantContainerName != "" {
+				require.Len(t, patchedPod.Spec.EphemeralContainers, 1)
+				require.Equal(t, tt.wantContainerName, ephemeralContName)
+			}
 		})
 	}
 }

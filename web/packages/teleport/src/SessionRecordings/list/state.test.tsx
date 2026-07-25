@@ -59,7 +59,7 @@ describe('searchParamsToState', () => {
         types: [],
         resources: [],
         users: [],
-        hideNonInteractive: false,
+        hideNonInteractive: true,
       },
       page: 0,
       range: mockRanges[0],
@@ -120,7 +120,7 @@ describe('searchParamsToState', () => {
       resources: ['server-01', 'server-02'],
       types: ['ssh', 'desktop'],
       users: ['alice', 'bob'],
-      hideNonInteractive: false,
+      hideNonInteractive: true,
     });
   });
 
@@ -186,21 +186,21 @@ describe('searchParamsToState', () => {
     expect(state.filters.hideNonInteractive).toBe(true);
   });
 
-  it('defaults hideNonInteractive to false when not provided', () => {
+  it('defaults hideNonInteractive to true when not provided', () => {
     const params = new URLSearchParams();
     const state = searchParamsToState(mockRanges, params);
 
-    expect(state.filters.hideNonInteractive).toBe(false);
+    expect(state.filters.hideNonInteractive).toBe(true);
   });
 
   it('ignores invalid hideNonInteractive values', () => {
     const params = new URLSearchParams('?hide_non_interactive=invalid');
     const state = searchParamsToState(mockRanges, params);
 
-    expect(state.filters.hideNonInteractive).toBe(false);
+    expect(state.filters.hideNonInteractive).toBe(true);
   });
 
-  it('ignores hideNonInteractive when set to false', () => {
+  it('parses hideNonInteractive parameter when false', () => {
     const params = new URLSearchParams('?hide_non_interactive=false');
     const state = searchParamsToState(mockRanges, params);
 
@@ -249,7 +249,7 @@ describe('stateToSearchParams', () => {
         types: [],
         resources: [],
         users: [],
-        hideNonInteractive: false,
+        hideNonInteractive: true,
       },
       page: 0,
       range: mockRanges[0],
@@ -338,7 +338,7 @@ describe('stateToSearchParams', () => {
         types: [],
         resources: [],
         users: [],
-        hideNonInteractive: false,
+        hideNonInteractive: true,
       },
       page: 3,
       range: mockRanges[0],
@@ -383,7 +383,7 @@ describe('stateToSearchParams', () => {
     expect(urlParams.get('page')).toBe('2');
   });
 
-  it('includes hideNonInteractive when true', () => {
+  it('omits hideNonInteractive when true', () => {
     const state: RecordingsListState = {
       filters: {
         types: [],
@@ -401,10 +401,10 @@ describe('stateToSearchParams', () => {
     const params = stateToSearchParams(state);
     const urlParams = new URLSearchParams(params);
 
-    expect(urlParams.get('hide_non_interactive')).toBe('true');
+    expect(urlParams.has('hide_non_interactive')).toBe(false);
   });
 
-  it('omits hideNonInteractive when false', () => {
+  it('includes hideNonInteractive when false', () => {
     const state: RecordingsListState = {
       filters: {
         types: [],
@@ -422,7 +422,7 @@ describe('stateToSearchParams', () => {
     const params = stateToSearchParams(state);
     const urlParams = new URLSearchParams(params);
 
-    expect(urlParams.has('hide_non_interactive')).toBe(false);
+    expect(urlParams.get('hide_non_interactive')).toBe('false');
   });
 
   it('includes hideNonInteractive with other filters', () => {
@@ -431,7 +431,7 @@ describe('stateToSearchParams', () => {
         resources: ['server-01'],
         types: ['ssh'],
         users: ['alice'],
-        hideNonInteractive: true,
+        hideNonInteractive: false,
       },
       page: 1,
       range: mockRanges[0],
@@ -443,7 +443,7 @@ describe('stateToSearchParams', () => {
     const params = stateToSearchParams(state);
     const urlParams = new URLSearchParams(params);
 
-    expect(urlParams.get('hide_non_interactive')).toBe('true');
+    expect(urlParams.get('hide_non_interactive')).toBe('false');
     expect(urlParams.getAll('resources')).toEqual(['server-01']);
     expect(urlParams.getAll('types')).toEqual(['ssh']);
     expect(urlParams.getAll('users')).toEqual(['alice']);
@@ -500,7 +500,7 @@ describe('stateToSearchParams', () => {
         resources: ['server-01'],
         types: ['ssh'],
         users: ['alice'],
-        hideNonInteractive: true,
+        hideNonInteractive: false,
       },
       page: 1,
       range: mockRanges[0],
@@ -516,7 +516,7 @@ describe('stateToSearchParams', () => {
     expect(urlParams.getAll('resources')).toEqual(['server-01']);
     expect(urlParams.getAll('types')).toEqual(['ssh']);
     expect(urlParams.getAll('users')).toEqual(['alice']);
-    expect(urlParams.get('hide_non_interactive')).toBe('true');
+    expect(urlParams.get('hide_non_interactive')).toBe('false');
     expect(urlParams.get('page')).toBe('1');
     expect(urlParams.get('sort')).toBe('type');
     expect(urlParams.get('direction')).toBe('ASC');
@@ -805,7 +805,7 @@ describe('useRecordingsListState', () => {
 
   it('handles hideNonInteractive filter in URL params', () => {
     const history = createMemoryHistory({
-      initialEntries: ['/session-recordings?hide_non_interactive=true'],
+      initialEntries: ['/session-recordings?hide_non_interactive=false'],
     });
 
     function wrapper({ children }: PropsWithChildren) {
@@ -818,7 +818,7 @@ describe('useRecordingsListState', () => {
 
     const [state] = result.current;
 
-    expect(state.filters.hideNonInteractive).toBe(true);
+    expect(state.filters.hideNonInteractive).toBe(false);
   });
 
   it('updates URL when hideNonInteractive filter changes', () => {
@@ -839,12 +839,12 @@ describe('useRecordingsListState', () => {
         ...prev,
         filters: {
           ...prev.filters,
-          hideNonInteractive: true,
+          hideNonInteractive: false,
         },
       }));
     });
 
-    expect(history.location.search).toContain('hide_non_interactive=true');
+    expect(history.location.search).toContain('hide_non_interactive=false');
   });
 
   it('handles search parameter in URL params', () => {

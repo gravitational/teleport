@@ -261,6 +261,9 @@ message SessionStartEvent {
   // if session_type == "app_mcp" the mcp struct contains additional information
   // about the MCP session.
   SessionStartMCPMetadata mcp = 8;
+
+  // if set, contains additional information about the beam VM associated with this session.
+  SessionStartBeamMetadata beam = 9;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -329,6 +332,63 @@ message SessionStartMCPMetadata {
   string ingress_auth_type = 5;
   // Indicates how the MCP session is authorized between Teleport and remote MCP server.
   string egress_auth_type = 6;
+}
+
+// SessionStartBeamMetadata contains additional information about a beam session.
+message SessionStartBeamMetadata {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+}
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+//
+// PostHog event: tp.beams.created
+message BeamsCreatedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the region where the beam was created
+  //
+  // PostHog property: tp.beam.region
+  string region = 2;
+
+  // time in milliseconds from CreateBeam call to VM ready
+  //
+  // PostHog property: tp.beam.startup_duration_ms
+  int64 startup_duration_ms = 3;
+}
+
+// BeamDestroyReason is the reason a beam was destroyed.
+enum BeamDestroyReason {
+  BEAM_DESTROY_REASON_UNSPECIFIED = 0;
+  // the user explicitly deleted the beam
+  BEAM_DESTROY_REASON_USER_DELETED = 1;
+  // the beam was deleted by the garbage collector after expiry
+  BEAM_DESTROY_REASON_GC_EXPIRED = 2;
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+//
+// PostHog event: tp.beams.destroyed
+message BeamsDestroyedEvent {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
+
+  // the reason the beam was destroyed
+  //
+  // PostHog property: tp.beam.destroy_reason
+  BeamDestroyReason reason = 2;
+
+  // the region where the beam was running
+  //
+  // PostHog property: tp.beam.region
+  string region = 3;
 }
 
 // the issuance of a user certificate from the user CA
@@ -2293,6 +2353,9 @@ message SubmitEventRequest {
     UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
     SessionSummarySearchEvent session_summary_search_event = 121;
     UIInteractionEvent ui_interaction = 122;
+
+    BeamsCreatedEvent beams_created = 123;
+    BeamsDestroyedEvent beams_destroyed = 124;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

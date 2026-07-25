@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/crownjewel/v1/crownjewel_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package crownjewelv1
 

@@ -62,21 +62,8 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
-	// SSH block takes precedence over defaults block.
-	idleStr := c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout()
-	if idleStr == "" {
-		idleStr = c.checker.role.GetSpec().GetDefaults().GetClientIdleTimeout()
-	}
-	if idleStr != "" {
-		d, err := time.ParseDuration(idleStr)
-		if err != nil {
-			return 0, trace.Errorf("invalid client_idle_timeout %q in scoped role %q: %w", idleStr, c.checker.role.GetMetadata().GetName(), err)
-		}
-		if d > 0 && (timeout == 0 || d < timeout) {
-			return max(d, 0), nil
-		}
-	}
-	return max(timeout, 0), nil
+
+	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout(), timeout)
 }
 
 // AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
@@ -84,15 +71,37 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	return c.checker.scopedCompatChecker.AdjustDisconnectExpiredCert(disconnect)
+	ssh := c.checker.role.GetSpec().GetSsh()
+	var disconnectExpiredCert *bool
+	if ssh != nil {
+		disconnectExpiredCert = ssh.DisconnectExpiredCert
+	}
+	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+}
+
+// LockingMode returns the SSH lock enforcement mode to apply.
+func (c *SSHAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.LockingMode(defaultMode)
+	}
+
+	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetSsh().GetLock(), defaultMode)
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.
+// SSH recording mode takes precedence over the defaults
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 	}
-	return c.checker.scopedCompatChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+	sr := c.checker.role.GetSpec().GetSsh().GetSessionRecording()
+	if sr == nil {
+		sr = c.checker.role.GetSpec().GetDefaults().GetSessionRecording()
+	}
+	if sr.GetMode() != "" {
+		return constants.SessionRecordingMode(sr.GetMode())
+	}
+	return constants.SessionRecordingModeBestEffort
 }
 
 // CanPortForward returns true if port forwarding is permitted.
@@ -162,7 +171,18 @@ func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.EnhancedRecordingSet()
 	}
-	return c.checker.scopedCompatChecker.EnhancedRecordingSet()
+	events := c.checker.role.GetSpec().GetSsh().GetEnhancedRecording()
+	m := make(map[string]bool)
+	if events.GetCommand() {
+		m[constants.EnhancedRecordingCommand] = true
+	}
+	if events.GetDisk() {
+		m[constants.EnhancedRecordingDisk] = true
+	}
+	if events.GetNetwork() {
+		m[constants.EnhancedRecordingNetwork] = true
+	}
+	return m
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.

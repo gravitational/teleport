@@ -89,13 +89,13 @@ func TestNewMatcher(t *testing.T) {
 			wantAllowCount: 0,
 		},
 		{
-			name: "wildcard verb only recognized as first element",
+			name: "wildcard verb recognized in non-first position",
 			kind: types.KindKubePod,
 			verb: types.KubeVerbList,
 			allowed: []types.KubernetesResource{
-				{Kind: types.KindKubePod, Namespace: "*", Name: "*", Verbs: []string{types.KubeVerbGet, types.Wildcard}, APIGroup: "*"},
+				{Kind: types.KindKubePod, Namespace: types.Wildcard, Name: types.Wildcard, Verbs: []string{types.KubeVerbGet, types.Wildcard}, APIGroup: types.Wildcard},
 			},
-			wantAllowCount: 0,
+			wantAllowCount: 1,
 		},
 		{
 			name: "wildcard verb as first element matches any verb",

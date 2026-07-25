@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/resourceusage/v1/resourceusage_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package resourceusagev1
 

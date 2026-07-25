@@ -163,8 +163,11 @@ func ValidateBeamAlias(alias string) error {
 // options.
 func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Beam) bool {
 	return func(b *beamsv1.Beam) bool {
-		if options != nil && options.GetFilterUsers().Len() > 0 {
-			return options.FilterUsers.Contains(b.GetStatus().GetUser())
+		if options.GetFilterUsers().Len() > 0 && !options.FilterUsers.Contains(b.GetStatus().GetUser()) {
+			return false
+		}
+		if options.GetFilterFn() != nil && !options.FilterFn(b) {
+			return false
 		}
 		return true
 	}
@@ -180,6 +183,10 @@ type ListBeamsRequestOptions struct {
 	// FilterUsers filters the results to only include beams owned by the
 	// provided users.
 	FilterUsers set.Set[string]
+	// FilterFn is a general-use filter delegate. Useful when the state required
+	// for a filter means the filter can't be easily implemented in the backend
+	// or cache (e.g. access control context).
+	FilterFn func(*beamsv1.Beam) bool
 }
 
 // GetSortField is a nil-safe getter for SortField
@@ -204,4 +211,12 @@ func (o *ListBeamsRequestOptions) GetFilterUsers() set.Set[string] {
 		return set.Set[string]{}
 	}
 	return o.FilterUsers
+}
+
+// GetFilterFn is a nil-safe getter for FilterFn
+func (o *ListBeamsRequestOptions) GetFilterFn() func(*beamsv1.Beam) bool {
+	if o == nil {
+		return nil
+	}
+	return o.FilterFn
 }

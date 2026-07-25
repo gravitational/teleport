@@ -58,7 +58,9 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 		return nil
 	}
 
-	_, _, err := app.ResolveFQDN(ctx, h.cfg.clusterGetter, h.cfg.clusterName, h.dnsNames, host)
+	// Note: canAccess is nil here. For cert provisioning we only need to
+	// know that some app with the specified FQDN exists.
+	_, _, err := app.ResolveFQDN(ctx, h.cfg.clusterGetter, h.cfg.clusterName, h.dnsNames, host, nil /* canAccess */)
 	if err == nil {
 		return nil
 	}

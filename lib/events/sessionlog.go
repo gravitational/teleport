@@ -19,14 +19,29 @@
 package events
 
 import (
-	"compress/gzip"
 	"io"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/gzip"
 )
 
-// gzipWriter wraps file, on close close both gzip writer and file
+// gzipWriter wraps file, on close close both gzip writer and file.
+//
+// Session recording uses github.com/klauspost/compress/gzip (imported here as
+// gzip) for both the writer and the reader instead of the standard library's
+// compress/gzip. Both emit and read standard gzip, so the on-disk recording
+// format is unchanged and recordings written by older (stdlib) versions still
+// decode.
+//
+// Writer: at gzip.BestSpeed the stdlib flate compressor embeds two fixed arrays
+// by value (hashHead [1<<17]uint32 and hashPrev [1<<15]uint32, ~640KB total)
+// that the BestSpeed code path never uses. A writer is pooled and held for the
+// lifetime of each open recording slice, so a process with many concurrent
+// recordings retains that unused memory per recording. klauspost only allocates
+// those arrays for levels 7-9 and retains ~380KB less per writer (see
+// BenchmarkNewGzipWriter). The stdlib behavior is tracked upstream in
+// https://github.com/golang/go/issues/32371.
 type gzipWriter struct {
 	*gzip.Writer
 	inner io.WriteCloser
@@ -88,6 +103,10 @@ func (f *gzipReader) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
+// newGzipReader creates a reader for session recordings. Like the writer it uses
+// klauspost/compress/gzip: it reads standard gzip (so recordings written by older
+// stdlib-based versions decode unchanged) and is faster with fewer allocations
+// than the stdlib reader (see BenchmarkGzipReader).
 func newGzipReader(reader io.ReadCloser) (*gzipReader, error) {
 	gzReader, err := gzip.NewReader(reader)
 	if err != nil {

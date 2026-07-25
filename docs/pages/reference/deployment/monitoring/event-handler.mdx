@@ -7,14 +7,20 @@ keywords:
   - event handler
   - audit log
   - Fluentd
+tags:
+  - reference
+  - audit
 ---
-
 
 The **Event Handler** plugin exports Teleport audit events to a Fluentd
 service. The plugin retrieves events in configurable batches, forwards each
 event to Fluentd over mTLS, and persists the ID of each successfully sent event
 to local storage. If the plugin crashes or restarts, it resumes from the last
 confirmed event. By default, the plugin polls for new events every 10 seconds.
+
+To learn more about exporting Teleport audit events with the Event Handler,
+see the [Audit Event Export guides
+](../../../zero-trust-access/export-audit-events/export-audit-events.mdx).
 
 ## Configuration methods
 
@@ -210,5 +216,4 @@ See the following related topics:
 
 - [Teleport audit event reference](../../audit-events.mdx)
 - [Fluentd Documentation](https://docs.fluentd.org/)
-- [Teleport plugin integrations](../../../identity-governance/access-requests/plugins/plugins.mdx)
 - [Teleport audit log architecture](../../deployment/monitoring/audit.mdx)

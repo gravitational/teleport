@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/trait/v1/trait.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package traitv1
 

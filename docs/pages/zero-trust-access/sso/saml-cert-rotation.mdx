@@ -7,6 +7,7 @@ tags:
  - sso
  - how-to
 enterprise: Enterprise SSO
+page_type: conceptual
 ---
 
 SAML signing certificates are used by the identity provider to sign SAML assertions, 
@@ -14,6 +15,11 @@ and Teleport verifies the signature to authenticate users. Certificates have a f
 validity period, after which they expire, and SSO will no longer work. The default lifetime
 for these certificates is set by the identity provider, for example Entra ID (3 years)
 or Okta (10 years).
+
+This page describes the features Teleport provides for rotating SAML signing
+certificates.
+
+## Expiration alerts
 
 When a signing certificate is expiring or expired, Teleport raises a cluster alert with
 details about the certificate that needs to be rotated.

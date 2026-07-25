@@ -477,8 +477,11 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		}
 
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
-		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return PluginData{}, trace.AlreadyExists("request is already resolved")
+		if existing.ResolutionTag != pd.Unresolved {
+			return PluginData{},
+				trace.WrapWithMessage(trace.AlreadyExists("request is already resolved"),
+					"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
+					existing.ResolutionTag, tag)
 		}
 
 		// Mark plugin data as resolved.
@@ -492,11 +495,6 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return nil
 	}
 	if trace.IsAlreadyExists(err) {
-		if tag != pluginData.ResolutionTag {
-			return trace.WrapWithMessage(err,
-				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
-				pluginData.ResolutionTag, tag)
-		}
 		log.DebugContext(ctx, "Request is already resolved, ignoring event")
 		return nil
 	}

@@ -128,6 +128,14 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/multiplexer \
     FuzzReadProxyLineV2 fuzz_read_proxy_linec_v2
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/scopes \
+    FuzzParseQualifiedName fuzz_parse_qualified_name
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/scopes \
+    FuzzValidateQualifiedName fuzz_validate_qualified_name
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/httplib/sse \
+    FuzzRead fuzz_read_sse_events
 }
 
 build_teleport_api_fuzzers() {

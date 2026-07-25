@@ -18,6 +18,7 @@ package discovery
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -25,19 +26,25 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 func TestClassifyAzureVMEnrollmentError(t *testing.T) {
 	azureError := func(statusCode int, errorCode, errorMessage string) error {
 		resp := &http.Response{
 			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(errorMessage)),
-			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
+			Body: io.NopCloser(strings.NewReader(fmt.Sprintf(
+				`{"error":{"code":%q,"message":%q}}`,
+				errorCode,
+				errorMessage,
+			))),
+			Request: &http.Request{Method: http.MethodPut, URL: &url.URL{}},
 		}
-		return runtime.NewResponseErrorWithErrorCode(resp, errorCode)
+		return trace.Wrap(azure.ConvertResponseError(runtime.NewResponseErrorWithErrorCode(resp, errorCode)))
 	}
 
 	tests := []struct {

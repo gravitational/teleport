@@ -21,7 +21,7 @@
 // buf:lint:ignore PACKAGE_DIRECTORY_MATCH
 // buf:lint:ignore PACKAGE_VERSION_SUFFIX
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package proto
 

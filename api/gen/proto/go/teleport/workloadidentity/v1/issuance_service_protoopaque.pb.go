@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/issuance_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package workloadidentityv1
 
@@ -37,6 +37,50 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// IdentityUsage indicates the generated identity usage.
+type IdentityUsage int32
+
+const (
+	// IDENTITY_USAGE_UNSPECIFIED is the `unset` default value. This should
+	// never be used in practice.
+	IdentityUsage_IDENTITY_USAGE_UNSPECIFIED IdentityUsage = 0
+	IdentityUsage_IDENTITY_USAGE_APP_ACCESS  IdentityUsage = 1
+)
+
+// Enum value maps for IdentityUsage.
+var (
+	IdentityUsage_name = map[int32]string{
+		0: "IDENTITY_USAGE_UNSPECIFIED",
+		1: "IDENTITY_USAGE_APP_ACCESS",
+	}
+	IdentityUsage_value = map[string]int32{
+		"IDENTITY_USAGE_UNSPECIFIED": 0,
+		"IDENTITY_USAGE_APP_ACCESS":  1,
+	}
+)
+
+func (x IdentityUsage) Enum() *IdentityUsage {
+	p := new(IdentityUsage)
+	*p = x
+	return p
+}
+
+func (x IdentityUsage) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IdentityUsage) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_workloadidentity_v1_issuance_service_proto_enumTypes[0].Descriptor()
+}
+
+func (IdentityUsage) Type() protoreflect.EnumType {
+	return &file_teleport_workloadidentity_v1_issuance_service_proto_enumTypes[0]
+}
+
+func (x IdentityUsage) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
 
 // The parameters for issuing an X509 SVID.
 type X509SVIDParams struct {
@@ -1340,6 +1384,439 @@ func (b0 IssueWorkloadIdentitiesResponse_builder) Build() *IssueWorkloadIdentiti
 	return m0
 }
 
+// The request for the IssueTeleportWorkloadIdentity RPC.
+type IssueTeleportWorkloadIdentityRequest struct {
+	state                   protoimpl.MessageState                            `protogen:"opaque.v1"`
+	xxx_hidden_Credential   isIssueTeleportWorkloadIdentityRequest_Credential `protobuf_oneof:"credential"`
+	xxx_hidden_RequestedTtl *durationpb.Duration                              `protobuf:"bytes,4,opt,name=requested_ttl,json=requestedTtl,proto3"`
+	xxx_hidden_Usage        isIssueTeleportWorkloadIdentityRequest_Usage      `protobuf_oneof:"usage"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) Reset() {
+	*x = IssueTeleportWorkloadIdentityRequest{}
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueTeleportWorkloadIdentityRequest) ProtoMessage() {}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) GetX509SvidParams() *X509SVIDParams {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_X509SvidParams); ok {
+			return x.X509SvidParams
+		}
+	}
+	return nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) GetJwtSvidParams() *JWTSVIDParams {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_JwtSvidParams); ok {
+			return x.JwtSvidParams
+		}
+	}
+	return nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) GetRequestedTtl() *durationpb.Duration {
+	if x != nil {
+		return x.xxx_hidden_RequestedTtl
+	}
+	return nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) GetAppAccess() *AppAccessUsage {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Usage.(*issueTeleportWorkloadIdentityRequest_AppAccess); ok {
+			return x.AppAccess
+		}
+	}
+	return nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) SetX509SvidParams(v *X509SVIDParams) {
+	if v == nil {
+		x.xxx_hidden_Credential = nil
+		return
+	}
+	x.xxx_hidden_Credential = &issueTeleportWorkloadIdentityRequest_X509SvidParams{v}
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) SetJwtSvidParams(v *JWTSVIDParams) {
+	if v == nil {
+		x.xxx_hidden_Credential = nil
+		return
+	}
+	x.xxx_hidden_Credential = &issueTeleportWorkloadIdentityRequest_JwtSvidParams{v}
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) SetRequestedTtl(v *durationpb.Duration) {
+	x.xxx_hidden_RequestedTtl = v
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) SetAppAccess(v *AppAccessUsage) {
+	if v == nil {
+		x.xxx_hidden_Usage = nil
+		return
+	}
+	x.xxx_hidden_Usage = &issueTeleportWorkloadIdentityRequest_AppAccess{v}
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Credential != nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasX509SvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_X509SvidParams)
+	return ok
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasJwtSvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_JwtSvidParams)
+	return ok
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasRequestedTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_RequestedTtl != nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasUsage() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Usage != nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) HasAppAccess() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Usage.(*issueTeleportWorkloadIdentityRequest_AppAccess)
+	return ok
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearCredential() {
+	x.xxx_hidden_Credential = nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearX509SvidParams() {
+	if _, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_X509SvidParams); ok {
+		x.xxx_hidden_Credential = nil
+	}
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearJwtSvidParams() {
+	if _, ok := x.xxx_hidden_Credential.(*issueTeleportWorkloadIdentityRequest_JwtSvidParams); ok {
+		x.xxx_hidden_Credential = nil
+	}
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearRequestedTtl() {
+	x.xxx_hidden_RequestedTtl = nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearUsage() {
+	x.xxx_hidden_Usage = nil
+}
+
+func (x *IssueTeleportWorkloadIdentityRequest) ClearAppAccess() {
+	if _, ok := x.xxx_hidden_Usage.(*issueTeleportWorkloadIdentityRequest_AppAccess); ok {
+		x.xxx_hidden_Usage = nil
+	}
+}
+
+const IssueTeleportWorkloadIdentityRequest_Credential_not_set_case case_IssueTeleportWorkloadIdentityRequest_Credential = 0
+const IssueTeleportWorkloadIdentityRequest_X509SvidParams_case case_IssueTeleportWorkloadIdentityRequest_Credential = 1
+const IssueTeleportWorkloadIdentityRequest_JwtSvidParams_case case_IssueTeleportWorkloadIdentityRequest_Credential = 2
+
+func (x *IssueTeleportWorkloadIdentityRequest) WhichCredential() case_IssueTeleportWorkloadIdentityRequest_Credential {
+	if x == nil {
+		return IssueTeleportWorkloadIdentityRequest_Credential_not_set_case
+	}
+	switch x.xxx_hidden_Credential.(type) {
+	case *issueTeleportWorkloadIdentityRequest_X509SvidParams:
+		return IssueTeleportWorkloadIdentityRequest_X509SvidParams_case
+	case *issueTeleportWorkloadIdentityRequest_JwtSvidParams:
+		return IssueTeleportWorkloadIdentityRequest_JwtSvidParams_case
+	default:
+		return IssueTeleportWorkloadIdentityRequest_Credential_not_set_case
+	}
+}
+
+const IssueTeleportWorkloadIdentityRequest_Usage_not_set_case case_IssueTeleportWorkloadIdentityRequest_Usage = 0
+const IssueTeleportWorkloadIdentityRequest_AppAccess_case case_IssueTeleportWorkloadIdentityRequest_Usage = 5
+
+func (x *IssueTeleportWorkloadIdentityRequest) WhichUsage() case_IssueTeleportWorkloadIdentityRequest_Usage {
+	if x == nil {
+		return IssueTeleportWorkloadIdentityRequest_Usage_not_set_case
+	}
+	switch x.xxx_hidden_Usage.(type) {
+	case *issueTeleportWorkloadIdentityRequest_AppAccess:
+		return IssueTeleportWorkloadIdentityRequest_AppAccess_case
+	default:
+		return IssueTeleportWorkloadIdentityRequest_Usage_not_set_case
+	}
+}
+
+type IssueTeleportWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The parameters for issuing the credential, varying by credential type.
+
+	// Fields of oneof xxx_hidden_Credential:
+	// The parameters for issuing an X509 SVID.
+	X509SvidParams *X509SVIDParams
+	// The parameters for issuing a JWT SVID.
+	JwtSvidParams *JWTSVIDParams
+	// -- end of xxx_hidden_Credential
+	// The TTL that the client is requesting for the resulting credentials.
+	// This may be adjusted by the server and therefore the client MUST check the
+	// returned TTL rather than assuming that the requested TTL was granted.
+	RequestedTtl *durationpb.Duration
+	// Usage indicates what the identity will be used for.
+	//
+	// Each usage carries the information necessary for authorization and
+	// credentials issue.
+
+	// Fields of oneof xxx_hidden_Usage:
+	// Used when the identity will be used for accessing apps.
+	AppAccess *AppAccessUsage
+	// -- end of xxx_hidden_Usage
+}
+
+func (b0 IssueTeleportWorkloadIdentityRequest_builder) Build() *IssueTeleportWorkloadIdentityRequest {
+	m0 := &IssueTeleportWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.X509SvidParams != nil {
+		x.xxx_hidden_Credential = &issueTeleportWorkloadIdentityRequest_X509SvidParams{b.X509SvidParams}
+	}
+	if b.JwtSvidParams != nil {
+		x.xxx_hidden_Credential = &issueTeleportWorkloadIdentityRequest_JwtSvidParams{b.JwtSvidParams}
+	}
+	x.xxx_hidden_RequestedTtl = b.RequestedTtl
+	if b.AppAccess != nil {
+		x.xxx_hidden_Usage = &issueTeleportWorkloadIdentityRequest_AppAccess{b.AppAccess}
+	}
+	return m0
+}
+
+type case_IssueTeleportWorkloadIdentityRequest_Credential protoreflect.FieldNumber
+
+func (x case_IssueTeleportWorkloadIdentityRequest_Credential) String() string {
+	md := file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[10].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type case_IssueTeleportWorkloadIdentityRequest_Usage protoreflect.FieldNumber
+
+func (x case_IssueTeleportWorkloadIdentityRequest_Usage) String() string {
+	md := file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[10].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isIssueTeleportWorkloadIdentityRequest_Credential interface {
+	isIssueTeleportWorkloadIdentityRequest_Credential()
+}
+
+type issueTeleportWorkloadIdentityRequest_X509SvidParams struct {
+	// The parameters for issuing an X509 SVID.
+	X509SvidParams *X509SVIDParams `protobuf:"bytes,1,opt,name=x509_svid_params,json=x509SvidParams,proto3,oneof"`
+}
+
+type issueTeleportWorkloadIdentityRequest_JwtSvidParams struct {
+	// The parameters for issuing a JWT SVID.
+	JwtSvidParams *JWTSVIDParams `protobuf:"bytes,2,opt,name=jwt_svid_params,json=jwtSvidParams,proto3,oneof"`
+}
+
+func (*issueTeleportWorkloadIdentityRequest_X509SvidParams) isIssueTeleportWorkloadIdentityRequest_Credential() {
+}
+
+func (*issueTeleportWorkloadIdentityRequest_JwtSvidParams) isIssueTeleportWorkloadIdentityRequest_Credential() {
+}
+
+type isIssueTeleportWorkloadIdentityRequest_Usage interface {
+	isIssueTeleportWorkloadIdentityRequest_Usage()
+}
+
+type issueTeleportWorkloadIdentityRequest_AppAccess struct {
+	// Used when the identity will be used for accessing apps.
+	AppAccess *AppAccessUsage `protobuf:"bytes,5,opt,name=app_access,json=appAccess,proto3,oneof"`
+}
+
+func (*issueTeleportWorkloadIdentityRequest_AppAccess) isIssueTeleportWorkloadIdentityRequest_Usage() {
+}
+
+// The response for the IssueTeleportWorkloadIdentity RPC.
+type IssueTeleportWorkloadIdentityResponse struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Credential *Credential            `protobuf:"bytes,1,opt,name=credential,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) Reset() {
+	*x = IssueTeleportWorkloadIdentityResponse{}
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IssueTeleportWorkloadIdentityResponse) ProtoMessage() {}
+
+func (x *IssueTeleportWorkloadIdentityResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) GetCredential() *Credential {
+	if x != nil {
+		return x.xxx_hidden_Credential
+	}
+	return nil
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) SetCredential(v *Credential) {
+	x.xxx_hidden_Credential = v
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Credential != nil
+}
+
+func (x *IssueTeleportWorkloadIdentityResponse) ClearCredential() {
+	x.xxx_hidden_Credential = nil
+}
+
+type IssueTeleportWorkloadIdentityResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The issued credential.
+	Credential *Credential
+}
+
+func (b0 IssueTeleportWorkloadIdentityResponse_builder) Build() *IssueTeleportWorkloadIdentityResponse {
+	m0 := &IssueTeleportWorkloadIdentityResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Credential = b.Credential
+	return m0
+}
+
+// AppAccessUsage used when identity will be used for accessing apps.
+type AppAccessUsage struct {
+	state                      protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_UserCertificate []byte                 `protobuf:"bytes,1,opt,name=user_certificate,json=userCertificate,proto3"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
+}
+
+func (x *AppAccessUsage) Reset() {
+	*x = AppAccessUsage{}
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppAccessUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppAccessUsage) ProtoMessage() {}
+
+func (x *AppAccessUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AppAccessUsage) GetUserCertificate() []byte {
+	if x != nil {
+		return x.xxx_hidden_UserCertificate
+	}
+	return nil
+}
+
+func (x *AppAccessUsage) SetUserCertificate(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_UserCertificate = v
+}
+
+type AppAccessUsage_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ASN.1 DER user identity certificate that the calling Teleport app
+	// service received from the end user.
+	UserCertificate []byte
+}
+
+func (b0 AppAccessUsage_builder) Build() *AppAccessUsage {
+	m0 := &AppAccessUsage{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_UserCertificate = b.UserCertificate
+	return m0
+}
+
 var File_teleport_workloadidentity_v1_issuance_service_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc = "" +
@@ -1395,52 +1872,83 @@ const file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc = "" +
 	"\n" +
 	"credential\"m\n" +
 	"\x1fIssueWorkloadIdentitiesResponse\x12J\n" +
-	"\vcredentials\x18\x01 \x03(\v2(.teleport.workloadidentity.v1.CredentialR\vcredentials2\xcd\x02\n" +
+	"\vcredentials\x18\x01 \x03(\v2(.teleport.workloadidentity.v1.CredentialR\vcredentials\"\xfd\x02\n" +
+	"$IssueTeleportWorkloadIdentityRequest\x12X\n" +
+	"\x10x509_svid_params\x18\x01 \x01(\v2,.teleport.workloadidentity.v1.X509SVIDParamsH\x00R\x0ex509SvidParams\x12U\n" +
+	"\x0fjwt_svid_params\x18\x02 \x01(\v2+.teleport.workloadidentity.v1.JWTSVIDParamsH\x00R\rjwtSvidParams\x12>\n" +
+	"\rrequested_ttl\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\frequestedTtl\x12M\n" +
+	"\n" +
+	"app_access\x18\x05 \x01(\v2,.teleport.workloadidentity.v1.AppAccessUsageH\x01R\tappAccessB\f\n" +
+	"\n" +
+	"credentialB\a\n" +
+	"\x05usage\"q\n" +
+	"%IssueTeleportWorkloadIdentityResponse\x12H\n" +
+	"\n" +
+	"credential\x18\x01 \x01(\v2(.teleport.workloadidentity.v1.CredentialR\n" +
+	"credential\";\n" +
+	"\x0eAppAccessUsage\x12)\n" +
+	"\x10user_certificate\x18\x01 \x01(\fR\x0fuserCertificate*N\n" +
+	"\rIdentityUsage\x12\x1e\n" +
+	"\x1aIDENTITY_USAGE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19IDENTITY_USAGE_APP_ACCESS\x10\x012\xf8\x03\n" +
 	"\x1fWorkloadIdentityIssuanceService\x12\x90\x01\n" +
 	"\x15IssueWorkloadIdentity\x12:.teleport.workloadidentity.v1.IssueWorkloadIdentityRequest\x1a;.teleport.workloadidentity.v1.IssueWorkloadIdentityResponse\x12\x96\x01\n" +
-	"\x17IssueWorkloadIdentities\x12<.teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest\x1a=.teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\x17IssueWorkloadIdentities\x12<.teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest\x1a=.teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse\x12\xa8\x01\n" +
+	"\x1dIssueTeleportWorkloadIdentity\x12B.teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest\x1aC.teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
-var file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_workloadidentity_v1_issuance_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_workloadidentity_v1_issuance_service_proto_goTypes = []any{
-	(*X509SVIDParams)(nil),                  // 0: teleport.workloadidentity.v1.X509SVIDParams
-	(*JWTSVIDParams)(nil),                   // 1: teleport.workloadidentity.v1.JWTSVIDParams
-	(*X509SVIDCredential)(nil),              // 2: teleport.workloadidentity.v1.X509SVIDCredential
-	(*JWTSVIDCredential)(nil),               // 3: teleport.workloadidentity.v1.JWTSVIDCredential
-	(*Credential)(nil),                      // 4: teleport.workloadidentity.v1.Credential
-	(*IssueWorkloadIdentityRequest)(nil),    // 5: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest
-	(*IssueWorkloadIdentityResponse)(nil),   // 6: teleport.workloadidentity.v1.IssueWorkloadIdentityResponse
-	(*LabelSelector)(nil),                   // 7: teleport.workloadidentity.v1.LabelSelector
-	(*IssueWorkloadIdentitiesRequest)(nil),  // 8: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest
-	(*IssueWorkloadIdentitiesResponse)(nil), // 9: teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse
-	(*durationpb.Duration)(nil),             // 10: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),           // 11: google.protobuf.Timestamp
-	(*WorkloadAttrs)(nil),                   // 12: teleport.workloadidentity.v1.WorkloadAttrs
+	(IdentityUsage)(0),                            // 0: teleport.workloadidentity.v1.IdentityUsage
+	(*X509SVIDParams)(nil),                        // 1: teleport.workloadidentity.v1.X509SVIDParams
+	(*JWTSVIDParams)(nil),                         // 2: teleport.workloadidentity.v1.JWTSVIDParams
+	(*X509SVIDCredential)(nil),                    // 3: teleport.workloadidentity.v1.X509SVIDCredential
+	(*JWTSVIDCredential)(nil),                     // 4: teleport.workloadidentity.v1.JWTSVIDCredential
+	(*Credential)(nil),                            // 5: teleport.workloadidentity.v1.Credential
+	(*IssueWorkloadIdentityRequest)(nil),          // 6: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest
+	(*IssueWorkloadIdentityResponse)(nil),         // 7: teleport.workloadidentity.v1.IssueWorkloadIdentityResponse
+	(*LabelSelector)(nil),                         // 8: teleport.workloadidentity.v1.LabelSelector
+	(*IssueWorkloadIdentitiesRequest)(nil),        // 9: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest
+	(*IssueWorkloadIdentitiesResponse)(nil),       // 10: teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse
+	(*IssueTeleportWorkloadIdentityRequest)(nil),  // 11: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest
+	(*IssueTeleportWorkloadIdentityResponse)(nil), // 12: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityResponse
+	(*AppAccessUsage)(nil),                        // 13: teleport.workloadidentity.v1.AppAccessUsage
+	(*durationpb.Duration)(nil),                   // 14: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),                 // 15: google.protobuf.Timestamp
+	(*WorkloadAttrs)(nil),                         // 16: teleport.workloadidentity.v1.WorkloadAttrs
 }
 var file_teleport_workloadidentity_v1_issuance_service_proto_depIdxs = []int32{
-	10, // 0: teleport.workloadidentity.v1.Credential.ttl:type_name -> google.protobuf.Duration
-	11, // 1: teleport.workloadidentity.v1.Credential.expires_at:type_name -> google.protobuf.Timestamp
-	2,  // 2: teleport.workloadidentity.v1.Credential.x509_svid:type_name -> teleport.workloadidentity.v1.X509SVIDCredential
-	3,  // 3: teleport.workloadidentity.v1.Credential.jwt_svid:type_name -> teleport.workloadidentity.v1.JWTSVIDCredential
-	0,  // 4: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.x509_svid_params:type_name -> teleport.workloadidentity.v1.X509SVIDParams
-	1,  // 5: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.jwt_svid_params:type_name -> teleport.workloadidentity.v1.JWTSVIDParams
-	12, // 6: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.workload_attrs:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
-	10, // 7: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.requested_ttl:type_name -> google.protobuf.Duration
-	4,  // 8: teleport.workloadidentity.v1.IssueWorkloadIdentityResponse.credential:type_name -> teleport.workloadidentity.v1.Credential
-	7,  // 9: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.label_selectors:type_name -> teleport.workloadidentity.v1.LabelSelector
-	0,  // 10: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.x509_svid_params:type_name -> teleport.workloadidentity.v1.X509SVIDParams
-	1,  // 11: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.jwt_svid_params:type_name -> teleport.workloadidentity.v1.JWTSVIDParams
-	12, // 12: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.workload_attrs:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
-	10, // 13: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.requested_ttl:type_name -> google.protobuf.Duration
-	4,  // 14: teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse.credentials:type_name -> teleport.workloadidentity.v1.Credential
-	5,  // 15: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentity:input_type -> teleport.workloadidentity.v1.IssueWorkloadIdentityRequest
-	8,  // 16: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentities:input_type -> teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest
-	6,  // 17: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentity:output_type -> teleport.workloadidentity.v1.IssueWorkloadIdentityResponse
-	9,  // 18: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentities:output_type -> teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	14, // 0: teleport.workloadidentity.v1.Credential.ttl:type_name -> google.protobuf.Duration
+	15, // 1: teleport.workloadidentity.v1.Credential.expires_at:type_name -> google.protobuf.Timestamp
+	3,  // 2: teleport.workloadidentity.v1.Credential.x509_svid:type_name -> teleport.workloadidentity.v1.X509SVIDCredential
+	4,  // 3: teleport.workloadidentity.v1.Credential.jwt_svid:type_name -> teleport.workloadidentity.v1.JWTSVIDCredential
+	1,  // 4: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.x509_svid_params:type_name -> teleport.workloadidentity.v1.X509SVIDParams
+	2,  // 5: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.jwt_svid_params:type_name -> teleport.workloadidentity.v1.JWTSVIDParams
+	16, // 6: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.workload_attrs:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
+	14, // 7: teleport.workloadidentity.v1.IssueWorkloadIdentityRequest.requested_ttl:type_name -> google.protobuf.Duration
+	5,  // 8: teleport.workloadidentity.v1.IssueWorkloadIdentityResponse.credential:type_name -> teleport.workloadidentity.v1.Credential
+	8,  // 9: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.label_selectors:type_name -> teleport.workloadidentity.v1.LabelSelector
+	1,  // 10: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.x509_svid_params:type_name -> teleport.workloadidentity.v1.X509SVIDParams
+	2,  // 11: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.jwt_svid_params:type_name -> teleport.workloadidentity.v1.JWTSVIDParams
+	16, // 12: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.workload_attrs:type_name -> teleport.workloadidentity.v1.WorkloadAttrs
+	14, // 13: teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest.requested_ttl:type_name -> google.protobuf.Duration
+	5,  // 14: teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse.credentials:type_name -> teleport.workloadidentity.v1.Credential
+	1,  // 15: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest.x509_svid_params:type_name -> teleport.workloadidentity.v1.X509SVIDParams
+	2,  // 16: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest.jwt_svid_params:type_name -> teleport.workloadidentity.v1.JWTSVIDParams
+	14, // 17: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest.requested_ttl:type_name -> google.protobuf.Duration
+	13, // 18: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest.app_access:type_name -> teleport.workloadidentity.v1.AppAccessUsage
+	5,  // 19: teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityResponse.credential:type_name -> teleport.workloadidentity.v1.Credential
+	6,  // 20: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentity:input_type -> teleport.workloadidentity.v1.IssueWorkloadIdentityRequest
+	9,  // 21: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentities:input_type -> teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest
+	11, // 22: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueTeleportWorkloadIdentity:input_type -> teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityRequest
+	7,  // 23: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentity:output_type -> teleport.workloadidentity.v1.IssueWorkloadIdentityResponse
+	10, // 24: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueWorkloadIdentities:output_type -> teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponse
+	12, // 25: teleport.workloadidentity.v1.WorkloadIdentityIssuanceService.IssueTeleportWorkloadIdentity:output_type -> teleport.workloadidentity.v1.IssueTeleportWorkloadIdentityResponse
+	23, // [23:26] is the sub-list for method output_type
+	20, // [20:23] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_issuance_service_proto_init() }
@@ -1461,18 +1969,24 @@ func file_teleport_workloadidentity_v1_issuance_service_proto_init() {
 		(*issueWorkloadIdentitiesRequest_X509SvidParams)(nil),
 		(*issueWorkloadIdentitiesRequest_JwtSvidParams)(nil),
 	}
+	file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[10].OneofWrappers = []any{
+		(*issueTeleportWorkloadIdentityRequest_X509SvidParams)(nil),
+		(*issueTeleportWorkloadIdentityRequest_JwtSvidParams)(nil),
+		(*issueTeleportWorkloadIdentityRequest_AppAccess)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   10,
+			NumEnums:      1,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_workloadidentity_v1_issuance_service_proto_goTypes,
 		DependencyIndexes: file_teleport_workloadidentity_v1_issuance_service_proto_depIdxs,
+		EnumInfos:         file_teleport_workloadidentity_v1_issuance_service_proto_enumTypes,
 		MessageInfos:      file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes,
 	}.Build()
 	File_teleport_workloadidentity_v1_issuance_service_proto = out.File

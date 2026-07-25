@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -305,7 +307,7 @@ func TestJoin_Bot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withClock(clockwork.NewRealClock()))
 
 	bot, err := machineidv1.UpsertBot(ctx, srv.Auth(), &machineidv1pb.Bot{
 		Kind:    types.KindBot,
@@ -316,7 +318,7 @@ func TestJoin_Bot(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{},
 		},
-	}, srv.Clock().Now(), "")
+	}, srv.Clock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
@@ -460,7 +462,7 @@ func TestJoin_Bot_Expiry(t *testing.T) {
 					Roles:  []string{},
 					Traits: []*machineidv1pb.Trait{},
 				},
-			}, srv.Clock().Now(), "")
+			}, srv.Clock().Now(), "", scopes.Features{})
 			require.NoError(t, err)
 			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))

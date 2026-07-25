@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/revocation_resource.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package workloadidentityv1
 

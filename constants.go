@@ -302,6 +302,9 @@ const (
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
 
+	// ComponentLLM represents the LLM server handler.
+	ComponentLLM = "llm"
+
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
 
@@ -470,6 +473,9 @@ const (
 	// This constrains other identities' access to the agent itself as well as the agent's
 	// access to other resources based on scoping rules.
 	CertExtensionAgentScope = "agent-scope@goteleport.com"
+	// CertExtensionAgentScopePin encodes an agent's scope pin, including the pinned scope and system roles.
+	// Supersedes CertExtensionAgentScope for scoped agents.
+	CertExtensionAgentScopePin = "agent-scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -538,6 +544,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionBotScope indicates the scope of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotScope = "bot-scope@goteleport.com"
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
@@ -913,6 +922,10 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Access Graph API access.
+	UsageAccessGraphAPIOnly = "usage:access_graph_api"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that

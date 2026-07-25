@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
@@ -105,11 +106,15 @@ func (m mockScopedRoleGetter) GetScopedRole(ctx context.Context, req *scopedacce
 }
 
 type mockLoginChecker struct {
-	rbacChecked bool
+	rbacChecked          bool
+	returnScopedIdentity bool
 }
 
 func (m *mockLoginChecker) evaluateSSHAccess(_ *sshca.Identity, _ types.CertAuthority, _ string, _ types.Server, _ string) (*decisionpb.SSHAccessPermit, error) {
 	m.rbacChecked = true
+	if m.returnScopedIdentity {
+		return nil, services.ErrScopedIdentity
+	}
 	return nil, nil
 }
 
@@ -160,17 +165,21 @@ func TestRBAC(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	node, err := types.NewNode("testie_node", types.SubKindTeleportNode, types.ServerSpecV2{
+	const nodeScope = "/test/scope"
+
+	node, err := types.NewNode("testnode", types.SubKindTeleportNode, types.ServerSpecV2{
 		Addr:     "1.2.3.4:22",
 		Hostname: "testie",
-	}, nil)
+	}, map[string]string{"test": "node"})
 	require.NoError(t, err)
+	node.(*types.ServerV2).Scope = nodeScope
 
 	openSSHNode, err := types.NewNode("openssh", types.SubKindOpenSSHNode, types.ServerSpecV2{
 		Addr:     "1.2.3.4:22",
 		Hostname: "openssh",
-	}, nil)
+	}, map[string]string{"test": "node"})
 	require.NoError(t, err)
+	openSSHNode.(*types.ServerV2).Scope = nodeScope
 
 	gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
 		Integration:  "org",
@@ -182,6 +191,7 @@ func TestRBAC(t *testing.T) {
 		name           string
 		component      string
 		targetServer   types.Server
+		scoped         bool
 		loginRBACCheck require.BoolAssertionFunc
 		gitRBACCheck   require.BoolAssertionFunc
 	}{
@@ -220,6 +230,31 @@ func TestRBAC(t *testing.T) {
 			loginRBACCheck: require.False,
 			gitRBACCheck:   require.True,
 		},
+		// Scope checking
+		{
+			name:           "scoped - teleport node, regular server",
+			component:      teleport.ComponentNode,
+			targetServer:   node,
+			scoped:         true,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "scoped - registered openssh node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   openSSHNode,
+			scoped:         true,
+			loginRBACCheck: require.True,
+			gitRBACCheck:   require.False,
+		},
+		{
+			name:           "scoped - teleport node, forwarding server",
+			component:      teleport.ComponentForwardingNode,
+			targetServer:   node,
+			scoped:         true,
+			loginRBACCheck: require.False,
+			gitRBACCheck:   require.False,
+		},
 	}
 
 	// create User CA
@@ -242,6 +277,7 @@ func TestRBAC(t *testing.T) {
 
 	// create mock SSH server and add a cluster name
 	server := newMockServer(t)
+	server.setInfo(node)
 	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
 		ClusterID:   "cluster_id",
@@ -253,12 +289,48 @@ func TestRBAC(t *testing.T) {
 	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
-	accessPoint := mockCAandAuthPrefGetter{
-		AccessPoint: server.auth,
-		authPref:    types.DefaultAuthPreference(),
-		cas: map[types.CertAuthType][]types.CertAuthority{
-			types.UserCA: {userCA},
+	nodeAccessRole, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"testuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, nodeAccessRole)
+	require.NoError(t, err)
+
+	scopedRole := &scopedaccessv1.ScopedRole{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    nodeScope,
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{nodeScope},
+			Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Logins: []string{"testuser"},
+				Labels: []*labelv1.Label{
+					{Name: "test", Values: []string{"node"}},
+				},
+			},
+		},
+		Version: types.V1,
+	}
+	scopePin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: "/test",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			nodeScope: {nodeScope: {scopes.QualifiedName{Scope: nodeScope, Name: scopedRole.GetMetadata().GetName()}.String()}},
+		}),
+	}
+
+	accessPoint := mockScopedRoleReaderGetter{
+		AccessPoint: mockCAandAuthPrefGetter{
+			AccessPoint: server.auth,
+			authPref:    types.DefaultAuthPreference(),
+			cas: map[types.CertAuthType][]types.CertAuthority{
+				types.UserCA: {userCA},
+			},
+		},
+		scopedRoles: []*scopedaccessv1.ScopedRole{scopedRole},
 	}
 
 	for _, tt := range tests {
@@ -273,7 +345,7 @@ func TestRBAC(t *testing.T) {
 			ah, err := NewAuthHandlers(config)
 			require.NoError(t, err)
 
-			lc := mockLoginChecker{}
+			lc := mockLoginChecker{returnScopedIdentity: tt.scoped}
 			ah.loginChecker = &lc
 
 			gc := mockGitForwardingChecker{}
@@ -285,13 +357,21 @@ func TestRBAC(t *testing.T) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			require.NoError(t, err)
 
+			ident := sshca.Identity{
+				Username:   "testuser",
+				Principals: []string{"testuser"},
+			}
+			if tt.scoped {
+				ident.ScopePin = scopePin
+			} else {
+				ident.Roles = []string{nodeAccessRole.GetName()}
+			}
+
 			c, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
-				CASigner:      caSigner,
-				PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
-				Identity: sshca.Identity{
-					Username:   "testuser",
-					Principals: []string{"testuser"},
-				},
+				CASigner:          caSigner,
+				PublicUserKey:     ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+				CertificateFormat: constants.CertificateFormatStandard,
+				Identity:          ident,
 			})
 			require.NoError(t, err)
 
@@ -448,9 +528,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "basic allow",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-red"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
 			},
 			allowed: true,
@@ -458,9 +539,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "too narrow scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/west/narrow",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-red"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
 			},
 			allowed: false,
@@ -468,9 +550,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "label mismatch",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-blue"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-blue"}},
 				}),
 			},
 			allowed: false,
@@ -478,9 +561,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "scope permission mismatch",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/east": {"/staging/east": {"staging-east-red"}},
+					"/staging/east": {"/staging/east": {"/staging/east::staging-east-red"}},
 				}),
 			},
 			allowed: false,
@@ -488,9 +572,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "orthogonal scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/prod",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/prod/west": {"/prod/west": {"prod-west-red"}},
+					"/prod/west": {"/prod/west": {"/prod/west::prod-west-red"}},
 				}),
 			},
 			allowed: false,
@@ -498,9 +583,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "no labels",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-no-labels"}},
 				}),
 			},
 			allowed: false,
@@ -508,9 +594,10 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "wrong login",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-wrong-login"}},
 				}),
 			},
 			allowed: false,
@@ -1432,9 +1519,10 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "no role timeout uses global default",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"no-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::no-timeout"}},
 				}),
 			},
 			expectTimeout: 30 * time.Minute, // global default from cnc
@@ -1442,9 +1530,10 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "role timeout more restrictive than global",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			},
 			expectTimeout: 10 * time.Minute, // role timeout from the only applicable role
@@ -1452,9 +1541,10 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "role timeout less restrictive than global",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"1h-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::1h-timeout"}},
 				}),
 			},
 			expectTimeout: 30 * time.Minute, // global default due to being more restrictive than role timeout
@@ -1462,10 +1552,11 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "winning role determines timeout (single-role evaluation)",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"25m-timeout"}},
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::25m-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			},
 			expectTimeout: 25 * time.Minute, // role assigned *from* a more ancestral/authoritative scope of origin wins
@@ -1473,11 +1564,12 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "more specific scope of effect wins (same origin)",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging": {
-						"/staging":      {"22m-timeout-general"},
-						"/staging/west": {"15m-timeout-specific"},
+						"/staging":      {"/staging::22m-timeout-general"},
+						"/staging/west": {"/staging::15m-timeout-specific"},
 					},
 				}),
 			},
@@ -1486,10 +1578,11 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "label selector mismatch causes fallback to next role",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"12m-timeout-team-blue"}},
-					"/staging/west": {"/staging/west": {"16m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::12m-timeout-team-blue"}},
+					"/staging/west": {"/staging/west": {"/staging/west::16m-timeout"}},
 				}),
 			},
 			expectTimeout: 16 * time.Minute, // role with child scope of origin wins due to label selector mismatch
@@ -1497,10 +1590,11 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "login mismatch causes fallback to next role",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"18m-timeout-wrong-login"}},
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::18m-timeout-wrong-login"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			},
 			expectTimeout: 10 * time.Minute, // role with child scope of origin wins due to login mismatch
@@ -1559,9 +1653,10 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 
 func pinForRole(roleName string) *scopesv1.Pin {
 	return &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/staging/west": {"/staging/west": {roleName}},
+			"/staging/west": {"/staging/west": {scopes.QualifiedName{Scope: "/staging/west", Name: roleName}.String()}},
 		}),
 	}
 }

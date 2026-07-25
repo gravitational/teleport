@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/storage/local/stableunixusers/v1/stableunixusers.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package stableunixusersv1
 

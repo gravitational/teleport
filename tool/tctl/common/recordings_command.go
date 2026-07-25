@@ -140,7 +140,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.config = config
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")
-	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.recordingsList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.recordingsList.Flag("from-utc", fmt.Sprintf("Start of time range in which recordings are listed. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.fromUTC)
 	c.recordingsList.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.toUTC)
 	c.recordingsList.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&c.maxRecordingsToShow)
@@ -166,7 +166,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("severity", "Minimum severity level to include (low, medium, high, critical).").StringVar(&c.searchSeverity)
 	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
-	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
+	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)

@@ -110,7 +110,7 @@ message DiscoverEC2Instance {
   string discovery_config = 6;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
   string discovery_group = 7;
-  // SyncTime is the timestamp when the error was produced.
+  // SyncTime is the timestamp of the latest discovery sync.
   google.protobuf.Timestamp sync_time = 8;
 }
 
@@ -134,7 +134,7 @@ message DiscoverEKSCluster {
   string discovery_config = 2;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
   string discovery_group = 3;
-  // SyncTime is the timestamp when the error was produced.
+  // SyncTime is the timestamp of the latest discovery sync.
   google.protobuf.Timestamp sync_time = 4;
 }
 
@@ -165,7 +165,7 @@ message DiscoverRDSDatabase {
   string discovery_config = 4;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
   string discovery_group = 5;
-  // SyncTime is the timestamp when the error was produced.
+  // SyncTime is the timestamp of the latest discovery sync.
   google.protobuf.Timestamp sync_time = 6;
 }
 
@@ -193,6 +193,12 @@ message DiscoverAzureVMInstance {
   string discovery_config = 4;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
   string discovery_group = 5;
-  // SyncTime is the timestamp when the error was produced.
+  // SyncTime is the timestamp of the latest discovery sync.
   google.protobuf.Timestamp sync_time = 6;
+  // LastAttemptTime is the timestamp of the last installation attempt.
+  google.protobuf.Timestamp last_attempt_time = 7;
+  // RetryAfterTime is the timestamp after which the VM installation will be retried.
+  google.protobuf.Timestamp retry_after_time = 8;
+  // Attempts is the number of installation attempts.
+  int32 attempts = 9;
 }

@@ -68,6 +68,8 @@ func (s *Server) handleBoundKeypairJoin(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	setDiagnosticClientParams(stream.Diagnostic(), &boundKeypairInit.ClientParams)
+
 	issueChallenge := func(challenge *messages.BoundKeypairChallenge) (*messages.BoundKeypairChallengeSolution, error) {
 		if err := stream.Send(challenge); err != nil {
 			return nil, trace.Wrap(err)
@@ -98,6 +100,9 @@ func (s *Server) handleBoundKeypairJoin(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -121,6 +126,9 @@ func (s *Server) handleBoundKeypairJoin(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.HostID = certsParams.HostID
+		})
 		certificates, err := convertCerts(certs)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -207,7 +215,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		// TODO(strideynet): When bots become scope namespaced, ensure this
+		// call site reflects scopedness.
+		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {
 		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
@@ -246,6 +256,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		diag.Set(func(i *diagnostic.Info) {
+			i.BotInstanceID = botInstanceID
+		})
 		botCerts, err := convertCerts(protoCerts)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -287,6 +300,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		handleJoinSuccess(ctx, a, diag)
 		return &client.BoundKeypairRegistrationResponse{
 			Certs:          certs,
 			BoundPublicKey: string(result.BoundKeypairResult.PublicKey),

@@ -219,9 +219,8 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 
 		auth := &ServerWithRoles{
-			authServer: s.AuthServer,
+			serverBase: serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			context:    *authContext,
-			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -231,23 +230,19 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (s *APIServer) WithScopedAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+// ScopedHandlerWithAuthFunc is an HTTP handler with a scoped auth context.
+type ScopedHandlerWithAuthFunc func(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error)
+
+func (s *APIServer) WithScopedAuth(handler ScopedHandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authContext, ok := scopedContext.UnscopedContext()
-		if !ok {
-			authContext = &authz.Context{}
-		}
-
-		auth := &ServerWithRoles{
-			authServer:    s.AuthServer,
-			context:       *authContext,
+		auth := &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			scopedContext: scopedContext,
-			alog:          s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -264,7 +259,6 @@ type upsertServerRawReq struct {
 
 // presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 	UpsertAuthServer(ctx context.Context, s types.Server) error
 	UpsertProxy(ctx context.Context, s types.Server) error
 }
@@ -277,8 +271,6 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	}
 	var kind string
 	switch role {
-	case types.RoleNode:
-		kind = types.KindNode
 	case types.RoleAuth:
 		kind = types.KindAuthServer
 	case types.RoleProxy:
@@ -286,6 +278,12 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
+	// UnmarshalServer forces s.Kind = kind, ignoring the Kind in the payload.
+	// This is retained for backwards compatibility: prior to v19, proxy
+	// heartbeats sent the resource with Kind=KindNode over the wire (see
+	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
+	// send the correct kind; the override remains so older proxies in mixed
+	// clusters continue to work.
 	server, err := services.UnmarshalServer(req.Server, kind)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -296,18 +294,8 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	if req.TTL != 0 {
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
+
 	switch role {
-	case types.RoleNode:
-		namespace := p.ByName("namespace")
-		if !types.IsValidNamespace(namespace) {
-			return nil, trace.BadParameter("invalid namespace %q", namespace)
-		}
-		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(r.Context(), server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return handle, nil
 	case types.RoleAuth:
 		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
@@ -334,7 +322,9 @@ func (s *APIServer) keepAliveNode(auth *ServerWithRoles, w http.ResponseWriter, 
 	return message("ok"), nil
 }
 
-// upsertProxy is called by remote SSH nodes when they ping back into the auth service
+// upsertProxy registers a proxy server heartbeat sent via the legacy HTTP endpoint.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
@@ -342,7 +332,7 @@ func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 // getProxies returns registered proxies
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getProxies(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetProxies()
 	if err != nil {
@@ -381,7 +371,7 @@ func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWrite
 // getAuthServers returns registered auth servers
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) getAuthServers(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetAuthServers()
 	if err != nil {
@@ -606,7 +596,7 @@ func (*APIServer) getNamespace(_ *ServerWithRoles, _ http.ResponseWriter, _ *htt
 }
 
 func (s *APIServer) getClusterName(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	cn, err := auth.GetClusterName(r.Context())
+	cn, err := auth.ScopedServerWithRoles().GetClusterName(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

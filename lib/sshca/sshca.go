@@ -76,7 +76,7 @@ func (r *HostCertificateRequest) Check() error {
 	if r.Identity.ValidAfter != 0 {
 		return trace.BadParameter("ValidAfter should not be set in host cert requests (derived from TTL)")
 	}
-	if err := r.Identity.SystemRole.Check(); err != nil {
+	if err := r.Identity.GetPrimaryRole().Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	if r.Identity.AgentScope != "" {

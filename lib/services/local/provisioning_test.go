@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -312,7 +313,7 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	service := local.NewProvisioningService(bk)
-	scopedTokenService, err := local.NewScopedTokenService(bk)
+	scopedTokenService, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()

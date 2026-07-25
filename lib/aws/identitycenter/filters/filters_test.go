@@ -40,13 +40,13 @@ func TestFilterItems(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filters  Filters
+		filters  []*types.AWSICResourceFilter
 		params   Params[TestItem]
 		expected []TestItem
 	}{
 		{
 			name:    "Filter by ID",
-			filters: Filters{&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2"}}},
+			filters: []*types.AWSICResourceFilter{{Include: &types.AWSICResourceFilter_Id{Id: "2"}}},
 			params: Params[TestItem]{
 				Items: items,
 				GetName: func(item TestItem) string {
@@ -60,7 +60,7 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name:    "Filter by Name",
-			filters: Filters{&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}}},
+			filters: []*types.AWSICResourceFilter{{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}}},
 			params: Params[TestItem]{
 				Items: items,
 				GetName: func(item TestItem) string {
@@ -72,7 +72,7 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name:    "Exclude All",
-			filters: Filters{&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "teleport.internal/exclude_all"}}},
+			filters: []*types.AWSICResourceFilter{{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "teleport.internal/exclude_all"}}},
 			params: Params[TestItem]{
 				Items: items,
 				GetName: func(item TestItem) string {
@@ -86,7 +86,7 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name:    "No Filters",
-			filters: Filters{},
+			filters: []*types.AWSICResourceFilter{},
 			params: Params[TestItem]{
 				Items: items,
 				GetName: func(item TestItem) string {
@@ -100,10 +100,10 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name: "Multiple Filters",
-			filters: Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "4"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_Id{Id: "2"}},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
+				{Include: &types.AWSICResourceFilter_Id{Id: "4"}},
 			},
 			params: Params[TestItem]{
 				Items: items,
@@ -122,8 +122,8 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name: "Exclude by ID",
-			filters: Filters{
-				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "2"}},
+			filters: []*types.AWSICResourceFilter{
+				{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "2"}},
 			},
 			params: Params[TestItem]{
 				Items: items,
@@ -142,8 +142,8 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name: "Exclude by NameRegex",
-			filters: Filters{
-				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
+			filters: []*types.AWSICResourceFilter{
+				{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "a*"}},
 			},
 			params: Params[TestItem]{
 				Items: items,
@@ -161,9 +161,9 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name: "Include and Exclude - exclude wins",
-			filters: Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "*"}},
-				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "1"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "*"}},
+				{Exclude: &types.AWSICResourceFilter_ExcludeId{ExcludeId: "1"}},
 			},
 			params: Params[TestItem]{
 				Items: items,
@@ -182,9 +182,9 @@ func TestFilterItems(t *testing.T) {
 		},
 		{
 			name: "Include and Exclude - exclude wins case 2",
-			filters: Filters{
-				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*cado"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
+			filters: []*types.AWSICResourceFilter{
+				{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*cado"}},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
 			},
 			params: Params[TestItem]{
 				Items: items,
@@ -203,8 +203,11 @@ func TestFilterItems(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := Filter(tt.filters, tt.params)
-			assert.Equal(t, tt.expected, result)
+			filterUnderTest, err := New(tt.filters)
+			require.NoError(t, err)
+
+			result := Filter(filterUnderTest, tt.params)
+			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }
@@ -212,21 +215,29 @@ func TestFilterItems(t *testing.T) {
 func TestPoorlyFormedFiltersAreAnError(t *testing.T) {
 	testCases := []struct {
 		name           string
-		filters        Filters
+		filters        []*types.AWSICResourceFilter
 		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name: "Bad regex",
-			filters: Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^[)$"}},
+			name: "Bad include regex",
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^[)$"}},
 			},
 			errorAssertion: require.Error,
 		},
-
 		{
 			name: "Bad exclude regex",
-			filters: Filters{
-				&types.AWSICResourceFilter{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "^[)$"}},
+			filters: []*types.AWSICResourceFilter{
+				{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "^[)$"}},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "Empty filter element",
+			filters: []*types.AWSICResourceFilter{
+				{Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: "*cado"}},
+				{Include: nil, Exclude: nil},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "a*"}},
 			},
 			errorAssertion: require.Error,
 		},
@@ -234,7 +245,9 @@ func TestPoorlyFormedFiltersAreAnError(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			test.errorAssertion(t, test.filters.validate())
+			test.errorAssertion(t, Validate(test.filters))
+			_, err := New(test.filters)
+			test.errorAssertion(t, err)
 		})
 	}
 }

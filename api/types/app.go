@@ -87,6 +87,8 @@ type Application interface {
 	GetAWSRolesAnywhereProfileARN() string
 	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
 	GetAWSRolesAnywhereAcceptRoleSessionName() bool
+	// GetAWSRegion returns the AWS region configured for the app.
+	GetAWSRegion() string
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -365,6 +367,14 @@ func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
 	return a.Spec.AWS.RolesAnywhereProfile.ProfileARN
 }
 
+// GetAWSRegion returns the AWS region configured for the app.
+func (a *AppV3) GetAWSRegion() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.Region
+}
+
 // GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
 func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
 	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
@@ -535,12 +545,12 @@ func (a *AppV3) checkTCPPorts() error {
 	}
 
 	switch {
-	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
+	// The scheme of URI is enforced to be "tcp" (or "tls") on purpose. This way in the future we can add
 	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	case uri.Scheme != "tcp":
+	case uri.Scheme != "tcp" && uri.Scheme != SchemeTLS:
 		return nil
 	case a.Spec.MCP != nil:
 		return trace.BadParameter("TCP app %q cannot specify 'mcp' configuration", a.GetName())
@@ -599,7 +609,7 @@ func (a *AppV3) checkMCPStdio() error {
 // format.
 var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
 	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
-	LLMFormatOpenAI:    {LLMProviderOpenAI},
+	LLMFormatOpenAI:    {LLMProviderOpenAI, LLMProviderAWSBedrock},
 }
 
 func (a *AppV3) checkLLM() error {
@@ -616,8 +626,6 @@ func (a *AppV3) checkLLM() error {
 		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
 	case a.Spec.Rewrite != nil:
 		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
-	case a.Spec.AWS != nil:
-		return trace.BadParameter("Inference endpoint %q cannot specify 'aws' configuration", a.GetName())
 	}
 
 	llm := a.Spec.LLM
@@ -630,6 +638,10 @@ func (a *AppV3) checkLLM() error {
 
 	if !slices.Contains(providers, llm.Provider) {
 		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
+	}
+
+	if a.Spec.AWS != nil && llm.Provider != LLMProviderAWSBedrock {
+		return trace.BadParameter("Inference endpoint %q can only define 'aws' options for provider %q", a.GetName(), LLMProviderAWSBedrock)
 	}
 
 	for _, model := range llm.Models {

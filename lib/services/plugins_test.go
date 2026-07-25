@@ -49,6 +49,8 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 
 	plugin := types.NewPluginV1(types.Metadata{Name: "foobar"}, spec, creds)
 
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)
 
@@ -125,6 +127,9 @@ func TestMarshalPluginJamfDurationRoundTrip(t *testing.T) {
 
 	plugin := types.NewPluginV1(types.Metadata{Name: "test-jamf"}, spec, creds)
 
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
+
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)
 
@@ -174,7 +179,8 @@ func TestMarshalPluginWithStatus(t *testing.T) {
 		},
 	}
 	require.NoError(t, plugin.SetStatus(status))
-
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)
 

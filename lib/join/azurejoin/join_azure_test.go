@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -156,12 +157,13 @@ func makeToken(issuer, tenantID, managedIdentityResourceID, azureResourceID stri
 }
 
 func TestJoinAzure(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -656,12 +658,13 @@ func TestJoinAzure(t *testing.T) {
 // TestAuth_RegisterUsingAzureClaims tests the Azure join method by verifying
 // joining VMs by the token claims rather than from the Azure VM API.
 func TestJoinAzureClaims(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -701,7 +704,7 @@ func TestJoinAzureClaims(t *testing.T) {
 			Name: botName,
 		},
 		Spec: &machineidv1pb.BotSpec{},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {

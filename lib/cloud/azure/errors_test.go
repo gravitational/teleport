@@ -32,7 +32,7 @@ import (
 )
 
 // responseWithBody builds an *http.Response carrying the given JSON body so
-// ConvertResponseError's BadRequest branch can exercise errorDetails decoding.
+// ConvertResponseError can exercise response body decoding.
 func responseWithBody(status int, body string) *http.Response {
 	return &http.Response{
 		StatusCode: status,
@@ -186,6 +186,65 @@ func TestConvertResponseError(t *testing.T) {
 	}
 }
 
+func TestConvertResponseError_VMConflictErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		body  string
+		check require.ErrorAssertionFunc
+	}{
+		{
+			name: "OperationNotAllowed VM not running maps to VMNotRunningError",
+			body: `{"error":{"code":"OperationNotAllowed","message":"Cannot modify extensions in the VM when the VM is not running"}}`,
+			check: func(tt require.TestingT, err error, i ...any) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, &VMNotRunningError{}, "got %T: %v", err, err)
+				require.NotErrorIs(t, err, &VMAgentNotAvailableError{}, "got %T: %v", err, err)
+			},
+		},
+		{
+			name: "OperationNotAllowed extension operations disallowed maps to VMAgentNotAvailableError",
+			body: `{"error":{"code":"OperationNotAllowed","message":"This operation cannot be performed when extension operations are disallowed. To allow, please ensure VM Agent is installed on the VM and the osProfile.allowExtensionOperations property is true."}}`,
+			check: func(tt require.TestingT, err error, i ...any) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, &VMAgentNotAvailableError{}, "got %T: %v", err, err)
+				require.NotErrorIs(t, err, &VMNotRunningError{}, "got %T: %v", err, err)
+			},
+		},
+		{
+			name: "OperationNotAllowed without VM-specific message maps to AlreadyExists",
+			body: `{"error":{"code":"OperationNotAllowed","message":"some other operation is not allowed"}}`,
+			check: func(tt require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAlreadyExists(err), "got %T: %v", err, err)
+			},
+		},
+		{
+			name: "VM-specific message with wrong code maps to AlreadyExists",
+			body: `{"error":{"code":"SomeOtherCode","message":"Cannot modify extensions in the VM when the VM is not running"}}`,
+			check: func(tt require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAlreadyExists(err), "got %T: %v", err, err)
+			},
+		},
+		{
+			name: "invalid JSON maps to AlreadyExists",
+			body: `not-json`,
+			check: func(tt require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAlreadyExists(err), "got %T: %v", err, err)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			responseWithBody := responseWithBody(http.StatusConflict, tc.body)
+			defer responseWithBody.Body.Close()
+			err := &azcore.ResponseError{
+				StatusCode:  http.StatusConflict,
+				RawResponse: responseWithBody,
+			}
+			tc.check(t, ConvertResponseError(err))
+		})
+	}
+}
+
 func TestConvertResponseError_WrappedErrors(t *testing.T) {
 	t.Parallel()
 
@@ -202,4 +261,34 @@ func TestConvertResponseError_WrappedErrors(t *testing.T) {
 		require.Error(t, got)
 		require.True(t, trace.IsAccessDenied(got), "got %T: %v", got, got)
 	})
+
+	t.Run("wrapped ResponseError still maps VM-specific 409 errors", func(t *testing.T) {
+		responseWithBody := responseWithBody(http.StatusConflict, `{"error":{"code":"OperationNotAllowed","message":"Cannot modify extensions in the VM when the VM is not running"}}`)
+		defer responseWithBody.Body.Close()
+		wrapped := trace.Wrap(&azcore.ResponseError{
+			StatusCode:  http.StatusConflict,
+			RawResponse: responseWithBody,
+		}, "while running command")
+		got := ConvertResponseError(wrapped)
+		require.Error(t, got)
+		require.ErrorIs(t, got, &VMNotRunningError{}, "got %T: %v", got, got)
+	})
+}
+
+func TestVMErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	inner := errors.New("inner")
+
+	vmNotRunningErr := NewVMNotRunningError(inner)
+	require.Equal(t, "VM is not running", vmNotRunningErr.Error())
+	require.ErrorIs(t, vmNotRunningErr, inner)
+	require.ErrorIs(t, vmNotRunningErr, &VMNotRunningError{})
+	require.NotErrorIs(t, vmNotRunningErr, &VMAgentNotAvailableError{})
+
+	vmAgentNotAvailableErr := NewVMAgentNotAvailableError(inner)
+	require.Equal(t, "VM agent is not available", vmAgentNotAvailableErr.Error())
+	require.ErrorIs(t, vmAgentNotAvailableErr, inner)
+	require.ErrorIs(t, vmAgentNotAvailableErr, &VMAgentNotAvailableError{})
+	require.NotErrorIs(t, vmAgentNotAvailableErr, &VMNotRunningError{})
 }

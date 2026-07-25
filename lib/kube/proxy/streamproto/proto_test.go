@@ -29,8 +29,10 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var upgrader = websocket.Upgrader{}
@@ -117,4 +119,97 @@ func TestPingPong(t *testing.T) {
 
 	require.NoError(t, <-errCh)
 	require.NoError(t, <-errCh)
+}
+
+// TestReadTaskDoubleForceTerminatePanics reproduces the unguarded
+// close(s.forceTerminate) in SessionStream.readTask. A peer that sends two
+// {"force_terminate":true} text frames double-closes the channel, panicking
+// the read goroutine ("close of closed channel"). The goroutine has no
+// deferred recover, so on unpatched code the Go runtime terminates the
+// entire test binary. On patched code (sync.Once or atomic.Bool guard) the
+// second frame is a no-op and the test completes cleanly.
+func TestReadTaskDoubleForceTerminatePanics(t *testing.T) {
+	forceFrame, err := utils.FastMarshal(metaMessage{ForceTerminate: true})
+	require.NoError(t, err)
+
+	resizeFrame, err := utils.FastMarshal(metaMessage{
+		Resize: &remotecommand.TerminalSize{Width: 80, Height: 24},
+	})
+	require.NoError(t, err)
+
+	clientHandshakeFrame, err := utils.FastMarshal(metaMessage{
+		ClientHandshake: &ClientHandshake{Mode: types.SessionObserverMode},
+	})
+	require.NoError(t, err)
+
+	serverDone := make(chan error, 1)
+
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			serverDone <- trace.Wrap(err)
+			return
+		}
+		defer ws.Close()
+
+		server, err := NewSessionStream(ws, ServerHandshake{MFARequired: false})
+		if err != nil {
+			serverDone <- trace.Wrap(err)
+			return
+		}
+
+		// Wait for the first force_terminate to come through.
+		select {
+		case <-server.ForceTerminateQueue():
+		case <-time.After(2 * time.Second):
+			serverDone <- trace.Errorf("server timed out waiting for ForceTerminate signal")
+			return
+		}
+
+		// readTask handles frames in order, so observing the trailing resize proves the second force_terminate was already processed.
+		select {
+		case <-server.ResizeQueue():
+		case <-time.After(2 * time.Second):
+			serverDone <- trace.Errorf("server timed out waiting for resize after second force_terminate")
+			return
+		}
+
+		serverDone <- nil
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	url := "ws" + strings.TrimPrefix(httpSrv.URL, "http")
+	ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ws.Close() })
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	// Read the server handshake that NewSessionStream writes first.
+	typ, _, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.TextMessage, typ)
+
+	// Send a valid client handshake. Any participant mode passes the
+	// protocol-level handshake; CanJoin lives a layer up and is not
+	// exercised by streamproto on its own.
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, clientHandshakeFrame))
+
+	// First force_terminate — closes the channel cleanly.
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, forceFrame))
+
+	// Second force_terminate — on unpatched code this triggers
+	// "close of closed channel" panic in readTask.
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, forceFrame))
+
+	// Trailing resize — because readTask processes frames in order, the
+	// server observing this proves the second force_terminate was handled.
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, resizeFrame))
+
+	select {
+	case err := <-serverDone:
+		require.NoError(t, err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("server handler did not complete; readTask likely panicked")
+	}
 }

@@ -32,10 +32,9 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
-func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
+func (s *TerraformSuiteOSSScopedResources) TestScopedRoleAssignment() {
 	t := s.T()
 	ctx := t.Context()
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	checkDestroyed := func(state *terraform.State) error {
 		accessClient := s.client.ScopedAccessServiceClient()
@@ -84,10 +83,9 @@ func (s *TerraformSuiteOSS) TestScopedRoleAssignment() {
 	})
 }
 
-func (s *TerraformSuiteOSS) TestImportScopedRoleAssignment() {
+func (s *TerraformSuiteOSSScopedResources) TestImportScopedRoleAssignment() {
 	t := s.T()
 	ctx := t.Context()
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	accessClient := s.client.ScopedAccessServiceClient()
 
 	r := "teleport_scoped_role_assignment"

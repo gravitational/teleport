@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,6 +54,7 @@ type Suite struct {
 	authServer     *authtest.AuthServer
 	tlsServer      *authtest.TLSServer
 	accessPoint    *authclient.Client
+	limiter        *limiter.Limiter
 }
 
 func NewSuite(t *testing.T) *Suite {
@@ -90,6 +92,11 @@ func NewSuite(t *testing.T) *Suite {
 
 	router := NewRouter()
 
+	// An empty limiter config applies no limits; tests exercising connection
+	// limits override this field before starting the proxy.
+	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
 	return &Suite{
 		tlsServer:      tlsServer,
 		authServer:     authServer,
@@ -97,6 +104,7 @@ func NewSuite(t *testing.T) *Suite {
 		ca:             ca,
 		serverListener: l,
 		router:         router,
+		limiter:        connLimiter,
 	}
 }
 
@@ -129,6 +137,7 @@ func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 		AccessPoint:       s.accessPoint,
 		IdentityTLSConfig: tlsConfig,
 		ClusterName:       "root",
+		Limiter:           s.limiter,
 	}
 
 	svr, err := New(proxyConfig)

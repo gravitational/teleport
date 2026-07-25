@@ -44,8 +44,14 @@ func ToEventsPin(pin *scopesv1.Pin) *events.ScopePin {
 		ea[scope].Roles = append(ea[scope].Roles, assignment.RoleName)
 	}
 
+	var systemRoles []string
+	for role := range SystemRoles(pin) {
+		systemRoles = append(systemRoles, role.String())
+	}
+
 	return &events.ScopePin{
 		Scope:       pin.GetScope(),
 		Assignments: ea,
+		SystemRoles: systemRoles,
 	}
 }

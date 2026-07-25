@@ -70,6 +70,11 @@ service SummarizerService {
   // contains the session summary.
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
 
+  // BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
+  // risk level, and needs-further-review reasons) for multiple sessions in a
+  // single call.
+  rpc BatchGetSummaryMetadata(BatchGetSummaryMetadataRequest) returns (BatchGetSummaryMetadataResponse);
+
   // IsEnabled tells if the summarizer is enabled by the license and
   // configured. (Note that this doesn't tell anything about actual correctness
   // of the configuration or presence of recording summaries.)
@@ -349,6 +354,39 @@ message GetSummaryRequest {
 message GetSummaryResponse {
   // Summary is the session recording summary.
   Summary summary = 1;
+}
+
+// BatchGetSummaryMetadataRequest is a request for retrieving summary metadata
+// for multiple sessions at once.
+message BatchGetSummaryMetadataRequest {
+  // SessionIds are the IDs of the sessions whose summary metadata is being
+  // requested. At most 100 IDs may be requested in a single call.
+  repeated string session_ids = 1;
+}
+
+// BatchGetSummaryMetadataResponse is a response to retrieving summary metadata
+// for multiple sessions.
+message BatchGetSummaryMetadataResponse {
+  // Metadata contains an entry for each requested session that has a summary
+  // readable by the user. Sessions without summaries and sessions the user
+  // has no access to are omitted. The order of entries is unspecified.
+  repeated SummaryMetadata metadata = 1;
+}
+
+// SummaryMetadata is a lightweight representation of a session recording
+// summary, carrying only the fields needed to decorate session recording
+// lists.
+message SummaryMetadata {
+  // SessionID is the ID of the summarized session.
+  string session_id = 1;
+  // State is the state of the summarization process.
+  SummaryState state = 2;
+  // RiskLevel is the overall risk level computed for the session. Unspecified
+  // if the summary has no enhanced summary data.
+  RiskLevel risk_level = 3;
+  // NeedsFurtherReviewReasons lists the reasons why the session needs to be
+  // reviewed by a human, regardless of its risk level.
+  repeated NeedsReviewReason needs_further_review_reasons = 4;
 }
 
 // IsEnabledRequest is a request to tell if the summarizer is enabled.

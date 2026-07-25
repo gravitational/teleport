@@ -92,6 +92,7 @@ export function HeadlessPrompt({
         </H2>
         <ButtonIcon
           type="button"
+          title="Close"
           color="text.slightlyMuted"
           onClick={() => {
             abortApproval();

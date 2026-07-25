@@ -21,8 +21,7 @@ package services
 import (
 	"time"
 
-	"github.com/gravitational/trace"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -78,19 +77,27 @@ func (c *KubeAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
-	// Kube block takes precedence over defaults block.
-	idleStr := c.checker.role.GetSpec().GetKube().GetClientIdleTimeout()
-	if idleStr == "" {
-		idleStr = c.checker.role.GetSpec().GetDefaults().GetClientIdleTimeout()
+	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetKube().GetClientIdleTimeout(), timeout)
+}
+
+// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
+func (c *KubeAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	if idleStr != "" {
-		d, err := time.ParseDuration(idleStr)
-		if err != nil {
-			return 0, trace.Errorf("invalid client_idle_timeout %q in scoped role %q: %w", idleStr, c.checker.role.GetMetadata().GetName(), err)
-		}
-		if d > 0 && (timeout == 0 || d < timeout) {
-			return max(d, 0), nil
-		}
+	kube := c.checker.role.GetSpec().GetKube()
+	var disconnectExpiredCert *bool
+	if kube != nil {
+		disconnectExpiredCert = kube.DisconnectExpiredCert
 	}
-	return max(timeout, 0), nil
+	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+}
+
+// LockingMode returns the SSH lock enforcement mode to apply.
+func (c *KubeAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.LockingMode(defaultMode)
+	}
+
+	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetKube().GetLock(), defaultMode)
 }

@@ -75,6 +75,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -144,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -160,6 +162,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -177,6 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -372,7 +376,8 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 	c := &Connector{
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
-		scope:       clientIdentity.AgentScope,
+		scope:       clientIdentity.GetAgentScope(),
+		scopePin:    clientIdentity.ScopePin,
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -441,6 +446,7 @@ type Connector struct {
 	clusterName string
 	hostID      string
 	scope       string
+	scopePin    *scopesv1.Pin
 	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
@@ -477,6 +483,11 @@ func (c *Connector) HostUUID() string {
 // Scope returns the host's AgentScope
 func (c *Connector) Scope() string {
 	return c.scope
+}
+
+// ScopePin returns the host's ScopePin
+func (c *Connector) ScopePin() *scopesv1.Pin {
+	return c.scopePin
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -705,6 +716,9 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// scopesFeatures dictates which scoped components are enabled for this process.
+	scopesFeatures scopes.Features
 
 	// authSubjectiveAddr is the peer address of this process as seen by the auth
 	// server during the most recent ping (may be empty).
@@ -1318,6 +1332,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
+	scopesFeatures := cfg.ScopesFeatures
+
 	process := &TeleportProcess{
 		PluginRegistry:         cfg.PluginRegistry,
 		Clock:                  cfg.Clock,
@@ -1333,6 +1349,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		id:                     processID,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
+		scopesFeatures:         scopesFeatures,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
@@ -1357,12 +1374,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	var resolverAddr utils.NetAddr
-	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
-		resolverAddr = cfg.ProxyServer
-	} else {
-		resolverAddr = cfg.AuthServerAddresses()[0]
-	}
+	resolverAddr := cfg.ProxyWebAddr()
 
 	process.resolver, err = reversetunnelclient.CachingResolver(
 		process.ExitContext(),
@@ -2422,6 +2434,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                   b,
+			ScopesFeatures:            process.scopesFeatures,
 			VersionStorage:            process.storage,
 			SkipVersionCheck:          cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                 cfg.Keygen,
@@ -2642,6 +2655,7 @@ func (process *TeleportProcess) initAuthService() error {
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
 		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+		ScopesFeatures:      process.scopesFeatures,
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -3059,6 +3073,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+
+	if err := subca.RegisterMetrics(process.metricsRegistry); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -3116,6 +3135,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.IdentityInternal
 	cfg.Apps = services.ApplicationsInternal
 	cfg.Beams = services.Beams
+	cfg.BeamsConfig = services.BeamsConfigService
 	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
@@ -4988,6 +5008,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -5043,6 +5068,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
+		// The proxy's node watcher is a routing construct; it must observe nodes in
+		// every scope, not just unscoped ones, so it watches with MODE_ALL. This is
+		// backed by the ForProxy cache, which mirrors nodes in all scopes (see
+		// cache.ForProxy). Sibling routing watchers backed by ForRelay/ForRemoteProxy
+		// intentionally stay unscoped since those caches do not mirror scoped nodes.
+		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5507,11 +5538,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   cn.GetClusterName(),
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger,
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    cn.GetClusterName(),
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger,
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5542,6 +5574,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ConnectionMonitor: connMonitor,
 			CipherSuites:      cfg.CipherSuites,
 			ServiceComponent:  teleport.ComponentWebProxy,
+			InsecureMode:      lib.IsInsecureDevMode(),
 			AWSConfigOptions: []awsconfig.OptionsFn{
 				awsconfig.WithOIDCIntegrationClient(conn.Client),
 				awsconfig.WithRolesAnywhereIntegrationClient(conn.Client),
@@ -5550,17 +5583,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(allAppServers) == 0 {
-				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-			}
-			// TODO(okraport): determine if we should shuffle app servers here.
-			return allAppServers[0].GetApp(), nil
-		})
+		connectionsHandler.SetApplicationsProvider(
+			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if len(allAppServers) == 0 {
+					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
+				}
+				// TODO(okraport): determine if we should shuffle app servers here.
+				return allAppServers[0].GetApp(), nil
+			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
@@ -5824,6 +5859,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		PermitCaching:    process.Config.CachePolicy.Enabled,
+		ScopesFeatures:   process.scopesFeatures,
 	}
 
 	authorizer, err := authz.NewAuthorizer(authorizerOpts)
@@ -5907,15 +5943,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
+			certGen, err := proxyRouter.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting site client for cluster %q", clusterName)
+			}
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, certGen, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, accessPoint, certGen, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -6000,6 +6037,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ScopedRoleReader: accessPoint.ScopedRoleReader(),
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			ScopesFeatures:   process.scopesFeatures,
 			PermitCaching:    process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6017,13 +6055,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
-		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: component,
-				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-				Client:    accessPoint,
-			},
-			KubernetesServerGetter: accessPoint,
+		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			AccessPoint:    accessPoint,
+			FallbackGetter: conn.Client, // use auth client as a fallback
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6117,11 +6152,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   clusterName,
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6275,6 +6311,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6302,6 +6339,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				Limiter:           reverseTunnelLimiter,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6841,6 +6879,7 @@ func (process *TeleportProcess) initApps() {
 			if app.AWS != nil {
 				aws = &types.AppAWS{
 					ExternalID: app.AWS.ExternalID,
+					Region:     app.AWS.Region,
 				}
 			}
 
@@ -6894,10 +6933,11 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName: clusterName,
-			AccessPoint: accessPoint,
-			LockWatcher: lockWatcher,
-			Logger:      process.logger.With(teleport.ComponentKey, component),
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, component),
+			ScopesFeatures: process.scopesFeatures,
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -6953,6 +6993,7 @@ func (process *TeleportProcess) initApps() {
 			ServiceComponent:  teleport.ComponentApp,
 			Logger:            logger,
 			MCPDemoServer:     process.Config.Apps.MCPDemoServer,
+			InsecureMode:      lib.IsInsecureDevMode(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -7468,11 +7509,12 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   clusterName,
-		AccessPoint:   cfg.accessPoint,
-		LockWatcher:   cfg.lockWatcher,
-		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
-		PermitCaching: process.Config.CachePolicy.Enabled,
+		ClusterName:    clusterName,
+		AccessPoint:    cfg.accessPoint,
+		LockWatcher:    cfg.lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
+		PermitCaching:  process.Config.CachePolicy.Enabled,
+		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -81,11 +81,31 @@ and generate credentials that the plugin will use for authentication.
 ### Generate a starter config file
 
 Generate a configuration file with placeholder values for the Teleport Event
-Handler plugin.
+Handler plugin. Later in this guide, we will edit the configuration file for
+your environment.
 
-(!docs/pages/includes/plugins/configure-event-handler-helm.mdx!)
+(!docs/pages/includes/plugins/configure-event-handler.mdx forwarder="fluentd.fluentd.svc.cluster.local" binary="docker run -v $(pwd):/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)"!)
 
-(!docs/pages/includes/plugins/configure-event-handler-output.mdx!)
+In order to export audit events, you'll need to have the root certificate and the
+client credentials available as a secret. Use the following command to create
+that secret in Kubernetes:
+
+```code
+$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+```
+
+This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
+secret so the Helm chart can mount them to their appropriate path.
+
+The plugin generates several setup files:
+
+| File(s)                            | Purpose                                                             |
+|------------------------------------|---------------------------------------------------------------------|
+| `ca.crt` and `ca.key`              | Self-signed CA certificate and private key for Fluentd              |
+| `server.crt` and `server.key`      | Fluentd server certificate and key                                  |
+| `client.crt` and `client.key`      | Fluentd client certificate and key, all signed by the generated CA  |
+| `teleport-plugin-event-handler-values.yaml` | Example event handler Helm chart configuration             |
+| `fluent.conf`                      | Fluentd plugin configuration                                        |
 
 If you have an existing Fluentd setup with TLS, issue a client certificate and
 key from the same certificate authority for the Teleport Event Handler to use.

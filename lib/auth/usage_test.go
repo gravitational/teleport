@@ -119,7 +119,7 @@ func setUpAccessRequestLimitForJulyAndAugust(t *testing.T, username string, role
 	})
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	// Set up RBAC

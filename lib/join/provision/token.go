@@ -43,14 +43,16 @@ type Token interface {
 	GetRoles() types.SystemRoles
 	// Expiry returns the token's expiration time.
 	Expiry() time.Time
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. An empty scope
+	// refers to an unscoped bot; scoped bot tokens always carry both
+	// components.
+	GetBot() (name, scope string)
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
+	// GetScope returns the scope that token exists in.
+	GetScope() string
 	// GetImmutableLabels returns labels that must be applied to resources
 	// provisioned with this token.
 	GetImmutableLabels() *joiningv1.ImmutableLabels
@@ -75,4 +77,6 @@ type Token interface {
 	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
 	// GetBoundKeypairStatus returns bound keypair status for this token.
 	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 }

@@ -29,6 +29,9 @@ const defaultState = {
   message: '',
 };
 
+/**
+ * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
+ */
 export default function useAttempt(
   initialState: Partial<State>
 ): [State, Actions] {

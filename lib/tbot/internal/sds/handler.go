@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -76,6 +77,7 @@ type HandlerConfig struct {
 	RenewalInterval     time.Duration
 	TrustBundleCache    BundleSetGetter
 	ClientAuthenticator ClientAuthenticator
+	TrustDomainSelector bot.TrustDomainsSelector
 }
 
 // CheckAndSetDefaults validates the HandlerConfig and sets default values.
@@ -104,6 +106,7 @@ type Handler struct {
 	renewalInterval     time.Duration
 	trustBundleCache    BundleSetGetter
 	clientAuthenticator ClientAuthenticator
+	trustDomainSelector bot.TrustDomainsSelector
 }
 
 // NewHandler creates a new SDS handler with the provided configuration.
@@ -117,6 +120,7 @@ func NewHandler(cfg HandlerConfig) (*Handler, error) {
 		renewalInterval:     cfg.RenewalInterval,
 		trustBundleCache:    cfg.TrustBundleCache,
 		clientAuthenticator: cfg.ClientAuthenticator,
+		trustDomainSelector: cfg.TrustDomainSelector,
 	}, nil
 }
 
@@ -473,7 +477,7 @@ func (h *Handler) generateResponse(
 	case names[EnvoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
-		bundles := slices.Collect(maps.Values(bundleSet.Federated))
+		bundles := bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector)
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
 			bundles, EnvoyAllBundlesName,
@@ -486,7 +490,7 @@ func (h *Handler) generateResponse(
 	}
 
 	if returnAll {
-		for _, bundle := range bundleSet.Federated {
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 			validator, err := newTLSV3ValidationContext(
 				[]*spiffebundle.Bundle{
 					bundle,
@@ -498,10 +502,10 @@ func (h *Handler) generateResponse(
 			resources = append(resources, validator)
 		}
 	} else {
-		// For any remaining names, see if they match any federated trust bundles.
-		for name := range maps.Keys(names) {
+		// For any remaining names, see if they match any non-local trust bundles.
+		for name := range names {
 			var found *spiffebundle.Bundle
-			for _, bundle := range bundleSet.Federated {
+			for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 				if name == bundle.TrustDomain().IDString() {
 					found = bundle
 					break

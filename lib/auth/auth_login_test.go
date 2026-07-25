@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
@@ -942,10 +943,9 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 // TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
 // auth and a rudimentary set of scoped roles.
 func TestBasicSSHScopedLogin(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	authServer := testServer.Auth()
 
 	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
@@ -1058,10 +1058,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
-							Role:  role.GetMetadata().GetName(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
 				},
 				Version: types.V1,
@@ -1074,7 +1074,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	timeout := time.After(30 * time.Second)
 	for {
 		unseen := slices.Clone(assignmentIDs)
-		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()) {
 			require.NoError(t, err)
 			id := assignment.GetMetadata().GetName()
 			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })
@@ -1098,11 +1100,12 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/aa":       {"/aa": {"role-a"}},
-			"/aa/bb":    {"/aa/bb": {"role-b"}},
-			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+			"/aa":       {"/aa": {"/aa::role-a"}},
+			"/aa/bb":    {"/aa/bb": {"/aa/bb::role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"/aa/bb/cc::role-c"}},
 		}),
 	}
 

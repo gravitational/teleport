@@ -60,12 +60,16 @@ type Service struct {
 	issuancev1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       authServer
+	// scopesFeatures dictates whether scoped certificate issuance is enabled.
+	scopesFeatures scopes.Features
 }
 
 // ServiceConfig is the config for instantiating a [Service].
 type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	AuthServer       authServer
+	// ScopesFeatures dictates which scoped issuance components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // NewService returns a new [Service].
@@ -80,6 +84,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		authServer:       cfg.AuthServer,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -95,7 +100,7 @@ func (s *Service) IssueScopedBotCerts(
 ) (*issuancev1pb.IssueScopedBotCertsResponse, error) {
 	// Temporarily, we need to check that Scopes is enabled to derisk
 	// introduction of this RPC.
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.scopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -214,7 +219,11 @@ func (s *Service) IssueScopedBotCerts(
 		LoginIP:        currentIdentity.LoginIP,
 		BotName:        currentIdentity.BotName,
 		BotInstanceID:  currentIdentity.BotInstanceID,
-		JoinToken:      currentIdentity.JoinToken,
+		// Derived from the bot user's label rather than copied from the
+		// current identity so that certs issued before the BotScope cert field
+		// existed still produce correctly-attributed output certs.
+		BotScope:  botScope,
+		JoinToken: currentIdentity.JoinToken,
 	}
 
 	// nb(strideynet): One day, we'll want to pull more of the logic around

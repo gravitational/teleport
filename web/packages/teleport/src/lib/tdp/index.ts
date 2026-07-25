@@ -16,5 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { PlayerClient } from './playerClient';
+export { PlayerClient, type PlayerTimeAnchor } from './playerClient';
 export { adaptWebSocketToTdpTransport } from './webSocketTransportAdapter';

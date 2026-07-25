@@ -3,8 +3,8 @@ set -eu
 
 ###
 # Based on the default after-remove.tpl copied from electron-builder.
-# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-remove.tpl
-# Our copy has all the changes from upstream up to commit 88cc0b06dba22139721fd1e04f6a1cf2d447edbd.
+# https://github.com/electron-userland/electron-builder/blob/b5a1ac1a74b854931d45ac6d4eed15f876a496d3/packages/app-builder-lib/templates/linux/after-remove.tpl
+# Our copy has all the changes from upstream up to commit b5a1ac1a74b854931d45ac6d4eed15f876a496d3.
 ###
 
 # Do not touch symlinks if the package is being upgraded.
@@ -91,8 +91,18 @@ fi
 # shellcheck disable=SC2016 # This is custom electron-builder macro expansion, not Bash templating.
 APPARMOR_PROFILE_DEST='/etc/apparmor.d/${executable}'
 
-# Remove apparmor profile.
+# Remove and unload apparmor profile.
 if [ -f "$APPARMOR_PROFILE_DEST" ]; then
+  # Unload the profile from the running kernel before deleting the file so the
+  # policy is not left enforced until the next reboot.  Mirror the chroot guard
+  # used in the after-install script — live AppArmor operations are not
+  # meaningful inside a chroot.
+  # https://wiki.debian.org/AppArmor/HowToUse
+  if apparmor_status --enabled > /dev/null 2>&1; then
+    if ! { [ -x '/usr/bin/ischroot' ] && /usr/bin/ischroot; } && hash apparmor_parser 2>/dev/null; then
+      apparmor_parser --remove "$APPARMOR_PROFILE_DEST" || true
+    fi
+  fi
   rm -f "$APPARMOR_PROFILE_DEST"
 fi
 

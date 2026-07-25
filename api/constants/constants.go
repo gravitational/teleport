@@ -24,6 +24,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// OktaAssignmentTargetOp is the operation performed on an Okta assignment target.
+type OktaAssignmentTargetOp string
+
+// OktaAssignmentTargetOutcome is the outcome of an operation performed on an Okta
+// assignment target.
+type OktaAssignmentTargetOutcome string
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -176,6 +183,18 @@ const (
 
 	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
 	OktaAssignmentTargetUnknown = "unknown"
+
+	// OktaAssignmentTargetOpProvision indicates an Okta assignment target provision operation.
+	OktaAssignmentTargetOpProvision OktaAssignmentTargetOp = "provision"
+	// OktaAssignmentTargetOpCleanup indicates an Okta assignment target cleanup operation.
+	OktaAssignmentTargetOpCleanup OktaAssignmentTargetOp = "cleanup"
+
+	// OktaAssignmentTargetOutcomeSuccessful indicates the Okta assignment target was
+	// processed successfully, including being skipped for any non-failure reason.
+	OktaAssignmentTargetOutcomeSuccessful OktaAssignmentTargetOutcome = "successful"
+	// OktaAssignmentTargetOutcomeFailed indicates the Okta assignment target failed
+	// to be processed successfully.
+	OktaAssignmentTargetOutcomeFailed OktaAssignmentTargetOutcome = "failed"
 )
 
 // LocalConnectors are the system connectors that use local auth.

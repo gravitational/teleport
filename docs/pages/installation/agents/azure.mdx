@@ -34,6 +34,25 @@ your Azure joining token.
   Virtual Machine must have a [Managed
   Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   assigned to it.
+
+- Your network must allow the Azure Virtual Machine to access child paths at the
+  following endpoint in order to fetch a certificate authority that the Auth
+  Service can use to authenticate it as an Azure VM in the correct account:
+
+  ```text
+  http://www.microsoft.com/pkiops/certs/
+  ```
+
+- For self-hosted users, your network must allow the Teleport Auth Service to
+  access the following endpoints in order to verify signed documents sent by the
+  Teleport Agent:
+
+  |Endpoint|Resource at the endpoint|
+  |---|---|
+  |`https://sts.windows.net/` and child paths|OIDC discovery document, required for requesting keys for verifying the JSON web token sent by the Teleport Agent|
+  |`https://login.microsoftonline.com/common/discovery/keys`|Public keys used to verify the signature of a JSON web token sent by the Teleport Agent|
+  |`https://management.azure.com/`|Data about the VM's subscription ID and resource group. Retrieved if the Auth Service cannot extract a VM resource ID from the JWT sent by the Teleport Agent.|
+
 - (!docs/pages/includes/iac-clients.mdx!)
 
 ## Step 1/3. Set up a Managed Identity
@@ -120,4 +139,53 @@ Kubernetes, Application, Database, or Desktop Service.
    (!docs/pages/includes/start-teleport.mdx!)
 
 1. Confirm that your Teleport process is able to connect to and join your
-   cluster.  You're all set!
+   cluster. You're all set!
+
+## Troubleshooting
+
+If you have followed the steps in this guide and your Teleport Agent cannot join
+the cluster, check the logs of the Teleport Agent and, for self-hosted clusters,
+the Teleport Auth Service. Look for any of the following messages.
+
+### `fetching intermediate certificate`
+
+Your Teleport Agent logs may include a message similar to the following:
+
+```text
+level=ERROR msg="Failed to establish connection to cluster." identity=Node
+error="getting intermediate CA for attested data: fetching intermediate certificate:
+Get \"http://www.microsoft.com/pkiops/certs/Microsoft%20Azure%20RSA%20TLS%20Issuing%20CA%2004%20-%20xsign.crt\":
+context deadline exceeded (Client.Timeout exceeded while awaiting headers)"
+```
+
+If you see this message, make sure your network allows the Teleport Agent to
+reach child paths of the following endpoint:
+
+```text
+http://www.microsoft.com/pkiops/certs/
+```
+
+The agent fetches a CA used to sign Microsoft Instance Metadata Service data
+documents and includes it in a request to the Teleport Auth Service, which also
+includes a signed IMDS document containing information about the Azure VM. The
+Auth Service uses the CA to verify the document.
+
+### `checking Azure challenge solution`
+
+If you are a self-hosted Teleport user and your Teleport Agent cannot join the
+cluster, check the Teleport Auth Service logs for the following:
+
+```text
+level=WARN msg="Failure to join cluster occurred"
+error="checking Azure challenge solution: ..."
+remote_addr="10.0.0.5:54321" token_name="my-token" token_join_method="azure"
+```
+
+In this case, the Auth Service has encountered an issue verifying one of the
+following signed documents sent by the Teleport Agent:
+
+- An IMDS message containing the Azure subscription ID and VM ID
+- A JSON web token containing the VM's managed identity and resource ID
+
+Make sure the Teleport Auth Service can reach the URLs listed in the
+[Prerequisites](#prerequisites).

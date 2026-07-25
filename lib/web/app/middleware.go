@@ -49,9 +49,22 @@ func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 // handler.
 func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
-		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
+			// If a certificate-backed app session expires on a reused
+			// connection, ask the client to reconnect with fresh credentials.
+			// Cookie/browser clients have no certificate and use the launcher
+			// redirect path below.
+			// See https://github.com/gravitational/teleport/issues/57697.
+			if connectionCredentialExpired(r, h.c.Clock.Now()) {
+				h.logger.DebugContext(r.Context(),
+					"Closing connection with expired application session so the client can reconnect",
+					"error", err)
+				w.Header().Set("Connection", "close")
+				return trace.Wrap(err)
+			}
+			// Otherwise, if the caller fails to authenticate, redirect the
+			// caller to Teleport.
 			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}

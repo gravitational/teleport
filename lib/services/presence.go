@@ -215,11 +215,10 @@ type PresenceInternal interface {
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 
-	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
-	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
-
-	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
-	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
+	// UnconditionalUpdateApplicationServer writes an app_server if one with the
+	// same host ID and name exists in storage, no matter its contents (i.e., it
+	// doesn't check the revision of the app_server in storage).
+	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
 
 	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
 	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
@@ -240,4 +239,10 @@ type PresenceInternal interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

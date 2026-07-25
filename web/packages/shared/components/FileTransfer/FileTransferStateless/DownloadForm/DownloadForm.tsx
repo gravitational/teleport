@@ -28,7 +28,7 @@ interface DownloadFormProps {
 }
 
 export function DownloadForm(props: DownloadFormProps) {
-  const [sourcePath, setSourcePath] = useState('~/');
+  const [sourcePath, setSourcePath] = useState('/');
   const inputId = useId();
   const isSourcePathValid = !sourcePath.endsWith('/');
 

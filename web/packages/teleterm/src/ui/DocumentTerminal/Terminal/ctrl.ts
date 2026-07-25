@@ -96,6 +96,7 @@ export default class TtyTerminal implements TerminalSearcher {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       rightClickSelectsWord: this.config['terminal.rightClick'] === 'menu',
       theme: this.options.theme,
       windowsPty: this.options.windowsPty && {

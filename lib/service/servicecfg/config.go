@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -62,6 +63,9 @@ type Config struct {
 	Version string
 	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
+
+	// ScopesFeatures dictates which scoped components are enabled for this process.
+	ScopesFeatures scopes.Features
 
 	// Hostname is a node host name
 	Hostname string
@@ -282,11 +286,6 @@ type Config struct {
 	// using Token()
 	token string
 
-	// tokenSecret is either the secret needed to join with the token defined for the config, or
-	// a path that contains the secret. This is private to avoid external packages reading the
-	// value - the value should be obtained using TokenSecret()
-	tokenSecret string
-
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
 	// connect to. Yes, this is not just auth servers, the field name is
@@ -319,9 +318,6 @@ type ConfigTesting struct {
 
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
-
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
@@ -449,6 +445,7 @@ func DisableLongRunningServices(cfg *Config) {
 type JoinParams struct {
 	Azure        AzureJoinParams
 	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
@@ -473,6 +470,23 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // RegistrationSecret returns the currently configured bound keypair
@@ -600,6 +614,22 @@ func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
 }
 
+// ProxyWebAddr returns the address used to reach the cluster's web API: the
+// configured proxy for v3 configs, otherwise the first address in auth_servers
+// (in v1/v2 configs, this could be either a proxy or an auth server).
+//
+// Config validation guarantees one of the two is set. Returns an empty NetAddr
+// if no addresses are configured, which is unreachable for a validated config.
+func (cfg *Config) ProxyWebAddr() utils.NetAddr {
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		return cfg.ProxyServer
+	}
+	if authServers := cfg.AuthServerAddresses(); len(authServers) > 0 {
+		return authServers[0]
+	}
+	return utils.NetAddr{}
+}
+
 // Token returns token needed to join the auth server
 //
 // If the value stored points to a file, it will attempt to read the token value from the file
@@ -615,34 +645,11 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
-// TokenSecret returns token secret needed to join the auth server with the configured token
-//
-// If the value stored points to a file, it will attempt to read the token secret from the file
-// and return an error if it wasn't successful.
-// If the value stored doesn't point to a file, it'll return the value stored.
-// If the secret hasn't been set, an empty string will be returned
-func (cfg *Config) TokenSecret() (string, error) {
-	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return secret, nil
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
-}
-
-// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
-// config.
-//
-// This can be either the secret or an absolute path to a file containing the secret.
-func (cfg *Config) SetTokenSecret(secret string) {
-	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored

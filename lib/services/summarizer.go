@@ -171,6 +171,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// returned.
 		for _, dummyResource := range []types.Resource{
 			&types.ServerV2{}, &types.KubernetesClusterV3{}, &types.DatabaseV3{},
+			&types.WindowsDesktopV3{},
 		} {
 			zeroVal, err := predicate.GetFieldByTag(dummyResource, teleport.JSON, fields[1:])
 			if err == nil {
@@ -187,7 +188,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// First, try to fetch field value from the session in the context.
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.DatabaseSessionEnd:
+		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
 		val, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])

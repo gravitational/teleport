@@ -9,9 +9,10 @@ tags:
  - audit
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
 
-In this guide, we will set up the Teleport Event Handler plugin with credentials
+In this guide, you will set up the Teleport Event Handler plugin with credentials
 to authenticate to the Teleport Auth Service and access the events API.
 
 ## How it works
@@ -52,9 +53,51 @@ Generate a configuration file with placeholder values for the Teleport Event
 Handler plugin. Later in this guide, we will edit the configuration file for
 your environment.
 
+<Tabs>
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+(!docs/pages/includes/plugins/configure-event-handler.mdx service="Teleport Enterprise Cloud account"!)
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
 (!docs/pages/includes/plugins/configure-event-handler.mdx!)
 
-(!docs/pages/includes/plugins/configure-event-handler-output.mdx!)
+</TabItem>
+<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
+
+(!docs/pages/includes/plugins/configure-event-handler.mdx forwarder="fluentd.fluentd.svc.cluster.local" binary="docker run -v $(pwd):/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)"!)
+
+In order to export audit events, you'll need to have the root certificate and the
+client credentials available as a secret. Use the following command to create
+that secret in Kubernetes:
+
+```code
+$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+```
+
+This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
+secret so the Helm chart can mount them to their appropriate path.
+
+</TabItem>
+<TabItem label="Local Docker test">
+
+(!docs/pages/includes/plugins/configure-event-handler.mdx binary="docker run -v $(pwd):/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)"!)
+
+</TabItem>
+</Tabs>
+
+The plugin generates several setup files:
+
+| File(s)                            | Purpose                                                             |
+|------------------------------------|---------------------------------------------------------------------|
+| `ca.crt` and `ca.key`              | Self-signed CA certificate and private key for Fluentd              |
+| `server.crt` and `server.key`      | Fluentd server certificate and key                                  |
+| `client.crt` and `client.key`      | Fluentd client certificate and key, all signed by the generated CA  |
+| `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
+| `teleport-event-handler.toml`      | Example event handler configuration                                 |
+| `teleport-plugin-event-handler-values.yaml` | Example event handler Helm chart configuration             |
+| `fluent.conf`                      | Fluentd plugin configuration                                        |
 
 If you have an existing Fluentd setup with TLS, issue a client certificate and
 key from the same certificate authority for the Teleport Event Handler to use.

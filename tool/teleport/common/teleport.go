@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -147,8 +148,6 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("token",
 		"Invitation token or path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
-	start.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").
-		StringVar(&ccf.TokenSecret)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
 		StringsVar(&ccf.CAPins)
@@ -706,6 +705,7 @@ Examples:
 
 	// Create default configuration.
 	conf = servicecfg.MakeDefaultConfig()
+	conf.ScopesFeatures = scopes.FeaturesFromEnv()
 
 	// If FIPS mode is specified update defaults to be FIPS appropriate and
 	// cross-validate the current config.

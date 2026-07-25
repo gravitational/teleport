@@ -223,6 +223,71 @@ func TestListPlugins(t *testing.T) {
 	})
 }
 
+func TestPlugins_invalid_create_and_update(t *testing.T) {
+	t.Parallel()
+
+	validSlackPlugin := func(name string) *types.PluginV1 {
+		return types.NewPluginV1(
+			types.Metadata{Name: name},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: "#general",
+					},
+				},
+			},
+			nil,
+		)
+	}
+
+	for _, tt := range []struct {
+		desc         string
+		mutate       func(*types.PluginV1)
+		requireErrFn func(t require.TestingT, err error, msgAndArgs ...any)
+	}{
+		{
+			desc: "empty_fallback_channel",
+			mutate: func(p *types.PluginV1) {
+				p.Spec.GetSlackAccessPlugin().FallbackChannel = ""
+			},
+			requireErrFn: func(t require.TestingT, err error, msgAndArgs ...any) {
+				require.Error(t, err, msgAndArgs...)
+				require.True(t, trace.IsBadParameter(err), msgAndArgs...)
+				require.ErrorContains(t, err, "fallback_channel must be set", msgAndArgs...)
+			},
+		},
+	} {
+		t.Run(tt.desc, func(t *testing.T) {
+			ctx := t.Context()
+			mem, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clockwork.NewFakeClock(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { mem.Close() })
+			svc := NewPluginsService(mem)
+
+			plugin := validSlackPlugin("test_plugin")
+			tt.mutate(plugin)
+			err = svc.CreatePlugin(ctx, plugin)
+			tt.requireErrFn(t, err, "CreatePlugin")
+
+			if err != nil {
+				plugin = validSlackPlugin("test_plugin")
+				require.NoError(t, svc.CreatePlugin(ctx, plugin))
+			}
+			p, err := svc.GetPlugin(ctx, plugin.GetName(), true)
+			require.NoError(t, err)
+			require.IsType(t, &types.PluginV1{}, p)
+			plugin = p.(*types.PluginV1)
+
+			tt.mutate(plugin)
+			_, err = svc.UpdatePlugin(ctx, plugin)
+			tt.requireErrFn(t, err, "UpdatePlugin")
+		})
+	}
+}
+
 func TestPlugins_validate_okta(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

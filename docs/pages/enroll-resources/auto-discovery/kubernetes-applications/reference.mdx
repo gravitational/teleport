@@ -3,15 +3,18 @@ title: Kubernetes Application Discovery Reference
 sidebar_label: Configuration Reference
 description: This guide is a comprehensive reference of configuration options for automatically enrolling Kubernetes applications with Teleport.
 tags:
- - reference
+ - conceptual
  - zero-trust
  - infrastructure-identity
+page_type: reference
 ---
 
 Kubernetes Application Discovery involves the Teleport Discovery Service,
-Teleport Application Service, and annotations on Kubernetes services. This guide
-shows you how to configure each of these to manage Kubernetes Application
-Discovery in your Kubernetes cluster.
+Teleport Application Service, and annotations on Kubernetes services. 
+
+This page lists the Teleport configuration options and Kubernetes annotations
+that you can use to configure Kubernetes Application Discovery in your
+Kubernetes cluster.
 
 ## Configuring Teleport Agent Helm chart
 
@@ -93,6 +96,19 @@ Controls protocol for the uri of the Teleport app we create. If annotation is no
 heuristics will be used to try to determine protocol of an exposed port.
 If all heuristics didn't work, the port will be skipped. For app to be imported with `tcp` protocol, the
 service should have explicit annotation `teleport.dev/protocol: "tcp"`
+
+To import a service as an MCP server, set the annotation to the URI scheme of
+the transport the MCP server uses:
+
+- `teleport.dev/protocol: "mcp+http"` or `teleport.dev/protocol: "mcp+https"`
+  for the Streamable HTTP transport.
+- `teleport.dev/protocol: "mcp+sse+http"` or `teleport.dev/protocol: "mcp+sse+https"`
+  for the HTTP with SSE transport.
+
+Combine the annotation with `teleport.dev/path` to set the request path of the
+MCP endpoint (for example `/mcp` or `/sse`). MCP servers using the stdio
+transport cannot be discovered from Kubernetes services, since they require a
+command to launch the server.
 
 ### `teleport.dev/port`
 

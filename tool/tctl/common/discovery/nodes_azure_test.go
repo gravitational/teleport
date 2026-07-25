@@ -67,10 +67,10 @@ func makeAzureNode(name, vmID, subscriptionID, resourceGroup, region string, exp
 		Metadata: types.Metadata{
 			Name: name,
 			Labels: map[string]string{
-				types.VMIDLabel:           vmID,
-				types.SubscriptionIDLabel: subscriptionID,
-				types.ResourceGroupLabel:  resourceGroup,
-				types.RegionLabel:         region,
+				types.VMIDLabelInternal:           vmID,
+				types.SubscriptionIDLabelInternal: subscriptionID,
+				types.ResourceGroupLabelInternal:  resourceGroup,
+				types.RegionLabelInternal:         region,
 			},
 		},
 	}
@@ -183,27 +183,13 @@ func TestCorrelateAzureRunEvents(t *testing.T) {
 func TestCorrelateAzureNodes(t *testing.T) {
 	t.Parallel()
 
-	expiry := time.Now().UTC().Truncate(time.Second).Add(time.Hour)
-
 	tests := []struct {
 		desc  string
 		nodes []types.Server
 		want  map[string]instanceInfo
 	}{
 		{
-			desc:  "node with visible labels",
-			nodes: []types.Server{makeAzureNode("node-1", "vm-aaa", "sub-1", "rg-1", "eastus", expiry)},
-			want: map[string]instanceInfo{
-				"vm-aaa": {
-					IsOnline: true,
-					Region:   "eastus",
-					Expiry:   expiry,
-					Azure:    &azureInfo{VMID: "vm-aaa", SubscriptionID: "sub-1", ResourceGroup: "rg-1"},
-				},
-			},
-		},
-		{
-			desc: "node with internal labels falls back",
+			desc: "node with vm ID",
 			nodes: []types.Server{
 				&types.ServerV2{
 					Kind:    types.KindNode,

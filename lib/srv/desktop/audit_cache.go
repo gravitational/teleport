@@ -29,9 +29,8 @@ type completionID uint32
 type directoryName string
 
 type readRequestInfo struct {
-	directoryID directoryID
-	path        string
-	offset      uint64
+	path   string
+	offset uint64
 }
 
 type writeRequestInfo readRequestInfo
@@ -46,31 +45,45 @@ const maxAuditCacheItems = 2000
 // totalItems returns the total number of items held in the cache.
 // The caller should hold a lock on the cache prior to calling this method.
 func (e *sharedDirectoryAuditCache) totalItems() int {
-	return len(e.nameCache) + len(e.readRequestCache) + len(e.writeRequestCache)
-}
-
-// sharedDirectoryAuditCache is a data structure for caching information
-// from shared directory messages so that it can be used later for
-// creating shared directory audit events.
-type sharedDirectoryAuditCache struct {
-	sync.Mutex
-
-	nameCache         map[directoryID]directoryName
-	readRequestCache  map[completionID]readRequestInfo
-	writeRequestCache map[completionID]writeRequestInfo
+	sum := 0
+	for _, cache := range e.directories {
+		// +1 because a directoryAuditCache with no read/write info
+		// items should still count as at least one entry.
+		sum += cache.totalItems() + 1
+	}
+	return sum
 }
 
 func newSharedDirectoryAuditCache() sharedDirectoryAuditCache {
 	return sharedDirectoryAuditCache{
-		nameCache:         make(map[directoryID]directoryName),
+		directories: make(map[directoryID]directoryAuditCache),
+	}
+}
+
+type sharedDirectoryAuditCache struct {
+	sync.Mutex
+	directories map[directoryID]directoryAuditCache
+}
+
+type directoryAuditCache struct {
+	name              directoryName
+	readRequestCache  map[completionID]readRequestInfo
+	writeRequestCache map[completionID]writeRequestInfo
+}
+
+func (d directoryAuditCache) totalItems() int {
+	return len(d.readRequestCache) + len(d.writeRequestCache)
+}
+
+func newdirectoryAuditCache(name directoryName) directoryAuditCache {
+	return directoryAuditCache{
+		name:              name,
 		readRequestCache:  make(map[completionID]readRequestInfo),
 		writeRequestCache: make(map[completionID]writeRequestInfo),
 	}
 }
 
-// SetName returns a non-nil error if the audit cache entry for sid exceeds its maximum size.
-// It is the responsibility of the caller to terminate the session if a non-nil error is returned.
-func (c *sharedDirectoryAuditCache) SetName(did directoryID, name directoryName) error {
+func (c *sharedDirectoryAuditCache) NewDirectory(did directoryID, name directoryName) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -78,13 +91,22 @@ func (c *sharedDirectoryAuditCache) SetName(did directoryID, name directoryName)
 		return trace.LimitExceeded("audit cache exceeded maximum size")
 	}
 
-	c.nameCache[did] = name
+	c.directories[did] = newdirectoryAuditCache(name)
 	return nil
+}
+
+func (c *sharedDirectoryAuditCache) RemoveDirectory(did directoryID) bool {
+	c.Lock()
+	defer c.Unlock()
+
+	_, ok := c.directories[did]
+	delete(c.directories, did)
+	return ok
 }
 
 // SetReadRequestInfo returns a non-nil error if the audit cache exceeds its maximum size.
 // It is the responsibility of the caller to terminate the session if a non-nil error is returned.
-func (c *sharedDirectoryAuditCache) SetReadRequestInfo(cid completionID, info readRequestInfo) error {
+func (c *sharedDirectoryAuditCache) SetReadRequestInfo(did directoryID, cid completionID, info readRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -92,13 +114,17 @@ func (c *sharedDirectoryAuditCache) SetReadRequestInfo(cid completionID, info re
 		return trace.LimitExceeded("audit cache exceeded maximum size")
 	}
 
-	c.readRequestCache[cid] = info
-	return nil
+	if directory, exists := c.directories[did]; exists {
+		directory.readRequestCache[cid] = info
+		return nil
+	}
+
+	return trace.NotFound("no such directory with id %d ", did)
 }
 
 // SetWriteRequestInfo returns a non-nil error if the audit cache exceeds its maximum size.
 // It is the responsibility of the caller to terminate the session if a non-nil error is returned.
-func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(cid completionID, info writeRequestInfo) error {
+func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(did directoryID, cid completionID, info writeRequestInfo) error {
 	c.Lock()
 	defer c.Unlock()
 
@@ -106,40 +132,50 @@ func (c *sharedDirectoryAuditCache) SetWriteRequestInfo(cid completionID, info w
 		return trace.LimitExceeded("audit cache exceeded maximum size")
 	}
 
-	c.writeRequestCache[cid] = info
-	return nil
+	if directory, exists := c.directories[did]; exists {
+		directory.writeRequestCache[cid] = info
+		return nil
+	}
+
+	return trace.NotFound("no such directory with id %d ", did)
 }
 
-func (c *sharedDirectoryAuditCache) GetName(did directoryID) (name directoryName, ok bool) {
+func (c *sharedDirectoryAuditCache) GetName(did directoryID) (directoryName, bool) {
 	c.Lock()
 	defer c.Unlock()
 
-	name, ok = c.nameCache[did]
-	return
+	directory, ok := c.directories[did]
+	return directory.name, ok
 }
 
 // TakeReadRequestInfo gets the readRequestInfo for completion ID cid,
 // removing the readRequestInfo from the cache in the process.
-func (c *sharedDirectoryAuditCache) TakeReadRequestInfo(cid completionID) (info readRequestInfo, ok bool) {
+func (c *sharedDirectoryAuditCache) TakeReadRequestInfo(did directoryID, cid completionID) (info readRequestInfo, name directoryName, ok bool) {
 	c.Lock()
 	defer c.Unlock()
 
-	info, ok = c.readRequestCache[cid]
-	if ok {
-		delete(c.readRequestCache, cid)
+	if directory, exists := c.directories[did]; exists {
+		info, ok = directory.readRequestCache[cid]
+		name = directory.name
+		if ok {
+			delete(directory.readRequestCache, cid)
+		}
 	}
 	return
 }
 
 // TakeWriteRequestInfo gets the writeRequestInfo for completion ID cid,
 // removing the writeRequestInfo from the cache in the process.
-func (c *sharedDirectoryAuditCache) TakeWriteRequestInfo(cid completionID) (info writeRequestInfo, ok bool) {
+func (c *sharedDirectoryAuditCache) TakeWriteRequestInfo(did directoryID, cid completionID) (info writeRequestInfo, name directoryName, ok bool) {
 	c.Lock()
 	defer c.Unlock()
 
-	info, ok = c.writeRequestCache[cid]
-	if ok {
-		delete(c.writeRequestCache, cid)
+	if directory, exists := c.directories[did]; exists {
+		info, ok = directory.writeRequestCache[cid]
+		name = directory.name
+		if ok {
+			delete(directory.writeRequestCache, cid)
+		}
 	}
 	return
 }

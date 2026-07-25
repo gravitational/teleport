@@ -7,9 +7,10 @@ tags:
 - reference
 - zero-trust
 - mcp
+page_type: reference
 ---
 
-This guide describes interfaces and options for interacting with the Teleport
+This guide lists the interfaces and options for interacting with the Teleport
 Application Service for MCP access, including the static configuration file for
 the `teleport` binary, and `tsh mcp` commands.
 
@@ -37,6 +38,8 @@ app_service:
     # Use "mcp+http://" and "mcp+https://" as scheme for streamable HTTP MCP servers.
     # Use "mcp+sse+http://" and "mcp+sse+https://" as scheme for SSE MCP servers.
     # Leave it empty or use "mcp+stdio://" for stdio MCP servers.
+    # For streamable HTTP MCP servers, the path in the URI is used when the MCP
+    # client requests "/" but is not appended to requests for other paths.
     uri: "mcp+http://localhost:12345/mcp"
     # Free-form application description.
     description: "Example Everything MCP server"
@@ -95,6 +98,8 @@ spec:
   # Use "mcp+http://" and "mcp+https://" as scheme for streamable HTTP MCP servers.
   # Use "mcp+sse+http://" and "mcp+sse+https://" as scheme for SSE MCP servers.
   # Leave it empty or use "mcp+stdio://" for stdio MCP servers.
+  # For streamable HTTP MCP servers, the path in the URI is used when the MCP
+  # client requests "/" but is not appended to requests for other paths.
   uri: "mcp+http://localhost:12345/mcp"
 
   mcp:

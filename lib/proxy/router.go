@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -279,35 +278,27 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 	// If the node is a registered openssh node don't set agentGetter
 	// so a SSH user agent will not be created when connecting to the remote node.
-	var sshSigner ssh.Signer
+	var agentlessSignerCreator agentless.SignerCreator
 	if target.IsOpenSSHNode() {
 		agentGetter = nil
-
 		if target.GetSubKind() == types.SubKindOpenSSHNode {
-			// If the node is of SubKindOpenSSHNode, create the signer.
-			client, err := r.GetSiteClient(ctx, clusterName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			sshSigner, err = signer(ctx, r.localAccessPoint, client)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			agentlessSignerCreator = signer
 		}
 	}
 
 	conn, err := cluster.Dial(reversetunnelclient.DialParams{
-		From:                  clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
-		OriginalClientDstAddr: clientDstAddr,
-		GetUserAgent:          agentGetter,
-		AgentlessSigner:       sshSigner,
-		Address:               host,
-		Principals:            apiutils.Deduplicate(principals),
-		ServerID:              serverID,
-		ProxyIDs:              target.GetProxyIDs(),
-		ConnType:              types.NodeTunnel,
-		TargetServer:          target,
+		From:                   clientSrcAddr,
+		To:                     &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		OriginalClientDstAddr:  clientDstAddr,
+		GetUserAgent:           agentGetter,
+		AgentlessSignerCreator: agentlessSignerCreator,
+		Address:                host,
+		Principals:             apiutils.Deduplicate(principals),
+		ServerID:               serverID,
+		ProxyIDs:               target.GetProxyIDs(),
+		ConnType:               types.NodeTunnel,
+		TargetServer:           target,
+		TargetScope:            target.GetScope(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

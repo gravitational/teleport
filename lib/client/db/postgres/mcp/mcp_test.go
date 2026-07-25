@@ -62,6 +62,48 @@ func TestFormatResult(t *testing.T) {
 	}
 }
 
+func TestQueryExecModeForDatabase(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec databaseSpec
+		want pgx.QueryExecMode
+	}{
+		"postgres uses simple protocol": {
+			spec: databaseSpec{
+				protocol: defaults.ProtocolPostgres,
+			},
+			want: pgx.QueryExecModeSimpleProtocol,
+		},
+		"redshift uses exec mode": {
+			spec: databaseSpec{
+				protocol: defaults.ProtocolPostgres,
+				aws: types.AWS{
+					Region:   "us-east-1",
+					Redshift: types.Redshift{ClusterID: "redshift-cluster"},
+				},
+			},
+			want: pgx.QueryExecModeExec,
+		},
+		"redshift serverless uses exec mode": {
+			spec: databaseSpec{
+				protocol: defaults.ProtocolPostgres,
+				aws: types.AWS{
+					Region: "us-east-1",
+					RedshiftServerless: types.RedshiftServerless{
+						WorkgroupName: "redshift-workgroup",
+					},
+				},
+			},
+			want: pgx.QueryExecModeExec,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db, err := newTestDatabase(tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, queryExecModeForDatabase(db))
+		})
+	}
+}
+
 func TestFormatErrors(t *testing.T) {
 	// Dummy listener that always drop connections.
 	listener := listener.NewInMemoryListener()
@@ -175,6 +217,21 @@ func TestFormatErrors(t *testing.T) {
 			tc.expectErrorMessage(t, res.ErrorMessage)
 		})
 	}
+}
+
+type databaseSpec struct {
+	protocol string
+	aws      types.AWS
+}
+
+func newTestDatabase(spec databaseSpec) (types.Database, error) {
+	return types.NewDatabaseV3(types.Metadata{
+		Name: "test-db",
+	}, types.DatabaseSpecV3{
+		Protocol: spec.protocol,
+		URI:      "localhost:5432",
+		AWS:      spec.aws,
+	})
 }
 
 func newMockRows(commandTag string, fields []string, rows [][]any) pgx.Rows {

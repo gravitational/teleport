@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -810,6 +811,12 @@ func botIdentityFromToken(
 		params.BoundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
 		if err != nil {
 			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+	case types.JoinMethodGenericOIDC:
+		params.GenericOIDCParams = join.GenericOIDCParams{
+			EnvVarName: cfg.Onboarding.GenericOIDC.Env,
+			Command:    cfg.Onboarding.GenericOIDC.Command,
+			Timeout:    cfg.Onboarding.GenericOIDC.Timeout,
 		}
 	}
 

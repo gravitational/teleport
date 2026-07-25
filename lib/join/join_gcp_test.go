@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/gcp"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -52,8 +53,7 @@ func (m *mockGCPTokenValidator) Validate(_ context.Context, token string) (*gcp.
 }
 
 func TestJoinGCP(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockGCPTokenValidator{
 		tokens: map[string]gcp.IDTokenClaims{
@@ -75,7 +75,8 @@ func TestJoinGCP(t *testing.T) {
 
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)

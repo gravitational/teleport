@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/relaytunnel/v1alpha/dial.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package relaytunnelv1alpha
 

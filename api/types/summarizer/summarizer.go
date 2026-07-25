@@ -214,6 +214,7 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 		string(types.SSHSessionKind),
 		string(types.KubernetesSessionKind),
 		string(types.DatabaseSessionKind),
+		string(types.WindowsDesktopSessionKind),
 	}
 	for _, kind := range kinds {
 		if !slices.Contains(supportedKinds, kind) {

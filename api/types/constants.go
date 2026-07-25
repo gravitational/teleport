@@ -699,6 +699,10 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameClientIPRestriction is the exact name of the singleton resource holding
+	// the cluster's client IP restriction allowlist.
+	MetaNameClientIPRestriction = "client-ip-restriction"
+
 	// MetaNameRetrievalModel is the name of the singleton resource holding
 	// the default retrieval model configuration.
 	MetaNameRetrievalModel = "retrieval-model"
@@ -715,6 +719,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
@@ -723,6 +730,12 @@ const (
 
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
+
+	// KindBeamsConfig is the user-provided configuration for Beams.
+	KindBeamsConfig = "beams_config"
+
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -875,11 +888,9 @@ const (
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by subscription ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
 	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
 	// Azure VMs by VM ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by VMIDLabel.
 	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
@@ -893,11 +904,9 @@ const (
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabelInternal is a hidden label (teleport.internal/) used to
 	// identify Azure VMs by region during auto-discovery.
-	// Preserved for backward compatibility; superseded by RegionLabel.
 	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
 	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by resource group during auto-discovery.
-	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
 	// the managed identity created by the Azure discovery Terraform module.
@@ -905,6 +914,9 @@ const (
 	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
 	// group for the managed identity created by the Azure discovery Terraform module.
 	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.

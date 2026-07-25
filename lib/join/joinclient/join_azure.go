@@ -172,6 +172,12 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 
 		url, err := validateAzureCertIssuerURL(cert.IssuingCertificateURL[0])
 		if err != nil {
+			slog.InfoContext(ctx,
+				"failed to validate issuing certificate URL while joining with azure, continuing with existing chain",
+				"chain_length", len(seen),
+				"error", err,
+				"url", cert.IssuingCertificateURL[0],
+			)
 			// failing to validate the URL may not guarantee an invalid state, so we log, break out
 			// of the loop, and return the intermediates we've collected so far
 			break

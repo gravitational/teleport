@@ -1,0 +1,5 @@
+account_id: "123456789012"
+assumed_role_arn: arn:aws:sts::123456789012:assumed-role/teleport/test
+integration_name: my-integration
+status: healthy
+user_id: AROAEXAMPLE:test

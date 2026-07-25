@@ -12,7 +12,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_error_panic_hook = "0.1.7"
-getrandom = { version = "0.2", features = ["js"] }
+getrandom1 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom2 = { package = "getrandom", version = "0.4.2", features = ["wasm_js"]}
 ironrdp-session.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-core.workspace = true
@@ -23,6 +24,6 @@ time = { version = "0.3.47", features = ["wasm-bindgen"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["time"] }
 tracing-web = "0.1.2"
-uuid = { version = "1.16.0", features = ["js"] }
+uuid = { version = ">=1.16, <1.24", features = ["js"] } # 1.23 is required by sspi 0.21.1
 wasm-bindgen = "0.2.95"
 web-sys = { version = "0.3.76", features = ["ImageData"] }

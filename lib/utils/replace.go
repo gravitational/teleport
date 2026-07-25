@@ -148,7 +148,7 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 			continue
 		}
 		matchedAny = true
-		if len(resource.Verbs) > 0 && resource.Verbs[0] == types.Wildcard {
+		if slices.Contains(resource.Verbs, types.Wildcard) {
 			return true, []string{types.Wildcard}, nil
 		}
 		for _, verb := range resource.Verbs {
@@ -358,9 +358,10 @@ func KubeResourceCouldMatchRules(input types.KubernetesResource, isClusterWideRe
 }
 
 // IsVerbAllowed returns true if the verb is allowed in the resource.
-// It short-circuits on a wildcard in position 0, otherwise checks whether the verb appears in the list.
+// A wildcard verb anywhere in the list matches all verbs,
+// otherwise the verb must appear in the list explicitly.
 func IsVerbAllowed(allowedVerbs []string, verb string) bool {
-	return len(allowedVerbs) != 0 && (allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
+	return len(allowedVerbs) != 0 && (slices.Contains(allowedVerbs, types.Wildcard) || slices.Contains(allowedVerbs, verb))
 }
 
 // SliceMatchesRegex checks if input matches any of the expressions. The

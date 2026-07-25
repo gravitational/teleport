@@ -50,7 +50,10 @@ func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
 			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
 		},
-		SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_COLLAPSED,
+		// Leave SideNavDrawerMode unset so the UI can detect a first-time
+		// user and apply its own default (or onboarding behavior) instead of
+		// storing a value the user never explicitly chose.
+		SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_UNSPECIFIED,
 	}
 }
 

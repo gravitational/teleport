@@ -17,6 +17,39 @@ more Teleport features, and integration with Teleport Managed Updates.
 
 The Teleport SSH Service SELinux module allows SELinux to confine the Teleport SSH Service. It ensures that Teleport SSH Service processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
 
+## Prerequisites
+
+Before installing the SELinux module, ensure the following requirements are met:
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+  Service SELinux module is officially supported on these platforms only.
+- Root or `sudo` access on the host. The `install-selinux.sh` script must be run
+  as `root`.
+- SELinux enabled on the host (either permissive or enforcing mode). The module can be installed in either mode, 
+  but enforcing mode is recommended for production use. See [SELinux modes] (#selinux-modes) for the difference between the two.
+- The `selinux-policy-devel` package installed on the host, which provides the
+  toolchain used to compile the module. The [Installation](#installation) section
+  covers this.
+- A Teleport configuration file on the host (`/etc/teleport.yaml` by default).
+  The install script reads this file to customize the module and label files
+  correctly.
+- A Teleport SSH Service agent configured to point at your cluster and enrolled by
+  following
+  [SSH getting started](../../../enroll-resources/server-access/getting-started.mdx).
+  This agent has three SELinux-specific requirements:
+  - **Tarball installation only.** The `install-selinux.sh` script and SELinux
+    module ship only in the Linux tarball. Package-manager and container installs
+    are not supported.
+  - **SSH Service only.** The agent must run only the SSH Service. Teleport exits
+    with an error if `--enable-selinux` is set while other services are enabled or
+    the SSH Service is disabled.
+  - **Runs as a systemd service.** Teleport is expected to run as a systemd service. 
+    SELinux enforcement relies on Teleport running under the `teleport_ssh_t` domain, 
+    which typically only occurs when Teleport is started by systemd.
+
+(!docs/pages/includes/tctl.mdx!)
+
 ## Supported features
 
 The Teleport SSH Service SELinux module supports the following Teleport SSH Service features:

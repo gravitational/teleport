@@ -21,6 +21,7 @@ export {
   TdpClientEvent,
   useListener,
   type BitmapFrame,
+  MAX_SHARED_DIRECTORIES,
 } from './client';
 export * from './codec';
 export * from './sharedDirectoryAccess';

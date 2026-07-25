@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/join/v1/joinservice.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package joinv1
 

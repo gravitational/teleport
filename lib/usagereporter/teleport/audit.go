@@ -34,6 +34,9 @@ const (
 	// MCPAppSessionType is the session_type in tp.session.start for MCP
 	// Access via App access.
 	MCPAppSessionType = "app_mcp"
+	// BeamSessionType is the session_type in tp.session.start for Beam VM
+	// SSH sessions.
+	BeamSessionType = "beam"
 	// PortSessionType is the session_type in tp.session.start for SSH or Kube
 	// port forwarding.
 	//
@@ -121,11 +124,19 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			sessionType = types.KubernetesSessionKind
 		}
 
-		return &SessionStartEvent{
+		event := &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
 			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
 		}
+
+		if beamID := e.ServerLabels[types.BeamIDLabel]; beamID != "" {
+			event.Beam = &prehogv1a.SessionStartBeamMetadata{
+				BeamId: beamID,
+			}
+			event.SessionType = BeamSessionType
+		}
+		return event
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
 		if e.ConnectionMetadata.Protocol == events.EventProtocolKube {

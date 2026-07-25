@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/permit_metadata.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package decisionpb
 

@@ -45,10 +45,11 @@ describe('InputHandler', () => {
 
   beforeEach(() => {
     inputHandler = new InputHandler();
-    mockTdpClient = new TdpClient(
-      () => null,
-      selectDirectoryInBrowser
-    ) as jest.Mocked<TdpClient>;
+    mockTdpClient = new TdpClient(() => null, selectDirectoryInBrowser, {
+      warn(..._args: any[]) {},
+      info(..._args: any[]) {},
+      error(..._args: any[]) {},
+    }) as jest.Mocked<TdpClient>;
   });
 
   afterEach(() => {

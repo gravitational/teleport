@@ -46,6 +46,8 @@ type Audit interface {
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
 	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
+	// OnLLMRequest is called when app request for LLM inference endpoint is sent and a response is received.
+	OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -179,6 +181,8 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 }
 
 // OnRequest is called when an app request is sent during the session and a response is received.
+//
+// This event only goes to app session recording (chunk).
 func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error {
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
@@ -192,7 +196,7 @@ func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *
 		StatusCode:         status,
 		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
 	}
-	return trace.Wrap(a.EmitEvent(ctx, event))
+	return trace.Wrap(a.recordEvent(ctx, event))
 }
 
 // OnDynamoDBRequest is called when a DynamoDB app request is sent during the session.
@@ -225,22 +229,56 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
-// EmitEvent emits the provided audit event.
+// OnLLMRequest is called when app request for LLM inference endpoint is sent and a response is received.
+//
+// This event only goes to app session recording (chunk).
+func (a *audit) OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error {
+	event := &apievents.AppSessionLLMRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionLLMRequestSuccessEvent,
+			Code: events.AppSessionLLMRequestSuccessCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		AppMetadata:      *MakeAppMetadata(sessionCtx.App),
+		Method:           req.Method,
+		Path:             req.URL.Path,
+		Provider:         llmReq.Provider,
+		Model:            llmReq.Model,
+		RequestedModel:   llmReq.RequestedModel,
+		InputTokenCount:  int64(llmResp.InputTokenCount),
+		OutputTokenCount: int64(llmResp.OutputTokenCount),
+	}
+	if llmResp.Error != nil {
+		event.Metadata.Type = events.AppSessionLLMRequestFailureEvent
+		event.Metadata.Code = events.AppSessionLLMRequestFailureCode
+		event.Status.Success = false
+		event.Status.Error = llmResp.Error.Error()
+	}
+	return trace.Wrap(a.recordEvent(ctx, event))
+}
+
+// EmitEvent emits and records the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	recErr := a.cfg.Recorder.RecordEvent(ctx, preparedEvent)
-	event := preparedEvent.GetAuditEvent()
-	var emitErr error
-	// AppSessionRequest events should only go to session recording
-	if event.GetType() != events.AppSessionRequestEvent {
-		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
+	return trace.NewAggregate(
+		a.cfg.Recorder.RecordEvent(ctx, preparedEvent),
+		a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()),
+	)
+}
+
+func (a *audit) recordEvent(ctx context.Context, e apievents.AuditEvent) error {
+	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return trace.NewAggregate(recErr, emitErr)
+	return trace.Wrap(a.cfg.Recorder.RecordEvent(ctx, preparedEvent))
 }
 
 // MakeAppMetadata returns common server metadata for database session.

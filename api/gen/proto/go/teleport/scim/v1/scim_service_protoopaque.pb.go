@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/scim/v1/scim_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package scimv1
 

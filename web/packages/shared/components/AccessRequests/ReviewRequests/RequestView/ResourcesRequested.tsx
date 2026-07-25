@@ -27,7 +27,7 @@ export default function ResourcesRequested({
 }) {
   const $resources = resources.map(resource => (
     <Label mr={1} key={resource.id.name} kind="secondary">
-      {resource.details.friendlyName || formattedName(resource)}
+      {resource.details?.friendlyName || formattedName(resource)}
     </Label>
   ));
 

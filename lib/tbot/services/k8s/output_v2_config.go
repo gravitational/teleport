@@ -90,8 +90,10 @@ func (o *OutputV2Config) SetName(name string) {
 }
 
 func (o *OutputV2Config) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", OutputV2ServiceType)
+	if scoped && o.DelegationSessionID != "" {
+		return trace.BadParameter(
+			"delegation_session_id is not supported in scoped mode",
+		)
 	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")

@@ -8,6 +8,9 @@
 /pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
 /web/packages/teleterm/package.json @gzdunek @ravicious
 
+# E2E Tests
+/.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy @ryanclark @avatus @ravicious
+
 # Owners for Go dependency updates.
 /go.mod @russjones @r0mant @zmb3 @rosstimothy
 /api/go.mod @russjones @r0mant @zmb3 @rosstimothy

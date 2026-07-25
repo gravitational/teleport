@@ -51,8 +51,7 @@ func (a *SessionRecordingAuthorizer) Authorize(ctx context.Context, sessionID st
 	}
 
 	serverWithRoles := &ServerWithRoles{
-		authServer: a.authServer,
-		alog:       a.authServer,
+		serverBase: serverBase{authServer: a.authServer, alog: a.authServer},
 		context:    *userCtx,
 	}
 

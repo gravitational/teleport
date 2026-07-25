@@ -51,7 +51,7 @@ func TestDesktopAccessDisabled(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	r, err := p.a.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{})

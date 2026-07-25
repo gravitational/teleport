@@ -190,7 +190,7 @@ If you are already leveraging AWS IAM Roles Anywhere profiles, you can skip this
 
 1. Now, navigate to [Create a Profile](https://console.aws.amazon.com/rolesanywhere/home/profiles/create) page and name it `ExampleReadOnlyAccess`.
   Add the role created in the last step (`ExampleReadOnlyAccess`) and create the Profile.
-  
+
   Copy the Profile ARN <Var name="Read Only Profile ARN" />.
 
 ## Step 3/4. Set up access
@@ -267,6 +267,31 @@ Your IAM role:
 Example AWS CLI commands:
     aws --profile example-read-only-access s3 ls
     AWS_PROFILE=example-read-only-access aws s3 ls
+```
+
+To list the AWS roles that you can provide to the `--aws-role` flag, run the following command:
+`tsh apps logins [--format=text|json|yaml] <app>`.
+
+```code
+$ tsh apps logins aws-console
+Available AWS roles:
+Role Name             Role ARN
+--------------------- ----------------------------------------------------
+ExampleAdminAccess    arn:aws:iam::123456789012:role/ExampleReadOnlyAccess
+ExampleReadOnlyAccess arn:aws:iam::123456789012:role/ExampleAdminAccess
+```
+
+Alternatively, the `tsh apps login` command supports interactive login when you pass
+`--interactive` (or `-T`) or set `TELEPORT_AWS_LOGIN_INTERACTIVE=true`.
+
+```code
+$ tsh apps login aws-console --interactive
+Available AWS roles:
+
+> ExampleReadOnlyAccess [arn:aws:iam::000000000000:role/ExampleReadOnlyAccess]
+  ExampleAdminAccess [arn:aws:iam::000000000001:role/ExampleAdminAccess]
+
+(Use arrows or hjkl to navigate, enter to select, q to quit)
 ```
 
 #### Access AWS using AWS CLI

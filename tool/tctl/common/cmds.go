@@ -19,9 +19,12 @@
 package common
 
 import (
+	"github.com/gravitational/teleport/tool/tctl/common/accessgraph"
+	"github.com/gravitational/teleport/tool/tctl/common/accesslist"
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
 	"github.com/gravitational/teleport/tool/tctl/common/decision"
 	"github.com/gravitational/teleport/tool/tctl/common/discovery"
+	"github.com/gravitational/teleport/tool/tctl/common/integrations"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
 	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
@@ -59,10 +62,11 @@ func Commands() []CLICommand {
 		&LoadtestCommand{},
 		&DevicesCommand{},
 		&SAMLCommand{},
-		&ACLCommand{},
+		&accesslist.Command{},
 		&loginrule.Command{},
 		&IdPCommand{},
 		&accessmonitoring.Command{},
+		&accessgraph.AccessGraphCommand{},
 		&plugin.PluginsCommand{},
 		&NotificationCommand{},
 		&configure.SSOConfigureCommand{},
@@ -76,5 +80,6 @@ func Commands() []CLICommand {
 		&decision.Command{},
 		&BoundKeypairCommand{},
 		&ScopedCommand{},
+		&integrations.Command{},
 	}
 }

@@ -63,10 +63,12 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -110,6 +112,7 @@ type TestConfig struct {
 	OnEvent              func(apievents.AuditEvent)
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
+	ScopesFeatures       scopes.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -191,6 +194,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		AccessPoint:      proxyAuthClient,
 		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
 		LockWatcher:      testCtx.lockWatcher,
+		ScopesFeatures:   cfg.ScopesFeatures,
 	}
 
 	testCtx.Authz, err = authz.NewAuthorizer(authOpts)
@@ -316,14 +320,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewKubeServerWatcher(
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(
 		testCtx.Context,
-		services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentKube,
-				Client:    client,
-			},
-			KubernetesServerGetter: client,
+		kubewatcher.ProxyKubeServerWatcherConfig{
+			AccessPoint:    client,
+			FallbackGetter: client,
 		},
 	)
 	require.NoError(t, err)
@@ -418,8 +419,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.CurrentResources(ctx)
-		return err == nil && len(kubeServers) == len(cfg.Clusters)
+		return kubeServersWatcher.ResourceCount() == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
 	return testCtx

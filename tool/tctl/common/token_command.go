@@ -320,7 +320,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 		out:        c.Stdout,
 		client:     client,
 		roles:      roles,
-		tokenName:  token,
+		token:      token,
 		ttl:        c.ttl,
 		appName:    c.appName,
 		appURI:     c.appURI,
@@ -968,18 +968,17 @@ func generateAgentValues(params valueGeneratorParams) ([]byte, error) {
 }
 
 type joinInstructionsInput struct {
-	client      *authclient.Client
-	roles       types.SystemRoles
-	out         io.Writer
-	tokenName   string
-	tokenSecret string
-	ttl         time.Duration
-	appName     string
-	appURI      string
-	dbName      string
-	dbURI       string
-	dbProtocol  string
-	caPins      []string
+	client     *authclient.Client
+	roles      types.SystemRoles
+	out        io.Writer
+	token      string
+	ttl        time.Duration
+	appName    string
+	appURI     string
+	dbName     string
+	dbURI      string
+	dbProtocol string
+	caPins     []string
 }
 
 func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
@@ -1014,8 +1013,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		return kubeMessageTemplate.Execute(in.out,
 			map[string]any{
 				"proxy_server": proxies[0].GetPublicAddr(),
-				"token":        in.tokenName,
-				"secret":       in.tokenSecret,
+				"token":        in.token,
 				"minutes":      in.ttl.Minutes(),
 				"set_roles":    setRoles,
 				"version":      proxies[0].GetTeleportVersion(),
@@ -1035,7 +1033,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 
 		return appMessageTemplate.Execute(in.out,
 			map[string]any{
-				"token":           in.tokenName,
+				"token":           in.token,
 				"minutes":         in.ttl.Minutes(),
 				"ca_pins":         in.caPins,
 				"proxy_server":    proxies[0].GetPublicAddr(),
@@ -1056,7 +1054,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 		}
 		return dbMessageTemplate.Execute(in.out,
 			map[string]any{
-				"token":        in.tokenName,
+				"token":        in.token,
 				"minutes":      in.ttl.Minutes(),
 				"ca_pins":      in.caPins,
 				"proxy_server": proxies[0].GetPublicAddr(),
@@ -1066,24 +1064,23 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 			})
 	case in.roles.Include(types.RoleTrustedCluster):
 		fmt.Fprintf(in.out, trustedClusterMessage,
-			in.tokenName,
+			in.token,
 			int(in.ttl.Minutes()))
 	case in.roles.Include(types.RoleWindowsDesktop):
 		return desktopMessageTemplate.Execute(in.out,
 			map[string]any{
-				"token":   in.tokenName,
+				"token":   in.token,
 				"minutes": in.ttl.Minutes(),
 			})
 	case in.roles.Include(types.RoleMDM):
 		return mdmTokenAddTemplate.Execute(in.out, map[string]any{
-			"token":   in.tokenName,
+			"token":   in.token,
 			"minutes": in.ttl.Minutes(),
 			"ca_pins": in.caPins,
 		})
 	default:
 		return nodeMessageTemplate.Execute(in.out, map[string]any{
-			"token":       in.tokenName,
-			"secret":      in.tokenSecret,
+			"token":       in.token,
 			"roles":       strings.ToLower(in.roles.String()),
 			"minutes":     int(in.ttl.Minutes()),
 			"ca_pins":     in.caPins,

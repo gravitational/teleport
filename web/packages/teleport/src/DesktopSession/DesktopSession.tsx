@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 
+import { Logger } from 'design/logger';
 import {
   DisconnectedState,
   DesktopSessionWithSharing as SharedDesktopSession,
@@ -60,7 +61,8 @@ export function DesktopSession() {
             ),
             abortSignal
           ),
-        selectDirectoryInBrowser
+        selectDirectoryInBrowser,
+        new Logger('TDPClient')
       )
   );
   const mfa = useMfaEmitter(client, undefined, {

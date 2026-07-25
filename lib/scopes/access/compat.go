@@ -168,7 +168,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 			// per-protocol disconnect on expired cert, with the global setting always applying for operations that are not tied to a
 			// specific access check. By setting this value to false we effectively make the default behavior one where we
 			// are always deferring to the global setting for scoped identities, which aught to be forwards compatible with
-			// whatever solution we eventually land on	.
+			// whatever solution we eventually land on.
 			DisconnectExpiredCert: types.NewBool(false),
 		},
 	})

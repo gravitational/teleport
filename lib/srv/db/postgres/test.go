@@ -108,6 +108,19 @@ type TestServer struct {
 
 	// mmCache caches multiMessage for reuse in benchmark
 	mmCache map[string]*multiMessage
+
+	// noCancelKey skips BackendKeyData on startup (e.g. RDS Proxy).
+	noCancelKey bool
+}
+
+// TestServerOption allows setting test server options.
+type TestServerOption func(*TestServer)
+
+// WithNoCancelKey makes the server skip BackendKeyData (e.g. RDS Proxy).
+func WithNoCancelKey() TestServerOption {
+	return func(ts *TestServer) {
+		ts.noCancelKey = true
+	}
 }
 
 // pidHandle represents a fake pid handle that can cancel operations in progress.
@@ -145,7 +158,7 @@ type storedProcedure struct {
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
-func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) {
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
 	err = config.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -166,7 +179,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		allowedUsers.Store(user, struct{}{})
 	}
 
-	return &TestServer{
+	server := &TestServer{
 		cfg:       config,
 		listener:  config.Listener,
 		port:      port,
@@ -182,7 +195,11 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 		userPermissionEventsCh: make(chan UserPermissionEvent, 100),
 		allowedUsers:           &allowedUsers,
 		mmCache:                make(map[string]*multiMessage),
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(server)
+	}
+	return server, nil
 }
 
 // Serve starts serving client connections.
@@ -280,14 +297,16 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 	pid := s.newPid()
 	defer s.cleanupPid(pid)
 
-	if err := s.sendMessages(client,
-		&pgproto3.AuthenticationOk{},
-		&pgproto3.BackendKeyData{
+	messages := []pgproto3.BackendMessage{&pgproto3.AuthenticationOk{}}
+	// BackendKeyData carries the cancel-request key; some backends omit it.
+	if !s.noCancelKey {
+		messages = append(messages, &pgproto3.BackendKeyData{
 			ProcessID: pid,
 			SecretKey: testSecretKey,
-		},
-		&pgproto3.ReadyForQuery{},
-	); err != nil {
+		})
+	}
+	messages = append(messages, &pgproto3.ReadyForQuery{})
+	if err := s.sendMessages(client, messages...); err != nil {
 		return trace.Wrap(err)
 	}
 	// Enter the loop replying to client messages.

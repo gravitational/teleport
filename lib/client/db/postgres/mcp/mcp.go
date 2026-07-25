@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport/api/types"
 	dbmcp "github.com/gravitational/teleport/lib/client/db/mcp"
 	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -256,12 +257,26 @@ func buildConnConfig(db *dbmcp.Database) (*pgxpool.Config, error) {
 		applicationNameParamName: applicationNameParamValue,
 	}
 	config.ConnConfig.TLSConfig = nil
-	// Use simple protocol to have a closer behavior to DB REPL and psql.
-	//
-	// This also avoids each query being prepared, binded and executed, reducing
-	// the amount of audit events per query executed.
-	config.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	config.ConnConfig.DefaultQueryExecMode = queryExecModeForDatabase(db.DB)
 	return config, nil
+}
+
+func queryExecModeForDatabase(db types.Database) pgx.QueryExecMode {
+	switch db.GetType() {
+	case types.DatabaseTypeRedshift, types.DatabaseTypeRedshiftServerless:
+		// Redshift does not report standard_conforming_strings in the same way
+		// PostgreSQL does, which makes pgx reject simple protocol queries before
+		// sending them. QueryExecModeExec uses the extended query protocol without
+		// pgx statement caching, so it avoids the simple protocol sanitizer while
+		// staying suitable for ad-hoc SQL generated through MCP.
+		return pgx.QueryExecModeExec
+	default:
+		// Use simple protocol to have a closer behavior to DB REPL and psql.
+		//
+		// This also avoids each query being prepared, bound, and executed, reducing
+		// the amount of audit events per query executed.
+		return pgx.QueryExecModeSimpleProtocol
+	}
 }
 
 const (

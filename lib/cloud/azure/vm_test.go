@@ -21,14 +21,23 @@ package azure
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const (
@@ -40,6 +49,160 @@ const (
 	vmssResourceID   = "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachineScaleSets/vmss1"
 	vmssVMResourceID = "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachineScaleSets/vmss1/virtualMachines/0"
 )
+
+const (
+	testPowerStateRunning            = "PowerState/running"
+	testPowerStateStopped            = "PowerState/stopped"
+	testProvisioningStateSucceeded   = "ProvisioningState/succeeded"
+	testProvisioningStateUnavailable = "ProvisioningState/Unavailable"
+)
+
+func testVMAgent(code string) *armcompute.VirtualMachineAgentInstanceView {
+	return &armcompute.VirtualMachineAgentInstanceView{
+		Statuses: []*armcompute.InstanceViewStatus{{Code: to.Ptr(code)}},
+	}
+}
+
+func testPowerStatus(code string) []*armcompute.InstanceViewStatus {
+	return []*armcompute.InstanceViewStatus{{Code: to.Ptr(code)}}
+}
+
+func testRegularVMWithInstanceView(agent *armcompute.VirtualMachineAgentInstanceView, statuses []*armcompute.InstanceViewStatus) armcompute.VirtualMachine {
+	return armcompute.VirtualMachine{
+		Properties: &armcompute.VirtualMachineProperties{
+			InstanceView: &armcompute.VirtualMachineInstanceView{
+				VMAgent:  agent,
+				Statuses: statuses,
+			},
+		},
+	}
+}
+
+func testScaleSetVMWithInstanceView(agent *armcompute.VirtualMachineAgentInstanceView, statuses []*armcompute.InstanceViewStatus) armcompute.VirtualMachineScaleSetVM {
+	return armcompute.VirtualMachineScaleSetVM{
+		Properties: &armcompute.VirtualMachineScaleSetVMProperties{
+			InstanceView: &armcompute.VirtualMachineScaleSetVMInstanceView{
+				VMAgent:  agent,
+				Statuses: statuses,
+			},
+		},
+	}
+}
+
+type fakeTokenCredential struct{}
+
+func (fakeTokenCredential) GetToken(context.Context, policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{
+		Token:     "fake-token",
+		ExpiresOn: time.Now().Add(time.Hour),
+	}, nil
+}
+
+type fakeAzureRunCommandTransport struct {
+	runCommandInProgress bool
+
+	runCommandGetBody string
+	vmStatusCode      int
+	vmStatusBody      string
+	vmssStatusCode    int
+	vmssStatusBody    string
+
+	runCommandPutCalls   int
+	runCommandGetCalls   int
+	vmStatusCalls        int
+	vmssStatusCalls      int
+	getCommandResultCall int
+	putPaths             []string
+	putRequestBody       string
+}
+
+func newFakeAzureRunCommandTransport() *fakeAzureRunCommandTransport {
+	return &fakeAzureRunCommandTransport{
+		runCommandGetBody: testRunCommandResultBody(string(armcompute.ExecutionStateSucceeded), 0, "install ok", ""),
+		vmStatusCode:      http.StatusOK,
+		vmStatusBody:      testVMInstanceViewBody(testProvisioningStateSucceeded, testPowerStateRunning),
+		vmssStatusCode:    http.StatusOK,
+		vmssStatusBody:    testVMInstanceViewBody(testProvisioningStateSucceeded, testPowerStateRunning),
+	}
+}
+
+func (t *fakeAzureRunCommandTransport) Do(req *http.Request) (*http.Response, error) {
+	path := req.URL.Path
+	switch {
+	case req.Method == http.MethodPut && strings.Contains(path, "/runCommands/"+runCommandName):
+		t.runCommandPutCalls++
+		t.putPaths = append(t.putPaths, path)
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		t.putRequestBody = string(body)
+		if t.runCommandInProgress {
+			return testHTTPResponse(req, http.StatusCreated, `{"properties":{"provisioningState":"Creating"}}`, map[string]string{
+				"Azure-AsyncOperation": "https://management.azure.com/poll",
+			}), nil
+		}
+		return testHTTPResponse(req, http.StatusOK, `{}`, nil), nil
+
+	case req.Method == http.MethodGet && path == "/poll":
+		t.getCommandResultCall++
+		return testHTTPResponse(req, http.StatusOK, `{"status":"InProgress"}`, nil), nil
+
+	case req.Method == http.MethodGet && strings.Contains(path, "/runCommands/"+runCommandName):
+		t.runCommandGetCalls++
+		return testHTTPResponse(req, http.StatusOK, t.runCommandGetBody, nil), nil
+
+	case req.Method == http.MethodGet && strings.Contains(path, "/virtualMachineScaleSets/") && strings.Contains(path, "/virtualMachines/"):
+		t.vmssStatusCalls++
+		return testHTTPResponse(req, t.vmssStatusCode, t.vmssStatusBody, nil), nil
+
+	case req.Method == http.MethodGet && strings.Contains(path, "/virtualMachines/"):
+		t.vmStatusCalls++
+		return testHTTPResponse(req, t.vmStatusCode, t.vmStatusBody, nil), nil
+	}
+
+	return testHTTPResponse(req, http.StatusNotFound, `{"error":{"code":"NotFound","message":"unexpected request"}}`, nil), nil
+}
+
+func testHTTPResponse(req *http.Request, statusCode int, body string, headers map[string]string) *http.Response {
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
+	header := make(http.Header)
+	header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		header.Set(key, value)
+	}
+	return &http.Response{
+		StatusCode: statusCode,
+		Status:     fmt.Sprintf("%d %s", statusCode, http.StatusText(statusCode)),
+		Header:     header,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}
+}
+
+func testRunCommandResultBody(state string, exitCode int32, stdout, stderr string) string {
+	return fmt.Sprintf(`{"properties":{"instanceView":{"executionState":%q,"exitCode":%d,"output":%q,"error":%q}}}`, state, exitCode, stdout, stderr)
+}
+
+func testVMInstanceViewBody(agentCode, powerCode string) string {
+	return fmt.Sprintf(`{"properties":{"instanceView":{"vmAgent":{"statuses":[{"code":%q}]},"statuses":[{"code":%q}]}}}`, agentCode, powerCode)
+}
+
+func newTestRunCommandClient(t *testing.T, transport *fakeAzureRunCommandTransport) *runCommandClient {
+	t.Helper()
+
+	client, err := NewRunCommandClient(testSubID, fakeTokenCredential{}, &arm.ClientOptions{
+		ClientOptions: policy.ClientOptions{
+			Transport: transport,
+		},
+	})
+	require.NoError(t, err)
+	runCommandClient, ok := client.(*runCommandClient)
+	require.True(t, ok, "got %T", client)
+	return runCommandClient
+}
 
 func TestGetVirtualMachine(t *testing.T) {
 	ctx := context.Background()
@@ -630,6 +793,219 @@ func TestRunCommandRequestIsUniformVMSS(t *testing.T) {
 	}
 }
 
+func TestRunCommandClientRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("regular VM returns command result", func(t *testing.T) {
+		transport := newFakeAzureRunCommandTransport()
+		client := newTestRunCommandClient(t, transport)
+
+		result, err := client.Run(t.Context(), RunCommandRequest{
+			Region:        "eastus",
+			ResourceGroup: "rg1",
+			VMName:        "vm1",
+			Script:        "echo ok",
+		})
+		require.NoError(t, err)
+		require.Equal(t, &RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateSucceeded),
+			ExitCode:       0,
+			StdOut:         "install ok",
+			StdErr:         "",
+		}, result)
+
+		require.Equal(t, 1, transport.runCommandPutCalls)
+		require.Equal(t, 1, transport.runCommandGetCalls)
+		require.Len(t, transport.putPaths, 1)
+		require.Contains(t, transport.putPaths[0], "/virtualMachines/vm1/runCommands/"+runCommandName)
+		require.Contains(t, transport.putRequestBody, `"location":"eastus"`)
+		require.Contains(t, transport.putRequestBody, `"asyncExecution":false`)
+		require.Contains(t, transport.putRequestBody, `"script":"echo ok"`)
+	})
+
+	t.Run("regular VM timeout returns VM not running error when status says stopped", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			transport := newFakeAzureRunCommandTransport()
+			transport.runCommandInProgress = true
+			transport.vmStatusBody = testVMInstanceViewBody(testProvisioningStateSucceeded, testPowerStateStopped)
+			client := newTestRunCommandClient(t, transport)
+
+			result, err := client.Run(t.Context(), RunCommandRequest{
+				Region:        "eastus",
+				ResourceGroup: "rg1",
+				VMName:        "vm1",
+				Script:        "echo ok",
+			})
+			require.Nil(t, result)
+			require.ErrorIs(t, err, &VMNotRunningError{}, "got %T: %v", err, err)
+			require.NotErrorIs(t, err, context.DeadlineExceeded, "got %T: %v", err, err)
+			require.Equal(t, 1, transport.runCommandPutCalls)
+			require.Zero(t, transport.runCommandGetCalls)
+			require.Equal(t, 1, transport.vmStatusCalls)
+			require.NotZero(t, transport.getCommandResultCall)
+		})
+	})
+
+	t.Run("regular VM timeout returns VM agent error when agent is unavailable", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			transport := newFakeAzureRunCommandTransport()
+			transport.runCommandInProgress = true
+			transport.vmStatusBody = testVMInstanceViewBody(testProvisioningStateUnavailable, testPowerStateRunning)
+			client := newTestRunCommandClient(t, transport)
+
+			result, err := client.Run(t.Context(), RunCommandRequest{
+				Region:        "eastus",
+				ResourceGroup: "rg1",
+				VMName:        "vm1",
+				Script:        "echo ok",
+			})
+			require.Nil(t, result)
+			require.ErrorIs(t, err, &VMAgentNotAvailableError{}, "got %T: %v", err, err)
+			require.NotErrorIs(t, err, context.DeadlineExceeded, "got %T: %v", err, err)
+			require.Equal(t, 1, transport.vmStatusCalls)
+		})
+	})
+
+	t.Run("regular VM timeout keeps original error when status cannot be fetched", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			transport := newFakeAzureRunCommandTransport()
+			transport.runCommandInProgress = true
+			transport.vmStatusCode = http.StatusForbidden
+			transport.vmStatusBody = `{"error":{"code":"AuthorizationFailed","message":"missing read permission"}}`
+			client := newTestRunCommandClient(t, transport)
+
+			result, err := client.Run(t.Context(), RunCommandRequest{
+				Region:        "eastus",
+				ResourceGroup: "rg1",
+				VMName:        "vm1",
+				Script:        "echo ok",
+			})
+			require.Nil(t, result)
+			require.ErrorIs(t, err, context.DeadlineExceeded, "got %T: %v", err, err)
+			require.NotErrorIs(t, err, &VMNotRunningError{}, "got %T: %v", err, err)
+			require.NotErrorIs(t, err, &VMAgentNotAvailableError{}, "got %T: %v", err, err)
+			require.Equal(t, 1, transport.vmStatusCalls)
+		})
+	})
+
+	t.Run("uniform VMSS timeout returns VM not running error when status says stopped", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			transport := newFakeAzureRunCommandTransport()
+			transport.runCommandInProgress = true
+			transport.vmssStatusBody = testVMInstanceViewBody(testProvisioningStateSucceeded, testPowerStateStopped)
+			client := newTestRunCommandClient(t, transport)
+
+			result, err := client.Run(t.Context(), RunCommandRequest{
+				Region:                      "eastus",
+				ResourceGroup:               "rg1",
+				VMName:                      "vmss1_0",
+				UniformScaleSetName:         "vmss1",
+				UniformScaleSetVMInstanceID: "0",
+				Script:                      "echo ok",
+			})
+			require.Nil(t, result)
+			require.ErrorIs(t, err, &VMNotRunningError{}, "got %T: %v", err, err)
+			require.NotErrorIs(t, err, context.DeadlineExceeded, "got %T: %v", err, err)
+			require.Equal(t, 1, transport.runCommandPutCalls)
+			require.Zero(t, transport.runCommandGetCalls)
+			require.Equal(t, 1, transport.vmssStatusCalls)
+			require.Len(t, transport.putPaths, 1)
+			require.Contains(t, transport.putPaths[0], "/virtualMachineScaleSets/vmss1/virtualMachines/0/runCommands/"+runCommandName)
+		})
+	})
+}
+
+func TestRunCommandClientCheckVMStatus(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		desc            string
+		req             RunCommandRequest
+		vmAPI           *ARMComputeMock
+		scaleSetVMsAPI  *ARMScaleSetVMsMock
+		requireErr      require.ErrorAssertionFunc
+		requireErrIs    error
+		requireNotErrIs error
+	}{
+		{
+			desc: "regular VM running with ready agent",
+			req:  RunCommandRequest{ResourceGroup: "rg1", VMName: "vm1"},
+			vmAPI: &ARMComputeMock{
+				GetResult: testRegularVMWithInstanceView(testVMAgent(testProvisioningStateSucceeded), testPowerStatus(testPowerStateRunning)),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			desc: "regular VM stopped returns VM not running error",
+			req:  RunCommandRequest{ResourceGroup: "rg1", VMName: "vm1"},
+			vmAPI: &ARMComputeMock{
+				GetResult: testRegularVMWithInstanceView(testVMAgent(testProvisioningStateSucceeded), testPowerStatus(testPowerStateStopped)),
+			},
+			requireErr:      require.Error,
+			requireErrIs:    &VMNotRunningError{},
+			requireNotErrIs: &VMAgentNotAvailableError{},
+		},
+		{
+			desc: "regular VM running with unavailable agent returns VM agent error",
+			req:  RunCommandRequest{ResourceGroup: "rg1", VMName: "vm1"},
+			vmAPI: &ARMComputeMock{
+				GetResult: testRegularVMWithInstanceView(testVMAgent(testProvisioningStateUnavailable), testPowerStatus(testPowerStateRunning)),
+			},
+			requireErr:      require.Error,
+			requireErrIs:    &VMAgentNotAvailableError{},
+			requireNotErrIs: &VMNotRunningError{},
+		},
+		{
+			desc: "status fetch errors do not block run command",
+			req:  RunCommandRequest{ResourceGroup: "rg1", VMName: "vm1"},
+			vmAPI: &ARMComputeMock{
+				GetErr: trace.AccessDenied("missing read permission"),
+			},
+			requireErr: require.NoError,
+		},
+		{
+			desc: "missing instance view does not block run command",
+			req:  RunCommandRequest{ResourceGroup: "rg1", VMName: "vm1"},
+			vmAPI: &ARMComputeMock{
+				GetResult: armcompute.VirtualMachine{},
+			},
+			requireErr: require.NoError,
+		},
+		{
+			desc: "uniform VMSS stopped returns VM not running error",
+			req: RunCommandRequest{
+				ResourceGroup:               "rg1",
+				VMName:                      "vmss1_0",
+				UniformScaleSetName:         "vmss1",
+				UniformScaleSetVMInstanceID: "0",
+			},
+			scaleSetVMsAPI: &ARMScaleSetVMsMock{
+				GetResult: testScaleSetVMWithInstanceView(testVMAgent(testProvisioningStateSucceeded), testPowerStatus(testPowerStateStopped)),
+			},
+			requireErr:      require.Error,
+			requireErrIs:    &VMNotRunningError{},
+			requireNotErrIs: &VMAgentNotAvailableError{},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			client := &runCommandClient{
+				virtualMachineAPI: tc.vmAPI,
+				scaleSetVMsAPI:    tc.scaleSetVMsAPI,
+				logger:            logtest.NewLogger(),
+			}
+
+			err := client.checkVMStatus(t.Context(), tc.req)
+			tc.requireErr(t, err)
+			if tc.requireErrIs != nil {
+				require.ErrorIs(t, err, tc.requireErrIs, "got %T: %v", err, err)
+			}
+			if tc.requireNotErrIs != nil {
+				require.NotErrorIs(t, err, tc.requireNotErrIs, "got %T: %v", err, err)
+			}
+		})
+	}
+}
+
 func TestCommandResultFromInstanceView(t *testing.T) {
 	t.Parallel()
 
@@ -732,6 +1108,7 @@ func TestVirtualMachineFromVirtualMachine(t *testing.T) {
 		subscriptionID  = "11111111-1111-1111-1111-111111111111"
 		resourceGroup   = "rg"
 	)
+	linuxOS := armcompute.OperatingSystemTypesLinux
 
 	for _, tc := range []struct {
 		desc        string
@@ -835,6 +1212,46 @@ func TestVirtualMachineFromVirtualMachine(t *testing.T) {
 			assertError: require.Error,
 			assertVM:    require.Nil,
 		},
+		{
+			desc: "vm with operating system defined",
+			vm: &armcompute.VirtualMachine{
+				ID:       to.Ptr(validResourceID),
+				Name:     to.Ptr("vm-name"),
+				Location: to.Ptr("eastus"),
+				Properties: &armcompute.VirtualMachineProperties{
+					VMID: to.Ptr("22222222-2222-2222-2222-222222222222"),
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{
+							OSType: &linuxOS,
+						},
+					},
+				},
+				Tags: map[string]*string{
+					"env":  to.Ptr("prod"),
+					"team": to.Ptr("infra"),
+				},
+			},
+			assertError: require.NoError,
+			assertVM: func(t require.TestingT, val any, _ ...any) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, &VirtualMachine{
+					ID:            validResourceID,
+					VMID:          "22222222-2222-2222-2222-222222222222",
+					Name:          "vm-name",
+					Location:      "eastus",
+					Subscription:  subscriptionID,
+					ResourceGroup: resourceGroup,
+					Tags: map[string]string{
+						"env":  "prod",
+						"team": "infra",
+					},
+					operatingSystem: &linuxOS,
+				}, vm)
+				require.True(t, vm.IsLinuxOrUnknown(), "expected IsLinuxOrUnknown() to return true for Linux VM")
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			vm, err := virtualMachineFromARMComputeVirtualMachine(tc.vm)
@@ -851,6 +1268,7 @@ func TestVirtualMachineFromVirtualMachineScaleSetVM(t *testing.T) {
 		resourceGroup   = "rg"
 		scaleSetName    = "vmss"
 	)
+	linuxOS := armcompute.OperatingSystemTypesLinux
 
 	for _, tc := range []struct {
 		desc           string
@@ -970,11 +1388,100 @@ func TestVirtualMachineFromVirtualMachineScaleSetVM(t *testing.T) {
 			assertError:    require.Error,
 			assertVM:       require.Nil,
 		},
+		{
+			desc: "scale set vm with all fields populated",
+			vm: &armcompute.VirtualMachineScaleSetVM{
+				ID:         to.Ptr(validResourceID),
+				Name:       to.Ptr("vmss_0"),
+				Location:   to.Ptr("eastus"),
+				InstanceID: to.Ptr("0"),
+				Properties: &armcompute.VirtualMachineScaleSetVMProperties{
+					VMID: to.Ptr("22222222-2222-2222-2222-222222222222"),
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{
+							OSType: &linuxOS,
+						},
+					},
+				},
+				Tags: map[string]*string{
+					"env":  to.Ptr("prod"),
+					"team": to.Ptr("infra"),
+				},
+			},
+			scaleSetName:   scaleSetName,
+			resourceGroup:  resourceGroup,
+			subscriptionID: subscriptionID,
+			assertError:    require.NoError,
+			assertVM: func(t require.TestingT, val any, _ ...any) {
+				require.NotNil(t, val)
+				vm, ok := val.(*VirtualMachine)
+				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
+				require.Equal(t, &VirtualMachine{
+					ID:                          validResourceID,
+					VMID:                        "22222222-2222-2222-2222-222222222222",
+					Name:                        "vmss_0",
+					Location:                    "eastus",
+					Subscription:                subscriptionID,
+					ResourceGroup:               resourceGroup,
+					UniformScaleSetName:         scaleSetName,
+					UniformScaleSetVMInstanceID: "0",
+					Tags: map[string]string{
+						"env":  "prod",
+						"team": "infra",
+					},
+					operatingSystem: &linuxOS,
+				}, vm)
+				require.True(t, vm.IsLinuxOrUnknown(), "expected IsLinuxOrUnknown() to return true for Linux VM")
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			vm, err := virtualMachineFromARMComputeVirtualMachineScaleSetVM(tc.vm, tc.subscriptionID, tc.resourceGroup, tc.scaleSetName)
 			tc.assertError(t, err)
 			tc.assertVM(t, vm)
+		})
+	}
+}
+
+func TestVirtualMachineIsLinuxOrUnknown(t *testing.T) {
+	t.Parallel()
+	linuxOS := armcompute.OperatingSystemTypesLinux
+	windowsOS := armcompute.OperatingSystemTypesWindows
+
+	for _, tc := range []struct {
+		desc     string
+		vm       *VirtualMachine
+		want     bool
+		wantDesc string
+	}{
+		{
+			desc: "Linux VM",
+			vm: &VirtualMachine{
+				operatingSystem: &linuxOS,
+			},
+			want:     true,
+			wantDesc: "Linux",
+		},
+		{
+			desc: "Windows VM",
+			vm: &VirtualMachine{
+				operatingSystem: &windowsOS,
+			},
+			want:     false,
+			wantDesc: "Windows",
+		},
+		{
+			desc: "Unknown OSType",
+			vm: &VirtualMachine{
+				operatingSystem: nil,
+			},
+			want:     true,
+			wantDesc: "Unknown",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := tc.vm.IsLinuxOrUnknown()
+			require.Equal(t, tc.want, got, "expected IsLinuxOrUnknown() to return %v for %s VM, got %v", tc.want, tc.wantDesc, got)
 		})
 	}
 }

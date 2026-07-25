@@ -241,7 +241,7 @@ func (a *App) checkPorts() error {
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
+	if uri.Scheme != "tcp" && uri.Scheme != types.SchemeTLS {
 		return nil
 	}
 
@@ -262,6 +262,9 @@ func (a *App) checkPorts() error {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

@@ -18,7 +18,6 @@
 
 import Image from "design/Image";
 import teleportLogo from "design/assets/images/enterprise-light.svg";
-import cloudCity from "design/assets/images/backgrounds/cloud-city.png"
 
 export default {
     title: 'Design/Assets',
@@ -38,7 +37,3 @@ export const ImageSVG = () => (
         <Image maxWidth="100px" maxHeight="100px" src={teleportLogo} />
     </div>
 );
-
-export const BackgroundsCloudCity = () => (
-    <Image src={cloudCity} />
-)

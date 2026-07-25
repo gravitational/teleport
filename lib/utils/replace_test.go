@@ -158,6 +158,22 @@ func TestRegexMatchesAny(t *testing.T) {
 	}
 }
 
+func TestKubeResourceMatchesRegexWithVerbsCollector_WildcardPosition(t *testing.T) {
+	input := types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "podname"}
+	// A wildcard verb anywhere in the list collapses to the wildcard set.
+	for _, verbs := range [][]string{
+		{types.Wildcard, types.KubeVerbGet},
+		{types.KubeVerbGet, types.KubeVerbList, types.Wildcard},
+	} {
+		matched, gotVerbs, err := KubeResourceMatchesRegexWithVerbsCollector(input, []types.KubernetesResource{
+			{Kind: "pods", Namespace: "default", Name: "podname", Verbs: verbs},
+		})
+		require.NoError(t, err)
+		require.True(t, matched)
+		require.Equal(t, []string{types.Wildcard}, gotVerbs)
+	}
+}
+
 func TestKubeResourceMatchesRegex(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -367,6 +383,47 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			assert:  require.NoError,
 			action:  types.Allow,
 			matches: false,
+		},
+		{
+			name: "deny matches with wildcard verb in non-first position",
+			input: types.KubernetesResource{
+				Kind:      "secrets",
+				Namespace: "default",
+				Name:      "any-secret",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      "secrets",
+					APIGroup:  types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.KubeVerbCreate, types.KubeVerbUpdate, types.KubeVerbDelete, types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
+			name: "allow matches with wildcard verb in non-first position",
+			input: types.KubernetesResource{
+				Kind:      "pods",
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbWatch},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      "pods",
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.KubeVerbGet, types.KubeVerbList, types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
 		},
 		{
 			name: "input matches last resource",

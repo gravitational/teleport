@@ -53,10 +53,3 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Audit,
   NavigationCategory.AddNew,
 ];
-
-// BEAMS_NAVIGATION_CATEGORIES is a re-ordered list of categories for the beams
-// onboarding experience.
-export const BEAMS_NAVIGATION_CATEGORIES: typeof NAVIGATION_CATEGORIES = [
-  NavigationCategory.Beams,
-  ...NAVIGATION_CATEGORIES.filter(c => c !== NavigationCategory.Beams),
-];

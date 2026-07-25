@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"strings"
 )
 
 // HashCertificatePublicKey hashes a certificate's public key in the
@@ -40,4 +41,13 @@ func HashCertificatePublicKey(cert *x509.Certificate) string {
 func HashPublicKey(rawSubjectPublicKeyInfo []byte) string {
 	sum := sha256.Sum256(rawSubjectPublicKeyInfo)
 	return hex.EncodeToString(sum[:])
+}
+
+// NormalizePublicKey normalizes user-supplied Sub CA public keys to the same
+// form as returned by [HashCertificatePublicKey] and [HashPublicKey] (ie, it
+// makes it lowercase).
+//
+// Normalized public keys can be compared directly for equality.
+func NormalizePublicKey(pk string) string {
+	return strings.ToLower(pk)
 }

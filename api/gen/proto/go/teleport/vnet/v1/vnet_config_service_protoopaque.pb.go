@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/vnet/v1/vnet_config_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package vnet
 

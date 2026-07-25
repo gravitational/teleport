@@ -6,9 +6,13 @@ tags:
  - conceptual
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
-When running on an Oracle Cloud (OCI) Compute instance, Teleport will
+In this guide, you will configure your Teleport cluster to assign labels to
+Teleport Agents running on Oracle Cloud (OCI) based on their tags.
+
+When running on an Oracle Cloud  Compute instance, Teleport will
 automatically detect and import the instance's freeform and defined tags
 as Teleport labels for SSH servers, applications, databases, and Kubernetes clusters.
 Tags imported this way will have the `oracle/` prefix.
