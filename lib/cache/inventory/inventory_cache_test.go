@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -233,14 +232,10 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	})
 	require.NoError(t, err)
 
-	healthReporter, err := cache.NewHealthReporter(metrics.NoopRegistry())
-	require.NoError(t, err)
-
 	c, err := cache.New(setupConfig(cache.Config{
 		Context:                 ctx,
 		Events:                  eventsS,
 		ClusterConfig:           clusterConfig,
-		HealthReporter:          healthReporter,
 		Provisioner:             provisionerS,
 		Trust:                   trustS,
 		Users:                   idService,

@@ -101,7 +101,6 @@ func TestNodeCAFiltering(t *testing.T) {
 		Events:                  p.cache,
 		Trust:                   p.cache.Trust,
 		ClusterConfig:           p.cache.ClusterConfig,
-		HealthReporter:          p.healthReporter,
 		Access:                  p.cache.Access,
 		DynamicAccess:           p.cache.DynamicAccess,
 		Presence:                p.cache.Presence,

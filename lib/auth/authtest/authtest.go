@@ -67,7 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -594,27 +593,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 }
 
 type AuthCacheParams struct {
-	AuthServer     *auth.Server
-	Unstarted      bool
-	HealthReporter *cache.HealthReporter
+	AuthServer *auth.Server
+	Unstarted  bool
 }
 
 func InitAuthCache(p AuthCacheParams) error {
-	var err error
-	if p.HealthReporter == nil {
-		p.HealthReporter, err = cache.NewHealthReporter(metrics.NoopRegistry())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	c, err := accesspoint.NewCache(accesspoint.Config{
-		Context:        p.AuthServer.CloseContext(),
-		Setup:          cache.ForAuth,
-		CacheName:      []string{teleport.ComponentAuth},
-		EventsSystem:   true,
-		HealthReporter: p.HealthReporter,
-		Unstarted:      p.Unstarted,
+		Context:      p.AuthServer.CloseContext(),
+		Setup:        cache.ForAuth,
+		CacheName:    []string{teleport.ComponentAuth},
+		EventsSystem: true,
+		Unstarted:    p.Unstarted,
 
 		Access:                  p.AuthServer.Services.AccessInternal,
 		AccessLists:             p.AuthServer.Services.AccessListsInternal,

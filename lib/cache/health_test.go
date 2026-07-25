@@ -82,8 +82,8 @@ func (m *machine) SetCacheHealthy(t *rapid.T) {
 
 	c.setInitError(nil)
 
-	// If the cache is closed, we can toggle setInitError as much as we want,
-	// but it won't ever be a up or healthy cache.
+	// If the cache is closed, update the cache itself by calling setInitError,
+	// but don't bookkeep it as up.
 	if m.closed[c] {
 		return
 	}
@@ -99,8 +99,8 @@ func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 
 	c.setInitError(errors.New("unhealthy"))
 
-	// If the cache is closed, we can toggle setInitError as much as we want,
-	// but it won't ever be a up or healthy cache.
+	// If the cache is closed, update the cache itself by calling setInitError,
+	// but don't bookkeep it as up.
 	if m.closed[c] {
 		return
 	}
@@ -132,7 +132,8 @@ func (m *machine) expected() float64 {
 
 // Check enforces the state machine invariant. It's run after every action
 // (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown) and asserts the expected
-// value matches the received value of the gauge.
+// value matches tracked in "machine" match the value the Cache reports to the
+// gauge.
 func (m *machine) Check(t *rapid.T) {
 	for _, c := range m.all {
 		got := testutil.ToFloat64(c.HealthReporter.gauge.WithLabelValues(c.target))

@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	cachepkg "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/access"
@@ -93,9 +92,6 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 	// Insert the access lists and members into the backend.
 	require.NoError(t, aclService.InsertAccessListCollection(t.Context(), &tc.collection))
 
-	healthReporter, err := cachepkg.NewHealthReporter(metrics.NoopRegistry())
-	require.NoError(t, err)
-
 	// Create the access lists cache.
 	aclCache, err := cachepkg.New(cachepkg.Config{
 		Context: t.Context(),
@@ -104,8 +100,7 @@ func runMaterializerTestcase(t *testing.T, tc materializerTestcase) {
 			{Kind: types.KindAccessList},
 			{Kind: types.KindAccessListMember},
 		},
-		AccessLists:    aclService,
-		HealthReporter: healthReporter,
+		AccessLists: aclService,
 	})
 	require.NoError(t, err)
 	defer aclCache.Close()
@@ -1199,9 +1194,6 @@ func BenchmarkMaterializerInit(b *testing.B) {
 
 			t2 := time.Now()
 
-			healthReporter, err := cachepkg.NewHealthReporter(metrics.NoopRegistry())
-			require.NoError(b, err)
-
 			// Create and init the access lists cache.
 			aclCache, err := cachepkg.New(cachepkg.Config{
 				Context: b.Context(),
@@ -1210,8 +1202,7 @@ func BenchmarkMaterializerInit(b *testing.B) {
 					{Kind: types.KindAccessList},
 					{Kind: types.KindAccessListMember},
 				},
-				AccessLists:    aclService,
-				HealthReporter: healthReporter,
+				AccessLists: aclService,
 			})
 			require.NoError(b, err)
 			defer aclCache.Close()

@@ -90,6 +90,29 @@ func TestTeleportProcess_NewLocalCache(t *testing.T) {
 	}
 }
 
+// TestTeleportProcess_CacheHealthReporter verifies that a health reporter
+// gets added into a TeleportProcess.
+func TestTeleportProcess_CacheHealthReporter(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Proxy.Enabled = false
+			cfg.CachePolicy.Enabled = true
+		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if assert.NoError(t, process.Close()) {
+			assert.NoError(t, process.Wait())
+		}
+	})
+
+	authCache, ok := process.GetAuthServer().Cache.(*cache.Cache)
+	require.True(t, ok)
+	require.NotNil(t, authCache.Config.HealthReporter)
+}
+
 type fakeLocalCacheClient struct {
 	authclient.ClientI
 }

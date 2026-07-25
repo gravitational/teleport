@@ -26,7 +26,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// TODO(russjones): Write comment. Think of a better name?
+// HealthReporter allows multiple Cache to report to a single GaugeVec and not
+// clobber each other.
 type HealthReporter struct {
 	mu sync.Mutex
 

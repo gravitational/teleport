@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -412,16 +411,12 @@ func benchmarkRangeServersWithTargetName[T hostIDGetterResource](b *testing.B, f
 			require.NotEmpty(b, kindName)
 			watch := types.WatchKind{Kind: kindName}
 
-			healthReporter, err := NewHealthReporter(metrics.NoopRegistry())
-			require.NoError(b, err)
-
 			c, err := New(Config{
-				Context:        ctx,
-				Presence:       presenceS,
-				Events:         local.NewEventsService(bk),
-				Watches:        []types.WatchKind{watch},
-				HealthReporter: healthReporter,
-				neverOK:        tt.neverOK,
+				Context:  ctx,
+				Presence: presenceS,
+				Events:   local.NewEventsService(bk),
+				Watches:  []types.WatchKind{watch},
+				neverOK:  tt.neverOK,
 			})
 			require.NoError(b, err)
 			b.Cleanup(func() { c.Close() })

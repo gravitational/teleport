@@ -847,7 +847,11 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing Events parameter")
 	}
 	if c.HealthReporter == nil {
-		return trace.BadParameter("missing health reporter parameter")
+		healthReporter, err := NewHealthReporter(metrics.NoopRegistry())
+		if err != nil {
+			return trace.Wrap(err, "creating default health reporter")
+		}
+		c.HealthReporter = healthReporter
 	}
 
 	if c.Context == nil {
