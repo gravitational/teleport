@@ -29,8 +29,14 @@ import (
 	"pgregory.net/rapid"
 )
 
-// TestMetricConverges ensures that caches correctly report their health to the
-// prometheus metric.
+// TestMetricConverges verifies the shared health gauge against an independent
+// model of cache state. Rapid varies the number of caches and the sequence of
+// healthy, unhealthy, and closed transitions, checking the gauge after every
+// transition.
+//
+// TODO(russjones): Verify whether sharing the HealthReporter also resolves the
+// EAS cache issue and whether it must be shared by all caches in
+// TeleportProcess.
 func TestMetricConverges(tt *testing.T) {
 	rapid.Check(tt, func(rt *rapid.T) {
 		m := &machine{}
@@ -47,9 +53,6 @@ type machine struct {
 	all []*Cache
 }
 
-// TODO(russjones): Check if the EAS cache issue is also resolved? Does the
-// HealthReporter need to be shared across TeleportProcess? That would be a
-// pain?
 func (m *machine) init(t *rapid.T) {
 	m.up = map[*Cache]bool{}
 	m.healthyUp = map[*Cache]bool{}
@@ -60,23 +63,24 @@ func (m *machine) init(t *rapid.T) {
 		t.Fatalf("Failed to create health reporter: %v.", err)
 	}
 
-	// Create 2, 3, or 4 caches.
-	for range rapid.IntRange(2, 4).Draw(t, "n") {
-		// Create a Cachedirectly instead of using newPackForAuth because
-		// starting a Cache launches goroutines that call setInitError. To make
-		// this test deterministic, only this test should call setInitError.
+	// Vary the cache count to exercise health aggregation across multiple
+	// caches.
+	for range rapid.IntRange(2, 6).Draw(t, "n") {
+		// Construct Cache directly instead of calling newPackForAuth. Starting a Cache
+		// launches goroutines that call setInitError, so direct construction keeps
+		// health transitions under the state machine's control and makes the test
+		// deterministic.
 		ctx, cancel := context.WithCancel(context.Background())
 		c := &Cache{
 			Config: Config{
-				target:         "auth",
+				target:         "foo",
 				HealthReporter: healthReporter,
 			},
 			ctx:            ctx,
 			cancel:         cancel,
 			initC:          make(chan struct{}),
 			firstTimeInitC: make(chan struct{}),
-			// TODO(russjones): Can these just be removed?
-			eventsFanout: services.NewFanoutV2(services.FanoutV2Config{}),
+			eventsFanout:   services.NewFanoutV2(services.FanoutV2Config{}),
 			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{
 				services.NewFanoutV2(services.FanoutV2Config{})}),
 		}
@@ -89,8 +93,7 @@ func (m *machine) init(t *rapid.T) {
 	}
 }
 
-// SetCacheHealthy will pick a random cache from the slice of caches
-// and set it's state to healthy.
+// SetCacheHealthy selects a cache at random and reports it as healthy.
 func (m *machine) SetCacheHealthy(t *rapid.T) {
 	c := m.all[rapid.IntRange(0, len(m.all)-1).Draw(t, "i")]
 
@@ -106,8 +109,7 @@ func (m *machine) SetCacheHealthy(t *rapid.T) {
 	m.healthyUp[c] = true
 }
 
-// SetCacheUnhealthy will pick a random cache from the slice of caches
-// and set it's state to unhealthy.
+// SetCacheUnhealthy selects a cache at random and reports it as unhealthy.
 func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 	c := m.all[rapid.IntRange(0, len(m.all)-1).Draw(t, "i")]
 
@@ -123,8 +125,7 @@ func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 	delete(m.healthyUp, c)
 }
 
-// SetCacheDown will pick a random cache from the slice of caches and close it
-// to shut it down.
+// SetCacheDown selects a cache at random and closes it.
 func (m *machine) SetCacheDown(t *rapid.T) {
 	c := m.all[rapid.IntRange(0, len(m.all)-1).Draw(t, "i")]
 
@@ -135,10 +136,8 @@ func (m *machine) SetCacheDown(t *rapid.T) {
 	delete(m.healthyUp, c)
 }
 
-// Check enforces the state machine invariant. It's run after every action
-// (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown) and asserts the expected
-// value matches tracked in "machine" match the value the Cache reports to the
-// gauge.
+// Check compares the reported gauge with the independent model after every
+// state-machine action (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown).
 func (m *machine) Check(t *rapid.T) {
 	for _, c := range m.all {
 		got := testutil.ToFloat64(c.HealthReporter.gauge.WithLabelValues(c.target))
@@ -150,8 +149,9 @@ func (m *machine) Check(t *rapid.T) {
 	}
 }
 
-// expected is the health property that enforces correctness. The metric is
-// healthy if any cache is up or no cache is up. Otherwise it's unhealthy.
+// expected derives the gauge value from the modeled cache state. A target is
+// healthy when no caches are live or at least one live cache is healthy;
+// otherwise, it is unhealthy.
 func (m *machine) expected() float64 {
 	if len(m.up) == 0 || len(m.healthyUp) > 0 {
 		return 1.0
