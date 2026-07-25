@@ -802,7 +802,8 @@ type Config struct {
 	Tracer oteltrace.Tracer
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
-	// TODO(russjones): Write comment.
+	// HealthReporter aggregates this cache's health with other caches that share
+	// its target. If nil, health reporting uses a no-op metrics registry.
 	HealthReporter *HealthReporter
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.

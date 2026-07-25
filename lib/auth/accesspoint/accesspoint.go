@@ -63,7 +63,8 @@ type Config struct {
 	TracingProvider *tracing.Provider
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
-	// TODO(russjones): Write comment.
+	// HealthReporter preserves process-wide health aggregation when this config
+	// constructs a cache. Share it with every cache in the process.
 	HealthReporter *cache.HealthReporter
 
 	// The following services are provided to the Cache to allow it to

@@ -760,7 +760,8 @@ type TeleportProcess struct {
 	// Teleport's metric service.
 	metricsRegistry *metrics.Registry
 
-	// TODO(russjones): Write comment.
+	// healthReporter owns process-wide cache health state so caches that share a
+	// target can report independently without overwriting the aggregate.
 	healthReporter *cache.HealthReporter
 
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
@@ -1160,7 +1161,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err, "creating metrics registry")
 	}
 
-	// TODO(russjones): Write comment.
+	// Create one reporter per process because otherwise caches with the same
+	// target would share a Prometheus label and clobber each other.
 	healthReporter, err := cache.NewHealthReporter(metricsRegistry.Wrap("cache"))
 	if err != nil {
 		return nil, trace.Wrap(err, "creating health metric")
