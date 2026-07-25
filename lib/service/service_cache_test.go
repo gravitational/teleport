@@ -90,6 +90,51 @@ func TestTeleportProcess_NewLocalCache(t *testing.T) {
 	}
 }
 
+// TestTeleportProcess_CacheHealthReporter verifies that a health reporter gets
+// added into a TeleportProcess and multiple caches share the same health
+// reporter. This is because the test in lib/cache/health_test.go is a model of
+// the system and does not check if a health reporter is actually added and
+// shared in the real processes.
+func TestTeleportProcess_CacheHealthReporter(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Proxy.Enabled = false
+			cfg.CachePolicy.Enabled = true
+		}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if assert.NoError(t, process.Close()) {
+			assert.NoError(t, process.Wait())
+		}
+	})
+
+	authCache, ok := process.GetAuthServer().Cache.(*cache.Cache)
+	require.True(t, ok)
+
+	authClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	localCache, err := process.NewLocalCache(
+		authClient,
+		func(cfg cache.Config) cache.Config {
+			cfg.Unstarted = true
+			return cfg
+		},
+		[]string{"test-local-cache"},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, localCache.Close())
+	})
+
+	require.Same(t,
+		authCache.Config.HealthReporter,
+		localCache.Config.HealthReporter)
+}
+
 type fakeLocalCacheClient struct {
 	authclient.ClientI
 }

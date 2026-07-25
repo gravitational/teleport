@@ -76,16 +76,6 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
-	cacheHealth = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Subsystem: "cache",
-			Name:      "health",
-			Help:      "Whether the cache for a particular Teleport service is healthy.",
-		},
-		[]string{teleport.TagCacheComponent},
-	)
-
 	cacheLastReset = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -612,10 +602,8 @@ func (c *Cache) setInitError(err error) {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
 		})
-		cacheHealth.WithLabelValues(c.target).Set(1.0)
-	} else {
-		cacheHealth.WithLabelValues(c.target).Set(0.0)
 	}
+	c.Config.HealthReporter.Report(c, err == nil)
 }
 
 // FirstInit returns a channel that is closed when the cache successfully initializes for the first time.
@@ -819,6 +807,10 @@ type Config struct {
 	Tracer oteltrace.Tracer
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
+	// HealthReporter aggregates this cache's health with other caches that
+	// share its target. If nil, health reporting uses a default metrics
+	// registry that will not aggregate across processes.
+	HealthReporter *HealthReporter
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -861,6 +853,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
 	}
+
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
@@ -903,6 +896,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Registerer == nil {
 		c.Registerer = prometheus.DefaultRegisterer
+	}
+	if c.HealthReporter == nil {
+		registry, err := metrics.NewRegistry(c.Registerer, teleport.MetricNamespace, "cache")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		healthReporter, err := NewHealthReporter(registry)
+		if err != nil {
+			return trace.Wrap(err, "creating default health reporter")
+		}
+		c.HealthReporter = healthReporter
 	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
@@ -947,7 +951,6 @@ func New(config Config) (*Cache, error) {
 	if err := metrics.RegisterCollectors(config.Registerer,
 		cacheEventsReceived,
 		cacheStaleEventsReceived,
-		cacheHealth,
 		cacheLastReset,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -1553,6 +1556,8 @@ func (c *Cache) Close() error {
 	c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
 		f.Close()
 	})
+	c.Config.HealthReporter.Deregister(c)
+
 	return nil
 }
 
