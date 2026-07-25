@@ -33,10 +33,6 @@ import (
 // model of cache state. Rapid varies the number of caches and the sequence of
 // healthy, unhealthy, and closed transitions, checking the gauge after every
 // transition.
-//
-// TODO(russjones): Verify whether sharing the HealthReporter also resolves the
-// EAS cache issue and whether it must be shared by all caches in
-// TeleportProcess.
 func TestMetricConverges(tt *testing.T) {
 	rapid.Check(tt, func(rt *rapid.T) {
 		m := &machine{}
