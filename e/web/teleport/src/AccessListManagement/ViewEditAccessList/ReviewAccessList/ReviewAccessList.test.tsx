@@ -164,6 +164,34 @@ test('getEditedAccessListFields: members with differing references are not flagg
 });
 
 describe('ReviewMembers UI', () => {
+  test('renders member and added-by display values while reviewing', () => {
+    const displayMember = {
+      ...keepMembers[0],
+      displayPrimary: 'Review Member',
+      displaySecondary: 'Review Team',
+      addedByDisplayPrimary: 'Review Adder',
+      addedByDisplaySecondary: 'Owner Team',
+    };
+
+    render(
+      <MemoryRouter>
+        <ReviewMembers
+          accessList={mockAccessList}
+          editedMembers={[displayMember]}
+          originalMembers={[displayMember]}
+          onDeleteMember={jest.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Review Member')).toBeInTheDocument();
+    expect(screen.getByText(displayMember.name)).toBeInTheDocument();
+    expect(screen.getByText('Review Team')).toBeInTheDocument();
+    expect(screen.getByText('Review Adder')).toBeInTheDocument();
+    expect(screen.getByText(displayMember.addedBy)).toBeInTheDocument();
+    expect(screen.getByText('Owner Team')).toBeInTheDocument();
+  });
+
   test('Remove buttons should be disabled for EntraID access lists', () => {
     const mockEntraIDAccessList: AccessListModified = {
       ...mockAccessList,

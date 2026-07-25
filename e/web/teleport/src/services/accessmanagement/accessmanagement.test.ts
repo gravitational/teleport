@@ -6,6 +6,7 @@ import api from 'teleport/services/api';
 import {
   accessManagementService,
   convertReviewFrequencyIntoBackendParsableValue,
+  makeAccessList,
 } from './accessmanagement';
 import {
   AccessList,
@@ -127,6 +128,164 @@ test('fetch an access list, empty response does not throw error', async () => {
   });
   response = await accessManagementService.fetchAccessList('does-not-matter');
   expect(response).toStrictEqual(madeResponse);
+});
+
+test('make an access list resolves user displays onto user rows', () => {
+  const madeAccessList = makeAccessList({
+    user_displays: {
+      member: { primary: 'Member Name', secondary: 'Member Team' },
+      adder: { primary: 'Adder Name', secondary: 'Adder Team' },
+      owner: { primary: 'Owner Name', secondary: 'Owner Team' },
+    },
+    members: [
+      {
+        name: 'member',
+        added_by: 'adder',
+        membership_kind: AccessListMemberKind.User,
+      },
+      {
+        name: 'unknown-member',
+        added_by: 'unknown-adder',
+        membership_kind: AccessListMemberKind.User,
+      },
+      {
+        name: 'nested-list',
+        added_by: 'adder',
+        membership_kind: AccessListMemberKind.List,
+      },
+    ],
+    spec: {
+      owners: [
+        {
+          name: 'owner',
+          membership_kind: AccessListMemberKind.User,
+        },
+        {
+          name: 'unknown-owner',
+          membership_kind: AccessListMemberKind.User,
+        },
+        {
+          name: 'nested-owner-list',
+          membership_kind: AccessListMemberKind.List,
+        },
+      ],
+    },
+  });
+
+  expect(madeAccessList.members).toEqual([
+    expect.objectContaining({
+      name: 'member',
+      displayPrimary: 'Member Name',
+      displaySecondary: 'Member Team',
+      addedByDisplayPrimary: 'Adder Name',
+      addedByDisplaySecondary: 'Adder Team',
+    }),
+    expect.objectContaining({ name: 'unknown-member' }),
+    expect.objectContaining({ name: 'nested-list' }),
+  ]);
+  expect(madeAccessList.members[1]).not.toHaveProperty('displayPrimary');
+  expect(madeAccessList.members[1]).not.toHaveProperty('addedByDisplayPrimary');
+  expect(madeAccessList.members[2]).not.toHaveProperty('displayPrimary');
+
+  expect(madeAccessList.owners).toEqual([
+    expect.objectContaining({
+      name: 'owner',
+      displayPrimary: 'Owner Name',
+      displaySecondary: 'Owner Team',
+    }),
+    expect.objectContaining({ name: 'unknown-owner' }),
+    expect.objectContaining({ name: 'nested-owner-list' }),
+  ]);
+  expect(madeAccessList.owners[1]).not.toHaveProperty('displayPrimary');
+  expect(madeAccessList.owners[2]).not.toHaveProperty('displayPrimary');
+});
+
+test('make an access list without user displays leaves display fields unset', () => {
+  const madeAccessList = makeAccessList({
+    members: [
+      {
+        name: 'member',
+        added_by: 'adder',
+        membership_kind: AccessListMemberKind.User,
+      },
+    ],
+    spec: {
+      owners: [
+        {
+          name: 'owner',
+          membership_kind: AccessListMemberKind.User,
+        },
+      ],
+    },
+  });
+
+  expect(madeAccessList.members[0]).not.toHaveProperty('displayPrimary');
+  expect(madeAccessList.members[0]).not.toHaveProperty('displaySecondary');
+  expect(madeAccessList.members[0]).not.toHaveProperty('addedByDisplayPrimary');
+  expect(madeAccessList.members[0]).not.toHaveProperty(
+    'addedByDisplaySecondary'
+  );
+  expect(madeAccessList.owners[0]).not.toHaveProperty('displayPrimary');
+  expect(madeAccessList.owners[0]).not.toHaveProperty('displaySecondary');
+});
+
+test('fetch reviews resolves reviewer info and falls back to reviewer names', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({
+    reviews: [
+      {
+        spec: {
+          notes: 'new response',
+          review_date: '2026-07-17T12:00:00Z',
+          reviewers: ['alice', 'unknown'],
+        },
+        reviewersInfo: [
+          {
+            username: 'alice',
+            display: { primary: 'Alice Example', secondary: 'Engineering' },
+          },
+          { username: 'unknown' },
+        ],
+      },
+      {
+        spec: {
+          notes: 'old response',
+          review_date: '2026-07-16T12:00:00Z',
+          reviewers: ['legacy-reviewer'],
+        },
+      },
+    ],
+    startKey: 'next-page',
+  });
+
+  const response = await accessManagementService.fetchReviews('access-list', {
+    startKey: '',
+    limit: 20,
+  });
+
+  expect(response).toEqual({
+    reviews: [
+      {
+        notes: 'new response',
+        reviewDate: new Date('2026-07-17T12:00:00Z'),
+        reviewers: [
+          {
+            name: 'alice',
+            displayPrimary: 'Alice Example',
+            displaySecondary: 'Engineering',
+          },
+          { name: 'unknown' },
+        ],
+        raw: expect.anything(),
+      },
+      {
+        notes: 'old response',
+        reviewDate: new Date('2026-07-16T12:00:00Z'),
+        reviewers: [{ name: 'legacy-reviewer' }],
+        raw: expect.anything(),
+      },
+    ],
+    startKey: 'next-page',
+  });
 });
 
 test('fetch an access list', async () => {

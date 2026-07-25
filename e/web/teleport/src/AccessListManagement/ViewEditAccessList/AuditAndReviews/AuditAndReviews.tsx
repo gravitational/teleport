@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import { Alert, Box, ButtonSecondary, Flex, H2, Indicator, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { HoverTooltip } from 'design/Tooltip';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import {
   getReviewDayOfMonthOption,
@@ -145,7 +146,20 @@ export function AuditAndReviews({
               {
                 key: 'reviewers',
                 headerText: 'Reviewers',
-                render: review => <Cell>{review.reviewers.join(', ')}</Cell>,
+                render: review => (
+                  <Cell>
+                    {review.reviewers.map((reviewer, index) => (
+                      <Fragment key={reviewer.name}>
+                        {index > 0 && ', '}
+                        <UserDisplayName
+                          username={reviewer.name}
+                          primaryText={reviewer.displayPrimary}
+                          layout="inline"
+                        />
+                      </Fragment>
+                    ))}
+                  </Cell>
+                ),
               },
               {
                 key: 'notes',

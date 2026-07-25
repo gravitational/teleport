@@ -42,10 +42,16 @@ export enum AccessListMemberKind {
   List = 'MEMBERSHIP_KIND_LIST',
 }
 
+export type AccessListReviewer = {
+  name: string;
+  displayPrimary?: string;
+  displaySecondary?: string;
+};
+
 export type AccessListReview = {
   notes: string;
   reviewDate: Date;
-  reviewers: string[];
+  reviewers: AccessListReviewer[];
   // Unprocessed data.
   // Used to display it as json for read only TextEditor.
   raw: any;
@@ -134,6 +140,10 @@ export type AccessListMember = {
   reason?: string;
   // addedBy is the user that added this user to the access list.
   addedBy: string;
+  displayPrimary?: string;
+  displaySecondary?: string;
+  addedByDisplayPrimary?: string;
+  addedByDisplaySecondary?: string;
   // ineligibleReason is a description on why this member
   // no longer meets requirements as defined in membershipRequires.
   ineligibleReason?: string;
@@ -146,6 +156,8 @@ export type AccessListOwner = {
   name: string;
   // friendly name of an access list member.
   title?: string;
+  displayPrimary?: string;
+  displaySecondary?: string;
   // description is the plaintext description of the owner
   // and why they are an owner.
   description?: string;

@@ -248,6 +248,104 @@ test('renders scoped role grants for members, owners, and inherited access', asy
   expect(screen.getByText(/kube-admin \(\/root\)/i)).toBeInTheDocument();
 });
 
+test('renders user display values across access list detail tabs', async () => {
+  jest.spyOn(accessManagementService, 'fetchAccessList').mockResolvedValue({
+    ...accessList,
+    members: [
+      {
+        name: 'display-member',
+        displayPrimary: 'Display Member',
+        displaySecondary: 'Member Team',
+        joined: new Date(),
+        expires: new Date(),
+        addedBy: 'display-adder',
+        addedByDisplayPrimary: 'Display Adder',
+        addedByDisplaySecondary: 'Adder Team',
+        ineligibleReason: 'User no longer meets requirements',
+        membershipKind: AccessListMemberKind.User,
+      },
+      {
+        name: 'username-only-member',
+        joined: new Date(),
+        expires: new Date(),
+        addedBy: 'username-only-adder',
+        membershipKind: AccessListMemberKind.User,
+      },
+      {
+        name: 'nested-member-list',
+        title: 'Nested Member List',
+        joined: new Date(),
+        addedBy: 'display-adder',
+        membershipKind: AccessListMemberKind.List,
+      },
+    ],
+    owners: [
+      {
+        name: 'display-owner',
+        displayPrimary: 'Display Owner',
+        displaySecondary: 'Owner Team',
+        ineligibleReason: 'User no longer meets requirements',
+        membershipKind: AccessListMemberKind.User,
+      },
+      {
+        name: 'username-only-owner',
+        membershipKind: AccessListMemberKind.User,
+      },
+      {
+        name: 'nested-owner-list',
+        title: 'Nested Owner List',
+        membershipKind: AccessListMemberKind.List,
+      },
+    ],
+  });
+  jest.spyOn(accessManagementService, 'fetchReviews').mockResolvedValue({
+    reviews: [
+      {
+        notes: 'display reviewer test',
+        reviewDate: new Date(),
+        reviewers: [
+          {
+            name: 'display-reviewer',
+            displayPrimary: 'Display Reviewer',
+            displaySecondary: 'Hidden Reviewer Team',
+          },
+          { name: 'username-only-reviewer' },
+        ],
+        raw: {},
+      },
+    ],
+    startKey: '',
+  });
+
+  render(<Provider />);
+
+  expect(await screen.findByText('Display Member')).toBeInTheDocument();
+  expect(screen.getByText('display-member')).toBeInTheDocument();
+  expect(screen.getByText('Member Team')).toBeInTheDocument();
+  expect(screen.getByText('Display Adder')).toBeInTheDocument();
+  expect(screen.getAllByText('display-adder')).toHaveLength(2);
+  expect(screen.getByText('Adder Team')).toBeInTheDocument();
+  expect(screen.getByText('username-only-member')).toBeInTheDocument();
+  expect(screen.getByText('username-only-adder')).toBeInTheDocument();
+  expect(screen.getByText('Nested Member List')).toBeInTheDocument();
+
+  await userEvent.click(screen.getByText(/owners \(3\)/i));
+  expect(screen.getByText('Display Owner')).toBeInTheDocument();
+  expect(screen.getByText('display-owner')).toBeInTheDocument();
+  expect(screen.getByText('Owner Team')).toBeInTheDocument();
+  expect(screen.getByText('username-only-owner')).toBeInTheDocument();
+  expect(screen.getByText('Nested Owner List')).toBeInTheDocument();
+
+  await userEvent.click(screen.getByText(/audits/i));
+  expect(await screen.findByText('Display Reviewer')).toBeInTheDocument();
+  expect(screen.getByText('display-reviewer')).toBeInTheDocument();
+  expect(screen.getByText('username-only-reviewer')).toBeInTheDocument();
+  expect(screen.getByText('Display Reviewer').closest('td')).toHaveTextContent(
+    'display-reviewer, username-only-reviewer'
+  );
+  expect(screen.queryByText('Hidden Reviewer Team')).not.toBeInTheDocument();
+});
+
 type TestAs =
   | 'admin'
   | 'owner-no-rbac'
@@ -498,7 +596,7 @@ const reviews: AccessListReview[] = [
   {
     notes: 'some-note',
     reviewDate: new Date(),
-    reviewers: ['lisa'],
+    reviewers: [{ name: 'lisa' }],
     raw: {
       kind: 'access_list_review',
       version: 'v1',

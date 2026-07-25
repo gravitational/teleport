@@ -4,6 +4,7 @@ import { Box, ButtonText, Flex } from 'design';
 import Table from 'design/DataTable';
 import { Add } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
 import { AccessList } from 'e-teleport/services/accessmanagement';
@@ -107,7 +108,14 @@ export function Owners(props: OwnersProps) {
             key: 'name',
             headerText: 'Name',
             isSortable: true,
-            render: ({ name, ineligibleReason, title, ...rest }) => {
+            render: ({
+              name,
+              ineligibleReason,
+              title,
+              displayPrimary,
+              displaySecondary,
+              ...rest
+            }) => {
               if (rest.membershipKind === AccessListMemberKind.List) {
                 return (
                   <CustomCell disabled={false} title={title || ''}>
@@ -140,7 +148,14 @@ export function Owners(props: OwnersProps) {
               }
 
               return (
-                <CustomCell disabled={!!ineligibleReason}>{name}</CustomCell>
+                <CustomCell disabled={!!ineligibleReason}>
+                  <UserDisplayName
+                    username={name}
+                    primaryText={displayPrimary}
+                    secondaryText={displaySecondary}
+                    layout="stacked"
+                  />
+                </CustomCell>
               );
             },
           },
@@ -189,6 +204,13 @@ export function Owners(props: OwnersProps) {
               />
             ),
           },
+        ]}
+        searchableProps={[
+          'name',
+          'membershipKind',
+          'description',
+          'displayPrimary',
+          'displaySecondary',
         ]}
         emptyText="No Owners Found"
         isSearchable

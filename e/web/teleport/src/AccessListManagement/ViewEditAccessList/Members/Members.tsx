@@ -10,6 +10,7 @@ import { getPagerPosition } from 'design/DataTable/Table';
 import type { PagedTableProps } from 'design/DataTable/types';
 import { Add, ArrowRight } from 'design/Icon';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import { getFormattedDate } from 'e-teleport/AccessListManagement/Shared/date';
 import { useOnClickNestedList } from 'e-teleport/AccessListManagement/Shared/nav';
@@ -216,7 +217,14 @@ export const AccessListMemberTable = ({
           key: 'name',
           headerText: 'Name',
           isSortable: true,
-          render: ({ name, ineligibleReason, title, ...rest }) => {
+          render: ({
+            name,
+            ineligibleReason,
+            title,
+            displayPrimary,
+            displaySecondary,
+            ...rest
+          }) => {
             if (rest.membershipKind === AccessListMemberKind.List) {
               return (
                 <CustomCell
@@ -256,7 +264,12 @@ export const AccessListMemberTable = ({
               <CustomCell
                 disabled={!hideIneligibleReason && !!ineligibleReason}
               >
-                {name}
+                <UserDisplayName
+                  username={name}
+                  primaryText={displayPrimary}
+                  secondaryText={displaySecondary}
+                  layout="stacked"
+                />
               </CustomCell>
             );
           },
@@ -283,9 +296,19 @@ export const AccessListMemberTable = ({
           key: 'addedBy',
           headerText: 'Added By',
           isSortable: true,
-          render: ({ addedBy, ineligibleReason }) => (
+          render: ({
+            addedBy,
+            addedByDisplayPrimary,
+            addedByDisplaySecondary,
+            ineligibleReason,
+          }) => (
             <CustomCell disabled={!hideIneligibleReason && !!ineligibleReason}>
-              {addedBy}
+              <UserDisplayName
+                username={addedBy}
+                primaryText={addedByDisplayPrimary}
+                secondaryText={addedByDisplaySecondary}
+                layout="stacked"
+              />
             </CustomCell>
           ),
         },
@@ -359,6 +382,17 @@ export const AccessListMemberTable = ({
             );
           },
         },
+      ]}
+      searchableProps={[
+        'name',
+        'membershipKind',
+        'addedBy',
+        'joined',
+        'expires',
+        'displayPrimary',
+        'displaySecondary',
+        'addedByDisplayPrimary',
+        'addedByDisplaySecondary',
       ]}
       emptyText="No Members Found"
       isSearchable

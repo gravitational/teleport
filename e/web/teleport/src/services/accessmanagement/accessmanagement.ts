@@ -133,7 +133,14 @@ export const accessManagementService = {
             return {
               notes: spec.notes,
               reviewDate: new Date(spec.review_date),
-              reviewers: spec.reviewers,
+              reviewers:
+                r.reviewersInfo?.map(info => ({
+                  name: info.username,
+                  ...(info.display && {
+                    displayPrimary: info.display.primary,
+                    displaySecondary: info.display.secondary,
+                  }),
+                })) || (spec.reviewers || []).map(name => ({ name })),
               raw: r,
             };
           });
@@ -442,6 +449,7 @@ export function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
   const metadata = json?.metadata || {};
   const type = spec.type || AccessListType.Default;
+  const userDisplays = json?.user_displays || {};
 
   return {
     id: metadata?.name || '',
@@ -451,8 +459,8 @@ export function makeAccessList(json: any): AccessList {
     type,
     title: spec.title || '',
     description: spec.description || '',
-    owners: makeOwners(spec.owners),
-    members: makeMembers(json?.members),
+    owners: makeOwners(spec.owners, userDisplays),
+    members: makeMembers(json?.members, userDisplays),
     membersCount: json?.membersCount,
     memberListCount: json?.memberListCount,
     grants: {
@@ -557,11 +565,18 @@ export function getIneligibleReason(ineligibleStatus: IneligibleStatus) {
   return '';
 }
 
-function makeMembers(json: any): AccessListMember[] {
+type UserDisplays = Record<string, { primary?: string; secondary?: string }>;
+
+function makeMembers(
+  json: any,
+  userDisplays: UserDisplays
+): AccessListMember[] {
   if (!json) {
     return [];
   }
   return json.map(m => {
+    const display = userDisplays[m.name];
+    const addedByDisplay = userDisplays[m.added_by];
     return {
       name: m.name,
       title: m.title,
@@ -571,21 +586,34 @@ function makeMembers(json: any): AccessListMember[] {
       expires: new Date(m.expires),
       ineligibleReason: getIneligibleReason(m.ineligible_status),
       membershipKind: m.membership_kind,
+      ...(display && {
+        displayPrimary: display.primary,
+        displaySecondary: display.secondary,
+      }),
+      ...(addedByDisplay && {
+        addedByDisplayPrimary: addedByDisplay.primary,
+        addedByDisplaySecondary: addedByDisplay.secondary,
+      }),
     };
   });
 }
 
-function makeOwners(json: any): AccessListOwner[] {
+function makeOwners(json: any, userDisplays: UserDisplays): AccessListOwner[] {
   if (!json) {
     return [];
   }
   return json.map(o => {
+    const display = userDisplays[o.name];
     return {
       title: o.title,
       name: o.name,
       description: o.description,
       ineligibleReason: getIneligibleReason(o.ineligible_status),
       membershipKind: o.membership_kind,
+      ...(display && {
+        displayPrimary: display.primary,
+        displaySecondary: display.secondary,
+      }),
     };
   });
 }

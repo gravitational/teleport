@@ -12,6 +12,20 @@ export const rawAccessList = {
   metadata: {
     name: 'mock-access-list-id',
   },
+  user_displays: {
+    member1: {
+      primary: 'Member One With A Long Display Name For Truncation',
+      secondary: 'Infrastructure Engineering With A Long Team Name',
+    },
+    'lisa@goteleport.com': {
+      primary: 'Lisa Access List Owner',
+      secondary: 'Identity Governance',
+    },
+    owner1: {
+      primary: 'Owner One With A Long Display Name For Truncation',
+      secondary: 'Security Engineering With A Long Team Name',
+    },
+  },
   members: [
     {
       name: 'member1',
@@ -259,6 +273,15 @@ export const rawReviewsResponse = {
           removed_members: null,
         },
       },
+      reviewersInfo: [
+        {
+          username: 'lisa',
+          display: {
+            primary: 'Lisa Reviewer With A Long Display Name For Truncation',
+            secondary: 'Identity Governance',
+          },
+        },
+      ],
     },
     {
       kind: 'access_list_review',
@@ -283,6 +306,16 @@ export const rawReviewsResponse = {
           removed_members: ['llama', 'alpaca'],
         },
       },
+      reviewersInfo: [
+        {
+          username: 'lisa',
+          display: {
+            primary: 'Lisa Reviewer With A Long Display Name For Truncation',
+            secondary: 'Identity Governance',
+          },
+        },
+        { username: 'another-one' },
+      ],
     },
   ],
   startKey: '',
