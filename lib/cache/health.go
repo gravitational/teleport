@@ -43,9 +43,10 @@ func NewHealthReporter(registry *metrics.Registry) (*HealthReporter, error) {
 	gauge := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: registry.Namespace(),
-			Subsystem: "cache",
-			Name:      "health",
-			Help:      "Whether the cache for a particular Teleport service is healthy.",
+			Subsystem: registry.Subsystem(), // "cache",
+			// TODO(russjones): Subsystem: "cache",
+			Name: "health",
+			Help: "Whether the cache for a particular Teleport service is healthy.",
 		},
 		[]string{teleport.TagCacheComponent},
 	)
@@ -81,8 +82,8 @@ func (m *HealthReporter) Deregister(c *Cache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.health[c.target] == nil {
-		m.health[c.target] = make(map[*Cache]bool)
+	if _, ok := m.health[c.target]; !ok {
+		return
 	}
 	delete(m.health[c.target], c)
 

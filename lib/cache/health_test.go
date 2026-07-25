@@ -136,7 +136,6 @@ func (m *machine) expected() float64 {
 func (m *machine) Check(t *rapid.T) {
 	for _, c := range m.all {
 		got := testutil.ToFloat64(c.HealthReporter.gauge.WithLabelValues(c.target))
-		//got := c.HealthReporter.anyHealthy(c.target)
 		want := m.expected()
 
 		if got != want {
