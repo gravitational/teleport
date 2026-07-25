@@ -88,7 +88,6 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
-
 	aclCache, err := libcache.New(libcache.Config{
 		Events: events,
 		Watches: []types.WatchKind{
@@ -322,7 +321,6 @@ func TestScopedAccessCacheFallback(t *testing.T) {
 		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
-
 	aclCache, err := libcache.New(libcache.Config{
 		Events: events,
 		Watches: []types.WatchKind{

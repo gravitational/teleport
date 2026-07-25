@@ -410,7 +410,6 @@ func benchmarkRangeServersWithTargetName[T hostIDGetterResource](b *testing.B, f
 
 			require.NotEmpty(b, kindName)
 			watch := types.WatchKind{Kind: kindName}
-
 			c, err := New(Config{
 				Context:  ctx,
 				Presence: presenceS,
