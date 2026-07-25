@@ -49,9 +49,6 @@ type Backend interface {
 
 	DeleteRelayServer(ctx context.Context, name string) error
 
-	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
-	DeleteProxyServer(ctx context.Context, name string) error
-
 	DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error
 }
 

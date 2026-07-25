@@ -1106,7 +1106,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
-	if a.hasBuiltinRole(types.RoleNode) {
+	if a.scopedContext.HasBuiltinRole(types.RoleNode) {
 		callerID, _ := getLocalServerID(a.scopedContext.Identity)
 		if s.GetName() != callerID {
 			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
@@ -1118,6 +1118,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
+	scopedServer := a.ScopedServerWithRoles()
 	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1142,7 +1143,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		}
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", hostID, types.RoleApp, types.RoleOkta); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleApp, types.RoleOkta); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabase:
@@ -7603,7 +7604,7 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
@@ -7631,7 +7632,7 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
