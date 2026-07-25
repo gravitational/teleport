@@ -1161,7 +1161,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 	}
 
 	// TODO(russjones): Write comment.
-	healthReporter, err := cache.NewHealthReporter(metricsRegistry)
+	healthReporter, err := cache.NewHealthReporter(metricsRegistry.Wrap("cache"))
 	if err != nil {
 		return nil, trace.Wrap(err, "creating health metric")
 	}
