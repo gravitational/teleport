@@ -90,8 +90,10 @@ func TestTeleportProcess_NewLocalCache(t *testing.T) {
 	}
 }
 
-// TestTeleportProcess_CacheHealthReporter verifies that a health reporter
-// gets added into a TeleportProcess.
+// TestTeleportProcess_CacheHealthReporter verifies that a health reporter gets
+// added into a TeleportProcess. This is because the test in
+// lib/cache/health_test.go is a model of the system and does not check if a
+// health reporter is actually added into real processes.
 func TestTeleportProcess_CacheHealthReporter(t *testing.T) {
 	t.Parallel()
 
