@@ -847,13 +847,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Events == nil {
 		return trace.BadParameter("missing Events parameter")
 	}
-	if c.HealthReporter == nil {
-		healthReporter, err := NewHealthReporter(metrics.NoopRegistry())
-		if err != nil {
-			return trace.Wrap(err, "creating default health reporter")
-		}
-		c.HealthReporter = healthReporter
-	}
 
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -897,6 +890,17 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Registerer == nil {
 		c.Registerer = prometheus.DefaultRegisterer
+	}
+	if c.HealthReporter == nil {
+		registry, err := metrics.NewRegistry(c.Registerer, teleport.MetricNamespace, "cache")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		healthReporter, err := NewHealthReporter(registry)
+		if err != nil {
+			return trace.Wrap(err, "creating default health reporter")
+		}
+		c.HealthReporter = healthReporter
 	}
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1

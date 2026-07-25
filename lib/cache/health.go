@@ -87,6 +87,7 @@ func NewHealthReporter(registry *metrics.Registry) (*HealthReporter, error) {
 	}, nil
 }
 
+// Report the health of a cache.
 func (m *HealthReporter) Report(c *Cache, health bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -118,6 +119,8 @@ func (m *HealthReporter) Report(c *Cache, health bool) {
 	m.gauge.WithLabelValues(c.target).Set(target.value())
 }
 
+// Deregister a cache from the health reporter. Should happen upon close of a
+// cache.
 func (m *HealthReporter) Deregister(c *Cache) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
