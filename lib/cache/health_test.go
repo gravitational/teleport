@@ -47,6 +47,9 @@ type machine struct {
 	all []*Cache
 }
 
+// TODO(russjones): Check if the EAS cache issue is also resolved? Does the
+// HealthReporter need to be shared across TeleportProcess? That would be a
+// pain?
 func (m *machine) init(t *rapid.T) {
 	m.up = map[*Cache]bool{}
 	m.healthyUp = map[*Cache]bool{}
