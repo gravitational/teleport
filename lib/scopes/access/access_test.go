@@ -590,6 +590,44 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name: "ssh block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						LabelExpression: `labels["env"] ==`,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh block with label expression only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
 			name: "invalid kube.lock.mode",
 			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
@@ -719,6 +757,48 @@ func TestValidateRole(t *testing.T) {
 				Version: types.V1,
 			}.Build(),
 			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "kube block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "ssh block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
 			weakOk:   true,
 		},
 		{
@@ -1053,6 +1133,46 @@ func TestValidateRole(t *testing.T) {
 				Version: types.V1,
 			}.Build(),
 			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						LabelExpression: `labels["env"] ==`,
+						Resources:       wildcardKubeResources,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "kube block with label expression only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Resources:       wildcardKubeResources,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
@@ -2152,6 +2272,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+			LabelExpression:     `contains(labels["env"], "prod")`,
 			ClientIdleTimeout:   "1h",
 			PermitX11Forwarding: proto.Bool(true),
 			FileCopy:            proto.Bool(true),
@@ -2186,6 +2307,7 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+			LabelExpression: `contains(labels["env"], "prod")`,
 			Resources: []*scopedaccessv1.KubeResource{
 				scopedaccessv1.KubeResource_builder{
 					Kind:      "pods",

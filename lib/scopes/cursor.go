@@ -149,6 +149,18 @@ func EncodeForResourceCursor(scope string) string {
 	return encoded
 }
 
+// MakeResourceCursorWithHost returns the cursor for a scoped or unscoped
+// host-keyed resource — one keyed by (host ID, name), such as an app server —
+// in a logical, lexicographically ordered resource stream:
+//
+//	scoped:   ~scoped/<encoded-scope>/<host-id>/<name>
+//
+// See [MakeResourceCursor] for cursor semantics. Host cursors are not
+// parseable by [ParseResourceCursor], which rejects composite names.
+func MakeResourceCursorWithHost(scope, hostID, name string) string {
+	return MakeResourceCursor(scope, hostID+separator+name)
+}
+
 // ParseResourceCursor parses a resource cursor produced by [MakeResourceCursor]
 // into its scope and name components.
 //

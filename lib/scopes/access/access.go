@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -208,117 +209,24 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that ssh logins are well-formed
-	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// logins. we likely will support substitution in the future, but its best to disallow
-		// it until that has landed.
-		return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
+	if err := validateDefaultsBlock(role.GetSpec().GetDefaults()); err != nil {
+		return trace.BadParameter("scoped role %q's defaults %s", role.GetMetadata().GetName(), err)
 	}
 
-	// verify that at least one label entry is defined when SSH block is given - scoped roles are deny by default, so a wildcard entry for
-	// labels must be explicitly provided if the role is meant to grant full access
-	if role.GetSpec().GetSsh() != nil && len(role.GetSpec().GetSsh().GetLabels()) == 0 {
-		return trace.BadParameter("scoped role %q has no spec.ssh.labels defined, please add at least one entry", role.GetMetadata().GetName())
-	}
-
-	// verify that ssh node labels are well-formed
-	for _, label := range role.GetSpec().GetSsh().GetLabels() {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// node labels. we likely will support such things in the future, but its best to disallow
-		// them until that has landed.
-
-		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("scoped role %q has invalid node label name %q", role.GetMetadata().GetName(), label.GetName())
-		}
-		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-		}
-	}
-
-	// verify that client_idle_timeout fields are valid Go duration strings
-	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
-		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
-		}
-	}
-	if s := role.GetSpec().GetKube().GetClientIdleTimeout(); s != "" {
-		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("scoped role %q has invalid kube.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
-		}
-	}
-	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
-		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
-		}
-	}
-
-	// verify that create_host_user_mode is a recognized value
-	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
-		var hostUserMode types.CreateHostUserMode
-		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
-			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
-		}
-	}
-
-	// verify that max_sessions is non-negative
-	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
-		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
-	}
-
-	// verify that session_recording_mode fields are recognized values
-	if mode := role.GetSpec().GetSsh().GetSessionRecording().GetMode(); mode != "" {
-		switch constants.SessionRecordingMode(mode) {
-		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
-		default:
-			return trace.BadParameter("scoped role %q has invalid ssh.session_recording_mode. %q: must be %q or %q",
-				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
-		}
-	}
-
-	if mode := role.GetSpec().GetDefaults().GetSessionRecording().GetMode(); mode != "" {
-		switch constants.SessionRecordingMode(mode) {
-		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
-		default:
-			return trace.BadParameter("scoped role %q has invalid defaults.session_recording_mode %q: must be %q or %q",
-				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
-		}
-	}
-
-	// verify that the lock.Mode is a recognized value for Defaults
-	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
-		}
-	}
-	// verify that lock.Mode is a recognized value for SSH
-	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid ssh.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
-		}
+	if err := validateSSHBlock(role.GetSpec().GetSsh()); err != nil {
+		return trace.BadParameter("scoped role %q's ssh %s", role.GetMetadata().GetName(), err)
 	}
 
 	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
-		return trace.BadParameter("scoped role %q %s", role.GetMetadata().GetName(), err)
+		return trace.BadParameter("scoped role %q's app %s", role.GetMetadata().GetName(), err)
 	}
 
-	// verify that kube block is well-formed
 	if err := validateKubeBlock(role.GetSpec().GetKube()); err != nil {
-		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
+		return trace.BadParameter("scoped role %q's kube %s", role.GetMetadata().GetName(), err)
 	}
 
-	// verify that workload_identity labels are well-formed
-	for _, label := range role.GetSpec().GetWorkloadIdentity().GetLabels() {
-		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// workload identity labels. we likely will support such things in the future, but its
-		// best to disallow them until that has landed.
-
-		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("scoped role %q has invalid workload_identity label name %q", role.GetMetadata().GetName(), label.GetName())
-		}
-		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("scoped role %q has invalid workload_identity label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-		}
+	if err := validateLabels(role.GetSpec().GetWorkloadIdentity().GetLabels()); err != nil {
+		return trace.BadParameter("scoped role %q's workload_identity %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that scoped role converts to a valid unscoped role
@@ -341,52 +249,40 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	return ""
 }
 
-func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
-	if app == nil {
-		return nil
+// validateLabelMatchers verifies the labels and label_expressions.
+func validateLabelMatchers(labels []*labelv1.Label, expr string) error {
+	if len(labels) == 0 && expr == "" {
+		return trace.BadParameter("must define at least one labels entry or label_expression")
 	}
 
-	labels := app.GetLabels()
-	if len(labels) == 0 && app.GetLabelExpression() == "" {
-		return trace.BadParameter("must define at least one app.labels entry or app.label expressions")
-	}
-
-	if expr := app.GetLabelExpression(); expr != "" {
+	if expr != "" {
 		if _, err := label.ParseExpression(expr); err != nil {
-			return trace.BadParameter("has invalid app.label_expression: %v", err)
+			return trace.BadParameter("has invalid label_expression: %v", err)
 		}
 	}
 
-	// verify that app labels are well formed
+	return trace.Wrap(validateLabels(labels))
+}
+
+// validateLabels verifies that label names and values are well-formed.
+func validateLabels(labels []*labelv1.Label) error {
 	for _, label := range labels {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
-		// app labels. we likely will support such things in the future, but its best to disallow
+		// labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
 
 		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("has invalid app label name %q", label.GetName())
+			return trace.BadParameter("has invalid label name %q", label.GetName())
 		}
 		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("has invalid app label value %q for label %q", value, label.GetName())
-		}
-	}
-
-	// verify that lock.Mode is a recognized value for App
-	if lock := app.GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("has invalid app.lock.mode %q", lock.GetMode())
-		}
-	}
-
-	if s := app.GetClientIdleTimeout(); s != "" {
-		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("has invalid app.client_idle_timeout %q: %v", s, err)
+			return trace.BadParameter("has invalid label value %q for label %q", value, label.GetName())
 		}
 	}
 	return nil
 }
 
-func validateLock(lock *scopedaccessv1.Lock) error {
+// validateLockMode verifies that lock.mode is a recognized value.
+func validateLockMode(lock *scopedaccessv1.Lock) error {
 	mode := lock.GetMode()
 	switch constants.LockingMode(mode) {
 	// Allow for empty string - we will fall back to the cluster defaults - or best_effort if not set.
@@ -394,7 +290,32 @@ func validateLock(lock *scopedaccessv1.Lock) error {
 	case "":
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
-		return trace.Errorf("invalid lock mode")
+		return trace.BadParameter("has invalid lock.mode %q", mode)
+	}
+	return nil
+}
+
+// validateClientIdleTimeout verifies that client_idle_timeout is a valid Go duration string.
+func validateClientIdleTimeout(s string) error {
+	if s == "" {
+		return nil
+	}
+	if _, err := time.ParseDuration(s); err != nil {
+		return trace.BadParameter("has invalid client_idle_timeout %q: %v", s, err)
+	}
+	return nil
+}
+
+// validateSessionRecordingMode verifies that session_recording.mode is a recognized value.
+func validateSessionRecordingMode(mode string) error {
+	if mode == "" {
+		return nil
+	}
+	switch constants.SessionRecordingMode(mode) {
+	case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+	default:
+		return trace.BadParameter("has invalid session_recording.mode %q: must be %q or %q",
+			mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
 	}
 	return nil
 }
@@ -690,7 +611,7 @@ func getNamespacedResourceAPIGroup(resource string) (string, bool) {
 func validateKubeResource(resource *scopedaccessv1.KubeResource) error {
 	// NOTE(eriktate): errors must start with the field name producing the error so the final reported error
 	// renders correctly.
-	// (e.g. `scoped role "/my/scope::my-role" has invalid kube resource: spec.kube.resources[0].kind is required`)
+	// (e.g. `scoped role "/my/scope::my-role"'s kube has invalid resource: resources[0].kind is required`)
 	for _, verb := range resource.GetVerbs() {
 		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard {
 			return trace.BadParameter("verbs contain invalid or unsupported %q; Supported: %v", verb, types.KubernetesVerbs)
@@ -734,39 +655,24 @@ func validateKubeBlock(kube *scopedaccessv1.ScopedRoleKube) error {
 		return nil
 	}
 
-	// verify that lock.Mode is a recognized value for Kube
-	if lock := kube.GetLock(); lock != nil {
-		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("invalid kube.lock.mode %q", lock.GetMode())
-		}
+	if err := validateLockMode(kube.GetLock()); err != nil {
+		return trace.Wrap(err)
 	}
 
-	// verify that at least one label entry is defined - scoped roles are deny by default, so a wildcard entry for
-	// labels must be explicitly provided if the role is meant to grant full access
-	if len(kube.GetLabels()) == 0 {
-		return trace.BadParameter("no spec.kube.labels defined, please add at least one entry")
-	}
-
-	// verify that kube labels are well-formed
-	for _, label := range kube.GetLabels() {
-		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("invalid kube label name %q", label.GetName())
-		}
-		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("invalid kube label value %q for label %q", value, label.GetName())
-		}
+	if err := validateLabelMatchers(kube.GetLabels(), kube.GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// verify that at least one resource is defined - scoped roles are deny by default, so a wildcard entry for
 	// resources must be explicitly provided when resource-based RBAC is not desired
 	if len(kube.GetResources()) == 0 {
-		return trace.BadParameter("no spec.kube.resources defined, if resource-based RBAC is not required please configure explicit wildcard access")
+		return trace.BadParameter("must define at least one resources entry, if resource-based RBAC is not required please configure explicit wildcard access")
 	}
 
 	// verify that kube resources are well-formed
 	for idx, resource := range kube.GetResources() {
 		if err := validateKubeResource(resource); err != nil {
-			return trace.BadParameter("invalid kube resource: spec.kube.resources[%d].%s", idx, err)
+			return trace.BadParameter("has invalid resource: resources[%d].%s", idx, err)
 		}
 	}
 
@@ -775,7 +681,7 @@ func validateKubeBlock(kube *scopedaccessv1.ScopedRoleKube) error {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// kube groups. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
-		return trace.BadParameter("invalid kube group %q", group)
+		return trace.BadParameter("has invalid group %q", group)
 	}
 
 	// verify that kube users are well-formed
@@ -783,7 +689,99 @@ func validateKubeBlock(kube *scopedaccessv1.ScopedRoleKube) error {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// kube users. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
-		return trace.BadParameter("invalid kube user %q", user)
+		return trace.BadParameter("has invalid user %q", user)
+	}
+
+	if err := validateClientIdleTimeout(kube.GetClientIdleTimeout()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateDefaultsBlock validates the given defaults configuration in a scoped role spec.
+func validateDefaultsBlock(defaults *scopedaccessv1.ScopedRoleDefaults) error {
+	if defaults == nil {
+		return nil
+	}
+
+	if err := validateClientIdleTimeout(defaults.GetClientIdleTimeout()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateSessionRecordingMode(defaults.GetSessionRecording().GetMode()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateLockMode(defaults.GetLock()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateSSHBlock validates the given ssh configuration in a scoped role spec.
+func validateSSHBlock(ssh *scopedaccessv1.ScopedRoleSSH) error {
+	if ssh == nil {
+		return nil
+	}
+
+	if err := validateLabelMatchers(ssh.GetLabels(), ssh.GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// verify that ssh logins are well-formed
+	if login := validateDoesNotContain(ssh.GetLogins(), invalidChars); login != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// logins. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("has invalid login %q", login)
+	}
+
+	if err := validateClientIdleTimeout(ssh.GetClientIdleTimeout()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// verify that create_host_user_mode is a recognized value
+	if mode := ssh.GetHostUserCreation().GetMode(); mode != "" {
+		var hostUserMode types.CreateHostUserMode
+		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
+			return trace.BadParameter("has invalid host_user_creation.create_host_user_mode %q", mode)
+		}
+	}
+
+	// verify that max_sessions is non-negative
+	if ms := ssh.GetMaxSessions(); ms < 0 {
+		return trace.BadParameter("has invalid max_sessions %d: must be non-negative", ms)
+	}
+
+	if err := validateSessionRecordingMode(ssh.GetSessionRecording().GetMode()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateLockMode(ssh.GetLock()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// validateAppBlock validates the given app configuration in a scoped role spec.
+func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
+	if app == nil {
+		return nil
+	}
+
+	if err := validateLabelMatchers(app.GetLabels(), app.GetLabelExpression()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateLockMode(app.GetLock()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := validateClientIdleTimeout(app.GetClientIdleTimeout()); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil

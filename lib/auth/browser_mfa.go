@@ -40,7 +40,7 @@ import (
 func (a *Server) CompleteBrowserMFAChallenge(ctx context.Context, requestID string, webauthnResponse *webauthnpb.CredentialAssertionResponse) (string, error) {
 	const notFoundErrMsg = "mfa session data not found"
 	// Retrieve the MFA session
-	mfaSession, err := a.GetMFASession(ctx, requestID)
+	mfaSession, err := a.GetMFASessionData(ctx, requestID)
 	if trace.IsNotFound(err) {
 		return "", trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
@@ -120,28 +120,22 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		return nil, trace.BadParameter("webauthn response must be supplied")
 	}
 
-	const notFoundErrMsg = "browser MFA session data not found"
-	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
-	if trace.IsNotFound(err) {
-		return nil, trace.NotFound("%s", notFoundErrMsg)
-	} else if err != nil {
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify the user's name matches.
-	if mfaSess.Username != username {
-		return nil, trace.NotFound("%s", notFoundErrMsg)
-	}
-
-	// Verify this is a Browser MFA session and not an SSO MFA session.
-	if mfaSess.TSHRedirectURL == "" || mfaSess.ConnectorType != constants.BrowserMFA {
+	// Verify the session was created by the Browser MFA flow:
+	// Browser MFA sessions are created with the browser connector and a client redirect URL.
+	isBrowserMFASession := mfaSess.ConnectorType == constants.BrowserMFA && mfaSess.TSHRedirectURL != ""
+	if !isBrowserMFASession {
 		a.logger.WarnContext(ctx,
-			"The Browser MFA flow was used to access a SSO MFA session.",
+			"Rejecting an MFA session that was not created by the Browser MFA flow.",
 			"request_id", mfaSess.RequestID,
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
 		)
-		return nil, trace.NotFound("%s", notFoundErrMsg)
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's Browser MFA settings.
@@ -160,22 +154,6 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 			)
 		}
 		return nil, trace.AccessDenied("browser MFA not available")
-	}
-
-	// Check if the given scope is satisfied by the challenge scope.
-	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
-		return nil, trace.AccessDenied(
-			"required scope %q is not satisfied by the given browser MFA session with scope %q",
-			requiredExtensions.Scope,
-			mfaSess.ChallengeExtensions.Scope,
-		)
-	}
-
-	// If this session is reusable, but this context forbids reusable sessions, return an error.
-	reuseNotPermitted := requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
-	sessionAllowsReuse := mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
-	if reuseNotPermitted && sessionAllowsReuse {
-		return nil, trace.AccessDenied("the given browser MFA session allows reuse, but reuse is not permitted in this context")
 	}
 
 	// Convert from protobuf type to wantypes

@@ -5488,6 +5488,7 @@ message OneOf {
     events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 268;
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
+    events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
   }
 }
 
@@ -11203,4 +11204,52 @@ message AgentForward {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+}
+
+// AppSessionTargetDialDenied is emitted when an application target dial is
+// denied by app_service target host restrictions.
+message AppSessionTargetDialDenied {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // ServerMetadata is a common server metadata.
+  ServerMetadata Server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // App is a common application resource metadata.
+  AppMetadata App = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // TargetHost is the host portion of the configured target address.
+  string TargetHost = 6 [(gogoproto.jsontag) = "target_host"];
+  // TargetPort is the port portion of the configured target address.
+  string TargetPort = 7 [(gogoproto.jsontag) = "target_port"];
+  // ResolvedIPs are the concrete IPs considered for the dial.
+  repeated string ResolvedIPs = 8 [(gogoproto.jsontag) = "resolved_ips,omitempty"];
+  // Policy is the target host policy mode that denied the dial.
+  string Policy = 9 [(gogoproto.jsontag) = "policy"];
+  // BlockedIP is the concrete IP that caused the denial, when available.
+  string BlockedIP = 10 [(gogoproto.jsontag) = "blocked_ip,omitempty"];
+  // BlockedPrefix is the configured prefix that matched BlockedIP, when
+  // denied_hosts caused the denial.
+  string BlockedPrefix = 11 [(gogoproto.jsontag) = "blocked_prefix,omitempty"];
 }

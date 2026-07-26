@@ -671,13 +671,18 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.SubCAService == nil {
-		var err error
-		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+	if cfg.SubCAService == nil || cfg.PendingCSRRequestService == nil {
+		localSubCA, err := local.NewSubCAService(local.SubCAServiceParams{
 			Backend: cfg.Backend,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+		if cfg.SubCAService == nil {
+			cfg.SubCAService = localSubCA
+		}
+		if cfg.PendingCSRRequestService == nil {
+			cfg.PendingCSRRequestService = localSubCA
 		}
 	}
 
@@ -754,6 +759,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Beams:                           cfg.Beams,
 		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
+		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 		EnrollPairing:                   cfg.EnrollPairing,
 	}
 
@@ -3084,6 +3090,8 @@ type AppTestCertRequest struct {
 	PinnedIP string
 	// LoginTrait is the login to include in the cert
 	LoginTrait string
+	// Scope is the optional scope of the target application to encode in the route.
+	Scope string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -3129,6 +3137,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		AppSessionID:      sessionID,
 		AppPublicAddr:     req.PublicAddr,
+		TargetScope:       req.Scope,
 		AppTargetPort:     req.TargetPort,
 		AppClusterName:    req.ClusterName,
 		AWSRoleARN:        req.AWSRoleARN,
@@ -4037,6 +4046,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			PublicAddr:                      req.AppPublicAddr,
 			ClusterName:                     req.AppClusterName,
 			Name:                            req.AppName,
+			Scope:                           req.TargetScope,
 			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 			AzureIdentity:                   req.AzureIdentity,
@@ -4481,7 +4491,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 
 		var err error
-		browserMFAReq, err = a.GetMFASession(ctx, req.BrowserMFARequestID)
+		browserMFAReq, err = a.GetMFASessionData(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")
@@ -8210,6 +8220,10 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// Make sure we only return the app with the matching scope.
+			if server.GetScope() != t.App.Scope {
+				continue
+			}
 			app = server.GetApp()
 			break
 		}
@@ -8634,16 +8648,8 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
-			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
-				trace.IsNotFound(err) {
-				// Do not add extra user messages to
-				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
-				// client-side code from using errors.Is to reliably identify
-				// this specific error after it goes through gRPC. The original
-				// error isn't particularly useful to the user anyway, so just
-				// log it at debug level.
-				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
-				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
+				return nil, trace.Wrap(reuseErr)
 			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
@@ -8676,6 +8682,50 @@ func (a *Server) validateMFAAuthResponseInternal(
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
+}
+
+// convertToErrExpiredReusableMFAResponse converts err to
+// mfa.ErrExpiredReusableMFAResponse, if appropriate.
+// Returns nil if the conversion should not apply.
+func (a *Server) convertToErrExpiredReusableMFAResponse(ctx context.Context, err error, requiredExtensions *mfav1.ChallengeExtensions) error {
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && trace.IsNotFound(err) {
+		a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+		return trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+	}
+	return nil
+}
+
+// mfaSessionDataNotFoundMsg is the client-facing error for a missing, foreign, or wrong-flow MFA session.
+const mfaSessionDataNotFoundMsg = "mfa session data not found"
+
+// verifyMFASessionData validates the stored MFA session shared by the SSO and browser MFA verify flows.
+func (a *Server) verifyMFASessionData(
+	ctx context.Context,
+	sessionID,
+	username string,
+	requiredExtensions *mfav1.ChallengeExtensions,
+) (*services.MFASessionData, error) {
+	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
+	if err != nil {
+		if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
+			return nil, reuseErr
+		}
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+	if mfaSess.Username != username {
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
+	}
+	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
+		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
+	}
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO &&
+		mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given MFA session allows reuse, but reuse is not permitted in this context")
+	}
+	return mfaSess, nil
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
