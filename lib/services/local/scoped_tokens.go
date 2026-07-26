@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -489,17 +490,31 @@ func (p *scopedTokenParser) parse(event backend.Event) (types.Resource, error) {
 		}
 		return types.Resource153ToLegacy(scopedToken), nil
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(scopedTokenPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key)
+		key := event.Item.Key.TrimPrefix(backend.NewKey(scopedTokenPrefix))
+
+		if len(key.Components()) != 2 {
+			return nil, trace.BadParameter("malformed scoped token key %q", event.Item.Key.String())
 		}
-		return &types.ResourceHeader{
+
+		encodedScope := key.Components()[0]
+		name := key.Components()[1]
+		if encodedScope == "" || name == "" {
+			return nil, trace.NotFound("failed parsing %q", event.Item.Key.String())
+		}
+
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed decoding scope from scoped token key %q", event.Item.Key.String())
+		}
+
+		return types.Resource153ToLegacy(joiningv1.ScopedToken_builder{
 			Kind:    types.KindScopedToken,
 			Version: types.V1,
-			Metadata: types.Metadata{
+			Scope:   scope,
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-		}, nil
+			}.Build(),
+		}.Build()), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

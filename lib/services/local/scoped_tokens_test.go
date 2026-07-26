@@ -46,6 +46,79 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
+func TestScopedTokenEvents(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		bk, err := memory.New(memory.Config{Context: ctx})
+		require.NoError(t, err)
+		defer bk.Close()
+
+		service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
+		require.NoError(t, err)
+		events := local.NewEventsService(bk)
+		token := newToken()
+
+		watcher, err := events.NewWatcher(ctx, types.Watch{
+			Kinds: []types.WatchKind{{
+				Kind:        types.KindScopedToken,
+				ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Scope: token.GetScope(), Mode: scopesv1.Mode_MODE_EXACT}.Build()),
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		getNextEvent := func() types.Event {
+			t.Helper()
+			synctest.Wait()
+			select {
+			case event := <-watcher.Events():
+				return event
+			case <-watcher.Done():
+				require.FailNow(t, "Watcher exited with error", watcher.Error())
+			default:
+				require.FailNow(t, "No event ready, synctest bubble is durably blocked")
+			}
+			panic("unreachable")
+		}
+
+		event := getNextEvent()
+		require.Equal(t, types.OpInit, event.Type)
+
+		created, err := service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+			Token: token,
+		}.Build())
+		require.NoError(t, err)
+
+		event = getNextEvent()
+		require.Equal(t, types.OpPut, event.Type)
+		putToken, ok := event.Resource.(types.Resource153UnwrapperT[*joiningv1.ScopedToken])
+		require.True(t, ok)
+		require.Empty(t, gocmp.Diff(created.GetToken(), putToken.UnwrapT(), protocmp.Transform()))
+
+		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+			Name:  token.GetMetadata().GetName(),
+			Scope: token.GetScope(),
+		}.Build())
+		require.NoError(t, err)
+
+		event = getNextEvent()
+		require.Equal(t, types.OpDelete, event.Type)
+		deletedToken, ok := event.Resource.(types.Resource153UnwrapperT[*joiningv1.ScopedToken])
+		require.True(t, ok)
+		require.Empty(t, gocmp.Diff(joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: token.GetMetadata().GetName(),
+			}.Build(),
+			Scope: token.GetScope(),
+		}.Build(), deletedToken.UnwrapT(), protocmp.Transform()))
+	})
+}
+
 func TestScopedTokenService(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
