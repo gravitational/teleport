@@ -176,16 +176,19 @@ func NewServer(cfg *ServerConfig) *Server {
 // for a match. If the name is _not_ a Scope Qualified Name, then a legacy [types.ProvisionTokenV2]
 // is returned.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
-	qn, err := scopes.ParseQualifiedName(name)
-
 	// The token name was NOT a SQN so it must only match a [types.ProvisionTokenV2].
-	if err != nil {
+	if !scopes.MaybeSQN(name) {
 		classic, err := s.cfg.AuthService.ValidateToken(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return classic, nil
+	}
+
+	qn, err := scopes.ParseQualifiedName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// The token name was a SQN so it must only match a [joiningv1.ScopedToken].

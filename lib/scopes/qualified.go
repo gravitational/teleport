@@ -112,19 +112,24 @@ func (q QualifiedName) WeakValidate() error {
 	return nil
 }
 
+// MaybeSQN returns true if the given string *might* be a scope-qualified name. This function is intended to be used
+// for testing fields that may contain a mix of scope-qualified and unscoped names. Generally, any string that trips
+// this check should be considered to have been intended to be an SQN by the user, and treated as a typo if it fails
+// to parse as one.
+func MaybeSQN(s string) bool {
+	return strings.HasPrefix(s, separator) || strings.Contains(s, QualifiedNameSeparator)
+}
+
 // ParseQualifiedName parses a scope-qualified name string into its scope and name
 // components by splitting on the first occurrence of "::". Returns an error if the
 // separator is absent or either component is empty. This function does not validate
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	idx := strings.Index(sqn, QualifiedNameSeparator)
-	if idx < 0 {
+	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
+	if !ok {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
-
-	scope := sqn[:idx]
-	name := sqn[idx+len(QualifiedNameSeparator):]
 
 	if scope == "" {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)
