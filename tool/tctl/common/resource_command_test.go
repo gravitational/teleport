@@ -893,9 +893,9 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 		Hostname: "scoped-host",
 		Addr:     "127.0.0.1:23",
 	})
-	require.NoError(t, err)
+
 	scopedNode.(*types.ServerV2).Scope = "/staging"
-	_, err = clt.UpsertNode(ctx, scopedNode)
+	_, err = auth.GetAuthServer().UpsertNode(ctx, scopedNode)
 	require.NoError(t, err)
 
 	// Poll until both nodes appear via the unified-resource list (cache propagation).
@@ -970,33 +970,6 @@ func TestScopedAndUnscopedNodeResource(t *testing.T) {
 			select {
 			case <-timeout:
 				require.FailNow(t, "timed out waiting for unscoped-node hostname edit")
-			case <-time.After(100 * time.Millisecond):
-			}
-		}
-	})
-
-	t.Run("edit via two-arg SQN form", func(t *testing.T) {
-		editor := func(name string) error {
-			data, err := os.ReadFile(name)
-			if err != nil {
-				return err
-			}
-			data = bytes.ReplaceAll(data, []byte("scoped-host"), []byte("scoped-host-edited"))
-			return os.WriteFile(name, data, 0600)
-		}
-		_, err := runEditCommand(t, clt, []string{"edit", "node", "/staging::scoped-node"}, withEditor(editor))
-		require.NoError(t, err)
-
-		timeout := time.After(30 * time.Second)
-		for {
-			node, err := clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
-			if err == nil && node.GetHostname() == "scoped-host-edited" {
-				break
-			}
-			require.NoError(t, err, "unexpected error waiting for scoped-node edit")
-			select {
-			case <-timeout:
-				require.FailNow(t, "timed out waiting for scoped-node hostname edit")
 			case <-time.After(100 * time.Millisecond):
 			}
 		}

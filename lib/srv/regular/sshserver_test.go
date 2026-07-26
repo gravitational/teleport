@@ -2923,7 +2923,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 				Hostname: "agentless",
 			},
 		}
-		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
+		_, err = f.testSrv.AuthServer.AuthServer.UpsertNode(ctx, &agentlessSrv)
 		require.NoError(t, err)
 
 		router, err := libproxy.NewRouter(libproxy.RouterConfig{

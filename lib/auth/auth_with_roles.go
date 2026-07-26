@@ -1106,6 +1106,17 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
+	// The below check upholds the following two invariants:
+	// - An agentless host cannot be created by an agent, it must be created by an end user
+	// - Only scoped agentless hosts can be created to prevent immutable label modifications
+	_, isAgent := a.scopedContext.LocalServerID()
+	switch {
+	case isAgent && s.IsOpenSSHNode():
+		return nil, trace.BadParameter("%s may not create agentless hosts", a.scopedContext.DisplayName())
+	case s.GetScope() != "" && !s.IsOpenSSHNode():
+		return nil, trace.BadParameter("scoped nodes may not be created via UpsertNode")
+	}
+
 	return a.authServer.UpsertNode(ctx, s)
 }
 
