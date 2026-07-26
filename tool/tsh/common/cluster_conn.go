@@ -83,20 +83,18 @@ func (c *clusterConn) Acquire(ctx context.Context) (kubeCertClient, func(), erro
 	}
 	c.holders++
 
-	var once sync.Once // release is idempotent, like a context.CancelFunc
-	release := func() {
-		once.Do(func() {
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			c.holders--
-			if c.holders > 0 {
-				return
-			}
-			if err := c.conn.Close(); err != nil {
-				logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
-			}
-			c.conn = nil
-		})
-	}
+	// release is idempotent, like a context.CancelFunc.
+	release := sync.OnceFunc(func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.holders--
+		if c.holders > 0 {
+			return
+		}
+		if err := c.conn.Close(); err != nil {
+			logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
+		}
+		c.conn = nil
+	})
 	return c.conn, release, nil
 }

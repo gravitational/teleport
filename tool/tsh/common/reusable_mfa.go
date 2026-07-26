@@ -98,6 +98,5 @@ func (m *reusableMFA) AcquireCeremonyLock(ctx context.Context) (release func(), 
 	if err := m.ceremonyLock.Acquire(ctx, 1); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var once sync.Once // release is idempotent
-	return func() { once.Do(func() { m.ceremonyLock.Release(1) }) }, nil
+	return sync.OnceFunc(func() { m.ceremonyLock.Release(1) }), nil
 }

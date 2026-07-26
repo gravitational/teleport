@@ -102,5 +102,6 @@ func (g *kubeClusterGroup) Close(ctx context.Context) {
 		if err := lazy.client.Close(); err != nil {
 			logger.WarnContext(ctx, "Failed to close auth client", "error", err)
 		}
+		lazy.client = nil
 	}
 }
