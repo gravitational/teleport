@@ -40,8 +40,9 @@ type ScopedTokenClient struct {
 // Get reads a scoped token by name.
 func (r ScopedTokenClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*joiningv1.ScopedToken, error) {
 	scopedToken, err := r.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-		Name:  id.Name,
-		Scope: id.Scope,
+		Name:       id.Name,
+		Scope:      id.Scope,
+		WithSecret: true,
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
