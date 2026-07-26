@@ -21,7 +21,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -40,7 +39,7 @@ import (
 // travels in the issuance request and the server matches it against the named
 // resource's scope.
 func parseNameSelector(selector string) (name, scope string, err error) {
-	if !strings.Contains(selector, scopes.QualifiedNameSeparator) {
+	if !scopes.MaybeSQN(selector) {
 		return selector, "", nil
 	}
 	qn, err := scopes.ParseQualifiedName(selector)
