@@ -30,6 +30,7 @@ export const eventGroupTypes = {
   subsystem: 'Subsystem Request',
   'user.login': 'User Logins',
   'spiffe.svid.issued': 'SPIFFE SVID Issuance',
+  'device.enroll_pairing.request': 'Device Enroll Pairing Request',
 };
 
 /**
@@ -43,7 +44,6 @@ export const eventGroupTypes = {
  *    These duplicated event types needs to be defined in `eventGroupTypes` object
  *  3: Define icons for events under `EventTypeCell.tsx` file
  *  4: Add an actual JSON event to the fixtures file in `src/Audit/fixtures/index.ts`.
- *  5: Check fixture is rendered in storybook, then update snapshot for `Audit.story.test.tsx`
  */
 export const eventCodes = {
   ACCESS_REQUEST_CREATED: 'T5000I',
@@ -56,6 +56,7 @@ export const eventCodes = {
   APP_SESSION_START: 'T2007I',
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
+  APP_SESSION_TARGET_DIAL_DENIED: 'T2019E',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_SESSION_HTTP_REQUEST: 'T2015I',
   APP_SESSION_HTTP_REQUEST_BODY_CHUNK: 'T2016I',
@@ -137,6 +138,8 @@ export const eventCodes = {
   DEVICE_UPDATE: 'TV007I',
   DEVICE_WEB_TOKEN_CREATE: 'TV008I',
   DEVICE_AUTHENTICATE_CONFIRM: 'TV009I',
+  DEVICE_ENROLL_PAIRING_REQUEST: 'TV010I',
+  DEVICE_ENROLL_PAIRING_REQUEST_FAILURE: 'TV010W',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -730,6 +733,19 @@ export type RawEvents = {
     typeof eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK,
     {
       request_id: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: RawEvent<
+    typeof eventCodes.APP_SESSION_TARGET_DIAL_DENIED,
+    {
+      sid: string;
+      app_name: string;
+      target_host: string;
+      target_port: string;
+      resolved_ips: string[];
+      policy: string;
+      blocked_ip: string;
+      blocked_prefix: string;
     }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
@@ -1430,6 +1446,15 @@ export type RawEvents = {
   >;
   [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: RawDeviceEvent<
     typeof eventCodes.DEVICE_AUTHENTICATE_CONFIRM
+  >;
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST]: RawDeviceEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_REQUEST
+  >;
+  // The failure event carries no user (the pairing lookup that resolves the user
+  // is what failed) and surfaces the failure reason via the error field.
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE,
+    Merge<DeviceEventFields, { error?: string }>
   >;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
@@ -2583,16 +2608,15 @@ type RawEventData<T extends EventCode> = RawEvent<
   }
 >;
 
-type RawDeviceEvent<T extends EventCode> = RawEvent<
-  T,
-  {
-    device: { asset_tag: string; device_id: string; os_type: number };
-    success?: boolean;
-    user?: string;
-    // status from "legacy" event format.
-    status?: { success: boolean };
-  }
->;
+type DeviceEventFields = {
+  device: { asset_tag: string; device_id: string; os_type: number };
+  success?: boolean;
+  user?: string;
+  // status from "legacy" event format.
+  status?: { success: boolean };
+};
+
+type RawDeviceEvent<T extends EventCode> = RawEvent<T, DeviceEventFields>;
 
 type RawEventCommand<T extends EventCode> = RawEvent<
   T,

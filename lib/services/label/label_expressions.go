@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package services
+package label
 
 import (
 	"slices"
@@ -30,26 +30,27 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-type labelExpression typical.Expression[labelExpressionEnv, bool]
+type Expression typical.Expression[ExpressionEnv, bool]
 
-type labelExpressionEnv struct {
-	resourceLabelGetter LabelGetter
-	username            string
-	userTraits          map[string][]string
+type ExpressionEnv struct {
+	ResourceLabelGetter LabelGetter
+	Username            string
+	UserTraits          map[string][]string
 }
 
 var labelExpressionParser = mustNewLabelExpressionParser()
 
-func parseLabelExpression(expr string) (labelExpression, error) {
+// ParseExpression checks that the given label expression string is
+// valid and returns a [labelExpression].
+func ParseExpression(expr string) (Expression, error) {
 	parsedExpr, err := labelExpressionParser.Parse(expr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing label expression")
 	}
 	return parsedExpr, nil
-
 }
 
-func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bool] {
+func mustNewLabelExpressionParser() *typical.CachedParser[ExpressionEnv, bool] {
 	parser, err := newLabelExpressionParser()
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create label expression parser (this is a bug)"))
@@ -57,39 +58,39 @@ func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bo
 	return parser
 }
 
-func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
-	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec[labelExpressionEnv]{
+func newLabelExpressionParser() (*typical.CachedParser[ExpressionEnv, bool], error) {
+	parser, err := typical.NewCachedParser[ExpressionEnv, bool](typical.ParserSpec[ExpressionEnv]{
 		Variables: map[string]typical.Variable{
 			"user.metadata.name": typical.DynamicVariable(
-				func(env labelExpressionEnv) (string, error) {
-					if env.username == "" {
+				func(env ExpressionEnv) (string, error) {
+					if env.Username == "" {
 						return "", trace.NotFound("user.metadata.name is not available in this context")
 					}
-					return env.username, nil
+					return env.Username, nil
 				}),
 			"user.spec.traits": typical.DynamicVariable(
-				func(env labelExpressionEnv) (map[string][]string, error) {
-					return env.userTraits, nil
+				func(env ExpressionEnv) (map[string][]string, error) {
+					return env.UserTraits, nil
 				}),
 			"labels": typical.DynamicMapFunction(
-				func(env labelExpressionEnv, key string) (string, error) {
-					label, _ := env.resourceLabelGetter.GetLabel(key)
+				func(env ExpressionEnv, key string) (string, error) {
+					label, _ := env.ResourceLabelGetter.GetLabel(key)
 					return label, nil
 				}),
 		},
 		Functions: map[string]typical.Function{
-			"set": typical.UnaryVariadicFunction[labelExpressionEnv](
+			"set": typical.UnaryVariadicFunction[ExpressionEnv](
 				func(args ...string) ([]string, error) {
 					return args, nil
 				}),
 			"labels_matching": typical.UnaryFunctionWithEnv(labelsMatching),
-			"contains": typical.BinaryFunction[labelExpressionEnv](
+			"contains": typical.BinaryFunction[ExpressionEnv](
 				func(list []string, item string) (bool, error) {
 					return slices.Contains(list, item), nil
 				}),
-			"contains_any": typical.BinaryFunction[labelExpressionEnv](containsAny),
-			"contains_all": typical.BinaryFunction[labelExpressionEnv](containsAll),
-			"regexp.match": typical.BinaryFunction[labelExpressionEnv](
+			"contains_any": typical.BinaryFunction[ExpressionEnv](containsAny),
+			"contains_all": typical.BinaryFunction[ExpressionEnv](containsAll),
+			"regexp.match": typical.BinaryFunction[ExpressionEnv](
 				func(list []string, re string) (bool, error) {
 					match, err := utils.RegexMatchesAny(list, re)
 					if err != nil {
@@ -99,9 +100,9 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 				}),
 			// Use regexp.replace and email.local from lib/utils/parse to get behavior identical
 			// to role templates.
-			"regexp.replace": typical.TernaryFunction[labelExpressionEnv](parse.RegexpReplace),
-			"email.local":    typical.UnaryFunction[labelExpressionEnv](parse.EmailLocal),
-			"strings.upper": typical.UnaryFunction[labelExpressionEnv](
+			"regexp.replace": typical.TernaryFunction[ExpressionEnv](parse.RegexpReplace),
+			"email.local":    typical.UnaryFunction[ExpressionEnv](parse.EmailLocal),
+			"strings.upper": typical.UnaryFunction[ExpressionEnv](
 				func(list []string) ([]string, error) {
 					out := make([]string, len(list))
 					for i, s := range list {
@@ -109,7 +110,7 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 					}
 					return out, nil
 				}),
-			"strings.lower": typical.UnaryFunction[labelExpressionEnv](
+			"strings.lower": typical.UnaryFunction[ExpressionEnv](
 				func(list []string) ([]string, error) {
 					out := make([]string, len(list))
 					for i, s := range list {
@@ -125,8 +126,8 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 // labelsMatching returns the aggregate of all label values for all keys that
 // match keyExpr. It supports globs or full regular expressions and must find
 // a complete match for the key.
-func labelsMatching(env labelExpressionEnv, keyExpr string) ([]string, error) {
-	allLabels := env.resourceLabelGetter.GetAllLabels()
+func labelsMatching(env ExpressionEnv, keyExpr string) ([]string, error) {
+	allLabels := env.ResourceLabelGetter.GetAllLabels()
 	var matchingLabelValues []string
 	for key, value := range allLabels {
 		match, err := utils.MatchString(key, keyExpr)

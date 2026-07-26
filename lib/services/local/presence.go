@@ -56,6 +56,33 @@ type PresenceService struct {
 	backend.Backend
 
 	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
+	appServers   *generic.ScopeAwareService[types.AppServer]
+}
+
+type appServerServiceParams struct {
+	Scope, Host string
+}
+
+// appServerServiceForHost returns a [*generic.Service] prefixed for the app
+// servers of a single host:
+//   - unscoped: /appServers/default/<host-id>/<name>
+//   - scoped:   /scoped/appServers/<encoded-scope>/<host-id>/<name>
+//
+// The legacy default namespace is part of the unscoped backend prefix, as we
+// do not support anything other than default.
+//
+// Since an app server represents a single proxied application, there may be
+// multiple app servers on a single host, so the hostID prefix is needed.
+func appServerServiceForHost(
+	appServers *generic.ScopeAwareService[types.AppServer],
+	params appServerServiceParams,
+) (*generic.Service[types.AppServer], error) {
+	service, err := appServers.WithScopePrefix(params.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return service.WithPrefix(params.Host), nil
 }
 
 var _ services.PresenceInternal = (*PresenceService)(nil)
@@ -77,12 +104,26 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 	if err != nil {
 		panic("impossible: failed to construct relay_server service wrapper")
 	}
+
+	appServers, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.AppServer]{
+		Backend:               b,
+		ResourceKind:          types.KindAppServer,
+		UnscopedBackendPrefix: backend.NewKey(appServersPrefix, apidefaults.Namespace),
+		ScopedBackendPrefix:   backend.NewKey(scopedPrefix, appServersPrefix),
+		MarshalFunc:           services.MarshalAppServer,
+		UnmarshalFunc:         services.UnmarshalAppServer,
+	})
+	if err != nil {
+		panic("impossible: failed to construct app_server service wrapper")
+	}
+
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
 		Backend: b,
 
 		relayServers: relayServers,
+		appServers:   appServers,
 	}
 }
 
@@ -1197,31 +1238,8 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 	if namespace == "" {
 		return nil, trace.BadParameter("missing namespace")
 	}
-	servers, err := s.getApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return servers, nil
-}
 
-func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	startKey := backend.ExactKey(appServersPrefix, namespace)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]types.AppServer, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalAppServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-	return servers, nil
+	return stream.Collect(s.appServers.Resources(ctx, "", ""))
 }
 
 // RangeApplicationServersWithName returns an iterator over application servers for a given app name.
@@ -1229,25 +1247,12 @@ func (s *PresenceService) RangeApplicationServersWithName(ctx context.Context, a
 	if appName == "" {
 		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
 	}
-
-	mapFn := func(item backend.Item) (types.AppServer, bool) {
-		server, err := services.UnmarshalAppServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal application server", "key", item.Key, "error", err)
-			return nil, false
-		}
+	mapFn := func(server types.AppServer) (types.AppServer, bool) {
 		app := server.GetApp()
 		return server, app != nil && app.GetName() == appName
 	}
 
-	startKey := backend.ExactKey(appServersPrefix, apidefaults.Namespace)
-	endKey := backend.RangeEnd(startKey)
-
-	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+	return stream.FilterMap(s.appServers.Resources(ctx, "", ""), mapFn)
 }
 
 // UpsertApplicationServer registers an application server.
@@ -1259,36 +1264,25 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 		return nil, trace.Wrap(err)
 	}
 
-	rev := server.GetRevision()
-	value, err := services.MarshalAppServer(server)
+	svc, err := appServerServiceForHost(s.appServers, appServerServiceParams{Scope: server.GetScope(), Host: server.GetHostID()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	_, err = s.Put(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
-	})
+	upserted, err := svc.UpsertResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if server.Expiry().IsZero() {
+
+	if upserted.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}
+
 	return &types.KeepAlive{
 		Type:      types.KeepAlive_APP,
 		Name:      server.GetName(),
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
-		Expires:   server.Expiry(),
+		Expires:   upserted.Expiry(),
 	}, nil
 }
 
@@ -1301,43 +1295,45 @@ func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.MarshalAppServer(server)
+	svc, err := appServerServiceForHost(s.appServers, appServerServiceParams{Scope: server.GetScope(), Host: server.GetHostID()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Update(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName(),
-		),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	})
+	updated, err := svc.UpdateResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	server.SetRevision(lease.Revision)
-	return server, nil
+	return updated, nil
 }
 
-// DeleteApplicationServer removes specified application server.
+// DeleteAppServer removes a scoped or unscoped application server.
+// Unscoped app servers always use the legacy default namespace and scoped app
+// servers have no namespace.
+func (s *PresenceService) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
+	svc, err := appServerServiceForHost(s.appServers, appServerServiceParams{Scope: req.GetScope(), Host: req.GetHostId()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(svc.DeleteResource(ctx, req.GetName()))
+}
+
+// DeleteApplicationServer removes an unscoped application server.
+//
+// Deprecated: use DeleteAppServer instead. Kept temporarily so
+// gravitational/teleport.e compiles across the rename; remove once e
+// has migrated.
 func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
-	key := backend.NewKey(appServersPrefix, namespace, hostID, name)
-	return s.Delete(ctx, key)
+	return trace.Wrap(s.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: hostID,
+		Name:   name,
+	}.Build()))
 }
 
 // DeleteAllApplicationServers removes all registered application servers.
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
-	startKey := backend.ExactKey(appServersPrefix, namespace)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(s.appServers.DeleteAllResources(ctx))
 }
 
 // KeepAliveServer updates expiry time of a server resource.
@@ -1576,8 +1572,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{databaseServicePrefix}
 		unmarshalItemFunc = backendItemToDatabaseService
 	case types.KindAppServer:
-		keyPrefix = []string{appServersPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToApplicationServer
+		return s.listAppServers(ctx, req)
 	case types.KindNode:
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
@@ -1651,6 +1646,47 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}
 
 	return &resp, nil
+}
+
+// listAppServers returns a page of application servers retrieving both the
+// unscoped and the scoped backend entries.
+func (s *PresenceService) listAppServers(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	var matchErr error
+	servers, nextKey, err := s.appServers.ListResourcesWithFilter(ctx, int(req.Limit), req.StartKey, func(server types.AppServer) bool {
+		if matchErr != nil {
+			return false
+		}
+		match, err := services.MatchResourceByFilters(server, filter, nil /* ignore dup matches */)
+		if err != nil {
+			matchErr = err
+			return false
+		}
+		return match
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if matchErr != nil {
+		return nil, trace.Wrap(matchErr)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources: types.AppServers(servers).AsResources(),
+		NextKey:   nextKey,
+	}, nil
 }
 
 func getFakePaginationKey(ki backend.KeyedItem) string {
@@ -1933,17 +1969,6 @@ func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, 
 	return services.UnmarshalDatabaseService(
 		item.Value,
 		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
-	)
-}
-
-// backendItemToApplicationServer unmarshals `backend.Item` into a
-// `types.AppServer`, returning it as a `types.ResourceWithLabels`.
-func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
-	return services.UnmarshalAppServer(
-		item.Value,
-		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
 		services.WithRevision(item.Revision),
 	)
 }

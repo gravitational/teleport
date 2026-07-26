@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -310,44 +312,18 @@ func (c *Context) LockTargets() []types.LockTarget {
 	if _, ok := c.Identity.(UnauthenticatedRole); ok {
 		return nil
 	}
-	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
-Loop:
-	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
-		// Append a lock target from UnmappedIdentity only if it is not already
-		// known from Identity.
-		for _, knownTarget := range lockTargets {
-			if unmappedTarget.Equals(knownTarget) {
-				continue Loop
-			}
-		}
-		lockTargets = append(lockTargets, unmappedTarget)
+	lockTargets := make(map[types.LockTarget]struct{})
+	for lockTarget := range services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity()) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	for lockTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		lockTargets[lockTarget] = struct{}{}
 	}
 	if r, ok := c.Identity.(BuiltinRole); ok {
-		switch r.Role {
-		// Node role is a special case because it was previously suported as a
-		// lock target that only locked the `ssh_service`. If the same Teleport server
-		// had multiple roles, Node lock would only lock the `ssh_service` while
-		// other roles would be able to authenticate into Teleport without a problem.
-		// To remove the ambiguity, we now lock the entire Teleport server for
-		// all roles using the LockTarget.ServerID field and `Node` field is
-		// deprecated.
-		// In order to support legacy behavior, we need fill in both `ServerID`
-		// and `Node` fields if the role is `Node` so that the previous behavior
-		// is preserved.
-		// This is a legacy behavior that we need to support for backwards compatibility.
-		case types.RoleNode:
-			lockTargets = append(lockTargets,
-				types.LockTarget{ServerID: r.GetServerID()},
-				types.LockTarget{ServerID: r.Identity.Username},
-			)
-		default:
-			lockTargets = append(lockTargets,
-				types.LockTarget{ServerID: r.GetServerID()},
-				types.LockTarget{ServerID: r.Identity.Username},
-			)
-		}
+		lockTargets[types.LockTarget{ServerID: r.GetServerID()}] = struct{}{}
+		lockTargets[types.LockTarget{ServerID: r.Identity.Username}] = struct{}{}
 	}
-	return lockTargets
+	return slices.AppendSeq(make([]types.LockTarget, 0, len(lockTargets)), maps.Keys(lockTargets))
 }
 
 // WithExtraRoles returns a shallow copy of [c], where the users roles have been

@@ -141,6 +141,7 @@ func ForAuth(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindCertAuthorityOverride},
+		{Kind: types.KindPendingCSRRequest},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -1889,7 +1890,7 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 			return nil, trace.Wrap(err)
 		case match:
 			if len(resp.Resources) == limit {
-				resp.NextKey = backend.GetPaginationKey(r)
+				resp.NextKey = services.GetCursorForResource(r)
 				return &resp, nil
 			}
 

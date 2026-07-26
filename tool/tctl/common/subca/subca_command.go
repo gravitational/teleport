@@ -175,6 +175,9 @@ func (c *Command) Initialize(
 	c.createOverrideCSR.
 		Flag("subject", `Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"`).
 		StringVar(&c.createOverrideCSR.subject)
+	c.createOverrideCSR.
+		Flag("local-only", "If true only private keys local to the replying Auth server are used.").
+		BoolVar(&c.createOverrideCSR.localOnly)
 
 	c.createOverride.CmdClause = parent.Command("create-override", "Add a single certificate override to a CA override resource")
 	c.createOverride.Flag("type", caTypesHelp).
@@ -272,6 +275,7 @@ type createOverrideCSRCommand struct {
 	out       string // Output path prefix.
 	publicKey string
 	subject   string
+	localOnly bool
 }
 
 func (c *createOverrideCSRCommand) Run(
@@ -317,6 +321,7 @@ func (c *createOverrideCSRCommand) Run(
 		CaType:        caType,
 		PublicKeyHash: pubKey,
 		CustomSubject: customSubject,
+		LocalOnly:     c.localOnly,
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "create CSRs")
@@ -324,6 +329,15 @@ func (c *createOverrideCSRCommand) Run(
 	// Defensive. Should fail server-side if that's the case.
 	if len(resp.GetCsrs()) == 0 {
 		return trace.BadParameter("no CSRs created")
+	}
+
+	// Print warnings to stderr.
+	for _, warn := range resp.GetWarnings() {
+		if pkh := warn.GetPublicKeyHash(); pkh != "" {
+			fmt.Fprintf(s.Stderr, "public key %q: %s\n", pkh, warn.GetUserMessage())
+		} else {
+			fmt.Fprintln(s.Stderr, warn.GetUserMessage())
+		}
 	}
 
 	// If writing to stdout there's no need to parse the PEMs or form filenames.

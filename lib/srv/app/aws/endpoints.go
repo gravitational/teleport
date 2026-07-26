@@ -58,7 +58,7 @@ func resolveEndpoint(r *http.Request, authHeader string) (*common.AWSResolvedEnd
 	default:
 		return nil, trace.BadParameter("invalid AWS endpoint %q", forwardedHost)
 	}
-	if !awsapiutils.IsAWSEndpoint(u.Hostname()) {
+	if !awsapiutils.IsAWSOwnedEndpoint(u.Hostname()) {
 		return nil, trace.BadParameter("invalid AWS endpoint %q", forwardedHost)
 	}
 

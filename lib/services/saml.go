@@ -308,15 +308,6 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 	return rawEntityDescriptor, entityDescriptor, nil
 }
 
-// GetAttributeNames returns a list of claim names from the claim values
-func GetAttributeNames(attributes map[string]samltypes.Attribute) []string {
-	var out []string
-	for _, attr := range attributes {
-		out = append(out, attr.Name)
-	}
-	return out
-}
-
 // SAMLAssertionsToTraits converts saml assertions to traits
 func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string {
 	traits := make(map[string][]string, len(assertions.Values))

@@ -40,8 +40,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// AsyncBufferSize is a default buffer size for async emitters
-const AsyncBufferSize = 1024
+const (
+	// AsyncBufferSize is a default buffer size for async emitters
+	AsyncBufferSize = 1024
+	// auditQueueDir is the directory where the audit queue resides.
+	auditQueueDir = "audit-queue"
+)
 
 // AsyncEmitterConfig provides parameters for emitter
 type AsyncEmitterConfig struct {
@@ -55,6 +59,10 @@ type AsyncEmitterConfig struct {
 	// EnableSQLiteQueue enables the SQLite-backed audit queue. When false,
 	// the legacy in-memory channel is used.
 	EnableSQLiteQueue bool
+	// AuditQueueCfg holds the options from the Teleport yaml config.
+	AuditQueueCfg auditqueue.Config
+	// AuditQueueBackends is the ordered list of backends to try on startup.
+	AuditQueueBackends []auditqueue.Kind
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -79,7 +87,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	var queue auditqueue.Queue
 	if cfg.EnableSQLiteQueue {
 		var err error
-		queue, err = makeQueue(cfg.DataDir)
+		queue, err = makeQueue(cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -111,17 +119,35 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	return a, nil
 }
 
-func makeQueue(dataDir string) (auditqueue.Queue, error) {
-	queuePath := filepath.Join(dataDir, "audit-queue", uuid.NewString())
-	queueCfg := auditqueue.Config{
-		Path: queuePath,
-	}
-	queue, err := auditqueue.New(auditqueue.KindSQLiteDisk, queueCfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func makeQueue(cfg AsyncEmitterConfig) (auditqueue.Queue, error) {
+	queueCfg := cfg.AuditQueueCfg
+	queueCfg.Path = filepath.Join(cfg.DataDir, auditQueueDir, uuid.NewString())
+
+	backends := cfg.AuditQueueBackends
+	if len(backends) == 0 {
+		backends = []auditqueue.Kind{auditqueue.KindSQLiteDisk}
 	}
 
-	return queue, nil
+	var lastErr error
+	for i, backend := range backends {
+		q, err := auditqueue.New(backend, queueCfg)
+		if err == nil {
+			if i > 0 {
+				slog.WarnContext(context.TODO(),
+					"Using fallback audit queue backend.",
+					"backend", backend,
+				)
+			}
+			return q, nil
+		}
+		slog.WarnContext(context.TODO(),
+			"Failed to create audit queue backend, trying next.",
+			"backend", backend,
+			"error", err,
+		)
+		lastErr = err
+	}
+	return nil, trace.Wrap(lastErr)
 }
 
 // AsyncEmitter accepts events to a buffered channel and emits

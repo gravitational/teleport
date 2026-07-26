@@ -556,12 +556,13 @@ func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn strin
 	return ip, nil
 }
 
-func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) {
+func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) bool {
 	ns.wg.Add(1)
 	go func() {
 		defer ns.wg.Done()
 		ns.handleUDPConcurrent(req)
 	}()
+	return true
 }
 
 func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
@@ -589,7 +590,7 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 		return
 	}
 
-	conn := gonet.NewUDPConn(ns.stack, &wq, endpoint)
+	conn := gonet.NewUDPConn(&wq, endpoint)
 	defer conn.Close()
 
 	ns.wg.Add(1)
@@ -744,13 +745,20 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
-		if packet.IsNil() {
+		if packet == nil {
 			// Nil packet is returned when context is canceled.
 			return trace.Wrap(ctx.Err())
 		}
 		offset := device.MessageTransportHeaderSize
-		for _, s := range packet.AsSlices() {
-			offset += copy(bufs[0][offset:], s)
+		views, pktOffset := packet.AsViewList()
+		view := views.Front()
+		for view != nil && pktOffset >= view.Size() {
+			pktOffset -= view.Size()
+			view = view.Next()
+		}
+		for ; view != nil; view = view.Next() {
+			offset += copy(bufs[0][offset:], view.AsSlice()[pktOffset:])
+			pktOffset = 0
 		}
 		packet.DecRef()
 		bufs[0] = bufs[0][:offset]

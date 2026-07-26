@@ -138,6 +138,7 @@ type sqliteQueue struct {
 	maxAttempts             int
 	deadLetterSweepInterval time.Duration
 	deadLetterTTL           time.Duration
+	synchronous             SynchronousMode
 	// deadLetterKick wakes the dead-letter sweeper ahead of its timer. It has
 	// capacity 1 so pending kicks coalesce into a single sweep.
 	deadLetterKick chan struct{}
@@ -191,6 +192,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		maxAttempts:             maxAttempts,
 		deadLetterSweepInterval: deadLetterSweepInterval,
 		deadLetterTTL:           deadLetterTTL,
+		synchronous:             cfg.Synchronous,
 		deadLetterKick:          make(chan struct{}, 1),
 	}
 
