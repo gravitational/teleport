@@ -3090,7 +3090,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return &linuxDesktopCollection{desktops: []*linuxdesktopv1.LinuxDesktop{desktop}}, nil
 		}
 		desktops, err := stream.Collect(clientutils.Resources(ctx, linuxDesktopClient.ListLinuxDesktops))
-		fmt.Printf("%T %d %s", desktops, len(desktops), desktops[0].GetMetadata().GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

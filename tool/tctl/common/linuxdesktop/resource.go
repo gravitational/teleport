@@ -15,7 +15,13 @@ type Resource struct {
 	// ResourceHeader is embedded to implement types.Resource
 	types.ResourceHeader
 	// Spec is the database object specification
-	Spec *linuxdesktopv1.LinuxDesktopSpec `json:"spec"`
+	Spec Spec `json:"spec"`
+}
+
+type Spec struct {
+	Addr     string   `json:"addr,omitempty"`
+	Hostname string   `json:"hostname,omitempty"`
+	ProxyIds []string `json:"proxy_ids,omitempty"`
 }
 
 // UnmarshalJSON parses Resource and converts into an object.
@@ -38,7 +44,11 @@ func ProtoToResource(desktop *linuxdesktopv1.LinuxDesktop) *Resource {
 			Version:  desktop.GetVersion(),
 			Metadata: types.Resource153ToLegacy(desktop).GetMetadata(),
 		},
-		Spec: desktop.GetSpec(),
+		Spec: Spec{
+			Addr:     desktop.GetSpec().GetAddr(),
+			Hostname: desktop.GetSpec().GetHostname(),
+			ProxyIds: desktop.GetSpec().GetProxyIds(),
+		},
 	}
 	return r
 }
@@ -63,6 +73,10 @@ func ResourceToProto(r *Resource) *linuxdesktopv1.LinuxDesktop {
 			Expires:     expires,
 			Revision:    md.Revision,
 		},
-		Spec: r.Spec,
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr:     r.Spec.Addr,
+			Hostname: r.Spec.Hostname,
+			ProxyIds: r.Spec.ProxyIds,
+		}.Build(),
 	}.Build()
 }

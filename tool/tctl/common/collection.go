@@ -893,7 +893,7 @@ func (c *linuxDesktopCollection) WriteText(w io.Writer, verbose bool) error {
 		labels := common.FormatLabels(d.GetMetadata().GetLabels(), verbose)
 		rows = append(rows, []string{d.GetMetadata().GetName(), d.GetSpec().GetHostname(), labels})
 	}
-	headers := []string{"Name", "Host ID", "Labels"}
+	headers := []string{"Name", "Host Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
