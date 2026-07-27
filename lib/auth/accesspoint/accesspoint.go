@@ -75,6 +75,7 @@ type Config struct {
 	AppSession              services.AppSessionReader
 	Apps                    services.Applications
 	Beams                   services.BeamReader
+	BeamsConfig             services.BeamsConfigGetter
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -167,6 +168,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
 		Beams:                   cfg.Beams,
+		BeamsConfig:             cfg.BeamsConfig,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,

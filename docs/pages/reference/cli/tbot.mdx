@@ -66,7 +66,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -109,7 +109,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -151,7 +151,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -195,7 +195,7 @@ Flags:
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--format`|`` (one of: ``, `tls`, `mongo`, `cockroach`)|The format of the credentials to generate.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -240,7 +240,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--database`|*no default*|The name of the database available in the requested database service.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -285,7 +285,7 @@ Flags:
 |`--cluster`|*no default*|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]allow-reissue`|`false`|Allow the credentials output by this command to be reissued.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -329,7 +329,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--kubernetes-cluster`|*no default*|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
@@ -374,7 +374,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
 |`--name-selector`|*no default*|An explicit Kubernetes cluster name to include. Repeatable.|
@@ -421,7 +421,7 @@ Flags:
 |`--data-dir`|*no default*|Directory to store internal bot data. Access to this directory should be limited.|
 |`--destination-dir`|*no default*|Directory to write short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
 |`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
@@ -456,7 +456,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -497,7 +497,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]enable-resumption`|`false`|If set, disables SSH session resumption.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -543,7 +543,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--listen`|*no default*|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
@@ -588,7 +588,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
@@ -640,7 +640,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
@@ -685,7 +685,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
@@ -926,7 +926,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -968,7 +968,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -1009,7 +1009,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -1052,7 +1052,7 @@ Flags:
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
 |`--format`|`` (one of: ``, `tls`, `mongo`, `cockroach`)|The format of the credentials to generate.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -1096,7 +1096,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--database`|*no default*|The name of the database available in the requested database service.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--listen`|*no default*|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -1140,7 +1140,7 @@ Flags:
 |`--cluster`|*no default*|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]allow-reissue`|`false`|Allow the credentials output by this command to be reissued.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -1183,7 +1183,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--kubernetes-cluster`|*no default*|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
@@ -1227,7 +1227,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
 |`--name-selector`|*no default*|An explicit Kubernetes cluster name to include. Repeatable.|
@@ -1273,7 +1273,7 @@ Flags:
 |`--data-dir`|*no default*|Directory to store internal bot data. Access to this directory should be limited.|
 |`--destination-dir`|*no default*|Directory to write short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
@@ -1307,7 +1307,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
@@ -1347,7 +1347,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]enable-resumption`|`false`|If set, disables SSH session resumption.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
@@ -1392,7 +1392,7 @@ Flags:
 |`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--listen`|*no default*|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
@@ -1436,7 +1436,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
@@ -1487,7 +1487,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
@@ -1531,7 +1531,7 @@ Flags:
 |`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
 |`--destination`|*no default*|A destination URI, such as file:///foo/bar|
 |`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|

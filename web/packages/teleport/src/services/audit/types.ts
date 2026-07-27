@@ -298,6 +298,8 @@ export const eventCodes = {
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
   SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
   SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  SPIFFE_FEDERATION_CREATE: 'TSPIFFE001I',
+  SPIFFE_FEDERATION_DELETE: 'TSPIFFE002I',
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
@@ -371,6 +373,9 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
+  BEAMS_CONFIG_CREATE: 'TBEAM001I',
+  BEAMS_CONFIG_UPDATE: 'TBEAM002I',
+  BEAMS_CONFIG_DELETE: 'TBEAM003I',
   WORKLOAD_CLUSTER_CREATE: 'WC001I',
   WORKLOAD_CLUSTER_CREATE_FAILURE: 'WC001E',
   WORKLOAD_CLUSTER_UPDATE: 'WC002I',
@@ -1421,6 +1426,7 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
+      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1489,7 +1495,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
+    typeof eventCodes.BOT_JOIN_FAILURE,
     {
       bot_name: string;
       method: string;
@@ -1515,7 +1521,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
+    typeof eventCodes.INSTANCE_JOIN_FAILURE,
     {
       node_name: string;
       method: string;
@@ -1679,7 +1685,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
     {
       name: string;
       source: string;
@@ -1873,6 +1879,14 @@ export type RawEvents = {
     {
       spiffe_id: string;
     }
+  >;
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_CREATE,
+    HasName
+  >;
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_DELETE,
+    HasName
   >;
   [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
     typeof eventCodes.AUTH_PREFERENCE_UPDATE,
@@ -2267,6 +2281,18 @@ export type RawEvents = {
   >;
   [eventCodes.VNET_CONFIG_DELETE]: RawEvent<
     typeof eventCodes.VNET_CONFIG_DELETE,
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_CREATE,
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_UPDATE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_UPDATE,
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_DELETE,
     HasName
   >;
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<

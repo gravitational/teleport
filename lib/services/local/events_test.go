@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -360,91 +360,57 @@ func TestWatchers(t *testing.T) {
 			},
 		},
 		{
-			name: "linux desktop PUT",
-			kind: types.KindLinuxDesktop,
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// GIVEN an empty backend, WHEN I create a new Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
+			name: "PendingCSRRequest PUT/DELETE",
+			kind: types.KindPendingCSRRequest,
+			causeEvents: func(ctx context.Context, t *testing.T, bk backend.Backend) {
+				service, err := NewSubCAService(SubCAServiceParams{
+					Backend: bk,
+				})
+				require.NoError(t, err)
 
-				desktop := linuxdesktopv1.LinuxDesktop_builder{
-					Kind:    types.KindLinuxDesktop,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: "desktop-1",
-						Labels: map[string]string{
-							"env":  "test",
-							"team": "engineering",
-						},
-					},
-					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
-						Addr:     "127.0.0.1:22",
-						Hostname: "test-host",
+				// PUT.
+				res, err := service.CreatePendingCSRRequest(
+					ctx,
+					subcav1.PendingCSRRequest_builder{
+						Kind:    types.KindPendingCSRRequest,
+						Version: types.V1,
+						Metadata: headerv1.Metadata_builder{
+							Name: "2f878e0f-115c-4b48-a4f6-f4deae8efb6f",
+						}.Build(),
+						Spec: subcav1.PendingCSRRequestSpec_builder{
+							ClusterName: "example.com",
+							CaType:      string(types.WindowsCA),
+							PublicKeyHashes: []*subcav1.PublicKeyHash{
+								subcav1.PublicKeyHash_builder{
+									Value: "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3",
+								}.Build(),
+							},
+						}.Build(),
 					}.Build(),
-				}.Build()
+				)
+				require.NoError(t, err)
 
-				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
-				require.NoError(subtestT, err)
+				// DELETE.
+				require.NoError(t,
+					service.DeletePendingCSRRequest(ctx, res.GetMetadata().GetName()),
+				)
 			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				// EXPECT that the watcher gets an event notifying us about the creation
+			validateEvents: func(ctx context.Context, t *testing.T, watcher types.Watcher) {
+				const wantName = "2f878e0f-115c-4b48-a4f6-f4deae8efb6f"
+
+				// PUT.
 				event := fetchEvent(t, watcher, fetchTimeout)
 				require.Equal(t, types.OpPut, event.Type)
+				res, err := types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
 
-				// EXPECT that the resource attached to the event is a Linux desktop
-				desktop := unwrapResource153[*linuxdesktopv1.LinuxDesktop](subtestT, event.Resource)
-				require.Equal(subtestT, "desktop-1", desktop.GetMetadata().GetName())
-				require.Equal(subtestT, "127.0.0.1:22", desktop.GetSpec().GetAddr())
-				require.Equal(subtestT, "test-host", desktop.GetSpec().GetHostname())
-				require.Equal(subtestT, map[string]string{
-					"env":  "test",
-					"team": "engineering",
-				}, desktop.GetMetadata().GetLabels())
-			},
-		},
-		{
-			name: "linux desktop DELETE",
-			kind: types.KindLinuxDesktop,
-			init: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// GIVEN an existing Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
-
-				desktop := linuxdesktopv1.LinuxDesktop_builder{
-					Kind:    types.KindLinuxDesktop,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: "desktop-to-delete",
-						Labels: map[string]string{
-							"env": "staging",
-						},
-					},
-					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
-						Addr:     "192.168.1.10:22",
-						Hostname: "delete-me",
-					}.Build(),
-				}.Build()
-
-				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
-				require.NoError(subtestT, err)
-			},
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// WHEN I delete the Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
-				require.NoError(subtestT, svc.DeleteLinuxDesktop(subtestCtx, "desktop-to-delete"))
-			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				// EXPECT to receive a DELETE event
-				event := fetchEvent(t, watcher, fetchTimeout)
+				// DELETE.
+				event = fetchEvent(t, watcher, fetchTimeout)
 				require.Equal(t, types.OpDelete, event.Type)
-
-				// EXPECT that the event targets our pre-created desktop
-				m := event.Resource.GetMetadata()
-				require.Equal(subtestT, "desktop-to-delete", m.Name)
-
-				// EXPECT that the resource is a ResourceHeader with the correct kind
-				require.Equal(subtestT, types.KindLinuxDesktop, event.Resource.GetKind())
+				res, err = types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
 			},
 		},
 	}

@@ -39,6 +39,62 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
+func TestWebSessionsUpsertExpiry(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(bk)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	bearerExpires := clock.Now().Add(1 * time.Minute)
+	sessionExpires := clock.Now().Add(1 * time.Hour)
+
+	tests := []struct {
+		name           string
+		usage          types.WebSessionUsage
+		expectedExpiry time.Time
+	}{
+		{
+			name:           "standard session uses earliest of bearer token and session expiry",
+			usage:          types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED,
+			expectedExpiry: bearerExpires,
+		},
+		{
+			name:           "access graph session ignores bearer token expiry",
+			usage:          types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
+			expectedExpiry: sessionExpires,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sessionID := uuid.New().String()
+			session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
+				User:               "alice",
+				BearerToken:        "bearer-" + sessionID,
+				BearerTokenExpires: bearerExpires,
+				Expires:            sessionExpires,
+				Usage:              tc.usage,
+			})
+			require.NoError(t, err)
+
+			require.NoError(t, identity.WebSessions().Upsert(ctx, session))
+
+			item, err := bk.Get(ctx, webSessionKey(sessionID))
+			require.NoError(t, err)
+			require.True(t, tc.expectedExpiry.Equal(item.Expires),
+				"expected backend item expiry %s, got %s", tc.expectedExpiry, item.Expires)
+		})
+	}
+}
+
 func TestDeleteUserAppSessions(t *testing.T) {
 	t.Parallel()
 

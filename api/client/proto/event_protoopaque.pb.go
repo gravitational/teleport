@@ -935,6 +935,15 @@ func (x *Event) GetBeam() *v123.Beam {
 	return nil
 }
 
+func (x *Event) GetBeamsConfig() *v123.BeamsConfig {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Resource.(*event_BeamsConfig); ok {
+			return x.BeamsConfig
+		}
+	}
+	return nil
+}
+
 func (x *Event) GetPendingCSRRequest() *v121.PendingCSRRequest {
 	if x != nil {
 		if x, ok := x.xxx_hidden_Resource.(*event_PendingCSRRequest); ok {
@@ -1642,6 +1651,14 @@ func (x *Event) SetBeam(v *v123.Beam) {
 		return
 	}
 	x.xxx_hidden_Resource = &event_Beam{v}
+}
+
+func (x *Event) SetBeamsConfig(v *v123.BeamsConfig) {
+	if v == nil {
+		x.xxx_hidden_Resource = nil
+		return
+	}
+	x.xxx_hidden_Resource = &event_BeamsConfig{v}
 }
 
 func (x *Event) SetPendingCSRRequest(v *v121.PendingCSRRequest) {
@@ -2355,6 +2372,14 @@ func (x *Event) HasBeam() bool {
 	return ok
 }
 
+func (x *Event) HasBeamsConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Resource.(*event_BeamsConfig)
+	return ok
+}
+
 func (x *Event) HasPendingCSRRequest() bool {
 	if x == nil {
 		return false
@@ -2889,6 +2914,12 @@ func (x *Event) ClearBeam() {
 	}
 }
 
+func (x *Event) ClearBeamsConfig() {
+	if _, ok := x.xxx_hidden_Resource.(*event_BeamsConfig); ok {
+		x.xxx_hidden_Resource = nil
+	}
+}
+
 func (x *Event) ClearPendingCSRRequest() {
 	if _, ok := x.xxx_hidden_Resource.(*event_PendingCSRRequest); ok {
 		x.xxx_hidden_Resource = nil
@@ -2983,6 +3014,7 @@ const Event_InferenceSecret_case case_Event_Resource = 92
 const Event_InferencePolicy_case case_Event_Resource = 93
 const Event_RetrievalModel_case case_Event_Resource = 94
 const Event_Beam_case case_Event_Resource = 95
+const Event_BeamsConfig_case case_Event_Resource = 97
 const Event_PendingCSRRequest_case case_Event_Resource = 99
 
 func (x *Event) WhichResource() case_Event_Resource {
@@ -3164,6 +3196,8 @@ func (x *Event) WhichResource() case_Event_Resource {
 		return Event_RetrievalModel_case
 	case *event_Beam:
 		return Event_Beam_case
+	case *event_BeamsConfig:
+		return Event_BeamsConfig_case
 	case *event_PendingCSRRequest:
 		return Event_PendingCSRRequest_case
 	default:
@@ -3358,6 +3392,8 @@ type Event_builder struct {
 	RetrievalModel *v122.RetrievalModel
 	// Beam is an ephemeral AI-optimized compute environment.
 	Beam *v123.Beam
+	// BeamsConfig is the user-provided configuration for Beams.
+	BeamsConfig *v123.BeamsConfig
 	// PendingCSRRequest allows asynchronous, watcher-based CSR requests to
 	// other Auth server instances.
 	PendingCSRRequest *v121.PendingCSRRequest
@@ -3629,6 +3665,9 @@ func (b0 Event_builder) Build() *Event {
 	}
 	if b.Beam != nil {
 		x.xxx_hidden_Resource = &event_Beam{b.Beam}
+	}
+	if b.BeamsConfig != nil {
+		x.xxx_hidden_Resource = &event_BeamsConfig{b.BeamsConfig}
 	}
 	if b.PendingCSRRequest != nil {
 		x.xxx_hidden_Resource = &event_PendingCSRRequest{b.PendingCSRRequest}
@@ -4090,6 +4129,11 @@ type event_Beam struct {
 	Beam *v123.Beam `protobuf:"bytes,95,opt,name=Beam,proto3,oneof"`
 }
 
+type event_BeamsConfig struct {
+	// BeamsConfig is the user-provided configuration for Beams.
+	BeamsConfig *v123.BeamsConfig `protobuf:"bytes,97,opt,name=BeamsConfig,proto3,oneof"`
+}
+
 type event_PendingCSRRequest struct {
 	// PendingCSRRequest allows asynchronous, watcher-based CSR requests to
 	// other Auth server instances.
@@ -4270,13 +4314,15 @@ func (*event_RetrievalModel) isEvent_Resource() {}
 
 func (*event_Beam) isEvent_Resource() {}
 
+func (*event_BeamsConfig) isEvent_Resource() {}
+
 func (*event_PendingCSRRequest) isEvent_Resource() {}
 
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xfd5\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xc16\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -4378,7 +4424,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x0fInferenceSecret\x18\\ \x01(\v2'.teleport.summarizer.v1.InferenceSecretH\x00R\x0fInferenceSecret\x12S\n" +
 	"\x0fInferencePolicy\x18] \x01(\v2'.teleport.summarizer.v1.InferencePolicyH\x00R\x0fInferencePolicy\x12P\n" +
 	"\x0eRetrievalModel\x18^ \x01(\v2&.teleport.summarizer.v1.RetrievalModelH\x00R\x0eRetrievalModel\x12-\n" +
-	"\x04Beam\x18_ \x01(\v2\x17.teleport.beams.v1.BeamH\x00R\x04Beam\x12T\n" +
+	"\x04Beam\x18_ \x01(\v2\x17.teleport.beams.v1.BeamH\x00R\x04Beam\x12B\n" +
+	"\vBeamsConfig\x18a \x01(\v2\x1e.teleport.beams.v1.BeamsConfigH\x00R\vBeamsConfig\x12T\n" +
 	"\x11PendingCSRRequest\x18c \x01(\v2$.teleport.subca.v1.PendingCSRRequestH\x00R\x11PendingCSRRequestB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadCluster**\n" +
@@ -4477,7 +4524,8 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v122.InferencePolicy)(nil),                // 83: teleport.summarizer.v1.InferencePolicy
 	(*v122.RetrievalModel)(nil),                 // 84: teleport.summarizer.v1.RetrievalModel
 	(*v123.Beam)(nil),                           // 85: teleport.beams.v1.Beam
-	(*v121.PendingCSRRequest)(nil),              // 86: teleport.subca.v1.PendingCSRRequest
+	(*v123.BeamsConfig)(nil),                    // 86: teleport.beams.v1.BeamsConfig
+	(*v121.PendingCSRRequest)(nil),              // 87: teleport.subca.v1.PendingCSRRequest
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -4568,12 +4616,13 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	83, // 85: proto.Event.InferencePolicy:type_name -> teleport.summarizer.v1.InferencePolicy
 	84, // 86: proto.Event.RetrievalModel:type_name -> teleport.summarizer.v1.RetrievalModel
 	85, // 87: proto.Event.Beam:type_name -> teleport.beams.v1.Beam
-	86, // 88: proto.Event.PendingCSRRequest:type_name -> teleport.subca.v1.PendingCSRRequest
-	89, // [89:89] is the sub-list for method output_type
-	89, // [89:89] is the sub-list for method input_type
-	89, // [89:89] is the sub-list for extension type_name
-	89, // [89:89] is the sub-list for extension extendee
-	0,  // [0:89] is the sub-list for field type_name
+	86, // 88: proto.Event.BeamsConfig:type_name -> teleport.beams.v1.BeamsConfig
+	87, // 89: proto.Event.PendingCSRRequest:type_name -> teleport.subca.v1.PendingCSRRequest
+	90, // [90:90] is the sub-list for method output_type
+	90, // [90:90] is the sub-list for method input_type
+	90, // [90:90] is the sub-list for extension type_name
+	90, // [90:90] is the sub-list for extension extendee
+	0,  // [0:90] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -4669,6 +4718,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*event_InferencePolicy)(nil),
 		(*event_RetrievalModel)(nil),
 		(*event_Beam)(nil),
+		(*event_BeamsConfig)(nil),
 		(*event_PendingCSRRequest)(nil),
 	}
 	type x struct{}

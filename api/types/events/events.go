@@ -3006,6 +3006,18 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	})
 }
 
+func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
 func (m *ScopedTokenCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenCreate) fieldTrimmer {
 		return fieldTrimmers{

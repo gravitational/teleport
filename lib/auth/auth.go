@@ -645,14 +645,25 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating BeamsService")
 		}
 	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
+		}
+	}
 
-	if cfg.SubCAService == nil {
-		var err error
-		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+	if cfg.SubCAService == nil || cfg.PendingCSRRequestService == nil {
+		localSubCA, err := local.NewSubCAService(local.SubCAServiceParams{
 			Backend: cfg.Backend,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+		if cfg.SubCAService == nil {
+			cfg.SubCAService = localSubCA
+		}
+		if cfg.PendingCSRRequestService == nil {
+			cfg.PendingCSRRequestService = localSubCA
 		}
 	}
 
@@ -718,7 +729,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
+		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -1031,7 +1044,9 @@ type Services struct {
 	RecordingEncryptionManager
 	services.ScopedTokenService
 	services.Beams
+	services.BeamsConfigService
 	services.SubCAService
+	services.PendingCSRRequestService
 }
 
 // awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
