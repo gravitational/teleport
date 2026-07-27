@@ -161,22 +161,22 @@ func (g *samlIdPServiceProviderTestingPrimitives) CompareTeleportAndKubernetesRe
 
 func TestSAMLIdPServiceProviderCreation(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderDeletion(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
+	testlib.ResourceDeletionSynchronousTest[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderDeletionDrift(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 func TestSAMLIdPServiceProviderUpdate(t *testing.T) {
 	test := &samlIdPServiceProviderTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](t, resources.NewSAMLIdPServiceProviderV1Reconciler, test)
 }
 
 // This test ensures the controller behavior for Teleport API validation
@@ -186,7 +186,7 @@ func TestSAMLIdPServiceProviderUpdate(t *testing.T) {
 func TestSAMLIdPServiceProviderCreateValidationError(t *testing.T) {
 	ctx := t.Context()
 	setup := testlib.SetupFakeKubeTestEnv(t)
-	reconciler, err := resources.NewSAMLIdPServiceProviderV1Reconciler(setup.K8sClient, setup.TeleportClient)
+	reconciler, err := resources.NewSAMLIdPServiceProviderV1Reconciler(setup.K8sClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	name := validRandomResourceName("saml-sp-")

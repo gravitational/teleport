@@ -67,7 +67,7 @@ func (l autoUpdateVersionClient) Delete(ctx context.Context, key reconcilers.Res
 
 // NewAutoUpdateVersionV1Reconciler instantiates a new Kubernetes controller reconciling autoUpdateVersion
 // resources
-func NewAutoUpdateVersionV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewAutoUpdateVersionV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	autoUpdateVersionClient := &autoUpdateVersionClient{
 		teleportClient: tClient,
 	}

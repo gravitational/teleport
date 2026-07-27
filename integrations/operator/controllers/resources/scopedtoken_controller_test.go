@@ -144,15 +144,15 @@ func (g *scopedTokenTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestScopedTokenCreation(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test)
 }
 
 func TestScopedTokenDeletionDrift(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test)
 }
 
 func TestScopedTokenUpdate(t *testing.T) {
 	test := &scopedTokenTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedTokenV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](t, resources.NewScopedTokenV1Reconciler, test)
 }

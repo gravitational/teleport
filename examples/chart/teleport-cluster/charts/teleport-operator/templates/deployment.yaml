@@ -1,4 +1,7 @@
-{{- if .Values.enabled }}
+{{- if .Values.enabled -}}
+{{- if .Values.scoped -}}
+  {{- required "ownerEmail must be set when running in scoped mode" .Values.ownerEmail -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -59,6 +62,10 @@ spec:
   {{- if .Values.scoped }}
             - -scoped
   {{- end }}
+  {{- if .Values.ownerEmail }}
+            - -owner-email
+            - {{ .Values.ownerEmail | quote }}
+  {{- end }}
   {{- if .Values.caPins }}
             - -ca-pin
             - '{{ join "," .Values.caPins }}'
@@ -78,6 +85,14 @@ spec:
     {{- if .Values.teleportClusterName }}
             - name: KUBERNETES_TOKEN_PATH
               value: /var/run/secrets/teleport/serviceaccount/token
+    {{- end }}
+    {{- if .Values.scoped }}
+            - name: KUBE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: RELEASE_NAME
+              value: {{ .Release.Name }}
     {{- end }}
   {{- end }}
           livenessProbe:

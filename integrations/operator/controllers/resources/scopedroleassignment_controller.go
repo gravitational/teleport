@@ -69,7 +69,7 @@ func (s *scopedRoleAssignmentClient) Update(ctx context.Context, assignment *acc
 	return trace.Wrap(err)
 }
 
-func NewScopedRoleAssignmentV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewScopedRoleAssignmentV1Reconciler(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	return reconcilers.NewTeleportScopedResource153Reconciler[*accessv1.ScopedRoleAssignment, *resourcesv1.TeleportScopedRoleAssignmentV1](
 		client,
 		&scopedRoleAssignmentClient{
@@ -78,5 +78,6 @@ func NewScopedRoleAssignmentV1Reconciler(client kclient.Client, tClient *client.
 		reconcilers.Config{
 			Scoped: true,
 		},
+		metadata,
 	)
 }

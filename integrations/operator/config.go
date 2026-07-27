@@ -37,6 +37,7 @@ type operatorConfig struct {
 	namespace        string
 	logLevel         string
 	scoped           bool
+	ownerEmail       string
 }
 
 // BindFlags binds operatorConfig fields to CLI flags.
@@ -54,6 +55,7 @@ func (c *operatorConfig) BindFlags(fs *flag.FlagSet) {
 	fs.DurationVar(&c.syncPeriod, "sync-period", defaultSyncPeriod, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	fs.StringVar(&c.logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
 	fs.BoolVar(&c.scoped, "scoped", false, "Run operator in scoped mode. Only scoped resources will be reconciled.")
+	fs.StringVar(&c.ownerEmail, "owner-email", "", "Email of the owner of the Teleport cluster. Required when running in scoped mode.")
 }
 
 // CheckAndSetDefaults checks the operatorConfig and populates unspecified
@@ -68,6 +70,9 @@ func (c *operatorConfig) CheckAndSetDefaults() error {
 				namespaceEnvVar, namespacePath,
 			)
 		}
+	}
+	if c.scoped && c.ownerEmail == "" {
+		return trace.BadParameter("Specifying owner-email is required when running in scoped mode.")
 	}
 	return nil
 }

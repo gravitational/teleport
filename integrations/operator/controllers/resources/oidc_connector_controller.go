@@ -86,7 +86,7 @@ func (r oidcConnectorClient) Mutate(ctx context.Context, new, _ types.OIDCConnec
 }
 
 // NewOIDCConnectorReconciler instantiates a new Kubernetes controller reconciling oidc_connector resources
-func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewOIDCConnectorReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	oidcClient := &oidcConnectorClient{
 		teleportClient: tClient,
 		kubeClient:     client,

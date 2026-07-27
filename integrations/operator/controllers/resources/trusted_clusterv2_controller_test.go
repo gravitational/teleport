@@ -184,7 +184,7 @@ func TestTrustedClusterV2Creation(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceCreationSynchronousTest(
+	testlib.ResourceCreationSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -197,7 +197,7 @@ func TestTrustedClusterV2Deletion(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceDeletionSynchronousTest(
+	testlib.ResourceDeletionSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -210,7 +210,7 @@ func TestTrustedClusterV2DeletionDrift(t *testing.T) {
 	test := &trustedClusterV2TestingPrimitives{}
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceDeletionDriftSynchronousTest(
+	testlib.ResourceDeletionDriftSynchronousTest[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -225,7 +225,7 @@ func TestTrustedClusterV2Update(t *testing.T) {
 	t.Skip("This test is currently flaky because of the cert authorities internal.")
 	const remoteClusterName = "remote.example.com"
 	test.setupTest(t, remoteClusterName)
-	testlib.ResourceUpdateTestSynchronous(
+	testlib.ResourceUpdateTestSynchronous[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
 		t,
 		resources.NewTrustedClusterV2Reconciler,
 		test,
@@ -268,7 +268,7 @@ func TestTrustedClusterV2SecretLookup(t *testing.T) {
 	test.trustedClusterSpec.Token = "secret://" + secretName + "/" + secretKey
 	require.NoError(t, test.CreateKubernetesResource(ctx, remoteClusterName))
 
-	reconciler, err := resources.NewTrustedClusterV2Reconciler(kubeClient, setup.TeleportClient)
+	reconciler, err := resources.NewTrustedClusterV2Reconciler(kubeClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	// Test execution: Kick off the reconciliation.

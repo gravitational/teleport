@@ -162,19 +162,19 @@ func TestScopedRoleCreation(t *testing.T) {
 	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceCreationSynchronousTest[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleDeletionDrift(t *testing.T) {
 	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceDeletionDriftSynchronousTest[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleUpdate(t *testing.T) {
 	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
+	testlib.ResourceUpdateTestSynchronous[*accessv1.ScopedRole, *resourcesv1.TeleportScopedRoleV1](t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }

@@ -60,7 +60,7 @@ func (r oktaImportRuleClient) Delete(ctx context.Context, key reconcilers.Resour
 }
 
 // NewOktaImportRuleReconciler instantiates a new Kubernetes controller reconciling okta_import_rule resources
-func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	oktaImportRuleClient := &oktaImportRuleClient{
 		teleportClient: tClient,
 	}

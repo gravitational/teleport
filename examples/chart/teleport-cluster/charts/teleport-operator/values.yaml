@@ -52,7 +52,16 @@ token: ""
 # `TeleportScopedTokenV1`, `TeleportScopedRoleV1`, or `TeleportScopedRoleAssignmentV1`.
 # Scoped mode requires the operator to join using a scoped token and the experimental scope
 # feature to be enabled on both Teleport Auth Service instances and Proxy Service instances.
+#
+# When running in scoped mode, `ownerEmail` must be set.
 scoped: false
+
+# ownerEmail(string) -- is the name of the owner of the operator.
+# This is used to tag the operator-created resources and know who created them.
+#
+# This is required when `scoped` is set to `true`.
+# This currently has no effect when `scoped` is set to `false`.
+ownerEmail: ""
 
 # teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator
 # image version deployed by the chart.

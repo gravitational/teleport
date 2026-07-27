@@ -73,7 +73,7 @@ func (l botClient) Delete(ctx context.Context, key reconcilers.ResourceKey) erro
 
 // NewBotV1Reconciler instantiates a new Kubernetes controller reconciling bot
 // resources
-func NewBotV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewBotV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	botClient := &botClient{
 		teleportClient: tClient,
 	}

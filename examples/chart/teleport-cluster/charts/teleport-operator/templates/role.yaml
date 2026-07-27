@@ -42,5 +42,20 @@ rules:
       - "get"
       - "list"
       - "watch"
+  {{- if .Values.scoped }}
+  # ability to store its state in Kubernetes when running in scoped mode.
+  - apiGroups:
+      - ""
+    resources:
+      - "secrets"
+    verbs:
+      - "create"
+      - "get"
+      - "update"
+      - "patch"
+      - "delete"
+    resourceNames:
+      - {{ printf "%s-shared-state" (include "teleport-cluster.operator.fullname" .) | quote}}
+  {{- end }}
 {{- end -}}
 {{- end -}}

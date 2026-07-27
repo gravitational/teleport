@@ -66,7 +66,7 @@ func (l loginRuleClient) Delete(ctx context.Context, key reconcilers.ResourceKey
 }
 
 // NewLoginRuleReconciler instantiates a new Kubernetes controller reconciling login_rule resources
-func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewLoginRuleReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	loginRuleClient := &loginRuleClient{
 		teleportClient: tClient,
 	}

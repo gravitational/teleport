@@ -51,7 +51,7 @@ func (s *scopedTokenClient) Update(ctx context.Context, token *tokenv1.ScopedTok
 	return trace.Wrap(err)
 }
 
-func NewScopedTokenV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewScopedTokenV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	return reconcilers.NewTeleportResource153Reconciler[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](
 		client,
 		&scopedTokenClient{

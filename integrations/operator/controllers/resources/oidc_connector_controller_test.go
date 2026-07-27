@@ -131,22 +131,30 @@ func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest[
+		types.OIDCConnector, *resourcesv3.TeleportOIDCConnector,
+	](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorDeletion(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceDeletionSynchronousTest[
+		types.OIDCConnector, *resourcesv3.TeleportOIDCConnector,
+	](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[
+		types.OIDCConnector, *resourcesv3.TeleportOIDCConnector,
+	](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous[
+		types.OIDCConnector, *resourcesv3.TeleportOIDCConnector,
+	](t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorSecretLookup(t *testing.T) {
@@ -194,7 +202,7 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	oidc.Spec.GoogleAdminEmail = "this-is-required-for-gcp-sa@example.com"
 	require.NoError(t, kubeClient.Create(ctx, oidc))
 
-	reconciler, err := resources.NewOIDCConnectorReconciler(kubeClient, setup.TeleportClient)
+	reconciler, err := resources.NewOIDCConnectorReconciler(kubeClient, setup.TeleportClient, setup.OperatorMetadata())
 	require.NoError(t, err)
 	// Test execution: Kick off the reconciliation.
 	req := reconcile.Request{

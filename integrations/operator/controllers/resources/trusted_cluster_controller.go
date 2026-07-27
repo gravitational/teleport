@@ -76,7 +76,7 @@ func (r trustedClusterClient) Mutate(ctx context.Context, new, existing types.Tr
 }
 
 // NewTrustedClusterV2Reconciler instantiates a new Kubernetes controller reconciling trusted_cluster v2 resources
-func NewTrustedClusterV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewTrustedClusterV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	trustedClusterClient := &trustedClusterClient{
 		teleportClient: tClient,
 		kubeClient:     client,

@@ -73,7 +73,7 @@ func (r openSSHEICEServerClient) Delete(ctx context.Context, key reconcilers.Res
 
 // NewOpenSSHEICEServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSHEICE server resources.
-func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	serverClient := &openSSHEICEServerClient{
 		teleportClient: tClient,
 	}

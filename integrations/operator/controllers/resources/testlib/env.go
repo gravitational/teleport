@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -201,6 +202,16 @@ type TestSetup struct {
 	ScopesFeatures           scopes.Features
 }
 
+func (s *TestSetup) OperatorMetadata() reconcilers.OperatorMetadata {
+	return reconcilers.OperatorMetadata{
+		Namespace: s.Namespace.Name,
+		ID:        "test-operator",
+		TokenName: "test-token",
+		Scope:     "/",
+		Owner:     "test@example.com",
+	}
+}
+
 // StartKubernetesOperator creates and start a new operator
 func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	// If there was an operator running previously we make sure it is stopped
@@ -242,11 +253,12 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	err = resources.SetupAllControllers(resources.Config{
-		Log:            setupLog,
-		TeleportClient: s.TeleportClient,
-		KubeClient:     k8sManager.GetClient(),
-		Scoped:         false,
-		Features:       pong.ServerFeatures,
+		Log:              setupLog,
+		TeleportClient:   s.TeleportClient,
+		KubeClient:       k8sManager.GetClient(),
+		Scoped:           false,
+		Features:         pong.ServerFeatures,
+		OperatorMetadata: s.OperatorMetadata(),
 	}, k8sManager, discoveryClient)
 	require.NoError(t, err)
 

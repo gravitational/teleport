@@ -186,20 +186,20 @@ func (g *workloadIdentityTestingPrimitives) CompareTeleportAndKubernetesResource
 
 func TestWorkloadIdentityCreation(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest[*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentityV1](t, resources.NewWorkloadIdentityV1Reconciler, test)
 }
 
 func TestWorkloadIdentityDeletion(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceDeletionSynchronousTest[*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentityV1](t, resources.NewWorkloadIdentityV1Reconciler, test)
 }
 
 func TestWorkloadIdentityDeletionDrift(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest[*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentityV1](t, resources.NewWorkloadIdentityV1Reconciler, test)
 }
 
 func TestWorkloadIdentityUpdate(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous[*workloadidentityv1.WorkloadIdentity, *resourcesv1.TeleportWorkloadIdentityV1](t, resources.NewWorkloadIdentityV1Reconciler, test)
 }

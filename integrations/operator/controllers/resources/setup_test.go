@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -64,7 +65,7 @@ func (f *fakeReconciler) CheckFeatures(features *proto.Features) bool {
 }
 
 // Factory is a ReconcilerFactory for the given fakeReconciler.
-func (f *fakeReconciler) Factory(_ kclient.Client, _ *client.Client) (controllers.Reconciler, error) {
+func (f *fakeReconciler) Factory(_ kclient.Client, _ *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	return f, nil
 }
 

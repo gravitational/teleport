@@ -60,7 +60,7 @@ func (r samlIdPServiceProviderClient) Delete(ctx context.Context, key reconciler
 
 // NewSAMLIdPServiceProviderV1Reconciler instantiates a new Kubernetes controller
 // reconciling saml_idp_service_provider resources.
-func NewSAMLIdPServiceProviderV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewSAMLIdPServiceProviderV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	spClient := &samlIdPServiceProviderClient{
 		teleportClient: tClient,
 	}

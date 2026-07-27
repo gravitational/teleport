@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,9 +46,13 @@ const (
 	ConditionReasonNoError                = "NoError"
 	ConditionReasonTeleportError          = "TeleportError"
 	ConditionReasonMutationError          = "MutationError"
+	ConditionReasonMatchingScope          = "MatchingScope"
+	ConditionReasonNonMatchingScope       = "NonMatchingScope"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
 	ConditionTypeValidStructure           = "ValidStructure"
+	ConditionTypeValidScope               = "ValidScope"
+	ConditionTypeUnscoped                 = "Unscoped"
 )
 
 // gvkFromScheme looks up the GVK from the runtime scheme.
@@ -162,7 +167,7 @@ type updateStatusConfig struct {
 	condition metav1.Condition
 }
 
-// updateStatus updates the Resource status but swallows the error if the update fails.
+// updateStatus updates the Resource status.
 func updateStatus(config updateStatusConfig) error {
 	// If the condition is empty, we don't want to update the status.
 	if config.condition == (metav1.Condition{}) {
@@ -204,4 +209,17 @@ func checkAnnotationFlag(object kclient.Object, flagName string, defaultValue bo
 		return defaultValue
 	}
 	return value
+}
+
+// setOriginLabelsForScoped sets the origin labels for a scoped resource.
+// Works in place.
+func updateScopedLabels(labels map[string]string, metadata OperatorMetadata, resourceMetadata customResourceMetadata) {
+	labels[common.OriginLabel] = common.OriginKubernetes
+	labels[operatorIDLabel] = metadata.ID
+	labels[operatorOwnerLabel] = metadata.Owner
+	labels[operatorNamespaceLabel] = metadata.Namespace
+	labels[operatorTokenNameLabel] = metadata.TokenName
+	labels[customResourceNamespaceLabel] = resourceMetadata.namespace
+	labels[customResourceNameLabel] = resourceMetadata.name
+	labels[customResourceGVKLabel] = resourceMetadata.gvk
 }
