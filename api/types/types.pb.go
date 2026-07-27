@@ -25388,9 +25388,9 @@ var xxx_messageInfo_AzureMatcher proto.InternalMessageInfo
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "vm".
+	// Types are GCP resource types to match: "gke", "gce", "cloudsql".
 	Types []string `protobuf:"bytes,1,rep,name=Types,proto3" json:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
+	// Locations are GCP locations to search resources for.
 	Locations []string `protobuf:"bytes,2,rep,name=Locations,proto3" json:"locations,omitempty"`
 	// Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
 	Tags Labels `protobuf:"bytes,3,opt,name=Tags,proto3,customtype=Labels" json:"tags,omitempty"`

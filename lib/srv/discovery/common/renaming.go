@@ -67,6 +67,24 @@ func ApplyAzureDatabaseNameSuffix(db types.Database, matcherType string) {
 	applyDiscoveryNameSuffix(db, suffix)
 }
 
+// ApplyGCPDatabaseNameSuffix applies the GCP Database Discovery name suffix to
+// the given database.
+// Format: <name>-<matcher type>-<region>-<project ID>.
+func ApplyGCPDatabaseNameSuffix(db types.Database, matcherType string) {
+	if hasOverrideLabel(db, types.GCPDatabaseNameOverrideLabel) {
+		return
+	}
+	region, _ := db.GetLabel(types.DiscoveryLabelRegion)
+	suffix := makeGCPDiscoverySuffix(databaseNamePartValidator,
+		db.GetName(),
+		matcherType,
+		getDBMatcherSubtype(matcherType, db),
+		region,
+		db.GetGCP().ProjectID,
+	)
+	applyDiscoveryNameSuffix(db, suffix)
+}
+
 // getDBMatcherSubtype gets a "subtype" for a given DB matcher, based on the
 // database metadata. This is needed for AWS RDS and Azure Redis databases
 // to ensure unique naming.
