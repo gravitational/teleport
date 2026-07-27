@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 
@@ -192,6 +193,14 @@ func WithPermissionSets(pss ...*PermissionSet) MockStateOption {
 func WithGroupAssignments(assignments map[string][]*Assignment) MockStateOption {
 	return func(s *MockedAWSStateType) {
 		s.GroupAssignments = assignments
+	}
+}
+
+// WithUserAssignments overwrites the mock Identity Center's entire user
+// permission assignment database with the supplied assignment map.
+func WithUserAssignments(assignments map[string][]*Assignment) MockStateOption {
+	return func(s *MockedAWSStateType) {
+		s.UserAssignments = assignments
 	}
 }
 
@@ -544,6 +553,20 @@ func (c *ClientMock) ValidateResourceSyncCredential(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// GetMockGroupAssignments returns the current set of group assignments
+func (c *ClientMock) GetMockGroupAssignments() map[string][]*Assignment {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	return maps.Clone(c.GroupAssignments)
+}
+
+// GetMockUserAssignments returns the current set of user assignments
+func (c *ClientMock) GetMockUserAssignments() map[string][]*Assignment {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
+	return maps.Clone(c.UserAssignments)
 }
 
 // GetMockAccount fetches a mock AWS account from the mock's backing state.

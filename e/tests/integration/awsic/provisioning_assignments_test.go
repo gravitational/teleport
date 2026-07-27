@@ -2,6 +2,8 @@ package awsic
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"slices"
 	"sync"
 	"testing"
@@ -14,11 +16,13 @@ import (
 
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	ictest "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // failFirstNDeleteAssignmentClient is an [icsdk.Client] that wraps an
@@ -136,4 +140,152 @@ func TestAccountAssignmentDeletionIsRetriedAfterFailure(t *testing.T) {
 	defer failingICClient.mu.Unlock()
 	require.Greater(t, failingICClient.deleteCount, 1,
 		"Account assignment deletion must have been attempted more than once")
+}
+
+// TestAccountAssignmentCleanup asserts that Teleport automatically deletes account
+// assignments as part of principal deletion
+func TestAccountAssignmentCleanup(t *testing.T) {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
+	slog.SetDefault(
+		slog.New(logutils.NewSlogTextHandler(
+			os.Stdout, logutils.SlogTextHandlerConfig{Level: slog.LevelDebug})))
+	ctx := t.Context()
+
+	const (
+		adminPermSetARN    = "arn:aws:sso:::permissionSet/Admin"
+		readonlyPermSetARN = "arn:aws:sso:::permissionSet/ReadOnly"
+		auditorPermSetARN  = "arn:aws:sso:::permissionSet/Auditor"
+		icAssignmentRole   = "ic-admin"
+		aclDisplayName     = "Test Access List"
+	)
+
+	// GIVEN a mock Identity Center state with some accounts and permission sets
+	awsState := icsdk.NewMockedAWSState(
+		icsdk.WithAccounts(
+			&icsdk.Account{Name: "Account1", ID: "1111111111", ARN: "arn:aws:iam::1111111111:account/Account1"},
+			&icsdk.Account{Name: "Account2", ID: "2222222222", ARN: "arn:aws:iam::2222222222:account/Account2"},
+		),
+		icsdk.WithPermissionSets(
+			&icsdk.PermissionSet{Name: "Admin", ARN: adminPermSetARN, Description: "Admin permissions"},
+			&icsdk.PermissionSet{Name: "ReadOnly", ARN: readonlyPermSetARN, Description: "Read-only permissions"},
+			&icsdk.PermissionSet{Name: "Auditor", ARN: auditorPermSetARN, Description: "Auditor permissions"},
+		),
+	)
+	unifiedClient := ictest.NewUnifiedMockClient(awsState)
+	apiClient := unifiedClient.ViaAPI()
+	setupMockAWSICEnvironment(t, apiClient, unifiedClient.ViaSCIM())
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.SAMLConnector),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "admin", "editor"),
+		common.WithRole(t, icAssignmentRole,
+			common.WithAccountAssignment(types.Allow, "1111111111", adminPermSetARN),
+			common.WithAccountAssignment(types.Allow, "2222222222", readonlyPermSetARN),
+		),
+		common.WithUser(t, "alice", icAssignmentRole),
+		common.WithUser(t, "bob", icAssignmentRole),
+		common.WithUser(t, "carol"),
+	)
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	// GIVEN an access list granting account assignments
+	acl := common.CreateAccessList(t, sut,
+		common.WithName("test-access-list"),
+		common.WithTitle(aclDisplayName),
+		common.WithOwners("admin"),
+		common.WithGrants(accesslist.Grants{Roles: []string{icAssignmentRole}}),
+		common.WithMembers("bob", "carol"))
+
+	// GIVEN an Identity Center integration running in full-handoff mode
+	mustSetupAWSIdentityCenterIntegration(t,
+		sut.GetClusterClientForUser(t, "admin").AuthClient)
+
+	// EXPECT the IC service to start up and provision the existing Teleport users into AWS
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			requireICUser(ctx, t, unifiedClient.ViaAPI(), "alice",
+				hasAccountAssignments(
+					icUserAccountAssignment(adminPermSetARN, "1111111111"),
+					icUserAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICUser(ctx, t, unifiedClient.ViaAPI(), "bob",
+				hasAccountAssignments(
+					icUserAccountAssignment(adminPermSetARN, "1111111111"),
+					icUserAccountAssignment(readonlyPermSetARN, "2222222222"),
+					icGroupAccountAssignment(adminPermSetARN, "1111111111"),
+					icGroupAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICUser(ctx, t, apiClient, "carol",
+				hasAccountAssignments(
+					icGroupAccountAssignment(adminPermSetARN, "1111111111"),
+					icGroupAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICGroup(ctx, t, apiClient, aclDisplayName,
+				hasGroupAccountAssignments(
+					icGroupAccountAssignment(adminPermSetARN, "1111111111"),
+					icGroupAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+		},
+		10*time.Second, 100*time.Millisecond,
+		"Initial provisioning must complete")
+
+	remoteBob, err := unifiedClient.ViaSCIM().GetUserByUserName(ctx, "bob")
+	require.NoError(t, err, "must be able to fetch remote user")
+
+	remoteGroup, err := unifiedClient.ViaSCIM().GetGroupByDisplayName(ctx, aclDisplayName)
+	require.NoError(t, err, "must be able to fetch remote group")
+
+	// WHEN I delete the user "bob", triggering a SCIM delete operation
+	require.NoError(t, auth.DeleteUser(ctx, "bob"))
+
+	// EXPECT that `bob` and all of bob's Account Assignments have been removed,
+	// but no other assignments are touched
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			requireICUser(ctx, t, apiClient, "alice",
+				hasAccountAssignments(
+					icUserAccountAssignment(adminPermSetARN, "1111111111"),
+					icUserAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICUser(ctx, t, apiClient, "carol",
+				hasAccountAssignments(
+					icGroupAccountAssignment(adminPermSetARN, "1111111111"),
+					icGroupAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICGroup(ctx, t, apiClient, aclDisplayName,
+				hasGroupAccountAssignments(
+					icGroupAccountAssignment(adminPermSetARN, "1111111111"),
+					icGroupAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireNoICUser(ctx, t, apiClient, "bob")
+
+			require.Empty(t, apiClient.GetMockUserAssignments()[remoteBob.ID],
+				"Deleted user bob should leave no orphan account assignments")
+		},
+		10*time.Second, 100*time.Millisecond,
+		"AWS state not updated after user deletion")
+
+	// WHEN I delete the Account Assignment-granting Access List, triggering a
+	// SCIM group deletion...
+	require.NoError(t, auth.AccessListsInternal.DeleteAccessList(ctx, acl.GetName()))
+
+	// EXPECT that the corresponding group and all of its account assignments have
+	// been deleted
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			requireICUser(ctx, t, apiClient, "alice",
+				hasAccountAssignments(
+					icUserAccountAssignment(adminPermSetARN, "1111111111"),
+					icUserAccountAssignment(readonlyPermSetARN, "2222222222"),
+				))
+			requireICUser(ctx, t, apiClient, "carol",
+				hasAccountAssignments( /* none */ ))
+			requireNoICGroup(ctx, t, apiClient, aclDisplayName)
+
+			require.Empty(t, apiClient.GetMockGroupAssignments()[remoteGroup.ID],
+				"Deleted group should leave no orphan account assignments")
+		},
+		10*time.Second, 100*time.Millisecond,
+		"AWS state not updated after group deletion")
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	ssoadmintypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
@@ -236,6 +237,46 @@ func (a *AssignmentProvisioner) deleteAssignment(ctx context.Context, externalID
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// DeleteAllAssignments deletes all Account Assignments belonging directly to
+// the supplied principal. Indirect assignments, for example Group-granted
+// assignments for a User, are not deleted.
+func (a *AssignmentProvisioner) DeleteAllAssignments(ctx context.Context, externalID string, principalType ssoadmintypes.PrincipalType) error {
+	log := a.Log.With(
+		slog.String("external_id", externalID),
+		slog.String("principal_type", string(principalType)))
+
+	assignments, err := a.fetchAWSAssignments(ctx, externalID, principalType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var g errGroup
+	g.SetLimit(a.MaxConcurrentRequests)
+
+	log.DebugContext(ctx, "Deleting AWS IC assignments", "count", len(assignments))
+	for _, asmt := range assignments {
+		if !a.isKnownAccount(services.IdentityCenterAccountID(asmt.AccountID)) {
+			continue
+		}
+		log.DebugContext(ctx, "Deleting AWS IC assignment...",
+			"permission_set_arn", asmt.PermissionSetARN,
+			"account_id", asmt.AccountID)
+		g.Go(func() error {
+			if err := a.deleteAssignment(ctx, externalID, asmt.PermissionSetARN, asmt.AccountID, principalType); err != nil {
+				log.WarnContext(ctx, "Failed to delete AWS IC assignment",
+					"permission_set_arn", asmt.PermissionSetARN,
+					"account_id", asmt.AccountID,
+					"error", err,
+				)
+				return trace.Wrap(err)
+			}
+			return nil
+		})
+	}
+
+	return trace.Wrap(g.Wait())
 }
 
 // fetchAWSAssignments retrieves the assignments from AWS Identity Center

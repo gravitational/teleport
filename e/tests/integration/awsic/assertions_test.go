@@ -446,6 +446,25 @@ func requireICUser(ctx context.Context, t require.TestingT, client icsdk.Client,
 	t.FailNow()
 }
 
+func assertNoICUser(ctx context.Context, t assert.TestingT, client icsdk.Client, username string) bool {
+	users, err := client.ListUsers(ctx)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	i := slices.IndexFunc(users, func(u *icsdk.User) bool { return u.UserName == username })
+	return assert.Equal(t, -1, i, "User %q should not exist in Identity Center", username)
+}
+
+func requireNoICUser(ctx context.Context, t require.TestingT, client icsdk.Client, username string) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertNoICUser(ctx, t, client, username) {
+		return
+	}
+	t.FailNow()
+}
+
 type icGroupAssertion func(context.Context, assert.TestingT, icsdk.Client, *icsdk.Group) bool
 
 func hasGroupAccountAssignments(expected ...*icsdk.Assignment) icGroupAssertion {
@@ -525,6 +544,25 @@ func requireICGroup(ctx context.Context, t require.TestingT, client icsdk.Client
 		h.Helper()
 	}
 	if assertICGroup(ctx, t, client, displayName, assertions...) {
+		return
+	}
+	t.FailNow()
+}
+
+func assertNoICGroup(ctx context.Context, t assert.TestingT, client icsdk.Client, displayName string) bool {
+	groups, err := client.ListGroups(ctx)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	i := slices.IndexFunc(groups, func(g *icsdk.Group) bool { return g.DisplayName == displayName })
+	return assert.Equal(t, -1, i, "Group %q should not exist in Identity Center", displayName)
+}
+
+func requireNoICGroup(ctx context.Context, t require.TestingT, client icsdk.Client, displayName string) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	if assertNoICGroup(ctx, t, client, displayName) {
 		return
 	}
 	t.FailNow()

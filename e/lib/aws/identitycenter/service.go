@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/monitor"
 	"github.com/gravitational/teleport/e/lib/aws/identitycenter/principal"
 	icprov "github.com/gravitational/teleport/e/lib/aws/identitycenter/provisioning"
+	icscim "github.com/gravitational/teleport/e/lib/aws/identitycenter/scim"
 	icsdk "github.com/gravitational/teleport/e/lib/aws/identitycenter/sdk"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
@@ -122,12 +123,22 @@ func NewService(config ServiceConfig) (svc *Service, err error) {
 		eventBatchDuration:         config.EventBatchDuration,
 	}
 
+	// Wrap the provided SCIM client so that we can intercept calls from the
+	// User & Group provisioner to add Identity Center specific behavior, like
+	// listing group memberships and cleaning up Account Assignments on delete.
+	wrappedSCIMClient, err := icscim.NewClient(icscim.ClientConfig{
+		SCIMClient:  config.Provisioning.SCIMClient,
+		APIClient:   config.ICClient,
+		Provisioner: svc.assignmentProvisioner,
+		Log:         svc.log,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	svc.provisioner, err = provisioning.NewService(provisioning.ServiceConfig{
-		DownstreamID: IdentityCenterDownstreamID,
-		// Wrap the SCIM client so that ListGroupMembers uses the AWS Identity
-		// Center API rather than SCIM, since the SCIM API does not reliably
-		// return group membership data for AWS IC.
-		SCIMClient:                newICSCIMClient(config.Provisioning.SCIMClient, config.ICClient),
+		DownstreamID:              IdentityCenterDownstreamID,
+		SCIMClient:                wrappedSCIMClient,
 		HealthCheckSCIMClient:     config.Provisioning.HealthCheckSCIMClient,
 		StateSvc:                  config.Provisioning.StateSvc,
 		StateSvcCache:             config.Provisioning.StateSvcCache,
