@@ -101,6 +101,10 @@ type ApplicationsInternal interface {
 
 // ValidateApp validates the Application resource.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	if app == nil {
+		return trace.BadParameter("nil application")
+	}
+
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
 			return trace.Wrap(err)

@@ -492,7 +492,8 @@ func deriveTeleportEqual_23(this, that *AppAWS) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.ExternalID == that.ExternalID &&
-			deriveTeleportEqual_43(this.RolesAnywhereProfile, that.RolesAnywhereProfile)
+			deriveTeleportEqual_43(this.RolesAnywhereProfile, that.RolesAnywhereProfile) &&
+			this.Region == that.Region
 }
 
 // deriveTeleportEqual_24 returns whether this and that are equal.
@@ -775,7 +776,8 @@ func deriveTeleportEqual_49(this, that *OktaAssignmentTargetV1) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.Type == that.Type &&
-			this.Id == that.Id
+			this.Id == that.Id &&
+			deriveTeleportEqual_53(this.Status, that.Status)
 }
 
 // deriveTeleportEqual_50 returns whether this and that are equal.
@@ -801,4 +803,14 @@ func deriveTeleportEqual_52(this, that *LLM_Model) bool {
 		this != nil && that != nil &&
 			this.Name == that.Name &&
 			this.ProviderName == that.ProviderName
+}
+
+// deriveTeleportEqual_53 returns whether this and that are equal.
+func deriveTeleportEqual_53(this, that *OktaAssignmentTargetStatus) bool {
+	return (this == nil && that == nil) ||
+		this != nil && that != nil &&
+			this.Outcome == that.Outcome &&
+			this.Op == that.Op &&
+			this.LastProcessed.Equal(that.LastProcessed) &&
+			this.FailureCount == that.FailureCount
 }

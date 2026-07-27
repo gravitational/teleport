@@ -6849,6 +6849,9 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 	}
 
 	publicKey, err := a.authServer.verifyDBSCResponse(ctx, string(responseJWT), sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	const iterationLimit = 3
 	for range iterationLimit {
 		// DBSC public key can only be set once to prevent rebinding to a different key.
