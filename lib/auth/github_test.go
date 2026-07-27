@@ -65,6 +65,8 @@ type githubContext struct {
 	c           *clockwork.FakeClock
 }
 
+// TODO(nixpig): Refactor to avoid using global modules.
+// See: https://github.com/gravitational/teleport/pull/63829#discussion_r3646729631
 func setupGithubContext(t *testing.T) *githubContext {
 	var tt githubContext
 	t.Cleanup(func() { tt.Close() })
@@ -818,7 +820,7 @@ func TestGithubCallbackRoleValidation(t *testing.T) {
 	})
 
 	srv := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "test-client-id",

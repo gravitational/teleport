@@ -658,6 +658,7 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 		}, nil
 	}
 
+	// Fetch the roles so the session TTL can be pre-constrained in the case no GitHub role is found.
 	sessionRoles, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
