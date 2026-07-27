@@ -83,6 +83,7 @@ COPY integrations/operator/controllers/ integrations/operator/controllers/
 COPY integrations/operator/main.go integrations/operator/main.go
 COPY integrations/operator/namespace.go integrations/operator/namespace.go
 COPY integrations/operator/config.go integrations/operator/config.go
+COPY integrations/operator/state/ integrations/operator/state/
 
 ARG TARGETOS
 ARG TARGETARCH
