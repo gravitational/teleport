@@ -114,8 +114,13 @@ type ClientInit struct {
 	// accepting ProxySuppliedParams.
 	ForwardedByProxy        bool                            `protobuf:"varint,4,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3" json:"forwarded_by_proxy,omitempty"`
 	ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,5,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof" json:"proxy_supplied_parameters,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// HostName is the user-friendly node name of a joining host, sent early so it
+	// can be recorded on the join audit event even when the join is rejected
+	// before the host params are received. It is advisory; the host name used for
+	// issued certificates is carried in HostParams.
+	HostName      string `protobuf:"bytes,6,opt,name=host_name,json=hostName,proto3" json:"host_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClientInit) Reset() {
@@ -178,6 +183,13 @@ func (x *ClientInit) GetProxySuppliedParameters() *ClientInit_ProxySuppliedParam
 	return nil
 }
 
+func (x *ClientInit) GetHostName() string {
+	if x != nil {
+		return x.HostName
+	}
+	return ""
+}
+
 func (x *ClientInit) SetJoinMethod(v string) {
 	x.JoinMethod = &v
 }
@@ -196,6 +208,10 @@ func (x *ClientInit) SetForwardedByProxy(v bool) {
 
 func (x *ClientInit) SetProxySuppliedParameters(v *ClientInit_ProxySuppliedParams) {
 	x.ProxySuppliedParameters = v
+}
+
+func (x *ClientInit) SetHostName(v string) {
+	x.HostName = v
 }
 
 func (x *ClientInit) HasJoinMethod() bool {
@@ -240,6 +256,11 @@ type ClientInit_builder struct {
 	// accepting ProxySuppliedParams.
 	ForwardedByProxy        bool
 	ProxySuppliedParameters *ClientInit_ProxySuppliedParams
+	// HostName is the user-friendly node name of a joining host, sent early so it
+	// can be recorded on the join audit event even when the join is rejected
+	// before the host params are received. It is advisory; the host name used for
+	// issued certificates is carried in HostParams.
+	HostName string
 }
 
 func (b0 ClientInit_builder) Build() *ClientInit {
@@ -251,6 +272,7 @@ func (b0 ClientInit_builder) Build() *ClientInit {
 	x.SystemRole = b.SystemRole
 	x.ForwardedByProxy = b.ForwardedByProxy
 	x.ProxySuppliedParameters = b.ProxySuppliedParameters
+	x.HostName = b.HostName
 	return m0
 }
 
@@ -5076,7 +5098,7 @@ var File_teleport_join_v1_joinservice_proto protoreflect.FileDescriptor
 
 const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xa0\x03\n" +
+	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xbd\x03\n" +
 	"\n" +
 	"ClientInit\x12$\n" +
 	"\vjoin_method\x18\x01 \x01(\tH\x00R\n" +
@@ -5086,7 +5108,8 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\vsystem_role\x18\x03 \x01(\tR\n" +
 	"systemRole\x12,\n" +
 	"\x12forwarded_by_proxy\x18\x04 \x01(\bR\x10forwardedByProxy\x12q\n" +
-	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x1a]\n" +
+	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x12\x1b\n" +
+	"\thost_name\x18\x06 \x01(\tR\bhostName\x1a]\n" +
 	"\x13ProxySuppliedParams\x12\x1f\n" +
 	"\vremote_addr\x18\x01 \x01(\tR\n" +
 	"remoteAddr\x12%\n" +
