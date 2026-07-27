@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -38,16 +38,142 @@ import (
 	"github.com/gravitational/teleport/skills"
 )
 
-// skillsCommandHelp is the top-level help for the `tsh skills` command. It is
-// written to be legible to AI agents (Claude Code, Cursor, Codex, Gemini CLI,
-// etc.) that run `tsh --help` or `tsh skills --help` while assisting a user:
-// the phrasing tells the agent that installable, task-specific skills exist and
-// how to install them, so the agent can proactively offer to set them up.
-const skillsCommandHelp = "Discover and install Teleport agent skills for AI assistants."
+const claudeSkillsDir = "~/.claude/skills"
 
-// defaultSkillsDir is the per-user skills directory that Claude Code reads.
-// Other agents use different locations; override with --dir.
-const defaultSkillsDir = "~/.claude/skills"
+// skillsCommands groups the `tsh skills` subcommands.
+type skillsCommands struct {
+	ls      *skillsListCommand
+	install *skillsInstallCommand
+}
+
+func newSkillsCommands(app *kingpin.Application) skillsCommands {
+	skillsCmd := app.Command("skills", "Discover and install Teleport agent skills for AI assistants.")
+	return skillsCommands{
+		ls:      newSkillsListCommand(skillsCmd),
+		install: newSkillsInstallCommand(skillsCmd),
+	}
+}
+
+// skillsListCommand implements `tsh skills ls`.
+type skillsListCommand struct {
+	*kingpin.CmdClause
+	format string
+}
+
+func newSkillsListCommand(parent *kingpin.CmdClause) *skillsListCommand {
+	cmd := &skillsListCommand{
+		CmdClause: parent.Command("ls", "List available Teleport agent skills.").Default(),
+	}
+	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
+		Short('f').
+		Default(teleport.Text).
+		EnumVar(&cmd.format, defaults.DefaultFormats...)
+	return cmd
+}
+
+func (c *skillsListCommand) run(cf *CLIConf) error {
+	catalog, err := loadSkills()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.Text, "":
+		return printSkillsAsText(cf, catalog)
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeSkills(catalog, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout(), out)
+		return nil
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+func printSkillsAsText(cf *CLIConf, catalog []skill) error {
+	var rows [][]string
+	for _, s := range catalog {
+		rows = append(rows, []string{s.Name, s.ShortDescription, fmt.Sprintf("tsh skills install %s", s.Name)})
+	}
+	t := asciitable.MakeTable([]string{"Name", "Description", "Install"}, rows...)
+	fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
+	fmt.Fprint(cf.Stdout(), skillsListHint)
+	return nil
+}
+
+func serializeSkills(catalog []skill, format string) (string, error) {
+	if catalog == nil {
+		catalog = []skill{}
+	}
+	var out []byte
+	var err error
+	if format == teleport.JSON {
+		out, err = utils.FastMarshalIndent(catalog, "", "  ")
+	} else {
+		out, err = yaml.Marshal(catalog)
+	}
+	return string(out), trace.Wrap(err)
+}
+
+// skillsInstallCommand implements `tsh skills install <name>`.
+type skillsInstallCommand struct {
+	*kingpin.CmdClause
+	name  string
+	dir   string
+	force bool
+}
+
+func newSkillsInstallCommand(parent *kingpin.CmdClause) *skillsInstallCommand {
+	cmd := &skillsInstallCommand{
+		CmdClause: parent.Command("install", "Install an embedded Teleport agent skill into your AI agent."),
+	}
+	cmd.Arg("name", "Name of the skill to install (see 'tsh skills ls').").Required().StringVar(&cmd.name)
+	cmd.Flag("dir", fmt.Sprintf("Skills directory to install into (default %q).", claudeSkillsDir)).
+		StringVar(&cmd.dir)
+	cmd.Flag("force", "Overwrite the skill if it is already installed.").BoolVar(&cmd.force)
+	return cmd
+}
+
+func (c *skillsInstallCommand) run(cf *CLIConf) error {
+	catalog, err := loadSkills()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !slices.ContainsFunc(catalog, func(s skill) bool { return s.Name == c.name }) {
+		var names []string
+		for _, s := range catalog {
+			names = append(names, s.Name)
+		}
+		return trace.NotFound("unknown skill %q; available skills: %s",
+			c.name, strings.Join(names, ", "))
+	}
+
+	baseDir, err := resolveSkillsDir(c.dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dest := filepath.Join(baseDir, c.name)
+
+	if _, err := os.Stat(dest); err == nil {
+		if !c.force {
+			return trace.AlreadyExists("skill %q is already installed at %s; use --force to overwrite",
+				c.name, dest)
+		}
+		if err := os.RemoveAll(dest); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := extractSkill(c.name, baseDir); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Installed skill %q to %s\n", c.name, dest)
+	return nil
+}
 
 // skill describes a single embedded Teleport agent skill.
 type skill struct {
@@ -57,11 +183,6 @@ type skill struct {
 	// used for the ls table. Falls back to the first sentence of Description
 	// when absent.
 	ShortDescription string `json:"short_description"`
-}
-
-// installCommand returns the command a user (or agent) runs to install the skill.
-func (s skill) installCommand() string {
-	return "tsh skills install " + s.Name
 }
 
 // loadSkills reads the embedded skills catalog, parsing each skill's SKILL.md
@@ -144,150 +265,15 @@ func maybeShowSkillsHint(cf *CLIConf) {
 	fmt.Fprint(cf.Stderr(), skillsAgentHint)
 }
 
-// skillsCommands groups the `tsh skills` subcommands.
-type skillsCommands struct {
-	ls      *skillsListCommand
-	install *skillsInstallCommand
-}
-
-func newSkillsCommands(app *kingpin.Application) skillsCommands {
-	skillsCmd := app.Command("skills", skillsCommandHelp)
-	return skillsCommands{
-		ls:      newSkillsListCommand(skillsCmd),
-		install: newSkillsInstallCommand(skillsCmd),
-	}
-}
-
-// skillsListCommand implements `tsh skills ls`.
-type skillsListCommand struct {
-	*kingpin.CmdClause
-	format string
-}
-
-func newSkillsListCommand(parent *kingpin.CmdClause) *skillsListCommand {
-	cmd := &skillsListCommand{
-		CmdClause: parent.Command("ls", "List available Teleport agent skills.").Default(),
-	}
-	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
-	return cmd
-}
-
-func (c *skillsListCommand) run(cf *CLIConf) error {
-	catalog, err := loadSkills()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	format := strings.ToLower(c.format)
-	switch format {
-	case teleport.Text, "":
-		return printSkillsAsText(cf, catalog)
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeSkills(catalog, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintln(cf.Stdout(), out)
-		return nil
-	default:
-		return trace.BadParameter("unsupported format %q", format)
-	}
-}
-
-func printSkillsAsText(cf *CLIConf, catalog []skill) error {
-	var rows [][]string
-	for _, s := range catalog {
-		rows = append(rows, []string{s.Name, s.ShortDescription, s.installCommand()})
-	}
-	t := asciitable.MakeTable([]string{"Name", "Description", "Install"}, rows...)
-	fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
-	fmt.Fprint(cf.Stdout(), skillsListHint)
-	return nil
-}
-
 const skillsListHint = "" +
 	"hint: install a skill into your AI agent with 'tsh skills install <name>'\n" +
 	"      run 'tsh skills ls --format json' for machine-readable output\n\n"
-
-func serializeSkills(catalog []skill, format string) (string, error) {
-	if catalog == nil {
-		catalog = []skill{}
-	}
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(catalog, "", "  ")
-	} else {
-		out, err = yaml.Marshal(catalog)
-	}
-	return string(out), trace.Wrap(err)
-}
-
-// skillsInstallCommand implements `tsh skills install <name>`.
-type skillsInstallCommand struct {
-	*kingpin.CmdClause
-	name  string
-	dir   string
-	force bool
-}
-
-func newSkillsInstallCommand(parent *kingpin.CmdClause) *skillsInstallCommand {
-	cmd := &skillsInstallCommand{
-		CmdClause: parent.Command("install", "Install an embedded Teleport agent skill into your AI agent."),
-	}
-	cmd.Arg("name", "Name of the skill to install (see 'tsh skills ls').").Required().StringVar(&cmd.name)
-	cmd.Flag("dir", fmt.Sprintf("Skills directory to install into (default %q).", defaultSkillsDir)).
-		StringVar(&cmd.dir)
-	cmd.Flag("force", "Overwrite the skill if it is already installed.").BoolVar(&cmd.force)
-	return cmd
-}
-
-func (c *skillsInstallCommand) run(cf *CLIConf) error {
-	catalog, err := loadSkills()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !slices.ContainsFunc(catalog, func(s skill) bool { return s.Name == c.name }) {
-		var names []string
-		for _, s := range catalog {
-			names = append(names, s.Name)
-		}
-		return trace.NotFound("unknown skill %q; available skills: %s",
-			c.name, strings.Join(names, ", "))
-	}
-
-	baseDir, err := resolveSkillsDir(c.dir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	dest := filepath.Join(baseDir, c.name)
-
-	if _, err := os.Stat(dest); err == nil {
-		if !c.force {
-			return trace.AlreadyExists("skill %q is already installed at %s; use --force to overwrite",
-				c.name, dest)
-		}
-		if err := os.RemoveAll(dest); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := extractSkill(c.name, baseDir); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(cf.Stdout(), "Installed skill %q to %s\n", c.name, dest)
-	return nil
-}
 
 // resolveSkillsDir determines the target skills directory, expanding a leading
 // "~" and falling back to the per-user default.
 func resolveSkillsDir(dir string) (string, error) {
 	if dir == "" {
-		dir = defaultSkillsDir
+		dir = claudeSkillsDir
 	}
 	if after, ok := strings.CutPrefix(dir, "~"); ok {
 		home, err := os.UserHomeDir()
