@@ -204,6 +204,8 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 		k8sResource,
 		true, /* returnUnknownFields */
 	)
+
+	// TODO(hugoShaka): optimize the updateStatus logic so we batch status updates
 	updateErr := updateStatus(updateStatusConfig{
 		ctx:         ctx,
 		client:      r.kubeClient,

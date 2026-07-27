@@ -97,6 +97,22 @@ In scoped mode, the operator can only reconcile scoped resource such as
 Scoped mode requires the operator to join using a scoped token and the experimental scope
 feature to be enabled on both Teleport Auth Service instances and Proxy Service instances.
 
+When running in scoped mode, `ownerEmail` must be set.
+When running in scoped mode, the operator generates a UUID and stored it in Kubernetes.
+This UUID is used to tag the operator-created resources and detect conflicts.
+
+## `ownerEmail`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`ownerEmail` is the name of the owner of the operator.
+This is used to tag the operator-created resources and know who created them.
+
+This is required when `scoped` is set to `true`.
+This currently has no effect when `scoped` is set to `false`.
+
 ## `teleportVersionOverride`
 
 | Type | Default |

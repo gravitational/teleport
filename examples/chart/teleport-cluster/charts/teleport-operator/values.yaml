@@ -54,6 +54,8 @@ token: ""
 # feature to be enabled on both Teleport Auth Service instances and Proxy Service instances.
 #
 # When running in scoped mode, `ownerEmail` must be set.
+# When running in scoped mode, the operator generates a UUID and stored it in Kubernetes.
+# This UUID is used to tag the operator-created resources and detect conflicts.
 scoped: false
 
 # ownerEmail(string) -- is the name of the owner of the operator.

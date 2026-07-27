@@ -107,7 +107,7 @@ func (f *fakeTeleportResourceClient) Delete(_ context.Context, id ResourceKey) e
 }
 
 // resourceExists checks if a Resource is in the store.
-// This is use fr testing purposes.
+// This is use for testing purposes.
 func (f *fakeTeleportResourceClient) resourceExists(name string) bool {
 	_, ok := f.store[name]
 	return ok

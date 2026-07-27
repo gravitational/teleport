@@ -128,6 +128,7 @@ func main() {
 			setupLog.Error(err, "unable to parse scope from token")
 			os.Exit(1)
 		}
+		setupLog.Info("operator metadata", "operator-id", operatorID, "scope", scope, "token-name", tokenName)
 	}
 
 	operatorMetadata := reconcilers.OperatorMetadata{
