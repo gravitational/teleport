@@ -67,6 +67,7 @@ func (h *Handler) listWorkloadIdentities(_ http.ResponseWriter, r *http.Request,
 	uiItems := tslices.Map(result.WorkloadIdentities, func(item *workloadidentityv1.WorkloadIdentity) WorkloadIdentity {
 		uiItem := WorkloadIdentity{
 			Name:       item.Metadata.Name,
+			Scope:      item.Scope,
 			SpiffeID:   item.Spec.Spiffe.Id,
 			SpiffeHint: item.Spec.Spiffe.Hint,
 			Labels:     item.Metadata.Labels,
@@ -88,6 +89,7 @@ type ListWorkloadIdentitiesResponse struct {
 
 type WorkloadIdentity struct {
 	Name       string            `json:"name"`
+	Scope      string            `json:"scope,omitempty"`
 	SpiffeID   string            `json:"spiffe_id"`
 	SpiffeHint string            `json:"spiffe_hint"`
 	Labels     map[string]string `json:"labels"`
