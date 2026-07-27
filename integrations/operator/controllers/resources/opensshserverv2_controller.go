@@ -73,7 +73,7 @@ func (r openSSHServerClient) Delete(ctx context.Context, key reconcilers.Resourc
 
 // NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller
 // reconciling OpenSSH server resources.
-func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	serverClient := &openSSHServerClient{
 		teleportClient: tClient,
 	}
