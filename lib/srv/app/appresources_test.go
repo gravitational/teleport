@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -225,7 +226,9 @@ func TestEnforceMinimalV9(t *testing.T) {
 	}
 
 	newHandler := func(logs *strings.Builder) *ConnectionsHandler {
-		return &ConnectionsHandler{log: slog.New(slog.NewTextHandler(logs, nil))}
+		v9Warned, err := lru.New[v9WarnKey, struct{}](v9WarnedSize)
+		require.NoError(t, err)
+		return &ConnectionsHandler{log: slog.New(slog.NewTextHandler(logs, nil)), v9Warned: v9Warned}
 	}
 
 	t.Run("denies a plain request", func(t *testing.T) {
