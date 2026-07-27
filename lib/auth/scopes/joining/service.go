@@ -19,8 +19,6 @@ package joining
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"iter"
 	"log/slog"
 	"time"
@@ -215,8 +213,7 @@ func makeCursor(token *scopedjoiningv1.ScopedToken) string {
 	if token == nil {
 		return ""
 	}
-	hash := sha256.Sum256([]byte(scopes.QualifiedName{Name: token.GetMetadata().GetName(), Scope: token.GetScope()}.String()))
-	return base64.StdEncoding.EncodeToString(hash[:])
+	return scopes.MakeResourceCursor(token.GetScope(), token.GetMetadata().GetName())
 }
 
 func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListScopedTokensRequest) iter.Seq2[*scopedjoiningv1.ScopedToken, error] {
@@ -224,20 +221,24 @@ func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListS
 		iterReq := proto.CloneOf(req)
 		iterReq.SetLimit(s.maxPageSize)
 
-		var cursorFound bool
+		// Public cursors identify the last token returned. Backend cursors are
+		// inclusive, so skip that token once if it is still present.
+		cursor := req.GetCursor()
 		for {
 			res, err := s.backend.ListScopedTokens(ctx, iterReq)
 			if err != nil {
-				if !yield(nil, trace.Wrap(err)) {
-					return
-				}
+				yield(nil, trace.Wrap(err))
+				return
 			}
 
 			for _, tok := range res.GetTokens() {
-				if !cursorFound && req.GetCursor() != "" && makeCursor(tok) != req.GetCursor() {
-					continue
+				if cursor != "" {
+					if makeCursor(tok) == cursor {
+						cursor = ""
+						continue
+					}
+					cursor = ""
 				}
-				cursorFound = true
 				if !yield(tok, nil) {
 					return
 				}

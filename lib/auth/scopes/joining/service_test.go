@@ -158,6 +158,34 @@ func TestScopedJoiningService(t *testing.T) {
 		tokenStagingCC2, err = createToken(ctx, service, tokenStagingCC2)
 		require.NoError(t, err)
 
+		// list multiple pages using the public cursor returned by the service.
+		firstPage, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
+			Limit: 1,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				Scope: "/staging/cc",
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, firstPage.GetTokens(), 1)
+		require.NotEmpty(t, firstPage.GetCursor())
+		require.True(t, scopes.IsScopedResourceCursor(firstPage.GetCursor()))
+
+		secondPage, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
+			Limit:  1,
+			Cursor: firstPage.GetCursor(),
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				Scope: "/staging/cc",
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, secondPage.GetTokens(), 1)
+		require.NotEqual(t,
+			scopes.QualifiedName{Scope: firstPage.GetTokens()[0].GetScope(), Name: firstPage.GetTokens()[0].GetMetadata().GetName()},
+			scopes.QualifiedName{Scope: secondPage.GetTokens()[0].GetScope(), Name: secondPage.GetTokens()[0].GetMetadata().GetName()},
+		)
+
 		// list tokens while filtering their resource scope
 		res, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			WithSecrets: true,
