@@ -40,7 +40,6 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -260,7 +259,7 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 
 	if url != "" && !params.Options.NoFollowURLs {
 		var checkRedirect func(req *http.Request, via []*http.Request) error
-		if disableCheckRedirect, _ := apiutils.ParseBool(os.Getenv(constants.UnstableDisableSAMLRedirectDowngradeCheckEnvVar)); disableCheckRedirect {
+		if disableCheckRedirect, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK")); disableCheckRedirect {
 			log.DebugContext(ctx, "Redirect HTTPS downgrade check disabled with the unstable environment variable")
 		} else {
 			checkRedirect = func(req *http.Request, via []*http.Request) error {
