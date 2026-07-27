@@ -1514,7 +1514,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.NotNil(t, ident.ScopePin)
 	require.Equal(t, "/test", ident.ScopePin.GetScope())
 	require.True(t, ident.BotInternal)
-	require.Equal(t, "example-token", ident.JoinToken)
+	require.Equal(t, "/test::example-token", ident.JoinToken)
 	require.Equal(t, "/test", ident.BotScope)
 
 	var certIssueEvent *events.CertificateCreate

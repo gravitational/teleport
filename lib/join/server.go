@@ -177,7 +177,7 @@ func NewServer(cfg *ServerConfig) *Server {
 // is returned.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
 	// The token name was NOT a SQN so it must only match a [types.ProvisionTokenV2].
-	if !scopes.MaybeSQN(name) {
+	if !scopes.MaybeSQN(name) || !s.cfg.ScopesFeatures.Enabled {
 		classic, err := s.cfg.AuthService.ValidateToken(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)
