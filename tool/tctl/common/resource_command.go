@@ -34,8 +34,6 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/crewjam/saml/samlsp"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
-	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -53,6 +51,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -83,6 +82,7 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )

@@ -25,6 +25,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -40,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/reexec"
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) initLinuxDesktopService() {

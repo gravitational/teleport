@@ -1,13 +1,14 @@
 package linuxdesktop
 
 import (
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Resource is a type wrapper type for YAML (un)marshaling.
