@@ -26,7 +26,9 @@ import (
 	"io"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"filippo.io/age"
 	"github.com/gravitational/trace"
@@ -36,7 +38,65 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
+type fakeWatcher struct {
+	events    chan types.Event
+	done      chan struct{}
+	closeOnce sync.Once
+}
+
+func (w *fakeWatcher) Events() <-chan types.Event { return w.events }
+
+func (w *fakeWatcher) Done() <-chan struct{} { return w.done }
+
+func (w *fakeWatcher) Close() error {
+	w.closeOnce.Do(func() { close(w.done) })
+	return nil
+}
+
+func (w *fakeWatcher) Error() error { return nil }
+
+type watcherHub struct {
+	hubMu  sync.Mutex
+	active *fakeWatcher
+}
+
+func (h *watcherHub) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	h.hubMu.Lock()
+	defer h.hubMu.Unlock()
+
+	w := &fakeWatcher{
+		events: make(chan types.Event, 16),
+		done:   make(chan struct{}),
+	}
+	w.events <- types.Event{Type: types.OpInit}
+	h.active = w
+	return w, nil
+}
+
+func (h *watcherHub) activeWatcher(t *testing.T) *fakeWatcher {
+	t.Helper()
+	var w *fakeWatcher
+	require.Eventually(t, func() bool {
+		h.hubMu.Lock()
+		defer h.hubMu.Unlock()
+		w = h.active
+		return w != nil
+	}, 5*time.Second, time.Millisecond)
+	return w
+}
+
+func (h *watcherHub) emit(t *testing.T, event types.Event) {
+	t.Helper()
+	h.activeWatcher(t).events <- event
+}
+
+func (h *watcherHub) closeActive(t *testing.T) {
+	t.Helper()
+	require.NoError(t, h.activeWatcher(t).Close())
+}
+
 type staticSRCGetter struct {
+	watcherHub
 	src types.SessionRecordingConfig
 	err error
 }
@@ -46,6 +106,7 @@ func (s *staticSRCGetter) GetSessionRecordingConfig(ctx context.Context) (types.
 }
 
 type swappableSRCGetter struct {
+	watcherHub
 	mu  sync.Mutex
 	src types.SessionRecordingConfig
 	err error
@@ -62,6 +123,20 @@ func (s *swappableSRCGetter) set(src types.SessionRecordingConfig, err error) {
 	defer s.mu.Unlock()
 	s.src = src
 	s.err = err
+}
+
+type blockingSRCGetter struct {
+	watcherHub
+	src   types.SessionRecordingConfig
+	calls atomic.Int64
+}
+
+func (b *blockingSRCGetter) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	if b.calls.Add(1) > 1 {
+		<-ctx.Done()
+		return nil, trace.Wrap(ctx.Err())
+	}
+	return b.src, nil
 }
 
 func encryptedSRC(t *testing.T, enabled bool, pubKeys ...[]byte) *types.SessionRecordingConfigV2 {
@@ -132,8 +207,10 @@ func TestNewAuditQueueSealer(t *testing.T) {
 		sealer, err := NewAuditQueueSealer(ctx, &staticSRCGetter{src: encryptedSRC(t, false)})
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
-		require.False(t, sealer.encrypted)
-		require.Empty(t, sealer.recipients)
+		state, err := sealer.encryptionState()
+		require.NoError(t, err)
+		require.False(t, state.encrypted)
+		require.Empty(t, state.recipients)
 	})
 
 	t.Run("encryption enabled with keys", func(t *testing.T) {
@@ -142,8 +219,10 @@ func TestNewAuditQueueSealer(t *testing.T) {
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
-		require.True(t, sealer.encrypted)
-		require.Len(t, sealer.recipients, 2)
+		state, err := sealer.encryptionState()
+		require.NoError(t, err)
+		require.True(t, state.encrypted)
+		require.Len(t, state.recipients, 2)
 	})
 
 	t.Run("enabled without keys fails", func(t *testing.T) {
@@ -181,84 +260,192 @@ func requireRecipientKey(t *testing.T, recipients []age.Recipient, pubKeyDER []b
 	require.True(t, recipient.PublicKey.Equal(parsed.(*rsa.PublicKey)))
 }
 
-func TestAuditQueueSealerRefresh(t *testing.T) {
+func TestAuditQueueSealerSeal(t *testing.T) {
 	ctx := t.Context()
 
-	newSealer := func(getter SessionRecordingConfigGetter) *AuditQueueSealer {
-		return &AuditQueueSealer{srcGetter: getter}
+	const testTimeout = 5 * time.Second
+	plaintext := []byte("audit event payload")
+
+	tryDecrypt := func(key *rsa.PrivateKey, payload []byte) bool {
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
+		if err != nil {
+			return false
+		}
+		decrypted, err := io.ReadAll(reader)
+		return err == nil && bytes.Equal(decrypted, plaintext)
 	}
 
-	t.Run("refresh picks up rotated keys", func(t *testing.T) {
-		keyA := testRSAPublicKeyDER(t)
-		keyB := testRSAPublicKeyDER(t)
-		getter := &swappableSRCGetter{src: encryptedSRC(t, true, keyA)}
-		sealer := newSealer(getter)
+	decrypt := func(t *testing.T, key *rsa.PrivateKey, payload []byte) []byte {
+		t.Helper()
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
+		require.NoError(t, err)
+		decrypted, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		return decrypted
+	}
 
-		require.NoError(t, sealer.refreshOnce(ctx))
-		require.True(t, sealer.encrypted)
-		requireRecipientKey(t, sealer.recipients, keyA)
+	t.Run("seal round-trips when encryption is enabled", func(t *testing.T) {
+		key, pubDER := testRSAKeyPair(t)
+		sealer, err := NewAuditQueueSealer(ctx, &staticSRCGetter{src: encryptedSRC(t, true, pubDER)})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
 
-		getter.set(encryptedSRC(t, true, keyB), nil)
-		require.NoError(t, sealer.refreshOnce(ctx))
-		requireRecipientKey(t, sealer.recipients, keyB)
-	})
+		payload, sealed, err := sealer.Seal(ctx, plaintext)
+		require.NoError(t, err)
+		require.True(t, sealed)
+		require.NotEqual(t, plaintext, payload)
+		require.Equal(t, plaintext, decrypt(t, key, payload))
 
-	t.Run("failed refresh keeps last known good keys", func(t *testing.T) {
-		keyA := testRSAPublicKeyDER(t)
-		getter := &swappableSRCGetter{src: encryptedSRC(t, true, keyA)}
-		sealer := newSealer(getter)
-
-		require.NoError(t, sealer.refreshOnce(ctx))
-
-		getter.set(nil, trace.ConnectionProblem(nil, "auth unavailable"))
-		require.Error(t, sealer.refreshOnce(ctx))
-		require.True(t, sealer.encrypted)
-		requireRecipientKey(t, sealer.recipients, keyA)
-
-		getter.set(encryptedSRC(t, true), nil)
-		require.Error(t, sealer.refreshOnce(ctx))
-		require.True(t, sealer.encrypted)
-		requireRecipientKey(t, sealer.recipients, keyA)
+		_, err = age.Decrypt(bytes.NewReader(payload), NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key}))
+		require.Error(t, err,
+			"sealed payloads must carry the audit queue stanza, not the recording stanza")
 	})
 
 	t.Run("seal passes through when encryption is disabled", func(t *testing.T) {
-		getter := &swappableSRCGetter{src: encryptedSRC(t, false)}
-		sealer := newSealer(getter)
-		require.NoError(t, sealer.refreshOnce(ctx))
+		sealer, err := NewAuditQueueSealer(ctx, &staticSRCGetter{src: encryptedSRC(t, false)})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
 
-		plaintext := []byte("audit event payload")
 		payload, sealed, err := sealer.Seal(ctx, plaintext)
 		require.NoError(t, err)
 		require.False(t, sealed)
 		require.Equal(t, plaintext, payload)
 	})
 
-	t.Run("seal round-trips when encryption is enabled", func(t *testing.T) {
-		key, pubDER := testRSAKeyPair(t)
-		getter := &swappableSRCGetter{src: encryptedSRC(t, true, pubDER)}
-		sealer := newSealer(getter)
-		require.NoError(t, sealer.refreshOnce(ctx))
+	t.Run("rotated keys apply when the watcher delivers the change", func(t *testing.T) {
+		keyA, pubA := testRSAKeyPair(t)
+		keyB, pubB := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{src: encryptedSRC(t, true, pubA)}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
 
-		plaintext := []byte("audit event payload")
 		payload, sealed, err := sealer.Seal(ctx, plaintext)
 		require.NoError(t, err)
 		require.True(t, sealed)
-		require.NotEqual(t, plaintext, payload)
+		require.Equal(t, plaintext, decrypt(t, keyA, payload))
 
-		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
-		require.NoError(t, err)
-		decrypted, err := io.ReadAll(reader)
-		require.NoError(t, err)
-		require.Equal(t, plaintext, decrypted)
-
-		_, err = age.Decrypt(bytes.NewReader(payload), NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key}))
-		require.Error(t, err)
+		srcB := encryptedSRC(t, true, pubB)
+		getter.set(srcB, nil)
+		getter.emit(t, types.Event{Type: types.OpPut, Resource: srcB})
+		require.Eventually(t, func() bool {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			return err == nil && sealed && tryDecrypt(keyB, payload)
+		}, testTimeout, 10*time.Millisecond)
 	})
 
-	t.Run("seal fails before the first refresh", func(t *testing.T) {
-		sealer := newSealer(&swappableSRCGetter{src: encryptedSRC(t, false)})
+	t.Run("disabling encryption applies when the watcher delivers the change", func(t *testing.T) {
+		_, pubA := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{src: encryptedSRC(t, true, pubA)}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
 
-		_, _, err := sealer.Seal(ctx, []byte("audit event payload"))
+		disabled := encryptedSRC(t, false)
+		getter.set(disabled, nil)
+		getter.emit(t, types.Event{Type: types.OpPut, Resource: disabled})
+		require.Eventually(t, func() bool {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			return err == nil && !sealed && bytes.Equal(payload, plaintext)
+		}, testTimeout, 10*time.Millisecond)
+	})
+
+	t.Run("resubscribe refreshes missed changes", func(t *testing.T) {
+		keyA, pubA := testRSAKeyPair(t)
+		keyB, pubB := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{src: encryptedSRC(t, true, pubA)}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		payload, sealed, err := sealer.Seal(ctx, plaintext)
+		require.NoError(t, err)
+		require.True(t, sealed)
+		require.Equal(t, plaintext, decrypt(t, keyA, payload))
+
+		getter.set(encryptedSRC(t, true, pubB), nil)
+		getter.closeActive(t)
+		require.Eventually(t, func() bool {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			return err == nil && sealed && tryDecrypt(keyB, payload)
+		}, testTimeout, 10*time.Millisecond)
+	})
+
+	t.Run("fetch failure falls back to last known keys", func(t *testing.T) {
+		keyA, pubA := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{src: encryptedSRC(t, true, pubA)}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		getter.set(nil, trace.ConnectionProblem(nil, "auth unavailable"))
+		require.Error(t, sealer.refresh(ctx))
+		payload, sealed, err := sealer.Seal(ctx, plaintext)
+		require.NoError(t, err)
+		require.True(t, sealed)
+		require.Equal(t, plaintext, decrypt(t, keyA, payload))
+
+		getter.set(encryptedSRC(t, true), nil)
+		require.Error(t, sealer.refresh(ctx))
+		payload, sealed, err = sealer.Seal(ctx, plaintext)
+		require.NoError(t, err)
+		require.True(t, sealed)
+		require.Equal(t, plaintext, decrypt(t, keyA, payload))
+	})
+
+	t.Run("recipients are memoized by config revision", func(t *testing.T) {
+		pubA := testRSAPublicKeyDER(t)
+		pubB := testRSAPublicKeyDER(t)
+
+		srcA := encryptedSRC(t, true, pubA)
+		srcA.SetRevision("1")
+		getter := &swappableSRCGetter{src: srcA}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		currentRecipients := func(t *testing.T) []age.Recipient {
+			t.Helper()
+			state, err := sealer.encryptionState()
+			require.NoError(t, err)
+			return state.recipients
+		}
+		requireRecipientKey(t, currentRecipients(t), pubA)
+
+		srcB := encryptedSRC(t, true, pubB)
+		srcB.SetRevision("1")
+		getter.set(srcB, nil)
+		require.NoError(t, sealer.refresh(ctx))
+		requireRecipientKey(t, currentRecipients(t), pubA)
+
+		srcB2 := encryptedSRC(t, true, pubB)
+		srcB2.SetRevision("2")
+		getter.set(srcB2, nil)
+		require.NoError(t, sealer.refresh(ctx))
+		requireRecipientKey(t, currentRecipients(t), pubB)
+	})
+
+	t.Run("seal does not block on a blocked getter", func(t *testing.T) {
+		key, pubDER := testRSAKeyPair(t)
+		getter := &blockingSRCGetter{src: encryptedSRC(t, true, pubDER)}
+		sealer, err := NewAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		for range 5 {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			require.NoError(t, err)
+			require.True(t, sealed)
+			require.Equal(t, plaintext, decrypt(t, key, payload))
+		}
+	})
+
+	t.Run("seal fails when keys were never resolved", func(t *testing.T) {
+		sealer := &AuditQueueSealer{client: &staticSRCGetter{
+			err: trace.ConnectionProblem(nil, "auth unavailable"),
+		}}
+
+		_, _, err := sealer.Seal(ctx, plaintext)
 		require.Error(t, err)
 	})
 }
