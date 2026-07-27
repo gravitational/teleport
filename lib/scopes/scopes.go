@@ -144,6 +144,22 @@ func StrongValidateSegment(segment string) error {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
 	}
 
+	if err := strongValidateFormat(segment, segmentRegexp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(segment) > maxSegmentSize {
+		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
+	}
+
+	return nil
+}
+
+// strongValidateFormat applies the strong formatting checks:
+// - no uppercase characters
+// - the provided shape regexp
+// - weak checks as a defensive backstop
+func strongValidateFormat(segment string, shape *regexp.Regexp) error {
 	// check for uppercase characters separately. this would be caught by the regex, but its better
 	// UX to call out uppercase characters specifically since its a common mistake.
 	for _, r := range segment {
@@ -152,12 +168,8 @@ func StrongValidateSegment(segment string) error {
 		}
 	}
 
-	if !segmentRegexp.MatchString(segment) {
+	if !shape.MatchString(segment) {
 		return trace.BadParameter("segment %q is malformed", segment)
-	}
-
-	if len(segment) > maxSegmentSize {
-		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally

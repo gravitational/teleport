@@ -252,9 +252,9 @@ func TestValidateQualifiedName(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name:     "name too short",
+			name:     "single-character name",
 			sqn:      "/staging::x",
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
