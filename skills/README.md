@@ -21,6 +21,9 @@ npx skills add https://github.com/gravitational/teleport/tree/master/skills/tele
 # Access list review
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-review
 
+# Access list lifecycle (create, update, delete)
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-lifecycle
+
 # Investigate Identity Security Logs
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
 
@@ -45,6 +48,28 @@ Example invocations:
 - Review my Teleport access lists
 - Which access lists need review?
 - Audit my Teleport ACLs
+
+### teleport-acl-lifecycle
+
+Helps create, update, and delete Teleport access lists with `tctl` — listing
+available resources before choosing grant targets, drafting standing,
+request-based (Access Request), or custom lists, updating owners, members,
+and grants on existing lists, and safely retiring lists (including detaching
+blocking parent nesting before delete).
+
+Install:
+
+```bash
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-lifecycle
+```
+
+Example invocations:
+
+- Give alice access to the prod apps
+- Create a standing access list for the on-call team
+- Add bob as an owner of the Prod Admins list
+- Remove app access from the junior-dev list
+- Delete the Junior Devs access list
 
 ### teleport-session-review
 

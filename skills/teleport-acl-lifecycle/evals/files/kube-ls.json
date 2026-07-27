@@ -1,26 +1,53 @@
 [
   {
-    "kind": "kube_cluster",
+    "kind": "kube_server",
     "metadata": {
-      "name": "prod-cluster-1",
-      "labels": { "env": "production", "team": "sre" }
+      "name": "kube-agent-1"
     },
-    "spec": {}
+    "spec": {
+      "hostname": "kube-agent-1",
+      "cluster": {
+        "kind": "kube_cluster",
+        "metadata": {
+          "name": "prod-cluster-1",
+          "labels": { "env": "production", "team": "sre" }
+        },
+        "spec": {}
+      }
+    }
   },
   {
-    "kind": "kube_cluster",
+    "kind": "kube_server",
     "metadata": {
-      "name": "prod-cluster-2",
-      "labels": { "env": "production", "team": "sre" }
+      "name": "kube-agent-1"
     },
-    "spec": {}
+    "spec": {
+      "hostname": "kube-agent-1",
+      "cluster": {
+        "kind": "kube_cluster",
+        "metadata": {
+          "name": "prod-cluster-2",
+          "labels": { "env": "production", "team": "sre" }
+        },
+        "spec": {}
+      }
+    }
   },
   {
-    "kind": "kube_cluster",
+    "kind": "kube_server",
     "metadata": {
-      "name": "staging-cluster-1",
-      "labels": { "env": "staging", "team": "sre" }
+      "name": "kube-agent-2"
     },
-    "spec": {}
+    "spec": {
+      "hostname": "kube-agent-2",
+      "cluster": {
+        "kind": "kube_cluster",
+        "metadata": {
+          "name": "staging-cluster-1",
+          "labels": { "env": "staging", "team": "sre" }
+        },
+        "spec": {}
+      }
+    }
   }
 ]

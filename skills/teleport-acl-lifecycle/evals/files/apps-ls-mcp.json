@@ -21,14 +21,15 @@
           }
         },
         "spec": {
-          "uri": "http://localhost:9090",
+          "uri": "mcp+stdio://",
           "public_addr": "automation-mcp.teleport.example.com",
           "mcp": {
-            "tools": [
-              "deploy",
-              "restart",
-              "status"
-            ]
+            "command": "/usr/local/bin/automation-mcp",
+            "args": [
+              "--config",
+              "/etc/automation-mcp.yaml"
+            ],
+            "run_as_host_user": "mcp-svc"
           }
         }
       }

@@ -188,11 +188,14 @@
     "kind": "access_list",
     "metadata": {
       "name": "07070707-0000-4000-8000-000000000009",
-      "labels": {}
+      "labels": {
+        "teleport.internal/access-list-preset": "long-term",
+        "teleport.internal/access-list-preset-roles": "support-tier1-acl-preset-07070707,support-tier2-acl-preset-07070707"
+      }
     },
     "spec": {
       "title": "Old Support Team",
-      "description": "Custom grants for the deprecated support rotation.",
+      "description": "Standing access for the deprecated support rotation.",
       "type": "",
       "owners": [
         {
@@ -201,10 +204,11 @@
         }
       ],
       "grants": {
-        "roles": [
-          "support-tier1",
-          "support-tier2"
-        ]
+        "labels": {
+          "team": [
+            "support"
+          ]
+        }
       }
     },
     "status": {
@@ -313,7 +317,8 @@
     "metadata": {
       "name": "a1a1a1a1-0000-4000-8000-000000000001",
       "labels": {
-        "teleport.internal/access-list-preset": "long-term"
+        "teleport.internal/access-list-preset": "long-term",
+        "teleport.internal/access-list-preset-roles": "access-standard-acl-preset-a1a1a1a1"
       }
     },
     "spec": {
@@ -416,7 +421,8 @@
     "metadata": {
       "name": "f6f6f6f6-0000-4000-8000-000000000008",
       "labels": {
-        "teleport.internal/access-list-preset": "long-term"
+        "teleport.internal/access-list-preset": "long-term",
+        "teleport.internal/access-list-preset-roles": "access-standard-acl-preset-f6f6f6f6"
       }
     },
     "spec": {
@@ -441,5 +447,54 @@
       "member_of": [],
       "owner_of": []
     }
+  },
+  "/contractors/sub-team::sub-team-access": {
+    "kind": "access_list",
+    "metadata": {
+      "name": "sub-team-access",
+      "labels": {}
+    },
+    "scope": "/contractors/sub-team",
+    "spec": {
+      "title": "Contractor Sub Team",
+      "description": "Scoped access for the contractor sub-team.",
+      "type": "",
+      "owners": [
+        {
+          "name": "carol",
+          "membership_kind": "MEMBERSHIP_KIND_USER"
+        }
+      ],
+      "grants": {
+        "roles": [
+          "contractor-sandbox"
+        ]
+      }
+    },
+    "status": {
+      "scoped_member_of": [
+        "/contractors::contractor-leads"
+      ]
+    }
+  },
+  "/contractors::contractor-leads": {
+    "kind": "access_list",
+    "metadata": {
+      "name": "contractor-leads",
+      "labels": {}
+    },
+    "scope": "/contractors",
+    "spec": {
+      "title": "Contractor Leads",
+      "description": "Owns and manages contractor sub-teams.",
+      "type": "",
+      "owners": [
+        {
+          "name": "dave",
+          "membership_kind": "MEMBERSHIP_KIND_USER"
+        }
+      ]
+    },
+    "status": {}
   }
 }

@@ -1,0 +1,19 @@
+[
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000401",
+      "labels": { "env": "prod" }
+    },
+    "spec": {
+      "hostname": "dynamic-gw-1",
+      "addr": "10.0.9.31:3022",
+      "immutable_labels": {
+        "trusted": "true"
+      },
+      "cmd_labels": {
+        "region": { "result": "us-west-2" }
+      }
+    }
+  }
+]

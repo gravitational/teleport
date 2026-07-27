@@ -5,7 +5,7 @@ Create an access list.
 Use --access-type if you want Teleport to create the supporting roles for you. It sets how members are granted access:
 
   standing       members get ongoing access to the resources set below.
-  request-based  members must request that access; owners approve.
+  access-request members must request that access; owners approve.
 
 These roles are built from the resource flags you set. Without --access-type, a plain access list is created with no roles, and you set its grants yourself.
 
@@ -21,8 +21,8 @@ Resource access (requires --access-type), grouped by target:
                        --gcp-service-accounts, --mcp-tools
 
 Flags:
-      --access-type=ACCESS-TYPE  How members are granted access: 'standing' (members get ongoing access to the resources described by the resource flags) or 'request-based' (members must request access;
-                                 owners review). When omitted, a plain access list is created with no auto-generated roles. (one of: standing, request-based)
+      --access-type=ACCESS-TYPE  How members are granted access: 'standing' (members get ongoing access to the resources described by the resource flags) or 'access-request' (members must request access;
+                                 owners review). When omitted, a plain access list is created with no auto-generated roles. (one of: standing, access-request)
       --format=text              Output format. (one of: text, json)
       --title=TITLE              Display name for the access list.
       --audit-frequency=6        Audit recurrence in months (1, 3, 6, or 12).

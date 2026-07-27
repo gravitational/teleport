@@ -3,27 +3,35 @@
 Delete has two possible write phases: parent detaches, then the access-list
 delete. Approval for the delete does not approve parent updates discovered later.
 
+## Contents
+
+- Flow: resolve target, check parent nesting, delete, and handle leftover roles.
+- Parent Nesting: why parent detaches need separate approval.
+- Detach Commands: remove target from member/owner parents, including scoped parents.
+- Approval Shape: required delete and parent-detach approval fields.
+
 ## Flow
 
-1. Resolve the target with `$TCTL acl ls --format=json` piped through a filter.
-   Match the user's title/description wording case-insensitively.
-2. If more than one list matches, show every candidate with title, UUID,
-   description, and grants; stop until the user picks the exact UUID.
-3. Establish delete permission for the unique target. If the user already said
-   the deletion is permanent and to go ahead, treat that as conditional delete
-   approval once the unique target is resolved. Otherwise ask for approval naming
-   title, UUID, and description.
-4. Load `$TCTL acl get <uuid> --format=json` for the target and inspect:
-   `status.member_of` and `status.owner_of`.
-5. If no parent nesting exists and delete permission is approved, run
-   `$TCTL acl rm <uuid>`. If delete permission is missing, ask for it and stop.
-6. If parent nesting exists, load each parent with
-   `$TCTL acl get <parent-uuid> --format=json`, draft the detach operations, and
+1. Resolve to the exact target per SECURITY.md's Core Rules.
+2. Establish delete permission for the unique target. Only an explicit
+   confirmation, such as "I confirm, go ahead," may serve as conditional delete
+   approval; "delete <target>" is a request, not approval. Do not carry
+   confirmation across a target choice. Otherwise ask for approval naming title,
+   identifier, access type, and description.
+3. Load `$TCTL acl get <identifier> --format=json` for the target and inspect
+   the unwrapped access list's `status.member_of`, `status.owner_of`,
+   `status.scoped_member_of`, and `status.scoped_owner_of`.
+4. If all four fields are empty and delete permission is approved, run
+   `$TCTL acl rm <identifier>`. If delete permission is missing, ask for it and
+   stop.
+5. If parent nesting exists, load each parent with
+   `$TCTL acl get <parent-identifier> --format=json` (UUID or scope-qualified
+   name, matching the field it came from), draft the detach operations, and
    stop for parent-detach plan approval.
-7. After all parent detaches have been approved and applied, run
-   `$TCTL acl rm <uuid>` without asking for delete permission again.
-8. Relay leftover role output exactly and follow LEFTOVER_ROLES.md. Delete roles
-   only after separate per-role confirmation.
+6. After all parent detaches have been approved and applied, run
+   `$TCTL acl rm <identifier>` without asking for delete permission again.
+7. Relay leftover role output exactly and follow route-loaded
+   LEFTOVER_ROLES.md. Delete roles only after separate per-role confirmation.
 
 ## Parent Nesting
 
@@ -33,8 +41,8 @@ after `acl get`.
 
 For each parent, show a separate detach item with:
 
-- parent title and UUID
-- target title and UUID being detached
+- parent title and identifier
+- target title and identifier being detached
 - current -> new nested-list membership or ownership
 - the exact command intent
 
@@ -63,11 +71,11 @@ $TCTL acl users rm <parent-uuid> <target-uuid>
 
 Show the parent member nesting before and after:
 
-```text
-Parent  | Team Leads (9999...)
-Members | Junior Devs (8888...) -> removed
-Command | acl users rm 9999... 8888...
-```
+| Field | Value |
+| --- | --- |
+| Parent | Team Leads (9999...) |
+| Members | Junior Devs (8888...) removed |
+| Command | `acl users rm 9999... 8888...` |
 
 ### Target Is A Nested Owner
 
@@ -79,50 +87,87 @@ Load the parent, keep all direct user owners unchanged, and preserve every other
 nested-list owner. Remove only the target UUID from the nested owner list:
 
 ```bash
-$TCTL acl update <parent-uuid> --owner-access-lists="<remaining-nested-owner-uuids>"
+$TCTL acl update <parent-uuid> --owner-access-lists='<remaining-nested-owner-uuids>'
 ```
 
-If no nested-list owners remain, pass an empty value:
+Show the parent owners before and after the detach. If that plan shows the
+target is the parent's only owner, pause before asking for approval: the parent
+needs a replacement owner, or the user can ask for a separate plan to delete
+the parent.
+
+When the user supplies a replacement owner in response, stay in this delete
+workflow. The parent is already resolved and loaded, so use its identifier and
+current owners to draft the replacement plus detach; do not restart through the
+update route or run `acl ls` again.
+
+If direct user owners remain but no nested-list owners remain, pass an empty
+value:
 
 ```bash
-$TCTL acl update <parent-uuid> --owner-access-lists=""
+$TCTL acl update <parent-uuid> --owner-access-lists=''
 ```
 
 Show owner before/after:
 
-```text
-Parent        | Platform Review Board (aaaa...)
-Direct owners | carol -> carol
-Nested owners | Junior Devs (8888...) -> none
-Command       | acl update aaaa... --owner-access-lists=""
+| Field | Value |
+| --- | --- |
+| Parent | Platform Review Board (aaaa...) |
+| Command | `acl update aaaa... --owner-access-lists=''` |
+
+| Field | Before | After |
+| --- | --- | --- |
+| Direct owners | carol | carol |
+| Nested owners | Junior Devs (8888...) | none |
+
+### Target Is A Scoped Nested Member Or Owner
+
+Use route-loaded SCOPES.md for the identifier format.
+`scoped_member_of`/`scoped_owner_of` entries are already the parent's
+scope-qualified name — no separate UUID lookup step. Use the same commands
+above, substituting scope-qualified names for parent and/or target wherever
+either side is scoped:
+
+```bash
+$TCTL acl users rm <parent-scope>::<parent-name> <target-identifier>
+$TCTL acl update <parent-scope>::<parent-name> --owner-access-lists='<remaining-nested-owner-identifiers>'
 ```
+
+Do not assume a UUID exists for a scoped parent or target.
 
 ## Approval Shape
 
 Delete permission:
 
-```text
-Delete target | Junior Devs (8888...)
-Description   | Custom grants for junior engineers, nested under Team Leads.
-Effect        | permanently delete this access list after required parent detaches
-```
+| Field | Value |
+| --- | --- |
+| Delete target | Junior Devs (8888...) |
+| Access type | custom |
+| Description | Custom grants for junior engineers, nested under Team Leads. |
+| Effect | permanently delete this access list after required parent detaches |
 
 Parent-detach plan approval:
 
-```text
-Detach 1:
-Parent  | Team Leads (9999...)
-Change  | nested member Junior Devs (8888...) -> removed
-Command | acl users rm 9999... 8888...
+**Detach 1:**
 
-Detach 2:
-Parent        | Platform Review Board (aaaa...)
-Direct owners | carol -> carol
-Nested owners | Junior Devs (8888...) -> none
-Command       | acl update aaaa... --owner-access-lists=""
+| Field | Value |
+| --- | --- |
+| Parent | Team Leads (9999...) |
+| Members | Junior Devs (8888...) removed |
+| Command | `acl users rm 9999... 8888...` |
+
+**Detach 2:**
+
+| Field | Value |
+| --- | --- |
+| Parent | Platform Review Board (aaaa...) |
+| Command | `acl update aaaa... --owner-access-lists=''` |
+
+| Field | Before | After |
+| --- | --- | --- |
+| Direct owners | carol | carol |
+| Nested owners | Junior Devs (8888...) | none |
 
 Approve this parent-detach plan to apply both parent updates.
-```
 
 The approval request must include the full detach plan in the same response.
 Do not say only "approve the plan shown above"; repeat the parent count, every

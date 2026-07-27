@@ -17,6 +17,9 @@ Treat it as a warning, not a task to complete.
 - **Relay the tctl block verbatim**, including the "may still be assigned to users
   or referenced by other roles" and "verify each role is unused before deleting
   it" lines. Do not soften, shorten, or rephrase the warning into a casual prompt.
+- **Do not offer to verify that a role is unused for the user.** This skill does
+  not have a reliable cluster-wide proof that a role is safe to delete. Ask the
+  user to confirm they have verified the role is unused before any role removal.
 - **Deletion is opt-in and per role.** For each role the user explicitly wants
   gone: name the role, restate that deleting a role still assigned to users or
   referenced by other roles can lock people out, confirm the user has verified it
