@@ -259,6 +259,7 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 
 	if url != "" && !params.Options.NoFollowURLs {
 		var checkRedirect func(req *http.Request, via []*http.Request) error
+		// TODO(kopiczko): Remove this env var after Jul 2027 (one year since introduced) if no issue is reported.
 		if disableCheckRedirect, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK")); disableCheckRedirect {
 			log.DebugContext(ctx, "Redirect HTTPS downgrade check disabled with the unstable environment variable")
 		} else {
