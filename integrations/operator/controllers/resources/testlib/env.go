@@ -200,6 +200,7 @@ type TestSetup struct {
 	Context                  context.Context
 	InsecureMode             bool
 	ScopesFeatures           scopes.Features
+	scope                    string
 }
 
 func (s *TestSetup) OperatorMetadata() reconcilers.OperatorMetadata {
@@ -207,7 +208,7 @@ func (s *TestSetup) OperatorMetadata() reconcilers.OperatorMetadata {
 		Namespace: s.Namespace.Name,
 		ID:        "test-operator",
 		TokenName: "test-token",
-		Scope:     "/",
+		Scope:     s.scope,
 		Owner:     "test@example.com",
 	}
 }
@@ -329,6 +330,12 @@ func WithScopesFeatures(features scopes.Features) TestOption {
 	}
 }
 
+func WithScope(scope string) TestOption {
+	return func(setup *TestSetup) {
+		setup.scope = scope
+	}
+}
+
 func StepByStep(setup *TestSetup) {
 	setup.stepByStepReconciliation = true
 }
@@ -371,6 +378,7 @@ func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 		Context:      t.Context(),
 		K8sClient:    k8sClient,
 		Namespace:    ns,
+		scope:        "/",
 		ResourceName: ValidRandomResourceName("resource-"),
 	}
 

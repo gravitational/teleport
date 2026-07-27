@@ -125,12 +125,12 @@ func TestScopedResourceWithLabelsAdapter_CheckOwnership(t *testing.T) {
 		},
 		{
 			name:     "unscoped - origin label match but mismatch id",
-			resource: &fakeResourceWithLabels{labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: conflictingID}},
+			resource: &fakeResourceWithLabels{labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID}},
 			expected: true,
 		},
 		{
 			name:     "unscoped - origin label match and matching id",
-			resource: &fakeResourceWithLabels{labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: testID}},
+			resource: &fakeResourceWithLabels{labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID}},
 			expected: true,
 		},
 		{
@@ -172,7 +172,7 @@ func TestScopedResourceWithLabelsAdapter_CheckOwnership(t *testing.T) {
 		{
 			name: "scoped - origin label match but mismatch id",
 			resource: &fakeResourceWithLabels{
-				labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: conflictingID},
+				labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID},
 				scope:  testScope,
 			},
 			expected:       false,
@@ -181,7 +181,7 @@ func TestScopedResourceWithLabelsAdapter_CheckOwnership(t *testing.T) {
 		{
 			name: "scoped - origin label match and matching id",
 			resource: &fakeResourceWithLabels{
-				labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: testID},
+				labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID},
 				scope:  testScope,
 			},
 			expected: true,
@@ -245,7 +245,7 @@ func TestScopedResourceWithLabelsAdapter_SetLabels(t *testing.T) {
 			expectedLabels: map[string]string{
 				"kube":                       "label",
 				types.OriginLabel:            types.OriginKubernetes,
-				operatorIDLabel:              operatorMetadata.ID,
+				OperatorIDLabel:              operatorMetadata.ID,
 				operatorNamespaceLabel:       operatorMetadata.Namespace,
 				operatorOwnerLabel:           operatorMetadata.Owner,
 				operatorTokenNameLabel:       operatorMetadata.TokenName,

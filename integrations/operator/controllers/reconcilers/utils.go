@@ -215,7 +215,7 @@ func checkAnnotationFlag(object kclient.Object, flagName string, defaultValue bo
 // Works in place.
 func updateScopedLabels(labels map[string]string, metadata OperatorMetadata, resourceMetadata customResourceMetadata) {
 	labels[common.OriginLabel] = common.OriginKubernetes
-	labels[operatorIDLabel] = metadata.ID
+	labels[OperatorIDLabel] = metadata.ID
 	labels[operatorOwnerLabel] = metadata.Owner
 	labels[operatorNamespaceLabel] = metadata.Namespace
 	labels[operatorTokenNameLabel] = metadata.TokenName

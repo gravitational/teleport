@@ -55,7 +55,7 @@ const (
 )
 
 const (
-	operatorIDLabel              = "resources.teleport.dev/operator-id"
+	OperatorIDLabel              = "resources.teleport.dev/operator-id"
 	operatorOwnerLabel           = "resources.teleport.dev/owner-email"
 	operatorTokenNameLabel       = "resources.teleport.dev/token-name"
 	operatorNamespaceLabel       = "resources.teleport.dev/namespace"
@@ -65,8 +65,8 @@ const (
 
 	ownershipIssueMissingOriginLabel  = "teleport resource doesn't have the " + common.OriginLabel + "label"
 	ownershipIssueMismatchOriginLabel = "teleport resource has the " + common.OriginLabel + "label set to %q instead of \"" + common.OriginKubernetes + "\""
-	ownershipIssueMissingOperatorID   = "teleport resource doesn't have the " + operatorIDLabel + "label"
-	ownershipIssueMismatchOperatorID  = "teleport resource has the " + operatorIDLabel + "label set to %q instead of %q. Resource is owned by another operator. The resource label contain more info on the original operator."
+	ownershipIssueMissingOperatorID   = "teleport resource doesn't have the " + OperatorIDLabel + "label"
+	ownershipIssueMismatchOperatorID  = "teleport resource has the " + OperatorIDLabel + "label set to %q instead of %q. Resource is owned by another operator. The resource label contain more info on the original operator."
 )
 
 // Resource is any Teleport Resource the controller manages.

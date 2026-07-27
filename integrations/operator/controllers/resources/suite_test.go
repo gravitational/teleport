@@ -31,6 +31,11 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
+const (
+	testScope       = "/staging"
+	testNestedScope = testScope + "/nested"
+)
+
 // Temporary type alias to slightly decrease the size of this commit, it can be
 // removed in a follow-up.
 type testSetup = testlib.TestSetup

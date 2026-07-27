@@ -253,12 +253,12 @@ func TestScopedResource153Adapter_CheckOwnership(t *testing.T) {
 		},
 		{
 			name:     "unscoped - origin label match but mismatch id",
-			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: conflictingID}}.Build()},
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID}}.Build()},
 			expected: true,
 		},
 		{
 			name:     "unscoped - origin label match and matching id",
-			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: testID}}.Build()},
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID}}.Build()},
 			expected: true,
 		},
 		{
@@ -300,7 +300,7 @@ func TestScopedResource153Adapter_CheckOwnership(t *testing.T) {
 		{
 			name: "scoped - origin label match but mismatch id",
 			resource: &fakeResource153{
-				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: conflictingID}}.Build(),
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID}}.Build(),
 				scope:    testScope,
 			},
 			expected:       false,
@@ -309,7 +309,7 @@ func TestScopedResource153Adapter_CheckOwnership(t *testing.T) {
 		{
 			name: "scoped - origin label match and matching id",
 			resource: &fakeResource153{
-				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, operatorIDLabel: testID}}.Build(),
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID}}.Build(),
 				scope:    testScope,
 			},
 			expected: true,
@@ -394,7 +394,7 @@ func TestScopedResource153Adapter_SetLabels(t *testing.T) {
 			expectedLabels: map[string]string{
 				"kube":                       "label",
 				types.OriginLabel:            types.OriginKubernetes,
-				operatorIDLabel:              operatorMetadata.ID,
+				OperatorIDLabel:              operatorMetadata.ID,
 				operatorNamespaceLabel:       operatorMetadata.Namespace,
 				operatorOwnerLabel:           operatorMetadata.Owner,
 				operatorTokenNameLabel:       operatorMetadata.TokenName,

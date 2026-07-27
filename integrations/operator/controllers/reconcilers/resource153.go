@@ -129,7 +129,7 @@ func (a ScopedResource153Adapter[T]) CheckOwnership(res T, metadata OperatorMeta
 	if res.GetScope() == "" {
 		return true, ""
 	}
-	if id, ok := res.GetMetadata().GetLabels()[operatorIDLabel]; ok {
+	if id, ok := res.GetMetadata().GetLabels()[OperatorIDLabel]; ok {
 		if id != metadata.ID {
 			return false, fmt.Sprintf(ownershipIssueMismatchOperatorID, id, metadata.ID)
 		}
