@@ -51,7 +51,7 @@ func newMCPConnectCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConnectCom
 		cf:        cf,
 	}
 
-	cmd.Arg("name", "Name of the MCP server.").Required().StringVar(&cf.AppName)
+	cmd.Arg("name", "Name of the MCP server.").Required().SetValue(&cf.AppSQN)
 	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).Default("true").BoolVar(&cmd.autoReconnect)
 	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
 	return cmd
@@ -81,7 +81,7 @@ func newMCPConfigCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpConfigComma
 	cmd.Flag("labels", labelHelp).StringVar(&cf.Labels)
 	cmd.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	cmd.Flag("auto-reconnect", mcpAutoReconnectHelp).IsSetByUser(&cmd.autoReconnectSetByUser).BoolVar(&cmd.autoReconnect)
-	cmd.Arg("name", "Name of the MCP server.").StringVar(&cf.AppName)
+	cmd.Arg("name", "Name of the MCP server.").SetValue(&cf.AppSQN)
 	cmd.clientConfig.addToCmd(cmd.CmdClause)
 	cmd.Alias(mcpConfigHelp)
 	cmd.Flag("header", "Extra custom headers used for streamable HTTP MCP servers.").Short('H').StringsVar(&cmd.httpHeaders)
@@ -323,7 +323,7 @@ func (c *mcpConfigCommand) checkSelectorFlags() error {
 	var mutuallyExclusiveSelectors int
 	for _, selectorEnabled := range []bool{
 		c.cf.ListAll,
-		c.cf.AppName != "",
+		c.cf.AppSQN.Name != "",
 		c.cf.PredicateExpression != "",
 		c.cf.Labels != "",
 	} {
@@ -356,8 +356,8 @@ func (c *mcpConfigCommand) fetchAndPrintResult() error {
 }
 
 func (c *mcpConfigCommand) fetch() error {
-	if c.cf.AppName != "" {
-		c.cf.PredicateExpression = makeNamePredicate(c.cf.AppName)
+	if c.cf.AppSQN.Name != "" {
+		c.cf.PredicateExpression = makeNamePredicate(c.cf.AppSQN.Name)
 	}
 	if c.fetchFunc == nil {
 		c.fetchFunc = fetchMCPServers
@@ -488,7 +488,7 @@ func (c *mcpConnectCommand) run() error {
 		return trace.Wrap(err)
 	}
 
-	dialer := client.NewMCPServerDialer(tc, c.cf.AppName)
+	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN.Name)
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{

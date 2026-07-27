@@ -242,8 +242,8 @@ func (s *clientApplicationService) OnInvalidLocalPort(ctx context.Context, req *
 // appKey is a clone of [vnetv1.AppKey] that is not a protobuf type so it can be
 // used as a key in maps.
 type appKey struct {
-	profile, leafCluster, app string
-	port                      uint16
+	profile, leafCluster, app, scope string
+	port                             uint16
 }
 
 func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
@@ -252,6 +252,7 @@ func newAppKey(protoAppKey *vnetv1.AppKey, port uint16) appKey {
 		leafCluster: protoAppKey.GetLeafCluster(),
 		app:         protoAppKey.GetName(),
 		port:        port,
+		scope:       protoAppKey.GetScope(),
 	}
 }
 

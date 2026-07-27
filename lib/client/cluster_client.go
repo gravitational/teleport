@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -262,7 +263,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 		keyRing.SSHPrivateKey = newUserKeys.ssh
 		keyRing.Cert = certs.SSH
 	case proto.UserCertsRequest_App:
-		keyRing.AppTLSCredentials[params.RouteToApp.Name] = TLSCredential{
+		keyRing.AppTLSCredentials[ScopedAppName(scopes.QualifiedName{Name: params.RouteToApp.Name, Scope: params.RouteToApp.Scope})] = TLSCredential{
 			PrivateKey: newUserKeys.app,
 			Cert:       certs.TLS,
 		}
@@ -935,7 +936,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			if keyRing.AppTLSCredentials == nil {
 				keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.AppTLSCredentials[certsReq.RouteToApp.Name] = TLSCredential{
+			keyRing.AppTLSCredentials[ScopedAppName(scopes.QualifiedName{Name: certsReq.RouteToApp.Name, Scope: certsReq.RouteToApp.Scope})] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.app,
 			}

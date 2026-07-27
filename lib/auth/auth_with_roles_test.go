@@ -6178,6 +6178,77 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 	}
 }
 
+func TestDeleteAppSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/staging"
+
+	unscopedSrv := newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "alice", nil)
+	scopedSrv := newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, "scoped-alice", scope,
+		scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scope},
+			App: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `labels["env"] == "staging"`,
+			}.Build(),
+		}.Build())
+
+	cases := []struct {
+		name         string
+		srv          *auth.ScopedServerWithRoles
+		sessionOwner string
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped user deletes own session",
+			srv:          unscopedSrv,
+			sessionOwner: "alice",
+		},
+		{
+			name:         "unscoped user cannot delete another user's session",
+			srv:          unscopedSrv,
+			sessionOwner: "bob",
+			wantErr:      true,
+		},
+		{
+			name: "unscoped user with web_session rules deletes another user's session",
+			srv: newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "admin",
+				[]types.Rule{types.NewRule(types.KindWebSession, []string{types.VerbList, types.VerbDelete})}),
+			sessionOwner: "bob",
+		},
+		{
+			name:         "scoped user deletes own session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-alice",
+		},
+		{
+			name:         "scoped user cannot delete another user's session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-bob",
+			wantErr:      true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			ws, err := types.NewWebSession(uuid.NewString(), types.KindAppSession, types.WebSessionSpecV2{
+				User:    tc.sessionOwner,
+				Expires: srv.Clock().Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+			require.NoError(t, srv.Auth().UpsertAppSession(ctx, ws))
+
+			err = tc.srv.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: ws.GetName()})
+			if tc.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestListResources_ScopedApps(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -6668,6 +6739,36 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		}
 		require.IsDecreasing(t, names)
 	})
+
+	t.Run("pagination does not duplicate the boundary item", func(t *testing.T) {
+		t.Parallel()
+
+		page1, nextKey, err := s.ListUserGroups(ctx, 2, "")
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		require.Equal(t, testUg2.GetName(), page1[0].GetName())
+		require.Equal(t, testUg3.GetName(), page1[1].GetName())
+
+		// nextKey must point at the next UNFETCHED item
+		require.Equal(t, testUg1.GetName(), nextKey,
+			"nextKey should be the name of the next item to fetch, not the last item already returned")
+
+		page2, nextKey2, err := s.ListUserGroups(ctx, 2, nextKey)
+		require.NoError(t, err)
+		require.Empty(t, nextKey2)
+		require.Len(t, page2, 1)
+		require.Equal(t, testUg1.GetName(), page2[0].GetName())
+
+		// No group should be served on both pages.
+		seen := make(map[string]bool, len(page1))
+		for _, ug := range page1 {
+			seen[ug.GetName()] = true
+		}
+		for _, ug := range page2 {
+			require.Falsef(t, seen[ug.GetName()], "user group %q was returned on both pages", ug.GetName())
+		}
+	})
+
 }
 
 func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[string]string) types.UserGroup {

@@ -28,6 +28,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,6 +61,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 		tlsOptsFunc  func(*tlsUpstreamSetup) *types.AppTLS
 		upstreamOpts []upstreamServerOpt
 		insecureMode bool
+		targetPolicy common.TargetHostPolicy
 		expectError  bool
 	}{
 		"verify-server-name": {
@@ -67,6 +70,18 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 					Mode:       types.AppTLSModeVerifyServerName,
 					AllowedCas: []string{string(setup.serverCACertPEM)},
 				}
+			},
+			expectError: false,
+		},
+		"verify-server-name with target host policy": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:       types.AppTLSModeVerifyServerName,
+					AllowedCas: []string{string(setup.serverCACertPEM)},
+				}
+			},
+			targetPolicy: common.TargetHostPolicy{
+				AllowedPrefixes: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")},
 			},
 			expectError: false,
 		},
@@ -472,15 +487,16 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 			tlsApps, tlsPublicAddrs := configureAppIPAndLocalhost(t, setup, tlsUpstreamAddr, tc.tlsOptsFunc(setup))
 
 			s := SetUpSuiteWithConfig(t, suiteConfig{
-				Apps:         append(httpsApps, tlsApps...),
-				OverrideCAs:  []types.CertAuthority{setup.spiffeCAResource, setup.appClientCAResource},
-				InsecureMode: tc.insecureMode,
+				Apps:             append(httpsApps, tlsApps...),
+				OverrideCAs:      []types.CertAuthority{setup.spiffeCAResource, setup.appClientCAResource},
+				InsecureMode:     tc.insecureMode,
+				TargetHostPolicy: tc.targetPolicy,
 			})
 
 			t.Run("HTTPS", func(t *testing.T) {
 				for _, publicAddr := range httpsPublicAddrs {
 					t.Run(publicAddr, func(t *testing.T) {
-						cert := s.generateCertificate(t, s.user, publicAddr, "")
+						cert := s.generateCertificate(t, s.user, publicAddr, "", "")
 
 						s.checkHTTPResponse(t, cert, func(resp *http.Response) {
 							if tc.expectError {
@@ -516,7 +532,7 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 
 						// This is dialing the app server not the upstream
 						// target. We should expect no errors in this phase.
-						cert := s.generateCertificate(t, s.user, publicAddr, "")
+						cert := s.generateCertificate(t, s.user, publicAddr, "", "")
 						tlsConn := tls.Client(serverConn, &tls.Config{
 							RootCAs:      s.hostCertPool,
 							Certificates: []tls.Certificate{cert},

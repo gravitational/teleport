@@ -275,8 +275,8 @@ func (f *FakeHostNetwork) Close() { f.closeFn() }
 func newSplitTUN() (*fakeTUN, *fakeTUN) {
 	aClosed := make(chan struct{})
 	bClosed := make(chan struct{})
-	ab := make(chan []byte)
-	ba := make(chan []byte)
+	ab := make(chan *[]byte)
+	ba := make(chan *[]byte)
 	return &fakeTUN{
 			name:            "tun1",
 			writePacketsTo:  ab,
@@ -294,9 +294,18 @@ func newSplitTUN() (*fakeTUN, *fakeTUN) {
 
 var errFakeTUNClosed = errors.New("TUN closed")
 
+// fakeTUNPacketPool recycles per-packet buffers so the fake TUN doesn't add
+// its own allocations to benchmarks.
+var fakeTUNPacketPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, 2048) // a bit above the 1500 MTU so the buffer never needs to grow
+		return &b
+	},
+}
+
 type fakeTUN struct {
 	name                            string
-	writePacketsTo, readPacketsFrom chan []byte
+	writePacketsTo, readPacketsFrom chan *[]byte
 	closed                          chan struct{}
 	closeOnce                       func()
 }
@@ -317,10 +326,11 @@ func (f *fakeTUN) Write(bufs [][]byte, offset int) (int, error) {
 	if len(bufs) != 1 {
 		return 0, trace.BadParameter("batchsize is 1")
 	}
-	packet := make([]byte, len(bufs[0][offset:]))
-	copy(packet, bufs[0][offset:])
+	packet := fakeTUNPacketPool.Get().(*[]byte)
+	*packet = append((*packet)[:0], bufs[0][offset:]...)
 	select {
 	case <-f.closed:
+		fakeTUNPacketPool.Put(packet)
 		return 0, errFakeTUNClosed
 	case f.writePacketsTo <- packet:
 	}
@@ -336,13 +346,14 @@ func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error
 	if len(bufs) != 1 {
 		return 0, trace.BadParameter("batchsize is 1")
 	}
-	var packet []byte
+	var packet *[]byte
 	select {
 	case <-f.closed:
 		return 0, errFakeTUNClosed
 	case packet = <-f.readPacketsFrom:
 	}
-	sizes[0] = copy(bufs[0][offset:], packet)
+	sizes[0] = copy(bufs[0][offset:], *packet)
+	fakeTUNPacketPool.Put(packet)
 	return 1, nil
 }
 

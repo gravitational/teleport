@@ -21,11 +21,13 @@ package authz
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -293,6 +295,53 @@ func (s *ScopedContext) LockTargets() []types.LockTarget {
 	return lockTargets
 }
 
+// HasBuiltinRole reports whether the calling identity is a local builtin role
+// (scoped or unscoped) matching any of the given system roles.
+func (s *ScopedContext) HasBuiltinRole(roles ...types.SystemRole) bool {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		for _, role := range roles {
+			if HasBuiltinRole(*unscopedCtx, string(role)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Since unscoped contexts are handled above, the only valid builtin
+	// identity at this point is a [ScopedBuiltinRole].
+	role, isBuiltin := s.Identity.(ScopedBuiltinRole)
+	if !isBuiltin {
+		return false
+	}
+	// For service certs, the additional system roles will be empty so we only
+	// check if the primary role is included in the given roles.
+	if primary := types.SystemRole(role.ScopePin.GetSystemRoles().GetPrimary()); primary != types.RoleInstance {
+		return types.SystemRoles(roles).Include(primary)
+	}
+	// For instance certs, we check if there is any overlap between the given
+	// roles and the additional system roles included in the scope pin.
+	existingRoles := role.ScopePin.GetSystemRoles().GetAdditional()
+	for _, r := range roles {
+		if slices.Contains(existingRoles, string(r)) {
+			return true
+		}
+	}
+	return false
+}
+
+// LocalServerID returns the builtin server ID associated with the calling
+// identity. If the identity is not a builtin server role, an empty string and
+// false are returned.
+func (s *ScopedContext) LocalServerID() (serverID string, isBuiltinServer bool) {
+	switch role := s.Identity.(type) {
+	case BuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	case ScopedBuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	}
+	return "", false
+}
+
 // DisplayName returns a display name for the calling identity.
 // authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
 // the identity's username.
@@ -305,4 +354,34 @@ func (s *ScopedContext) DisplayName() string {
 		return s.Identity.GetIdentity().Username
 	}
 	return ""
+}
+
+// AgentOwnedResourceAction authorizes an agent identity to perform actions on its own resources.
+func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRoles ...types.SystemRole) error {
+	if !s.HasBuiltinRole(systemRoles...) {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+
+	serverID, isAgent := s.LocalServerID()
+	if !isAgent {
+		return trace.BadParameter("no agent identity after confirming that request context is BuiltinRole (this is a bug)")
+	}
+	// For now, agents must also check that
+	if hostID != serverID {
+		return trace.AccessDenied("resource host ID %+q does not match agent identity ID %+q", hostID, serverID)
+	}
+
+	agentScope := s.Identity.GetIdentity().GetAgentScope()
+	// Unscoped agents must be only allowed to delete unscoped resources.
+	// Scoped pinned agents must have matching agent and resource scopes.
+	// TODO (williamo/scopes): We most likely will relax this rule in the future.
+	if agentScope == "" && scope == "" {
+		return nil
+	}
+	if scopes.Compare(agentScope, scope) == scopes.Equivalent {
+		return nil
+	}
+
+	return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
+
 }
