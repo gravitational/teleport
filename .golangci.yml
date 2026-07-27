@@ -96,6 +96,7 @@ linters:
             - '!**/lib/services/local/access_list.go'
             - '!**/lib/services/local/users.go'
             - '!**/lib/services/user.go'
+            - '!**/e/tests/antithesis/workloads/**'
           deny:
             - pkg: github.com/google/go-cmp/cmp
               desc: '"github.com/google/go-cmp/cmp" should only be used in tests'
