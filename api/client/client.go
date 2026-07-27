@@ -106,6 +106,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
@@ -3808,19 +3809,42 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 	return trace.Wrap(err)
 }
 
-// GetKubernetesCluster returns the specified kubernetes resource.
+// GetKubernetesCluster returns the specified kubernetes resource by name.
+//
+// Deprecated: Use GetKubeCluster instead.
+// TODO (eriktate): remove in v20
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	if name == "" {
+	return c.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
+}
+
+// GetKubeCluster returns the specified kubernetes resource by scope and name.
+func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error) {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing kubernetes cluster name")
 	}
-	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	res, err := c.PresenceServiceClient().GetKubeCluster(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			// only allow fallback if the request is for an unscoped resource
+			return nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it")
+
+		}
+
+		// fallback to legacy GetKubernetesCluster API
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		return c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
+			Name: req.GetName(),
+		})
 	}
-	return cluster, nil
+	return res.GetCluster(), trace.Wrap(err)
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
+//
+// Deprecated: Prefer paginated variant such as [ListKubeClusters] or [RangeKubeClusters]
 func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	items, err := c.grpc.GetKubernetesClusters(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3834,29 +3858,169 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters instead.
+// TODO (eriktate): remove in v20
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 		PageSize:  int32(limit),
 		PageToken: start,
+	}.Build())
+}
+
+func (c *Client) legacyListKubeClusters(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+	//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+	res, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
-	for i := range resp.KubernetesClusters {
-		kubeClusters[i] = resp.KubernetesClusters[i]
+
+	return res.GetKubernetesClusters(), res.GetNextPageToken(), nil
+}
+
+// ListKubeClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	var clusters []*types.KubernetesClusterV3
+	var nextPageToken string
+	if res, err := c.PresenceServiceClient().ListKubeClusters(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// only allow fallback if the request is not expecting results to be scope filtered
+		if req.GetScopeFilter().GetScope() != "" {
+			return nil, "", trace.BadParameter("requesting list of scoped kube cluster from an outdated Teleport control plane that does not support it")
+		}
+		// fallback to legacy ListKubernetesClusters
+		clusters, nextPageToken, err = c.legacyListKubeClusters(ctx, int(req.GetPageSize()), req.GetPageToken())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	} else {
+		clusters = res.GetClusters()
+		nextPageToken = res.GetNextPageToken()
+
 	}
-	return kubeClusters, resp.NextPageToken, nil
+	kubeClusters := make([]types.KubeCluster, len(clusters))
+	for i, cluster := range clusters {
+		kubeClusters[i] = cluster
+	}
+	return kubeClusters, nextPageToken, nil
 }
 
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+//
+// Deprecated: Use RangeKubeClusters instead.
+// TODO (eriktate): remove in v20
 func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
+	kubeClient := c.PresenceServiceClient()
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+		res, err := kubeClient.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_UNSCOPED,
+			}.Build(),
+		}.Build())
+		return res.GetClusters(), res.GetNextPageToken(), err
+	}
+
+	return func(yield func(cluster types.KubeCluster, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, start, end, pageFn, (*types.KubernetesClusterV3).GetName) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListKubeClusters, we should try to fallback to the
+				// legacy ListKubernetesClusters API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, start, end, c.legacyListKubeClusters, (*types.KubernetesClusterV3).GetName) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
+}
+
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	kubeClient := c.PresenceServiceClient()
+	if req == nil {
+		req = presencepb.ListKubeClustersRequest_builder{}.Build()
+	}
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+		req.SetPageToken(pageToken)
+		req.PageSize = int32(pageSize)
+		res, err := kubeClient.ListKubeClusters(ctx, req)
+		return res.GetClusters(), res.GetNextPageToken(), err
+	}
+
+	return func(yield func(cluster types.KubeCluster, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, nil) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListKubeClusters, we should try to fallback to the
+				// legacy ListKubernetesClusters API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		if req.GetScopeFilter().GetScope() != "" {
+			// only allow fallback if the request is not expecting results to be scope filtered
+			yield(nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it"))
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.legacyListKubeClusters, nil) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+//
+// Deprecated: Use DeleteKubeCluster instead.
+// TODO (eriktate): remove in v20
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
+	return c.DeleteKubeCluster(ctx, presencepb.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
+}
+
+// DeleteKubeCluster deletes specified kubernetes cluster resource by scope and name.
+func (c *Client) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error {
+	_, err := c.PresenceServiceClient().DeleteKubeCluster(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of scoped kube cluster from an outdated Teleport control plane that does not support it")
+		}
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{
+			Name: req.GetName(),
+		})
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
