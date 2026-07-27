@@ -198,6 +198,12 @@ func TestValidateQualifiedName(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name:     "name longer than max segment size",
+			sqn:      "/staging::aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
 			name:     "scope with breaking char",
 			sqn:      "/stag@ing::myrole",
 			strongOk: false,
