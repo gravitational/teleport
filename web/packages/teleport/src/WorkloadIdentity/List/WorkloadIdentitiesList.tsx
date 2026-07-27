@@ -75,6 +75,11 @@ export function WorkloadIdetitiesList({
           key: 'name',
           headerText: 'Name',
           isSortable: true,
+          // Scoped workload identities are shown as their scope-qualified
+          // name, e.g. /staging::my-identity.
+          render: ({ name, scope }) => (
+            <Cell>{scope ? `${scope}::${name}` : name}</Cell>
+          ),
         },
         {
           key: 'spiffe_id',

@@ -48,6 +48,13 @@ export const listWorkloadIdentitiesSuccess = (
         spiffe_hint: '',
         labels: { 'test-label-4': 'test-value-4' },
       },
+      {
+        name: 'test-workload-identity-4',
+        scope: '/staging',
+        spiffe_id: '/staging/_/70b7ee2f-ea48-42e8-b6e1-9c47dec6e295',
+        spiffe_hint: '',
+        labels: {},
+      },
     ],
     next_page_token: 'page-token-1',
   }
