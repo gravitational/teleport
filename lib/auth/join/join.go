@@ -364,6 +364,9 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		// a SQN, then the request is rejected. Scoped tokens can only be used
 		// in the new join service.
 		if _, err := scopes.ParseQualifiedName(params.Token); err == nil {
+			// TODO(tross/scopes): This error matches the one returend from
+			// the unscoped path. Look into unifying them, or exporting the
+			// TokenNotFoundError to an importable package.
 			return nil, trace.AccessDenied("token expired or not found")
 		}
 		return nil, trace.Wrap(err)

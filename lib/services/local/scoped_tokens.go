@@ -280,6 +280,8 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 
 	// We handle 4 retry attempts to try and handle some concurrency. Handling more retries than this
 	// indicates that something may be going wrong.
+	//
+	// TODO(scopes): reconsider upsert behavior now that scoped tokens are namespaced.
 	for attempt := range maxTokenUpsertAttempts {
 		if attempt != 0 {
 			select {
