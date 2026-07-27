@@ -10,10 +10,9 @@ configurations, when each Discovery Service instance last reported, and the late
 $ tctl discovery status --cloud={{ cloud }}
 ```
 
-A healthy configuration that discovered and enrolled two resources might
-produce output similar to the following:
+The following example shows a healthy configuration that discovered and enrolled two resources:
 
-```code
+```text
 Discovery config example-discovery:
   Discovery group: production
   Status: healthy
@@ -28,8 +27,9 @@ Discovery config example-discovery:
         Result: 2 found, 2 enrolled, 0 failed
 ```
 
-If the status remains `error` or `not reporting yet`, no Discovery Service instances are
-running, or the `failed` count is nonzero, try the troubleshooting steps below.
+A persistent `error` or `not reporting yet` status, a message that no Discovery
+Service instances are running, or a nonzero `failed` count indicates a discovery
+or enrollment problem.
 
 The command reports dynamic `discovery_config` resources. It does not include
 static discovery matchers configured in `teleport.yaml`.
