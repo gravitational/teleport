@@ -33,12 +33,10 @@ func makeSlackClient(apiURL string) *resty.Client {
 			Transport: &http.Transport{
 				MaxConnsPerHost:     slackMaxConns,
 				MaxIdleConnsPerHost: slackMaxConns,
+				Proxy:               http.ProxyFromEnvironment,
 			},
 		}).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
-		SetBaseURL(apiURL).
-		SetTransport(&http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-		})
+		SetBaseURL(apiURL)
 }
