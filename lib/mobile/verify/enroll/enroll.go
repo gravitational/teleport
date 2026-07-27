@@ -116,14 +116,13 @@ func (c *Client) CreatePairedDeviceEnrollToken(pairingToken string, deviceData *
 }
 
 // EnrollDevice runs the enrollment ceremony against the public Device Trust
-// service using the enrollment token from CreatePairedDeviceEnrollToken. user
-// is the owner to assign to the device, carried on the request temporarily
-// until the enrollment token can supply it.
+// service using the enrollment token from CreatePairedDeviceEnrollToken. The
+// device owner is derived from that token.
 //
 // This is a simplified stand-in for the real iOS ceremony: instead of a Secure
 // Enclave key it generates an ephemeral P-256 key in-process, signs the
 // server's challenge with it, and returns the enrolled device.
-func (c *Client) EnrollDevice(enrollToken, user string, deviceData *DeviceCollectedData) (*EnrolledDevice, error) {
+func (c *Client) EnrollDevice(enrollToken string, deviceData *DeviceCollectedData) (*EnrolledDevice, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -165,7 +164,6 @@ func (c *Client) EnrollDevice(enrollToken, user string, deviceData *DeviceCollec
 			Ios: devicetrustpublicv1pb.IOSEnrollPayload_builder{
 				PublicKeyDer: pubDER,
 			}.Build(),
-			User: user,
 		}.Build(),
 	}.Build()); err != nil {
 		return nil, trace.Wrap(err)

@@ -17,6 +17,16 @@
 // Command enroll is a throwaway tool that calls the public Device Trust
 // CreatePairedDeviceEnrollToken and EnrollDevice RPCs against a proxy server
 // with a given token and constant fake device data.
+//
+// The device described by fakeDeviceData must already be in the inventory:
+//
+//	tctl devices add --os ios --asset-tag FAKE000SERIAL
+//
+// "all" runs the flow the mobile app performs after scanning the QR code,
+// taking the enroll pairing token from the Enroll Mobile Device wizard through
+// to an enrolled device:
+//
+//	go run ./tool/enroll -proxy <host:port> -rpc all -token <enroll pairing token>
 package main
 
 import (
@@ -37,9 +47,8 @@ var fakeDeviceData = enroll.DeviceCollectedData{
 
 func main() {
 	proxyServer := flag.String("proxy", "", "proxy server address (host:port)")
-	rpc := flag.String("rpc", "create-token", "RPC to call: create-token or enroll")
-	token := flag.String("token", "", "enroll pairing token for create-token, device enrollment token for enroll")
-	user := flag.String("user", "", "owner to assign to the device (enroll only)")
+	rpc := flag.String("rpc", "create-token", "what to run: create-token, enroll, or all (create-token followed by enroll)")
+	token := flag.String("token", "", "enroll pairing token for create-token and all, device enrollment token for enroll")
 	flag.Parse()
 
 	if *proxyServer == "" || *token == "" {
@@ -51,26 +60,56 @@ func main() {
 
 	switch *rpc {
 	case "create-token":
-		enrollToken, err := client.CreatePairedDeviceEnrollToken(*token, &fakeDeviceData)
+		enrollToken, err := createToken(client, *token)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fail(err)
 		}
-		fmt.Println(enrollToken.Token)
+		fmt.Println(enrollToken)
 	case "enroll":
-		if *user == "" {
-			fmt.Fprintln(os.Stderr, "-user is required for enroll")
-			os.Exit(1)
+		if err := enrollDevice(client, *token); err != nil {
+			fail(err)
 		}
-		device, err := client.EnrollDevice(*token, *user, &fakeDeviceData)
+	case "all":
+		enrollToken, err := createToken(client, *token)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			fail(err)
 		}
-		fmt.Printf("enrolled device %s (asset tag %s)\n", device.DeviceID, device.AssetTag)
+		fmt.Fprintf(os.Stderr, "Got enrollment token %s, enrolling the device.\n", enrollToken)
+
+		if err := enrollDevice(client, enrollToken); err != nil {
+			fail(err)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown rpc %q\n", *rpc)
 		flag.Usage()
 		os.Exit(1)
 	}
+}
+
+// createToken exchanges an enroll pairing token for a device enrollment token.
+// The call blocks until the pairing is approved in the Web UI, so it announces
+// itself rather than looking hung.
+func createToken(client *enroll.Client, pairingToken string) (string, error) {
+	fmt.Fprintln(os.Stderr, "Waiting for the request to be approved under Account Settings in the Web UI.")
+
+	enrollToken, err := client.CreatePairedDeviceEnrollToken(pairingToken, &fakeDeviceData)
+	if err != nil {
+		return "", err
+	}
+	return enrollToken.Token, nil
+}
+
+func enrollDevice(client *enroll.Client, enrollToken string) error {
+	device, err := client.EnrollDevice(enrollToken, &fakeDeviceData)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("enrolled device %s (asset tag %s)\n", device.DeviceID, device.AssetTag)
+	return nil
+}
+
+func fail(err error) {
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
 }
