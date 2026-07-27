@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -199,6 +200,17 @@ type TestSetup struct {
 	Context                  context.Context
 	InsecureMode             bool
 	ScopesFeatures           scopes.Features
+	scope                    string
+}
+
+func (s *TestSetup) OperatorMetadata() reconcilers.OperatorMetadata {
+	return reconcilers.OperatorMetadata{
+		Namespace: s.Namespace.Name,
+		ID:        "test-operator",
+		TokenName: "test-token",
+		Scope:     s.scope,
+		Owner:     "test@example.com",
+	}
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -242,11 +254,12 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	err = resources.SetupAllControllers(resources.Config{
-		Log:            setupLog,
-		TeleportClient: s.TeleportClient,
-		KubeClient:     k8sManager.GetClient(),
-		Scoped:         false,
-		Features:       pong.ServerFeatures,
+		Log:              setupLog,
+		TeleportClient:   s.TeleportClient,
+		KubeClient:       k8sManager.GetClient(),
+		Scoped:           false,
+		Features:         pong.ServerFeatures,
+		OperatorMetadata: s.OperatorMetadata(),
 	}, k8sManager, discoveryClient)
 	require.NoError(t, err)
 
@@ -317,6 +330,13 @@ func WithScopesFeatures(features scopes.Features) TestOption {
 	}
 }
 
+// WithScope sets the operator for the tests.
+func WithScope(scope string) TestOption {
+	return func(setup *TestSetup) {
+		setup.scope = scope
+	}
+}
+
 func StepByStep(setup *TestSetup) {
 	setup.stepByStepReconciliation = true
 }
@@ -359,6 +379,7 @@ func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 		Context:      t.Context(),
 		K8sClient:    k8sClient,
 		Namespace:    ns,
+		scope:        "/",
 		ResourceName: ValidRandomResourceName("resource-"),
 	}
 
