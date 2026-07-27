@@ -602,9 +602,12 @@ type ScopedRoleSSH struct {
 	DisconnectExpiredCert *bool `protobuf:"varint,14,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock configures the role's locking behavior for SSH sessions.
 	// If empty, the defaults block value (or global default) applies.
-	Lock          *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Lock *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
+	// LabelExpression is an optional predicate expression evaluated against an
+	// ssh node's labels.
+	LabelExpression string `protobuf:"bytes,16,opt,name=label_expression,json=labelExpression,proto3" json:"label_expression,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ScopedRoleSSH) Reset() {
@@ -730,6 +733,13 @@ func (x *ScopedRoleSSH) GetLock() *Lock {
 	return nil
 }
 
+func (x *ScopedRoleSSH) GetLabelExpression() string {
+	if x != nil {
+		return x.LabelExpression
+	}
+	return ""
+}
+
 func (x *ScopedRoleSSH) SetLogins(v []string) {
 	x.Logins = v
 }
@@ -784,6 +794,10 @@ func (x *ScopedRoleSSH) SetDisconnectExpiredCert(v bool) {
 
 func (x *ScopedRoleSSH) SetLock(v *Lock) {
 	x.Lock = v
+}
+
+func (x *ScopedRoleSSH) SetLabelExpression(v string) {
+	x.LabelExpression = v
 }
 
 func (x *ScopedRoleSSH) HasPermitX11Forwarding() bool {
@@ -935,6 +949,9 @@ type ScopedRoleSSH_builder struct {
 	// Lock configures the role's locking behavior for SSH sessions.
 	// If empty, the defaults block value (or global default) applies.
 	Lock *Lock
+	// LabelExpression is an optional predicate expression evaluated against an
+	// ssh node's labels.
+	LabelExpression string
 }
 
 func (b0 ScopedRoleSSH_builder) Build() *ScopedRoleSSH {
@@ -955,6 +972,7 @@ func (b0 ScopedRoleSSH_builder) Build() *ScopedRoleSSH {
 	x.SessionRecording = b.SessionRecording
 	x.DisconnectExpiredCert = b.DisconnectExpiredCert
 	x.Lock = b.Lock
+	x.LabelExpression = b.LabelExpression
 	return m0
 }
 
@@ -982,9 +1000,12 @@ type ScopedRoleKube struct {
 	DisconnectExpiredCert *bool `protobuf:"varint,6,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock configures the role's locking behavior for kubernetes sessions.
 	// If empty, the defaults block value (or global default) applies.
-	Lock          *Lock `protobuf:"bytes,7,opt,name=lock,proto3" json:"lock,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Lock *Lock `protobuf:"bytes,7,opt,name=lock,proto3" json:"lock,omitempty"`
+	// LabelExpression is an optional predicate expression evaluated against a
+	// kubernetes server's labels.
+	LabelExpression string `protobuf:"bytes,8,opt,name=label_expression,json=labelExpression,proto3" json:"label_expression,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ScopedRoleKube) Reset() {
@@ -1061,6 +1082,13 @@ func (x *ScopedRoleKube) GetLock() *Lock {
 	return nil
 }
 
+func (x *ScopedRoleKube) GetLabelExpression() string {
+	if x != nil {
+		return x.LabelExpression
+	}
+	return ""
+}
+
 func (x *ScopedRoleKube) SetLabels(v []*v11.Label) {
 	x.Labels = v
 }
@@ -1087,6 +1115,10 @@ func (x *ScopedRoleKube) SetDisconnectExpiredCert(v bool) {
 
 func (x *ScopedRoleKube) SetLock(v *Lock) {
 	x.Lock = v
+}
+
+func (x *ScopedRoleKube) SetLabelExpression(v string) {
+	x.LabelExpression = v
 }
 
 func (x *ScopedRoleKube) HasDisconnectExpiredCert() bool {
@@ -1132,6 +1164,9 @@ type ScopedRoleKube_builder struct {
 	// Lock configures the role's locking behavior for kubernetes sessions.
 	// If empty, the defaults block value (or global default) applies.
 	Lock *Lock
+	// LabelExpression is an optional predicate expression evaluated against a
+	// kubernetes server's labels.
+	LabelExpression string
 }
 
 func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
@@ -1145,6 +1180,7 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	x.ClientIdleTimeout = b.ClientIdleTimeout
 	x.DisconnectExpiredCert = b.DisconnectExpiredCert
 	x.Lock = b.Lock
+	x.LabelExpression = b.LabelExpression
 	return m0
 }
 
@@ -2106,7 +2142,7 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x03 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\x04 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
-	"\x18_disconnect_expired_cert\"\x99\a\n" +
+	"\x18_disconnect_expired_cert\"\xc4\a\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
@@ -2122,13 +2158,14 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x12enhanced_recording\x18\f \x01(\v2,.teleport.scopes.access.v1.EnhancedRecordingR\x11enhancedRecording\x12X\n" +
 	"\x11session_recording\x18\r \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x0e \x01(\bH\x04R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
-	"\x04lock\x18\x0f \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x18\n" +
+	"\x04lock\x18\x0f \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lock\x12)\n" +
+	"\x10label_expression\x18\x10 \x01(\tR\x0flabelExpressionB\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_forward_agentB\x0f\n" +
 	"\r_max_sessionsB\f\n" +
 	"\n" +
 	"_file_copyB\x1a\n" +
-	"\x18_disconnect_expired_cert\"\xf5\x02\n" +
+	"\x18_disconnect_expired_cert\"\xa0\x03\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
@@ -2136,7 +2173,8 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\tresources\x18\x04 \x03(\v2'.teleport.scopes.access.v1.KubeResourceR\tresources\x12.\n" +
 	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
-	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lock\x12)\n" +
+	"\x10label_expression\x18\b \x01(\tR\x0flabelExpressionB\x1a\n" +
 	"\x18_disconnect_expired_cert\"\xaa\x02\n" +
 	"\rScopedRoleApp\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
