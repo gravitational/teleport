@@ -133,7 +133,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	// be intentional. In the future, we might consider extracting a generic
 	// debug client that can be used in both contexts.
 	tbotDebugClient := debug.NewClient(filepath.Join(ns.dataDir, "bot"))
-	artifactSignatureVerifier, err := newArtifactSignatureVerifier()
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,15 +163,15 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 					Binary: "tbot",
 				},
 			},
-			SystemBinDir:              filepath.Join(cfg.SystemDir, "bin"),
-			SystemServiceDir:          filepath.Join(cfg.SystemDir, serviceDir),
-			HTTP:                      client,
-			Log:                       cfg.Log,
-			ReservedFreeTmpDisk:       reservedFreeDisk,
-			ReservedFreeInstallDisk:   reservedFreeDisk,
-			ValidateBinary:            validator.IsBinary,
-			Template:                  autoupdate.DefaultCDNURITemplate,
-			ArtifactSignatureVerifier: artifactSignatureVerifier,
+			SystemBinDir:               filepath.Join(cfg.SystemDir, "bin"),
+			SystemServiceDir:           filepath.Join(cfg.SystemDir, serviceDir),
+			HTTP:                       client,
+			Log:                        cfg.Log,
+			ReservedFreeTmpDisk:        reservedFreeDisk,
+			ReservedFreeInstallDisk:    reservedFreeDisk,
+			ValidateBinary:             validator.IsBinary,
+			Template:                   autoupdate.DefaultCDNURITemplate,
+			ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 		},
 		TeleportProcess: &SystemdService{
 			ServiceName: filepath.Base(ns.teleportServiceFile),

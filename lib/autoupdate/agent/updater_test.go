@@ -53,17 +53,21 @@ import (
 
 func TestMain(m *testing.M) {
 	initTime = time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		panic(err)
+	setEmbeddedArtifactSignatureKey := func() string {
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			panic(err)
+		}
+		pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		return base64.StdEncoding.EncodeToString(
+			pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}),
+		)
 	}
-	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	if err != nil {
-		panic(err)
-	}
-	teleportUpdateArtifactSignaturePublicKeyB64 = base64.StdEncoding.EncodeToString(
-		pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}),
-	)
+	teleportUpdateArtifactSignaturePublicKeyB64 = setEmbeddedArtifactSignatureKey()
+	teleportUpdateArtifactSignatureBackupPublicKeyB64 = setEmbeddedArtifactSignatureKey()
 	os.Exit(m.Run())
 }
 

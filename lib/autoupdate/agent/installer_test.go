@@ -210,13 +210,13 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 
 			installer := &LocalInstaller{
-				InstallDir:                dir,
-				HTTP:                      httpClient,
-				Log:                       slog.Default(),
-				ReservedFreeTmpDisk:       tt.reservedTmp,
-				ReservedFreeInstallDisk:   tt.reservedInstall,
-				Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
-				ArtifactSignatureVerifier: verifier,
+				InstallDir:                 dir,
+				HTTP:                       httpClient,
+				Log:                        slog.Default(),
+				ReservedFreeTmpDisk:        tt.reservedTmp,
+				ReservedFreeInstallDisk:    tt.reservedInstall,
+				Template:                   "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+				ArtifactSignatureVerifiers: []signature.Verifier{verifier},
 			}
 			ctx := context.Background()
 			err = installer.Install(ctx, NewRevision(version, tt.flags), baseURL, tt.force, tt.insecure)
@@ -287,11 +287,11 @@ func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
 
 	installDir := t.TempDir()
 	installer := &LocalInstaller{
-		InstallDir:                installDir,
-		HTTP:                      http.DefaultClient,
-		Log:                       slog.Default(),
-		Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
-		ArtifactSignatureVerifier: verifier,
+		InstallDir:                 installDir,
+		HTTP:                       http.DefaultClient,
+		Log:                        slog.Default(),
+		Template:                   "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+		ArtifactSignatureVerifiers: []signature.Verifier{verifier},
 	}
 
 	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
@@ -300,6 +300,30 @@ func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
 
 	_, err = os.ReadFile(filepath.Join(installDir, version, checksumType))
 	require.Error(t, err)
+}
+
+func TestLocalInstaller_VerifyArtifactSignature_FallsBackToBackupKey(t *testing.T) {
+	t.Parallel()
+
+	primaryVerifier, _ := testArtifactSignatureVerifier(t, []byte("different-payload"))
+	backupVerifier, backupSig := testArtifactSignatureVerifier(t, []byte("payload"))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := fmt.Fprint(w, backupSig)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	installer := &LocalInstaller{
+		HTTP: http.DefaultClient,
+		ArtifactSignatureVerifiers: []signature.Verifier{
+			primaryVerifier,
+			backupVerifier,
+		},
+	}
+
+	digest := sha256.Sum256([]byte("payload"))
+	require.NoError(t, installer.verifyArtifactSignature(context.Background(), server.URL, digest[:]))
 }
 
 func TestIsStagingCDN(t *testing.T) {
@@ -362,31 +386,46 @@ func TestIsStagingCDN(t *testing.T) {
 	}
 }
 
-func TestNewArtifactSignatureVerifier(t *testing.T) {
-	// Not parallel: mutates package-level teleportUpdateArtifactSignaturePublicKeyB64.
+func TestNewArtifactSignatureVerifiers(t *testing.T) {
+	// Not parallel: mutates package-level embedded public keys.
 
-	previous := teleportUpdateArtifactSignaturePublicKeyB64
+	previousPrimary := teleportUpdateArtifactSignaturePublicKeyB64
+	previousBackup := teleportUpdateArtifactSignatureBackupPublicKeyB64
 	t.Cleanup(func() {
-		teleportUpdateArtifactSignaturePublicKeyB64 = previous
+		teleportUpdateArtifactSignaturePublicKeyB64 = previousPrimary
+		teleportUpdateArtifactSignatureBackupPublicKeyB64 = previousBackup
 	})
 
 	teleportUpdateArtifactSignaturePublicKeyB64 = ""
-	_, err := newArtifactSignatureVerifier()
+	teleportUpdateArtifactSignatureBackupPublicKeyB64 = ""
+	_, err := newArtifactSignatureVerifiers()
 	require.ErrorContains(t, err, "teleport-update artifact signature public key is not configured")
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	require.NoError(t, err)
-	teleportUpdateArtifactSignaturePublicKeyB64 = base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+	primaryKey, primaryB64 := testArtifactSignatureKey(t)
+	teleportUpdateArtifactSignaturePublicKeyB64 = primaryB64
+	_, err = newArtifactSignatureVerifiers()
+	require.ErrorContains(t, err, "teleport-update backup artifact signature public key is not configured")
 
-	verifier, err := newArtifactSignatureVerifier()
+	backupKey, backupB64 := testArtifactSignatureKey(t)
+	teleportUpdateArtifactSignatureBackupPublicKeyB64 = backupB64
+
+	verifiers, err := newArtifactSignatureVerifiers()
 	require.NoError(t, err)
+	require.Len(t, verifiers, 2)
 
 	digest := sha256.Sum256([]byte("payload"))
-	sig, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+	sig, err := ecdsa.SignASN1(rand.Reader, primaryKey, digest[:])
 	require.NoError(t, err)
-	require.NoError(t, verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+	require.NoError(t, verifiers[0].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+
+	sig, err = ecdsa.SignASN1(rand.Reader, backupKey, digest[:])
+	require.NoError(t, err)
+	require.Error(t, verifiers[0].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+	require.NoError(t, verifiers[1].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+
+	teleportUpdateArtifactSignatureBackupPublicKeyB64 = "not-base64"
+	_, err = newArtifactSignatureVerifiers()
+	require.ErrorContains(t, err, "failed to decode backup teleport-update artifact signature public key")
 }
 
 func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
@@ -430,8 +469,7 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 func testArtifactSignatureVerifier(t *testing.T, payload []byte) (signature.Verifier, string) {
 	t.Helper()
 
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
+	key, _ := testArtifactSignatureKey(t)
 	verifier, err := signature.LoadVerifier(key.Public(), crypto.SHA256)
 	require.NoError(t, err)
 
@@ -440,6 +478,17 @@ func testArtifactSignatureVerifier(t *testing.T, payload []byte) (signature.Veri
 	require.NoError(t, err)
 
 	return verifier, base64.StdEncoding.EncodeToString(sig)
+}
+
+func testArtifactSignatureKey(t *testing.T) (*ecdsa.PrivateKey, string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+	publicKeyB64 := base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+	return key, publicKeyB64
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

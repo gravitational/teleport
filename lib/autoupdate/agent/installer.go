@@ -80,6 +80,10 @@ const (
 // binary at build time via ldflags.
 var teleportUpdateArtifactSignaturePublicKeyB64 string
 
+// teleportUpdateArtifactSignatureBackupPublicKeyB64 is injected into the
+// teleport-update binary at build time via ldflags.
+var teleportUpdateArtifactSignatureBackupPublicKeyB64 string
+
 // ServiceFile represents a systemd service file for a Teleport binary.
 //
 // ExampleName and ExampleFunc are used to parse an example configuration
@@ -130,10 +134,8 @@ type LocalInstaller struct {
 	ValidateBinary func(ctx context.Context, path string) (bool, error)
 	// Template is download URI Template of Teleport packages.
 	Template string
-	// ArtifactSignatureVerifier verifies detached release artifact signatures.
-	// If nil, the verifier is initialized from the embedded public key.
-	// Set only in tests to inject a test key without requiring build-time ldflags injection.
-	ArtifactSignatureVerifier signature.Verifier
+	// ArtifactSignatureVerifiers verifies detached release artifact signatures.
+	ArtifactSignatureVerifiers []signature.Verifier
 }
 
 // Remove a Teleport version directory from InstallDir.
@@ -348,30 +350,51 @@ func sameHostname(rawURL, wantURL string) (bool, error) {
 	return got == want, nil
 }
 
-func newArtifactSignatureVerifier() (signature.Verifier, error) {
+func newArtifactSignatureVerifiers() ([]signature.Verifier, error) {
 	if teleportUpdateArtifactSignaturePublicKeyB64 == "" {
 		return nil, trace.BadParameter("teleport-update artifact signature public key is not configured")
 	}
-	pem, err := base64.StdEncoding.DecodeString(teleportUpdateArtifactSignaturePublicKeyB64)
+	if teleportUpdateArtifactSignatureBackupPublicKeyB64 == "" {
+		return nil, trace.BadParameter("teleport-update backup artifact signature public key is not configured")
+	}
+
+	verifiers := make([]signature.Verifier, 0, 2)
+	primaryVerifier, err := loadArtifactSignatureVerifier(teleportUpdateArtifactSignaturePublicKeyB64, "primary")
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to decode teleport-update artifact signature public key")
+		return nil, trace.Wrap(err)
+	}
+	verifiers = append(verifiers, primaryVerifier)
+
+	backupVerifier, err := loadArtifactSignatureVerifier(teleportUpdateArtifactSignatureBackupPublicKeyB64, "backup")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	verifiers = append(verifiers, backupVerifier)
+
+	return verifiers, nil
+}
+
+func loadArtifactSignatureVerifier(publicKeyB64 string, label string) (signature.Verifier, error) {
+	pem, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to decode %s teleport-update artifact signature public key", label)
 	}
 	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(pem)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse teleport-update artifact signature public key")
+		return nil, trace.Wrap(err, "failed to parse %s teleport-update artifact signature public key", label)
 	}
 	verifier, err := signature.LoadVerifier(pubKey, artifactSignatureHash)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to initialize teleport-update artifact signature verifier")
+		return nil, trace.Wrap(err, "failed to initialize %s teleport-update artifact signature verifier", label)
 	}
 	return verifier, nil
 }
 
-func (li *LocalInstaller) artifactSignatureVerifier() (signature.Verifier, error) {
-	if li.ArtifactSignatureVerifier == nil {
+func (li *LocalInstaller) artifactSignatureVerifiers() ([]signature.Verifier, error) {
+	if len(li.ArtifactSignatureVerifiers) == 0 {
 		return nil, trace.BadParameter("teleport-update artifact signature verifier is not configured")
 	}
-	return li.ArtifactSignatureVerifier, nil
+	return li.ArtifactSignatureVerifiers, nil
 }
 
 func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte, error) {
@@ -409,7 +432,7 @@ func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte,
 }
 
 func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url string, digest []byte) error {
-	verifier, err := li.artifactSignatureVerifier()
+	verifiers, err := li.artifactSignatureVerifiers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -432,10 +455,15 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, url strin
 	// https://github.com/sigstore/sigstore/blob/v1.10.5/pkg/signature/options/digest.go#L29
 	// Here the digest is computed locally from the downloaded artifact, not
 	// supplied by an untrusted source.
-	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest)); err != nil {
-		return trace.Wrap(err, "artifact signature verification failed")
+	var errs []error
+	for _, verifier := range verifiers {
+		err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), sigopts.WithDigest(digest))
+		if err == nil {
+			return nil
+		}
+		errs = append(errs, err)
 	}
-	return nil
+	return trace.Wrap(errors.Join(errs...), "artifact signature verification failed for all trusted keys")
 }
 
 func (li *LocalInstaller) download(ctx context.Context, w io.Writer, max int64, url string) (sum []byte, err error) {
