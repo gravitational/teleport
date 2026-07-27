@@ -2378,14 +2378,21 @@ func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clie
 }
 
 // denyDowngradedAppAccess moves the role's allow app labels and expression to
-// its deny app labels and expression. If the role already denies apps by label,
-// it falls back to a wildcard deny and reports it, for the caller to log.
+// its deny app labels and expression. Allow requires both selectors to match
+// (AND) while deny requires either (OR), so a role setting both denies more
+// apps than it granted. A role that already denies apps by label falls back to
+// a wildcard deny, since two label maps cannot be OR-merged into one, and
+// reports it for the caller to log. Both are intentional, potential over-denies
+// for this version-skew edge case.
 func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
 	allowLabels := role.Spec.Allow.AppLabels
 	allowExpression := role.Spec.Allow.AppLabelsExpression
 	role.Spec.Allow.AppLabels = nil
 	role.Spec.Allow.AppLabelsExpression = ""
 
+	// Deny matches on either selector (OR), so an existing deny expression
+	// keeps applying next to these labels. Label maps have no such union, so
+	// the potentially over-denying wildcard is used instead.
 	switch {
 	case len(allowLabels) == 0:
 	case len(role.Spec.Deny.AppLabels) == 0:
