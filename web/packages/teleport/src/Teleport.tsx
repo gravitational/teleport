@@ -36,6 +36,7 @@ import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+import { DesktopSessionCodecTest } from './DesktopSession/DesktopSessionCodecTest';
 import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
@@ -213,6 +214,11 @@ function privateOSSRoutes() {
 
 export function getSharedPrivateRoutes() {
   return [
+    <Route
+      key="desktopCodecTest"
+      path={cfg.routes.desktopCodecTest}
+      element={<DesktopSessionCodecTest />}
+    />,
     <Route
       key="desktop"
       path={cfg.routes.desktop}

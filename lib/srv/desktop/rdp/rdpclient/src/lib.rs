@@ -30,7 +30,7 @@ extern crate rdp_decoder as _;
 use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
-use client::{ClientHandle, ClientResult, ConnectParams};
+use client::{ClientHandle, ClientResult, ConnectParams, MonitorSpec};
 use ironrdp_session::x224::DisconnectDescription;
 use log::{error, trace, warn};
 use rdpdr::path::UnixPath;
@@ -48,12 +48,14 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod egfx;
 mod license;
 #[cfg(feature = "desktop-encoder")]
 mod linux_desktop_encoder;
 mod network_client;
 mod piv;
 mod rdpdr;
+mod rfx_video_probe;
 mod ssl;
 mod util;
 
@@ -114,6 +116,8 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         Some(computer_name)
     };
 
+    let monitors = monitors_from_c(params.monitors, params.monitors_len);
+
     match Client::run(
         cgo_handle,
         ConnectParams {
@@ -128,6 +132,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             screen_width: params.screen_width,
             screen_height: params.screen_height,
             screen_scale: params.screen_scale,
+            monitors,
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
@@ -459,6 +464,29 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     )
 }
 
+/// client_handle_tdp_refresh_rect handles a TDP RefreshRect message by
+/// constructing an RDP Refresh Rect PDU (MS-RDPBCGR § 2.2.11.2.1) for
+/// the given inclusive pixel region and sending it to the Windows host.
+/// Used by the browser to clear RFX decode trails after a window drag.
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_refresh_rect(
+    cgo_handle: CgoHandle,
+    left: u16,
+    top: u16,
+    right: u16,
+    bottom: u16,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_refresh_rect",
+        move |client_handle| client_handle.write_refresh_rect(left, top, right, bottom),
+    )
+}
+
 /// # Safety
 ///
 /// `cgo_handle` must be a valid handle.
@@ -506,19 +534,50 @@ pub unsafe extern "C" fn client_write_rdp_sync_keys(
 
 /// # Safety
 ///
-/// `cgo_handle` must be a valid handle.
+/// `cgo_handle` must be a valid handle. `monitors` must point to `monitors_len`
+/// valid `CGOMonitorLayout` entries, or be null if `monitors_len` is zero.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_screen_resize(
     cgo_handle: CgoHandle,
     width: u32,
     height: u32,
     scale: u32,
+    monitors: *const CGOMonitorLayout,
+    monitors_len: u32,
 ) -> CGOErrCode {
+    let monitors = monitors_from_c(monitors, monitors_len);
+    // width and height are the bounding-box of the virtual desktop. Currently
+    // unused on the Rust side because `monitors` is authoritative for the
+    // DisplayControl PDU, but kept on the wire for parity with the proto and
+    // for logging on the Go side.
+    let _ = (width, height);
     handle_operation(
         cgo_handle,
         "client_write_screen_resize",
-        move |client_handle| client_handle.write_screen_resize(width, height, scale),
+        move |client_handle| client_handle.write_screen_resize(monitors, scale),
     )
+}
+
+/// Copies a slice of `CGOMonitorLayout` from Go into an owned Rust `Vec`.
+///
+/// # Safety
+///
+/// `monitors` must point to `monitors_len` valid entries, or be null when
+/// `monitors_len` is zero.
+unsafe fn monitors_from_c(monitors: *const CGOMonitorLayout, monitors_len: u32) -> Vec<MonitorSpec> {
+    if monitors.is_null() || monitors_len == 0 {
+        return Vec::new();
+    }
+    std::slice::from_raw_parts(monitors, monitors_len as usize)
+        .iter()
+        .map(|m| MonitorSpec {
+            x: m.x,
+            y: m.y,
+            width: m.width,
+            height: m.height,
+            is_primary: m.is_primary,
+        })
+        .collect()
 }
 
 #[repr(C)]
@@ -537,11 +596,31 @@ pub struct CGOConnectParams {
     screen_width: u16,
     screen_height: u16,
     screen_scale: u16,
+    /// Pointer to a Go-owned slice of `CGOMonitorLayout` describing the client's
+    /// monitors. Bounded at 4 entries server-side. Always has at least one
+    /// entry (the primary). The pointer is only valid for the duration of the
+    /// `client_run` call; Rust copies the entries during initialization.
+    monitors: *const CGOMonitorLayout,
+    monitors_len: u32,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
     client_id: [u32; 4],
     keyboard_layout: u32,
+}
+
+/// One monitor's position and size within the RDP virtual desktop, as sent
+/// from Go. Mirrors the `MonitorLayout` proto. Coordinates may be negative for
+/// monitors arranged to the left of or above the primary; Rust normalizes to
+/// place the primary at the origin before encoding the DisplayControl PDU.
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct CGOMonitorLayout {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub is_primary: bool,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -791,6 +870,181 @@ extern "C" {
     ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    /// Forwards a decoded EGFX (RDPGFX) bitmap update to Go for relay to the
+    /// browser. `rgba` is `width * height * 4` bytes of row-major RGBA, and
+    /// `(desktop_x, desktop_y)` is the top-left position in desktop coords
+    /// (after applying the source surface's `MapSurfaceToOutput` origin).
+    /// Pointer type and length type match the `cgo_handle_fastpath_pdu`
+    /// pattern so Go's `//export`-generated header agrees (Go's exports
+    /// can't use `const` pointers and use `C.uint32_t` for sizes).
+    fn cgo_handle_egfx_bitmap(
+        cgo_handle: CgoHandle,
+        desktop_x: u32,
+        desktop_y: u32,
+        width: u32,
+        height: u32,
+        rgba: *mut u8,
+        rgba_len: u32,
+    ) -> CGOErrCode;
+    /// Forwards a parsed AVC444/v2 frame to Go for relay to the browser,
+    /// where the H.264 streams are decoded with the browser's WebCodecs
+    /// VideoDecoder. The server only unpacks the
+    /// RFX_AVC444V2_BITMAP_STREAM wrapper; the H.264 NAL units in
+    /// `luma_h264` / `chroma_h264` are forwarded unchanged in AVC format
+    /// (4-byte BE length per NAL). `codec_id` is the EGFX codec ID
+    /// (0xe = Avc444, 0xf = Avc444v2) and `encoding` is the stream-presence
+    /// flag (0 = both, 1 = luma only, 2 = chroma only).
+    fn cgo_handle_egfx_avc_frame(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        desktop_x: u32,
+        desktop_y: u32,
+        dest_width: u32,
+        dest_height: u32,
+        codec_id: u32,
+        encoding: u32,
+        luma_h264: *mut u8,
+        luma_h264_len: u32,
+        chroma_h264: *mut u8,
+        chroma_h264_len: u32,
+    ) -> CGOErrCode;
+    /// Forwards a raw ClearCodec ([MS-RDPEGFX] 2.2.4.2) PDU body to Go for
+    /// relay to the wasm client. The wasm side runs the ClearCodec decoder
+    /// in-place against the framebuffer image, preserving existing pixels
+    /// for sub-regions the PDU doesn't paint. `dest_x` / `dest_y` are in
+    /// desktop coordinates after applying the surface's MapSurfaceToOutput
+    /// origin; the wasm decoder writes into the rect `(dest_x, dest_y) ..
+    /// (dest_x + width, dest_y + height)` of the virtual desktop image.
+    fn cgo_handle_egfx_clearcodec(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        dest_x: i32,
+        dest_y: i32,
+        width: u32,
+        height: u32,
+        pdu_data: *mut u8,
+        pdu_data_len: u32,
+    ) -> CGOErrCode;
+    /// EGFX Uncompressed (`Codec1Type::Uncompressed`, codec_id 0x0). Raw
+    /// pixel passthrough: bytes laid out in the surface's declared
+    /// `pixel_format` (PIXEL_FORMAT_XRGB_8888 = 0x20 / PIXEL_FORMAT_ARGB_8888
+    /// = 0x21 — both `[B, G, R, X/A]` in little-endian memory). The wasm
+    /// side does the channel reorder and (for ARGB) source-over composite
+    /// against the existing framebuffer.
+    fn cgo_handle_egfx_uncompressed(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        dest_x: i32,
+        dest_y: i32,
+        width: u32,
+        height: u32,
+        pixel_format: u32,
+        bitmap_data: *mut u8,
+        bitmap_data_len: u32,
+    ) -> CGOErrCode;
+    /// EGFX Planar (`Codec1Type::Planar`, codec_id 0x0a). Raw passthrough;
+    /// wasm decodes via `ironrdp_graphics::rdp6::bitmap_stream`.
+    fn cgo_handle_egfx_planar(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        dest_x: i32,
+        dest_y: i32,
+        width: u32,
+        height: u32,
+        pdu_data: *mut u8,
+        pdu_data_len: u32,
+    ) -> CGOErrCode;
+    /// EGFX Avc420 (`Codec1Type::Avc420`, codec_id 0x0b). Raw passthrough;
+    /// wasm parses the `Avc420EncapsulatedBitmapStream` envelope and feeds
+    /// H.264 NAL units to the browser's `VideoDecoder`.
+    fn cgo_handle_egfx_avc420(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        dest_x: i32,
+        dest_y: i32,
+        width: u32,
+        height: u32,
+        pdu_data: *mut u8,
+        pdu_data_len: u32,
+    ) -> CGOErrCode;
+    /// EGFX SolidFill ([MS-RDPEGFX] 2.2.2.4): paint `rect_count` rectangles
+    /// on the given surface with a single (B, G, R) color. `rects` is a flat
+    /// buffer of `rect_count * 4` u32s ordered (left, top, right, bottom).
+    fn cgo_handle_egfx_solid_fill(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        color_b: u32,
+        color_g: u32,
+        color_r: u32,
+        rect_count: u32,
+        rects: *mut u32,
+    ) -> CGOErrCode;
+    /// EGFX SurfaceToCache ([MS-RDPEGFX] 2.2.2.6): snapshot the given
+    /// surface region into bitmap cache slot `cache_slot`.
+    fn cgo_handle_egfx_surface_to_cache(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        cache_key: u64,
+        cache_slot: u32,
+        src_left: u32,
+        src_top: u32,
+        src_right: u32,
+        src_bottom: u32,
+    ) -> CGOErrCode;
+    /// EGFX CacheToSurface ([MS-RDPEGFX] 2.2.2.7): blit cache slot
+    /// contents onto the surface at each (x, y) point. `points` is a flat
+    /// buffer of `point_count * 2` u32s.
+    fn cgo_handle_egfx_cache_to_surface(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        cache_slot: u32,
+        point_count: u32,
+        points: *mut u32,
+    ) -> CGOErrCode;
+    /// EGFX EvictCacheEntry ([MS-RDPEGFX] 2.2.2.8): drop the given slot.
+    fn cgo_handle_egfx_evict_cache_entry(
+        cgo_handle: CgoHandle,
+        cache_slot: u32,
+    ) -> CGOErrCode;
+    /// EGFX EndFrame ([MS-RDPEGFX] 2.2.2.15): the server finished a logical
+    /// frame; the client should present (flush) now.
+    fn cgo_handle_egfx_end_frame(cgo_handle: CgoHandle, frame_id: u32) -> CGOErrCode;
+    /// EGFX SurfaceToSurface ([MS-RDPEGFX] 2.2.2.5): copy a source-surface
+    /// region to each (x, y) point on the destination surface. `points` is
+    /// a flat buffer of `point_count * 2` u32s.
+    fn cgo_handle_egfx_surface_to_surface(
+        cgo_handle: CgoHandle,
+        source_surface_id: u32,
+        destination_surface_id: u32,
+        src_left: u32,
+        src_top: u32,
+        src_right: u32,
+        src_bottom: u32,
+        point_count: u32,
+        points: *mut u32,
+    ) -> CGOErrCode;
+    /// EGFX WireToSurface2 ([MS-RDPEGFX] 2.2.2.2): forward a raw RFX
+    /// Progressive payload (`bitmap_data`) plus the metadata the wasm
+    /// decoder needs to maintain per-(surface, codec_context_id) state and
+    /// translate per-tile dest rects into desktop coordinates.
+    fn cgo_handle_egfx_wire_to_surface2(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        codec_id: u32,
+        codec_context_id: u32,
+        pixel_format: u32,
+        surface_origin_x: u32,
+        surface_origin_y: u32,
+        bitmap_data: *mut u8,
+        bitmap_data_len: u32,
+    ) -> CGOErrCode;
+    /// EGFX DeleteEncodingContext ([MS-RDPEGFX] 2.2.2.3): drop the wasm-side
+    /// progressive decoder state for the given (surface, codec_context_id).
+    fn cgo_handle_egfx_delete_encoding_context(
+        cgo_handle: CgoHandle,
+        surface_id: u32,
+        codec_context_id: u32,
+    ) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
@@ -798,6 +1052,15 @@ extern "C" {
         screen_width: u16,
         screen_height: u16,
         share_id: u32,
+    ) -> CGOErrCode;
+    /// Notify Go that the EGFX virtual desktop was resized mid-session (a
+    /// `ResetGraphics` PDU — e.g. a monitor was added/moved/resized via
+    /// DisplayControl). Go re-announces the new desktop size to the browser so
+    /// the wasm decoder grows its framebuffer to the new bounding box.
+    fn cgo_handle_rdp_reset_graphics(
+        cgo_handle: CgoHandle,
+        width: u32,
+        height: u32,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,
@@ -840,7 +1103,7 @@ extern "C" {
 /// A [cgo.Handle] passed to us by Go.
 ///
 /// [cgo.Handle]: https://pkg.go.dev/runtime/cgo#Handle
-type CgoHandle = usize;
+pub(crate) type CgoHandle = usize;
 
 #[repr(C)]
 pub struct CGOLicenseRequest {

@@ -78,6 +78,14 @@ export interface ServerHello {
      * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
      */
     multidirectorySharingSupported: boolean;
+    /**
+     * True when the server can negotiate a multi-monitor virtual desktop via
+     * the RDP DisplayControl DVC. Clients may then populate
+     * ClientScreenSpec.monitors with more than one entry.
+     *
+     * @generated from protobuf field: bool multi_monitor_supported = 7;
+     */
+    multiMonitorSupported: boolean;
 }
 /**
  * Used to identify sessions available to and selected by users
@@ -150,6 +158,561 @@ export interface FastPathPDU {
      * @generated from protobuf field: bytes pdu = 1;
      */
     pdu: Uint8Array;
+}
+/**
+ * A pre-decoded bitmap update from the EGFX (RDPGFX) channel.
+ *
+ * MS-RDPEGFX Graphics Pipeline frames are decoded server-side (in the
+ * IronRDP cgo client) — uncompressed, ClearCodec, RemoteFX progressive,
+ * AVC420, AVC444. We map the surface to its virtual-desktop origin and
+ * emit the result as desktop-coordinate RGBA so the wasm decoder can
+ * blit it directly into the framebuffer image without needing to know
+ * anything about EGFX surface IDs.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxBitmap
+ */
+export interface EgfxBitmap {
+    /**
+     * Destination top-left in desktop coordinates (after applying the
+     * surface's MapSurfaceToOutput origin).
+     *
+     * @generated from protobuf field: uint32 desktop_x = 1;
+     */
+    desktopX: number;
+    /**
+     * @generated from protobuf field: uint32 desktop_y = 2;
+     */
+    desktopY: number;
+    /**
+     * Width and height of the RGBA payload.
+     *
+     * @generated from protobuf field: uint32 width = 3;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 4;
+     */
+    height: number;
+    /**
+     * Raw RGBA8 pixel data, row-major, width*height*4 bytes.
+     *
+     * @generated from protobuf field: bytes rgba = 5;
+     */
+    rgba: Uint8Array;
+}
+/**
+ * A raw AVC444/v2 frame forwarded from the EGFX channel for browser-side
+ * H.264 decode (WebCodecs VideoDecoder). The server only parses the
+ * RFX_AVC444V2_BITMAP_STREAM wrapper and unpacks the inner H.264 streams;
+ * the actual H.264 → YUV decode happens in the client where it can use
+ * the browser's GPU-accelerated VideoDecoder. The wasm side composes the
+ * luma and chroma streams into YUV444, converts to RGBA per BT.709, and
+ * blits the result into the framebuffer at (desktop_x, desktop_y).
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxAvcFrame
+ */
+export interface EgfxAvcFrame {
+    /**
+     * Destination top-left in desktop coordinates (after applying the
+     * surface's MapSurfaceToOutput origin).
+     *
+     * @generated from protobuf field: uint32 desktop_x = 1;
+     */
+    desktopX: number;
+    /**
+     * @generated from protobuf field: uint32 desktop_y = 2;
+     */
+    desktopY: number;
+    /**
+     * Width and height of the destination rectangle (in pixels). The
+     * decoded H.264 frame may be macroblock-padded to a larger size; the
+     * client crops to these dimensions before painting.
+     *
+     * @generated from protobuf field: uint32 dest_width = 3;
+     */
+    destWidth: number;
+    /**
+     * @generated from protobuf field: uint32 dest_height = 4;
+     */
+    destHeight: number;
+    /**
+     * EGFX surface ID — the wasm side maintains one pair of VideoDecoders
+     * per surface so decoder state survives across frames belonging to the
+     * same surface.
+     *
+     * @generated from protobuf field: uint32 surface_id = 5;
+     */
+    surfaceId: number;
+    /**
+     * Codec variant: 0xe = Avc444, 0xf = Avc444v2 (MS-RDPEGFX 2.2.4.4 /
+     * 2.2.4.4.1). The two variants differ in how the chroma stream packs
+     * the extra 4:4:4 chroma samples; the wasm decoder needs to know which.
+     *
+     * @generated from protobuf field: uint32 codec_id = 6;
+     */
+    codecId: number;
+    /**
+     * Encoding flag from RFX_AVC444_BITMAP_STREAM streamInfo bits 30..32:
+     *   0 = LUMA_AND_CHROMA (both streams present)
+     *   1 = LUMA (only luma stream — chroma_h264 is empty)
+     *   2 = CHROMA (only chroma stream — luma_h264 is empty)
+     *
+     * @generated from protobuf field: uint32 encoding = 7;
+     */
+    encoding: number;
+    /**
+     * H.264 NAL units of the luma stream in AVC format (4-byte BE length
+     * prefix per NAL). Empty if encoding == CHROMA.
+     *
+     * @generated from protobuf field: bytes luma_h264 = 8;
+     */
+    lumaH264: Uint8Array;
+    /**
+     * H.264 NAL units of the chroma stream in AVC format. Empty if
+     * encoding == LUMA.
+     *
+     * @generated from protobuf field: bytes chroma_h264 = 9;
+     */
+    chromaH264: Uint8Array;
+}
+/**
+ * A raw ClearCodec PDU ([MS-RDPEGFX] 2.2.4.2 / `RFX_CLEAR_BITMAP_STREAM`)
+ * forwarded from the EGFX channel for wasm-side decode. The wire bytes
+ * are the inner ClearCodec payload extracted from the surrounding
+ * `WireToSurface1Pdu` — the server already maps the surface to its
+ * virtual-desktop origin and parses out the destination rectangle.
+ *
+ * Forwarding raw (instead of pre-decoding to RGBA) lets the wasm
+ * decoder do read-modify-write against the framebuffer image: a PDU
+ * with residual_bytes=0 paints only the bands+subcodec sub-regions
+ * and leaves the rest of the destination rectangle untouched, which
+ * matches the wire-format semantics. Pre-decoding to a destination-
+ * sized RGBA buffer (as EgfxBitmap does) overwrites un-painted pixels
+ * with opaque black and corrupts the framebuffer.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxClearCodec
+ */
+export interface EgfxClearCodec {
+    /**
+     * EGFX surface ID — the wasm side keeps one ClearCodec decoder per
+     * surface so the glyph + vbar caches survive across frames belonging
+     * to the same surface.
+     *
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * Destination top-left in desktop coordinates (after applying the
+     * surface's MapSurfaceToOutput origin).
+     *
+     * @generated from protobuf field: int32 dest_x = 2;
+     */
+    destX: number;
+    /**
+     * @generated from protobuf field: int32 dest_y = 3;
+     */
+    destY: number;
+    /**
+     * Destination rectangle dimensions in pixels.
+     *
+     * @generated from protobuf field: uint32 width = 4;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 5;
+     */
+    height: number;
+    /**
+     * Raw ClearCodec payload bytes (no length prefix).
+     *
+     * @generated from protobuf field: bytes pdu_data = 6;
+     */
+    pduData: Uint8Array;
+}
+/**
+ * A raw `Codec1Type::Planar` ([MS-RDPEGDI] 2.2.9.1.0.2 RDP 6.0 bitmap
+ * stream) WireToSurface1 PDU forwarded for wasm-side decode. Windows ships
+ * this codec for many medium-size bitmap updates (panel chrome, icons,
+ * rasterised text). The wasm side uses `ironrdp_graphics::rdp6::bitmap_stream`
+ * to decode → RGB24, then RGBA-blits into the framebuffer.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxPlanar
+ */
+export interface EgfxPlanar {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * @generated from protobuf field: int32 dest_x = 2;
+     */
+    destX: number;
+    /**
+     * @generated from protobuf field: int32 dest_y = 3;
+     */
+    destY: number;
+    /**
+     * @generated from protobuf field: uint32 width = 4;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 5;
+     */
+    height: number;
+    /**
+     * @generated from protobuf field: bytes pdu_data = 6;
+     */
+    pduData: Uint8Array;
+}
+/**
+ * A raw `Codec1Type::Avc420` ([MS-RDPEGFX] 2.2.4.3) WireToSurface1 PDU.
+ * `pdu_data` is the Avc420EncapsulatedBitmapStream: 12-byte AVC420BitmapStream
+ * header (frame_count + regionRects + quantQualityVals) followed by the
+ * concatenated H.264 NAL units. The wasm side feeds the H.264 bytes to the
+ * browser's WebCodecs `VideoDecoder` and blits the decoded frame.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxAvc420
+ */
+export interface EgfxAvc420 {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * @generated from protobuf field: int32 dest_x = 2;
+     */
+    destX: number;
+    /**
+     * @generated from protobuf field: int32 dest_y = 3;
+     */
+    destY: number;
+    /**
+     * @generated from protobuf field: uint32 width = 4;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 5;
+     */
+    height: number;
+    /**
+     * @generated from protobuf field: bytes pdu_data = 6;
+     */
+    pduData: Uint8Array;
+}
+/**
+ * A raw `Uncompressed` ([MS-RDPEGFX] 2.2.4.2, `Codec1Type::Uncompressed`)
+ * WireToSurface1 PDU forwarded for wasm-side blit. Windows ships this for
+ * small UI overlays — tooltips, popup chrome, hover shadows — where the
+ * per-frame setup cost of a compressed codec is wasted, frequently with
+ * an alpha channel (`PIXEL_FORMAT_ARGB_8888 = 0x21`).
+ *
+ * The wasm framebuffer is the only place that owns the destination
+ * buffer, so all pixel-format work (channel reorder + source-over alpha
+ * composite against the existing framebuffer pixels) happens there.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxUncompressed
+ */
+export interface EgfxUncompressed {
+    /**
+     * EGFX surface ID; the wasm side resolves this against its own surface
+     * map (one Framebuffer image is shared across all surfaces).
+     *
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * Destination top-left in desktop coordinates (after applying the
+     * surface's MapSurfaceToOutput origin).
+     *
+     * @generated from protobuf field: int32 dest_x = 2;
+     */
+    destX: number;
+    /**
+     * @generated from protobuf field: int32 dest_y = 3;
+     */
+    destY: number;
+    /**
+     * Destination rectangle dimensions in pixels.
+     *
+     * @generated from protobuf field: uint32 width = 4;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 5;
+     */
+    height: number;
+    /**
+     * MS-RDPEGFX pixel format byte. 0x20 = PIXEL_FORMAT_XRGB_8888 (alpha
+     * byte is padding, treat as opaque). 0x21 = PIXEL_FORMAT_ARGB_8888
+     * (alpha byte is meaningful, must source-over composite).
+     *
+     * @generated from protobuf field: uint32 pixel_format = 6;
+     */
+    pixelFormat: number;
+    /**
+     * Raw bitmap bytes, `width * height * 4` long. Channel order is
+     * determined by `pixel_format`.
+     *
+     * @generated from protobuf field: bytes bitmap_data = 7;
+     */
+    bitmapData: Uint8Array;
+}
+/**
+ * Exclusive rectangle ([MS-RDPEGFX] 2.2.1.4.1 RDPGFX_RECT16): right/bottom
+ * are one-past-end (so (left=0,top=0,right=64,bottom=64) is a 64x64 rect).
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxRect
+ */
+export interface EgfxRect {
+    /**
+     * @generated from protobuf field: uint32 left = 1;
+     */
+    left: number;
+    /**
+     * @generated from protobuf field: uint32 top = 2;
+     */
+    top: number;
+    /**
+     * @generated from protobuf field: uint32 right = 3;
+     */
+    right: number;
+    /**
+     * @generated from protobuf field: uint32 bottom = 4;
+     */
+    bottom: number;
+}
+/**
+ * Top-left point used by CacheToSurface to specify where to blit each copy
+ * of the cached region.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxPoint
+ */
+export interface EgfxPoint {
+    /**
+     * @generated from protobuf field: uint32 x = 1;
+     */
+    x: number;
+    /**
+     * @generated from protobuf field: uint32 y = 2;
+     */
+    y: number;
+}
+/**
+ * SolidFill ([MS-RDPEGFX] 2.2.2.4 RDPGFX_SOLID_FILL_PDU): paint one or more
+ * rectangles on a surface with a single color. Windows uses this for dialog
+ * backgrounds, panel fills, etc. — large flat-colored regions the server
+ * would otherwise have to send as a heavyweight bitmap.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxSolidFill
+ */
+export interface EgfxSolidFill {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * Color components from the wire format (B, G, R, alpha-ignored). Alpha
+     * is always treated as opaque by the renderer per spec.
+     *
+     * @generated from protobuf field: uint32 color_b = 2;
+     */
+    colorB: number;
+    /**
+     * @generated from protobuf field: uint32 color_g = 3;
+     */
+    colorG: number;
+    /**
+     * @generated from protobuf field: uint32 color_r = 4;
+     */
+    colorR: number;
+    /**
+     * @generated from protobuf field: repeated teleport.desktop.v1.EgfxRect rects = 5;
+     */
+    rects: EgfxRect[];
+}
+/**
+ * SurfaceToCache ([MS-RDPEGFX] 2.2.2.6 RDPGFX_SURFACE_TO_CACHE_PDU): copy a
+ * rectangular region of the surface into the bitmap cache at the given slot.
+ * Used together with CacheToSurface to tile a single decoded image across
+ * many positions without re-decoding.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxSurfaceToCache
+ */
+export interface EgfxSurfaceToCache {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * @generated from protobuf field: uint64 cache_key = 2;
+     */
+    cacheKey: bigint;
+    /**
+     * @generated from protobuf field: uint32 cache_slot = 3;
+     */
+    cacheSlot: number;
+    /**
+     * @generated from protobuf field: teleport.desktop.v1.EgfxRect source_rect = 4;
+     */
+    sourceRect?: EgfxRect;
+}
+/**
+ * CacheToSurface ([MS-RDPEGFX] 2.2.2.7 RDPGFX_CACHE_TO_SURFACE_PDU): blit a
+ * previously-cached region (by slot) onto the surface at each of the given
+ * destination top-left points. Used heavily by Windows to tile UI panel
+ * backgrounds, taskbar segments, etc.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxCacheToSurface
+ */
+export interface EgfxCacheToSurface {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * @generated from protobuf field: uint32 cache_slot = 2;
+     */
+    cacheSlot: number;
+    /**
+     * @generated from protobuf field: repeated teleport.desktop.v1.EgfxPoint dest_points = 3;
+     */
+    destPoints: EgfxPoint[];
+}
+/**
+ * EvictCacheEntry ([MS-RDPEGFX] 2.2.2.8 RDPGFX_EVICT_CACHE_ENTRY_PDU): drop
+ * a cache slot. The server signals it no longer expects the client to keep
+ * the cached pixels.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxEvictCacheEntry
+ */
+export interface EgfxEvictCacheEntry {
+    /**
+     * @generated from protobuf field: uint32 cache_slot = 1;
+     */
+    cacheSlot: number;
+}
+/**
+ * SurfaceToSurface ([MS-RDPEGFX] 2.2.2.5 RDPGFX_SURFACE_TO_SURFACE_PDU):
+ * copy a rectangular region between (or within) surfaces. Used by Windows
+ * for scrolling, taskbar item moves on hover, window drag previews, etc.
+ * Source and destination surface IDs are usually equal — copying within
+ * the same surface to reposition content.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxSurfaceToSurface
+ */
+export interface EgfxSurfaceToSurface {
+    /**
+     * @generated from protobuf field: uint32 source_surface_id = 1;
+     */
+    sourceSurfaceId: number;
+    /**
+     * @generated from protobuf field: uint32 destination_surface_id = 2;
+     */
+    destinationSurfaceId: number;
+    /**
+     * @generated from protobuf field: teleport.desktop.v1.EgfxRect source_rect = 3;
+     */
+    sourceRect?: EgfxRect;
+    /**
+     * @generated from protobuf field: repeated teleport.desktop.v1.EgfxPoint dest_points = 4;
+     */
+    destPoints: EgfxPoint[];
+}
+/**
+ * A raw RFX Progressive payload ([MS-RDPRFX] + [MS-RDPEGFX] 2.2.2.2
+ * RDPGFX_WIRE_TO_SURFACE_PDU_2) forwarded from the EGFX channel for
+ * wasm-side decode. Windows ships screen content (wallpaper, app
+ * chrome, transitions) on this path whenever the negotiated EGFX
+ * capability set permits it — V8.1 without AVC420_ENABLED commonly
+ * uses RFX Progressive in addition to ClearCodec.
+ *
+ * The destination rectangles are inside the Region block of the
+ * payload itself, so unlike WireToSurface1 the server cannot
+ * pre-translate a single dest rect to desktop coords. We forward
+ * `surface_origin_x/y` instead and let the wasm decoder apply the
+ * origin per-tile when it paints into the framebuffer.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxWireToSurface2
+ */
+export interface EgfxWireToSurface2 {
+    /**
+     * EGFX surface ID. The wasm side keeps one progressive decoder per
+     * (surface_id, codec_context_id) pair so per-tile state persists
+     * across PDUs belonging to the same codec context.
+     *
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * Codec identifier — 0x0009 (CAPROGRESSIVE_V1) for RemoteFX Progressive.
+     *
+     * @generated from protobuf field: uint32 codec_id = 2;
+     */
+    codecId: number;
+    /**
+     * Codec context identifier — selects the stateful decoder. Server
+     * sends DeleteEncodingContext to evict.
+     *
+     * @generated from protobuf field: uint32 codec_context_id = 3;
+     */
+    codecContextId: number;
+    /**
+     * Pixel format from the wire (0=XRgb, 1=ARgb). Decoder treats both
+     * as opaque RGBA.
+     *
+     * @generated from protobuf field: uint32 pixel_format = 4;
+     */
+    pixelFormat: number;
+    /**
+     * Surface origin in desktop coords (from MapSurfaceToOutput). Wasm
+     * applies this when blitting each decoded tile.
+     *
+     * @generated from protobuf field: uint32 surface_origin_x = 5;
+     */
+    surfaceOriginX: number;
+    /**
+     * @generated from protobuf field: uint32 surface_origin_y = 6;
+     */
+    surfaceOriginY: number;
+    /**
+     * Raw RFX Progressive payload bytes (the WireToSurface2 PDU's
+     * bitmap_data field, verbatim).
+     *
+     * @generated from protobuf field: bytes bitmap_data = 7;
+     */
+    bitmapData: Uint8Array;
+}
+/**
+ * DeleteEncodingContext ([MS-RDPEGFX] 2.2.2.3 RDPGFX_DELETE_ENCODING_CONTEXT_PDU):
+ * instructs the client to drop the per-(surface, codec_context_id)
+ * progressive decoder state. Pairs with WireToSurface2.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxDeleteEncodingContext
+ */
+export interface EgfxDeleteEncodingContext {
+    /**
+     * @generated from protobuf field: uint32 surface_id = 1;
+     */
+    surfaceId: number;
+    /**
+     * @generated from protobuf field: uint32 codec_context_id = 2;
+     */
+    codecContextId: number;
+}
+/**
+ * EgfxEndFrame ([MS-RDPEGFX] 2.2.2.15 RDPGFX_END_FRAME_PDU): the server has
+ * finished a logical frame. The client MUST present (flush to canvas) exactly
+ * on this boundary so only fully-composited frames reach the screen. Presenting
+ * per wire-burst instead shows the per-frame background fill before content
+ * lands, which is the black-rectangle flicker.
+ *
+ * @generated from protobuf message teleport.desktop.v1.EgfxEndFrame
+ */
+export interface EgfxEndFrame {
+    /**
+     * @generated from protobuf field: uint32 frame_id = 1;
+     */
+    frameId: number;
 }
 /**
  * Contains a raw RDP response PDU to send to the server.
@@ -259,10 +822,44 @@ export interface KeyboardButton {
     pressed: boolean;
 }
 /**
+ * Describes one monitor's position and size within the RDP virtual desktop.
+ * Coordinates are signed because monitors may sit to the left of or above the
+ * primary in the virtual-desktop coordinate space.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MonitorLayout
+ */
+export interface MonitorLayout {
+    /**
+     * @generated from protobuf field: int32 x = 1;
+     */
+    x: number;
+    /**
+     * @generated from protobuf field: int32 y = 2;
+     */
+    y: number;
+    /**
+     * @generated from protobuf field: uint32 width = 3;
+     */
+    width: number;
+    /**
+     * @generated from protobuf field: uint32 height = 4;
+     */
+    height: number;
+    /**
+     * @generated from protobuf field: bool is_primary = 5;
+     */
+    isPrimary: boolean;
+}
+/**
  * Composed in Client Hello to inform the server of the client's screen size.
  * May also be sent during a desktop session as the client resizes its display.
  * These mesasages are captured for session recordings in order to replay
  * resizing events.
+ *
+ * For single-monitor sessions, width/height/scale describe the only monitor
+ * and monitors is empty. For multi-monitor sessions, monitors carries one
+ * entry per physical display and width/height describe the bounding box of
+ * the virtual desktop.
  *
  * @generated from protobuf message teleport.desktop.v1.ClientScreenSpec
  */
@@ -281,6 +878,13 @@ export interface ClientScreenSpec {
      * @generated from protobuf field: uint32 scale = 3;
      */
     scale: number;
+    /**
+     * Per-monitor layout. Empty implies a single primary monitor with the
+     * dimensions in width/height. Capped at 3 entries.
+     *
+     * @generated from protobuf field: repeated teleport.desktop.v1.MonitorLayout monitors = 4;
+     */
+    monitors: MonitorLayout[];
 }
 /**
  * Represents an Alert to be displayed by the client.
@@ -850,6 +1454,34 @@ export interface MFAPromptResponseReference {
 export interface SessionEstablishing {
 }
 /**
+ * Sent by client to ask the RDP server to repaint a region. Used to recover
+ * from RFX decoder drift (e.g. stale window-border pixels after a drag).
+ * The proxy translates this into an RDP Refresh Rect PDU using the live
+ * session's share_id and channel IDs.
+ *
+ * @generated from protobuf message teleport.desktop.v1.RefreshRect
+ */
+export interface RefreshRect {
+    /**
+     * Pixel coordinates. Inclusive on both ends, matching the RDP wire format.
+     *
+     * @generated from protobuf field: uint32 left = 1;
+     */
+    left: number;
+    /**
+     * @generated from protobuf field: uint32 top = 2;
+     */
+    top: number;
+    /**
+     * @generated from protobuf field: uint32 right = 3;
+     */
+    right: number;
+    /**
+     * @generated from protobuf field: uint32 bottom = 4;
+     */
+    bottom: number;
+}
+/**
  * Envelope wraps all messages that are allowed to be sent on the wire.
  *
  * @generated from protobuf message teleport.desktop.v1.Envelope
@@ -1009,6 +1641,96 @@ export interface Envelope {
          */
         sessionEstablishing: SessionEstablishing;
     } | {
+        oneofKind: "refreshRect";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.RefreshRect refresh_rect = 26;
+         */
+        refreshRect: RefreshRect;
+    } | {
+        oneofKind: "egfxBitmap";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxBitmap egfx_bitmap = 27;
+         */
+        egfxBitmap: EgfxBitmap;
+    } | {
+        oneofKind: "egfxAvcFrame";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxAvcFrame egfx_avc_frame = 28;
+         */
+        egfxAvcFrame: EgfxAvcFrame;
+    } | {
+        oneofKind: "egfxClearCodec";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxClearCodec egfx_clear_codec = 29;
+         */
+        egfxClearCodec: EgfxClearCodec;
+    } | {
+        oneofKind: "egfxSolidFill";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxSolidFill egfx_solid_fill = 30;
+         */
+        egfxSolidFill: EgfxSolidFill;
+    } | {
+        oneofKind: "egfxSurfaceToCache";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxSurfaceToCache egfx_surface_to_cache = 31;
+         */
+        egfxSurfaceToCache: EgfxSurfaceToCache;
+    } | {
+        oneofKind: "egfxCacheToSurface";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxCacheToSurface egfx_cache_to_surface = 32;
+         */
+        egfxCacheToSurface: EgfxCacheToSurface;
+    } | {
+        oneofKind: "egfxEvictCacheEntry";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxEvictCacheEntry egfx_evict_cache_entry = 33;
+         */
+        egfxEvictCacheEntry: EgfxEvictCacheEntry;
+    } | {
+        oneofKind: "egfxSurfaceToSurface";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxSurfaceToSurface egfx_surface_to_surface = 34;
+         */
+        egfxSurfaceToSurface: EgfxSurfaceToSurface;
+    } | {
+        oneofKind: "egfxWireToSurface2";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxWireToSurface2 egfx_wire_to_surface2 = 35;
+         */
+        egfxWireToSurface2: EgfxWireToSurface2;
+    } | {
+        oneofKind: "egfxDeleteEncodingContext";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxDeleteEncodingContext egfx_delete_encoding_context = 36;
+         */
+        egfxDeleteEncodingContext: EgfxDeleteEncodingContext;
+    } | {
+        oneofKind: "egfxUncompressed";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxUncompressed egfx_uncompressed = 37;
+         */
+        egfxUncompressed: EgfxUncompressed;
+    } | {
+        oneofKind: "egfxPlanar";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxPlanar egfx_planar = 38;
+         */
+        egfxPlanar: EgfxPlanar;
+    } | {
+        oneofKind: "egfxAvc420";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxAvc420 egfx_avc420 = 39;
+         */
+        egfxAvc420: EgfxAvc420;
+    } | {
+        oneofKind: "egfxEndFrame";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.EgfxEndFrame egfx_end_frame = 40;
+         */
+        egfxEndFrame: EgfxEndFrame;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -1167,7 +1889,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
             { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 7, name: "multi_monitor_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1177,6 +1900,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
         message.sessions = [];
         message.hidpiSupported = false;
         message.multidirectorySharingSupported = false;
+        message.multiMonitorSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1203,6 +1927,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool multidirectory_sharing_supported */ 6:
                     message.multidirectorySharingSupported = reader.bool();
+                    break;
+                case /* bool multi_monitor_supported */ 7:
+                    message.multiMonitorSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1234,6 +1961,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool multidirectory_sharing_supported = 6; */
         if (message.multidirectorySharingSupported !== false)
             writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
+        /* bool multi_monitor_supported = 7; */
+        if (message.multiMonitorSupported !== false)
+            writer.tag(7, WireType.Varint).bool(message.multiMonitorSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1509,6 +2239,1204 @@ class FastPathPDU$Type extends MessageType<FastPathPDU> {
  * @generated MessageType for protobuf message teleport.desktop.v1.FastPathPDU
  */
 export const FastPathPDU = new FastPathPDU$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxBitmap$Type extends MessageType<EgfxBitmap> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxBitmap", [
+            { no: 1, name: "desktop_x", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "desktop_y", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "rgba", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxBitmap>): EgfxBitmap {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.desktopX = 0;
+        message.desktopY = 0;
+        message.width = 0;
+        message.height = 0;
+        message.rgba = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxBitmap>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxBitmap): EgfxBitmap {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 desktop_x */ 1:
+                    message.desktopX = reader.uint32();
+                    break;
+                case /* uint32 desktop_y */ 2:
+                    message.desktopY = reader.uint32();
+                    break;
+                case /* uint32 width */ 3:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 4:
+                    message.height = reader.uint32();
+                    break;
+                case /* bytes rgba */ 5:
+                    message.rgba = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxBitmap, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 desktop_x = 1; */
+        if (message.desktopX !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.desktopX);
+        /* uint32 desktop_y = 2; */
+        if (message.desktopY !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.desktopY);
+        /* uint32 width = 3; */
+        if (message.width !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.width);
+        /* uint32 height = 4; */
+        if (message.height !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.height);
+        /* bytes rgba = 5; */
+        if (message.rgba.length)
+            writer.tag(5, WireType.LengthDelimited).bytes(message.rgba);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxBitmap
+ */
+export const EgfxBitmap = new EgfxBitmap$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxAvcFrame$Type extends MessageType<EgfxAvcFrame> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxAvcFrame", [
+            { no: 1, name: "desktop_x", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "desktop_y", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "dest_width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "dest_height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "codec_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 7, name: "encoding", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 8, name: "luma_h264", kind: "scalar", T: 12 /*ScalarType.BYTES*/ },
+            { no: 9, name: "chroma_h264", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxAvcFrame>): EgfxAvcFrame {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.desktopX = 0;
+        message.desktopY = 0;
+        message.destWidth = 0;
+        message.destHeight = 0;
+        message.surfaceId = 0;
+        message.codecId = 0;
+        message.encoding = 0;
+        message.lumaH264 = new Uint8Array(0);
+        message.chromaH264 = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxAvcFrame>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxAvcFrame): EgfxAvcFrame {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 desktop_x */ 1:
+                    message.desktopX = reader.uint32();
+                    break;
+                case /* uint32 desktop_y */ 2:
+                    message.desktopY = reader.uint32();
+                    break;
+                case /* uint32 dest_width */ 3:
+                    message.destWidth = reader.uint32();
+                    break;
+                case /* uint32 dest_height */ 4:
+                    message.destHeight = reader.uint32();
+                    break;
+                case /* uint32 surface_id */ 5:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint32 codec_id */ 6:
+                    message.codecId = reader.uint32();
+                    break;
+                case /* uint32 encoding */ 7:
+                    message.encoding = reader.uint32();
+                    break;
+                case /* bytes luma_h264 */ 8:
+                    message.lumaH264 = reader.bytes();
+                    break;
+                case /* bytes chroma_h264 */ 9:
+                    message.chromaH264 = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxAvcFrame, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 desktop_x = 1; */
+        if (message.desktopX !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.desktopX);
+        /* uint32 desktop_y = 2; */
+        if (message.desktopY !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.desktopY);
+        /* uint32 dest_width = 3; */
+        if (message.destWidth !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.destWidth);
+        /* uint32 dest_height = 4; */
+        if (message.destHeight !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.destHeight);
+        /* uint32 surface_id = 5; */
+        if (message.surfaceId !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.surfaceId);
+        /* uint32 codec_id = 6; */
+        if (message.codecId !== 0)
+            writer.tag(6, WireType.Varint).uint32(message.codecId);
+        /* uint32 encoding = 7; */
+        if (message.encoding !== 0)
+            writer.tag(7, WireType.Varint).uint32(message.encoding);
+        /* bytes luma_h264 = 8; */
+        if (message.lumaH264.length)
+            writer.tag(8, WireType.LengthDelimited).bytes(message.lumaH264);
+        /* bytes chroma_h264 = 9; */
+        if (message.chromaH264.length)
+            writer.tag(9, WireType.LengthDelimited).bytes(message.chromaH264);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxAvcFrame
+ */
+export const EgfxAvcFrame = new EgfxAvcFrame$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxClearCodec$Type extends MessageType<EgfxClearCodec> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxClearCodec", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "dest_x", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "dest_y", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "pdu_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxClearCodec>): EgfxClearCodec {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.destX = 0;
+        message.destY = 0;
+        message.width = 0;
+        message.height = 0;
+        message.pduData = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxClearCodec>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxClearCodec): EgfxClearCodec {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* int32 dest_x */ 2:
+                    message.destX = reader.int32();
+                    break;
+                case /* int32 dest_y */ 3:
+                    message.destY = reader.int32();
+                    break;
+                case /* uint32 width */ 4:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 5:
+                    message.height = reader.uint32();
+                    break;
+                case /* bytes pdu_data */ 6:
+                    message.pduData = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxClearCodec, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* int32 dest_x = 2; */
+        if (message.destX !== 0)
+            writer.tag(2, WireType.Varint).int32(message.destX);
+        /* int32 dest_y = 3; */
+        if (message.destY !== 0)
+            writer.tag(3, WireType.Varint).int32(message.destY);
+        /* uint32 width = 4; */
+        if (message.width !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.width);
+        /* uint32 height = 5; */
+        if (message.height !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.height);
+        /* bytes pdu_data = 6; */
+        if (message.pduData.length)
+            writer.tag(6, WireType.LengthDelimited).bytes(message.pduData);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxClearCodec
+ */
+export const EgfxClearCodec = new EgfxClearCodec$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxPlanar$Type extends MessageType<EgfxPlanar> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxPlanar", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "dest_x", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "dest_y", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "pdu_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxPlanar>): EgfxPlanar {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.destX = 0;
+        message.destY = 0;
+        message.width = 0;
+        message.height = 0;
+        message.pduData = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxPlanar>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxPlanar): EgfxPlanar {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* int32 dest_x */ 2:
+                    message.destX = reader.int32();
+                    break;
+                case /* int32 dest_y */ 3:
+                    message.destY = reader.int32();
+                    break;
+                case /* uint32 width */ 4:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 5:
+                    message.height = reader.uint32();
+                    break;
+                case /* bytes pdu_data */ 6:
+                    message.pduData = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxPlanar, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* int32 dest_x = 2; */
+        if (message.destX !== 0)
+            writer.tag(2, WireType.Varint).int32(message.destX);
+        /* int32 dest_y = 3; */
+        if (message.destY !== 0)
+            writer.tag(3, WireType.Varint).int32(message.destY);
+        /* uint32 width = 4; */
+        if (message.width !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.width);
+        /* uint32 height = 5; */
+        if (message.height !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.height);
+        /* bytes pdu_data = 6; */
+        if (message.pduData.length)
+            writer.tag(6, WireType.LengthDelimited).bytes(message.pduData);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxPlanar
+ */
+export const EgfxPlanar = new EgfxPlanar$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxAvc420$Type extends MessageType<EgfxAvc420> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxAvc420", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "dest_x", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "dest_y", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "pdu_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxAvc420>): EgfxAvc420 {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.destX = 0;
+        message.destY = 0;
+        message.width = 0;
+        message.height = 0;
+        message.pduData = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxAvc420>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxAvc420): EgfxAvc420 {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* int32 dest_x */ 2:
+                    message.destX = reader.int32();
+                    break;
+                case /* int32 dest_y */ 3:
+                    message.destY = reader.int32();
+                    break;
+                case /* uint32 width */ 4:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 5:
+                    message.height = reader.uint32();
+                    break;
+                case /* bytes pdu_data */ 6:
+                    message.pduData = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxAvc420, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* int32 dest_x = 2; */
+        if (message.destX !== 0)
+            writer.tag(2, WireType.Varint).int32(message.destX);
+        /* int32 dest_y = 3; */
+        if (message.destY !== 0)
+            writer.tag(3, WireType.Varint).int32(message.destY);
+        /* uint32 width = 4; */
+        if (message.width !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.width);
+        /* uint32 height = 5; */
+        if (message.height !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.height);
+        /* bytes pdu_data = 6; */
+        if (message.pduData.length)
+            writer.tag(6, WireType.LengthDelimited).bytes(message.pduData);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxAvc420
+ */
+export const EgfxAvc420 = new EgfxAvc420$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxUncompressed$Type extends MessageType<EgfxUncompressed> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxUncompressed", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "dest_x", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "dest_y", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 4, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "pixel_format", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 7, name: "bitmap_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxUncompressed>): EgfxUncompressed {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.destX = 0;
+        message.destY = 0;
+        message.width = 0;
+        message.height = 0;
+        message.pixelFormat = 0;
+        message.bitmapData = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxUncompressed>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxUncompressed): EgfxUncompressed {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* int32 dest_x */ 2:
+                    message.destX = reader.int32();
+                    break;
+                case /* int32 dest_y */ 3:
+                    message.destY = reader.int32();
+                    break;
+                case /* uint32 width */ 4:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 5:
+                    message.height = reader.uint32();
+                    break;
+                case /* uint32 pixel_format */ 6:
+                    message.pixelFormat = reader.uint32();
+                    break;
+                case /* bytes bitmap_data */ 7:
+                    message.bitmapData = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxUncompressed, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* int32 dest_x = 2; */
+        if (message.destX !== 0)
+            writer.tag(2, WireType.Varint).int32(message.destX);
+        /* int32 dest_y = 3; */
+        if (message.destY !== 0)
+            writer.tag(3, WireType.Varint).int32(message.destY);
+        /* uint32 width = 4; */
+        if (message.width !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.width);
+        /* uint32 height = 5; */
+        if (message.height !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.height);
+        /* uint32 pixel_format = 6; */
+        if (message.pixelFormat !== 0)
+            writer.tag(6, WireType.Varint).uint32(message.pixelFormat);
+        /* bytes bitmap_data = 7; */
+        if (message.bitmapData.length)
+            writer.tag(7, WireType.LengthDelimited).bytes(message.bitmapData);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxUncompressed
+ */
+export const EgfxUncompressed = new EgfxUncompressed$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxRect$Type extends MessageType<EgfxRect> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxRect", [
+            { no: 1, name: "left", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "top", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "right", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "bottom", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxRect>): EgfxRect {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.left = 0;
+        message.top = 0;
+        message.right = 0;
+        message.bottom = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxRect>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxRect): EgfxRect {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 left */ 1:
+                    message.left = reader.uint32();
+                    break;
+                case /* uint32 top */ 2:
+                    message.top = reader.uint32();
+                    break;
+                case /* uint32 right */ 3:
+                    message.right = reader.uint32();
+                    break;
+                case /* uint32 bottom */ 4:
+                    message.bottom = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxRect, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 left = 1; */
+        if (message.left !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.left);
+        /* uint32 top = 2; */
+        if (message.top !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.top);
+        /* uint32 right = 3; */
+        if (message.right !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.right);
+        /* uint32 bottom = 4; */
+        if (message.bottom !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.bottom);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxRect
+ */
+export const EgfxRect = new EgfxRect$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxPoint$Type extends MessageType<EgfxPoint> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxPoint", [
+            { no: 1, name: "x", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "y", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxPoint>): EgfxPoint {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.x = 0;
+        message.y = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxPoint>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxPoint): EgfxPoint {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 x */ 1:
+                    message.x = reader.uint32();
+                    break;
+                case /* uint32 y */ 2:
+                    message.y = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxPoint, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 x = 1; */
+        if (message.x !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.x);
+        /* uint32 y = 2; */
+        if (message.y !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.y);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxPoint
+ */
+export const EgfxPoint = new EgfxPoint$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxSolidFill$Type extends MessageType<EgfxSolidFill> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxSolidFill", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "color_b", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "color_g", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "color_r", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "rects", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => EgfxRect }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxSolidFill>): EgfxSolidFill {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.colorB = 0;
+        message.colorG = 0;
+        message.colorR = 0;
+        message.rects = [];
+        if (value !== undefined)
+            reflectionMergePartial<EgfxSolidFill>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxSolidFill): EgfxSolidFill {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint32 color_b */ 2:
+                    message.colorB = reader.uint32();
+                    break;
+                case /* uint32 color_g */ 3:
+                    message.colorG = reader.uint32();
+                    break;
+                case /* uint32 color_r */ 4:
+                    message.colorR = reader.uint32();
+                    break;
+                case /* repeated teleport.desktop.v1.EgfxRect rects */ 5:
+                    message.rects.push(EgfxRect.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxSolidFill, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* uint32 color_b = 2; */
+        if (message.colorB !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.colorB);
+        /* uint32 color_g = 3; */
+        if (message.colorG !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.colorG);
+        /* uint32 color_r = 4; */
+        if (message.colorR !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.colorR);
+        /* repeated teleport.desktop.v1.EgfxRect rects = 5; */
+        for (let i = 0; i < message.rects.length; i++)
+            EgfxRect.internalBinaryWrite(message.rects[i], writer.tag(5, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxSolidFill
+ */
+export const EgfxSolidFill = new EgfxSolidFill$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxSurfaceToCache$Type extends MessageType<EgfxSurfaceToCache> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxSurfaceToCache", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "cache_key", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "cache_slot", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "source_rect", kind: "message", T: () => EgfxRect }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxSurfaceToCache>): EgfxSurfaceToCache {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.cacheKey = 0n;
+        message.cacheSlot = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxSurfaceToCache>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxSurfaceToCache): EgfxSurfaceToCache {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint64 cache_key */ 2:
+                    message.cacheKey = reader.uint64().toBigInt();
+                    break;
+                case /* uint32 cache_slot */ 3:
+                    message.cacheSlot = reader.uint32();
+                    break;
+                case /* teleport.desktop.v1.EgfxRect source_rect */ 4:
+                    message.sourceRect = EgfxRect.internalBinaryRead(reader, reader.uint32(), options, message.sourceRect);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxSurfaceToCache, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* uint64 cache_key = 2; */
+        if (message.cacheKey !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.cacheKey);
+        /* uint32 cache_slot = 3; */
+        if (message.cacheSlot !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.cacheSlot);
+        /* teleport.desktop.v1.EgfxRect source_rect = 4; */
+        if (message.sourceRect)
+            EgfxRect.internalBinaryWrite(message.sourceRect, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxSurfaceToCache
+ */
+export const EgfxSurfaceToCache = new EgfxSurfaceToCache$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxCacheToSurface$Type extends MessageType<EgfxCacheToSurface> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxCacheToSurface", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "cache_slot", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "dest_points", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => EgfxPoint }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxCacheToSurface>): EgfxCacheToSurface {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.cacheSlot = 0;
+        message.destPoints = [];
+        if (value !== undefined)
+            reflectionMergePartial<EgfxCacheToSurface>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxCacheToSurface): EgfxCacheToSurface {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint32 cache_slot */ 2:
+                    message.cacheSlot = reader.uint32();
+                    break;
+                case /* repeated teleport.desktop.v1.EgfxPoint dest_points */ 3:
+                    message.destPoints.push(EgfxPoint.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxCacheToSurface, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* uint32 cache_slot = 2; */
+        if (message.cacheSlot !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.cacheSlot);
+        /* repeated teleport.desktop.v1.EgfxPoint dest_points = 3; */
+        for (let i = 0; i < message.destPoints.length; i++)
+            EgfxPoint.internalBinaryWrite(message.destPoints[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxCacheToSurface
+ */
+export const EgfxCacheToSurface = new EgfxCacheToSurface$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxEvictCacheEntry$Type extends MessageType<EgfxEvictCacheEntry> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxEvictCacheEntry", [
+            { no: 1, name: "cache_slot", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxEvictCacheEntry>): EgfxEvictCacheEntry {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cacheSlot = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxEvictCacheEntry>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxEvictCacheEntry): EgfxEvictCacheEntry {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 cache_slot */ 1:
+                    message.cacheSlot = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxEvictCacheEntry, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 cache_slot = 1; */
+        if (message.cacheSlot !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.cacheSlot);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxEvictCacheEntry
+ */
+export const EgfxEvictCacheEntry = new EgfxEvictCacheEntry$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxSurfaceToSurface$Type extends MessageType<EgfxSurfaceToSurface> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxSurfaceToSurface", [
+            { no: 1, name: "source_surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "destination_surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "source_rect", kind: "message", T: () => EgfxRect },
+            { no: 4, name: "dest_points", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => EgfxPoint }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxSurfaceToSurface>): EgfxSurfaceToSurface {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.sourceSurfaceId = 0;
+        message.destinationSurfaceId = 0;
+        message.destPoints = [];
+        if (value !== undefined)
+            reflectionMergePartial<EgfxSurfaceToSurface>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxSurfaceToSurface): EgfxSurfaceToSurface {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 source_surface_id */ 1:
+                    message.sourceSurfaceId = reader.uint32();
+                    break;
+                case /* uint32 destination_surface_id */ 2:
+                    message.destinationSurfaceId = reader.uint32();
+                    break;
+                case /* teleport.desktop.v1.EgfxRect source_rect */ 3:
+                    message.sourceRect = EgfxRect.internalBinaryRead(reader, reader.uint32(), options, message.sourceRect);
+                    break;
+                case /* repeated teleport.desktop.v1.EgfxPoint dest_points */ 4:
+                    message.destPoints.push(EgfxPoint.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxSurfaceToSurface, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 source_surface_id = 1; */
+        if (message.sourceSurfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.sourceSurfaceId);
+        /* uint32 destination_surface_id = 2; */
+        if (message.destinationSurfaceId !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.destinationSurfaceId);
+        /* teleport.desktop.v1.EgfxRect source_rect = 3; */
+        if (message.sourceRect)
+            EgfxRect.internalBinaryWrite(message.sourceRect, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.desktop.v1.EgfxPoint dest_points = 4; */
+        for (let i = 0; i < message.destPoints.length; i++)
+            EgfxPoint.internalBinaryWrite(message.destPoints[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxSurfaceToSurface
+ */
+export const EgfxSurfaceToSurface = new EgfxSurfaceToSurface$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxWireToSurface2$Type extends MessageType<EgfxWireToSurface2> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxWireToSurface2", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "codec_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "codec_context_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "pixel_format", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "surface_origin_x", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 6, name: "surface_origin_y", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 7, name: "bitmap_data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxWireToSurface2>): EgfxWireToSurface2 {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.codecId = 0;
+        message.codecContextId = 0;
+        message.pixelFormat = 0;
+        message.surfaceOriginX = 0;
+        message.surfaceOriginY = 0;
+        message.bitmapData = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<EgfxWireToSurface2>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxWireToSurface2): EgfxWireToSurface2 {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint32 codec_id */ 2:
+                    message.codecId = reader.uint32();
+                    break;
+                case /* uint32 codec_context_id */ 3:
+                    message.codecContextId = reader.uint32();
+                    break;
+                case /* uint32 pixel_format */ 4:
+                    message.pixelFormat = reader.uint32();
+                    break;
+                case /* uint32 surface_origin_x */ 5:
+                    message.surfaceOriginX = reader.uint32();
+                    break;
+                case /* uint32 surface_origin_y */ 6:
+                    message.surfaceOriginY = reader.uint32();
+                    break;
+                case /* bytes bitmap_data */ 7:
+                    message.bitmapData = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxWireToSurface2, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* uint32 codec_id = 2; */
+        if (message.codecId !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.codecId);
+        /* uint32 codec_context_id = 3; */
+        if (message.codecContextId !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.codecContextId);
+        /* uint32 pixel_format = 4; */
+        if (message.pixelFormat !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.pixelFormat);
+        /* uint32 surface_origin_x = 5; */
+        if (message.surfaceOriginX !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.surfaceOriginX);
+        /* uint32 surface_origin_y = 6; */
+        if (message.surfaceOriginY !== 0)
+            writer.tag(6, WireType.Varint).uint32(message.surfaceOriginY);
+        /* bytes bitmap_data = 7; */
+        if (message.bitmapData.length)
+            writer.tag(7, WireType.LengthDelimited).bytes(message.bitmapData);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxWireToSurface2
+ */
+export const EgfxWireToSurface2 = new EgfxWireToSurface2$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxDeleteEncodingContext$Type extends MessageType<EgfxDeleteEncodingContext> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxDeleteEncodingContext", [
+            { no: 1, name: "surface_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "codec_context_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxDeleteEncodingContext>): EgfxDeleteEncodingContext {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.surfaceId = 0;
+        message.codecContextId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxDeleteEncodingContext>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxDeleteEncodingContext): EgfxDeleteEncodingContext {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 surface_id */ 1:
+                    message.surfaceId = reader.uint32();
+                    break;
+                case /* uint32 codec_context_id */ 2:
+                    message.codecContextId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxDeleteEncodingContext, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 surface_id = 1; */
+        if (message.surfaceId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.surfaceId);
+        /* uint32 codec_context_id = 2; */
+        if (message.codecContextId !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.codecContextId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxDeleteEncodingContext
+ */
+export const EgfxDeleteEncodingContext = new EgfxDeleteEncodingContext$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class EgfxEndFrame$Type extends MessageType<EgfxEndFrame> {
+    constructor() {
+        super("teleport.desktop.v1.EgfxEndFrame", [
+            { no: 1, name: "frame_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<EgfxEndFrame>): EgfxEndFrame {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.frameId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<EgfxEndFrame>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: EgfxEndFrame): EgfxEndFrame {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 frame_id */ 1:
+                    message.frameId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: EgfxEndFrame, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 frame_id = 1; */
+        if (message.frameId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.frameId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.EgfxEndFrame
+ */
+export const EgfxEndFrame = new EgfxEndFrame$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class RDPResponsePDU$Type extends MessageType<RDPResponsePDU> {
     constructor() {
@@ -1872,12 +3800,92 @@ class KeyboardButton$Type extends MessageType<KeyboardButton> {
  */
 export const KeyboardButton = new KeyboardButton$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class MonitorLayout$Type extends MessageType<MonitorLayout> {
+    constructor() {
+        super("teleport.desktop.v1.MonitorLayout", [
+            { no: 1, name: "x", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 2, name: "y", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "is_primary", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MonitorLayout>): MonitorLayout {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.x = 0;
+        message.y = 0;
+        message.width = 0;
+        message.height = 0;
+        message.isPrimary = false;
+        if (value !== undefined)
+            reflectionMergePartial<MonitorLayout>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MonitorLayout): MonitorLayout {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* int32 x */ 1:
+                    message.x = reader.int32();
+                    break;
+                case /* int32 y */ 2:
+                    message.y = reader.int32();
+                    break;
+                case /* uint32 width */ 3:
+                    message.width = reader.uint32();
+                    break;
+                case /* uint32 height */ 4:
+                    message.height = reader.uint32();
+                    break;
+                case /* bool is_primary */ 5:
+                    message.isPrimary = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MonitorLayout, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* int32 x = 1; */
+        if (message.x !== 0)
+            writer.tag(1, WireType.Varint).int32(message.x);
+        /* int32 y = 2; */
+        if (message.y !== 0)
+            writer.tag(2, WireType.Varint).int32(message.y);
+        /* uint32 width = 3; */
+        if (message.width !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.width);
+        /* uint32 height = 4; */
+        if (message.height !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.height);
+        /* bool is_primary = 5; */
+        if (message.isPrimary !== false)
+            writer.tag(5, WireType.Varint).bool(message.isPrimary);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MonitorLayout
+ */
+export const MonitorLayout = new MonitorLayout$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
     constructor() {
         super("teleport.desktop.v1.ClientScreenSpec", [
             { no: 1, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 3, name: "scale", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "scale", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "monitors", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => MonitorLayout }
         ]);
     }
     create(value?: PartialMessage<ClientScreenSpec>): ClientScreenSpec {
@@ -1885,6 +3893,7 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
         message.width = 0;
         message.height = 0;
         message.scale = 0;
+        message.monitors = [];
         if (value !== undefined)
             reflectionMergePartial<ClientScreenSpec>(this, message, value);
         return message;
@@ -1902,6 +3911,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
                     break;
                 case /* uint32 scale */ 3:
                     message.scale = reader.uint32();
+                    break;
+                case /* repeated teleport.desktop.v1.MonitorLayout monitors */ 4:
+                    message.monitors.push(MonitorLayout.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1924,6 +3936,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
         /* uint32 scale = 3; */
         if (message.scale !== 0)
             writer.tag(3, WireType.Varint).uint32(message.scale);
+        /* repeated teleport.desktop.v1.MonitorLayout monitors = 4; */
+        for (let i = 0; i < message.monitors.length; i++)
+            MonitorLayout.internalBinaryWrite(message.monitors[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3716,6 +5731,77 @@ class SessionEstablishing$Type extends MessageType<SessionEstablishing> {
  */
 export const SessionEstablishing = new SessionEstablishing$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class RefreshRect$Type extends MessageType<RefreshRect> {
+    constructor() {
+        super("teleport.desktop.v1.RefreshRect", [
+            { no: 1, name: "left", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "top", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "right", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "bottom", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RefreshRect>): RefreshRect {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.left = 0;
+        message.top = 0;
+        message.right = 0;
+        message.bottom = 0;
+        if (value !== undefined)
+            reflectionMergePartial<RefreshRect>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RefreshRect): RefreshRect {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 left */ 1:
+                    message.left = reader.uint32();
+                    break;
+                case /* uint32 top */ 2:
+                    message.top = reader.uint32();
+                    break;
+                case /* uint32 right */ 3:
+                    message.right = reader.uint32();
+                    break;
+                case /* uint32 bottom */ 4:
+                    message.bottom = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RefreshRect, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 left = 1; */
+        if (message.left !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.left);
+        /* uint32 top = 2; */
+        if (message.top !== 0)
+            writer.tag(2, WireType.Varint).uint32(message.top);
+        /* uint32 right = 3; */
+        if (message.right !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.right);
+        /* uint32 bottom = 4; */
+        if (message.bottom !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.bottom);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.RefreshRect
+ */
+export const RefreshRect = new RefreshRect$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class Envelope$Type extends MessageType<Envelope> {
     constructor() {
         super("teleport.desktop.v1.Envelope", [
@@ -3743,7 +5829,22 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection },
             { no: 23, name: "auth_prompt", kind: "message", oneof: "payload", T: () => AuthPrompt },
             { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse },
-            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing }
+            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing },
+            { no: 26, name: "refresh_rect", kind: "message", oneof: "payload", T: () => RefreshRect },
+            { no: 27, name: "egfx_bitmap", kind: "message", oneof: "payload", T: () => EgfxBitmap },
+            { no: 28, name: "egfx_avc_frame", kind: "message", oneof: "payload", T: () => EgfxAvcFrame },
+            { no: 29, name: "egfx_clear_codec", kind: "message", oneof: "payload", T: () => EgfxClearCodec },
+            { no: 30, name: "egfx_solid_fill", kind: "message", oneof: "payload", T: () => EgfxSolidFill },
+            { no: 31, name: "egfx_surface_to_cache", kind: "message", oneof: "payload", T: () => EgfxSurfaceToCache },
+            { no: 32, name: "egfx_cache_to_surface", kind: "message", oneof: "payload", T: () => EgfxCacheToSurface },
+            { no: 33, name: "egfx_evict_cache_entry", kind: "message", oneof: "payload", T: () => EgfxEvictCacheEntry },
+            { no: 34, name: "egfx_surface_to_surface", kind: "message", oneof: "payload", T: () => EgfxSurfaceToSurface },
+            { no: 35, name: "egfx_wire_to_surface2", kind: "message", oneof: "payload", T: () => EgfxWireToSurface2 },
+            { no: 36, name: "egfx_delete_encoding_context", kind: "message", oneof: "payload", T: () => EgfxDeleteEncodingContext },
+            { no: 37, name: "egfx_uncompressed", kind: "message", oneof: "payload", T: () => EgfxUncompressed },
+            { no: 38, name: "egfx_planar", kind: "message", oneof: "payload", T: () => EgfxPlanar },
+            { no: 39, name: "egfx_avc420", kind: "message", oneof: "payload", T: () => EgfxAvc420 },
+            { no: 40, name: "egfx_end_frame", kind: "message", oneof: "payload", T: () => EgfxEndFrame }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3908,6 +6009,96 @@ class Envelope$Type extends MessageType<Envelope> {
                         sessionEstablishing: SessionEstablishing.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionEstablishing)
                     };
                     break;
+                case /* teleport.desktop.v1.RefreshRect refresh_rect */ 26:
+                    message.payload = {
+                        oneofKind: "refreshRect",
+                        refreshRect: RefreshRect.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).refreshRect)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxBitmap egfx_bitmap */ 27:
+                    message.payload = {
+                        oneofKind: "egfxBitmap",
+                        egfxBitmap: EgfxBitmap.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxBitmap)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxAvcFrame egfx_avc_frame */ 28:
+                    message.payload = {
+                        oneofKind: "egfxAvcFrame",
+                        egfxAvcFrame: EgfxAvcFrame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxAvcFrame)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxClearCodec egfx_clear_codec */ 29:
+                    message.payload = {
+                        oneofKind: "egfxClearCodec",
+                        egfxClearCodec: EgfxClearCodec.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxClearCodec)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxSolidFill egfx_solid_fill */ 30:
+                    message.payload = {
+                        oneofKind: "egfxSolidFill",
+                        egfxSolidFill: EgfxSolidFill.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxSolidFill)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxSurfaceToCache egfx_surface_to_cache */ 31:
+                    message.payload = {
+                        oneofKind: "egfxSurfaceToCache",
+                        egfxSurfaceToCache: EgfxSurfaceToCache.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxSurfaceToCache)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxCacheToSurface egfx_cache_to_surface */ 32:
+                    message.payload = {
+                        oneofKind: "egfxCacheToSurface",
+                        egfxCacheToSurface: EgfxCacheToSurface.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxCacheToSurface)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxEvictCacheEntry egfx_evict_cache_entry */ 33:
+                    message.payload = {
+                        oneofKind: "egfxEvictCacheEntry",
+                        egfxEvictCacheEntry: EgfxEvictCacheEntry.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxEvictCacheEntry)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxSurfaceToSurface egfx_surface_to_surface */ 34:
+                    message.payload = {
+                        oneofKind: "egfxSurfaceToSurface",
+                        egfxSurfaceToSurface: EgfxSurfaceToSurface.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxSurfaceToSurface)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxWireToSurface2 egfx_wire_to_surface2 */ 35:
+                    message.payload = {
+                        oneofKind: "egfxWireToSurface2",
+                        egfxWireToSurface2: EgfxWireToSurface2.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxWireToSurface2)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxDeleteEncodingContext egfx_delete_encoding_context */ 36:
+                    message.payload = {
+                        oneofKind: "egfxDeleteEncodingContext",
+                        egfxDeleteEncodingContext: EgfxDeleteEncodingContext.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxDeleteEncodingContext)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxUncompressed egfx_uncompressed */ 37:
+                    message.payload = {
+                        oneofKind: "egfxUncompressed",
+                        egfxUncompressed: EgfxUncompressed.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxUncompressed)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxPlanar egfx_planar */ 38:
+                    message.payload = {
+                        oneofKind: "egfxPlanar",
+                        egfxPlanar: EgfxPlanar.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxPlanar)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxAvc420 egfx_avc420 */ 39:
+                    message.payload = {
+                        oneofKind: "egfxAvc420",
+                        egfxAvc420: EgfxAvc420.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxAvc420)
+                    };
+                    break;
+                case /* teleport.desktop.v1.EgfxEndFrame egfx_end_frame */ 40:
+                    message.payload = {
+                        oneofKind: "egfxEndFrame",
+                        egfxEndFrame: EgfxEndFrame.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).egfxEndFrame)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3995,6 +6186,51 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.SessionEstablishing session_establishing = 25; */
         if (message.payload.oneofKind === "sessionEstablishing")
             SessionEstablishing.internalBinaryWrite(message.payload.sessionEstablishing, writer.tag(25, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.RefreshRect refresh_rect = 26; */
+        if (message.payload.oneofKind === "refreshRect")
+            RefreshRect.internalBinaryWrite(message.payload.refreshRect, writer.tag(26, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxBitmap egfx_bitmap = 27; */
+        if (message.payload.oneofKind === "egfxBitmap")
+            EgfxBitmap.internalBinaryWrite(message.payload.egfxBitmap, writer.tag(27, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxAvcFrame egfx_avc_frame = 28; */
+        if (message.payload.oneofKind === "egfxAvcFrame")
+            EgfxAvcFrame.internalBinaryWrite(message.payload.egfxAvcFrame, writer.tag(28, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxClearCodec egfx_clear_codec = 29; */
+        if (message.payload.oneofKind === "egfxClearCodec")
+            EgfxClearCodec.internalBinaryWrite(message.payload.egfxClearCodec, writer.tag(29, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxSolidFill egfx_solid_fill = 30; */
+        if (message.payload.oneofKind === "egfxSolidFill")
+            EgfxSolidFill.internalBinaryWrite(message.payload.egfxSolidFill, writer.tag(30, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxSurfaceToCache egfx_surface_to_cache = 31; */
+        if (message.payload.oneofKind === "egfxSurfaceToCache")
+            EgfxSurfaceToCache.internalBinaryWrite(message.payload.egfxSurfaceToCache, writer.tag(31, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxCacheToSurface egfx_cache_to_surface = 32; */
+        if (message.payload.oneofKind === "egfxCacheToSurface")
+            EgfxCacheToSurface.internalBinaryWrite(message.payload.egfxCacheToSurface, writer.tag(32, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxEvictCacheEntry egfx_evict_cache_entry = 33; */
+        if (message.payload.oneofKind === "egfxEvictCacheEntry")
+            EgfxEvictCacheEntry.internalBinaryWrite(message.payload.egfxEvictCacheEntry, writer.tag(33, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxSurfaceToSurface egfx_surface_to_surface = 34; */
+        if (message.payload.oneofKind === "egfxSurfaceToSurface")
+            EgfxSurfaceToSurface.internalBinaryWrite(message.payload.egfxSurfaceToSurface, writer.tag(34, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxWireToSurface2 egfx_wire_to_surface2 = 35; */
+        if (message.payload.oneofKind === "egfxWireToSurface2")
+            EgfxWireToSurface2.internalBinaryWrite(message.payload.egfxWireToSurface2, writer.tag(35, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxDeleteEncodingContext egfx_delete_encoding_context = 36; */
+        if (message.payload.oneofKind === "egfxDeleteEncodingContext")
+            EgfxDeleteEncodingContext.internalBinaryWrite(message.payload.egfxDeleteEncodingContext, writer.tag(36, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxUncompressed egfx_uncompressed = 37; */
+        if (message.payload.oneofKind === "egfxUncompressed")
+            EgfxUncompressed.internalBinaryWrite(message.payload.egfxUncompressed, writer.tag(37, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxPlanar egfx_planar = 38; */
+        if (message.payload.oneofKind === "egfxPlanar")
+            EgfxPlanar.internalBinaryWrite(message.payload.egfxPlanar, writer.tag(38, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxAvc420 egfx_avc420 = 39; */
+        if (message.payload.oneofKind === "egfxAvc420")
+            EgfxAvc420.internalBinaryWrite(message.payload.egfxAvc420, writer.tag(39, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.EgfxEndFrame egfx_end_frame = 40; */
+        if (message.payload.oneofKind === "egfxEndFrame")
+            EgfxEndFrame.internalBinaryWrite(message.payload.egfxEndFrame, writer.tag(40, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

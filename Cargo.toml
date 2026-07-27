@@ -1,6 +1,17 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "lib/srv/desktop/rdp/decoder", "web/packages/shared/libs/ironrdp"]
+members = [
+  "gen/rust",
+  "lib/srv/desktop/rdp/rdpclient",
+  "lib/srv/desktop/rdp/decoder",
+  "web/packages/shared/libs/ironrdp",
+  "web/packages/shared/libs/player/crates/*",
+]
+# third_party/ironrdp is its own self-contained Cargo workspace (used by the
+# [patch] section below). Excluding it stops cargo from trying to interpret
+# its members in *this* workspace's context, which would fail because the
+# vendored crates inherit fields like `authors` from the IronRDP workspace.
+exclude = ["third_party/ironrdp"]
 
 [workspace.package]
 edition = "2021"
@@ -18,19 +29,98 @@ debug = 1
 codegen-units = 1
 lto = "thin"
 
+# For the wasm crates (codec/session/ironrdp), the source player uses
+# fat LTO + panic=abort + stripped symbols on top of the workspace
+# release profile. wasm-pack 0.13.x doesn't cleanly accept a custom
+# `--profile`, so the recommended path is to set the env-var overrides
+# while invoking the default release build:
+#
+#   CARGO_PROFILE_RELEASE_LTO=fat \
+#   CARGO_PROFILE_RELEASE_PANIC=abort \
+#   CARGO_PROFILE_RELEASE_STRIP=symbols \
+#   CARGO_PROFILE_RELEASE_DEBUG=0 \
+#   wasm-pack build --release \
+#     --target web --out-dir ../../pkg/session --out-name session \
+#     web/packages/shared/libs/player/crates/session
+#
+# `web/packages/shared/libs/player/build-release-wasm.sh` wraps that.
+# These envs scope to *this* cargo invocation, so the native release
+# build at `lib/srv/desktop/rdp/rdpclient` is unaffected.
+
 [workspace.dependencies]
-# Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
-# ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-ironrdp-cliprdr = "0.7"
-ironrdp-connector = "0.10"
-ironrdp-core = "0.2"
-ironrdp-displaycontrol = "0.8"
-ironrdp-dvc = "0.8"
-ironrdp-graphics = "0.9"
-ironrdp-pdu = "0.9"
-ironrdp-rdpdr = "0.7"
-ironrdp-rdpsnd = "0.9"
-ironrdp-session = "0.11"
-ironrdp-svc = "0.8"
-ironrdp-tls = { version = "0.2", features = ["rustls"] }
-ironrdp-tokio = "0.10"
+# IronRDP is vendored under third_party/ironrdp (rebased onto upstream master
+# at commit 9cb5439b — last commit before the May 2026 exclusive-bounds
+# breaking change in #1238). Patches we carry on top:
+#   - GCC multi-monitor block (ClientMonitorData / ClientMonitorExtendedData)
+#   - SUPPORT_MONITOR_LAYOUT_PDU + server-side handler
+#   - DVC accept/reject tracing
+# See third_party/ironrdp/crates/ironrdp-connector for details.
+ironrdp-async = { path = "third_party/ironrdp/crates/ironrdp-async" }
+ironrdp-cliprdr = { path = "third_party/ironrdp/crates/ironrdp-cliprdr" }
+ironrdp-connector = { path = "third_party/ironrdp/crates/ironrdp-connector" }
+ironrdp-core = { path = "third_party/ironrdp/crates/ironrdp-core" }
+ironrdp-displaycontrol = { path = "third_party/ironrdp/crates/ironrdp-displaycontrol" }
+ironrdp-dvc = { path = "third_party/ironrdp/crates/ironrdp-dvc" }
+ironrdp-egfx = { path = "third_party/ironrdp/crates/ironrdp-egfx", features = ["openh264-bundled"] }
+ironrdp-graphics = { path = "third_party/ironrdp/crates/ironrdp-graphics" }
+ironrdp-pdu = { path = "third_party/ironrdp/crates/ironrdp-pdu" }
+ironrdp-rdpdr = { path = "third_party/ironrdp/crates/ironrdp-rdpdr" }
+ironrdp-rdpsnd = { path = "third_party/ironrdp/crates/ironrdp-rdpsnd" }
+ironrdp-session = { path = "third_party/ironrdp/crates/ironrdp-session" }
+ironrdp-svc = { path = "third_party/ironrdp/crates/ironrdp-svc" }
+ironrdp-tls = { path = "third_party/ironrdp/crates/ironrdp-tls", features = [
+  "rustls",
+] }
+ironrdp-tokio = { path = "third_party/ironrdp/crates/ironrdp-tokio" }
+
+teleport-proto = { path = "gen/rust" }
+thiserror = "2.0.18"
+tracing = "0.1.44"
+
+[workspace.lints.rust]
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+# Correctness & safety
+cast_lossless = "warn"
+cast_possible_truncation = "warn"
+cast_possible_wrap = "warn"
+cast_sign_loss = "warn"
+checked_conversions = "warn"
+float_cmp = "warn"
+invalid_upcast_comparisons = "warn"
+large_types_passed_by_value = "warn"
+
+# Clarity & readability
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+flat_map_option = "warn"
+if_not_else = "warn"
+implicit_clone = "warn"
+inconsistent_struct_constructor = "warn"
+manual_let_else = "warn"
+map_unwrap_or = "warn"
+match_bool = "warn"
+needless_continue = "warn"
+needless_pass_by_value = "warn"
+range_plus_one = "warn"
+redundant_closure_for_method_calls = "warn"
+redundant_else = "warn"
+ref_option_ref = "warn"
+semicolon_if_nothing_returned = "warn"
+unnested_or_patterns = "warn"
+unused_self = "warn"
+
+# Strings & allocations
+inefficient_to_string = "warn"
+str_to_string = "warn"
+string_add_assign = "warn"
+
+# Style
+doc_markdown = "warn"
+manual_assert = "warn"
+manual_instant_elapsed = "warn"
+must_use_candidate = "warn"
+return_self_not_must_use = "warn"
+trivially_copy_pass_by_ref = "warn"
+uninlined_format_args = "warn"

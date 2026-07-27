@@ -71,6 +71,7 @@ import {
   type SharedDirectoryWriteResponse,
   type SyncKeys,
 } from './codec';
+import { TDP_PERF } from './perfLogger';
 import {
   PathDoesNotExistError,
   SharedDirectoryAccess,
@@ -254,6 +255,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       .encodeInitialMessages(options.screenSpec, options.keyboardLayout)
       .forEach(msg => this.send(msg));
     this.emit(TdpClientEvent.CONNECTION_OPEN);
+    TDP_PERF.start();
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -295,6 +297,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
 
     this.logger.info('Transport is closed');
+    TDP_PERF.stop();
 
     this.transport = undefined;
   }
@@ -424,7 +427,9 @@ export class TdpClient extends EventEmitter<EventMap> {
       codec = codecOverride;
     }
 
+    const decodeStart = TDP_PERF.perfNow();
     const result = codec.decodeMessage(buffer);
+    TDP_PERF.recordDecode(TDP_PERF.perfNow() - decodeStart);
     if (!result) {
       // Codec implementations *should* return an 'unknown' result kind
       // instead of undefined, but double check anyway for safety.
@@ -615,6 +620,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       throw new Error('FastPathProcessor not initialized');
     }
 
+    const processStart = TDP_PERF.perfNow();
     this.fastPathProcessor.process(
       rdpFastPathPdu,
       this,
@@ -622,12 +628,18 @@ export class TdpClient extends EventEmitter<EventMap> {
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
       },
       (responseFrame: ArrayBuffer) => {
+        const sendStart = TDP_PERF.perfNow();
         this.sendRdpResponsePdu(responseFrame);
+        TDP_PERF.recordResponseSend(
+          TDP_PERF.perfNow() - sendStart,
+          responseFrame.byteLength
+        );
       },
       (data: ImageData | boolean, hotspot_x?: number, hotspot_y?: number) => {
         this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
       }
     );
+    TDP_PERF.recordProcess(TDP_PERF.perfNow() - processStart);
   }
 
   handleMfaChallenge(mfaJson: MfaJson) {
@@ -904,7 +916,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   sendMouseMove(x: number, y: number) {
-    this.send(this.codec.encodeMouseMove(x, y));
+    const encodeStart = TDP_PERF.perfNow();
+    const msg = this.codec.encodeMouseMove(x, y);
+    TDP_PERF.recordMouseEncode(TDP_PERF.perfNow() - encodeStart);
+    const sendStart = TDP_PERF.perfNow();
+    this.send(msg);
+    TDP_PERF.recordMouseSend(TDP_PERF.perfNow() - sendStart);
   }
 
   sendMouseButton(button: MouseButton, state: ButtonState) {

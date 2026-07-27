@@ -60,15 +60,15 @@ impl RdpDecoder {
                 enable_server_pointer: true,
                 io_channel_id,
                 user_channel_id,
+                // share_id is only used for FrameMarker outbound responses, which we never send during
+                // recording playback (see https://github.com/Devolutions/IronRDP/pull/1147).
+                share_id: 0,
                 // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
                 // at defaults when decoding session recordings.
                 pointer_software_rendering: false,
+                // Recordings never enable bulk compression.
                 bulk_decompressor: None,
-                // share_id is important for live RDP sessions
-                // (see https://github.com/Devolutions/IronRDP/pull/1147)
-                // but doesn't need to be set for our decoder.
-                share_id: 0,
             }
             .build(),
             cursor_state: Default::default(),

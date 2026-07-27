@@ -1,0 +1,86 @@
+[package]
+name = "session"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Test-only: link libfreerdp3 + libwinpr3 and enable the RFX Progressive
+# oracle harness. Off by default so the wasm bundle never touches FreeRDP.
+# Enable with `cargo test --features freerdp-oracle` on host; requires
+# pkg-config to resolve freerdp3.pc (Homebrew: `brew install freerdp`).
+freerdp-oracle = []
+# Throwaway: per-stage RFX-Progressive decode timing (entropy / inverse-DWT /
+# YCbCr→RGB), surfaced to the [apply] log (wasm) and the rfx_replay example
+# (native). Forwards to ironrdp-graphics' `stage-timing` hook. Off by default;
+# build-release-wasm.sh turns it on for measurement builds.
+rfx-stage-timing = ["ironrdp-graphics/stage-timing"]
+
+[[example]]
+name = "rfx_replay"
+required-features = ["rfx-stage-timing"]
+
+[build-dependencies]
+# Used only when --features freerdp-oracle is set; query pkg-config for
+# freerdp3 + winpr3 link search dirs at build time.
+pkg-config = "0.3"
+# Same gating: compiles a small self-contained C reference implementation of
+# FreeRDP's IDWT for test-time differential comparison against our Rust port.
+cc = "1.2"
+
+[dependencies]
+codec = { path = "../codec" }
+
+anyhow = "1"
+bytes = "1"
+console_error_panic_hook = "0.1"
+# Transitively pulled in by ironrdp; both major versions need the wasm
+# feature flipped on or the wasm32 build refuses to compile. Matches what
+# `web/packages/shared/player/Cargo.toml` does for the same reason.
+getrandom1 = { package = "getrandom", version = "0.2", features = ["js"] }
+getrandom2 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+getrandom3 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+ironrdp-core.workspace = true
+ironrdp-graphics.workspace = true
+ironrdp-pdu.workspace = true
+ironrdp-session.workspace = true
+js-sys = "0.3"
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["time"] }
+tracing-web = "0.1"
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "DedicatedWorkerGlobalScope",
+  "EncodedVideoChunk",
+  "EncodedVideoChunkInit",
+  "EncodedVideoChunkType",
+  "ImageData",
+  "OffscreenCanvas",
+  "Performance",
+  "PlaneLayout",
+  "VideoDecoder",
+  "VideoDecoderConfig",
+  "VideoDecoderInit",
+  "VideoFrame",
+  "VideoFrameCopyToOptions",
+  "VideoPixelFormat",
+  "WebGl2RenderingContext",
+  "WebGlBuffer",
+  "WebGlProgram",
+  "WebGlShader",
+  "WebGlTexture",
+  "WebGlUniformLocation",
+  "WebGlVertexArrayObject",
+  "WorkerGlobalScope",
+  "console",
+]
+
+[lints]
+workspace = true

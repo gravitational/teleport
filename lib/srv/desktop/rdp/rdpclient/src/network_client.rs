@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use ironrdp_async::NetworkClient as NetworkClientTrait;
 use ironrdp_connector::sspi::generator::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkProtocol;
 use ironrdp_connector::{general_err, reason_err, ConnectorResult};
@@ -24,9 +25,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use url::Url;
 
-pub(crate) struct NetworkClient;
+pub(crate) struct TcpNetworkClient;
 
-impl ironrdp_tokio::NetworkClient for NetworkClient {
+impl NetworkClientTrait for TcpNetworkClient {
     async fn send(&mut self, request: &NetworkRequest) -> ConnectorResult<Vec<u8>> {
         match &request.protocol {
             NetworkProtocol::Tcp => self.send_tcp(&request.url, &request.data).await,
@@ -37,7 +38,7 @@ impl ironrdp_tokio::NetworkClient for NetworkClient {
     }
 }
 
-impl NetworkClient {
+impl TcpNetworkClient {
     pub(crate) fn new() -> Self {
         Self
     }
@@ -50,7 +51,7 @@ const DEFAULT_KERBEROS_PORT: u16 = 88;
 // https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/kerberos-authentication-problems-if-user-belongs-to-groups#calculating-the-maximum-token-size
 const MAX_RESPONSE_LENGTH: u32 = 65535;
 
-impl NetworkClient {
+impl TcpNetworkClient {
     async fn send_tcp(&self, url: &Url, data: &[u8]) -> ConnectorResult<Vec<u8>> {
         let addr = format!(
             "{}:{}",

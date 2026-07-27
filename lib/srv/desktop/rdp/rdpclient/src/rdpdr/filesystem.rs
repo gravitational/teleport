@@ -470,9 +470,10 @@ impl FilesystemBackend {
                     .create_options
                     .contains(efs::CreateOptions::FILE_DIRECTORY_FILE)
                 {
-                    if req.create_disposition == efs::CreateDisposition::FILE_OPEN_IF
-                        || req.create_disposition == efs::CreateDisposition::FILE_CREATE
-                    {
+                    if matches!(
+                        req.create_disposition,
+                        efs::CreateDisposition::FILE_OPEN_IF | efs::CreateDisposition::FILE_CREATE
+                    ) {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
                         self.tdp_sd_create(req, tdp::FileType::Directory)?;
                         return Ok(());

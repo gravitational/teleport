@@ -109,6 +109,223 @@ func (f *FastPathPDU) Encode() ([]byte, error) {
 
 func (*FastPathPDU) validate() error { return nil }
 
+// EgfxBitmap is a pre-decoded EGFX (RDPGFX) bitmap update — desktop-coordinate
+// RGBA produced by the server-side IronRDP EGFX client and forwarded to the
+// browser for direct blitting into the framebuffer image.
+type EgfxBitmap tdpbv1.EgfxBitmap
+
+// Encode encodes an EgfxBitmap message.
+func (b *EgfxBitmap) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxBitmap{
+			EgfxBitmap: (*tdpbv1.EgfxBitmap)(b),
+		},
+	})
+}
+
+func (*EgfxBitmap) validate() error { return nil }
+
+// EgfxAvcFrame is an EGFX AVC444/v2 frame: the server unpacks the
+// RFX_AVC444V2_BITMAP_STREAM wrapper and forwards the inner H.264 streams
+// to the browser, which decodes them with the WebCodecs VideoDecoder API
+// and composes YUV444 → RGBA client-side.
+type EgfxAvcFrame tdpbv1.EgfxAvcFrame
+
+// Encode encodes an EgfxAvcFrame message.
+func (f *EgfxAvcFrame) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxAvcFrame{
+			EgfxAvcFrame: (*tdpbv1.EgfxAvcFrame)(f),
+		},
+	})
+}
+
+func (*EgfxAvcFrame) validate() error { return nil }
+
+// EgfxClearCodec is a raw ClearCodec ([MS-RDPEGFX] 2.2.4.2) PDU forwarded
+// from the server to the wasm client. The server only parses the surrounding
+// WireToSurface1Pdu wrapper and ships the inner ClearCodec bytes verbatim;
+// the wasm decoder writes in-place into the framebuffer so PDUs that paint
+// only a sub-region of the destination rectangle preserve existing pixels
+// elsewhere in the rect (vs. EgfxBitmap which always overwrites a full
+// rect-sized RGBA buffer).
+type EgfxClearCodec tdpbv1.EgfxClearCodec
+
+// Encode encodes an EgfxClearCodec message.
+func (c *EgfxClearCodec) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxClearCodec{
+			EgfxClearCodec: (*tdpbv1.EgfxClearCodec)(c),
+		},
+	})
+}
+
+func (*EgfxClearCodec) validate() error { return nil }
+
+// EgfxUncompressed is a raw `Codec1Type::Uncompressed` ([MS-RDPEGFX] 2.2.4.2)
+// PDU forwarded from server to wasm. Windows uses this codec heavily for
+// small UI overlays (tooltips, popup chrome, hover shadows) where the
+// per-frame setup cost of a compressed codec outweighs the savings, often
+// with an alpha channel (PIXEL_FORMAT_ARGB_8888). The wasm side reorders
+// channels and source-over composites against the existing framebuffer.
+type EgfxUncompressed tdpbv1.EgfxUncompressed
+
+func (m *EgfxUncompressed) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxUncompressed{
+			EgfxUncompressed: (*tdpbv1.EgfxUncompressed)(m),
+		},
+	})
+}
+
+func (*EgfxUncompressed) validate() error { return nil }
+
+// EgfxPlanar is a raw `Codec1Type::Planar` ([MS-RDPEGDI] 2.2.9.1.0.2 RDP 6.0
+// bitmap stream) PDU forwarded from server to wasm. Decoded via
+// ironrdp_graphics::rdp6::bitmap_stream on the client.
+type EgfxPlanar tdpbv1.EgfxPlanar
+
+func (m *EgfxPlanar) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxPlanar{
+			EgfxPlanar: (*tdpbv1.EgfxPlanar)(m),
+		},
+	})
+}
+
+func (*EgfxPlanar) validate() error { return nil }
+
+// EgfxAvc420 is a raw `Codec1Type::Avc420` ([MS-RDPEGFX] 2.2.4.3) PDU
+// forwarded from server to wasm. The `Avc420EncapsulatedBitmapStream`
+// envelope + H.264 NAL units are decoded entirely on the wasm side.
+type EgfxAvc420 tdpbv1.EgfxAvc420
+
+func (m *EgfxAvc420) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxAvc420{
+			EgfxAvc420: (*tdpbv1.EgfxAvc420)(m),
+		},
+	})
+}
+
+func (*EgfxAvc420) validate() error { return nil }
+
+// EgfxSolidFill is a solid-color fill of one or more rectangles on a
+// surface ([MS-RDPEGFX] 2.2.2.4). Forwarded from IronRDP's EGFX handler to
+// the wasm client, which applies the fill directly to its framebuffer.
+type EgfxSolidFill tdpbv1.EgfxSolidFill
+
+func (m *EgfxSolidFill) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxSolidFill{
+			EgfxSolidFill: (*tdpbv1.EgfxSolidFill)(m),
+		},
+	})
+}
+
+func (*EgfxSolidFill) validate() error { return nil }
+
+// EgfxSurfaceToCache snapshots a region of the surface into the bitmap
+// cache at the given slot ([MS-RDPEGFX] 2.2.2.6).
+type EgfxSurfaceToCache tdpbv1.EgfxSurfaceToCache
+
+func (m *EgfxSurfaceToCache) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxSurfaceToCache{
+			EgfxSurfaceToCache: (*tdpbv1.EgfxSurfaceToCache)(m),
+		},
+	})
+}
+
+func (*EgfxSurfaceToCache) validate() error { return nil }
+
+// EgfxCacheToSurface blits a cached region onto the surface at each
+// destination point ([MS-RDPEGFX] 2.2.2.7).
+type EgfxCacheToSurface tdpbv1.EgfxCacheToSurface
+
+func (m *EgfxCacheToSurface) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxCacheToSurface{
+			EgfxCacheToSurface: (*tdpbv1.EgfxCacheToSurface)(m),
+		},
+	})
+}
+
+func (*EgfxCacheToSurface) validate() error { return nil }
+
+// EgfxEvictCacheEntry drops a bitmap cache slot ([MS-RDPEGFX] 2.2.2.8).
+type EgfxEvictCacheEntry tdpbv1.EgfxEvictCacheEntry
+
+func (m *EgfxEvictCacheEntry) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxEvictCacheEntry{
+			EgfxEvictCacheEntry: (*tdpbv1.EgfxEvictCacheEntry)(m),
+		},
+	})
+}
+
+func (*EgfxEvictCacheEntry) validate() error { return nil }
+
+// EgfxEndFrame marks the end of a logical EGFX frame ([MS-RDPEGFX] 2.2.2.15).
+// The client presents on this boundary so only fully-composited frames reach
+// the screen (presenting mid-frame causes black-rectangle flicker).
+type EgfxEndFrame tdpbv1.EgfxEndFrame
+
+func (m *EgfxEndFrame) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxEndFrame{
+			EgfxEndFrame: (*tdpbv1.EgfxEndFrame)(m),
+		},
+	})
+}
+
+func (*EgfxEndFrame) validate() error { return nil }
+
+// EgfxSurfaceToSurface copies a region between (or within) surfaces
+// ([MS-RDPEGFX] 2.2.2.5). Used by Windows for scrolling, taskbar item
+// moves, drag previews.
+type EgfxSurfaceToSurface tdpbv1.EgfxSurfaceToSurface
+
+func (m *EgfxSurfaceToSurface) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxSurfaceToSurface{
+			EgfxSurfaceToSurface: (*tdpbv1.EgfxSurfaceToSurface)(m),
+		},
+	})
+}
+
+func (*EgfxSurfaceToSurface) validate() error { return nil }
+
+// EgfxWireToSurface2 is a raw RFX Progressive payload ([MS-RDPEGFX] 2.2.2.2)
+// forwarded from the server for wasm-side decode. Stateful per-(surface,
+// codec_context_id) decoder maintains per-tile sub-band coefficients
+// across PDUs until evicted by EgfxDeleteEncodingContext.
+type EgfxWireToSurface2 tdpbv1.EgfxWireToSurface2
+
+func (m *EgfxWireToSurface2) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxWireToSurface2{
+			EgfxWireToSurface2: (*tdpbv1.EgfxWireToSurface2)(m),
+		},
+	})
+}
+
+func (*EgfxWireToSurface2) validate() error { return nil }
+
+// EgfxDeleteEncodingContext drops the per-(surface, codec_context_id)
+// progressive decoder state ([MS-RDPEGFX] 2.2.2.3).
+type EgfxDeleteEncodingContext tdpbv1.EgfxDeleteEncodingContext
+
+func (m *EgfxDeleteEncodingContext) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_EgfxDeleteEncodingContext{
+			EgfxDeleteEncodingContext: (*tdpbv1.EgfxDeleteEncodingContext)(m),
+		},
+	})
+}
+
+func (*EgfxDeleteEncodingContext) validate() error { return nil }
+
 // RDPResponsePDU is a raw RDP response PDU.
 type RDPResponsePDU tdpbv1.RDPResponsePDU
 
@@ -120,6 +337,21 @@ func (f *RDPResponsePDU) Encode() ([]byte, error) {
 }
 
 func (*RDPResponsePDU) validate() error { return nil }
+
+// RefreshRect asks the RDP server to repaint a region. The proxy
+// translates it into an RDP Refresh Rect PDU on the live session.
+type RefreshRect tdpbv1.RefreshRect
+
+// Encode encodes a RefreshRect message.
+func (r *RefreshRect) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_RefreshRect{
+			RefreshRect: (*tdpbv1.RefreshRect)(r),
+		},
+	})
+}
+
+func (*RefreshRect) validate() error { return nil }
 
 // SyncKeys message is sent from the client to the server to
 // synchronize the state of keyboard's modifier keys.
@@ -558,6 +790,36 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*SharedDirectoryRemove)(e.GetSharedDirectoryRemove())
 	case tdpbv1.Envelope_SessionSelection_case:
 		return (*SessionSelection)(e.GetSessionSelection())
+	case tdpbv1.Envelope_RefreshRect_case:
+		return (*RefreshRect)(e.GetRefreshRect())
+	case tdpbv1.Envelope_EgfxBitmap_case:
+		return (*EgfxBitmap)(e.GetEgfxBitmap())
+	case tdpbv1.Envelope_EgfxAvcFrame_case:
+		return (*EgfxAvcFrame)(e.GetEgfxAvcFrame())
+	case tdpbv1.Envelope_EgfxClearCodec_case:
+		return (*EgfxClearCodec)(e.GetEgfxClearCodec())
+	case tdpbv1.Envelope_EgfxSolidFill_case:
+		return (*EgfxSolidFill)(e.GetEgfxSolidFill())
+	case tdpbv1.Envelope_EgfxSurfaceToCache_case:
+		return (*EgfxSurfaceToCache)(e.GetEgfxSurfaceToCache())
+	case tdpbv1.Envelope_EgfxCacheToSurface_case:
+		return (*EgfxCacheToSurface)(e.GetEgfxCacheToSurface())
+	case tdpbv1.Envelope_EgfxEvictCacheEntry_case:
+		return (*EgfxEvictCacheEntry)(e.GetEgfxEvictCacheEntry())
+	case tdpbv1.Envelope_EgfxSurfaceToSurface_case:
+		return (*EgfxSurfaceToSurface)(e.GetEgfxSurfaceToSurface())
+	case tdpbv1.Envelope_EgfxWireToSurface2_case:
+		return (*EgfxWireToSurface2)(e.GetEgfxWireToSurface2())
+	case tdpbv1.Envelope_EgfxDeleteEncodingContext_case:
+		return (*EgfxDeleteEncodingContext)(e.GetEgfxDeleteEncodingContext())
+	case tdpbv1.Envelope_EgfxUncompressed_case:
+		return (*EgfxUncompressed)(e.GetEgfxUncompressed())
+	case tdpbv1.Envelope_EgfxPlanar_case:
+		return (*EgfxPlanar)(e.GetEgfxPlanar())
+	case tdpbv1.Envelope_EgfxAvc420_case:
+		return (*EgfxAvc420)(e.GetEgfxAvc420())
+	case tdpbv1.Envelope_EgfxEndFrame_case:
+		return (*EgfxEndFrame)(e.GetEgfxEndFrame())
 	default:
 		return nil
 	}

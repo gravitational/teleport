@@ -1,0 +1,23 @@
+version: v2
+
+inputs:
+  - directory: .
+    paths:
+      - api/proto/teleport/desktop
+      - api/proto/teleport/mfa/v1/challenge.proto
+      - api/proto/teleport/legacy/types/metadata.proto
+      - api/proto/teleport/legacy/types/mfa_device.proto
+      - api/proto/teleport/legacy/types/webauthn/webauthn.proto
+
+plugins:
+  - local: protoc-gen-prost
+    out: gen/proto/rust/src
+#    opt:
+#      - file_descriptor_set
+  - local: protoc-gen-prost-crate
+    out: gen/proto/rust
+    strategy: all
+    opt:
+      - no_features
+      - gen_crate=gen/Cargo.toml
+      - include_file=src/lib.rs

@@ -61,10 +61,15 @@ package rdpclient
 #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
 #cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
 #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
-#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
+// -lstdc++ resolves the C++ runtime symbols pulled in by openh264-sys2's
+// bundled OpenH264 build (CWelsDecoder ctor/dtor, operator new/delete,
+// __cxa_throw_bad_array_new_length, vtables for __class_type_info, etc).
+// OpenH264 ships as C++ sources, so any binary that links librdp_client.a
+// also needs the C++ stdlib. On Darwin it's libc++ via -lc++.
+#cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm -lstdc++
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm -lc++
 #include <librdpclient.h>
 */
 import "C"
@@ -75,6 +80,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"runtime/cgo"
 	"strconv"
 	"sync"
@@ -131,6 +137,19 @@ func init() {
 	C.rdpclient_init_log()
 }
 
+// Maximum number of monitors supported in a single RDP session. Enforced
+// here as a guard rail; the live web UI is expected to enforce the same cap
+// at the getScreenDetails() selection step.
+const maxMonitors = 4
+
+// monitorLayout mirrors tdpbv1.MonitorLayout with native Go types and is the
+// internal representation used to build the CGO array.
+type monitorLayout struct {
+	x, y          int32
+	width, height uint32
+	isPrimary     bool
+}
+
 // Client is the RDP client.
 // Its lifecycle is:
 //
@@ -141,9 +160,13 @@ func init() {
 type Client struct {
 	cfg Config
 
-	// Parameters read from the TDP stream
+	// Parameters read from the TDP stream. requestedWidth/Height describe
+	// the bounding box of the virtual desktop; requestedMonitors carries
+	// per-monitor positions and is always non-empty (single-monitor
+	// sessions hold a 1-element slice with the primary at (0, 0)).
 	requestedWidth, requestedHeight uint16
 	requestedScale                  uint16
+	requestedMonitors               []monitorLayout
 	username                        string
 	keyboardLayout                  uint32
 
@@ -174,6 +197,17 @@ type Client struct {
 
 	// mouseX and mouseY are the last mouse coordinates sent to the client.
 	mouseX, mouseY uint32
+
+	// Cached RDP activation parameters. A mid-session EGFX ResetGraphics
+	// (desktop resize from a DisplayControl monitor add/move/resize) carries
+	// only the new size, not the channel or share IDs, and doesn't trigger a
+	// protocol reactivation, so we re-announce the size to the browser via
+	// ServerHello using these cached IDs. Set from the RDP activation callback,
+	// read from the EGFX reset-graphics callback, guarded by activationMu.
+	activationMu               sync.Mutex
+	ioChannelID, userChannelID uint16
+	lastScreenW, lastScreenH   uint16
+	shareID                    uint32
 }
 
 // PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
@@ -212,7 +246,7 @@ func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (
 		return nil, trace.Wrap(err)
 	}
 
-	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.
@@ -371,21 +405,43 @@ func readLegacyHandshake(conn *tdp.Conn, logger *slog.Logger) (*tdpb.ClientHello
 	return hello, nil
 }
 
-func (c *Client) setClientSize(width uint32, height uint32) error {
+func (c *Client) setClientSize(spec *tdpbv1.ClientScreenSpec) error {
+	width := spec.GetWidth()
+	height := spec.GetHeight()
+
+	monitors, err := normalizeMonitors(spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.cfg.Logger.InfoContext(context.Background(),
+		"[multimon-marker] setClientSize received ClientScreenSpec",
+		"width", width, "height", height,
+		"raw_monitors_len", len(spec.GetMonitors()),
+		"normalized_monitors_len", len(monitors),
+		"monitors", fmt.Sprintf("%+v", monitors))
+
 	if c.cfg.hasSizeOverride() {
 		// Some desktops have a screen size in their resource definition.
-		// If non-zero then we always request this screen size.
+		// If non-zero then we always request this screen size, single-monitor.
 		c.cfg.Logger.DebugContext(context.Background(), "Forcing a fixed screen size", "width", c.cfg.Width, "height", c.cfg.Height)
 		c.requestedWidth = uint16(c.cfg.Width)
 		c.requestedHeight = uint16(c.cfg.Height)
+		c.requestedMonitors = []monitorLayout{{
+			width: c.cfg.Width, height: c.cfg.Height, isPrimary: true,
+		}}
 	} else {
 		// The browser sends CSS pixel dimensions. Scale them by the display
 		// scale factor (e.g. 200 for a 2x Retina display) to get the physical
 		// pixel resolution that the RDP server should render at.
 		w, h := applyScale(width, height, c.requestedScale)
-		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "css_width", width, "css_height", height, "scale", c.requestedScale, "width", w, "height", h)
+		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size",
+			"css_width", width, "css_height", height,
+			"scale", c.requestedScale,
+			"width", w, "height", h,
+			"monitors", len(monitors))
 		c.requestedWidth = uint16(w)
 		c.requestedHeight = uint16(h)
+		c.requestedMonitors = monitors
 	}
 
 	if uint32(c.requestedWidth) > types.MaxRDPScreenWidth || uint32(c.requestedHeight) > types.MaxRDPScreenHeight {
@@ -410,8 +466,50 @@ func applyScale(width, height uint32, scale uint16) (uint32, uint32) {
 	return width, height
 }
 
+// normalizeMonitors validates and normalizes a ClientScreenSpec's monitor
+// layout. If the spec carries no monitor entries, it synthesizes a single
+// primary monitor sized to width/height. Enforces the system-wide
+// maxMonitors cap and requires exactly one primary.
+func normalizeMonitors(spec *tdpbv1.ClientScreenSpec) ([]monitorLayout, error) {
+	protoMonitors := spec.GetMonitors()
+	if len(protoMonitors) == 0 {
+		return []monitorLayout{{
+			width:     spec.GetWidth(),
+			height:    spec.GetHeight(),
+			isPrimary: true,
+		}}, nil
+	}
+	if len(protoMonitors) > maxMonitors {
+		return nil, trace.BadParameter(
+			"client sent %d monitors, maximum is %d",
+			len(protoMonitors), maxMonitors,
+		)
+	}
+	primaries := 0
+	out := make([]monitorLayout, 0, len(protoMonitors))
+	for _, m := range protoMonitors {
+		if m.GetIsPrimary() {
+			primaries++
+		}
+		out = append(out, monitorLayout{
+			x:         m.GetX(),
+			y:         m.GetY(),
+			width:     m.GetWidth(),
+			height:    m.GetHeight(),
+			isPrimary: m.GetIsPrimary(),
+		})
+	}
+	if primaries != 1 {
+		return nil, trace.BadParameter(
+			"monitor layout must contain exactly one primary monitor (got %d)",
+			primaries,
+		)
+	}
+	return out, nil
+}
+
 func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
-	c.cfg.Logger.InfoContext(ctx, "Rust RDP loop starting")
+	c.cfg.Logger.InfoContext(ctx, "Rust RDP loop starting (EGFX PDU sequence tracing — filter logs by target=teleport::egfx::seq)")
 	defer c.cfg.Logger.InfoContext(ctx, "Rust RDP loop finished")
 
 	// [username] need only be valid for the duration of
@@ -452,6 +550,12 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 		return trace.BadParameter("user key was nil")
 	}
 
+	monitorArr := buildMonitorCArray(c.requestedMonitors, c.requestedScale)
+	var monitorPtr *C.CGOMonitorLayout
+	if len(monitorArr) > 0 {
+		monitorPtr = (*C.CGOMonitorLayout)(unsafe.Pointer(&monitorArr[0]))
+	}
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -470,6 +574,8 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
 			screen_scale:            C.uint16_t(c.requestedScale),
+			monitors:                monitorPtr,
+			monitors_len:            C.uint32_t(len(monitorArr)),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
@@ -477,6 +583,9 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
+	// Keep monitorArr live until client_run returns so the Rust side can
+	// copy out of the slice before Go reclaims its backing memory.
+	runtime.KeepAlive(monitorArr)
 
 	var message string
 	if res.message != nil {
@@ -617,14 +726,37 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			c.requestedScale = uint16(m.Scale)
 		}
 
+		monitors, err := normalizeMonitors((*tdpbv1.ClientScreenSpec)(m))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.requestedMonitors = monitors
+
+		arr := buildMonitorCArray(monitors, c.requestedScale)
+		var ptr *C.CGOMonitorLayout
+		if len(arr) > 0 {
+			ptr = (*C.CGOMonitorLayout)(unsafe.Pointer(&arr[0]))
+		}
+
 		w, h := applyScale(m.Width, m.Height, c.requestedScale)
-		c.cfg.Logger.DebugContext(context.Background(), "Client changed screen size", "css_width", m.Width, "css_height", m.Height, "scale", c.requestedScale, "width", w, "height", h)
-		if errCode := C.client_write_screen_resize(
+		c.cfg.Logger.InfoContext(context.Background(),
+			"[multimon-marker] resize ClientScreenSpec",
+			"css_width", m.Width, "css_height", m.Height,
+			"scale", c.requestedScale,
+			"width", w, "height", h,
+			"raw_monitors_len", len((*tdpbv1.ClientScreenSpec)(m).GetMonitors()),
+			"normalized_monitors_len", len(monitors),
+			"monitors", fmt.Sprintf("%+v", monitors))
+		errCode := C.client_write_screen_resize(
 			C.uintptr_t(c.handle),
 			C.uint32_t(w),
 			C.uint32_t(h),
 			C.uint32_t(c.requestedScale),
-		); errCode != C.ErrCodeSuccess {
+			ptr,
+			C.uint32_t(len(arr)),
+		)
+		runtime.KeepAlive(arr)
+		if errCode != C.ErrCodeSuccess {
 			return trace.Errorf("ClientScreenSpec: client_write_screen_resize: %v", errCode)
 		}
 	case *tdpb.MouseMove:
@@ -899,6 +1031,19 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 		}
+	case *tdpb.RefreshRect:
+		// Browser asks us to request a server-side repaint. The Rust
+		// side builds the full RDP RefreshRect PDU using the live
+		// session's share_id and channel IDs.
+		if errCode := C.client_handle_tdp_refresh_rect(
+			C.uintptr_t(c.handle),
+			C.uint16_t(clampU16(m.Left)),
+			C.uint16_t(clampU16(m.Top)),
+			C.uint16_t(clampU16(m.Right)),
+			C.uint16_t(clampU16(m.Bottom)),
+		); errCode != C.ErrCodeSuccess {
+			return trace.Errorf("RefreshRect failed: %v", errCode)
+		}
 	default:
 		c.cfg.Logger.WarnContext(
 			context.Background(),
@@ -919,6 +1064,15 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 func asRustBackedSlice(data *C.uint8_t, length int) []byte {
 	ptr := unsafe.Pointer(data)
 	uptr := (*uint8)(ptr)
+	return unsafe.Slice(uptr, length)
+}
+
+// asRustBackedSliceU32 is the u32 counterpart of asRustBackedSlice; used by
+// the EGFX SolidFill / CacheToSurface handlers which pack their per-rect /
+// per-point coordinates as flat u32 buffers.
+func asRustBackedSliceU32(data *C.uint32_t, length int) []uint32 {
+	ptr := unsafe.Pointer(data)
+	uptr := (*uint32)(ptr)
 	return unsafe.Slice(uptr, length)
 }
 
@@ -1054,6 +1208,544 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	return C.ErrCodeSuccess
 }
 
+//export cgo_handle_egfx_bitmap
+func cgo_handle_egfx_bitmap(
+	handle C.uintptr_t,
+	desktopX C.uint32_t,
+	desktopY C.uint32_t,
+	width C.uint32_t,
+	height C.uint32_t,
+	rgba *C.uint8_t,
+	rgbaLen C.uint32_t,
+) C.CGOErrCode {
+	// Rust owns the RGBA buffer; copy into a Go-owned slice so the proto
+	// encode below isn't racing with the Rust caller's stack frame.
+	rgbaSlice := asRustBackedSlice(rgba, int(rgbaLen))
+	rgbaCopy := make([]byte, len(rgbaSlice))
+	copy(rgbaCopy, rgbaSlice)
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxBitmap(uint32(desktopX), uint32(desktopY), uint32(width), uint32(height), rgbaCopy)
+}
+
+func (c *Client) handleEgfxBitmap(desktopX, desktopY, width, height uint32, rgba []byte) C.CGOErrCode {
+	// EGFX traffic implies the connection is fully established.
+	atomic.StoreUint32(&c.readyForInput, 1)
+
+	msg := &tdpb.EgfxBitmap{
+		DesktopX: desktopX,
+		DesktopY: desktopY,
+		Width:    width,
+		Height:   height,
+		Rgba:     rgba,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxBitmap", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_avc_frame
+func cgo_handle_egfx_avc_frame(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	desktopX C.uint32_t,
+	desktopY C.uint32_t,
+	destWidth C.uint32_t,
+	destHeight C.uint32_t,
+	codecID C.uint32_t,
+	encoding C.uint32_t,
+	lumaH264 *C.uint8_t,
+	lumaH264Len C.uint32_t,
+	chromaH264 *C.uint8_t,
+	chromaH264Len C.uint32_t,
+) C.CGOErrCode {
+	// Copy both H.264 payloads into Go-owned slices; Rust's stack frame
+	// goes away as soon as this function returns.
+	luma := asRustBackedSlice(lumaH264, int(lumaH264Len))
+	lumaCopy := make([]byte, len(luma))
+	copy(lumaCopy, luma)
+	chroma := asRustBackedSlice(chromaH264, int(chromaH264Len))
+	chromaCopy := make([]byte, len(chroma))
+	copy(chromaCopy, chroma)
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxAvcFrame(
+		uint32(surfaceID),
+		uint32(desktopX),
+		uint32(desktopY),
+		uint32(destWidth),
+		uint32(destHeight),
+		uint32(codecID),
+		uint32(encoding),
+		lumaCopy,
+		chromaCopy,
+	)
+}
+
+func (c *Client) handleEgfxAvcFrame(
+	surfaceID, desktopX, desktopY, destWidth, destHeight, codecID, encoding uint32,
+	lumaH264, chromaH264 []byte,
+) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+
+	msg := &tdpb.EgfxAvcFrame{
+		DesktopX:   desktopX,
+		DesktopY:   desktopY,
+		DestWidth:  destWidth,
+		DestHeight: destHeight,
+		SurfaceId:  surfaceID,
+		CodecId:    codecID,
+		Encoding:   encoding,
+		LumaH264:   lumaH264,
+		ChromaH264: chromaH264,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxAvcFrame", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_clearcodec
+func cgo_handle_egfx_clearcodec(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	destX C.int32_t,
+	destY C.int32_t,
+	width C.uint32_t,
+	height C.uint32_t,
+	pduData *C.uint8_t,
+	pduLen C.uint32_t,
+) C.CGOErrCode {
+	// Copy the raw ClearCodec PDU into a Go-owned slice. The wasm-side
+	// decoder owns the glyph and vbar caches; the server just forwards
+	// payload bytes verbatim.
+	src := asRustBackedSlice(pduData, int(pduLen))
+	pduCopy := make([]byte, len(src))
+	copy(pduCopy, src)
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxClearCodec(uint32(surfaceID), int32(destX), int32(destY), uint32(width), uint32(height), pduCopy)
+}
+
+func (c *Client) handleEgfxClearCodec(surfaceID uint32, destX, destY int32, width, height uint32, pdu []byte) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+
+	msg := &tdpb.EgfxClearCodec{
+		SurfaceId: surfaceID,
+		DestX:     destX,
+		DestY:     destY,
+		Width:     width,
+		Height:    height,
+		PduData:   pdu,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxClearCodec", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_uncompressed
+func cgo_handle_egfx_uncompressed(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	destX C.int32_t,
+	destY C.int32_t,
+	width C.uint32_t,
+	height C.uint32_t,
+	pixelFormat C.uint32_t,
+	bitmapData *C.uint8_t,
+	bitmapLen C.uint32_t,
+) C.CGOErrCode {
+	src := asRustBackedSlice(bitmapData, int(bitmapLen))
+	bitmapCopy := make([]byte, len(src))
+	copy(bitmapCopy, src)
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxUncompressed(
+		uint32(surfaceID), int32(destX), int32(destY),
+		uint32(width), uint32(height), uint32(pixelFormat), bitmapCopy,
+	)
+}
+
+func (c *Client) handleEgfxUncompressed(surfaceID uint32, destX, destY int32, width, height, pixelFormat uint32, bitmap []byte) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxUncompressed{
+		SurfaceId:   surfaceID,
+		DestX:       destX,
+		DestY:       destY,
+		Width:       width,
+		Height:      height,
+		PixelFormat: pixelFormat,
+		BitmapData:  bitmap,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxUncompressed", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_planar
+func cgo_handle_egfx_planar(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	destX C.int32_t,
+	destY C.int32_t,
+	width C.uint32_t,
+	height C.uint32_t,
+	pduData *C.uint8_t,
+	pduLen C.uint32_t,
+) C.CGOErrCode {
+	src := asRustBackedSlice(pduData, int(pduLen))
+	pduCopy := make([]byte, len(src))
+	copy(pduCopy, src)
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxPlanar(uint32(surfaceID), int32(destX), int32(destY), uint32(width), uint32(height), pduCopy)
+}
+
+func (c *Client) handleEgfxPlanar(surfaceID uint32, destX, destY int32, width, height uint32, pdu []byte) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxPlanar{
+		SurfaceId: surfaceID,
+		DestX:     destX,
+		DestY:     destY,
+		Width:     width,
+		Height:    height,
+		PduData:   pdu,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxPlanar", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_avc420
+func cgo_handle_egfx_avc420(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	destX C.int32_t,
+	destY C.int32_t,
+	width C.uint32_t,
+	height C.uint32_t,
+	pduData *C.uint8_t,
+	pduLen C.uint32_t,
+) C.CGOErrCode {
+	src := asRustBackedSlice(pduData, int(pduLen))
+	pduCopy := make([]byte, len(src))
+	copy(pduCopy, src)
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxAvc420(uint32(surfaceID), int32(destX), int32(destY), uint32(width), uint32(height), pduCopy)
+}
+
+func (c *Client) handleEgfxAvc420(surfaceID uint32, destX, destY int32, width, height uint32, pdu []byte) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxAvc420{
+		SurfaceId: surfaceID,
+		DestX:     destX,
+		DestY:     destY,
+		Width:     width,
+		Height:    height,
+		PduData:   pdu,
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxAvc420", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_solid_fill
+func cgo_handle_egfx_solid_fill(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	colorB C.uint32_t,
+	colorG C.uint32_t,
+	colorR C.uint32_t,
+	rectCount C.uint32_t,
+	rects *C.uint32_t,
+) C.CGOErrCode {
+	// Rects: flat buffer of rectCount * 4 u32s (left, top, right, bottom).
+	src := asRustBackedSliceU32(rects, int(rectCount)*4)
+	rectsCopy := make([]uint32, len(src))
+	copy(rectsCopy, src)
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxSolidFill(
+		uint32(surfaceID), uint32(colorB), uint32(colorG), uint32(colorR), rectsCopy,
+	)
+}
+
+func (c *Client) handleEgfxSolidFill(surfaceID, colorB, colorG, colorR uint32, rects []uint32) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxSolidFill{
+		SurfaceId: surfaceID,
+		ColorB:    colorB,
+		ColorG:    colorG,
+		ColorR:    colorR,
+		Rects:     make([]*tdpbv1.EgfxRect, 0, len(rects)/4),
+	}
+	for i := 0; i+4 <= len(rects); i += 4 {
+		msg.Rects = append(msg.Rects, &tdpbv1.EgfxRect{
+			Left:   rects[i],
+			Top:    rects[i+1],
+			Right:  rects[i+2],
+			Bottom: rects[i+3],
+		})
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxSolidFill", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_end_frame
+func cgo_handle_egfx_end_frame(handle C.uintptr_t, frameID C.uint32_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxEndFrame(uint32(frameID))
+}
+
+func (c *Client) handleEgfxEndFrame(frameID uint32) C.CGOErrCode {
+	msg := &tdpb.EgfxEndFrame{FrameId: frameID}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxEndFrame", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_surface_to_cache
+func cgo_handle_egfx_surface_to_cache(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	cacheKey C.uint64_t,
+	cacheSlot C.uint32_t,
+	srcLeft C.uint32_t,
+	srcTop C.uint32_t,
+	srcRight C.uint32_t,
+	srcBottom C.uint32_t,
+) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxSurfaceToCache(
+		uint32(surfaceID),
+		uint64(cacheKey),
+		uint32(cacheSlot),
+		uint32(srcLeft),
+		uint32(srcTop),
+		uint32(srcRight),
+		uint32(srcBottom),
+	)
+}
+
+func (c *Client) handleEgfxSurfaceToCache(surfaceID uint32, cacheKey uint64, cacheSlot, l, t, r, b uint32) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxSurfaceToCache{
+		SurfaceId:  surfaceID,
+		CacheKey:   cacheKey,
+		CacheSlot:  cacheSlot,
+		SourceRect: &tdpbv1.EgfxRect{Left: l, Top: t, Right: r, Bottom: b},
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxSurfaceToCache", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_cache_to_surface
+func cgo_handle_egfx_cache_to_surface(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	cacheSlot C.uint32_t,
+	pointCount C.uint32_t,
+	points *C.uint32_t,
+) C.CGOErrCode {
+	src := asRustBackedSliceU32(points, int(pointCount)*2)
+	pointsCopy := make([]uint32, len(src))
+	copy(pointsCopy, src)
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxCacheToSurface(uint32(surfaceID), uint32(cacheSlot), pointsCopy)
+}
+
+func (c *Client) handleEgfxCacheToSurface(surfaceID, cacheSlot uint32, points []uint32) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxCacheToSurface{
+		SurfaceId:  surfaceID,
+		CacheSlot:  cacheSlot,
+		DestPoints: make([]*tdpbv1.EgfxPoint, 0, len(points)/2),
+	}
+	for i := 0; i+2 <= len(points); i += 2 {
+		msg.DestPoints = append(msg.DestPoints, &tdpbv1.EgfxPoint{X: points[i], Y: points[i+1]})
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxCacheToSurface", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_surface_to_surface
+func cgo_handle_egfx_surface_to_surface(
+	handle C.uintptr_t,
+	srcSurfaceID C.uint32_t,
+	dstSurfaceID C.uint32_t,
+	srcLeft C.uint32_t,
+	srcTop C.uint32_t,
+	srcRight C.uint32_t,
+	srcBottom C.uint32_t,
+	pointCount C.uint32_t,
+	points *C.uint32_t,
+) C.CGOErrCode {
+	src := asRustBackedSliceU32(points, int(pointCount)*2)
+	pointsCopy := make([]uint32, len(src))
+	copy(pointsCopy, src)
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleEgfxSurfaceToSurface(
+		uint32(srcSurfaceID), uint32(dstSurfaceID),
+		uint32(srcLeft), uint32(srcTop), uint32(srcRight), uint32(srcBottom),
+		pointsCopy,
+	)
+}
+
+func (c *Client) handleEgfxSurfaceToSurface(srcSurface, dstSurface, l, t, r, b uint32, points []uint32) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
+	msg := &tdpb.EgfxSurfaceToSurface{
+		SourceSurfaceId:      srcSurface,
+		DestinationSurfaceId: dstSurface,
+		SourceRect:           &tdpbv1.EgfxRect{Left: l, Top: t, Right: r, Bottom: b},
+		DestPoints:           make([]*tdpbv1.EgfxPoint, 0, len(points)/2),
+	}
+	for i := 0; i+2 <= len(points); i += 2 {
+		msg.DestPoints = append(msg.DestPoints, &tdpbv1.EgfxPoint{X: points[i], Y: points[i+1]})
+	}
+	if err := c.conn.WriteMessage(msg); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxSurfaceToSurface", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_evict_cache_entry
+func cgo_handle_egfx_evict_cache_entry(handle C.uintptr_t, cacheSlot C.uint32_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	msg := &tdpb.EgfxEvictCacheEntry{CacheSlot: uint32(cacheSlot)}
+	if err := client.conn.WriteMessage(msg); err != nil {
+		client.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxEvictCacheEntry", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_wire_to_surface2
+func cgo_handle_egfx_wire_to_surface2(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	codecID C.uint32_t,
+	codecContextID C.uint32_t,
+	pixelFormat C.uint32_t,
+	surfaceOriginX C.uint32_t,
+	surfaceOriginY C.uint32_t,
+	bitmapData *C.uint8_t,
+	bitmapDataLen C.uint32_t,
+) C.CGOErrCode {
+	// Copy the raw RFX Progressive payload into a Go-owned slice. The wasm
+	// decoder owns per-(surface, codec_context_id) state; the server just
+	// forwards payload bytes verbatim.
+	src := asRustBackedSlice(bitmapData, int(bitmapDataLen))
+	pduCopy := make([]byte, len(src))
+	copy(pduCopy, src)
+
+	// Optional developer-mode capture for the test harness — no-op unless
+	// RDP_DUMP_PROGRESSIVE_FIXTURES is set.
+	getProgressiveCapture().dumpWireToSurface2(
+		uint32(surfaceID), uint32(codecID), uint32(codecContextID),
+		uint32(pixelFormat), uint32(surfaceOriginX), uint32(surfaceOriginY),
+		pduCopy,
+	)
+
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	atomic.StoreUint32(&client.readyForInput, 1)
+
+	msg := &tdpb.EgfxWireToSurface2{
+		SurfaceId:      uint32(surfaceID),
+		CodecId:        uint32(codecID),
+		CodecContextId: uint32(codecContextID),
+		PixelFormat:    uint32(pixelFormat),
+		SurfaceOriginX: uint32(surfaceOriginX),
+		SurfaceOriginY: uint32(surfaceOriginY),
+		BitmapData:     pduCopy,
+	}
+	if err := client.conn.WriteMessage(msg); err != nil {
+		client.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxWireToSurface2", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_egfx_delete_encoding_context
+func cgo_handle_egfx_delete_encoding_context(
+	handle C.uintptr_t,
+	surfaceID C.uint32_t,
+	codecContextID C.uint32_t,
+) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	msg := &tdpb.EgfxDeleteEncodingContext{
+		SurfaceId:      uint32(surfaceID),
+		CodecContextId: uint32(codecContextID),
+	}
+	if err := client.conn.WriteMessage(msg); err != nil {
+		client.cfg.Logger.ErrorContext(context.Background(), "failed handling EgfxDeleteEncodingContext", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
 //export cgo_handle_rdp_connection_activated
 func cgo_handle_rdp_connection_activated(
 	handle C.uintptr_t,
@@ -1071,12 +1763,23 @@ func cgo_handle_rdp_connection_activated(
 }
 
 func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
+	// Cache so a later EGFX ResetGraphics (mid-session resize) can re-announce
+	// the new desktop size without a full reactivation.
+	c.activationMu.Lock()
+	c.ioChannelID = uint16(ioChannelID)
+	c.userChannelID = uint16(userChannelID)
+	c.lastScreenW = uint16(screenWidth)
+	c.lastScreenH = uint16(screenHeight)
+	c.shareID = uint32(shareID)
+	c.activationMu.Unlock()
+
 	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
 	c.cfg.Logger.DebugContext(context.Background(), "RDP server provided resolution", "width", screenWidth, "height", screenHeight)
 
+	c.cfg.Logger.InfoContext(context.Background(), "[multimon-marker][go-relink-after-rust-tick-69-surface-sentinel] sending ServerHello with MultiMonitorSupported=true")
 	if err := c.conn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   uint32(ioChannelID),
@@ -1089,11 +1792,45 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 		DirectoryRemoveSupported:       false,
 		HidpiSupported:                 true,
 		MultidirectorySharingSupported: true,
+		MultiMonitorSupported:          true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess
+}
+
+//export cgo_handle_rdp_reset_graphics
+func cgo_handle_rdp_reset_graphics(handle C.uintptr_t, width C.uint32_t, height C.uint32_t) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleRDPResetGraphics(uint16(width), uint16(height))
+}
+
+// handleRDPResetGraphics is called from Rust when the server sends an EGFX
+// ResetGraphics PDU: a mid-session virtual-desktop resize (a monitor was added,
+// moved, or resized via DisplayControl). That path doesn't produce a protocol
+// reactivation, so this is the only signal carrying the new desktop size. We
+// re-announce it to the browser via ServerHello (reusing the activation path)
+// so the decoder grows its framebuffer to the new bounding box; otherwise
+// graphics for the grown region land outside the framebuffer and render black.
+func (c *Client) handleRDPResetGraphics(width, height uint16) C.CGOErrCode {
+	c.activationMu.Lock()
+	io, user, share := c.ioChannelID, c.userChannelID, c.shareID
+	unchanged := width == c.lastScreenW && height == c.lastScreenH
+	c.activationMu.Unlock()
+
+	// Skip when the size is unchanged (ResetGraphics also fires at initial EGFX
+	// setup with the size we already announced) or before the initial
+	// activation has given us channel IDs to reuse.
+	if unchanged || (io == 0 && user == 0) {
+		return C.ErrCodeSuccess
+	}
+	return c.handleRDPConnectionActivated(
+		C.uint16_t(io), C.uint16_t(user), C.uint16_t(width), C.uint16_t(height), C.uint32_t(share),
+	)
 }
 
 //export cgo_handle_remote_copy
@@ -1337,6 +2074,46 @@ func isEmpty(b bool) C.uint8_t {
 		return 1
 	}
 	return 0
+}
+
+// Clamp a uint32 pixel coordinate to uint16. RDP RefreshRect carries
+// inclusive 16-bit coordinates per MS-RDPBCGR § 2.2.11.2.1; anything
+// past the wire limit is meaningless and we cap rather than wrap.
+func clampU16(v uint32) uint16 {
+	if v > 0xFFFF {
+		return 0xFFFF
+	}
+	return uint16(v)
+}
+
+// buildMonitorCArray marshals a slice of Go monitor entries into the C
+// representation expected by the Rust side. The returned slice must be kept
+// alive (via runtime.KeepAlive) for the duration of the C call.
+// buildMonitorCArray converts a slice of CSS-pixel monitor layouts into the
+// physical-pixel C layout that RDP expects. The browser reports each monitor
+// in CSS pixels; we multiply each entry's width/height/position by the
+// display scale so the server-side MonitorLayoutEntry.{width,height} matches
+// the resolution Windows will actually render at (paired with a
+// `desktop_scale_factor` on the Rust side).
+func buildMonitorCArray(monitors []monitorLayout, scale uint16) []C.CGOMonitorLayout {
+	if len(monitors) == 0 {
+		return nil
+	}
+	s := uint32(scale)
+	if s < 100 {
+		s = 100
+	}
+	out := make([]C.CGOMonitorLayout, len(monitors))
+	for i, m := range monitors {
+		out[i] = C.CGOMonitorLayout{
+			x:          C.int32_t(int64(m.x) * int64(s) / 100),
+			y:          C.int32_t(int64(m.y) * int64(s) / 100),
+			width:      C.uint32_t(m.width * s / 100),
+			height:     C.uint32_t(m.height * s / 100),
+			is_primary: C.bool(m.isPrimary),
+		}
+	}
+	return out
 }
 
 // DisableNLA disables NLA in the client configuration.

@@ -26,18 +26,18 @@ use crate::{
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
-use ironrdp_connector::connection_activation::{
-    ConnectionActivationFactory, ConnectionActivationState,
-};
+use ironrdp_connector::connection_activation::ConnectionActivationState;
 use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::{
-    Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
+    Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, ServerName,
+    SmartCardIdentity,
 };
 use ironrdp_core::{encode_vec, EncodeError};
 use ironrdp_core::{function, WriteBuf};
 use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
-    DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
+    DeviceScaleFactor, DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
+    MonitorOrientation,
 };
 use ironrdp_dvc::{DrdynvcClient, DvcMessage};
 use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
@@ -65,7 +65,7 @@ use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{
     single_sequence_step_read, split_tokio_framed, Framed, FramedWrite, TokioStream,
 };
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -89,11 +89,25 @@ use url::Url;
 
 const RDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// One monitor's position and size, normalized to the client's coordinate
+/// space. Translated to a `MonitorLayoutEntry` when encoded.
+#[derive(Clone, Copy, Debug)]
+pub struct MonitorSpec {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub is_primary: bool,
+}
+
 /// The "Microsoft::Windows::RDS::DisplayControl" DVC is opened
 /// by the server. Until it does so, we withhold the latest screen
 /// resize, and only send it once we're notified that the DVC is open.
 struct PendingResize {
-    pending_resize: Option<(u32, u32, u32)>,
+    /// (monitors, scale_percent) — pair stored together so a DisplayControl
+    /// PDU emitted after the DVC opens uses the same scale that was set when
+    /// the resize was queued, even if the user changes scale meanwhile.
+    pending_resize: Option<(Vec<MonitorSpec>, u32)>,
 }
 
 /// The RDP client on the Rust side of things. Each `Client`
@@ -106,7 +120,6 @@ pub struct Client {
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
     pending_resize: Arc<Mutex<PendingResize>>,
-    activation_factory: ConnectionActivationFactory,
 }
 
 /// A global, static tokio runtime for use by `Client`.
@@ -191,19 +204,92 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
 
+        // Initial multi-monitor layout is now declared up front via the GCC
+        // `ClientMonitorData` block (see `Config.monitors` in
+        // `create_config`). The DisplayControl DVC is only used for
+        // *dynamic* changes after the session is established — e.g. when
+        // the user resizes a window or adds/removes a monitor. Sending an
+        // initial DC `MonitorLayout` PDU on top of the GCC declaration was
+        // observed to cause Windows to keep the secondary monitor's
+        // display surface inactive (no taskbar, no paints) even though the
+        // monitor device exists.
         let pending_resize = Arc::new(Mutex::new(PendingResize {
             pending_resize: Some((
-                params.screen_width as u32,
-                params.screen_height as u32,
-                params.screen_scale as u32,
+                params.monitors.clone(),
+                u32::from(params.screen_scale),
             )),
         }));
+        info!(
+            "[multimon-marker][rust-rebuild-tick-52-surface-sentinel] {} monitor(s) declared via GCC ClientMonitorData; \
+             DisplayControl PDU will only fire on subsequent resize",
+            params.monitors.len()
+        );
 
         let pending_resize_clone = pending_resize.clone();
-        let display_control = DisplayControlClient::new(move |_| {
+        let display_control = DisplayControlClient::new(move |caps| {
+            // The Caps struct only publicly exposes `max_monitor_area()` —
+            // we use Debug to surface max_num_monitors, since that's the
+            // value Windows uses to (silently) reject multi-monitor layout
+            // PDUs when it can't honor them.
+            info!(
+                "[multimon-marker] DisplayControl capabilities received: {:?}, max_monitor_area={}",
+                caps,
+                caps.max_monitor_area()
+            );
             Self::on_display_ctl_capabilities_received(&pending_resize_clone)
         });
-        let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
+        // EGFX (MS-RDPEGFX Graphics Pipeline) handler. Windows 11 routes
+        // multi-monitor secondary surfaces exclusively through this DVC;
+        // without it the server falls back to legacy fast-path bitmap
+        // updates that fit a single bbox surface and saturate the
+        // MultifragmentUpdate buffer when both monitors are large.
+        //
+        // IronRDP's `GraphicsPipelineClient` handles capability negotiation,
+        // ZGFX decompression, ClearCodec, RemoteFX progressive, and (via the
+        // openh264-bundled feature) AVC420/AVC444 H.264 decode. Decoded
+        // RGBA frames are forwarded to Go through our `TeleportEgfxHandler`.
+        let egfx_handler = Box::new(crate::egfx::TeleportEgfxHandler::new(cgo_handle));
+        // openh264-bundled supplies the H.264 decoder used for AVC420/AVC444
+        // capability sets. If construction fails for any reason we fall
+        // back to a None decoder (caps will degrade to non-AVC versions).
+        let h264_decoder: Option<Box<dyn ironrdp_egfx::decode::H264Decoder>> =
+            match ironrdp_egfx::decode::OpenH264Decoder::new() {
+                Ok(d) => Some(Box::new(d)),
+                Err(e) => {
+                    warn!(
+                        "[teleport][egfx] OpenH264Decoder::new() failed: {:?}; \
+                         AVC capability sets will be advertised without a decoder \
+                         and IronRDP will filter them out.",
+                        e
+                    );
+                    None
+                }
+            };
+        let egfx_client = ironrdp_egfx::client::GraphicsPipelineClient::new(
+            egfx_handler,
+            h264_decoder,
+        );
+
+        // Probe handlers for the RemoteFX video-streaming channels Windows
+        // offers in multi-monitor sessions. Accepting them tells us whether
+        // secondary-monitor pixels arrive over this path when EGFX is off.
+        // See [`crate::rfx_video_probe`] for context.
+        let rfx_video_control = crate::rfx_video_probe::ProbeDvcProcessor::new(
+            "Microsoft::Windows::RDS::Video::Control::v08.01",
+        );
+        let rfx_video_data = crate::rfx_video_probe::ProbeDvcProcessor::new(
+            "Microsoft::Windows::RDS::Video::Data::v08.01",
+        );
+        let rfx_geometry = crate::rfx_video_probe::ProbeDvcProcessor::new(
+            "Microsoft::Windows::RDS::Geometry::v08.01",
+        );
+
+        let drdynvc_client = DrdynvcClient::new()
+            .with_dynamic_channel(display_control)
+            .with_dynamic_channel(egfx_client)
+            .with_dynamic_channel(rfx_video_control)
+            .with_dynamic_channel(rfx_video_data)
+            .with_dynamic_channel(rfx_geometry);
 
         let mut connector =
             ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
@@ -230,7 +316,7 @@ impl Client {
         // Frame the stream again for use by connect_finalize
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
-        let mut network_client = crate::network_client::NetworkClient::new();
+        let mut network_client = crate::network_client::TcpNetworkClient::new();
         let kerberos_config = params
             .kdc_addr
             .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
@@ -244,12 +330,17 @@ impl Client {
                     .unwrap_or("missing.computer.name")
                     .to_string(),
             });
+        let server_name: ServerName = params
+            .computer_name
+            .clone()
+            .unwrap_or_else(|| server_addr.clone())
+            .into();
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             connector,
             &mut rdp_stream,
             &mut network_client,
-            params.computer_name.unwrap_or(server_addr).into(),
+            server_name,
             server_public_key,
             kerberos_config,
         )
@@ -275,8 +366,8 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            connection_result.message_channel_id,
             connection_result.share_id,
+            connection_result.connection_activation,
         )));
 
         Ok(Self {
@@ -287,7 +378,6 @@ impl Client {
             function_receiver,
             x224_processor,
             pending_resize,
-            activation_factory: connection_result.activation_factory,
         })
     }
 
@@ -330,7 +420,6 @@ impl Client {
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
-            self.activation_factory.clone(),
         );
 
         let write_loop_handle = Client::run_write_loop(
@@ -357,7 +446,6 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
-        activation_factory: ConnectionActivationFactory,
     ) -> ClientResult<Option<DisconnectDescription>> {
         loop {
             let (action, mut frame) = read_stream.read_pdu().await?;
@@ -386,16 +474,15 @@ impl Client {
                             ProcessorOutput::Disconnect(reason) => {
                                 return Ok(Some(reason));
                             }
-                            ProcessorOutput::DeactivateAll => {
+                            ProcessorOutput::DeactivateAll(mut sequence) => {
                                 // Execute the Deactivation-Reactivation Sequence:
                                 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
                                 debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
-                                let mut sequence = activation_factory.create();
                                 let mut buf = WriteBuf::new();
                                 loop {
                                     let written = single_sequence_step_read(
                                         &mut read_stream,
-                                        &mut sequence,
+                                        sequence.as_mut(),
                                         &mut buf,
                                     )
                                     .await?;
@@ -407,6 +494,8 @@ impl Client {
                                     }
 
                                     if let ConnectionActivationState::Finalized {
+                                        io_channel_id,
+                                        user_channel_id,
                                         desktop_size,
                                         share_id,
                                         ..
@@ -417,8 +506,8 @@ impl Client {
                                         // connection result in [`Self::connect`].
                                         Self::send_connection_activated(
                                             cgo_handle,
-                                            activation_factory.io_channel_id(),
-                                            activation_factory.user_channel_id(),
+                                            io_channel_id,
+                                            user_channel_id,
                                             desktop_size,
                                             share_id,
                                         )
@@ -439,6 +528,8 @@ impl Client {
                                 error!("Received unsupported slow-path pointer update")
                             }
                             ProcessorOutput::GraphicsUpdate(_) => {
+                                // Graphics arrive over the EGFX DVC in this client, so a slow-path
+                                // update means the server fell back to a path we do not render.
                                 error!("Received unsupported slow-path graphics update")
                             }
                         }
@@ -469,13 +560,28 @@ impl Client {
                 ClientFunction::WriteRawPdu(args) => {
                     Client::write_raw_pdu(&mut write_stream, args).await?;
                 }
+                ClientFunction::WriteRefreshRect {
+                    left,
+                    top,
+                    right,
+                    bottom,
+                } => {
+                    Client::write_refresh_rect(
+                        &mut write_stream,
+                        x224_processor.clone(),
+                        left,
+                        top,
+                        right,
+                        bottom,
+                    )
+                    .await?;
+                }
                 ClientFunction::WriteRdpdr(args) => {
                     Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args).await?;
                 }
-                ClientFunction::WriteScreenResize(width, height, scale) => {
+                ClientFunction::WriteScreenResize(monitors, scale) => {
                     Client::handle_screen_resize(
-                        width,
-                        height,
+                        monitors,
                         scale,
                         x224_processor.clone(),
                         &mut write_stream,
@@ -541,25 +647,15 @@ impl Client {
         let mut pending_resize =
             Self::resize_manager_lock(pending_resize).map_err(ClientError::from)?;
         let pending_resize = pending_resize.pending_resize.take();
-        if let Some((initial_width, initial_height, scale)) = pending_resize {
-            // If there was a resize pending, perform it now.
+        if let Some((monitors, scale)) = pending_resize {
             debug!(
-                "Pending resize for size [{:?}x{:?}] scale [{:?}] found, sending now",
-                initial_width, initial_height, scale
+                "Pending resize with {} monitor(s) at scale {}%% found, sending now",
+                monitors.len(),
+                scale
             );
-            let (width, height) =
-                MonitorLayoutEntry::adjust_display_size(initial_width, initial_height);
-            if width != initial_width || height != initial_height {
-                debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
-            }
-            let pdu: DisplayControlPdu = DisplayControlMonitorLayout::new_single_primary_monitor(
-                width,
-                height,
-                rdp_scale_factor(scale),
-                Some((width, height)),
-            )
-            .map_err(|e| encode_err!(e))?
-            .into();
+            let pdu: DisplayControlPdu = build_monitor_layout(&monitors, scale)
+                .map_err(|e| encode_err!(e))?
+                .into();
             return Ok(vec![Box::new(pdu)]);
         }
 
@@ -743,6 +839,46 @@ impl Client {
         Ok(())
     }
 
+    /// Build and send an RDP Refresh Rect PDU (MS-RDPBCGR § 2.2.11.2.1)
+    /// for the given inclusive pixel rectangle. Triggered by the browser
+    /// to clear RFX decode trails left behind after a window drag — the
+    /// server repaints the region and the trails get overwritten.
+    async fn write_refresh_rect(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        left: u16,
+        top: u16,
+        right: u16,
+        bottom: u16,
+    ) -> ClientResult<()> {
+        use ironrdp_core::WriteBuf;
+        use ironrdp_pdu::geometry::InclusiveRectangle;
+        use ironrdp_pdu::rdp::headers::ShareDataPdu;
+        use ironrdp_pdu::rdp::refresh_rectangle::RefreshRectanglePdu;
+
+        let pdu = ShareDataPdu::RefreshRectangle(RefreshRectanglePdu {
+            areas_to_refresh: vec![InclusiveRectangle {
+                left,
+                top,
+                right,
+                bottom,
+            }],
+        });
+
+        let encoded = task::spawn_blocking(move || -> ClientResult<Vec<u8>> {
+            let processor = Self::x224_lock(&x224_processor)?;
+            let mut buf = WriteBuf::new();
+            processor
+                .encode_static(&mut buf, pdu)
+                .map_err(ClientError::from)?;
+            Ok(buf.filled().to_vec())
+        })
+        .await??;
+
+        write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
     async fn write_rdpdr(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
@@ -762,78 +898,82 @@ impl Client {
     }
 
     async fn handle_screen_resize(
-        width: u32,
-        height: u32,
+        monitors: Vec<MonitorSpec>,
         scale: u32,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_stream: &mut RdpWriteStream,
         pending_resize: Arc<Mutex<PendingResize>>,
     ) -> ClientResult<()> {
-        // Adjust the screen size to the nearest supported resolution (per the RDP spec).
-        let init_width = width;
-        let init_height = height;
         debug!(
-            "Received screen resize [{:?}x{:?}] scale [{:?}]",
-            init_width, init_height, scale
+            "Received screen resize for {} monitor(s) at scale {}%%",
+            monitors.len(),
+            scale,
         );
-        let (width, height) = MonitorLayoutEntry::adjust_display_size(init_width, init_height);
-        if width != init_width || height != init_height {
-            debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
-        }
 
-        // Our DisplayControlClient is lazily initialized and added as a svc_processor
-        // once the dynamic channel for display control is opened and server capabilities are
-        // received. Failure to acquire the DVC is normal until this point in the connection setup.
-        // Ensure that the DVC is both accessible and open.
-        let dvc_is_ready = {
-            Self::x224_lock(&x224_processor)?
+        // Determine whether to withhold the resize or perform it immediately.
+        let action = {
+            let x224_processor = Self::x224_lock(&x224_processor)?;
+            // The DisplayControl DVC processor is lazily created once the server opens that
+            // dynamic channel and sends its capabilities, which happens shortly after activation.
+            // A resize can arrive in that window (e.g. the browser adjusts its monitor layout
+            // right after connecting), in which case `get_dvc` returns None. Treat that exactly
+            // like "registered but not yet open": withhold it and let
+            // `on_display_ctl_capabilities_received` flush it when the channel opens. Erroring
+            // here would tear down the whole session over a transient, recoverable condition.
+            let open = x224_processor
                 .get_dvc::<DisplayControlClient>()
-                .is_some_and(|dvc| dvc.is_open())
-        };
+                .is_some_and(|dvc| dvc.is_open());
 
-        if dvc_is_ready {
-            return Client::write_screen_resize(write_stream, x224_processor, width, height, scale)
-                .await;
+            if open {
+                // Resize channel is open, perform the resize immediately.
+                Some((monitors, scale))
+            } else {
+                // Sending the resize now would cause an RDP error and end the session.
+                debug!("DisplayControl channel not ready, withholding resize");
+                let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
+                pending_resize.pending_resize = Some((monitors, scale));
+                None // No immediate action required.
+            }
+        }; // Drop the x224 lock here to avoid holding it over the await below.
+
+        if let Some((monitors, scale)) = action {
+            return Client::write_screen_resize(
+                write_stream,
+                x224_processor.clone(),
+                monitors,
+                scale,
+            )
+            .await;
         }
-
-        // The client requested a resize but the DisplayControl channel has not been opened yet.
-        // Sending the resize now would cause an RDP error and end the session; instead we withhold
-        // it until the DisplayControl channel is ready.
-        debug!("DisplayControl channel not ready, withholding resize");
-        let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
-        pending_resize.pending_resize = Some((width, height, scale));
 
         Ok(())
     }
 
-    /// Sends a screen resize to the RDP server.
+    /// Sends a screen resize to the RDP server, encoding the full monitor
+    /// layout via the DisplayControl DVC.
     async fn write_screen_resize(
         write_stream: &mut RdpWriteStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
-        width: u32,
-        height: u32,
+        monitors: Vec<MonitorSpec>,
         scale: u32,
     ) -> ClientResult<()> {
         let cloned = x224_processor.clone();
-        let scale_factor = rdp_scale_factor(scale);
         let messages = task::spawn_blocking(move || {
             let x224_processor = Self::x224_lock(&cloned)?;
             let dvc = Self::get_dvc::<DisplayControlClient>(&x224_processor)?;
             let channel_id = dvc.channel_id().ok_or(ClientError::InternalError(
                 "DisplayControlClient channel_id not found".to_string(),
             ))?;
-            let disp_ctl_cli = dvc
-                .channel_processor_downcast_ref::<DisplayControlClient>()
-                .ok_or(ClientError::InternalError(
-                    "DisplayControlClient not found".to_string(),
-                ))?;
-
-            Ok::<_, ClientError>(disp_ctl_cli.encode_single_primary_monitor(
+            let layout = build_monitor_layout(&monitors, scale)?;
+            let pdu: DisplayControlPdu = layout.into();
+            debug!(
+                "Sending monitor layout (scale {}%%): {:?}",
+                scale, pdu
+            );
+            Ok::<_, ClientError>(ironrdp_dvc::encode_dvc_messages(
                 channel_id,
-                width,
-                height,
-                scale_factor,
-                Some((width, height)),
+                vec![Box::new(pdu)],
+                ironrdp_svc::ChannelFlags::empty(),
             ))
         })
         .await???;
@@ -843,10 +983,6 @@ impl Client {
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
         .await?;
-        debug!(
-            "Writing resize to [{:?}x{:?}] scale [{:?}]",
-            width, height, scale
-        );
         write_stream.write_all(&encoded).await?;
 
         Ok(())
@@ -1173,10 +1309,19 @@ enum ClientFunction {
     WriteRdpSyncKeys(CGOSyncKeys),
     /// Corresponds to [`Client::write_raw_pdu`]
     WriteRawPdu(Vec<u8>),
+    /// Corresponds to [`Client::write_refresh_rect`]
+    WriteRefreshRect {
+        left: u16,
+        top: u16,
+        right: u16,
+        bottom: u16,
+    },
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
-    /// Corresponds to [`Client::write_screen_resize`]
-    WriteScreenResize(u32, u32, u32),
+    /// Corresponds to [`Client::write_screen_resize`]. Carries the full
+    /// per-monitor layout (single-monitor sessions send a 1-element vec)
+    /// plus the display scale percentage (e.g. 100 = 1x, 200 = 2x).
+    WriteScreenResize(Vec<MonitorSpec>, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
     /// Corresponds to [`Client::handle_tdp_sd_remove`]
@@ -1251,6 +1396,21 @@ impl ClientHandle {
         self.send(ClientFunction::WriteRawPdu(resp)).await
     }
 
+    pub fn write_refresh_rect(
+        &self,
+        left: u16,
+        top: u16,
+        right: u16,
+        bottom: u16,
+    ) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteRefreshRect {
+            left,
+            top,
+            right,
+            bottom,
+        })
+    }
+
     pub fn write_rdpdr(&self, pdu: RdpdrPdu) -> ClientResult<()> {
         self.blocking_send(ClientFunction::WriteRdpdr(pdu))
     }
@@ -1259,17 +1419,16 @@ impl ClientHandle {
         self.send(ClientFunction::WriteRdpdr(pdu)).await
     }
 
-    pub fn write_screen_resize(&self, width: u32, height: u32, scale: u32) -> ClientResult<()> {
-        self.blocking_send(ClientFunction::WriteScreenResize(width, height, scale))
+    pub fn write_screen_resize(&self, monitors: Vec<MonitorSpec>, scale: u32) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteScreenResize(monitors, scale))
     }
 
     pub async fn write_screen_resize_async(
         &self,
-        width: u32,
-        height: u32,
+        monitors: Vec<MonitorSpec>,
         scale: u32,
     ) -> ClientResult<()> {
-        self.send(ClientFunction::WriteScreenResize(width, height, scale))
+        self.send(ClientFunction::WriteScreenResize(monitors, scale))
             .await
     }
 
@@ -1518,7 +1677,12 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         keyboard_layout: params.keyboard_layout,
         ime_file_name: "".to_string(),
         bitmap: Some(ironrdp_connector::BitmapConfig {
-            lossy_compression: true,
+            // Lossless RemoteFX (max quality): the lossy flag shrinks per-frame
+            // payloads but does NOT lift the supply-bound full-motion / HiDPI
+            // ceiling (that's server-encode + bandwidth, and lossy is the legacy
+            // RemoteFX-bitmap knob, not the EGFX-Progressive one) — so there's no
+            // fps reason to pay the fidelity. Set true only if bandwidth-starved.
+            lossy_compression: false,
             // Changing this to 16 gets us uncompressed bitmaps on machines configured like
             // https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             color_depth: 32,
@@ -1537,28 +1701,138 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         enable_server_pointer: true,
         autologon: true,
         pointer_software_rendering: false,
+        // Multi-monitor layout declared in the GCC userdata at ConnectInitial
+        // time. Required for Windows to allocate one display surface per
+        // monitor — without it, DisplayControl can only register phantom
+        // device entries (visible in Device Manager) but the additional
+        // monitors never get a real desktop to paint to. Per MS-RDPBCGR
+        // 2.2.1.3.6 the rectangles are in image coords with the primary at
+        // (0, 0).
+        monitors: if params.monitors.len() > 1 {
+            let primary = params
+                .monitors
+                .iter()
+                .find(|m| m.is_primary)
+                .or_else(|| params.monitors.first());
+            let (ox, oy) = primary.map(|p| (p.x, p.y)).unwrap_or((0, 0));
+            params
+                .monitors
+                .iter()
+                .map(|m| ironrdp_connector::MonitorEntry {
+                    left: m.x - ox,
+                    top: m.y - oy,
+                    right: m.x - ox + m.width as i32 - 1,
+                    bottom: m.y - oy + m.height as i32 - 1,
+                    is_primary: m.is_primary,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
         // Send the username in the request cookie, which is sent in the initial connection request.
         // The RDP server ignores this value, but load balancers sitting in front of the server
         // can use it to implement persistence.
         request_data: Some(NegoRequestData::cookie(params.username.clone())),
+        // Perf-tuned flags: DISABLE_CURSOR_SHADOW (also required for the pointer to
+        // render correctly on Windows Server 2019) + DISABLE_WALLPAPER when the client
+        // didn't ask for wallpaper — less for Windows to render/encode per frame →
+        // smaller payloads, faster delivery.
         performance_flags: PerformanceFlags::default()
-            | PerformanceFlags::DISABLE_CURSOR_SHADOW // this is required for pointer to work correctly in Windows 2019
+            | PerformanceFlags::DISABLE_CURSOR_SHADOW
             | if !params.show_desktop_wallpaper {
-            PerformanceFlags::DISABLE_WALLPAPER
-        } else {
-            PerformanceFlags::empty()
-        },
+                PerformanceFlags::DISABLE_WALLPAPER
+            } else {
+                PerformanceFlags::empty()
+            },
         // Per the RDP spec, values must be in [100, 500]. Clamp the client's
         // reported scale factor (devicePixelRatio * 100) to this range, defaulting
         // to 100 if not provided.
         desktop_scale_factor: params.screen_scale.clamp(100, 500) as u32,
         license_cache: Some(Arc::new(GoLicenseCache { cgo_handle })),
         hardware_id: Some(params.client_id),
-        alternate_shell: "".to_string(),
-        work_dir: "".to_string(),
+        // No alternate shell — full desktop session.
+        alternate_shell: String::new(),
+        work_dir: String::new(),
+        // No bulk compression negotiated.
         compression_type: None,
+        // No multi-transport (UDP). Default fast-path is fine for our needs.
         multitransport_flags: None,
     }
+}
+
+/// Builds a `DisplayControlMonitorLayout` PDU from a slice of monitor specs.
+/// Sizes are clamped to the RDP-spec valid range; coordinates are normalized
+/// so the primary lands at (0, 0), which the spec requires.
+fn build_monitor_layout(
+    monitors: &[MonitorSpec],
+    scale: u32,
+) -> ClientResult<DisplayControlMonitorLayout> {
+    info!(
+        "[multimon-marker] build_monitor_layout called with {} monitors at scale {}%%: {:?}",
+        monitors.len(),
+        scale,
+        monitors
+    );
+    // RDP MonitorLayoutEntry's `desktop_scale_factor` is a percentage that
+    // tells Windows the logical UI scale (matches what master's
+    // `rdp_scale_factor` ends up emitting). `device_scale_factor` is the
+    // discrete pixel-density enum — we leave it at 100% per the existing
+    // multi-monitor path; HiDPI tracking is carried by desktop_scale_factor.
+    let desktop_scale = scale.clamp(100, 500);
+    let primary = monitors
+        .iter()
+        .find(|m| m.is_primary)
+        .or_else(|| monitors.first())
+        .ok_or_else(|| ClientError::InternalError("monitor layout is empty".to_string()))?;
+    let (ox, oy) = (primary.x, primary.y);
+
+    let mut entries = Vec::with_capacity(monitors.len());
+    for m in monitors {
+        let (w, h) = MonitorLayoutEntry::adjust_display_size(m.width, m.height);
+        // IronRDP's adjust_display_size makes width even per spec but leaves
+        // height as-is. Observed behavior: Windows display drivers reject
+        // multi-monitor layouts with odd heights ("display driver unable to
+        // complete startup"). Force height even and re-clamp to the valid
+        // range to be safe.
+        let h = (h & !1u32).clamp(200, 8192);
+        if (w, h) != (m.width, m.height) {
+            debug!(
+                "Adjusted monitor [{}x{}] to [{}x{}] to fit RDP limits",
+                m.width, m.height, w, h
+            );
+        }
+        let orientation = if w > h {
+            MonitorOrientation::Landscape
+        } else {
+            MonitorOrientation::Portrait
+        };
+        // Some Windows builds quietly ignore secondary monitors in a
+        // MonitorLayoutPDU when `desktop_scale_factor` and the physical
+        // dimensions are zero. Spec says these MAY be 0 / out-of-range and
+        // "MUST be ignored," but observed behavior is that supplying both
+        // is required for a multi-monitor layout to actually split. Compute
+        // physical dimensions from a 96-DPI assumption and clamp to the
+        // spec range [10, 10000] mm.
+        let physical_w = ((u64::from(w) * 254) / 960).clamp(10, 10000) as u32;
+        let physical_h = ((u64::from(h) * 254) / 960).clamp(10, 10000) as u32;
+        let entry = if m.is_primary {
+            MonitorLayoutEntry::new_primary(w, h)?
+                .with_orientation(orientation)
+                .with_desktop_scale_factor(desktop_scale)?
+                .with_device_scale_factor(DeviceScaleFactor::Scale100Percent)
+                .with_physical_dimensions(physical_w, physical_h)?
+        } else {
+            MonitorLayoutEntry::new_secondary(w, h)?
+                .with_position(m.x - ox, m.y - oy)?
+                .with_orientation(orientation)
+                .with_desktop_scale_factor(desktop_scale)?
+                .with_device_scale_factor(DeviceScaleFactor::Scale100Percent)
+                .with_physical_dimensions(physical_w, physical_h)?
+        };
+        entries.push(entry);
+    }
+
+    Ok(DisplayControlMonitorLayout::new(&entries)?)
 }
 
 #[derive(Debug)]
@@ -1569,9 +1843,15 @@ pub struct ConnectParams {
     pub computer_name: Option<String>,
     pub cert_der: Vec<u8>,
     pub key_der: Vec<u8>,
+    /// Bounding-box width of the virtual desktop. Used only for the initial
+    /// RDP connector handshake; subsequent resizes are driven through
+    /// `monitors` via the DisplayControl DVC.
     pub screen_width: u16,
     pub screen_height: u16,
     pub screen_scale: u16,
+    /// Per-monitor layout. Always has at least one entry; Rust treats this as
+    /// the source of truth for any post-handshake resize.
+    pub monitors: Vec<MonitorSpec>,
     pub allow_clipboard: bool,
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
@@ -1607,15 +1887,15 @@ impl Display for ClientError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ClientError::Tcp(e) => Display::fmt(e, f),
-            ClientError::SessionError(e) => match &e.kind() {
+            ClientError::SessionError(e) => match e.kind() {
                 Reason(reason) => Display::fmt(reason, f),
                 _ => Display::fmt(e, f),
             },
             // TODO(zmb3, probakowski): improve the formatting on the IronRDP side
             // https://github.com/Devolutions/IronRDP/blob/master/crates/ironrdp-connector/src/lib.rs#L263
-            ClientError::ConnectorError(e) => match &e.kind() {
-                ConnectorErrorKind::Credssp(e) => {
-                    write!(f, "CredSSP {:?}: {}", e.error_type, e.description)
+            ClientError::ConnectorError(e) => match e.kind() {
+                ConnectorErrorKind::Credssp(cs) => {
+                    write!(f, "CredSSP {:?}: {}", cs.error_type, cs.description)
                 }
                 ConnectorErrorKind::Custom => {
                     write!(f, "Error: {}", e.report())?;
@@ -1722,3 +2002,4 @@ impl From<CGOErrCode> for ClientResult<()> {
         }
     }
 }
+

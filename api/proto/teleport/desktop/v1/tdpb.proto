@@ -36,6 +36,10 @@ message ServerHello {
   repeated SessionIdentifier sessions = 4;
   bool hidpi_supported = 5;
   bool multidirectory_sharing_supported = 6;
+  // True when the server can negotiate a multi-monitor virtual desktop via
+  // the RDP DisplayControl DVC. Clients may then populate
+  // ClientScreenSpec.monitors with more than one entry.
+  bool multi_monitor_supported = 7;
 }
 
 // Used to identify sessions available to and selected by users
@@ -66,6 +70,271 @@ message PNGFrame {
 // Contains a raw RDP FastPath message to by interpreted by the client.
 message FastPathPDU {
   bytes pdu = 1;
+}
+
+// A pre-decoded bitmap update from the EGFX (RDPGFX) channel.
+//
+// MS-RDPEGFX Graphics Pipeline frames are decoded server-side (in the
+// IronRDP cgo client) — uncompressed, ClearCodec, RemoteFX progressive,
+// AVC420, AVC444. We map the surface to its virtual-desktop origin and
+// emit the result as desktop-coordinate RGBA so the wasm decoder can
+// blit it directly into the framebuffer image without needing to know
+// anything about EGFX surface IDs.
+message EgfxBitmap {
+  // Destination top-left in desktop coordinates (after applying the
+  // surface's MapSurfaceToOutput origin).
+  uint32 desktop_x = 1;
+  uint32 desktop_y = 2;
+  // Width and height of the RGBA payload.
+  uint32 width = 3;
+  uint32 height = 4;
+  // Raw RGBA8 pixel data, row-major, width*height*4 bytes.
+  bytes rgba = 5;
+}
+
+// A raw AVC444/v2 frame forwarded from the EGFX channel for browser-side
+// H.264 decode (WebCodecs VideoDecoder). The server only parses the
+// RFX_AVC444V2_BITMAP_STREAM wrapper and unpacks the inner H.264 streams;
+// the actual H.264 → YUV decode happens in the client where it can use
+// the browser's GPU-accelerated VideoDecoder. The wasm side composes the
+// luma and chroma streams into YUV444, converts to RGBA per BT.709, and
+// blits the result into the framebuffer at (desktop_x, desktop_y).
+message EgfxAvcFrame {
+  // Destination top-left in desktop coordinates (after applying the
+  // surface's MapSurfaceToOutput origin).
+  uint32 desktop_x = 1;
+  uint32 desktop_y = 2;
+  // Width and height of the destination rectangle (in pixels). The
+  // decoded H.264 frame may be macroblock-padded to a larger size; the
+  // client crops to these dimensions before painting.
+  uint32 dest_width = 3;
+  uint32 dest_height = 4;
+  // EGFX surface ID — the wasm side maintains one pair of VideoDecoders
+  // per surface so decoder state survives across frames belonging to the
+  // same surface.
+  uint32 surface_id = 5;
+  // Codec variant: 0xe = Avc444, 0xf = Avc444v2 (MS-RDPEGFX 2.2.4.4 /
+  // 2.2.4.4.1). The two variants differ in how the chroma stream packs
+  // the extra 4:4:4 chroma samples; the wasm decoder needs to know which.
+  uint32 codec_id = 6;
+  // Encoding flag from RFX_AVC444_BITMAP_STREAM streamInfo bits 30..32:
+  //   0 = LUMA_AND_CHROMA (both streams present)
+  //   1 = LUMA (only luma stream — chroma_h264 is empty)
+  //   2 = CHROMA (only chroma stream — luma_h264 is empty)
+  uint32 encoding = 7;
+  // H.264 NAL units of the luma stream in AVC format (4-byte BE length
+  // prefix per NAL). Empty if encoding == CHROMA.
+  bytes luma_h264 = 8;
+  // H.264 NAL units of the chroma stream in AVC format. Empty if
+  // encoding == LUMA.
+  bytes chroma_h264 = 9;
+}
+
+// A raw ClearCodec PDU ([MS-RDPEGFX] 2.2.4.2 / `RFX_CLEAR_BITMAP_STREAM`)
+// forwarded from the EGFX channel for wasm-side decode. The wire bytes
+// are the inner ClearCodec payload extracted from the surrounding
+// `WireToSurface1Pdu` — the server already maps the surface to its
+// virtual-desktop origin and parses out the destination rectangle.
+//
+// Forwarding raw (instead of pre-decoding to RGBA) lets the wasm
+// decoder do read-modify-write against the framebuffer image: a PDU
+// with residual_bytes=0 paints only the bands+subcodec sub-regions
+// and leaves the rest of the destination rectangle untouched, which
+// matches the wire-format semantics. Pre-decoding to a destination-
+// sized RGBA buffer (as EgfxBitmap does) overwrites un-painted pixels
+// with opaque black and corrupts the framebuffer.
+message EgfxClearCodec {
+  // EGFX surface ID — the wasm side keeps one ClearCodec decoder per
+  // surface so the glyph + vbar caches survive across frames belonging
+  // to the same surface.
+  uint32 surface_id = 1;
+  // Destination top-left in desktop coordinates (after applying the
+  // surface's MapSurfaceToOutput origin).
+  int32 dest_x = 2;
+  int32 dest_y = 3;
+  // Destination rectangle dimensions in pixels.
+  uint32 width = 4;
+  uint32 height = 5;
+  // Raw ClearCodec payload bytes (no length prefix).
+  bytes pdu_data = 6;
+}
+
+// A raw `Codec1Type::Planar` ([MS-RDPEGDI] 2.2.9.1.0.2 RDP 6.0 bitmap
+// stream) WireToSurface1 PDU forwarded for wasm-side decode. Windows ships
+// this codec for many medium-size bitmap updates (panel chrome, icons,
+// rasterised text). The wasm side uses `ironrdp_graphics::rdp6::bitmap_stream`
+// to decode → RGB24, then RGBA-blits into the framebuffer.
+message EgfxPlanar {
+  uint32 surface_id = 1;
+  int32 dest_x = 2;
+  int32 dest_y = 3;
+  uint32 width = 4;
+  uint32 height = 5;
+  bytes pdu_data = 6;
+}
+
+// A raw `Codec1Type::Avc420` ([MS-RDPEGFX] 2.2.4.3) WireToSurface1 PDU.
+// `pdu_data` is the Avc420EncapsulatedBitmapStream: 12-byte AVC420BitmapStream
+// header (frame_count + regionRects + quantQualityVals) followed by the
+// concatenated H.264 NAL units. The wasm side feeds the H.264 bytes to the
+// browser's WebCodecs `VideoDecoder` and blits the decoded frame.
+message EgfxAvc420 {
+  uint32 surface_id = 1;
+  int32 dest_x = 2;
+  int32 dest_y = 3;
+  uint32 width = 4;
+  uint32 height = 5;
+  bytes pdu_data = 6;
+}
+
+// A raw `Uncompressed` ([MS-RDPEGFX] 2.2.4.2, `Codec1Type::Uncompressed`)
+// WireToSurface1 PDU forwarded for wasm-side blit. Windows ships this for
+// small UI overlays — tooltips, popup chrome, hover shadows — where the
+// per-frame setup cost of a compressed codec is wasted, frequently with
+// an alpha channel (`PIXEL_FORMAT_ARGB_8888 = 0x21`).
+//
+// The wasm framebuffer is the only place that owns the destination
+// buffer, so all pixel-format work (channel reorder + source-over alpha
+// composite against the existing framebuffer pixels) happens there.
+message EgfxUncompressed {
+  // EGFX surface ID; the wasm side resolves this against its own surface
+  // map (one Framebuffer image is shared across all surfaces).
+  uint32 surface_id = 1;
+  // Destination top-left in desktop coordinates (after applying the
+  // surface's MapSurfaceToOutput origin).
+  int32 dest_x = 2;
+  int32 dest_y = 3;
+  // Destination rectangle dimensions in pixels.
+  uint32 width = 4;
+  uint32 height = 5;
+  // MS-RDPEGFX pixel format byte. 0x20 = PIXEL_FORMAT_XRGB_8888 (alpha
+  // byte is padding, treat as opaque). 0x21 = PIXEL_FORMAT_ARGB_8888
+  // (alpha byte is meaningful, must source-over composite).
+  uint32 pixel_format = 6;
+  // Raw bitmap bytes, `width * height * 4` long. Channel order is
+  // determined by `pixel_format`.
+  bytes bitmap_data = 7;
+}
+
+// Exclusive rectangle ([MS-RDPEGFX] 2.2.1.4.1 RDPGFX_RECT16): right/bottom
+// are one-past-end (so (left=0,top=0,right=64,bottom=64) is a 64x64 rect).
+message EgfxRect {
+  uint32 left = 1;
+  uint32 top = 2;
+  uint32 right = 3;
+  uint32 bottom = 4;
+}
+
+// Top-left point used by CacheToSurface to specify where to blit each copy
+// of the cached region.
+message EgfxPoint {
+  uint32 x = 1;
+  uint32 y = 2;
+}
+
+// SolidFill ([MS-RDPEGFX] 2.2.2.4 RDPGFX_SOLID_FILL_PDU): paint one or more
+// rectangles on a surface with a single color. Windows uses this for dialog
+// backgrounds, panel fills, etc. — large flat-colored regions the server
+// would otherwise have to send as a heavyweight bitmap.
+message EgfxSolidFill {
+  uint32 surface_id = 1;
+  // Color components from the wire format (B, G, R, alpha-ignored). Alpha
+  // is always treated as opaque by the renderer per spec.
+  uint32 color_b = 2;
+  uint32 color_g = 3;
+  uint32 color_r = 4;
+  repeated EgfxRect rects = 5;
+}
+
+// SurfaceToCache ([MS-RDPEGFX] 2.2.2.6 RDPGFX_SURFACE_TO_CACHE_PDU): copy a
+// rectangular region of the surface into the bitmap cache at the given slot.
+// Used together with CacheToSurface to tile a single decoded image across
+// many positions without re-decoding.
+message EgfxSurfaceToCache {
+  uint32 surface_id = 1;
+  uint64 cache_key = 2;
+  uint32 cache_slot = 3;
+  EgfxRect source_rect = 4;
+}
+
+// CacheToSurface ([MS-RDPEGFX] 2.2.2.7 RDPGFX_CACHE_TO_SURFACE_PDU): blit a
+// previously-cached region (by slot) onto the surface at each of the given
+// destination top-left points. Used heavily by Windows to tile UI panel
+// backgrounds, taskbar segments, etc.
+message EgfxCacheToSurface {
+  uint32 surface_id = 1;
+  uint32 cache_slot = 2;
+  repeated EgfxPoint dest_points = 3;
+}
+
+// EvictCacheEntry ([MS-RDPEGFX] 2.2.2.8 RDPGFX_EVICT_CACHE_ENTRY_PDU): drop
+// a cache slot. The server signals it no longer expects the client to keep
+// the cached pixels.
+message EgfxEvictCacheEntry {
+  uint32 cache_slot = 1;
+}
+
+// SurfaceToSurface ([MS-RDPEGFX] 2.2.2.5 RDPGFX_SURFACE_TO_SURFACE_PDU):
+// copy a rectangular region between (or within) surfaces. Used by Windows
+// for scrolling, taskbar item moves on hover, window drag previews, etc.
+// Source and destination surface IDs are usually equal — copying within
+// the same surface to reposition content.
+message EgfxSurfaceToSurface {
+  uint32 source_surface_id = 1;
+  uint32 destination_surface_id = 2;
+  EgfxRect source_rect = 3;
+  repeated EgfxPoint dest_points = 4;
+}
+
+// A raw RFX Progressive payload ([MS-RDPRFX] + [MS-RDPEGFX] 2.2.2.2
+// RDPGFX_WIRE_TO_SURFACE_PDU_2) forwarded from the EGFX channel for
+// wasm-side decode. Windows ships screen content (wallpaper, app
+// chrome, transitions) on this path whenever the negotiated EGFX
+// capability set permits it — V8.1 without AVC420_ENABLED commonly
+// uses RFX Progressive in addition to ClearCodec.
+//
+// The destination rectangles are inside the Region block of the
+// payload itself, so unlike WireToSurface1 the server cannot
+// pre-translate a single dest rect to desktop coords. We forward
+// `surface_origin_x/y` instead and let the wasm decoder apply the
+// origin per-tile when it paints into the framebuffer.
+message EgfxWireToSurface2 {
+  // EGFX surface ID. The wasm side keeps one progressive decoder per
+  // (surface_id, codec_context_id) pair so per-tile state persists
+  // across PDUs belonging to the same codec context.
+  uint32 surface_id = 1;
+  // Codec identifier — 0x0009 (CAPROGRESSIVE_V1) for RemoteFX Progressive.
+  uint32 codec_id = 2;
+  // Codec context identifier — selects the stateful decoder. Server
+  // sends DeleteEncodingContext to evict.
+  uint32 codec_context_id = 3;
+  // Pixel format from the wire (0=XRgb, 1=ARgb). Decoder treats both
+  // as opaque RGBA.
+  uint32 pixel_format = 4;
+  // Surface origin in desktop coords (from MapSurfaceToOutput). Wasm
+  // applies this when blitting each decoded tile.
+  uint32 surface_origin_x = 5;
+  uint32 surface_origin_y = 6;
+  // Raw RFX Progressive payload bytes (the WireToSurface2 PDU's
+  // bitmap_data field, verbatim).
+  bytes bitmap_data = 7;
+}
+
+// DeleteEncodingContext ([MS-RDPEGFX] 2.2.2.3 RDPGFX_DELETE_ENCODING_CONTEXT_PDU):
+// instructs the client to drop the per-(surface, codec_context_id)
+// progressive decoder state. Pairs with WireToSurface2.
+message EgfxDeleteEncodingContext {
+  uint32 surface_id = 1;
+  uint32 codec_context_id = 2;
+}
+
+// EgfxEndFrame ([MS-RDPEGFX] 2.2.2.15 RDPGFX_END_FRAME_PDU): the server has
+// finished a logical frame. The client MUST present (flush to canvas) exactly
+// on this boundary so only fully-composited frames reach the screen. Presenting
+// per wire-burst instead shows the per-frame background fill before content
+// lands, which is the black-rectangle flicker.
+message EgfxEndFrame {
+  uint32 frame_id = 1;
 }
 
 // Contains a raw RDP response PDU to send to the server.
@@ -117,15 +386,34 @@ message KeyboardButton {
   bool pressed = 2;
 }
 
+// Describes one monitor's position and size within the RDP virtual desktop.
+// Coordinates are signed because monitors may sit to the left of or above the
+// primary in the virtual-desktop coordinate space.
+message MonitorLayout {
+  int32 x = 1;
+  int32 y = 2;
+  uint32 width = 3;
+  uint32 height = 4;
+  bool is_primary = 5;
+}
+
 // Composed in Client Hello to inform the server of the client's screen size.
 // May also be sent during a desktop session as the client resizes its display.
 // These mesasages are captured for session recordings in order to replay
 // resizing events.
+//
+// For single-monitor sessions, width/height/scale describe the only monitor
+// and monitors is empty. For multi-monitor sessions, monitors carries one
+// entry per physical display and width/height describe the bounding box of
+// the virtual desktop.
 message ClientScreenSpec {
   uint32 width = 1;
   uint32 height = 2;
   // Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
   uint32 scale = 3;
+  // Per-monitor layout. Empty implies a single primary monitor with the
+  // dimensions in width/height. Capped at 3 entries.
+  repeated MonitorLayout monitors = 4;
 }
 
 // Severity of an alert contained in an Alert message.
@@ -366,6 +654,18 @@ message MFAPromptResponseReference {
 // Sent by the server to indicate the session backend is being established and no additional authentication is required.
 message SessionEstablishing {}
 
+// Sent by client to ask the RDP server to repaint a region. Used to recover
+// from RFX decoder drift (e.g. stale window-border pixels after a drag).
+// The proxy translates this into an RDP Refresh Rect PDU using the live
+// session's share_id and channel IDs.
+message RefreshRect {
+  // Pixel coordinates. Inclusive on both ends, matching the RDP wire format.
+  uint32 left = 1;
+  uint32 top = 2;
+  uint32 right = 3;
+  uint32 bottom = 4;
+}
+
 // Envelope wraps all messages that are allowed to be sent on the wire.
 message Envelope {
   oneof payload {
@@ -394,5 +694,20 @@ message Envelope {
     AuthPrompt auth_prompt = 23;
     MFAPromptResponse mfa_prompt_response = 24;
     SessionEstablishing session_establishing = 25;
+    RefreshRect refresh_rect = 26;
+    EgfxBitmap egfx_bitmap = 27;
+    EgfxAvcFrame egfx_avc_frame = 28;
+    EgfxClearCodec egfx_clear_codec = 29;
+    EgfxSolidFill egfx_solid_fill = 30;
+    EgfxSurfaceToCache egfx_surface_to_cache = 31;
+    EgfxCacheToSurface egfx_cache_to_surface = 32;
+    EgfxEvictCacheEntry egfx_evict_cache_entry = 33;
+    EgfxSurfaceToSurface egfx_surface_to_surface = 34;
+    EgfxWireToSurface2 egfx_wire_to_surface2 = 35;
+    EgfxDeleteEncodingContext egfx_delete_encoding_context = 36;
+    EgfxUncompressed egfx_uncompressed = 37;
+    EgfxPlanar egfx_planar = 38;
+    EgfxAvc420 egfx_avc420 = 39;
+    EgfxEndFrame egfx_end_frame = 40;
   }
 }

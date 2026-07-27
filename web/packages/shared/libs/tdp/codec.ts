@@ -2149,7 +2149,7 @@ const UINT_64_LEN = 8;
  * The latest version of [scancode.h](https://github.com/FreeRDP/FreeRDP/blob/ba8cf8cf2158018fb7abbedb51ab245f369be813/include/freerdp/scancode.h)
  * in FreeRDP should be considered the canonical source of truth for these values.
  */
-const KEY_SCANCODES: { [key: string]: number[] } = {
+export const KEY_SCANCODES: { [key: string]: number[] } = {
   Escape: [0x0001],
   Digit1: [0x0002],
   Digit2: [0x0003],

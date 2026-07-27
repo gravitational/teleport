@@ -26,6 +26,7 @@ import React, {
 
 import { Logger } from 'design/logger';
 import { BitmapFrame, PngFrame } from 'shared/libs/tdp';
+import { TDP_PERF } from 'shared/libs/tdp/perfLogger';
 import { debounce } from 'shared/utils/highbar';
 
 const logger = new Logger('CanvasRenderer');
@@ -208,7 +209,10 @@ export const CanvasRenderer = forwardRef<
       onMouseUp={onMouseUp}
       onContextMenu={onContextMenu}
       onBlur={onBlur}
-      onMouseMove={onMouseMove}
+      onMouseMove={e => {
+        TDP_PERF.recordDomMouseMove();
+        onMouseMove?.(e);
+      }}
       style={{
         visibility: props.hidden ? 'hidden' : 'visible',
         outline: 'none',
@@ -234,8 +238,10 @@ interface Pointer {
 }
 
 function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
+  const start = TDP_PERF.perfNow();
   if (typeof pointer.data === 'boolean') {
     canvas.style.cursor = pointer.data ? 'default' : 'none';
+    TDP_PERF.recordCursorPost(TDP_PERF.perfNow() - start);
     return;
   }
   let cursor = document.createElement('canvas');
@@ -260,6 +266,7 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
     cursor = resized;
   }
   canvas.style.cursor = `url(${cursor.toDataURL()}) ${Math.round(pointer.hotspot_x * scale)} ${Math.round(pointer.hotspot_y * scale)}, auto`;
+  TDP_PERF.recordCursorPost(TDP_PERF.perfNow() - start);
 }
 
 //TODO(gzdunek): renderBuffer is called  even when the buffer is empty.
@@ -299,5 +306,13 @@ function makeBitmapFrameRenderer(
 ): (frame: BitmapFrame) => void {
   const ctx = canvas.getContext('2d');
 
-  return frame => ctx.putImageData(frame.image_data, frame.left, frame.top);
+  return frame => {
+    const start = TDP_PERF.perfNow();
+    ctx.putImageData(frame.image_data, frame.left, frame.top);
+    TDP_PERF.recordPutImage(
+      TDP_PERF.perfNow() - start,
+      frame.image_data.width,
+      frame.image_data.height
+    );
+  };
 }

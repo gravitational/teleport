@@ -27,8 +27,16 @@ import (
 )
 
 const (
-	MaxRDPScreenWidth  = 8192
-	MaxRDPScreenHeight = 8192
+	// TEMP (multi-monitor testing): bumped from 8192 to 8192*4 so a virtual-desktop
+	// bounding box spanning up to maxMonitors (4) monitors passes the total-size
+	// checks. Each MONITOR is still capped at 8192 by IronRDP's MonitorLayoutEntry.
+	// REVISIT: split into a per-monitor cap (8192, spec) vs a desktop/bbox cap
+	// (maxMonitors*8192) instead of conflating them here, and re-check the
+	// recordingmetadata thumbnail memory note (full-bbox RGBA copy). Note a
+	// 4-wide row of 8192px monitors (32768) would exceed the u16 wire fields;
+	// practical mixed-resolution layouts stay well under.
+	MaxRDPScreenWidth  = 8192 * 4
+	MaxRDPScreenHeight = 8192 * 4
 )
 
 var _ compare.IsEqual[WindowsDesktop] = (*WindowsDesktopV3)(nil)

@@ -132,6 +132,7 @@ impl FastPathProcessor {
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 enable_server_pointer: true,
                 pointer_software_rendering: false,
+                // Bulk compression not negotiated in our sessions.
                 bulk_decompressor: None,
             }
             .build(),

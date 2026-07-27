@@ -1,0 +1,26 @@
+# Mirrors the RUSTFLAGS the source player sets in its Makefile so wasm-pack
+# / direct `cargo build` both work without an env var dance:
+#   --cfg getrandom_backend="wasm_js"  — required by `getrandom 0.3` when
+#     it's transitively pulled in by wasm crates (IronRDP, etc.).
+#   -C target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext
+#     — enables the wasm features that let LLVM emit SIMD loads/stores and
+#     bulk memory copies in the hot pixel paths; matches the source player.
+# Scoped to wasm32-unknown-unknown so the native server build at
+# lib/srv/desktop/rdp/rdpclient is unaffected.
+[target.wasm32-unknown-unknown]
+rustflags = [
+  '--cfg', 'getrandom_backend="wasm_js"',
+  '--cfg', 'web_sys_unstable_apis',
+  '-C', 'target-feature=+simd128,+bulk-memory,+nontrapping-fptoint,+sign-ext',
+]
+
+# Applied to every target: web_sys_unstable_apis ungates the WebCodecs
+# bindings (VideoDecoder/VideoFrame/EncodedVideoChunk) used by the
+# `session` wasm crate for browser-side AVC444v2 decode. Harmless on
+# native targets — web-sys isn't actually linked there outside this
+# workspace's wasm members, but the session crate gets compiled (rlib)
+# as part of the workspace build and needs the cfg to resolve.
+[build]
+rustflags = [
+  '--cfg', 'web_sys_unstable_apis',
+]

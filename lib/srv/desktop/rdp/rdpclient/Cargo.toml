@@ -14,9 +14,11 @@ boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb59
 byteorder = "1.5.0"
 bytes = "1.11.1"
 env_logger = "0.11.6"
+ironrdp-async.workspace = true
 ironrdp-cliprdr.workspace = true
 ironrdp-connector.workspace = true
 ironrdp-core.workspace = true
+ironrdp-egfx.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-rdpdr.workspace = true
 ironrdp-rdpsnd.workspace = true
@@ -32,15 +34,21 @@ log = "0.4.30"
 rand = { version = "0.9.4", features = ["os_rng"] }
 rdp-decoder = { path = "../decoder", features = ["image-resize"] }
 rsa = "0.9.10"
-sspi = { version = "^0.21.0", features = ["network_client"] }
 tokio = { version = "1.52", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
-uuid = { version = ">=1.16, <1.24", features = ["v4"] } # Pinned below 1.21: uuid 1.21+ needs getrandom 0.4 -> rand_core 0.10 (stable), which conflicts with picky rc.22's pinned rand_core = "=0.10.0-rc-3". Remove this pin when picky ships with stable RustCrypto deps.
+# uuid 1.21+ moves to getrandom 0.4. This crate and the wasm ironrdp crate resolve to one uuid, so keep the two bounds
+# in step and make sure every getrandom major in the tree has its wasm backend feature enabled over there. The
+# rand_core prerelease clash that originally forced a <1.21 ceiling is gone now that picky is pinned to rc.23, which
+# takes stable rand_core 0.10.
+uuid = { version = ">=1.16, <1.24", features = ["v4"] }
 url = "2.5.8"
-picky = { version = "7.0.0-rc.23", default-features = false }
+# Pinned with = to match the vendored ironrdp-connector, which pins the same rc so Cargo cannot treat the candidate
+# number as a minor and bump it out from under us.
+picky = { version = "=7.0.0-rc.23", default-features = false }
 picky-asn1-der = "0.5.6"
 picky-asn1-x509 = "0.15.4"
+x509-cert = { version = "0.2", default-features = false, features = ["std"] }
 reqwest = { version = "0.13", default-features = false }
 rustls = { version = "0.23.40", default-features = false, features = [
     "aws-lc-rs",

@@ -1,0 +1,46 @@
+{
+  "planPath": "web/packages/shared/libs/player/RFX_SIMD_IDWT_PLAN.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Detect the hot IDWT variant",
+      "status": "completed",
+      "description": "USER-ORDERED GATE — NON-SKIPPABLE.\n\n**Goal:** Determine whether the live stream decodes via dwt_extrapolate::decode (reduce-extrapolate) or dwt::decode (legacy), so we vectorize the path that actually runs.\n\n**Files:** progressive.rs (temp probe), session/src/egfx_decoder.rs (one-shot web_sys log).\n\n**Acceptance Criteria:** console prints [idwt-variant] extrapolate|legacy during playback; probe removed before commit; variant recorded in Task 2.\n\n**Verify:** ./build-release-wasm.sh debug → reload with video → await L.distinct('[idwt-variant]').\n\n```json:metadata\n{\"files\":[\"third_party/ironrdp/crates/ironrdp-graphics/src/progressive.rs\",\"web/packages/shared/libs/player/crates/session/src/egfx_decoder.rs\"],\"verifyCommand\":\"cd web/packages/shared/libs/player && ./build-release-wasm.sh debug\",\"acceptanceCriteria\":[\"console prints [idwt-variant] extrapolate|legacy at least once during playback\",\"probe removed from both files before commit\",\"detected variant recorded in Task 2\"],\"userGate\":true,\"tags\":[\"user-gate\"],\"modelTier\":\"standard\"}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: I32x4 lane abstraction (simd_lane.rs)",
+      "status": "completed",
+      "description": "**Goal:** Portable 4-lane i32 type with v128 + scalar cfg backends, IDWT ops, host unit tests.\n\n**Files:** create simd_lane.rs; modify lib.rs (mod simd_lane).\n\n**Acceptance Criteria:** I32x4 compiles wasm32+simd128 and host; lane tests pass (wrap_i16, sra, shl, div2_trunc, from_lanes/to_array); div2_trunc matches Rust /2 for negatives.\n\n**Verify:** cargo test -p session --lib simd_lane.\n\n```json:metadata\n{\"files\":[\"third_party/ironrdp/crates/ironrdp-graphics/src/simd_lane.rs\",\"third_party/ironrdp/crates/ironrdp-graphics/src/lib.rs\"],\"verifyCommand\":\"cd third_party/ironrdp && cargo test -p ironrdp-graphics --lib simd_lane\",\"acceptanceCriteria\":[\"I32x4 compiles on wasm32+simd128 and host\",\"lane unit tests pass (wrap_i16, sra, shl, div2_trunc, from_lanes/to_array)\",\"div2_trunc matches Rust /2 for negatives\"],\"modelTier\":\"mechanical\"}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Diff-test + decode_simd for the hot variant",
+      "status": "completed",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** SIMD inverse-DWT for the Task-0 variant, max|delta|==0 vs scalar decode over real coefficient buffers.\n\nDetected hot variant (Task 0, 2026-06-17): EXTRAPOLATE → port dwt_extrapolate::decode (row/col idwt_row/idwt_col, /2 truncating rounding via .div2_trunc()).\n\n**Files:** dwt_extrapolate.rs OR dwt.rs — add pub fn decode_simd(&mut [i16], &mut [i16]); diff-test in same file.\n\n**Acceptance Criteria:** decode_simd byte-identical to scalar across zeros/DC/gradients/LCG/edge/negative/overflow; signature matches scalar; scalar decode unchanged.\n\n**Verify:** cargo test -p session --lib idwt_simd_matches_scalar.\n\n```json:metadata\n{\"files\":[\"third_party/ironrdp/crates/ironrdp-graphics/src/dwt_extrapolate.rs\",\"third_party/ironrdp/crates/ironrdp-graphics/src/dwt.rs\"],\"verifyCommand\":\"cd third_party/ironrdp && cargo test -p ironrdp-graphics --lib idwt_simd_matches_scalar\",\"acceptanceCriteria\":[\"decode_simd max|delta|==0 vs scalar over zeros/DC/gradient/random/edge/negative/overflow\",\"signature & buffer contract match scalar decode\",\"scalar decode unchanged\"],\"modelTier\":\"complex\"}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Runtime SIMD toggle + perfAB single-command A/B",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Route reconstruct_to_rgba to decode_simd by default, with a runtime toggle for same-session A/B.\n\n**Files:** progressive.rs (set_simd_idwt + dispatch), session/src/lib.rs (call setter), DesktopSessionTestMulti.tsx (parse ?simd-idwt).\n\n**Acceptance Criteria:** default uses decode_simd; ?simd-idwt=0 forces scalar, =1/absent uses SIMD; toggle on vs off identical RGBA.\n\n**Verify:** cargo test -p session --lib reconstruct_toggle_identical.\n\n```json:metadata\n{\"files\":[\"third_party/ironrdp/crates/ironrdp-graphics/src/progressive.rs\",\"web/packages/shared/libs/player/crates/session/src/lib.rs\",\"web/packages/shared/libs/player/DesktopSessionTestMulti.tsx\"],\"verifyCommand\":\"cd third_party/ironrdp && cargo test -p ironrdp-graphics --lib reconstruct_toggle_identical\",\"acceptanceCriteria\":[\"default decodes via decode_simd\",\"?simd-idwt=0 forces scalar, =1 uses SIMD\",\"toggle on vs off identical RGBA\"],\"modelTier\":\"standard\"}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Release build + L.perf A/B measurement",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "USER-ORDERED GATE — NON-SKIPPABLE.\n\n**Goal:** Measure stages.idwt drop and max full-screen videos @ 45fps, SIMD-off vs SIMD-on, to complete the head-to-head with Lever B.\n\n**Files:** none (measurement).\n\n**Acceptance Criteria:** release wasm built; Gate1 idwt_simd_matches_scalar PASS; Gate2 no black rectangles (visual, SIMD-on); stages.idwt captured for off(baseline) and on(optimized); max videos@45fps recorded both; SIMD-on tiles/s vs Lever B ~236k.\n\n**Verify:** Two L.perf() captures (one per toggle state) with stages.idwt delta + present/inflight at saturation.\n\n```json:metadata\n{\"files\":[],\"verifyCommand\":\"cd web/packages/shared/libs/player && ./build-release-wasm.sh release\",\"acceptanceCriteria\":[\"release wasm built\",\"Gate1 idwt_simd_matches_scalar PASS\",\"Gate2 no black rectangles (visual, SIMD-on)\",\"stages.idwt captured for off(baseline) and on(optimized)\",\"max videos@45fps recorded both; SIMD-on tiles/s vs Lever B 236k\"],\"userGate\":true,\"tags\":[\"user-gate\"],\"requireEvidenceTokens\":[[\"baseline\",\"simd-off\",\"scalar\"],[\"optimized\",\"simd-on\",\"simd\"]],\"modelTier\":\"standard\"}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5 (conditional): SIMD decode_simd for the second variant",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** If both variants occur, vectorize the second one too (same structure as Task 2).\n\n**Files:** the other of dwt.rs / dwt_extrapolate.rs.\n\n**Acceptance Criteria:** second variant decode_simd max|delta|==0 vs its scalar; dispatch uses SIMD for both variants under the toggle.\n\n**Verify:** cargo test -p session --lib idwt_simd_matches_scalar (extended).\n\n```json:metadata\n{\"files\":[\"third_party/ironrdp/crates/ironrdp-graphics/src/dwt.rs\",\"third_party/ironrdp/crates/ironrdp-graphics/src/dwt_extrapolate.rs\"],\"verifyCommand\":\"cd third_party/ironrdp && cargo test -p ironrdp-graphics --lib idwt_simd_matches_scalar\",\"acceptanceCriteria\":[\"second variant decode_simd max|delta|==0 vs its scalar\",\"dispatch uses SIMD for both variants under the toggle\"],\"modelTier\":\"complex\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-17"
+}

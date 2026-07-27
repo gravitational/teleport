@@ -330,8 +330,12 @@ type ServerHello struct {
 	Sessions                       []*SessionIdentifier   `protobuf:"bytes,4,rep,name=sessions,proto3" json:"sessions,omitempty"`
 	HidpiSupported                 bool                   `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
 	MultidirectorySharingSupported bool                   `protobuf:"varint,6,opt,name=multidirectory_sharing_supported,json=multidirectorySharingSupported,proto3" json:"multidirectory_sharing_supported,omitempty"`
-	unknownFields                  protoimpl.UnknownFields
-	sizeCache                      protoimpl.SizeCache
+	// True when the server can negotiate a multi-monitor virtual desktop via
+	// the RDP DisplayControl DVC. Clients may then populate
+	// ClientScreenSpec.monitors with more than one entry.
+	MultiMonitorSupported bool `protobuf:"varint,7,opt,name=multi_monitor_supported,json=multiMonitorSupported,proto3" json:"multi_monitor_supported,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ServerHello) Reset() {
@@ -401,6 +405,13 @@ func (x *ServerHello) GetMultidirectorySharingSupported() bool {
 	return false
 }
 
+func (x *ServerHello) GetMultiMonitorSupported() bool {
+	if x != nil {
+		return x.MultiMonitorSupported
+	}
+	return false
+}
+
 func (x *ServerHello) SetActivationSpec(v *ConnectionActivated) {
 	x.ActivationSpec = v
 }
@@ -425,6 +436,10 @@ func (x *ServerHello) SetMultidirectorySharingSupported(v bool) {
 	x.MultidirectorySharingSupported = v
 }
 
+func (x *ServerHello) SetMultiMonitorSupported(v bool) {
+	x.MultiMonitorSupported = v
+}
+
 func (x *ServerHello) HasActivationSpec() bool {
 	if x == nil {
 		return false
@@ -445,6 +460,10 @@ type ServerHello_builder struct {
 	Sessions                       []*SessionIdentifier
 	HidpiSupported                 bool
 	MultidirectorySharingSupported bool
+	// True when the server can negotiate a multi-monitor virtual desktop via
+	// the RDP DisplayControl DVC. Clients may then populate
+	// ClientScreenSpec.monitors with more than one entry.
+	MultiMonitorSupported bool
 }
 
 func (b0 ServerHello_builder) Build() *ServerHello {
@@ -457,6 +476,7 @@ func (b0 ServerHello_builder) Build() *ServerHello {
 	x.Sessions = b.Sessions
 	x.HidpiSupported = b.HidpiSupported
 	x.MultidirectorySharingSupported = b.MultidirectorySharingSupported
+	x.MultiMonitorSupported = b.MultiMonitorSupported
 	return m0
 }
 
@@ -835,6 +855,1949 @@ func (b0 FastPathPDU_builder) Build() *FastPathPDU {
 	return m0
 }
 
+// A pre-decoded bitmap update from the EGFX (RDPGFX) channel.
+//
+// MS-RDPEGFX Graphics Pipeline frames are decoded server-side (in the
+// IronRDP cgo client) — uncompressed, ClearCodec, RemoteFX progressive,
+// AVC420, AVC444. We map the surface to its virtual-desktop origin and
+// emit the result as desktop-coordinate RGBA so the wasm decoder can
+// blit it directly into the framebuffer image without needing to know
+// anything about EGFX surface IDs.
+type EgfxBitmap struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DesktopX uint32 `protobuf:"varint,1,opt,name=desktop_x,json=desktopX,proto3" json:"desktop_x,omitempty"`
+	DesktopY uint32 `protobuf:"varint,2,opt,name=desktop_y,json=desktopY,proto3" json:"desktop_y,omitempty"`
+	// Width and height of the RGBA payload.
+	Width  uint32 `protobuf:"varint,3,opt,name=width,proto3" json:"width,omitempty"`
+	Height uint32 `protobuf:"varint,4,opt,name=height,proto3" json:"height,omitempty"`
+	// Raw RGBA8 pixel data, row-major, width*height*4 bytes.
+	Rgba          []byte `protobuf:"bytes,5,opt,name=rgba,proto3" json:"rgba,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxBitmap) Reset() {
+	*x = EgfxBitmap{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxBitmap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxBitmap) ProtoMessage() {}
+
+func (x *EgfxBitmap) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxBitmap) GetDesktopX() uint32 {
+	if x != nil {
+		return x.DesktopX
+	}
+	return 0
+}
+
+func (x *EgfxBitmap) GetDesktopY() uint32 {
+	if x != nil {
+		return x.DesktopY
+	}
+	return 0
+}
+
+func (x *EgfxBitmap) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EgfxBitmap) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EgfxBitmap) GetRgba() []byte {
+	if x != nil {
+		return x.Rgba
+	}
+	return nil
+}
+
+func (x *EgfxBitmap) SetDesktopX(v uint32) {
+	x.DesktopX = v
+}
+
+func (x *EgfxBitmap) SetDesktopY(v uint32) {
+	x.DesktopY = v
+}
+
+func (x *EgfxBitmap) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *EgfxBitmap) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *EgfxBitmap) SetRgba(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Rgba = v
+}
+
+type EgfxBitmap_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DesktopX uint32
+	DesktopY uint32
+	// Width and height of the RGBA payload.
+	Width  uint32
+	Height uint32
+	// Raw RGBA8 pixel data, row-major, width*height*4 bytes.
+	Rgba []byte
+}
+
+func (b0 EgfxBitmap_builder) Build() *EgfxBitmap {
+	m0 := &EgfxBitmap{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DesktopX = b.DesktopX
+	x.DesktopY = b.DesktopY
+	x.Width = b.Width
+	x.Height = b.Height
+	x.Rgba = b.Rgba
+	return m0
+}
+
+// A raw AVC444/v2 frame forwarded from the EGFX channel for browser-side
+// H.264 decode (WebCodecs VideoDecoder). The server only parses the
+// RFX_AVC444V2_BITMAP_STREAM wrapper and unpacks the inner H.264 streams;
+// the actual H.264 → YUV decode happens in the client where it can use
+// the browser's GPU-accelerated VideoDecoder. The wasm side composes the
+// luma and chroma streams into YUV444, converts to RGBA per BT.709, and
+// blits the result into the framebuffer at (desktop_x, desktop_y).
+type EgfxAvcFrame struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DesktopX uint32 `protobuf:"varint,1,opt,name=desktop_x,json=desktopX,proto3" json:"desktop_x,omitempty"`
+	DesktopY uint32 `protobuf:"varint,2,opt,name=desktop_y,json=desktopY,proto3" json:"desktop_y,omitempty"`
+	// Width and height of the destination rectangle (in pixels). The
+	// decoded H.264 frame may be macroblock-padded to a larger size; the
+	// client crops to these dimensions before painting.
+	DestWidth  uint32 `protobuf:"varint,3,opt,name=dest_width,json=destWidth,proto3" json:"dest_width,omitempty"`
+	DestHeight uint32 `protobuf:"varint,4,opt,name=dest_height,json=destHeight,proto3" json:"dest_height,omitempty"`
+	// EGFX surface ID — the wasm side maintains one pair of VideoDecoders
+	// per surface so decoder state survives across frames belonging to the
+	// same surface.
+	SurfaceId uint32 `protobuf:"varint,5,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	// Codec variant: 0xe = Avc444, 0xf = Avc444v2 (MS-RDPEGFX 2.2.4.4 /
+	// 2.2.4.4.1). The two variants differ in how the chroma stream packs
+	// the extra 4:4:4 chroma samples; the wasm decoder needs to know which.
+	CodecId uint32 `protobuf:"varint,6,opt,name=codec_id,json=codecId,proto3" json:"codec_id,omitempty"`
+	// Encoding flag from RFX_AVC444_BITMAP_STREAM streamInfo bits 30..32:
+	//
+	//	0 = LUMA_AND_CHROMA (both streams present)
+	//	1 = LUMA (only luma stream — chroma_h264 is empty)
+	//	2 = CHROMA (only chroma stream — luma_h264 is empty)
+	Encoding uint32 `protobuf:"varint,7,opt,name=encoding,proto3" json:"encoding,omitempty"`
+	// H.264 NAL units of the luma stream in AVC format (4-byte BE length
+	// prefix per NAL). Empty if encoding == CHROMA.
+	LumaH264 []byte `protobuf:"bytes,8,opt,name=luma_h264,json=lumaH264,proto3" json:"luma_h264,omitempty"`
+	// H.264 NAL units of the chroma stream in AVC format. Empty if
+	// encoding == LUMA.
+	ChromaH264    []byte `protobuf:"bytes,9,opt,name=chroma_h264,json=chromaH264,proto3" json:"chroma_h264,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxAvcFrame) Reset() {
+	*x = EgfxAvcFrame{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxAvcFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxAvcFrame) ProtoMessage() {}
+
+func (x *EgfxAvcFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxAvcFrame) GetDesktopX() uint32 {
+	if x != nil {
+		return x.DesktopX
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetDesktopY() uint32 {
+	if x != nil {
+		return x.DesktopY
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetDestWidth() uint32 {
+	if x != nil {
+		return x.DestWidth
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetDestHeight() uint32 {
+	if x != nil {
+		return x.DestHeight
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetCodecId() uint32 {
+	if x != nil {
+		return x.CodecId
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetEncoding() uint32 {
+	if x != nil {
+		return x.Encoding
+	}
+	return 0
+}
+
+func (x *EgfxAvcFrame) GetLumaH264() []byte {
+	if x != nil {
+		return x.LumaH264
+	}
+	return nil
+}
+
+func (x *EgfxAvcFrame) GetChromaH264() []byte {
+	if x != nil {
+		return x.ChromaH264
+	}
+	return nil
+}
+
+func (x *EgfxAvcFrame) SetDesktopX(v uint32) {
+	x.DesktopX = v
+}
+
+func (x *EgfxAvcFrame) SetDesktopY(v uint32) {
+	x.DesktopY = v
+}
+
+func (x *EgfxAvcFrame) SetDestWidth(v uint32) {
+	x.DestWidth = v
+}
+
+func (x *EgfxAvcFrame) SetDestHeight(v uint32) {
+	x.DestHeight = v
+}
+
+func (x *EgfxAvcFrame) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxAvcFrame) SetCodecId(v uint32) {
+	x.CodecId = v
+}
+
+func (x *EgfxAvcFrame) SetEncoding(v uint32) {
+	x.Encoding = v
+}
+
+func (x *EgfxAvcFrame) SetLumaH264(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.LumaH264 = v
+}
+
+func (x *EgfxAvcFrame) SetChromaH264(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.ChromaH264 = v
+}
+
+type EgfxAvcFrame_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DesktopX uint32
+	DesktopY uint32
+	// Width and height of the destination rectangle (in pixels). The
+	// decoded H.264 frame may be macroblock-padded to a larger size; the
+	// client crops to these dimensions before painting.
+	DestWidth  uint32
+	DestHeight uint32
+	// EGFX surface ID — the wasm side maintains one pair of VideoDecoders
+	// per surface so decoder state survives across frames belonging to the
+	// same surface.
+	SurfaceId uint32
+	// Codec variant: 0xe = Avc444, 0xf = Avc444v2 (MS-RDPEGFX 2.2.4.4 /
+	// 2.2.4.4.1). The two variants differ in how the chroma stream packs
+	// the extra 4:4:4 chroma samples; the wasm decoder needs to know which.
+	CodecId uint32
+	// Encoding flag from RFX_AVC444_BITMAP_STREAM streamInfo bits 30..32:
+	//
+	//	0 = LUMA_AND_CHROMA (both streams present)
+	//	1 = LUMA (only luma stream — chroma_h264 is empty)
+	//	2 = CHROMA (only chroma stream — luma_h264 is empty)
+	Encoding uint32
+	// H.264 NAL units of the luma stream in AVC format (4-byte BE length
+	// prefix per NAL). Empty if encoding == CHROMA.
+	LumaH264 []byte
+	// H.264 NAL units of the chroma stream in AVC format. Empty if
+	// encoding == LUMA.
+	ChromaH264 []byte
+}
+
+func (b0 EgfxAvcFrame_builder) Build() *EgfxAvcFrame {
+	m0 := &EgfxAvcFrame{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DesktopX = b.DesktopX
+	x.DesktopY = b.DesktopY
+	x.DestWidth = b.DestWidth
+	x.DestHeight = b.DestHeight
+	x.SurfaceId = b.SurfaceId
+	x.CodecId = b.CodecId
+	x.Encoding = b.Encoding
+	x.LumaH264 = b.LumaH264
+	x.ChromaH264 = b.ChromaH264
+	return m0
+}
+
+// A raw ClearCodec PDU ([MS-RDPEGFX] 2.2.4.2 / `RFX_CLEAR_BITMAP_STREAM`)
+// forwarded from the EGFX channel for wasm-side decode. The wire bytes
+// are the inner ClearCodec payload extracted from the surrounding
+// `WireToSurface1Pdu` — the server already maps the surface to its
+// virtual-desktop origin and parses out the destination rectangle.
+//
+// Forwarding raw (instead of pre-decoding to RGBA) lets the wasm
+// decoder do read-modify-write against the framebuffer image: a PDU
+// with residual_bytes=0 paints only the bands+subcodec sub-regions
+// and leaves the rest of the destination rectangle untouched, which
+// matches the wire-format semantics. Pre-decoding to a destination-
+// sized RGBA buffer (as EgfxBitmap does) overwrites un-painted pixels
+// with opaque black and corrupts the framebuffer.
+type EgfxClearCodec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// EGFX surface ID — the wasm side keeps one ClearCodec decoder per
+	// surface so the glyph + vbar caches survive across frames belonging
+	// to the same surface.
+	SurfaceId uint32 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DestX int32 `protobuf:"varint,2,opt,name=dest_x,json=destX,proto3" json:"dest_x,omitempty"`
+	DestY int32 `protobuf:"varint,3,opt,name=dest_y,json=destY,proto3" json:"dest_y,omitempty"`
+	// Destination rectangle dimensions in pixels.
+	Width  uint32 `protobuf:"varint,4,opt,name=width,proto3" json:"width,omitempty"`
+	Height uint32 `protobuf:"varint,5,opt,name=height,proto3" json:"height,omitempty"`
+	// Raw ClearCodec payload bytes (no length prefix).
+	PduData       []byte `protobuf:"bytes,6,opt,name=pdu_data,json=pduData,proto3" json:"pdu_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxClearCodec) Reset() {
+	*x = EgfxClearCodec{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxClearCodec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxClearCodec) ProtoMessage() {}
+
+func (x *EgfxClearCodec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxClearCodec) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxClearCodec) GetDestX() int32 {
+	if x != nil {
+		return x.DestX
+	}
+	return 0
+}
+
+func (x *EgfxClearCodec) GetDestY() int32 {
+	if x != nil {
+		return x.DestY
+	}
+	return 0
+}
+
+func (x *EgfxClearCodec) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EgfxClearCodec) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EgfxClearCodec) GetPduData() []byte {
+	if x != nil {
+		return x.PduData
+	}
+	return nil
+}
+
+func (x *EgfxClearCodec) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxClearCodec) SetDestX(v int32) {
+	x.DestX = v
+}
+
+func (x *EgfxClearCodec) SetDestY(v int32) {
+	x.DestY = v
+}
+
+func (x *EgfxClearCodec) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *EgfxClearCodec) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *EgfxClearCodec) SetPduData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PduData = v
+}
+
+type EgfxClearCodec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// EGFX surface ID — the wasm side keeps one ClearCodec decoder per
+	// surface so the glyph + vbar caches survive across frames belonging
+	// to the same surface.
+	SurfaceId uint32
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DestX int32
+	DestY int32
+	// Destination rectangle dimensions in pixels.
+	Width  uint32
+	Height uint32
+	// Raw ClearCodec payload bytes (no length prefix).
+	PduData []byte
+}
+
+func (b0 EgfxClearCodec_builder) Build() *EgfxClearCodec {
+	m0 := &EgfxClearCodec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.DestX = b.DestX
+	x.DestY = b.DestY
+	x.Width = b.Width
+	x.Height = b.Height
+	x.PduData = b.PduData
+	return m0
+}
+
+// A raw `Codec1Type::Planar` ([MS-RDPEGDI] 2.2.9.1.0.2 RDP 6.0 bitmap
+// stream) WireToSurface1 PDU forwarded for wasm-side decode. Windows ships
+// this codec for many medium-size bitmap updates (panel chrome, icons,
+// rasterised text). The wasm side uses `ironrdp_graphics::rdp6::bitmap_stream`
+// to decode → RGB24, then RGBA-blits into the framebuffer.
+type EgfxPlanar struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId     uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	DestX         int32                  `protobuf:"varint,2,opt,name=dest_x,json=destX,proto3" json:"dest_x,omitempty"`
+	DestY         int32                  `protobuf:"varint,3,opt,name=dest_y,json=destY,proto3" json:"dest_y,omitempty"`
+	Width         uint32                 `protobuf:"varint,4,opt,name=width,proto3" json:"width,omitempty"`
+	Height        uint32                 `protobuf:"varint,5,opt,name=height,proto3" json:"height,omitempty"`
+	PduData       []byte                 `protobuf:"bytes,6,opt,name=pdu_data,json=pduData,proto3" json:"pdu_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxPlanar) Reset() {
+	*x = EgfxPlanar{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxPlanar) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxPlanar) ProtoMessage() {}
+
+func (x *EgfxPlanar) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxPlanar) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxPlanar) GetDestX() int32 {
+	if x != nil {
+		return x.DestX
+	}
+	return 0
+}
+
+func (x *EgfxPlanar) GetDestY() int32 {
+	if x != nil {
+		return x.DestY
+	}
+	return 0
+}
+
+func (x *EgfxPlanar) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EgfxPlanar) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EgfxPlanar) GetPduData() []byte {
+	if x != nil {
+		return x.PduData
+	}
+	return nil
+}
+
+func (x *EgfxPlanar) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxPlanar) SetDestX(v int32) {
+	x.DestX = v
+}
+
+func (x *EgfxPlanar) SetDestY(v int32) {
+	x.DestY = v
+}
+
+func (x *EgfxPlanar) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *EgfxPlanar) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *EgfxPlanar) SetPduData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PduData = v
+}
+
+type EgfxPlanar_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId uint32
+	DestX     int32
+	DestY     int32
+	Width     uint32
+	Height    uint32
+	PduData   []byte
+}
+
+func (b0 EgfxPlanar_builder) Build() *EgfxPlanar {
+	m0 := &EgfxPlanar{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.DestX = b.DestX
+	x.DestY = b.DestY
+	x.Width = b.Width
+	x.Height = b.Height
+	x.PduData = b.PduData
+	return m0
+}
+
+// A raw `Codec1Type::Avc420` ([MS-RDPEGFX] 2.2.4.3) WireToSurface1 PDU.
+// `pdu_data` is the Avc420EncapsulatedBitmapStream: 12-byte AVC420BitmapStream
+// header (frame_count + regionRects + quantQualityVals) followed by the
+// concatenated H.264 NAL units. The wasm side feeds the H.264 bytes to the
+// browser's WebCodecs `VideoDecoder` and blits the decoded frame.
+type EgfxAvc420 struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId     uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	DestX         int32                  `protobuf:"varint,2,opt,name=dest_x,json=destX,proto3" json:"dest_x,omitempty"`
+	DestY         int32                  `protobuf:"varint,3,opt,name=dest_y,json=destY,proto3" json:"dest_y,omitempty"`
+	Width         uint32                 `protobuf:"varint,4,opt,name=width,proto3" json:"width,omitempty"`
+	Height        uint32                 `protobuf:"varint,5,opt,name=height,proto3" json:"height,omitempty"`
+	PduData       []byte                 `protobuf:"bytes,6,opt,name=pdu_data,json=pduData,proto3" json:"pdu_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxAvc420) Reset() {
+	*x = EgfxAvc420{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxAvc420) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxAvc420) ProtoMessage() {}
+
+func (x *EgfxAvc420) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxAvc420) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxAvc420) GetDestX() int32 {
+	if x != nil {
+		return x.DestX
+	}
+	return 0
+}
+
+func (x *EgfxAvc420) GetDestY() int32 {
+	if x != nil {
+		return x.DestY
+	}
+	return 0
+}
+
+func (x *EgfxAvc420) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EgfxAvc420) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EgfxAvc420) GetPduData() []byte {
+	if x != nil {
+		return x.PduData
+	}
+	return nil
+}
+
+func (x *EgfxAvc420) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxAvc420) SetDestX(v int32) {
+	x.DestX = v
+}
+
+func (x *EgfxAvc420) SetDestY(v int32) {
+	x.DestY = v
+}
+
+func (x *EgfxAvc420) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *EgfxAvc420) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *EgfxAvc420) SetPduData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PduData = v
+}
+
+type EgfxAvc420_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId uint32
+	DestX     int32
+	DestY     int32
+	Width     uint32
+	Height    uint32
+	PduData   []byte
+}
+
+func (b0 EgfxAvc420_builder) Build() *EgfxAvc420 {
+	m0 := &EgfxAvc420{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.DestX = b.DestX
+	x.DestY = b.DestY
+	x.Width = b.Width
+	x.Height = b.Height
+	x.PduData = b.PduData
+	return m0
+}
+
+// A raw `Uncompressed` ([MS-RDPEGFX] 2.2.4.2, `Codec1Type::Uncompressed`)
+// WireToSurface1 PDU forwarded for wasm-side blit. Windows ships this for
+// small UI overlays — tooltips, popup chrome, hover shadows — where the
+// per-frame setup cost of a compressed codec is wasted, frequently with
+// an alpha channel (`PIXEL_FORMAT_ARGB_8888 = 0x21`).
+//
+// The wasm framebuffer is the only place that owns the destination
+// buffer, so all pixel-format work (channel reorder + source-over alpha
+// composite against the existing framebuffer pixels) happens there.
+type EgfxUncompressed struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// EGFX surface ID; the wasm side resolves this against its own surface
+	// map (one Framebuffer image is shared across all surfaces).
+	SurfaceId uint32 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DestX int32 `protobuf:"varint,2,opt,name=dest_x,json=destX,proto3" json:"dest_x,omitempty"`
+	DestY int32 `protobuf:"varint,3,opt,name=dest_y,json=destY,proto3" json:"dest_y,omitempty"`
+	// Destination rectangle dimensions in pixels.
+	Width  uint32 `protobuf:"varint,4,opt,name=width,proto3" json:"width,omitempty"`
+	Height uint32 `protobuf:"varint,5,opt,name=height,proto3" json:"height,omitempty"`
+	// MS-RDPEGFX pixel format byte. 0x20 = PIXEL_FORMAT_XRGB_8888 (alpha
+	// byte is padding, treat as opaque). 0x21 = PIXEL_FORMAT_ARGB_8888
+	// (alpha byte is meaningful, must source-over composite).
+	PixelFormat uint32 `protobuf:"varint,6,opt,name=pixel_format,json=pixelFormat,proto3" json:"pixel_format,omitempty"`
+	// Raw bitmap bytes, `width * height * 4` long. Channel order is
+	// determined by `pixel_format`.
+	BitmapData    []byte `protobuf:"bytes,7,opt,name=bitmap_data,json=bitmapData,proto3" json:"bitmap_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxUncompressed) Reset() {
+	*x = EgfxUncompressed{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxUncompressed) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxUncompressed) ProtoMessage() {}
+
+func (x *EgfxUncompressed) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxUncompressed) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetDestX() int32 {
+	if x != nil {
+		return x.DestX
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetDestY() int32 {
+	if x != nil {
+		return x.DestY
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetPixelFormat() uint32 {
+	if x != nil {
+		return x.PixelFormat
+	}
+	return 0
+}
+
+func (x *EgfxUncompressed) GetBitmapData() []byte {
+	if x != nil {
+		return x.BitmapData
+	}
+	return nil
+}
+
+func (x *EgfxUncompressed) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxUncompressed) SetDestX(v int32) {
+	x.DestX = v
+}
+
+func (x *EgfxUncompressed) SetDestY(v int32) {
+	x.DestY = v
+}
+
+func (x *EgfxUncompressed) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *EgfxUncompressed) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *EgfxUncompressed) SetPixelFormat(v uint32) {
+	x.PixelFormat = v
+}
+
+func (x *EgfxUncompressed) SetBitmapData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.BitmapData = v
+}
+
+type EgfxUncompressed_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// EGFX surface ID; the wasm side resolves this against its own surface
+	// map (one Framebuffer image is shared across all surfaces).
+	SurfaceId uint32
+	// Destination top-left in desktop coordinates (after applying the
+	// surface's MapSurfaceToOutput origin).
+	DestX int32
+	DestY int32
+	// Destination rectangle dimensions in pixels.
+	Width  uint32
+	Height uint32
+	// MS-RDPEGFX pixel format byte. 0x20 = PIXEL_FORMAT_XRGB_8888 (alpha
+	// byte is padding, treat as opaque). 0x21 = PIXEL_FORMAT_ARGB_8888
+	// (alpha byte is meaningful, must source-over composite).
+	PixelFormat uint32
+	// Raw bitmap bytes, `width * height * 4` long. Channel order is
+	// determined by `pixel_format`.
+	BitmapData []byte
+}
+
+func (b0 EgfxUncompressed_builder) Build() *EgfxUncompressed {
+	m0 := &EgfxUncompressed{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.DestX = b.DestX
+	x.DestY = b.DestY
+	x.Width = b.Width
+	x.Height = b.Height
+	x.PixelFormat = b.PixelFormat
+	x.BitmapData = b.BitmapData
+	return m0
+}
+
+// Exclusive rectangle ([MS-RDPEGFX] 2.2.1.4.1 RDPGFX_RECT16): right/bottom
+// are one-past-end (so (left=0,top=0,right=64,bottom=64) is a 64x64 rect).
+type EgfxRect struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	Left          uint32                 `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
+	Top           uint32                 `protobuf:"varint,2,opt,name=top,proto3" json:"top,omitempty"`
+	Right         uint32                 `protobuf:"varint,3,opt,name=right,proto3" json:"right,omitempty"`
+	Bottom        uint32                 `protobuf:"varint,4,opt,name=bottom,proto3" json:"bottom,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxRect) Reset() {
+	*x = EgfxRect{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxRect) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxRect) ProtoMessage() {}
+
+func (x *EgfxRect) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxRect) GetLeft() uint32 {
+	if x != nil {
+		return x.Left
+	}
+	return 0
+}
+
+func (x *EgfxRect) GetTop() uint32 {
+	if x != nil {
+		return x.Top
+	}
+	return 0
+}
+
+func (x *EgfxRect) GetRight() uint32 {
+	if x != nil {
+		return x.Right
+	}
+	return 0
+}
+
+func (x *EgfxRect) GetBottom() uint32 {
+	if x != nil {
+		return x.Bottom
+	}
+	return 0
+}
+
+func (x *EgfxRect) SetLeft(v uint32) {
+	x.Left = v
+}
+
+func (x *EgfxRect) SetTop(v uint32) {
+	x.Top = v
+}
+
+func (x *EgfxRect) SetRight(v uint32) {
+	x.Right = v
+}
+
+func (x *EgfxRect) SetBottom(v uint32) {
+	x.Bottom = v
+}
+
+type EgfxRect_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Left   uint32
+	Top    uint32
+	Right  uint32
+	Bottom uint32
+}
+
+func (b0 EgfxRect_builder) Build() *EgfxRect {
+	m0 := &EgfxRect{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Left = b.Left
+	x.Top = b.Top
+	x.Right = b.Right
+	x.Bottom = b.Bottom
+	return m0
+}
+
+// Top-left point used by CacheToSurface to specify where to blit each copy
+// of the cached region.
+type EgfxPoint struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	X             uint32                 `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y             uint32                 `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxPoint) Reset() {
+	*x = EgfxPoint{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxPoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxPoint) ProtoMessage() {}
+
+func (x *EgfxPoint) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxPoint) GetX() uint32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *EgfxPoint) GetY() uint32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+func (x *EgfxPoint) SetX(v uint32) {
+	x.X = v
+}
+
+func (x *EgfxPoint) SetY(v uint32) {
+	x.Y = v
+}
+
+type EgfxPoint_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X uint32
+	Y uint32
+}
+
+func (b0 EgfxPoint_builder) Build() *EgfxPoint {
+	m0 := &EgfxPoint{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X = b.X
+	x.Y = b.Y
+	return m0
+}
+
+// SolidFill ([MS-RDPEGFX] 2.2.2.4 RDPGFX_SOLID_FILL_PDU): paint one or more
+// rectangles on a surface with a single color. Windows uses this for dialog
+// backgrounds, panel fills, etc. — large flat-colored regions the server
+// would otherwise have to send as a heavyweight bitmap.
+type EgfxSolidFill struct {
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	// Color components from the wire format (B, G, R, alpha-ignored). Alpha
+	// is always treated as opaque by the renderer per spec.
+	ColorB        uint32      `protobuf:"varint,2,opt,name=color_b,json=colorB,proto3" json:"color_b,omitempty"`
+	ColorG        uint32      `protobuf:"varint,3,opt,name=color_g,json=colorG,proto3" json:"color_g,omitempty"`
+	ColorR        uint32      `protobuf:"varint,4,opt,name=color_r,json=colorR,proto3" json:"color_r,omitempty"`
+	Rects         []*EgfxRect `protobuf:"bytes,5,rep,name=rects,proto3" json:"rects,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxSolidFill) Reset() {
+	*x = EgfxSolidFill{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxSolidFill) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxSolidFill) ProtoMessage() {}
+
+func (x *EgfxSolidFill) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxSolidFill) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxSolidFill) GetColorB() uint32 {
+	if x != nil {
+		return x.ColorB
+	}
+	return 0
+}
+
+func (x *EgfxSolidFill) GetColorG() uint32 {
+	if x != nil {
+		return x.ColorG
+	}
+	return 0
+}
+
+func (x *EgfxSolidFill) GetColorR() uint32 {
+	if x != nil {
+		return x.ColorR
+	}
+	return 0
+}
+
+func (x *EgfxSolidFill) GetRects() []*EgfxRect {
+	if x != nil {
+		return x.Rects
+	}
+	return nil
+}
+
+func (x *EgfxSolidFill) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxSolidFill) SetColorB(v uint32) {
+	x.ColorB = v
+}
+
+func (x *EgfxSolidFill) SetColorG(v uint32) {
+	x.ColorG = v
+}
+
+func (x *EgfxSolidFill) SetColorR(v uint32) {
+	x.ColorR = v
+}
+
+func (x *EgfxSolidFill) SetRects(v []*EgfxRect) {
+	x.Rects = v
+}
+
+type EgfxSolidFill_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId uint32
+	// Color components from the wire format (B, G, R, alpha-ignored). Alpha
+	// is always treated as opaque by the renderer per spec.
+	ColorB uint32
+	ColorG uint32
+	ColorR uint32
+	Rects  []*EgfxRect
+}
+
+func (b0 EgfxSolidFill_builder) Build() *EgfxSolidFill {
+	m0 := &EgfxSolidFill{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.ColorB = b.ColorB
+	x.ColorG = b.ColorG
+	x.ColorR = b.ColorR
+	x.Rects = b.Rects
+	return m0
+}
+
+// SurfaceToCache ([MS-RDPEGFX] 2.2.2.6 RDPGFX_SURFACE_TO_CACHE_PDU): copy a
+// rectangular region of the surface into the bitmap cache at the given slot.
+// Used together with CacheToSurface to tile a single decoded image across
+// many positions without re-decoding.
+type EgfxSurfaceToCache struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId     uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	CacheKey      uint64                 `protobuf:"varint,2,opt,name=cache_key,json=cacheKey,proto3" json:"cache_key,omitempty"`
+	CacheSlot     uint32                 `protobuf:"varint,3,opt,name=cache_slot,json=cacheSlot,proto3" json:"cache_slot,omitempty"`
+	SourceRect    *EgfxRect              `protobuf:"bytes,4,opt,name=source_rect,json=sourceRect,proto3" json:"source_rect,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxSurfaceToCache) Reset() {
+	*x = EgfxSurfaceToCache{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxSurfaceToCache) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxSurfaceToCache) ProtoMessage() {}
+
+func (x *EgfxSurfaceToCache) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxSurfaceToCache) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxSurfaceToCache) GetCacheKey() uint64 {
+	if x != nil {
+		return x.CacheKey
+	}
+	return 0
+}
+
+func (x *EgfxSurfaceToCache) GetCacheSlot() uint32 {
+	if x != nil {
+		return x.CacheSlot
+	}
+	return 0
+}
+
+func (x *EgfxSurfaceToCache) GetSourceRect() *EgfxRect {
+	if x != nil {
+		return x.SourceRect
+	}
+	return nil
+}
+
+func (x *EgfxSurfaceToCache) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxSurfaceToCache) SetCacheKey(v uint64) {
+	x.CacheKey = v
+}
+
+func (x *EgfxSurfaceToCache) SetCacheSlot(v uint32) {
+	x.CacheSlot = v
+}
+
+func (x *EgfxSurfaceToCache) SetSourceRect(v *EgfxRect) {
+	x.SourceRect = v
+}
+
+func (x *EgfxSurfaceToCache) HasSourceRect() bool {
+	if x == nil {
+		return false
+	}
+	return x.SourceRect != nil
+}
+
+func (x *EgfxSurfaceToCache) ClearSourceRect() {
+	x.SourceRect = nil
+}
+
+type EgfxSurfaceToCache_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId  uint32
+	CacheKey   uint64
+	CacheSlot  uint32
+	SourceRect *EgfxRect
+}
+
+func (b0 EgfxSurfaceToCache_builder) Build() *EgfxSurfaceToCache {
+	m0 := &EgfxSurfaceToCache{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.CacheKey = b.CacheKey
+	x.CacheSlot = b.CacheSlot
+	x.SourceRect = b.SourceRect
+	return m0
+}
+
+// CacheToSurface ([MS-RDPEGFX] 2.2.2.7 RDPGFX_CACHE_TO_SURFACE_PDU): blit a
+// previously-cached region (by slot) onto the surface at each of the given
+// destination top-left points. Used heavily by Windows to tile UI panel
+// backgrounds, taskbar segments, etc.
+type EgfxCacheToSurface struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId     uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	CacheSlot     uint32                 `protobuf:"varint,2,opt,name=cache_slot,json=cacheSlot,proto3" json:"cache_slot,omitempty"`
+	DestPoints    []*EgfxPoint           `protobuf:"bytes,3,rep,name=dest_points,json=destPoints,proto3" json:"dest_points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxCacheToSurface) Reset() {
+	*x = EgfxCacheToSurface{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxCacheToSurface) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxCacheToSurface) ProtoMessage() {}
+
+func (x *EgfxCacheToSurface) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxCacheToSurface) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxCacheToSurface) GetCacheSlot() uint32 {
+	if x != nil {
+		return x.CacheSlot
+	}
+	return 0
+}
+
+func (x *EgfxCacheToSurface) GetDestPoints() []*EgfxPoint {
+	if x != nil {
+		return x.DestPoints
+	}
+	return nil
+}
+
+func (x *EgfxCacheToSurface) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxCacheToSurface) SetCacheSlot(v uint32) {
+	x.CacheSlot = v
+}
+
+func (x *EgfxCacheToSurface) SetDestPoints(v []*EgfxPoint) {
+	x.DestPoints = v
+}
+
+type EgfxCacheToSurface_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId  uint32
+	CacheSlot  uint32
+	DestPoints []*EgfxPoint
+}
+
+func (b0 EgfxCacheToSurface_builder) Build() *EgfxCacheToSurface {
+	m0 := &EgfxCacheToSurface{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.CacheSlot = b.CacheSlot
+	x.DestPoints = b.DestPoints
+	return m0
+}
+
+// EvictCacheEntry ([MS-RDPEGFX] 2.2.2.8 RDPGFX_EVICT_CACHE_ENTRY_PDU): drop
+// a cache slot. The server signals it no longer expects the client to keep
+// the cached pixels.
+type EgfxEvictCacheEntry struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	CacheSlot     uint32                 `protobuf:"varint,1,opt,name=cache_slot,json=cacheSlot,proto3" json:"cache_slot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxEvictCacheEntry) Reset() {
+	*x = EgfxEvictCacheEntry{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxEvictCacheEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxEvictCacheEntry) ProtoMessage() {}
+
+func (x *EgfxEvictCacheEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxEvictCacheEntry) GetCacheSlot() uint32 {
+	if x != nil {
+		return x.CacheSlot
+	}
+	return 0
+}
+
+func (x *EgfxEvictCacheEntry) SetCacheSlot(v uint32) {
+	x.CacheSlot = v
+}
+
+type EgfxEvictCacheEntry_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	CacheSlot uint32
+}
+
+func (b0 EgfxEvictCacheEntry_builder) Build() *EgfxEvictCacheEntry {
+	m0 := &EgfxEvictCacheEntry{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CacheSlot = b.CacheSlot
+	return m0
+}
+
+// SurfaceToSurface ([MS-RDPEGFX] 2.2.2.5 RDPGFX_SURFACE_TO_SURFACE_PDU):
+// copy a rectangular region between (or within) surfaces. Used by Windows
+// for scrolling, taskbar item moves on hover, window drag previews, etc.
+// Source and destination surface IDs are usually equal — copying within
+// the same surface to reposition content.
+type EgfxSurfaceToSurface struct {
+	state                protoimpl.MessageState `protogen:"hybrid.v1"`
+	SourceSurfaceId      uint32                 `protobuf:"varint,1,opt,name=source_surface_id,json=sourceSurfaceId,proto3" json:"source_surface_id,omitempty"`
+	DestinationSurfaceId uint32                 `protobuf:"varint,2,opt,name=destination_surface_id,json=destinationSurfaceId,proto3" json:"destination_surface_id,omitempty"`
+	SourceRect           *EgfxRect              `protobuf:"bytes,3,opt,name=source_rect,json=sourceRect,proto3" json:"source_rect,omitempty"`
+	DestPoints           []*EgfxPoint           `protobuf:"bytes,4,rep,name=dest_points,json=destPoints,proto3" json:"dest_points,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *EgfxSurfaceToSurface) Reset() {
+	*x = EgfxSurfaceToSurface{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxSurfaceToSurface) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxSurfaceToSurface) ProtoMessage() {}
+
+func (x *EgfxSurfaceToSurface) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxSurfaceToSurface) GetSourceSurfaceId() uint32 {
+	if x != nil {
+		return x.SourceSurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxSurfaceToSurface) GetDestinationSurfaceId() uint32 {
+	if x != nil {
+		return x.DestinationSurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxSurfaceToSurface) GetSourceRect() *EgfxRect {
+	if x != nil {
+		return x.SourceRect
+	}
+	return nil
+}
+
+func (x *EgfxSurfaceToSurface) GetDestPoints() []*EgfxPoint {
+	if x != nil {
+		return x.DestPoints
+	}
+	return nil
+}
+
+func (x *EgfxSurfaceToSurface) SetSourceSurfaceId(v uint32) {
+	x.SourceSurfaceId = v
+}
+
+func (x *EgfxSurfaceToSurface) SetDestinationSurfaceId(v uint32) {
+	x.DestinationSurfaceId = v
+}
+
+func (x *EgfxSurfaceToSurface) SetSourceRect(v *EgfxRect) {
+	x.SourceRect = v
+}
+
+func (x *EgfxSurfaceToSurface) SetDestPoints(v []*EgfxPoint) {
+	x.DestPoints = v
+}
+
+func (x *EgfxSurfaceToSurface) HasSourceRect() bool {
+	if x == nil {
+		return false
+	}
+	return x.SourceRect != nil
+}
+
+func (x *EgfxSurfaceToSurface) ClearSourceRect() {
+	x.SourceRect = nil
+}
+
+type EgfxSurfaceToSurface_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SourceSurfaceId      uint32
+	DestinationSurfaceId uint32
+	SourceRect           *EgfxRect
+	DestPoints           []*EgfxPoint
+}
+
+func (b0 EgfxSurfaceToSurface_builder) Build() *EgfxSurfaceToSurface {
+	m0 := &EgfxSurfaceToSurface{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SourceSurfaceId = b.SourceSurfaceId
+	x.DestinationSurfaceId = b.DestinationSurfaceId
+	x.SourceRect = b.SourceRect
+	x.DestPoints = b.DestPoints
+	return m0
+}
+
+// A raw RFX Progressive payload ([MS-RDPRFX] + [MS-RDPEGFX] 2.2.2.2
+// RDPGFX_WIRE_TO_SURFACE_PDU_2) forwarded from the EGFX channel for
+// wasm-side decode. Windows ships screen content (wallpaper, app
+// chrome, transitions) on this path whenever the negotiated EGFX
+// capability set permits it — V8.1 without AVC420_ENABLED commonly
+// uses RFX Progressive in addition to ClearCodec.
+//
+// The destination rectangles are inside the Region block of the
+// payload itself, so unlike WireToSurface1 the server cannot
+// pre-translate a single dest rect to desktop coords. We forward
+// `surface_origin_x/y` instead and let the wasm decoder apply the
+// origin per-tile when it paints into the framebuffer.
+type EgfxWireToSurface2 struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// EGFX surface ID. The wasm side keeps one progressive decoder per
+	// (surface_id, codec_context_id) pair so per-tile state persists
+	// across PDUs belonging to the same codec context.
+	SurfaceId uint32 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	// Codec identifier — 0x0009 (CAPROGRESSIVE_V1) for RemoteFX Progressive.
+	CodecId uint32 `protobuf:"varint,2,opt,name=codec_id,json=codecId,proto3" json:"codec_id,omitempty"`
+	// Codec context identifier — selects the stateful decoder. Server
+	// sends DeleteEncodingContext to evict.
+	CodecContextId uint32 `protobuf:"varint,3,opt,name=codec_context_id,json=codecContextId,proto3" json:"codec_context_id,omitempty"`
+	// Pixel format from the wire (0=XRgb, 1=ARgb). Decoder treats both
+	// as opaque RGBA.
+	PixelFormat uint32 `protobuf:"varint,4,opt,name=pixel_format,json=pixelFormat,proto3" json:"pixel_format,omitempty"`
+	// Surface origin in desktop coords (from MapSurfaceToOutput). Wasm
+	// applies this when blitting each decoded tile.
+	SurfaceOriginX uint32 `protobuf:"varint,5,opt,name=surface_origin_x,json=surfaceOriginX,proto3" json:"surface_origin_x,omitempty"`
+	SurfaceOriginY uint32 `protobuf:"varint,6,opt,name=surface_origin_y,json=surfaceOriginY,proto3" json:"surface_origin_y,omitempty"`
+	// Raw RFX Progressive payload bytes (the WireToSurface2 PDU's
+	// bitmap_data field, verbatim).
+	BitmapData    []byte `protobuf:"bytes,7,opt,name=bitmap_data,json=bitmapData,proto3" json:"bitmap_data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxWireToSurface2) Reset() {
+	*x = EgfxWireToSurface2{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxWireToSurface2) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxWireToSurface2) ProtoMessage() {}
+
+func (x *EgfxWireToSurface2) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxWireToSurface2) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetCodecId() uint32 {
+	if x != nil {
+		return x.CodecId
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetCodecContextId() uint32 {
+	if x != nil {
+		return x.CodecContextId
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetPixelFormat() uint32 {
+	if x != nil {
+		return x.PixelFormat
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetSurfaceOriginX() uint32 {
+	if x != nil {
+		return x.SurfaceOriginX
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetSurfaceOriginY() uint32 {
+	if x != nil {
+		return x.SurfaceOriginY
+	}
+	return 0
+}
+
+func (x *EgfxWireToSurface2) GetBitmapData() []byte {
+	if x != nil {
+		return x.BitmapData
+	}
+	return nil
+}
+
+func (x *EgfxWireToSurface2) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxWireToSurface2) SetCodecId(v uint32) {
+	x.CodecId = v
+}
+
+func (x *EgfxWireToSurface2) SetCodecContextId(v uint32) {
+	x.CodecContextId = v
+}
+
+func (x *EgfxWireToSurface2) SetPixelFormat(v uint32) {
+	x.PixelFormat = v
+}
+
+func (x *EgfxWireToSurface2) SetSurfaceOriginX(v uint32) {
+	x.SurfaceOriginX = v
+}
+
+func (x *EgfxWireToSurface2) SetSurfaceOriginY(v uint32) {
+	x.SurfaceOriginY = v
+}
+
+func (x *EgfxWireToSurface2) SetBitmapData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.BitmapData = v
+}
+
+type EgfxWireToSurface2_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// EGFX surface ID. The wasm side keeps one progressive decoder per
+	// (surface_id, codec_context_id) pair so per-tile state persists
+	// across PDUs belonging to the same codec context.
+	SurfaceId uint32
+	// Codec identifier — 0x0009 (CAPROGRESSIVE_V1) for RemoteFX Progressive.
+	CodecId uint32
+	// Codec context identifier — selects the stateful decoder. Server
+	// sends DeleteEncodingContext to evict.
+	CodecContextId uint32
+	// Pixel format from the wire (0=XRgb, 1=ARgb). Decoder treats both
+	// as opaque RGBA.
+	PixelFormat uint32
+	// Surface origin in desktop coords (from MapSurfaceToOutput). Wasm
+	// applies this when blitting each decoded tile.
+	SurfaceOriginX uint32
+	SurfaceOriginY uint32
+	// Raw RFX Progressive payload bytes (the WireToSurface2 PDU's
+	// bitmap_data field, verbatim).
+	BitmapData []byte
+}
+
+func (b0 EgfxWireToSurface2_builder) Build() *EgfxWireToSurface2 {
+	m0 := &EgfxWireToSurface2{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.CodecId = b.CodecId
+	x.CodecContextId = b.CodecContextId
+	x.PixelFormat = b.PixelFormat
+	x.SurfaceOriginX = b.SurfaceOriginX
+	x.SurfaceOriginY = b.SurfaceOriginY
+	x.BitmapData = b.BitmapData
+	return m0
+}
+
+// DeleteEncodingContext ([MS-RDPEGFX] 2.2.2.3 RDPGFX_DELETE_ENCODING_CONTEXT_PDU):
+// instructs the client to drop the per-(surface, codec_context_id)
+// progressive decoder state. Pairs with WireToSurface2.
+type EgfxDeleteEncodingContext struct {
+	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	SurfaceId      uint32                 `protobuf:"varint,1,opt,name=surface_id,json=surfaceId,proto3" json:"surface_id,omitempty"`
+	CodecContextId uint32                 `protobuf:"varint,2,opt,name=codec_context_id,json=codecContextId,proto3" json:"codec_context_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *EgfxDeleteEncodingContext) Reset() {
+	*x = EgfxDeleteEncodingContext{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxDeleteEncodingContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxDeleteEncodingContext) ProtoMessage() {}
+
+func (x *EgfxDeleteEncodingContext) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxDeleteEncodingContext) GetSurfaceId() uint32 {
+	if x != nil {
+		return x.SurfaceId
+	}
+	return 0
+}
+
+func (x *EgfxDeleteEncodingContext) GetCodecContextId() uint32 {
+	if x != nil {
+		return x.CodecContextId
+	}
+	return 0
+}
+
+func (x *EgfxDeleteEncodingContext) SetSurfaceId(v uint32) {
+	x.SurfaceId = v
+}
+
+func (x *EgfxDeleteEncodingContext) SetCodecContextId(v uint32) {
+	x.CodecContextId = v
+}
+
+type EgfxDeleteEncodingContext_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SurfaceId      uint32
+	CodecContextId uint32
+}
+
+func (b0 EgfxDeleteEncodingContext_builder) Build() *EgfxDeleteEncodingContext {
+	m0 := &EgfxDeleteEncodingContext{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SurfaceId = b.SurfaceId
+	x.CodecContextId = b.CodecContextId
+	return m0
+}
+
+// EgfxEndFrame ([MS-RDPEGFX] 2.2.2.15 RDPGFX_END_FRAME_PDU): the server has
+// finished a logical frame. The client MUST present (flush to canvas) exactly
+// on this boundary so only fully-composited frames reach the screen. Presenting
+// per wire-burst instead shows the per-frame background fill before content
+// lands, which is the black-rectangle flicker.
+type EgfxEndFrame struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	FrameId       uint32                 `protobuf:"varint,1,opt,name=frame_id,json=frameId,proto3" json:"frame_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EgfxEndFrame) Reset() {
+	*x = EgfxEndFrame{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EgfxEndFrame) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EgfxEndFrame) ProtoMessage() {}
+
+func (x *EgfxEndFrame) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EgfxEndFrame) GetFrameId() uint32 {
+	if x != nil {
+		return x.FrameId
+	}
+	return 0
+}
+
+func (x *EgfxEndFrame) SetFrameId(v uint32) {
+	x.FrameId = v
+}
+
+type EgfxEndFrame_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	FrameId uint32
+}
+
+func (b0 EgfxEndFrame_builder) Build() *EgfxEndFrame {
+	m0 := &EgfxEndFrame{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FrameId = b.FrameId
+	return m0
+}
+
 // Contains a raw RDP response PDU to send to the server.
 type RDPResponsePDU struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -845,7 +2808,7 @@ type RDPResponsePDU struct {
 
 func (x *RDPResponsePDU) Reset() {
 	*x = RDPResponsePDU{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -857,7 +2820,7 @@ func (x *RDPResponsePDU) String() string {
 func (*RDPResponsePDU) ProtoMessage() {}
 
 func (x *RDPResponsePDU) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[7]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -911,7 +2874,7 @@ type ConnectionActivated struct {
 
 func (x *ConnectionActivated) Reset() {
 	*x = ConnectionActivated{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -923,7 +2886,7 @@ func (x *ConnectionActivated) String() string {
 func (*ConnectionActivated) ProtoMessage() {}
 
 func (x *ConnectionActivated) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[8]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +2987,7 @@ type SyncKeys struct {
 
 func (x *SyncKeys) Reset() {
 	*x = SyncKeys{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1036,7 +2999,7 @@ func (x *SyncKeys) String() string {
 func (*SyncKeys) ProtoMessage() {}
 
 func (x *SyncKeys) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[9]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1122,7 +3085,7 @@ type MouseMove struct {
 
 func (x *MouseMove) Reset() {
 	*x = MouseMove{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1134,7 +3097,7 @@ func (x *MouseMove) String() string {
 func (*MouseMove) ProtoMessage() {}
 
 func (x *MouseMove) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[10]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1194,7 +3157,7 @@ type MouseButton struct {
 
 func (x *MouseButton) Reset() {
 	*x = MouseButton{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1206,7 +3169,7 @@ func (x *MouseButton) String() string {
 func (*MouseButton) ProtoMessage() {}
 
 func (x *MouseButton) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[11]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1266,7 +3229,7 @@ type KeyboardButton struct {
 
 func (x *KeyboardButton) Reset() {
 	*x = KeyboardButton{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1278,7 +3241,7 @@ func (x *KeyboardButton) String() string {
 func (*KeyboardButton) ProtoMessage() {}
 
 func (x *KeyboardButton) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[12]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1327,23 +3290,147 @@ func (b0 KeyboardButton_builder) Build() *KeyboardButton {
 	return m0
 }
 
+// Describes one monitor's position and size within the RDP virtual desktop.
+// Coordinates are signed because monitors may sit to the left of or above the
+// primary in the virtual-desktop coordinate space.
+type MonitorLayout struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	X             int32                  `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y             int32                  `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
+	Width         uint32                 `protobuf:"varint,3,opt,name=width,proto3" json:"width,omitempty"`
+	Height        uint32                 `protobuf:"varint,4,opt,name=height,proto3" json:"height,omitempty"`
+	IsPrimary     bool                   `protobuf:"varint,5,opt,name=is_primary,json=isPrimary,proto3" json:"is_primary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MonitorLayout) Reset() {
+	*x = MonitorLayout{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MonitorLayout) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MonitorLayout) ProtoMessage() {}
+
+func (x *MonitorLayout) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MonitorLayout) GetX() int32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *MonitorLayout) GetY() int32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+func (x *MonitorLayout) GetWidth() uint32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *MonitorLayout) GetHeight() uint32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *MonitorLayout) GetIsPrimary() bool {
+	if x != nil {
+		return x.IsPrimary
+	}
+	return false
+}
+
+func (x *MonitorLayout) SetX(v int32) {
+	x.X = v
+}
+
+func (x *MonitorLayout) SetY(v int32) {
+	x.Y = v
+}
+
+func (x *MonitorLayout) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *MonitorLayout) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *MonitorLayout) SetIsPrimary(v bool) {
+	x.IsPrimary = v
+}
+
+type MonitorLayout_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X         int32
+	Y         int32
+	Width     uint32
+	Height    uint32
+	IsPrimary bool
+}
+
+func (b0 MonitorLayout_builder) Build() *MonitorLayout {
+	m0 := &MonitorLayout{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X = b.X
+	x.Y = b.Y
+	x.Width = b.Width
+	x.Height = b.Height
+	x.IsPrimary = b.IsPrimary
+	return m0
+}
+
 // Composed in Client Hello to inform the server of the client's screen size.
 // May also be sent during a desktop session as the client resizes its display.
 // These mesasages are captured for session recordings in order to replay
 // resizing events.
+//
+// For single-monitor sessions, width/height/scale describe the only monitor
+// and monitors is empty. For multi-monitor sessions, monitors carries one
+// entry per physical display and width/height describe the bounding box of
+// the virtual desktop.
 type ClientScreenSpec struct {
 	state  protoimpl.MessageState `protogen:"hybrid.v1"`
 	Width  uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
 	Height uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
 	// Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
-	Scale         uint32 `protobuf:"varint,3,opt,name=scale,proto3" json:"scale,omitempty"`
+	Scale uint32 `protobuf:"varint,3,opt,name=scale,proto3" json:"scale,omitempty"`
+	// Per-monitor layout. Empty implies a single primary monitor with the
+	// dimensions in width/height. Capped at 3 entries.
+	Monitors      []*MonitorLayout `protobuf:"bytes,4,rep,name=monitors,proto3" json:"monitors,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClientScreenSpec) Reset() {
 	*x = ClientScreenSpec{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1355,7 +3442,7 @@ func (x *ClientScreenSpec) String() string {
 func (*ClientScreenSpec) ProtoMessage() {}
 
 func (x *ClientScreenSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[13]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1387,6 +3474,13 @@ func (x *ClientScreenSpec) GetScale() uint32 {
 	return 0
 }
 
+func (x *ClientScreenSpec) GetMonitors() []*MonitorLayout {
+	if x != nil {
+		return x.Monitors
+	}
+	return nil
+}
+
 func (x *ClientScreenSpec) SetWidth(v uint32) {
 	x.Width = v
 }
@@ -1399,6 +3493,10 @@ func (x *ClientScreenSpec) SetScale(v uint32) {
 	x.Scale = v
 }
 
+func (x *ClientScreenSpec) SetMonitors(v []*MonitorLayout) {
+	x.Monitors = v
+}
+
 type ClientScreenSpec_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1406,6 +3504,9 @@ type ClientScreenSpec_builder struct {
 	Height uint32
 	// Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
 	Scale uint32
+	// Per-monitor layout. Empty implies a single primary monitor with the
+	// dimensions in width/height. Capped at 3 entries.
+	Monitors []*MonitorLayout
 }
 
 func (b0 ClientScreenSpec_builder) Build() *ClientScreenSpec {
@@ -1415,6 +3516,7 @@ func (b0 ClientScreenSpec_builder) Build() *ClientScreenSpec {
 	x.Width = b.Width
 	x.Height = b.Height
 	x.Scale = b.Scale
+	x.Monitors = b.Monitors
 	return m0
 }
 
@@ -1429,7 +3531,7 @@ type Alert struct {
 
 func (x *Alert) Reset() {
 	*x = Alert{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1441,7 +3543,7 @@ func (x *Alert) String() string {
 func (*Alert) ProtoMessage() {}
 
 func (x *Alert) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[14]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1501,7 +3603,7 @@ type MouseWheel struct {
 
 func (x *MouseWheel) Reset() {
 	*x = MouseWheel{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1513,7 +3615,7 @@ func (x *MouseWheel) String() string {
 func (*MouseWheel) ProtoMessage() {}
 
 func (x *MouseWheel) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[15]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1572,7 +3674,7 @@ type ClipboardData struct {
 
 func (x *ClipboardData) Reset() {
 	*x = ClipboardData{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1584,7 +3686,7 @@ func (x *ClipboardData) String() string {
 func (*ClipboardData) ProtoMessage() {}
 
 func (x *ClipboardData) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[16]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1638,7 +3740,7 @@ type MFA struct {
 
 func (x *MFA) Reset() {
 	*x = MFA{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1650,7 +3752,7 @@ func (x *MFA) String() string {
 func (*MFA) ProtoMessage() {}
 
 func (x *MFA) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[17]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1758,7 +3860,7 @@ type SharedDirectoryAnnounce struct {
 
 func (x *SharedDirectoryAnnounce) Reset() {
 	*x = SharedDirectoryAnnounce{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1770,7 +3872,7 @@ func (x *SharedDirectoryAnnounce) String() string {
 func (*SharedDirectoryAnnounce) ProtoMessage() {}
 
 func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[18]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1829,7 +3931,7 @@ type SharedDirectoryRemove struct {
 
 func (x *SharedDirectoryRemove) Reset() {
 	*x = SharedDirectoryRemove{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1841,7 +3943,7 @@ func (x *SharedDirectoryRemove) String() string {
 func (*SharedDirectoryRemove) ProtoMessage() {}
 
 func (x *SharedDirectoryRemove) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[19]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1888,7 +3990,7 @@ type SharedDirectoryAcknowledge struct {
 
 func (x *SharedDirectoryAcknowledge) Reset() {
 	*x = SharedDirectoryAcknowledge{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1900,7 +4002,7 @@ func (x *SharedDirectoryAcknowledge) String() string {
 func (*SharedDirectoryAcknowledge) ProtoMessage() {}
 
 func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[20]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1974,7 +4076,7 @@ type SharedDirectoryRequest struct {
 
 func (x *SharedDirectoryRequest) Reset() {
 	*x = SharedDirectoryRequest{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1986,7 +4088,7 @@ func (x *SharedDirectoryRequest) String() string {
 func (*SharedDirectoryRequest) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[21]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2377,7 +4479,7 @@ func (b0 SharedDirectoryRequest_builder) Build() *SharedDirectoryRequest {
 type case_SharedDirectoryRequest_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryRequest_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[21].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[38].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2463,7 +4565,7 @@ type SharedDirectoryResponse struct {
 
 func (x *SharedDirectoryResponse) Reset() {
 	*x = SharedDirectoryResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2475,7 +4577,7 @@ func (x *SharedDirectoryResponse) String() string {
 func (*SharedDirectoryResponse) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[22]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +4982,7 @@ func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
 type case_SharedDirectoryResponse_Operation protoreflect.FieldNumber
 
 func (x case_SharedDirectoryResponse_Operation) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[22].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[39].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -2953,7 +5055,7 @@ type FileSystemObject struct {
 
 func (x *FileSystemObject) Reset() {
 	*x = FileSystemObject{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2965,7 +5067,7 @@ func (x *FileSystemObject) String() string {
 func (*FileSystemObject) ProtoMessage() {}
 
 func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[23]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3065,7 +5167,7 @@ type LatencyStats struct {
 
 func (x *LatencyStats) Reset() {
 	*x = LatencyStats{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3077,7 +5179,7 @@ func (x *LatencyStats) String() string {
 func (*LatencyStats) ProtoMessage() {}
 
 func (x *LatencyStats) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[24]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3137,7 +5239,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3149,7 +5251,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[25]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3202,7 +5304,7 @@ type AuthPrompt struct {
 
 func (x *AuthPrompt) Reset() {
 	*x = AuthPrompt{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3214,7 +5316,7 @@ func (x *AuthPrompt) String() string {
 func (*AuthPrompt) ProtoMessage() {}
 
 func (x *AuthPrompt) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[26]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3310,7 +5412,7 @@ func (b0 AuthPrompt_builder) Build() *AuthPrompt {
 type case_AuthPrompt_Prompt protoreflect.FieldNumber
 
 func (x case_AuthPrompt_Prompt) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[43].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -3337,7 +5439,7 @@ type MFAPrompt struct {
 
 func (x *MFAPrompt) Reset() {
 	*x = MFAPrompt{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3349,7 +5451,7 @@ func (x *MFAPrompt) String() string {
 func (*MFAPrompt) ProtoMessage() {}
 
 func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[27]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3385,7 +5487,7 @@ type MFAPromptResponse struct {
 
 func (x *MFAPromptResponse) Reset() {
 	*x = MFAPromptResponse{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3397,7 +5499,7 @@ func (x *MFAPromptResponse) String() string {
 func (*MFAPromptResponse) ProtoMessage() {}
 
 func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[28]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3493,7 +5595,7 @@ func (b0 MFAPromptResponse_builder) Build() *MFAPromptResponse {
 type case_MFAPromptResponse_Response protoreflect.FieldNumber
 
 func (x case_MFAPromptResponse_Response) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[28].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[45].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -3521,7 +5623,7 @@ type MFAPromptResponseReference struct {
 
 func (x *MFAPromptResponseReference) Reset() {
 	*x = MFAPromptResponseReference{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3533,7 +5635,7 @@ func (x *MFAPromptResponseReference) String() string {
 func (*MFAPromptResponseReference) ProtoMessage() {}
 
 func (x *MFAPromptResponseReference) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[29]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3579,7 +5681,7 @@ type SessionEstablishing struct {
 
 func (x *SessionEstablishing) Reset() {
 	*x = SessionEstablishing{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3591,7 +5693,7 @@ func (x *SessionEstablishing) String() string {
 func (*SessionEstablishing) ProtoMessage() {}
 
 func (x *SessionEstablishing) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[30]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3611,6 +5713,111 @@ func (b0 SessionEstablishing_builder) Build() *SessionEstablishing {
 	m0 := &SessionEstablishing{}
 	b, x := &b0, m0
 	_, _ = b, x
+	return m0
+}
+
+// Sent by client to ask the RDP server to repaint a region. Used to recover
+// from RFX decoder drift (e.g. stale window-border pixels after a drag).
+// The proxy translates this into an RDP Refresh Rect PDU using the live
+// session's share_id and channel IDs.
+type RefreshRect struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Pixel coordinates. Inclusive on both ends, matching the RDP wire format.
+	Left          uint32 `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
+	Top           uint32 `protobuf:"varint,2,opt,name=top,proto3" json:"top,omitempty"`
+	Right         uint32 `protobuf:"varint,3,opt,name=right,proto3" json:"right,omitempty"`
+	Bottom        uint32 `protobuf:"varint,4,opt,name=bottom,proto3" json:"bottom,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshRect) Reset() {
+	*x = RefreshRect{}
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshRect) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshRect) ProtoMessage() {}
+
+func (x *RefreshRect) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RefreshRect) GetLeft() uint32 {
+	if x != nil {
+		return x.Left
+	}
+	return 0
+}
+
+func (x *RefreshRect) GetTop() uint32 {
+	if x != nil {
+		return x.Top
+	}
+	return 0
+}
+
+func (x *RefreshRect) GetRight() uint32 {
+	if x != nil {
+		return x.Right
+	}
+	return 0
+}
+
+func (x *RefreshRect) GetBottom() uint32 {
+	if x != nil {
+		return x.Bottom
+	}
+	return 0
+}
+
+func (x *RefreshRect) SetLeft(v uint32) {
+	x.Left = v
+}
+
+func (x *RefreshRect) SetTop(v uint32) {
+	x.Top = v
+}
+
+func (x *RefreshRect) SetRight(v uint32) {
+	x.Right = v
+}
+
+func (x *RefreshRect) SetBottom(v uint32) {
+	x.Bottom = v
+}
+
+type RefreshRect_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Pixel coordinates. Inclusive on both ends, matching the RDP wire format.
+	Left   uint32
+	Top    uint32
+	Right  uint32
+	Bottom uint32
+}
+
+func (b0 RefreshRect_builder) Build() *RefreshRect {
+	m0 := &RefreshRect{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Left = b.Left
+	x.Top = b.Top
+	x.Right = b.Right
+	x.Bottom = b.Bottom
 	return m0
 }
 
@@ -3644,6 +5851,21 @@ type Envelope struct {
 	//	*Envelope_AuthPrompt
 	//	*Envelope_MfaPromptResponse
 	//	*Envelope_SessionEstablishing
+	//	*Envelope_RefreshRect
+	//	*Envelope_EgfxBitmap
+	//	*Envelope_EgfxAvcFrame
+	//	*Envelope_EgfxClearCodec
+	//	*Envelope_EgfxSolidFill
+	//	*Envelope_EgfxSurfaceToCache
+	//	*Envelope_EgfxCacheToSurface
+	//	*Envelope_EgfxEvictCacheEntry
+	//	*Envelope_EgfxSurfaceToSurface
+	//	*Envelope_EgfxWireToSurface2
+	//	*Envelope_EgfxDeleteEncodingContext
+	//	*Envelope_EgfxUncompressed
+	//	*Envelope_EgfxPlanar
+	//	*Envelope_EgfxAvc420
+	//	*Envelope_EgfxEndFrame
 	Payload       isEnvelope_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3651,7 +5873,7 @@ type Envelope struct {
 
 func (x *Envelope) Reset() {
 	*x = Envelope{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3663,7 +5885,7 @@ func (x *Envelope) String() string {
 func (*Envelope) ProtoMessage() {}
 
 func (x *Envelope) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[31]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3906,6 +6128,141 @@ func (x *Envelope) GetSessionEstablishing() *SessionEstablishing {
 	return nil
 }
 
+func (x *Envelope) GetRefreshRect() *RefreshRect {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_RefreshRect); ok {
+			return x.RefreshRect
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxBitmap() *EgfxBitmap {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxBitmap); ok {
+			return x.EgfxBitmap
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxAvcFrame() *EgfxAvcFrame {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxAvcFrame); ok {
+			return x.EgfxAvcFrame
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxClearCodec() *EgfxClearCodec {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxClearCodec); ok {
+			return x.EgfxClearCodec
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxSolidFill() *EgfxSolidFill {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxSolidFill); ok {
+			return x.EgfxSolidFill
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxSurfaceToCache() *EgfxSurfaceToCache {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxSurfaceToCache); ok {
+			return x.EgfxSurfaceToCache
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxCacheToSurface() *EgfxCacheToSurface {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxCacheToSurface); ok {
+			return x.EgfxCacheToSurface
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxEvictCacheEntry() *EgfxEvictCacheEntry {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxEvictCacheEntry); ok {
+			return x.EgfxEvictCacheEntry
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxSurfaceToSurface() *EgfxSurfaceToSurface {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxSurfaceToSurface); ok {
+			return x.EgfxSurfaceToSurface
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxWireToSurface2() *EgfxWireToSurface2 {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxWireToSurface2); ok {
+			return x.EgfxWireToSurface2
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxDeleteEncodingContext() *EgfxDeleteEncodingContext {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxDeleteEncodingContext); ok {
+			return x.EgfxDeleteEncodingContext
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxUncompressed() *EgfxUncompressed {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxUncompressed); ok {
+			return x.EgfxUncompressed
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxPlanar() *EgfxPlanar {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxPlanar); ok {
+			return x.EgfxPlanar
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxAvc420() *EgfxAvc420 {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxAvc420); ok {
+			return x.EgfxAvc420
+		}
+	}
+	return nil
+}
+
+func (x *Envelope) GetEgfxEndFrame() *EgfxEndFrame {
+	if x != nil {
+		if x, ok := x.Payload.(*Envelope_EgfxEndFrame); ok {
+			return x.EgfxEndFrame
+		}
+	}
+	return nil
+}
+
 func (x *Envelope) SetClientHello(v *ClientHello) {
 	if v == nil {
 		x.Payload = nil
@@ -4104,6 +6461,126 @@ func (x *Envelope) SetSessionEstablishing(v *SessionEstablishing) {
 		return
 	}
 	x.Payload = &Envelope_SessionEstablishing{v}
+}
+
+func (x *Envelope) SetRefreshRect(v *RefreshRect) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_RefreshRect{v}
+}
+
+func (x *Envelope) SetEgfxBitmap(v *EgfxBitmap) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxBitmap{v}
+}
+
+func (x *Envelope) SetEgfxAvcFrame(v *EgfxAvcFrame) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxAvcFrame{v}
+}
+
+func (x *Envelope) SetEgfxClearCodec(v *EgfxClearCodec) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxClearCodec{v}
+}
+
+func (x *Envelope) SetEgfxSolidFill(v *EgfxSolidFill) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxSolidFill{v}
+}
+
+func (x *Envelope) SetEgfxSurfaceToCache(v *EgfxSurfaceToCache) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxSurfaceToCache{v}
+}
+
+func (x *Envelope) SetEgfxCacheToSurface(v *EgfxCacheToSurface) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxCacheToSurface{v}
+}
+
+func (x *Envelope) SetEgfxEvictCacheEntry(v *EgfxEvictCacheEntry) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxEvictCacheEntry{v}
+}
+
+func (x *Envelope) SetEgfxSurfaceToSurface(v *EgfxSurfaceToSurface) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxSurfaceToSurface{v}
+}
+
+func (x *Envelope) SetEgfxWireToSurface2(v *EgfxWireToSurface2) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxWireToSurface2{v}
+}
+
+func (x *Envelope) SetEgfxDeleteEncodingContext(v *EgfxDeleteEncodingContext) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxDeleteEncodingContext{v}
+}
+
+func (x *Envelope) SetEgfxUncompressed(v *EgfxUncompressed) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxUncompressed{v}
+}
+
+func (x *Envelope) SetEgfxPlanar(v *EgfxPlanar) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxPlanar{v}
+}
+
+func (x *Envelope) SetEgfxAvc420(v *EgfxAvc420) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxAvc420{v}
+}
+
+func (x *Envelope) SetEgfxEndFrame(v *EgfxEndFrame) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_EgfxEndFrame{v}
 }
 
 func (x *Envelope) HasPayload() bool {
@@ -4313,6 +6790,126 @@ func (x *Envelope) HasSessionEstablishing() bool {
 	return ok
 }
 
+func (x *Envelope) HasRefreshRect() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_RefreshRect)
+	return ok
+}
+
+func (x *Envelope) HasEgfxBitmap() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxBitmap)
+	return ok
+}
+
+func (x *Envelope) HasEgfxAvcFrame() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxAvcFrame)
+	return ok
+}
+
+func (x *Envelope) HasEgfxClearCodec() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxClearCodec)
+	return ok
+}
+
+func (x *Envelope) HasEgfxSolidFill() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxSolidFill)
+	return ok
+}
+
+func (x *Envelope) HasEgfxSurfaceToCache() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxSurfaceToCache)
+	return ok
+}
+
+func (x *Envelope) HasEgfxCacheToSurface() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxCacheToSurface)
+	return ok
+}
+
+func (x *Envelope) HasEgfxEvictCacheEntry() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxEvictCacheEntry)
+	return ok
+}
+
+func (x *Envelope) HasEgfxSurfaceToSurface() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxSurfaceToSurface)
+	return ok
+}
+
+func (x *Envelope) HasEgfxWireToSurface2() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxWireToSurface2)
+	return ok
+}
+
+func (x *Envelope) HasEgfxDeleteEncodingContext() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxDeleteEncodingContext)
+	return ok
+}
+
+func (x *Envelope) HasEgfxUncompressed() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxUncompressed)
+	return ok
+}
+
+func (x *Envelope) HasEgfxPlanar() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxPlanar)
+	return ok
+}
+
+func (x *Envelope) HasEgfxAvc420() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxAvc420)
+	return ok
+}
+
+func (x *Envelope) HasEgfxEndFrame() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_EgfxEndFrame)
+	return ok
+}
+
 func (x *Envelope) ClearPayload() {
 	x.Payload = nil
 }
@@ -4467,6 +7064,96 @@ func (x *Envelope) ClearSessionEstablishing() {
 	}
 }
 
+func (x *Envelope) ClearRefreshRect() {
+	if _, ok := x.Payload.(*Envelope_RefreshRect); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxBitmap() {
+	if _, ok := x.Payload.(*Envelope_EgfxBitmap); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxAvcFrame() {
+	if _, ok := x.Payload.(*Envelope_EgfxAvcFrame); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxClearCodec() {
+	if _, ok := x.Payload.(*Envelope_EgfxClearCodec); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxSolidFill() {
+	if _, ok := x.Payload.(*Envelope_EgfxSolidFill); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxSurfaceToCache() {
+	if _, ok := x.Payload.(*Envelope_EgfxSurfaceToCache); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxCacheToSurface() {
+	if _, ok := x.Payload.(*Envelope_EgfxCacheToSurface); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxEvictCacheEntry() {
+	if _, ok := x.Payload.(*Envelope_EgfxEvictCacheEntry); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxSurfaceToSurface() {
+	if _, ok := x.Payload.(*Envelope_EgfxSurfaceToSurface); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxWireToSurface2() {
+	if _, ok := x.Payload.(*Envelope_EgfxWireToSurface2); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxDeleteEncodingContext() {
+	if _, ok := x.Payload.(*Envelope_EgfxDeleteEncodingContext); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxUncompressed() {
+	if _, ok := x.Payload.(*Envelope_EgfxUncompressed); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxPlanar() {
+	if _, ok := x.Payload.(*Envelope_EgfxPlanar); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxAvc420() {
+	if _, ok := x.Payload.(*Envelope_EgfxAvc420); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearEgfxEndFrame() {
+	if _, ok := x.Payload.(*Envelope_EgfxEndFrame); ok {
+		x.Payload = nil
+	}
+}
+
 const Envelope_Payload_not_set_case case_Envelope_Payload = 0
 const Envelope_ClientHello_case case_Envelope_Payload = 1
 const Envelope_ServerHello_case case_Envelope_Payload = 2
@@ -4493,6 +7180,21 @@ const Envelope_SessionSelection_case case_Envelope_Payload = 22
 const Envelope_AuthPrompt_case case_Envelope_Payload = 23
 const Envelope_MfaPromptResponse_case case_Envelope_Payload = 24
 const Envelope_SessionEstablishing_case case_Envelope_Payload = 25
+const Envelope_RefreshRect_case case_Envelope_Payload = 26
+const Envelope_EgfxBitmap_case case_Envelope_Payload = 27
+const Envelope_EgfxAvcFrame_case case_Envelope_Payload = 28
+const Envelope_EgfxClearCodec_case case_Envelope_Payload = 29
+const Envelope_EgfxSolidFill_case case_Envelope_Payload = 30
+const Envelope_EgfxSurfaceToCache_case case_Envelope_Payload = 31
+const Envelope_EgfxCacheToSurface_case case_Envelope_Payload = 32
+const Envelope_EgfxEvictCacheEntry_case case_Envelope_Payload = 33
+const Envelope_EgfxSurfaceToSurface_case case_Envelope_Payload = 34
+const Envelope_EgfxWireToSurface2_case case_Envelope_Payload = 35
+const Envelope_EgfxDeleteEncodingContext_case case_Envelope_Payload = 36
+const Envelope_EgfxUncompressed_case case_Envelope_Payload = 37
+const Envelope_EgfxPlanar_case case_Envelope_Payload = 38
+const Envelope_EgfxAvc420_case case_Envelope_Payload = 39
+const Envelope_EgfxEndFrame_case case_Envelope_Payload = 40
 
 func (x *Envelope) WhichPayload() case_Envelope_Payload {
 	if x == nil {
@@ -4549,6 +7251,36 @@ func (x *Envelope) WhichPayload() case_Envelope_Payload {
 		return Envelope_MfaPromptResponse_case
 	case *Envelope_SessionEstablishing:
 		return Envelope_SessionEstablishing_case
+	case *Envelope_RefreshRect:
+		return Envelope_RefreshRect_case
+	case *Envelope_EgfxBitmap:
+		return Envelope_EgfxBitmap_case
+	case *Envelope_EgfxAvcFrame:
+		return Envelope_EgfxAvcFrame_case
+	case *Envelope_EgfxClearCodec:
+		return Envelope_EgfxClearCodec_case
+	case *Envelope_EgfxSolidFill:
+		return Envelope_EgfxSolidFill_case
+	case *Envelope_EgfxSurfaceToCache:
+		return Envelope_EgfxSurfaceToCache_case
+	case *Envelope_EgfxCacheToSurface:
+		return Envelope_EgfxCacheToSurface_case
+	case *Envelope_EgfxEvictCacheEntry:
+		return Envelope_EgfxEvictCacheEntry_case
+	case *Envelope_EgfxSurfaceToSurface:
+		return Envelope_EgfxSurfaceToSurface_case
+	case *Envelope_EgfxWireToSurface2:
+		return Envelope_EgfxWireToSurface2_case
+	case *Envelope_EgfxDeleteEncodingContext:
+		return Envelope_EgfxDeleteEncodingContext_case
+	case *Envelope_EgfxUncompressed:
+		return Envelope_EgfxUncompressed_case
+	case *Envelope_EgfxPlanar:
+		return Envelope_EgfxPlanar_case
+	case *Envelope_EgfxAvc420:
+		return Envelope_EgfxAvc420_case
+	case *Envelope_EgfxEndFrame:
+		return Envelope_EgfxEndFrame_case
 	default:
 		return Envelope_Payload_not_set_case
 	}
@@ -4583,6 +7315,21 @@ type Envelope_builder struct {
 	AuthPrompt                 *AuthPrompt
 	MfaPromptResponse          *MFAPromptResponse
 	SessionEstablishing        *SessionEstablishing
+	RefreshRect                *RefreshRect
+	EgfxBitmap                 *EgfxBitmap
+	EgfxAvcFrame               *EgfxAvcFrame
+	EgfxClearCodec             *EgfxClearCodec
+	EgfxSolidFill              *EgfxSolidFill
+	EgfxSurfaceToCache         *EgfxSurfaceToCache
+	EgfxCacheToSurface         *EgfxCacheToSurface
+	EgfxEvictCacheEntry        *EgfxEvictCacheEntry
+	EgfxSurfaceToSurface       *EgfxSurfaceToSurface
+	EgfxWireToSurface2         *EgfxWireToSurface2
+	EgfxDeleteEncodingContext  *EgfxDeleteEncodingContext
+	EgfxUncompressed           *EgfxUncompressed
+	EgfxPlanar                 *EgfxPlanar
+	EgfxAvc420                 *EgfxAvc420
+	EgfxEndFrame               *EgfxEndFrame
 	// -- end of Payload
 }
 
@@ -4665,13 +7412,58 @@ func (b0 Envelope_builder) Build() *Envelope {
 	if b.SessionEstablishing != nil {
 		x.Payload = &Envelope_SessionEstablishing{b.SessionEstablishing}
 	}
+	if b.RefreshRect != nil {
+		x.Payload = &Envelope_RefreshRect{b.RefreshRect}
+	}
+	if b.EgfxBitmap != nil {
+		x.Payload = &Envelope_EgfxBitmap{b.EgfxBitmap}
+	}
+	if b.EgfxAvcFrame != nil {
+		x.Payload = &Envelope_EgfxAvcFrame{b.EgfxAvcFrame}
+	}
+	if b.EgfxClearCodec != nil {
+		x.Payload = &Envelope_EgfxClearCodec{b.EgfxClearCodec}
+	}
+	if b.EgfxSolidFill != nil {
+		x.Payload = &Envelope_EgfxSolidFill{b.EgfxSolidFill}
+	}
+	if b.EgfxSurfaceToCache != nil {
+		x.Payload = &Envelope_EgfxSurfaceToCache{b.EgfxSurfaceToCache}
+	}
+	if b.EgfxCacheToSurface != nil {
+		x.Payload = &Envelope_EgfxCacheToSurface{b.EgfxCacheToSurface}
+	}
+	if b.EgfxEvictCacheEntry != nil {
+		x.Payload = &Envelope_EgfxEvictCacheEntry{b.EgfxEvictCacheEntry}
+	}
+	if b.EgfxSurfaceToSurface != nil {
+		x.Payload = &Envelope_EgfxSurfaceToSurface{b.EgfxSurfaceToSurface}
+	}
+	if b.EgfxWireToSurface2 != nil {
+		x.Payload = &Envelope_EgfxWireToSurface2{b.EgfxWireToSurface2}
+	}
+	if b.EgfxDeleteEncodingContext != nil {
+		x.Payload = &Envelope_EgfxDeleteEncodingContext{b.EgfxDeleteEncodingContext}
+	}
+	if b.EgfxUncompressed != nil {
+		x.Payload = &Envelope_EgfxUncompressed{b.EgfxUncompressed}
+	}
+	if b.EgfxPlanar != nil {
+		x.Payload = &Envelope_EgfxPlanar{b.EgfxPlanar}
+	}
+	if b.EgfxAvc420 != nil {
+		x.Payload = &Envelope_EgfxAvc420{b.EgfxAvc420}
+	}
+	if b.EgfxEndFrame != nil {
+		x.Payload = &Envelope_EgfxEndFrame{b.EgfxEndFrame}
+	}
 	return m0
 }
 
 type case_Envelope_Payload protoreflect.FieldNumber
 
 func (x case_Envelope_Payload) String() string {
-	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[31].Descriptor()
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[49].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -4782,6 +7574,66 @@ type Envelope_SessionEstablishing struct {
 	SessionEstablishing *SessionEstablishing `protobuf:"bytes,25,opt,name=session_establishing,json=sessionEstablishing,proto3,oneof"`
 }
 
+type Envelope_RefreshRect struct {
+	RefreshRect *RefreshRect `protobuf:"bytes,26,opt,name=refresh_rect,json=refreshRect,proto3,oneof"`
+}
+
+type Envelope_EgfxBitmap struct {
+	EgfxBitmap *EgfxBitmap `protobuf:"bytes,27,opt,name=egfx_bitmap,json=egfxBitmap,proto3,oneof"`
+}
+
+type Envelope_EgfxAvcFrame struct {
+	EgfxAvcFrame *EgfxAvcFrame `protobuf:"bytes,28,opt,name=egfx_avc_frame,json=egfxAvcFrame,proto3,oneof"`
+}
+
+type Envelope_EgfxClearCodec struct {
+	EgfxClearCodec *EgfxClearCodec `protobuf:"bytes,29,opt,name=egfx_clear_codec,json=egfxClearCodec,proto3,oneof"`
+}
+
+type Envelope_EgfxSolidFill struct {
+	EgfxSolidFill *EgfxSolidFill `protobuf:"bytes,30,opt,name=egfx_solid_fill,json=egfxSolidFill,proto3,oneof"`
+}
+
+type Envelope_EgfxSurfaceToCache struct {
+	EgfxSurfaceToCache *EgfxSurfaceToCache `protobuf:"bytes,31,opt,name=egfx_surface_to_cache,json=egfxSurfaceToCache,proto3,oneof"`
+}
+
+type Envelope_EgfxCacheToSurface struct {
+	EgfxCacheToSurface *EgfxCacheToSurface `protobuf:"bytes,32,opt,name=egfx_cache_to_surface,json=egfxCacheToSurface,proto3,oneof"`
+}
+
+type Envelope_EgfxEvictCacheEntry struct {
+	EgfxEvictCacheEntry *EgfxEvictCacheEntry `protobuf:"bytes,33,opt,name=egfx_evict_cache_entry,json=egfxEvictCacheEntry,proto3,oneof"`
+}
+
+type Envelope_EgfxSurfaceToSurface struct {
+	EgfxSurfaceToSurface *EgfxSurfaceToSurface `protobuf:"bytes,34,opt,name=egfx_surface_to_surface,json=egfxSurfaceToSurface,proto3,oneof"`
+}
+
+type Envelope_EgfxWireToSurface2 struct {
+	EgfxWireToSurface2 *EgfxWireToSurface2 `protobuf:"bytes,35,opt,name=egfx_wire_to_surface2,json=egfxWireToSurface2,proto3,oneof"`
+}
+
+type Envelope_EgfxDeleteEncodingContext struct {
+	EgfxDeleteEncodingContext *EgfxDeleteEncodingContext `protobuf:"bytes,36,opt,name=egfx_delete_encoding_context,json=egfxDeleteEncodingContext,proto3,oneof"`
+}
+
+type Envelope_EgfxUncompressed struct {
+	EgfxUncompressed *EgfxUncompressed `protobuf:"bytes,37,opt,name=egfx_uncompressed,json=egfxUncompressed,proto3,oneof"`
+}
+
+type Envelope_EgfxPlanar struct {
+	EgfxPlanar *EgfxPlanar `protobuf:"bytes,38,opt,name=egfx_planar,json=egfxPlanar,proto3,oneof"`
+}
+
+type Envelope_EgfxAvc420 struct {
+	EgfxAvc420 *EgfxAvc420 `protobuf:"bytes,39,opt,name=egfx_avc420,json=egfxAvc420,proto3,oneof"`
+}
+
+type Envelope_EgfxEndFrame struct {
+	EgfxEndFrame *EgfxEndFrame `protobuf:"bytes,40,opt,name=egfx_end_frame,json=egfxEndFrame,proto3,oneof"`
+}
+
 func (*Envelope_ClientHello) isEnvelope_Payload() {}
 
 func (*Envelope_ServerHello) isEnvelope_Payload() {}
@@ -4832,6 +7684,36 @@ func (*Envelope_MfaPromptResponse) isEnvelope_Payload() {}
 
 func (*Envelope_SessionEstablishing) isEnvelope_Payload() {}
 
+func (*Envelope_RefreshRect) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxBitmap) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxAvcFrame) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxClearCodec) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxSolidFill) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxSurfaceToCache) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxCacheToSurface) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxEvictCacheEntry) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxSurfaceToSurface) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxWireToSurface2) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxDeleteEncodingContext) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxUncompressed) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxPlanar) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxAvc420) isEnvelope_Payload() {}
+
+func (*Envelope_EgfxEndFrame) isEnvelope_Payload() {}
+
 // Info request.
 type SharedDirectoryRequest_Info struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -4842,7 +7724,7 @@ type SharedDirectoryRequest_Info struct {
 
 func (x *SharedDirectoryRequest_Info) Reset() {
 	*x = SharedDirectoryRequest_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4854,7 +7736,7 @@ func (x *SharedDirectoryRequest_Info) String() string {
 func (*SharedDirectoryRequest_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[32]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4901,7 +7783,7 @@ type SharedDirectoryRequest_Create struct {
 
 func (x *SharedDirectoryRequest_Create) Reset() {
 	*x = SharedDirectoryRequest_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4913,7 +7795,7 @@ func (x *SharedDirectoryRequest_Create) String() string {
 func (*SharedDirectoryRequest_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[33]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4972,7 +7854,7 @@ type SharedDirectoryRequest_Delete struct {
 
 func (x *SharedDirectoryRequest_Delete) Reset() {
 	*x = SharedDirectoryRequest_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4984,7 +7866,7 @@ func (x *SharedDirectoryRequest_Delete) String() string {
 func (*SharedDirectoryRequest_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[34]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5030,7 +7912,7 @@ type SharedDirectoryRequest_List struct {
 
 func (x *SharedDirectoryRequest_List) Reset() {
 	*x = SharedDirectoryRequest_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5042,7 +7924,7 @@ func (x *SharedDirectoryRequest_List) String() string {
 func (*SharedDirectoryRequest_List) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[35]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5090,7 +7972,7 @@ type SharedDirectoryRequest_Read struct {
 
 func (x *SharedDirectoryRequest_Read) Reset() {
 	*x = SharedDirectoryRequest_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5102,7 +7984,7 @@ func (x *SharedDirectoryRequest_Read) String() string {
 func (*SharedDirectoryRequest_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[36]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5176,7 +8058,7 @@ type SharedDirectoryRequest_Write struct {
 
 func (x *SharedDirectoryRequest_Write) Reset() {
 	*x = SharedDirectoryRequest_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5188,7 +8070,7 @@ func (x *SharedDirectoryRequest_Write) String() string {
 func (*SharedDirectoryRequest_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[37]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5264,7 +8146,7 @@ type SharedDirectoryRequest_Move struct {
 
 func (x *SharedDirectoryRequest_Move) Reset() {
 	*x = SharedDirectoryRequest_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5276,7 +8158,7 @@ func (x *SharedDirectoryRequest_Move) String() string {
 func (*SharedDirectoryRequest_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[38]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5336,7 +8218,7 @@ type SharedDirectoryRequest_Truncate struct {
 
 func (x *SharedDirectoryRequest_Truncate) Reset() {
 	*x = SharedDirectoryRequest_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5348,7 +8230,7 @@ func (x *SharedDirectoryRequest_Truncate) String() string {
 func (*SharedDirectoryRequest_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryRequest_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[39]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5407,7 +8289,7 @@ type SharedDirectoryResponse_Info struct {
 
 func (x *SharedDirectoryResponse_Info) Reset() {
 	*x = SharedDirectoryResponse_Info{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5419,7 +8301,7 @@ func (x *SharedDirectoryResponse_Info) String() string {
 func (*SharedDirectoryResponse_Info) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Info) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[40]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5476,7 +8358,7 @@ type SharedDirectoryResponse_Create struct {
 
 func (x *SharedDirectoryResponse_Create) Reset() {
 	*x = SharedDirectoryResponse_Create{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5488,7 +8370,7 @@ func (x *SharedDirectoryResponse_Create) String() string {
 func (*SharedDirectoryResponse_Create) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Create) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[41]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5544,7 +8426,7 @@ type SharedDirectoryResponse_Delete struct {
 
 func (x *SharedDirectoryResponse_Delete) Reset() {
 	*x = SharedDirectoryResponse_Delete{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5556,7 +8438,7 @@ func (x *SharedDirectoryResponse_Delete) String() string {
 func (*SharedDirectoryResponse_Delete) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[42]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5589,7 +8471,7 @@ type SharedDirectoryResponse_List struct {
 
 func (x *SharedDirectoryResponse_List) Reset() {
 	*x = SharedDirectoryResponse_List{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5601,7 +8483,7 @@ func (x *SharedDirectoryResponse_List) String() string {
 func (*SharedDirectoryResponse_List) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_List) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[43]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5647,7 +8529,7 @@ type SharedDirectoryResponse_Read struct {
 
 func (x *SharedDirectoryResponse_Read) Reset() {
 	*x = SharedDirectoryResponse_Read{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5659,7 +8541,7 @@ func (x *SharedDirectoryResponse_Read) String() string {
 func (*SharedDirectoryResponse_Read) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[44]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5708,7 +8590,7 @@ type SharedDirectoryResponse_Write struct {
 
 func (x *SharedDirectoryResponse_Write) Reset() {
 	*x = SharedDirectoryResponse_Write{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5720,7 +8602,7 @@ func (x *SharedDirectoryResponse_Write) String() string {
 func (*SharedDirectoryResponse_Write) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Write) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[45]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5765,7 +8647,7 @@ type SharedDirectoryResponse_Move struct {
 
 func (x *SharedDirectoryResponse_Move) Reset() {
 	*x = SharedDirectoryResponse_Move{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5777,7 +8659,7 @@ func (x *SharedDirectoryResponse_Move) String() string {
 func (*SharedDirectoryResponse_Move) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Move) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[46]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5809,7 +8691,7 @@ type SharedDirectoryResponse_Truncate struct {
 
 func (x *SharedDirectoryResponse_Truncate) Reset() {
 	*x = SharedDirectoryResponse_Truncate{}
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5821,7 +8703,7 @@ func (x *SharedDirectoryResponse_Truncate) String() string {
 func (*SharedDirectoryResponse_Truncate) ProtoMessage() {}
 
 func (x *SharedDirectoryResponse_Truncate) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[47]
+	mi := &file_teleport_desktop_v1_tdpb_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5853,14 +8735,15 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x82\x03\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xba\x03\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
 	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\x12B\n" +
 	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\x12'\n" +
 	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\x12H\n" +
-	" multidirectory_sharing_supported\x18\x06 \x01(\bR\x1emultidirectorySharingSupported\"'\n" +
+	" multidirectory_sharing_supported\x18\x06 \x01(\bR\x1emultidirectorySharingSupported\x126\n" +
+	"\x17multi_monitor_supported\x18\a \x01(\bR\x15multiMonitorSupported\"'\n" +
 	"\x11SessionIdentifier\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"T\n" +
 	"\x10SessionSelection\x12@\n" +
@@ -5874,7 +8757,120 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\vcoordinates\x18\x01 \x01(\v2\x1e.teleport.desktop.v1.RectangleR\vcoordinates\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\"\x1f\n" +
 	"\vFastPathPDU\x12\x10\n" +
-	"\x03pdu\x18\x01 \x01(\fR\x03pdu\",\n" +
+	"\x03pdu\x18\x01 \x01(\fR\x03pdu\"\x88\x01\n" +
+	"\n" +
+	"EgfxBitmap\x12\x1b\n" +
+	"\tdesktop_x\x18\x01 \x01(\rR\bdesktopX\x12\x1b\n" +
+	"\tdesktop_y\x18\x02 \x01(\rR\bdesktopY\x12\x14\n" +
+	"\x05width\x18\x03 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x04 \x01(\rR\x06height\x12\x12\n" +
+	"\x04rgba\x18\x05 \x01(\fR\x04rgba\"\x9c\x02\n" +
+	"\fEgfxAvcFrame\x12\x1b\n" +
+	"\tdesktop_x\x18\x01 \x01(\rR\bdesktopX\x12\x1b\n" +
+	"\tdesktop_y\x18\x02 \x01(\rR\bdesktopY\x12\x1d\n" +
+	"\n" +
+	"dest_width\x18\x03 \x01(\rR\tdestWidth\x12\x1f\n" +
+	"\vdest_height\x18\x04 \x01(\rR\n" +
+	"destHeight\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x05 \x01(\rR\tsurfaceId\x12\x19\n" +
+	"\bcodec_id\x18\x06 \x01(\rR\acodecId\x12\x1a\n" +
+	"\bencoding\x18\a \x01(\rR\bencoding\x12\x1b\n" +
+	"\tluma_h264\x18\b \x01(\fR\blumaH264\x12\x1f\n" +
+	"\vchroma_h264\x18\t \x01(\fR\n" +
+	"chromaH264\"\xa6\x01\n" +
+	"\x0eEgfxClearCodec\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x15\n" +
+	"\x06dest_x\x18\x02 \x01(\x05R\x05destX\x12\x15\n" +
+	"\x06dest_y\x18\x03 \x01(\x05R\x05destY\x12\x14\n" +
+	"\x05width\x18\x04 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x05 \x01(\rR\x06height\x12\x19\n" +
+	"\bpdu_data\x18\x06 \x01(\fR\apduData\"\xa2\x01\n" +
+	"\n" +
+	"EgfxPlanar\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x15\n" +
+	"\x06dest_x\x18\x02 \x01(\x05R\x05destX\x12\x15\n" +
+	"\x06dest_y\x18\x03 \x01(\x05R\x05destY\x12\x14\n" +
+	"\x05width\x18\x04 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x05 \x01(\rR\x06height\x12\x19\n" +
+	"\bpdu_data\x18\x06 \x01(\fR\apduData\"\xa2\x01\n" +
+	"\n" +
+	"EgfxAvc420\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x15\n" +
+	"\x06dest_x\x18\x02 \x01(\x05R\x05destX\x12\x15\n" +
+	"\x06dest_y\x18\x03 \x01(\x05R\x05destY\x12\x14\n" +
+	"\x05width\x18\x04 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x05 \x01(\rR\x06height\x12\x19\n" +
+	"\bpdu_data\x18\x06 \x01(\fR\apduData\"\xd1\x01\n" +
+	"\x10EgfxUncompressed\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x15\n" +
+	"\x06dest_x\x18\x02 \x01(\x05R\x05destX\x12\x15\n" +
+	"\x06dest_y\x18\x03 \x01(\x05R\x05destY\x12\x14\n" +
+	"\x05width\x18\x04 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x05 \x01(\rR\x06height\x12!\n" +
+	"\fpixel_format\x18\x06 \x01(\rR\vpixelFormat\x12\x1f\n" +
+	"\vbitmap_data\x18\a \x01(\fR\n" +
+	"bitmapData\"^\n" +
+	"\bEgfxRect\x12\x12\n" +
+	"\x04left\x18\x01 \x01(\rR\x04left\x12\x10\n" +
+	"\x03top\x18\x02 \x01(\rR\x03top\x12\x14\n" +
+	"\x05right\x18\x03 \x01(\rR\x05right\x12\x16\n" +
+	"\x06bottom\x18\x04 \x01(\rR\x06bottom\"'\n" +
+	"\tEgfxPoint\x12\f\n" +
+	"\x01x\x18\x01 \x01(\rR\x01x\x12\f\n" +
+	"\x01y\x18\x02 \x01(\rR\x01y\"\xae\x01\n" +
+	"\rEgfxSolidFill\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x17\n" +
+	"\acolor_b\x18\x02 \x01(\rR\x06colorB\x12\x17\n" +
+	"\acolor_g\x18\x03 \x01(\rR\x06colorG\x12\x17\n" +
+	"\acolor_r\x18\x04 \x01(\rR\x06colorR\x123\n" +
+	"\x05rects\x18\x05 \x03(\v2\x1d.teleport.desktop.v1.EgfxRectR\x05rects\"\xaf\x01\n" +
+	"\x12EgfxSurfaceToCache\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x1b\n" +
+	"\tcache_key\x18\x02 \x01(\x04R\bcacheKey\x12\x1d\n" +
+	"\n" +
+	"cache_slot\x18\x03 \x01(\rR\tcacheSlot\x12>\n" +
+	"\vsource_rect\x18\x04 \x01(\v2\x1d.teleport.desktop.v1.EgfxRectR\n" +
+	"sourceRect\"\x93\x01\n" +
+	"\x12EgfxCacheToSurface\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x1d\n" +
+	"\n" +
+	"cache_slot\x18\x02 \x01(\rR\tcacheSlot\x12?\n" +
+	"\vdest_points\x18\x03 \x03(\v2\x1e.teleport.desktop.v1.EgfxPointR\n" +
+	"destPoints\"4\n" +
+	"\x13EgfxEvictCacheEntry\x12\x1d\n" +
+	"\n" +
+	"cache_slot\x18\x01 \x01(\rR\tcacheSlot\"\xf9\x01\n" +
+	"\x14EgfxSurfaceToSurface\x12*\n" +
+	"\x11source_surface_id\x18\x01 \x01(\rR\x0fsourceSurfaceId\x124\n" +
+	"\x16destination_surface_id\x18\x02 \x01(\rR\x14destinationSurfaceId\x12>\n" +
+	"\vsource_rect\x18\x03 \x01(\v2\x1d.teleport.desktop.v1.EgfxRectR\n" +
+	"sourceRect\x12?\n" +
+	"\vdest_points\x18\x04 \x03(\v2\x1e.teleport.desktop.v1.EgfxPointR\n" +
+	"destPoints\"\x90\x02\n" +
+	"\x12EgfxWireToSurface2\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12\x19\n" +
+	"\bcodec_id\x18\x02 \x01(\rR\acodecId\x12(\n" +
+	"\x10codec_context_id\x18\x03 \x01(\rR\x0ecodecContextId\x12!\n" +
+	"\fpixel_format\x18\x04 \x01(\rR\vpixelFormat\x12(\n" +
+	"\x10surface_origin_x\x18\x05 \x01(\rR\x0esurfaceOriginX\x12(\n" +
+	"\x10surface_origin_y\x18\x06 \x01(\rR\x0esurfaceOriginY\x12\x1f\n" +
+	"\vbitmap_data\x18\a \x01(\fR\n" +
+	"bitmapData\"d\n" +
+	"\x19EgfxDeleteEncodingContext\x12\x1d\n" +
+	"\n" +
+	"surface_id\x18\x01 \x01(\rR\tsurfaceId\x12(\n" +
+	"\x10codec_context_id\x18\x02 \x01(\rR\x0ecodecContextId\")\n" +
+	"\fEgfxEndFrame\x12\x19\n" +
+	"\bframe_id\x18\x01 \x01(\rR\aframeId\",\n" +
 	"\x0eRDPResponsePDU\x12\x1a\n" +
 	"\bresponse\x18\x01 \x01(\fR\bresponse\"\xc4\x01\n" +
 	"\x13ConnectionActivated\x12\"\n" +
@@ -5896,11 +8892,19 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\apressed\x18\x02 \x01(\bR\apressed\"E\n" +
 	"\x0eKeyboardButton\x12\x19\n" +
 	"\bkey_code\x18\x01 \x01(\rR\akeyCode\x12\x18\n" +
-	"\apressed\x18\x02 \x01(\bR\apressed\"V\n" +
+	"\apressed\x18\x02 \x01(\bR\apressed\"x\n" +
+	"\rMonitorLayout\x12\f\n" +
+	"\x01x\x18\x01 \x01(\x05R\x01x\x12\f\n" +
+	"\x01y\x18\x02 \x01(\x05R\x01y\x12\x14\n" +
+	"\x05width\x18\x03 \x01(\rR\x05width\x12\x16\n" +
+	"\x06height\x18\x04 \x01(\rR\x06height\x12\x1d\n" +
+	"\n" +
+	"is_primary\x18\x05 \x01(\bR\tisPrimary\"\x96\x01\n" +
 	"\x10ClientScreenSpec\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\rR\x05width\x12\x16\n" +
 	"\x06height\x18\x02 \x01(\rR\x06height\x12\x14\n" +
-	"\x05scale\x18\x03 \x01(\rR\x05scale\"a\n" +
+	"\x05scale\x18\x03 \x01(\rR\x05scale\x12>\n" +
+	"\bmonitors\x18\x04 \x03(\v2\".teleport.desktop.v1.MonitorLayoutR\bmonitors\"a\n" +
 	"\x05Alert\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12>\n" +
 	"\bseverity\x18\x02 \x01(\x0e2\".teleport.desktop.v1.AlertSeverityR\bseverity\"[\n" +
@@ -6013,7 +9017,12 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\bresponse\"C\n" +
 	"\x1aMFAPromptResponseReference\x12%\n" +
 	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeName\"\x15\n" +
-	"\x13SessionEstablishing\"\xc4\x0f\n" +
+	"\x13SessionEstablishing\"a\n" +
+	"\vRefreshRect\x12\x12\n" +
+	"\x04left\x18\x01 \x01(\rR\x04left\x12\x10\n" +
+	"\x03top\x18\x02 \x01(\rR\x03top\x12\x14\n" +
+	"\x05right\x18\x03 \x01(\rR\x05right\x12\x16\n" +
+	"\x06bottom\x18\x04 \x01(\rR\x06bottom\"\xb4\x19\n" +
 	"\bEnvelope\x12E\n" +
 	"\fclient_hello\x18\x01 \x01(\v2 .teleport.desktop.v1.ClientHelloH\x00R\vclientHello\x12E\n" +
 	"\fserver_hello\x18\x02 \x01(\v2 .teleport.desktop.v1.ServerHelloH\x00R\vserverHello\x12<\n" +
@@ -6043,7 +9052,25 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\vauth_prompt\x18\x17 \x01(\v2\x1f.teleport.desktop.v1.AuthPromptH\x00R\n" +
 	"authPrompt\x12X\n" +
 	"\x13mfa_prompt_response\x18\x18 \x01(\v2&.teleport.desktop.v1.MFAPromptResponseH\x00R\x11mfaPromptResponse\x12]\n" +
-	"\x14session_establishing\x18\x19 \x01(\v2(.teleport.desktop.v1.SessionEstablishingH\x00R\x13sessionEstablishingB\t\n" +
+	"\x14session_establishing\x18\x19 \x01(\v2(.teleport.desktop.v1.SessionEstablishingH\x00R\x13sessionEstablishing\x12E\n" +
+	"\frefresh_rect\x18\x1a \x01(\v2 .teleport.desktop.v1.RefreshRectH\x00R\vrefreshRect\x12B\n" +
+	"\vegfx_bitmap\x18\x1b \x01(\v2\x1f.teleport.desktop.v1.EgfxBitmapH\x00R\n" +
+	"egfxBitmap\x12I\n" +
+	"\x0eegfx_avc_frame\x18\x1c \x01(\v2!.teleport.desktop.v1.EgfxAvcFrameH\x00R\fegfxAvcFrame\x12O\n" +
+	"\x10egfx_clear_codec\x18\x1d \x01(\v2#.teleport.desktop.v1.EgfxClearCodecH\x00R\x0eegfxClearCodec\x12L\n" +
+	"\x0fegfx_solid_fill\x18\x1e \x01(\v2\".teleport.desktop.v1.EgfxSolidFillH\x00R\regfxSolidFill\x12\\\n" +
+	"\x15egfx_surface_to_cache\x18\x1f \x01(\v2'.teleport.desktop.v1.EgfxSurfaceToCacheH\x00R\x12egfxSurfaceToCache\x12\\\n" +
+	"\x15egfx_cache_to_surface\x18  \x01(\v2'.teleport.desktop.v1.EgfxCacheToSurfaceH\x00R\x12egfxCacheToSurface\x12_\n" +
+	"\x16egfx_evict_cache_entry\x18! \x01(\v2(.teleport.desktop.v1.EgfxEvictCacheEntryH\x00R\x13egfxEvictCacheEntry\x12b\n" +
+	"\x17egfx_surface_to_surface\x18\" \x01(\v2).teleport.desktop.v1.EgfxSurfaceToSurfaceH\x00R\x14egfxSurfaceToSurface\x12\\\n" +
+	"\x15egfx_wire_to_surface2\x18# \x01(\v2'.teleport.desktop.v1.EgfxWireToSurface2H\x00R\x12egfxWireToSurface2\x12q\n" +
+	"\x1cegfx_delete_encoding_context\x18$ \x01(\v2..teleport.desktop.v1.EgfxDeleteEncodingContextH\x00R\x19egfxDeleteEncodingContext\x12T\n" +
+	"\x11egfx_uncompressed\x18% \x01(\v2%.teleport.desktop.v1.EgfxUncompressedH\x00R\x10egfxUncompressed\x12B\n" +
+	"\vegfx_planar\x18& \x01(\v2\x1f.teleport.desktop.v1.EgfxPlanarH\x00R\n" +
+	"egfxPlanar\x12B\n" +
+	"\vegfx_avc420\x18' \x01(\v2\x1f.teleport.desktop.v1.EgfxAvc420H\x00R\n" +
+	"egfxAvc420\x12I\n" +
+	"\x0eegfx_end_frame\x18( \x01(\v2!.teleport.desktop.v1.EgfxEndFrameH\x00R\fegfxEndFrameB\t\n" +
 	"\apayload*\x8b\x01\n" +
 	"\x0fMouseButtonType\x12!\n" +
 	"\x1dMOUSE_BUTTON_TYPE_UNSPECIFIED\x10\x00\x12\x1a\n" +
@@ -6065,7 +9092,7 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\fMFA_TYPE_U2F\x10\x02BOZMgithub.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1b\x06proto3"
 
 var file_teleport_desktop_v1_tdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
+var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
 var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(MouseButtonType)(0),                     // 0: teleport.desktop.v1.MouseButtonType
 	(AlertSeverity)(0),                       // 1: teleport.desktop.v1.AlertSeverity
@@ -6078,113 +9105,152 @@ var file_teleport_desktop_v1_tdpb_proto_goTypes = []any{
 	(*Rectangle)(nil),                        // 8: teleport.desktop.v1.Rectangle
 	(*PNGFrame)(nil),                         // 9: teleport.desktop.v1.PNGFrame
 	(*FastPathPDU)(nil),                      // 10: teleport.desktop.v1.FastPathPDU
-	(*RDPResponsePDU)(nil),                   // 11: teleport.desktop.v1.RDPResponsePDU
-	(*ConnectionActivated)(nil),              // 12: teleport.desktop.v1.ConnectionActivated
-	(*SyncKeys)(nil),                         // 13: teleport.desktop.v1.SyncKeys
-	(*MouseMove)(nil),                        // 14: teleport.desktop.v1.MouseMove
-	(*MouseButton)(nil),                      // 15: teleport.desktop.v1.MouseButton
-	(*KeyboardButton)(nil),                   // 16: teleport.desktop.v1.KeyboardButton
-	(*ClientScreenSpec)(nil),                 // 17: teleport.desktop.v1.ClientScreenSpec
-	(*Alert)(nil),                            // 18: teleport.desktop.v1.Alert
-	(*MouseWheel)(nil),                       // 19: teleport.desktop.v1.MouseWheel
-	(*ClipboardData)(nil),                    // 20: teleport.desktop.v1.ClipboardData
-	(*MFA)(nil),                              // 21: teleport.desktop.v1.MFA
-	(*SharedDirectoryAnnounce)(nil),          // 22: teleport.desktop.v1.SharedDirectoryAnnounce
-	(*SharedDirectoryRemove)(nil),            // 23: teleport.desktop.v1.SharedDirectoryRemove
-	(*SharedDirectoryAcknowledge)(nil),       // 24: teleport.desktop.v1.SharedDirectoryAcknowledge
-	(*SharedDirectoryRequest)(nil),           // 25: teleport.desktop.v1.SharedDirectoryRequest
-	(*SharedDirectoryResponse)(nil),          // 26: teleport.desktop.v1.SharedDirectoryResponse
-	(*FileSystemObject)(nil),                 // 27: teleport.desktop.v1.FileSystemObject
-	(*LatencyStats)(nil),                     // 28: teleport.desktop.v1.LatencyStats
-	(*Ping)(nil),                             // 29: teleport.desktop.v1.Ping
-	(*AuthPrompt)(nil),                       // 30: teleport.desktop.v1.AuthPrompt
-	(*MFAPrompt)(nil),                        // 31: teleport.desktop.v1.MFAPrompt
-	(*MFAPromptResponse)(nil),                // 32: teleport.desktop.v1.MFAPromptResponse
-	(*MFAPromptResponseReference)(nil),       // 33: teleport.desktop.v1.MFAPromptResponseReference
-	(*SessionEstablishing)(nil),              // 34: teleport.desktop.v1.SessionEstablishing
-	(*Envelope)(nil),                         // 35: teleport.desktop.v1.Envelope
-	(*SharedDirectoryRequest_Info)(nil),      // 36: teleport.desktop.v1.SharedDirectoryRequest.Info
-	(*SharedDirectoryRequest_Create)(nil),    // 37: teleport.desktop.v1.SharedDirectoryRequest.Create
-	(*SharedDirectoryRequest_Delete)(nil),    // 38: teleport.desktop.v1.SharedDirectoryRequest.Delete
-	(*SharedDirectoryRequest_List)(nil),      // 39: teleport.desktop.v1.SharedDirectoryRequest.List
-	(*SharedDirectoryRequest_Read)(nil),      // 40: teleport.desktop.v1.SharedDirectoryRequest.Read
-	(*SharedDirectoryRequest_Write)(nil),     // 41: teleport.desktop.v1.SharedDirectoryRequest.Write
-	(*SharedDirectoryRequest_Move)(nil),      // 42: teleport.desktop.v1.SharedDirectoryRequest.Move
-	(*SharedDirectoryRequest_Truncate)(nil),  // 43: teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	(*SharedDirectoryResponse_Info)(nil),     // 44: teleport.desktop.v1.SharedDirectoryResponse.Info
-	(*SharedDirectoryResponse_Create)(nil),   // 45: teleport.desktop.v1.SharedDirectoryResponse.Create
-	(*SharedDirectoryResponse_Delete)(nil),   // 46: teleport.desktop.v1.SharedDirectoryResponse.Delete
-	(*SharedDirectoryResponse_List)(nil),     // 47: teleport.desktop.v1.SharedDirectoryResponse.List
-	(*SharedDirectoryResponse_Read)(nil),     // 48: teleport.desktop.v1.SharedDirectoryResponse.Read
-	(*SharedDirectoryResponse_Write)(nil),    // 49: teleport.desktop.v1.SharedDirectoryResponse.Write
-	(*SharedDirectoryResponse_Move)(nil),     // 50: teleport.desktop.v1.SharedDirectoryResponse.Move
-	(*SharedDirectoryResponse_Truncate)(nil), // 51: teleport.desktop.v1.SharedDirectoryResponse.Truncate
-	(*v1.AuthenticateChallenge)(nil),         // 52: teleport.mfa.v1.AuthenticateChallenge
-	(*v1.AuthenticateResponse)(nil),          // 53: teleport.mfa.v1.AuthenticateResponse
+	(*EgfxBitmap)(nil),                       // 11: teleport.desktop.v1.EgfxBitmap
+	(*EgfxAvcFrame)(nil),                     // 12: teleport.desktop.v1.EgfxAvcFrame
+	(*EgfxClearCodec)(nil),                   // 13: teleport.desktop.v1.EgfxClearCodec
+	(*EgfxPlanar)(nil),                       // 14: teleport.desktop.v1.EgfxPlanar
+	(*EgfxAvc420)(nil),                       // 15: teleport.desktop.v1.EgfxAvc420
+	(*EgfxUncompressed)(nil),                 // 16: teleport.desktop.v1.EgfxUncompressed
+	(*EgfxRect)(nil),                         // 17: teleport.desktop.v1.EgfxRect
+	(*EgfxPoint)(nil),                        // 18: teleport.desktop.v1.EgfxPoint
+	(*EgfxSolidFill)(nil),                    // 19: teleport.desktop.v1.EgfxSolidFill
+	(*EgfxSurfaceToCache)(nil),               // 20: teleport.desktop.v1.EgfxSurfaceToCache
+	(*EgfxCacheToSurface)(nil),               // 21: teleport.desktop.v1.EgfxCacheToSurface
+	(*EgfxEvictCacheEntry)(nil),              // 22: teleport.desktop.v1.EgfxEvictCacheEntry
+	(*EgfxSurfaceToSurface)(nil),             // 23: teleport.desktop.v1.EgfxSurfaceToSurface
+	(*EgfxWireToSurface2)(nil),               // 24: teleport.desktop.v1.EgfxWireToSurface2
+	(*EgfxDeleteEncodingContext)(nil),        // 25: teleport.desktop.v1.EgfxDeleteEncodingContext
+	(*EgfxEndFrame)(nil),                     // 26: teleport.desktop.v1.EgfxEndFrame
+	(*RDPResponsePDU)(nil),                   // 27: teleport.desktop.v1.RDPResponsePDU
+	(*ConnectionActivated)(nil),              // 28: teleport.desktop.v1.ConnectionActivated
+	(*SyncKeys)(nil),                         // 29: teleport.desktop.v1.SyncKeys
+	(*MouseMove)(nil),                        // 30: teleport.desktop.v1.MouseMove
+	(*MouseButton)(nil),                      // 31: teleport.desktop.v1.MouseButton
+	(*KeyboardButton)(nil),                   // 32: teleport.desktop.v1.KeyboardButton
+	(*MonitorLayout)(nil),                    // 33: teleport.desktop.v1.MonitorLayout
+	(*ClientScreenSpec)(nil),                 // 34: teleport.desktop.v1.ClientScreenSpec
+	(*Alert)(nil),                            // 35: teleport.desktop.v1.Alert
+	(*MouseWheel)(nil),                       // 36: teleport.desktop.v1.MouseWheel
+	(*ClipboardData)(nil),                    // 37: teleport.desktop.v1.ClipboardData
+	(*MFA)(nil),                              // 38: teleport.desktop.v1.MFA
+	(*SharedDirectoryAnnounce)(nil),          // 39: teleport.desktop.v1.SharedDirectoryAnnounce
+	(*SharedDirectoryRemove)(nil),            // 40: teleport.desktop.v1.SharedDirectoryRemove
+	(*SharedDirectoryAcknowledge)(nil),       // 41: teleport.desktop.v1.SharedDirectoryAcknowledge
+	(*SharedDirectoryRequest)(nil),           // 42: teleport.desktop.v1.SharedDirectoryRequest
+	(*SharedDirectoryResponse)(nil),          // 43: teleport.desktop.v1.SharedDirectoryResponse
+	(*FileSystemObject)(nil),                 // 44: teleport.desktop.v1.FileSystemObject
+	(*LatencyStats)(nil),                     // 45: teleport.desktop.v1.LatencyStats
+	(*Ping)(nil),                             // 46: teleport.desktop.v1.Ping
+	(*AuthPrompt)(nil),                       // 47: teleport.desktop.v1.AuthPrompt
+	(*MFAPrompt)(nil),                        // 48: teleport.desktop.v1.MFAPrompt
+	(*MFAPromptResponse)(nil),                // 49: teleport.desktop.v1.MFAPromptResponse
+	(*MFAPromptResponseReference)(nil),       // 50: teleport.desktop.v1.MFAPromptResponseReference
+	(*SessionEstablishing)(nil),              // 51: teleport.desktop.v1.SessionEstablishing
+	(*RefreshRect)(nil),                      // 52: teleport.desktop.v1.RefreshRect
+	(*Envelope)(nil),                         // 53: teleport.desktop.v1.Envelope
+	(*SharedDirectoryRequest_Info)(nil),      // 54: teleport.desktop.v1.SharedDirectoryRequest.Info
+	(*SharedDirectoryRequest_Create)(nil),    // 55: teleport.desktop.v1.SharedDirectoryRequest.Create
+	(*SharedDirectoryRequest_Delete)(nil),    // 56: teleport.desktop.v1.SharedDirectoryRequest.Delete
+	(*SharedDirectoryRequest_List)(nil),      // 57: teleport.desktop.v1.SharedDirectoryRequest.List
+	(*SharedDirectoryRequest_Read)(nil),      // 58: teleport.desktop.v1.SharedDirectoryRequest.Read
+	(*SharedDirectoryRequest_Write)(nil),     // 59: teleport.desktop.v1.SharedDirectoryRequest.Write
+	(*SharedDirectoryRequest_Move)(nil),      // 60: teleport.desktop.v1.SharedDirectoryRequest.Move
+	(*SharedDirectoryRequest_Truncate)(nil),  // 61: teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	(*SharedDirectoryResponse_Info)(nil),     // 62: teleport.desktop.v1.SharedDirectoryResponse.Info
+	(*SharedDirectoryResponse_Create)(nil),   // 63: teleport.desktop.v1.SharedDirectoryResponse.Create
+	(*SharedDirectoryResponse_Delete)(nil),   // 64: teleport.desktop.v1.SharedDirectoryResponse.Delete
+	(*SharedDirectoryResponse_List)(nil),     // 65: teleport.desktop.v1.SharedDirectoryResponse.List
+	(*SharedDirectoryResponse_Read)(nil),     // 66: teleport.desktop.v1.SharedDirectoryResponse.Read
+	(*SharedDirectoryResponse_Write)(nil),    // 67: teleport.desktop.v1.SharedDirectoryResponse.Write
+	(*SharedDirectoryResponse_Move)(nil),     // 68: teleport.desktop.v1.SharedDirectoryResponse.Move
+	(*SharedDirectoryResponse_Truncate)(nil), // 69: teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	(*v1.AuthenticateChallenge)(nil),         // 70: teleport.mfa.v1.AuthenticateChallenge
+	(*v1.AuthenticateResponse)(nil),          // 71: teleport.mfa.v1.AuthenticateResponse
 }
 var file_teleport_desktop_v1_tdpb_proto_depIdxs = []int32{
-	17, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
-	12, // 1: teleport.desktop.v1.ServerHello.activation_spec:type_name -> teleport.desktop.v1.ConnectionActivated
+	34, // 0: teleport.desktop.v1.ClientHello.screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
+	28, // 1: teleport.desktop.v1.ServerHello.activation_spec:type_name -> teleport.desktop.v1.ConnectionActivated
 	6,  // 2: teleport.desktop.v1.ServerHello.sessions:type_name -> teleport.desktop.v1.SessionIdentifier
 	6,  // 3: teleport.desktop.v1.SessionSelection.session:type_name -> teleport.desktop.v1.SessionIdentifier
 	8,  // 4: teleport.desktop.v1.PNGFrame.coordinates:type_name -> teleport.desktop.v1.Rectangle
-	0,  // 5: teleport.desktop.v1.MouseButton.button:type_name -> teleport.desktop.v1.MouseButtonType
-	1,  // 6: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
-	2,  // 7: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
-	3,  // 8: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
-	52, // 9: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
-	53, // 10: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
-	36, // 11: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
-	37, // 12: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
-	38, // 13: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
-	39, // 14: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
-	40, // 15: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
-	41, // 16: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
-	42, // 17: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
-	43, // 18: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
-	44, // 19: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
-	45, // 20: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
-	46, // 21: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
-	47, // 22: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
-	48, // 23: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
-	49, // 24: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
-	50, // 25: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
-	51, // 26: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
-	31, // 27: teleport.desktop.v1.AuthPrompt.mfa_prompt:type_name -> teleport.desktop.v1.MFAPrompt
-	33, // 28: teleport.desktop.v1.MFAPromptResponse.reference:type_name -> teleport.desktop.v1.MFAPromptResponseReference
-	4,  // 29: teleport.desktop.v1.Envelope.client_hello:type_name -> teleport.desktop.v1.ClientHello
-	5,  // 30: teleport.desktop.v1.Envelope.server_hello:type_name -> teleport.desktop.v1.ServerHello
-	9,  // 31: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
-	10, // 32: teleport.desktop.v1.Envelope.fast_path_pdu:type_name -> teleport.desktop.v1.FastPathPDU
-	11, // 33: teleport.desktop.v1.Envelope.rdp_response_pdu:type_name -> teleport.desktop.v1.RDPResponsePDU
-	13, // 34: teleport.desktop.v1.Envelope.sync_keys:type_name -> teleport.desktop.v1.SyncKeys
-	14, // 35: teleport.desktop.v1.Envelope.mouse_move:type_name -> teleport.desktop.v1.MouseMove
-	15, // 36: teleport.desktop.v1.Envelope.mouse_button:type_name -> teleport.desktop.v1.MouseButton
-	16, // 37: teleport.desktop.v1.Envelope.keyboard_button:type_name -> teleport.desktop.v1.KeyboardButton
-	17, // 38: teleport.desktop.v1.Envelope.client_screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
-	18, // 39: teleport.desktop.v1.Envelope.alert:type_name -> teleport.desktop.v1.Alert
-	19, // 40: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
-	20, // 41: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
-	21, // 42: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
-	22, // 43: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
-	24, // 44: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
-	25, // 45: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
-	26, // 46: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
-	28, // 47: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
-	29, // 48: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
-	23, // 49: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
-	7,  // 50: teleport.desktop.v1.Envelope.session_selection:type_name -> teleport.desktop.v1.SessionSelection
-	30, // 51: teleport.desktop.v1.Envelope.auth_prompt:type_name -> teleport.desktop.v1.AuthPrompt
-	32, // 52: teleport.desktop.v1.Envelope.mfa_prompt_response:type_name -> teleport.desktop.v1.MFAPromptResponse
-	34, // 53: teleport.desktop.v1.Envelope.session_establishing:type_name -> teleport.desktop.v1.SessionEstablishing
-	27, // 54: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	27, // 55: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
-	27, // 56: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
-	57, // [57:57] is the sub-list for method output_type
-	57, // [57:57] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	17, // 5: teleport.desktop.v1.EgfxSolidFill.rects:type_name -> teleport.desktop.v1.EgfxRect
+	17, // 6: teleport.desktop.v1.EgfxSurfaceToCache.source_rect:type_name -> teleport.desktop.v1.EgfxRect
+	18, // 7: teleport.desktop.v1.EgfxCacheToSurface.dest_points:type_name -> teleport.desktop.v1.EgfxPoint
+	17, // 8: teleport.desktop.v1.EgfxSurfaceToSurface.source_rect:type_name -> teleport.desktop.v1.EgfxRect
+	18, // 9: teleport.desktop.v1.EgfxSurfaceToSurface.dest_points:type_name -> teleport.desktop.v1.EgfxPoint
+	0,  // 10: teleport.desktop.v1.MouseButton.button:type_name -> teleport.desktop.v1.MouseButtonType
+	33, // 11: teleport.desktop.v1.ClientScreenSpec.monitors:type_name -> teleport.desktop.v1.MonitorLayout
+	1,  // 12: teleport.desktop.v1.Alert.severity:type_name -> teleport.desktop.v1.AlertSeverity
+	2,  // 13: teleport.desktop.v1.MouseWheel.axis:type_name -> teleport.desktop.v1.MouseWheelAxis
+	3,  // 14: teleport.desktop.v1.MFA.type:type_name -> teleport.desktop.v1.MFAType
+	70, // 15: teleport.desktop.v1.MFA.challenge:type_name -> teleport.mfa.v1.AuthenticateChallenge
+	71, // 16: teleport.desktop.v1.MFA.authentication_response:type_name -> teleport.mfa.v1.AuthenticateResponse
+	54, // 17: teleport.desktop.v1.SharedDirectoryRequest.info:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Info
+	55, // 18: teleport.desktop.v1.SharedDirectoryRequest.create:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Create
+	56, // 19: teleport.desktop.v1.SharedDirectoryRequest.delete:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Delete
+	57, // 20: teleport.desktop.v1.SharedDirectoryRequest.list:type_name -> teleport.desktop.v1.SharedDirectoryRequest.List
+	58, // 21: teleport.desktop.v1.SharedDirectoryRequest.read:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Read
+	59, // 22: teleport.desktop.v1.SharedDirectoryRequest.write:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Write
+	60, // 23: teleport.desktop.v1.SharedDirectoryRequest.move:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Move
+	61, // 24: teleport.desktop.v1.SharedDirectoryRequest.truncate:type_name -> teleport.desktop.v1.SharedDirectoryRequest.Truncate
+	62, // 25: teleport.desktop.v1.SharedDirectoryResponse.info:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Info
+	63, // 26: teleport.desktop.v1.SharedDirectoryResponse.create:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Create
+	64, // 27: teleport.desktop.v1.SharedDirectoryResponse.delete:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Delete
+	65, // 28: teleport.desktop.v1.SharedDirectoryResponse.list:type_name -> teleport.desktop.v1.SharedDirectoryResponse.List
+	66, // 29: teleport.desktop.v1.SharedDirectoryResponse.read:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Read
+	67, // 30: teleport.desktop.v1.SharedDirectoryResponse.write:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Write
+	68, // 31: teleport.desktop.v1.SharedDirectoryResponse.move:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Move
+	69, // 32: teleport.desktop.v1.SharedDirectoryResponse.truncate:type_name -> teleport.desktop.v1.SharedDirectoryResponse.Truncate
+	48, // 33: teleport.desktop.v1.AuthPrompt.mfa_prompt:type_name -> teleport.desktop.v1.MFAPrompt
+	50, // 34: teleport.desktop.v1.MFAPromptResponse.reference:type_name -> teleport.desktop.v1.MFAPromptResponseReference
+	4,  // 35: teleport.desktop.v1.Envelope.client_hello:type_name -> teleport.desktop.v1.ClientHello
+	5,  // 36: teleport.desktop.v1.Envelope.server_hello:type_name -> teleport.desktop.v1.ServerHello
+	9,  // 37: teleport.desktop.v1.Envelope.png_frame:type_name -> teleport.desktop.v1.PNGFrame
+	10, // 38: teleport.desktop.v1.Envelope.fast_path_pdu:type_name -> teleport.desktop.v1.FastPathPDU
+	27, // 39: teleport.desktop.v1.Envelope.rdp_response_pdu:type_name -> teleport.desktop.v1.RDPResponsePDU
+	29, // 40: teleport.desktop.v1.Envelope.sync_keys:type_name -> teleport.desktop.v1.SyncKeys
+	30, // 41: teleport.desktop.v1.Envelope.mouse_move:type_name -> teleport.desktop.v1.MouseMove
+	31, // 42: teleport.desktop.v1.Envelope.mouse_button:type_name -> teleport.desktop.v1.MouseButton
+	32, // 43: teleport.desktop.v1.Envelope.keyboard_button:type_name -> teleport.desktop.v1.KeyboardButton
+	34, // 44: teleport.desktop.v1.Envelope.client_screen_spec:type_name -> teleport.desktop.v1.ClientScreenSpec
+	35, // 45: teleport.desktop.v1.Envelope.alert:type_name -> teleport.desktop.v1.Alert
+	36, // 46: teleport.desktop.v1.Envelope.mouse_wheel:type_name -> teleport.desktop.v1.MouseWheel
+	37, // 47: teleport.desktop.v1.Envelope.clipboard_data:type_name -> teleport.desktop.v1.ClipboardData
+	38, // 48: teleport.desktop.v1.Envelope.mfa:type_name -> teleport.desktop.v1.MFA
+	39, // 49: teleport.desktop.v1.Envelope.shared_directory_announce:type_name -> teleport.desktop.v1.SharedDirectoryAnnounce
+	41, // 50: teleport.desktop.v1.Envelope.shared_directory_acknowledge:type_name -> teleport.desktop.v1.SharedDirectoryAcknowledge
+	42, // 51: teleport.desktop.v1.Envelope.shared_directory_request:type_name -> teleport.desktop.v1.SharedDirectoryRequest
+	43, // 52: teleport.desktop.v1.Envelope.shared_directory_response:type_name -> teleport.desktop.v1.SharedDirectoryResponse
+	45, // 53: teleport.desktop.v1.Envelope.latency_stats:type_name -> teleport.desktop.v1.LatencyStats
+	46, // 54: teleport.desktop.v1.Envelope.ping:type_name -> teleport.desktop.v1.Ping
+	40, // 55: teleport.desktop.v1.Envelope.shared_directory_remove:type_name -> teleport.desktop.v1.SharedDirectoryRemove
+	7,  // 56: teleport.desktop.v1.Envelope.session_selection:type_name -> teleport.desktop.v1.SessionSelection
+	47, // 57: teleport.desktop.v1.Envelope.auth_prompt:type_name -> teleport.desktop.v1.AuthPrompt
+	49, // 58: teleport.desktop.v1.Envelope.mfa_prompt_response:type_name -> teleport.desktop.v1.MFAPromptResponse
+	51, // 59: teleport.desktop.v1.Envelope.session_establishing:type_name -> teleport.desktop.v1.SessionEstablishing
+	52, // 60: teleport.desktop.v1.Envelope.refresh_rect:type_name -> teleport.desktop.v1.RefreshRect
+	11, // 61: teleport.desktop.v1.Envelope.egfx_bitmap:type_name -> teleport.desktop.v1.EgfxBitmap
+	12, // 62: teleport.desktop.v1.Envelope.egfx_avc_frame:type_name -> teleport.desktop.v1.EgfxAvcFrame
+	13, // 63: teleport.desktop.v1.Envelope.egfx_clear_codec:type_name -> teleport.desktop.v1.EgfxClearCodec
+	19, // 64: teleport.desktop.v1.Envelope.egfx_solid_fill:type_name -> teleport.desktop.v1.EgfxSolidFill
+	20, // 65: teleport.desktop.v1.Envelope.egfx_surface_to_cache:type_name -> teleport.desktop.v1.EgfxSurfaceToCache
+	21, // 66: teleport.desktop.v1.Envelope.egfx_cache_to_surface:type_name -> teleport.desktop.v1.EgfxCacheToSurface
+	22, // 67: teleport.desktop.v1.Envelope.egfx_evict_cache_entry:type_name -> teleport.desktop.v1.EgfxEvictCacheEntry
+	23, // 68: teleport.desktop.v1.Envelope.egfx_surface_to_surface:type_name -> teleport.desktop.v1.EgfxSurfaceToSurface
+	24, // 69: teleport.desktop.v1.Envelope.egfx_wire_to_surface2:type_name -> teleport.desktop.v1.EgfxWireToSurface2
+	25, // 70: teleport.desktop.v1.Envelope.egfx_delete_encoding_context:type_name -> teleport.desktop.v1.EgfxDeleteEncodingContext
+	16, // 71: teleport.desktop.v1.Envelope.egfx_uncompressed:type_name -> teleport.desktop.v1.EgfxUncompressed
+	14, // 72: teleport.desktop.v1.Envelope.egfx_planar:type_name -> teleport.desktop.v1.EgfxPlanar
+	15, // 73: teleport.desktop.v1.Envelope.egfx_avc420:type_name -> teleport.desktop.v1.EgfxAvc420
+	26, // 74: teleport.desktop.v1.Envelope.egfx_end_frame:type_name -> teleport.desktop.v1.EgfxEndFrame
+	44, // 75: teleport.desktop.v1.SharedDirectoryResponse.Info.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	44, // 76: teleport.desktop.v1.SharedDirectoryResponse.Create.fso:type_name -> teleport.desktop.v1.FileSystemObject
+	44, // 77: teleport.desktop.v1.SharedDirectoryResponse.List.fso_list:type_name -> teleport.desktop.v1.FileSystemObject
+	78, // [78:78] is the sub-list for method output_type
+	78, // [78:78] is the sub-list for method input_type
+	78, // [78:78] is the sub-list for extension type_name
+	78, // [78:78] is the sub-list for extension extendee
+	0,  // [0:78] is the sub-list for field type_name
 }
 
 func init() { file_teleport_desktop_v1_tdpb_proto_init() }
@@ -6192,7 +9258,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 	if File_teleport_desktop_v1_tdpb_proto != nil {
 		return
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[21].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[38].OneofWrappers = []any{
 		(*SharedDirectoryRequest_Info_)(nil),
 		(*SharedDirectoryRequest_Create_)(nil),
 		(*SharedDirectoryRequest_Delete_)(nil),
@@ -6202,7 +9268,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryRequest_Move_)(nil),
 		(*SharedDirectoryRequest_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[22].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[39].OneofWrappers = []any{
 		(*SharedDirectoryResponse_Info_)(nil),
 		(*SharedDirectoryResponse_Create_)(nil),
 		(*SharedDirectoryResponse_Delete_)(nil),
@@ -6212,13 +9278,13 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*SharedDirectoryResponse_Move_)(nil),
 		(*SharedDirectoryResponse_Truncate_)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[26].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[43].OneofWrappers = []any{
 		(*AuthPrompt_MfaPrompt)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[28].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[45].OneofWrappers = []any{
 		(*MFAPromptResponse_Reference)(nil),
 	}
-	file_teleport_desktop_v1_tdpb_proto_msgTypes[31].OneofWrappers = []any{
+	file_teleport_desktop_v1_tdpb_proto_msgTypes[49].OneofWrappers = []any{
 		(*Envelope_ClientHello)(nil),
 		(*Envelope_ServerHello)(nil),
 		(*Envelope_PngFrame)(nil),
@@ -6244,6 +9310,21 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 		(*Envelope_AuthPrompt)(nil),
 		(*Envelope_MfaPromptResponse)(nil),
 		(*Envelope_SessionEstablishing)(nil),
+		(*Envelope_RefreshRect)(nil),
+		(*Envelope_EgfxBitmap)(nil),
+		(*Envelope_EgfxAvcFrame)(nil),
+		(*Envelope_EgfxClearCodec)(nil),
+		(*Envelope_EgfxSolidFill)(nil),
+		(*Envelope_EgfxSurfaceToCache)(nil),
+		(*Envelope_EgfxCacheToSurface)(nil),
+		(*Envelope_EgfxEvictCacheEntry)(nil),
+		(*Envelope_EgfxSurfaceToSurface)(nil),
+		(*Envelope_EgfxWireToSurface2)(nil),
+		(*Envelope_EgfxDeleteEncodingContext)(nil),
+		(*Envelope_EgfxUncompressed)(nil),
+		(*Envelope_EgfxPlanar)(nil),
+		(*Envelope_EgfxAvc420)(nil),
+		(*Envelope_EgfxEndFrame)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -6251,7 +9332,7 @@ func file_teleport_desktop_v1_tdpb_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_desktop_v1_tdpb_proto_rawDesc), len(file_teleport_desktop_v1_tdpb_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   48,
+			NumMessages:   66,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
