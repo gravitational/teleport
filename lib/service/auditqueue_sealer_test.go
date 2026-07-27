@@ -30,6 +30,26 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+type fakeSRCWatcher struct {
+	events chan types.Event
+	done   chan struct{}
+}
+
+func newFakeSRCWatcher() *fakeSRCWatcher {
+	return &fakeSRCWatcher{
+		events: make(chan types.Event),
+		done:   make(chan struct{}),
+	}
+}
+
+func (w *fakeSRCWatcher) Events() <-chan types.Event { return w.events }
+
+func (w *fakeSRCWatcher) Done() <-chan struct{} { return w.done }
+
+func (w *fakeSRCWatcher) Close() error { return nil }
+
+func (w *fakeSRCWatcher) Error() error { return nil }
+
 type flakySRCGetter struct {
 	failures int
 	calls    int
@@ -41,6 +61,10 @@ func (f *flakySRCGetter) GetSessionRecordingConfig(ctx context.Context) (types.S
 		return nil, trace.ConnectionProblem(nil, "auth unavailable")
 	}
 	return &types.SessionRecordingConfigV2{}, nil
+}
+
+func (f *flakySRCGetter) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return newFakeSRCWatcher(), nil
 }
 
 func TestNewAuditQueueSealerWithRetry(t *testing.T) {
