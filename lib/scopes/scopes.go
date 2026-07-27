@@ -203,6 +203,14 @@ func WeakValidateSegment(segment string) error {
 	return nil
 }
 
+// nameRegexp is the regular expression used to validate scoped resource names. It enforces
+// the same character rules as segmentRegexp, but allows for single character names. Note that
+// every character it admits is a non-space printable ASCII character and none of them appear in
+// breakingChars, so a name matching this shape always passes weak validation. If this is ever
+// loosened, StrongValidateResourceName should grow a weak validation backstop of the kind
+// strongValidateFormat applies to segments.
+var nameRegexp = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\_\.]*[a-z0-9])?$`)
+
 // StrongValidateResourceName checks if a scoped resource name is valid according to all resource name
 // formatting rules. Scoped resource names follow the same character restrictions as scope segments, but
 // are not subject to the maximum segment length limit. This function *must* be called on all scoped
