@@ -1001,7 +1001,7 @@ func (s *sessionCache) AuthWithOTP(
 // AuthWithoutOTP authenticates the specified user with the given password.
 // Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(
-	ctx context.Context, user, pass string, clientMeta *authclient.ForwardedClientMetadata,
+	ctx context.Context, user, pass string, scope string, clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
@@ -1009,6 +1009,7 @@ func (s *sessionCache) AuthWithoutOTP(
 			Password: []byte(pass),
 		},
 		ClientMetadata: clientMeta,
+		Scope:          scope,
 	})
 }
 
