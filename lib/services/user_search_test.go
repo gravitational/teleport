@@ -29,6 +29,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 type testUserSearchLister struct {
@@ -80,7 +81,7 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 
 	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"Jane", "Garcia"})
 	require.NoError(t, err)
-	require.Equal(t, usernameSet{janeUsername: {}}, usernames)
+	require.Equal(t, set.New(janeUsername), usernames)
 
 	// Verify that only one page of users was requested with the expected filter.
 	require.Equal(t, 1, lister.calls)
@@ -119,7 +120,7 @@ func TestFindUsernamesBySearchKeywordsPaginatesPastNonDisplayMatches(t *testing.
 
 	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"dev"})
 	require.NoError(t, err)
-	require.Equal(t, usernameSet{"display-match": {}}, usernames)
+	require.Equal(t, set.New("display-match"), usernames)
 	require.Len(t, lister.requests, 2)
 	require.Empty(t, lister.requests[0].GetPageToken())
 	require.Equal(t, "second-page", lister.requests[1].GetPageToken())
@@ -177,17 +178,17 @@ func TestFindUsernamesBySearchKeywordsMatchesOnlyDisplayValues(t *testing.T) {
 	tests := []struct {
 		name     string
 		keyword  string
-		expected usernameSet
+		expected set.Set[string]
 	}{
 		{
 			name:     "primary display",
 			keyword:  "Jane",
-			expected: usernameSet{janeUsername: {}},
+			expected: set.New(janeUsername),
 		},
 		{
 			name:     "secondary display",
 			keyword:  "jane.garcia@example.com",
-			expected: usernameSet{janeUsername: {}},
+			expected: set.New(janeUsername),
 		},
 		{name: "role", keyword: "finance-role"},
 		{name: "label key", keyword: "cost-center"},
@@ -231,8 +232,8 @@ func TestSearchKeywordUsernameResolver(t *testing.T) {
 	lister := &testUserSearchLister{users: []*types.UserV2{jane.(*types.UserV2)}}
 	resolveUsernames := NewSearchKeywordUsernameResolver(lister)
 
-	require.Equal(t, map[string]struct{}{janeUsername: {}}, resolveUsernames(ctx, " Jane "))
-	require.Equal(t, map[string]struct{}{janeUsername: {}}, resolveUsernames(ctx, "Jane"))
+	require.Equal(t, set.New(janeUsername), resolveUsernames(ctx, " Jane "))
+	require.Equal(t, set.New(janeUsername), resolveUsernames(ctx, "Jane"))
 	require.Equal(t, 1, lister.calls)
 	require.Equal(t, ctx, lister.ctx)
 	require.Nil(t, resolveUsernames(ctx, "   "))

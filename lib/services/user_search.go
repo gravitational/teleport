@@ -29,6 +29,7 @@ import (
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 var userSearchLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("user", "search"))
@@ -38,16 +39,13 @@ type UserSearchLister interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 }
 
-// usernameSet is a set of usernames.
-type usernameSet map[string]struct{}
-
 // findUsernamesBySearchKeywords returns usernames whose resolved display values match the keywords.
-func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (usernameSet, error) {
+func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (set.Set[string], error) {
 	if len(searchKeywords) == 0 {
 		return nil, nil
 	}
 
-	usernames := make(usernameSet, apidefaults.DefaultChunkSize)
+	usernames := set.NewWithCapacity[string](apidefaults.DefaultChunkSize)
 	var pageToken string
 	for {
 		rsp, err := users.ListUsers(ctx, userspb.ListUsersRequest_builder{
@@ -68,8 +66,9 @@ func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 			if !types.MatchSearch([]string{display.Primary, display.Secondary}, searchKeywords, nil) {
 				continue
 			}
-			usernames[user.GetName()] = struct{}{}
-			if len(usernames) == apidefaults.DefaultChunkSize {
+			usernames.Add(user.GetName())
+			if usernames.Len() == apidefaults.DefaultChunkSize {
+				// Cap resolved usernames to avoid excessive paging.
 				return usernames, nil
 			}
 		}
@@ -84,19 +83,19 @@ func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 type searchKeywordUsernameResolver struct {
 	users UserSearchLister
 	// usernamesBySearchKeyword caches the resolved usernames for each keyword.
-	usernamesBySearchKeyword map[string]usernameSet
+	usernamesBySearchKeyword map[string]set.Set[string]
 }
 
 // NewSearchKeywordUsernameResolver returns a memoizing resolver for search-keyword username matches.
-func NewSearchKeywordUsernameResolver(users UserSearchLister) func(context.Context, string) map[string]struct{} {
+func NewSearchKeywordUsernameResolver(users UserSearchLister) func(context.Context, string) set.Set[string] {
 	resolver := &searchKeywordUsernameResolver{
 		users:                    users,
-		usernamesBySearchKeyword: make(map[string]usernameSet),
+		usernamesBySearchKeyword: make(map[string]set.Set[string]),
 	}
 	return resolver.resolveUsernames
 }
 
-func (r *searchKeywordUsernameResolver) resolveUsernames(ctx context.Context, searchKeyword string) map[string]struct{} {
+func (r *searchKeywordUsernameResolver) resolveUsernames(ctx context.Context, searchKeyword string) set.Set[string] {
 	searchKeyword = strings.TrimSpace(searchKeyword)
 	if searchKeyword == "" {
 		return nil
@@ -126,8 +125,7 @@ func NewAccessRequestSearchMatcher(searchKeywords []string, users UserSearchList
 
 	return func(ctx context.Context, accessRequest *types.AccessRequestV3) bool {
 		return types.MatchSearch(accessRequest.SearchableFields(), searchKeywords, func(searchKeyword string) bool {
-			_, ok := resolveToUsernames(ctx, searchKeyword)[accessRequest.GetUser()]
-			return ok
+			return resolveToUsernames(ctx, searchKeyword).Contains(accessRequest.GetUser())
 		})
 	}
 }
