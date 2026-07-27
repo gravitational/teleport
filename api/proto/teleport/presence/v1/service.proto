@@ -52,6 +52,9 @@ service PresenceService {
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
+
+  // Deletes a specific scoped or unscoped application server.
+  rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -202,3 +205,17 @@ message ListProxyServersResponse {
   // more results in the list.
   string next_page_token = 2;
 }
+
+// The request to delete a specific scoped or unscoped application server.
+message DeleteAppServerRequest {
+  // HostId is the app server host uuid.
+  string host_id = 1;
+  // Name is the name of the application to delete.
+  string name = 2;
+  // Scope is the scope of the application to delete. Empty for unscoped
+  // applications.
+  string scope = 3;
+}
+
+// The response for deleting an application server.
+message DeleteAppServerResponse {}

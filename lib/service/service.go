@@ -490,6 +490,15 @@ func (c *Connector) ScopePin() *scopesv1.Pin {
 	return c.scopePin
 }
 
+// checkScopedAppJoin rejects an app agent that joined with a scoped token while
+// agent scope pins are disabled.
+func checkScopedAppJoin(conn *Connector) error {
+	if conn.Scope() != "" && conn.ScopePin() == nil {
+		return trace.BadParameter("set TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes on main auth service to join a scoped app agent")
+	}
+	return nil
+}
+
 func (c *Connector) Role() types.SystemRole {
 	return c.role
 }
@@ -5537,13 +5546,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:    cn.GetClusterName(),
-			AccessPoint:    accessPoint,
-			LockWatcher:    lockWatcher,
-			Logger:         process.logger,
-			PermitCaching:  process.Config.CachePolicy.Enabled,
-			ScopesFeatures: process.scopesFeatures,
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+			ClusterName:      cn.GetClusterName(),
+			AccessPoint:      accessPoint,
+			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			LockWatcher:      lockWatcher,
+			Logger:           process.logger,
+			PermitCaching:    process.Config.CachePolicy.Enabled,
+			ScopesFeatures:   process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5566,7 +5576,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Clock:             process.Clock,
 			DataDir:           cfg.DataDir,
 			Emitter:           asyncEmitter,
-			Authorizer:        authorizer,
+			Authorizer:        scopedAuthorizer,
 			HostID:            conn.HostUUID(),
 			AuthClient:        conn.Client,
 			AccessPoint:       accessPoint,
@@ -6852,10 +6862,20 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		if err := checkScopedAppJoin(conn); err != nil {
+			return trace.Wrap(err)
+		}
+		scopePin := conn.ScopePin()
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
+			isScopedApp := scopePin.GetScope() != ""
+			if err := validateScopedAppRegistration(isScopedApp, app.Name, app.PublicAddr, app.Cloud, app.MCP, app.LLM, app.RequiredAppNames, app.AWS); err != nil {
+				return trace.Wrap(err)
+			}
+
+			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6902,7 +6922,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, scopePin.GetScope())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6932,12 +6952,14 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:    clusterName,
-			AccessPoint:    accessPoint,
-			LockWatcher:    lockWatcher,
-			Logger:         process.logger.With(teleport.ComponentKey, component),
-			ScopesFeatures: process.scopesFeatures,
+
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+			ClusterName:      clusterName,
+			AccessPoint:      accessPoint,
+			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			LockWatcher:      lockWatcher,
+			Logger:           process.logger.With(teleport.ComponentKey, component),
+			ScopesFeatures:   process.scopesFeatures,
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -6984,7 +7006,7 @@ func (process *TeleportProcess) initApps() {
 			DataDir:           process.Config.DataDir,
 			AuthClient:        conn.Client,
 			AccessPoint:       accessPoint,
-			Authorizer:        authorizer,
+			Authorizer:        scopedAuthorizer,
 			TLSConfig:         tlsConfig,
 			CipherSuites:      process.Config.CipherSuites,
 			HostID:            conn.HostUUID(),
@@ -7021,6 +7043,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			ScopePin:                    scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -7094,6 +7117,32 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// TODO(williamo/scopes): Update this validate function when we add support for these features.
+func validateScopedAppRegistration(isScoped bool, appName string, publicAddr, cloud string, mcp *types.MCP, llm *types.LLM, requiredApps []string, aws *servicecfg.AppAWS) error {
+	if !isScoped {
+		return nil
+	}
+	if publicAddr != "" {
+		return trace.BadParameter("app %q is scoped and must not set public_addr; it is derived from the app name and scope", appName)
+	}
+	if cloud != "" {
+		return trace.BadParameter("app %q is scoped and does not support cloud applications", appName)
+	}
+	if mcp != nil {
+		return trace.BadParameter("app %q is scoped and does not support mcp applications", appName)
+	}
+	if llm != nil {
+		return trace.BadParameter("app %q is scoped and does not support llm apps", appName)
+	}
+	if len(requiredApps) > 0 {
+		return trace.BadParameter("app %q is scoped and does not support specifying required app names", appName)
+	}
+	if aws != nil {
+		return trace.BadParameter("app %q is scoped and does not support aws applications", appName)
+	}
+	return nil
 }
 
 func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
@@ -7403,8 +7452,9 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(requestDump))
 }
 
-// getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+// getPublicAddr waits for a proxy to be registered with Teleport. For a scoped
+// app (scope != ""), the returned address is the derived scope-qualified subdomain.
+func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App, scope string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -7413,7 +7463,7 @@ func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoin
 	for {
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
+			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name, scope)
 			if err == nil {
 				return publicAddr, nil
 			}

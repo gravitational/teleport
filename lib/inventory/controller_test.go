@@ -45,6 +45,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -126,7 +127,7 @@ func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, serve
 	return server, a.err
 }
 
-func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+func (a *fakeAuth) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
 	return nil
 }
 
@@ -914,6 +915,181 @@ func testAppServerBasics(t *testing.T) {
 
 	// verify that metrics have been updated correctly
 	require.Zero(t, rc.count())
+}
+
+// TestAppServerHeartbeatNormalization verifies handleAppServerHB calls
+// services.NormalizeAppServerForHeartbeat on the inventory control
+// stream path so an older agent that heartbeats a mixed-case name and
+// URL-shaped public_addr lands the same lowercased, bare-hostname
+// resource as the gRPC handler would. A regression that dropped the
+// normalize call would still leave the gRPC test passing.
+func TestAppServerHeartbeatNormalization(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppServerHeartbeatNormalization)
+}
+
+func TestScopedAppServer(t *testing.T) {
+	t.Parallel()
+
+	// happy path: server and app scopes match the hello scope (static registration).
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "", true))
+	// embedded app scope is different from the server scope.
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", "", false))
+	// add incorrect app computed public addr
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "overridenpublicaddr.com", false))
+}
+
+// appTestController bundles the pieces an app-server heartbeat test needs from a
+// controller wired to an in-memory control stream.
+type appTestController struct {
+	ctx        context.Context
+	serverID   string
+	downstream client.DownstreamInventoryControlStream
+	events     chan testEvent
+	handle     *upstreamHandle
+}
+
+// newAppTestController starts a controller and registers an app agent control
+// stream pinned to the given scope (pass "" for an unscoped agent). It launches
+// a goroutine that answers pings and registers cleanup for the stream and
+// controller. Use the returned handle/downstream/events to drive heartbeats and
+// assert on emitted events.
+func newAppTestController(t *testing.T, scope string) appTestController {
+	t.Helper()
+	const serverID = "test-server"
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+
+	controller := NewController(
+		&fakeAuth{},
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		upstream.Close()
+		downstream.Close()
+		controller.Close()
+	})
+
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+		Scope:    scope,
+	}.Build())
+
+	h, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	return appTestController{
+		ctx:        ctx,
+		serverID:   serverID,
+		downstream: downstream,
+		events:     events,
+		handle:     h.(*upstreamHandle),
+	}
+}
+
+func testAppServerHeartbeatNormalization(t *testing.T) {
+	c := newAppTestController(t, "")
+
+	err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
+		AppServer: &types.AppServerV3{
+			Metadata: types.Metadata{
+				Name: "MixedCaseApp",
+			},
+			Spec: types.AppServerSpecV3{
+				HostID: c.serverID,
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "MixedCaseApp",
+					},
+					Spec: types.AppSpecV3{
+						URI:        "http://localhost:8080",
+						PublicAddr: "https://mixedcaseapp.example.com:8443/start",
+					},
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	awaitEvents(t, c.events,
+		expect(appUpsertOk),
+		deny(appUpsertErr, handlerClose),
+	)
+	synctest.Wait()
+
+	expectedKey := resourceKey{hostID: c.serverID, name: "mixedcaseapp"}
+	srv, ok := c.handle.appServers[expectedKey]
+	require.True(t, ok, "expected handle.appServers key %+v; got %+v", expectedKey, c.handle.appServers)
+	require.Equal(t, "mixedcaseapp", srv.resource.GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", srv.resource.GetName())
+	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
+}
+
+func testAppServerScoped(initialScope, serverScope, appScope, publicAddrOverride string, expectOK bool) func(t *testing.T) {
+	return func(t *testing.T) {
+		c := newAppTestController(t, initialScope)
+
+		pubAddr := scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com")
+		if publicAddrOverride != "" {
+			pubAddr = publicAddrOverride
+		}
+
+		err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
+			AppServer: &types.AppServerV3{
+				Metadata: types.Metadata{Name: c.serverID},
+				Scope:    serverScope,
+				Spec: types.AppServerSpecV3{
+					HostID: c.serverID,
+					App: &types.AppV3{
+						Kind:     types.KindApp,
+						Version:  types.V3,
+						Scope:    appScope,
+						Metadata: types.Metadata{Name: "app"},
+						Spec: types.AppSpecV3{
+							URI:        "http://localhost:8080",
+							PublicAddr: pubAddr,
+						},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+
+		if !expectOK {
+			// A scope violation is rejected before upsert and closes the stream.
+			awaitEvents(t, c.events,
+				expect(handlerClose),
+				deny(appUpsertOk, appUpsertErr, appKeepAliveErr),
+			)
+			return
+		}
+		awaitEvents(t, c.events,
+			expect(appUpsertOk, appKeepAliveOk),
+			deny(appUpsertErr, appKeepAliveErr, handlerClose),
+		)
+	}
 }
 
 // TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating

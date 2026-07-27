@@ -122,7 +122,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|app|*no default* (required)|App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.|
+|app|*no default* (required)|App name to retrieve credentials for, as shown in `tsh apps ls`. Scoped apps use their scope-qualified name ("/scope::name").|
 
 ## tsh apps logins
 
@@ -1328,7 +1328,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
-|`-p`, `--port`|*no default*|Specifies the listening port used by by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
+|`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
 |`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Arguments:

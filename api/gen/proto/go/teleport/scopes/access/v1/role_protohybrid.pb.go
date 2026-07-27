@@ -226,7 +226,9 @@ type ScopedRoleSpec struct {
 	// Ssh specifies controls that govern SSH access.
 	Ssh *ScopedRoleSSH `protobuf:"bytes,7,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// The kubernetes specific configuration for a scoped role.
-	Kube          *ScopedRoleKube `protobuf:"bytes,8,opt,name=kube,proto3" json:"kube,omitempty"`
+	Kube *ScopedRoleKube `protobuf:"bytes,8,opt,name=kube,proto3" json:"kube,omitempty"`
+	// The App Access specific configuration for a scoped role.
+	App           *ScopedRoleApp `protobuf:"bytes,9,opt,name=app,proto3" json:"app,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -291,6 +293,13 @@ func (x *ScopedRoleSpec) GetKube() *ScopedRoleKube {
 	return nil
 }
 
+func (x *ScopedRoleSpec) GetApp() *ScopedRoleApp {
+	if x != nil {
+		return x.App
+	}
+	return nil
+}
+
 func (x *ScopedRoleSpec) SetAssignableScopes(v []string) {
 	x.AssignableScopes = v
 }
@@ -309,6 +318,10 @@ func (x *ScopedRoleSpec) SetSsh(v *ScopedRoleSSH) {
 
 func (x *ScopedRoleSpec) SetKube(v *ScopedRoleKube) {
 	x.Kube = v
+}
+
+func (x *ScopedRoleSpec) SetApp(v *ScopedRoleApp) {
+	x.App = v
 }
 
 func (x *ScopedRoleSpec) HasDefaults() bool {
@@ -332,6 +345,13 @@ func (x *ScopedRoleSpec) HasKube() bool {
 	return x.Kube != nil
 }
 
+func (x *ScopedRoleSpec) HasApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.App != nil
+}
+
 func (x *ScopedRoleSpec) ClearDefaults() {
 	x.Defaults = nil
 }
@@ -342,6 +362,10 @@ func (x *ScopedRoleSpec) ClearSsh() {
 
 func (x *ScopedRoleSpec) ClearKube() {
 	x.Kube = nil
+}
+
+func (x *ScopedRoleSpec) ClearApp() {
+	x.App = nil
 }
 
 type ScopedRoleSpec_builder struct {
@@ -359,6 +383,8 @@ type ScopedRoleSpec_builder struct {
 	Ssh *ScopedRoleSSH
 	// The kubernetes specific configuration for a scoped role.
 	Kube *ScopedRoleKube
+	// The App Access specific configuration for a scoped role.
+	App *ScopedRoleApp
 }
 
 func (b0 ScopedRoleSpec_builder) Build() *ScopedRoleSpec {
@@ -370,6 +396,7 @@ func (b0 ScopedRoleSpec_builder) Build() *ScopedRoleSpec {
 	x.Rules = b.Rules
 	x.Ssh = b.Ssh
 	x.Kube = b.Kube
+	x.App = b.App
 	return m0
 }
 
@@ -379,15 +406,20 @@ type ScopedRoleDefaults struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
 	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+	// The cluster-wide default is used only when neither this nor the protocol's equivalent
+	// control is set.
 	ClientIdleTimeout string `protobuf:"bytes,1,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
 	// SessionRecording configures the session recording strategy for all protocols that don't
-	// explicitly set their session recording mode.
+	// explicitly set their session recording mode. If neither this nor the protocol's equivalent control
+	// is set, best_effort is used.
 	SessionRecording *SessionRecording `protobuf:"bytes,2,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
-	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
-	// If unset, cluster wide defaults are used.
+	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for
+	// a session. The cluster-wide default is used only when neither this nor the protocol's
+	// equivalent control is set.
 	DisconnectExpiredCert *bool `protobuf:"varint,3,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock specifies the default locking mode for access sessions across all protocols that
-	// do not specify their own value. If unset, cluster wide defaults are used.
+	// do not specify their own value. The cluster-wide default is used only when neither this
+	// nor the protocol's equivalent control is set.
 	Lock          *Lock `protobuf:"bytes,4,opt,name=lock,proto3" json:"lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -500,15 +532,20 @@ type ScopedRoleDefaults_builder struct {
 
 	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
 	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+	// The cluster-wide default is used only when neither this nor the protocol's equivalent
+	// control is set.
 	ClientIdleTimeout string
 	// SessionRecording configures the session recording strategy for all protocols that don't
-	// explicitly set their session recording mode.
+	// explicitly set their session recording mode. If neither this nor the protocol's equivalent control
+	// is set, best_effort is used.
 	SessionRecording *SessionRecording
-	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
-	// If unset, cluster wide defaults are used.
+	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for
+	// a session. The cluster-wide default is used only when neither this nor the protocol's
+	// equivalent control is set.
 	DisconnectExpiredCert *bool
 	// Lock specifies the default locking mode for access sessions across all protocols that
-	// do not specify their own value. If unset, cluster wide defaults are used.
+	// do not specify their own value. The cluster-wide default is used only when neither this
+	// nor the protocol's equivalent control is set.
 	Lock *Lock
 }
 
@@ -561,9 +598,10 @@ type ScopedRoleSSH struct {
 	SessionRecording *SessionRecording `protobuf:"bytes,13,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
 	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
 	// user certificate expires.
-	// Defaults to value cluster wide auth preference if not set.
+	// If empty, the defaults block value (or global default) applies.
 	DisconnectExpiredCert *bool `protobuf:"varint,14,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock configures the role's locking behavior for SSH sessions.
+	// If empty, the defaults block value (or global default) applies.
 	Lock          *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -892,9 +930,10 @@ type ScopedRoleSSH_builder struct {
 	SessionRecording *SessionRecording
 	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
 	// user certificate expires.
-	// Defaults to value cluster wide auth preference if not set.
+	// If empty, the defaults block value (or global default) applies.
 	DisconnectExpiredCert *bool
 	// Lock configures the role's locking behavior for SSH sessions.
+	// If empty, the defaults block value (or global default) applies.
 	Lock *Lock
 }
 
@@ -939,8 +978,10 @@ type ScopedRoleKube struct {
 	// (or global default) applies.
 	ClientIdleTimeout string `protobuf:"bytes,5,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
 	// DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+	// If empty, the defaults block value (or global default) applies.
 	DisconnectExpiredCert *bool `protobuf:"varint,6,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock configures the role's locking behavior for kubernetes sessions.
+	// If empty, the defaults block value (or global default) applies.
 	Lock          *Lock `protobuf:"bytes,7,opt,name=lock,proto3" json:"lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1086,8 +1127,10 @@ type ScopedRoleKube_builder struct {
 	// (or global default) applies.
 	ClientIdleTimeout string
 	// DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+	// If empty, the defaults block value (or global default) applies.
 	DisconnectExpiredCert *bool
 	// Lock configures the role's locking behavior for kubernetes sessions.
+	// If empty, the defaults block value (or global default) applies.
 	Lock *Lock
 }
 
@@ -1099,6 +1142,162 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	x.Groups = b.Groups
 	x.Users = b.Users
 	x.Resources = b.Resources
+	x.ClientIdleTimeout = b.ClientIdleTimeout
+	x.DisconnectExpiredCert = b.DisconnectExpiredCert
+	x.Lock = b.Lock
+	return m0
+}
+
+// ScopedRoleApp groups all scoped role fields relevant to application access.
+type ScopedRoleApp struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The set of application labels used for RBAC.
+	Labels []*v11.Label `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
+	// LabelExpression is an optional predicate expression evaluated against an
+	// application's labels.
+	LabelExpression string `protobuf:"bytes,2,opt,name=label_expression,json=labelExpression,proto3" json:"label_expression,omitempty"`
+	// Overrides the defaults block idle timeout specifically for app sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string `protobuf:"bytes,3,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
+	// DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.
+	// If empty, the defaults block value (or global default) applies.
+	DisconnectExpiredCert *bool `protobuf:"varint,4,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock configures the role's locking behavior for app sessions.
+	// If empty, the defaults block value (or global default) applies.
+	Lock          *Lock `protobuf:"bytes,5,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopedRoleApp) Reset() {
+	*x = ScopedRoleApp{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleApp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleApp) ProtoMessage() {}
+
+func (x *ScopedRoleApp) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ScopedRoleApp) GetLabels() []*v11.Label {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *ScopedRoleApp) GetLabelExpression() string {
+	if x != nil {
+		return x.LabelExpression
+	}
+	return ""
+}
+
+func (x *ScopedRoleApp) GetClientIdleTimeout() string {
+	if x != nil {
+		return x.ClientIdleTimeout
+	}
+	return ""
+}
+
+func (x *ScopedRoleApp) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleApp) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
+func (x *ScopedRoleApp) SetLabels(v []*v11.Label) {
+	x.Labels = v
+}
+
+func (x *ScopedRoleApp) SetLabelExpression(v string) {
+	x.LabelExpression = v
+}
+
+func (x *ScopedRoleApp) SetClientIdleTimeout(v string) {
+	x.ClientIdleTimeout = v
+}
+
+func (x *ScopedRoleApp) SetDisconnectExpiredCert(v bool) {
+	x.DisconnectExpiredCert = &v
+}
+
+func (x *ScopedRoleApp) SetLock(v *Lock) {
+	x.Lock = v
+}
+
+func (x *ScopedRoleApp) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return x.DisconnectExpiredCert != nil
+}
+
+func (x *ScopedRoleApp) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	return x.Lock != nil
+}
+
+func (x *ScopedRoleApp) ClearDisconnectExpiredCert() {
+	x.DisconnectExpiredCert = nil
+}
+
+func (x *ScopedRoleApp) ClearLock() {
+	x.Lock = nil
+}
+
+type ScopedRoleApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The set of application labels used for RBAC.
+	Labels []*v11.Label
+	// LabelExpression is an optional predicate expression evaluated against an
+	// application's labels.
+	LabelExpression string
+	// Overrides the defaults block idle timeout specifically for app sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string
+	// DisconnectExpiredCert controls whether App sessions are disconnected when the user certificate expires.
+	// If empty, the defaults block value (or global default) applies.
+	DisconnectExpiredCert *bool
+	// Lock configures the role's locking behavior for app sessions.
+	// If empty, the defaults block value (or global default) applies.
+	Lock *Lock
+}
+
+func (b0 ScopedRoleApp_builder) Build() *ScopedRoleApp {
+	m0 := &ScopedRoleApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Labels = b.Labels
+	x.LabelExpression = b.LabelExpression
 	x.ClientIdleTimeout = b.ClientIdleTimeout
 	x.DisconnectExpiredCert = b.DisconnectExpiredCert
 	x.Lock = b.Lock
@@ -1119,7 +1318,7 @@ type ScopedRule struct {
 
 func (x *ScopedRule) Reset() {
 	*x = ScopedRule{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1131,7 +1330,7 @@ func (x *ScopedRule) String() string {
 func (*ScopedRule) ProtoMessage() {}
 
 func (x *ScopedRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1195,7 +1394,7 @@ type SSHPortForwarding struct {
 
 func (x *SSHPortForwarding) Reset() {
 	*x = SSHPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1207,7 +1406,7 @@ func (x *SSHPortForwarding) String() string {
 func (*SSHPortForwarding) ProtoMessage() {}
 
 func (x *SSHPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1290,7 +1489,7 @@ type SSHLocalPortForwarding struct {
 
 func (x *SSHLocalPortForwarding) Reset() {
 	*x = SSHLocalPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1501,7 @@ func (x *SSHLocalPortForwarding) String() string {
 func (*SSHLocalPortForwarding) ProtoMessage() {}
 
 func (x *SSHLocalPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1359,7 +1558,7 @@ type SSHRemotePortForwarding struct {
 
 func (x *SSHRemotePortForwarding) Reset() {
 	*x = SSHRemotePortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1371,7 +1570,7 @@ func (x *SSHRemotePortForwarding) String() string {
 func (*SSHRemotePortForwarding) ProtoMessage() {}
 
 func (x *SSHRemotePortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1433,7 +1632,7 @@ type CreateHostUser struct {
 
 func (x *CreateHostUser) Reset() {
 	*x = CreateHostUser{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1445,7 +1644,7 @@ func (x *CreateHostUser) String() string {
 func (*CreateHostUser) ProtoMessage() {}
 
 func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1525,7 +1724,7 @@ type EnhancedRecording struct {
 
 func (x *EnhancedRecording) Reset() {
 	*x = EnhancedRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1537,7 +1736,7 @@ func (x *EnhancedRecording) String() string {
 func (*EnhancedRecording) ProtoMessage() {}
 
 func (x *EnhancedRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1646,7 +1845,7 @@ type SessionRecording struct {
 
 func (x *SessionRecording) Reset() {
 	*x = SessionRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1658,7 +1857,7 @@ func (x *SessionRecording) String() string {
 func (*SessionRecording) ProtoMessage() {}
 
 func (x *SessionRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1708,7 +1907,7 @@ type Lock struct {
 
 func (x *Lock) Reset() {
 	*x = Lock{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1720,7 +1919,7 @@ func (x *Lock) String() string {
 func (*Lock) ProtoMessage() {}
 
 func (x *Lock) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1777,7 +1976,7 @@ type KubeResource struct {
 
 func (x *KubeResource) Reset() {
 	*x = KubeResource{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1789,7 +1988,7 @@ func (x *KubeResource) String() string {
 func (*KubeResource) ProtoMessage() {}
 
 func (x *KubeResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1894,13 +2093,14 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
-	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\xdc\x02\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x98\x03\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12I\n" +
 	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
-	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
+	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kube\x12:\n" +
+	"\x03app\x18\t \x01(\v2(.teleport.scopes.access.v1.ScopedRoleAppR\x03appJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
 	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\x12X\n" +
 	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
@@ -1937,6 +2137,13 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_cert\"\xaa\x02\n" +
+	"\rScopedRoleApp\x120\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
+	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\x12.\n" +
+	"\x13client_idle_timeout\x18\x03 \x01(\tR\x11clientIdleTimeout\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x04 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x05 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
 	"\x18_disconnect_expired_cert\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
@@ -1977,50 +2184,54 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
 	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),              // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleSpec
 	(*ScopedRoleDefaults)(nil),      // 2: teleport.scopes.access.v1.ScopedRoleDefaults
 	(*ScopedRoleSSH)(nil),           // 3: teleport.scopes.access.v1.ScopedRoleSSH
 	(*ScopedRoleKube)(nil),          // 4: teleport.scopes.access.v1.ScopedRoleKube
-	(*ScopedRule)(nil),              // 5: teleport.scopes.access.v1.ScopedRule
-	(*SSHPortForwarding)(nil),       // 6: teleport.scopes.access.v1.SSHPortForwarding
-	(*SSHLocalPortForwarding)(nil),  // 7: teleport.scopes.access.v1.SSHLocalPortForwarding
-	(*SSHRemotePortForwarding)(nil), // 8: teleport.scopes.access.v1.SSHRemotePortForwarding
-	(*CreateHostUser)(nil),          // 9: teleport.scopes.access.v1.CreateHostUser
-	(*EnhancedRecording)(nil),       // 10: teleport.scopes.access.v1.EnhancedRecording
-	(*SessionRecording)(nil),        // 11: teleport.scopes.access.v1.SessionRecording
-	(*Lock)(nil),                    // 12: teleport.scopes.access.v1.Lock
-	(*KubeResource)(nil),            // 13: teleport.scopes.access.v1.KubeResource
-	(*v1.Metadata)(nil),             // 14: teleport.header.v1.Metadata
-	(*v11.Label)(nil),               // 15: teleport.label.v1.Label
+	(*ScopedRoleApp)(nil),           // 5: teleport.scopes.access.v1.ScopedRoleApp
+	(*ScopedRule)(nil),              // 6: teleport.scopes.access.v1.ScopedRule
+	(*SSHPortForwarding)(nil),       // 7: teleport.scopes.access.v1.SSHPortForwarding
+	(*SSHLocalPortForwarding)(nil),  // 8: teleport.scopes.access.v1.SSHLocalPortForwarding
+	(*SSHRemotePortForwarding)(nil), // 9: teleport.scopes.access.v1.SSHRemotePortForwarding
+	(*CreateHostUser)(nil),          // 10: teleport.scopes.access.v1.CreateHostUser
+	(*EnhancedRecording)(nil),       // 11: teleport.scopes.access.v1.EnhancedRecording
+	(*SessionRecording)(nil),        // 12: teleport.scopes.access.v1.SessionRecording
+	(*Lock)(nil),                    // 13: teleport.scopes.access.v1.Lock
+	(*KubeResource)(nil),            // 14: teleport.scopes.access.v1.KubeResource
+	(*v1.Metadata)(nil),             // 15: teleport.header.v1.Metadata
+	(*v11.Label)(nil),               // 16: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	14, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
-	5,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	6,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	4,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
-	11, // 6: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	15, // 8: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	6,  // 9: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	9,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
-	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
-	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	15, // 14: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	13, // 15: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
-	12, // 16: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	7,  // 17: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	8,  // 18: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	5,  // 6: teleport.scopes.access.v1.ScopedRoleSpec.app:type_name -> teleport.scopes.access.v1.ScopedRoleApp
+	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
+	16, // 9: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	7,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
+	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
+	16, // 15: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	14, // 16: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
+	13, // 17: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	16, // 18: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
+	13, // 19: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
+	8,  // 20: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	9,  // 21: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -2031,16 +2242,17 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	file_teleport_scopes_access_v1_role_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[7].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[5].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[8].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[9].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

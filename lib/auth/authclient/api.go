@@ -680,6 +680,10 @@ type AppsAccessPoint interface {
 	// ReadAppsAccessPoint provides methods to read data
 	ReadAppsAccessPoint
 
+	// ScopedRoleReader returns a read-only scoped role client. Used by the app service to
+	// authorize scope-pinned identities accessing applications.
+	ScopedRoleReader() services.ScopedRoleReader
+
 	// accessPoint provides common access point functionality
 	accessPoint
 }
@@ -1072,11 +1076,15 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
-	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
-	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
-
-	// DeleteApplicationServer removes specified application server.
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
 
 	// UpsertLock creates or updates a given lock
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -1689,6 +1697,12 @@ func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessP
 	}
 }
 
+func (w *AppsWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on app agents.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *AppsWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1906,12 +1920,14 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
 }
 
-// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
-func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
-	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
+// DeleteAppServer removes a scoped or unscoped application server.
+func (w *OktaWrapper) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
+	return w.NoCache.DeleteAppServer(ctx, req)
 }
 
 // DeleteApplicationServer removes specified application server.
+//
+// Deprecated: Use [DeleteAppServer] instead.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
 }

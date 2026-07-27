@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -35,12 +36,29 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tlscatest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestValidateApp(t *testing.T) {
+	// A scoped app's public_addr must be the derived "<hash(name,scope)>.<proxy>"
+	// address; any other value is rejected. The proxy suffix is not checked
+	// (label-only), and a scoped app skips the proxy-collision check entirely.
+	const scopedScope = "/staging/west"
+	scopedApp := func(name, scope, publicAddr string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{
+			URI:        "http://localhost:3000",
+			PublicAddr: publicAddr,
+		}, scope)
+		require.NoError(t, err)
+		return app
+	}
+	scopedDerived := scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "proxy.example.com")
+	// Derived for a different scope, so it does not match scopedScope.
+	wrongScopeDerived := scopedapp.ScopedAppPublicAddr("/prod", "grafana", "proxy.example.com")
+
 	tests := []struct {
 		name       string
 		app        types.Application
@@ -206,6 +224,30 @@ func TestValidateApp(t *testing.T) {
 			}(),
 			wantErr: "invalid AWS region",
 		},
+		// Scoped apps: public_addr must be the derived address for (name, scope).
+		{
+			name: "correct derived public_addr accepted",
+			app:  scopedApp("grafana", scopedScope, scopedDerived),
+		},
+		{
+			name: "public_addr with different proxy suffix accepted",
+			app:  scopedApp("grafana", scopedScope, scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "other.example.com")),
+		},
+		{
+			name:    "empty public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, ""),
+			wantErr: `scoped app "grafana" public address "" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "wrong scope's derived address rejected",
+			app:     scopedApp("grafana", scopedScope, wrongScopeDerived),
+			wantErr: `scoped app "grafana" public address "` + wrongScopeDerived + `" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "non-derived public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, "grafana.proxy.example.com"),
+			wantErr: `scoped app "grafana" public address "grafana.proxy.example.com" does not match its derived address for scope "/staging/west"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -216,6 +258,193 @@ func TestValidateApp(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func makeServer(t *testing.T, outerName, innerName, serverScope, appScope, publicAddr string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: publicAddr}, appScope)
+	require.NoError(t, err)
+	srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+	srv.Metadata.Name = outerName
+	srv.Scope = serverScope
+
+	return srv
+}
+
+func TestValidateAppServer(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	// A scoped app server's embedded app must carry the derived public_addr for
+	// the server's scope; the proxy suffix is not checked (label-only).
+	derivedProd := scopedapp.ScopedAppPublicAddr("/prod", "my-app", "proxy.example.com")
+
+	tests := []struct {
+		name          string
+		srvName       string
+		appName       string
+		srvScope      string
+		appScope      string
+		appPublicAddr string
+		wantErr       string
+	}{
+		// Scope validation: the embedded app scope must equal the server scope.
+		{
+			name:          "equal scope accepted",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: derivedProd,
+		},
+		{
+			name:    "unscoped server and app accepted",
+			srvName: "my-srv",
+			appName: "my-app",
+		},
+		{
+			name:     "different scopes rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod/web",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "/prod/web" does not match its embedded app scope "/prod"`,
+		},
+		{
+			name:     "empty embedded app scope under scoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod",
+			appScope: "",
+			wantErr:  `app server "my-srv" scope "/prod" does not match its embedded app scope ""`,
+		},
+		{
+			name:     "scoped app under unscoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "" does not match its embedded app scope "/prod"`,
+		},
+		{
+			name:          "scoped non-derived public_addr rejected",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: "my-app.proxy.example.com",
+			wantErr:       `scoped app "my-app" public address "my-app.proxy.example.com" does not match its derived address for scope "/prod"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAppServer(makeServer(t, tt.srvName, tt.appName, tt.srvScope, tt.appScope, tt.appPublicAddr), proxyGetter)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+	t.Run("nil server rejected", func(t *testing.T) {
+		require.EqualError(t, ValidateAppServer(nil, proxyGetter), "nil app server")
+	})
+}
+
+func TestNormalizeAppServerForHeartbeat(t *testing.T) {
+	makeServer := func(t *testing.T, outerName, innerName string) *types.AppServerV3 {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		srv.Metadata.Name = outerName
+		return srv
+	}
+
+	tests := []struct {
+		name          string
+		outerName     string
+		innerName     string
+		wantOuterName string
+		wantInnerName string
+	}{
+		{
+			name:          "both lowercase unchanged",
+			outerName:     "myapp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "both mixed-case lowercased together",
+			outerName:     "MyApp",
+			innerName:     "MyApp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "outer mixed-case inner lowercase",
+			outerName:     "MyApp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "true mismatch left unchanged",
+			outerName:     "different",
+			innerName:     "myapp",
+			wantOuterName: "different",
+			wantInnerName: "myapp",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := makeServer(t, tt.outerName, tt.innerName)
+			NormalizeAppServerForHeartbeat(srv)
+			require.Equal(t, tt.wantOuterName, srv.GetName())
+			require.Equal(t, tt.wantInnerName, srv.GetApp().GetName())
+		})
+	}
+
+	t.Run("required_apps lowercased", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"MixedCase", "Other.App"},
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		NormalizeAppServerForHeartbeat(srv)
+		require.Equal(t, []string{"mixedcase", "other.app"}, srv.GetApp().GetRequiredAppNames())
+	})
+}
+
+func TestNormalizeHeartbeatPublicAddr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty unchanged", input: "", want: ""},
+		{name: "bare hostname unchanged", input: "app.example.com", want: "app.example.com"},
+		{name: "scheme and path stripped", input: "https://app.example.com/start", want: "app.example.com"},
+		{name: "scheme path and port stripped", input: "https://app.example.com:443/path", want: "app.example.com"},
+		{name: "trailing port stripped", input: "app.example.com:443", want: "app.example.com"},
+		{name: "mixed case lowercased", input: "MyApp.Example.Com", want: "myapp.example.com"},
+		{name: "mixed case with scheme lowercased", input: "https://MyApp.Example.Com/start", want: "myapp.example.com"},
+		{name: "mixed case with port lowercased", input: "MyApp.Example.Com:443", want: "myapp.example.com"},
+		{name: "bare IPv6 returned as-is", input: "::1", want: "::1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, normalizeHeartbeatPublicAddr(tt.input))
 		})
 	}
 }

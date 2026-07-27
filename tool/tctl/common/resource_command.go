@@ -54,6 +54,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -2211,7 +2212,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		deleted := false
 		for _, server := range appServers {
 			if server.GetName() == ref.Name {
-				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+				if err := client.DeleteAppServer(ctx, &presencev1.DeleteAppServerRequest{
+					Name:   server.GetName(),
+					HostId: server.GetHostID(),
+					Scope:  server.GetScope(),
+				}); err != nil {
 					return trace.Wrap(err)
 				}
 				deleted = true

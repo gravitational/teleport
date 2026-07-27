@@ -28,6 +28,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services/label"
 )
 
 const (
@@ -287,7 +288,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
 		}
 	}
-
 	// verify that lock.Mode is a recognized value for SSH
 	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
@@ -297,6 +297,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 
 	// verify that kube block is well-formed
 	if err := validateKubeBlock(role.GetSpec().GetKube()); err != nil {
+		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
+	}
+
+	// verify that app block is well-formed
+	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
 		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
@@ -318,6 +323,51 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	}
 
 	return ""
+}
+
+func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
+	if app == nil {
+		return nil
+	}
+
+	labels := app.GetLabels()
+	if len(labels) == 0 && app.GetLabelExpression() == "" {
+		return trace.BadParameter("must define at least one app.labels entry or app.label expressions")
+	}
+
+	if expr := app.GetLabelExpression(); expr != "" {
+		if _, err := label.ParseExpression(expr); err != nil {
+			return trace.BadParameter("has invalid app.label_expression: %v", err)
+		}
+	}
+
+	// verify that app labels are well formed
+	for _, label := range labels {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// app labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("has invalid app label name %q", label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("has invalid app label value %q for label %q", value, label.GetName())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for App
+	if lock := app.GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("has invalid app.lock.mode %q", lock.GetMode())
+		}
+	}
+
+	if s := app.GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("has invalid app.client_idle_timeout %q: %v", s, err)
+		}
+	}
+	return nil
 }
 
 func validateLock(lock *scopedaccessv1.Lock) error {

@@ -1374,6 +1374,140 @@ func (b0 ListProxyServersResponse_builder) Build() *ListProxyServersResponse {
 	return m0
 }
 
+// The request to delete a specific scoped or unscoped application server.
+type DeleteAppServerRequest struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_HostId string                 `protobuf:"bytes,1,opt,name=host_id,json=hostId,proto3"`
+	xxx_hidden_Name   string                 `protobuf:"bytes,2,opt,name=name,proto3"`
+	xxx_hidden_Scope  string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DeleteAppServerRequest) Reset() {
+	*x = DeleteAppServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAppServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAppServerRequest) ProtoMessage() {}
+
+func (x *DeleteAppServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DeleteAppServerRequest) GetHostId() string {
+	if x != nil {
+		return x.xxx_hidden_HostId
+	}
+	return ""
+}
+
+func (x *DeleteAppServerRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *DeleteAppServerRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
+func (x *DeleteAppServerRequest) SetHostId(v string) {
+	x.xxx_hidden_HostId = v
+}
+
+func (x *DeleteAppServerRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *DeleteAppServerRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
+type DeleteAppServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// HostId is the app server host uuid.
+	HostId string
+	// Name is the name of the application to delete.
+	Name string
+	// Scope is the scope of the application to delete. Empty for unscoped
+	// applications.
+	Scope string
+}
+
+func (b0 DeleteAppServerRequest_builder) Build() *DeleteAppServerRequest {
+	m0 := &DeleteAppServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_HostId = b.HostId
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
+	return m0
+}
+
+// The response for deleting an application server.
+type DeleteAppServerResponse struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteAppServerResponse) Reset() {
+	*x = DeleteAppServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteAppServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteAppServerResponse) ProtoMessage() {}
+
+func (x *DeleteAppServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteAppServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAppServerResponse_builder) Build() *DeleteAppServerResponse {
+	m0 := &DeleteAppServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 var File_teleport_presence_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_service_proto_rawDesc = "" +
@@ -1432,8 +1566,12 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"m\n" +
 	"\x18ListProxyServersResponse\x12)\n" +
 	"\aservers\x18\x01 \x03(\v2\x0f.types.ServerV2R\aservers\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x9b\n" +
-	"\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"[\n" +
+	"\x16DeleteAppServerRequest\x12\x17\n" +
+	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x19\n" +
+	"\x17DeleteAppServerResponse2\x8b\v\n" +
 	"\x0fPresenceService\x12Y\n" +
 	"\x10GetRemoteCluster\x12-.teleport.presence.v1.GetRemoteClusterRequest\x1a\x16.types.RemoteClusterV3\x12w\n" +
 	"\x12ListRemoteClusters\x12/.teleport.presence.v1.ListRemoteClustersRequest\x1a0.teleport.presence.v1.ListRemoteClustersResponse\x12_\n" +
@@ -1446,9 +1584,10 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x10ListRelayServers\x12-.teleport.presence.v1.ListRelayServersRequest\x1a..teleport.presence.v1.ListRelayServersResponse\x12t\n" +
 	"\x11DeleteRelayServer\x12..teleport.presence.v1.DeleteRelayServerRequest\x1a/.teleport.presence.v1.DeleteRelayServerResponse\x12n\n" +
 	"\x0fListAuthServers\x12,.teleport.presence.v1.ListAuthServersRequest\x1a-.teleport.presence.v1.ListAuthServersResponse\x12q\n" +
-	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponse\x12n\n" +
+	"\x0fDeleteAppServer\x12,.teleport.presence.v1.DeleteAppServerRequest\x1a-.teleport.presence.v1.DeleteAppServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
-var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*GetRemoteClusterRequest)(nil),    // 0: teleport.presence.v1.GetRemoteClusterRequest
 	(*ListRemoteClustersRequest)(nil),  // 1: teleport.presence.v1.ListRemoteClustersRequest
@@ -1469,23 +1608,25 @@ var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*ListAuthServersResponse)(nil),    // 16: teleport.presence.v1.ListAuthServersResponse
 	(*ListProxyServersRequest)(nil),    // 17: teleport.presence.v1.ListProxyServersRequest
 	(*ListProxyServersResponse)(nil),   // 18: teleport.presence.v1.ListProxyServersResponse
-	(*types.RemoteClusterV3)(nil),      // 19: types.RemoteClusterV3
-	(*fieldmaskpb.FieldMask)(nil),      // 20: google.protobuf.FieldMask
-	(*types.ReverseTunnelV2)(nil),      // 21: types.ReverseTunnelV2
-	(*RelayServer)(nil),                // 22: teleport.presence.v1.RelayServer
-	(*types.ServerV2)(nil),             // 23: types.ServerV2
-	(*emptypb.Empty)(nil),              // 24: google.protobuf.Empty
+	(*DeleteAppServerRequest)(nil),     // 19: teleport.presence.v1.DeleteAppServerRequest
+	(*DeleteAppServerResponse)(nil),    // 20: teleport.presence.v1.DeleteAppServerResponse
+	(*types.RemoteClusterV3)(nil),      // 21: types.RemoteClusterV3
+	(*fieldmaskpb.FieldMask)(nil),      // 22: google.protobuf.FieldMask
+	(*types.ReverseTunnelV2)(nil),      // 23: types.ReverseTunnelV2
+	(*RelayServer)(nil),                // 24: teleport.presence.v1.RelayServer
+	(*types.ServerV2)(nil),             // 25: types.ServerV2
+	(*emptypb.Empty)(nil),              // 26: google.protobuf.Empty
 }
 var file_teleport_presence_v1_service_proto_depIdxs = []int32{
-	19, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
-	19, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
-	20, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
-	21, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
-	21, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
-	22, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
-	22, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
-	23, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
-	23, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
+	21, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
+	21, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
+	22, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
+	23, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
+	23, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
+	24, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
+	24, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
+	25, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
+	25, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
 	0,  // 9: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
 	1,  // 10: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
 	3,  // 11: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
@@ -1498,20 +1639,22 @@ var file_teleport_presence_v1_service_proto_depIdxs = []int32{
 	13, // 18: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
 	15, // 19: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
 	17, // 20: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
-	19, // 21: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
-	2,  // 22: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
-	19, // 23: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
-	24, // 24: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
-	6,  // 25: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
-	21, // 26: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
-	24, // 27: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
-	10, // 28: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
-	12, // 29: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
-	14, // 30: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
-	16, // 31: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
-	18, // 32: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
-	21, // [21:33] is the sub-list for method output_type
-	9,  // [9:21] is the sub-list for method input_type
+	19, // 21: teleport.presence.v1.PresenceService.DeleteAppServer:input_type -> teleport.presence.v1.DeleteAppServerRequest
+	21, // 22: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
+	2,  // 23: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
+	21, // 24: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
+	26, // 25: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
+	6,  // 26: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
+	23, // 27: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
+	26, // 28: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
+	10, // 29: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
+	12, // 30: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
+	14, // 31: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
+	16, // 32: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
+	18, // 33: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
+	20, // 34: teleport.presence.v1.PresenceService.DeleteAppServer:output_type -> teleport.presence.v1.DeleteAppServerResponse
+	22, // [22:35] is the sub-list for method output_type
+	9,  // [9:22] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1529,7 +1672,7 @@ func file_teleport_presence_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

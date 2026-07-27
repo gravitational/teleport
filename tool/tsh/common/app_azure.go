@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -245,7 +246,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// This isn't portable and applications other than az CLI may have to set different env variables,
 		// add the application cert to system root store (not recommended, ultimate fallback)
 		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
+		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.cf.SiteName, scopes.QualifiedName{Name: a.routeToApp.Name, Scope: a.routeToApp.Scope}),
 	}
 
 	if a.usingMSAL() {
