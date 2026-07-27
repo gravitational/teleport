@@ -414,7 +414,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
 		// secrets. Should we hash it?
-		JoinToken:  token.GetSafeName(),
+		JoinToken:  scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
 		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
