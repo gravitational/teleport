@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -479,7 +480,26 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 			},
 			requiredExtensions: &mfav1.ChallengeExtensions{},
 			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
+			},
+		},
+		{
+			// The session data backing a reusable response expires on its own TTL,
+			// so a missing session with reuse allowed is reported as an expired
+			// reusable response, not as a generic access denied error.
+			name:     "NOK no session data with reuse allowed",
+			username: samlUser.GetName(),
+			sd:       nil,
+			ssoResponse: &proto.SSOResponse{
+				RequestId: "unknown",
+				Token:     "token",
+			},
+			requiredExtensions: &mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
+				require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 			},
 		},
 		{
@@ -503,7 +523,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			},
 			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 			},
 		},
 		{

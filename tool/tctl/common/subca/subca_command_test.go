@@ -56,10 +56,12 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		flags      []string // flags after "tctl auth create-override-csr"
-		csrPEMs    []string // as returned by the server
+		flags      []string                    // flags after "tctl auth create-override-csr"
+		csrPEMs    []string                    // as returned by the server
+		csrWarns   []*subcav1.CreateCSRWarning // as returned by the server
 		wantReq    *subcav1.CreateCSRRequest
 		wantStdout string
+		wantStderr string
 		wantFiles  map[string]string // filepath to content
 	}{
 		{
@@ -152,13 +154,38 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				wantWindows2File: windowsCSRPEM2,
 			},
 		},
+		{
+			name: "local only",
+			flags: []string{
+				"--type", string(types.WindowsCA),
+				"--local-only",
+			},
+			csrPEMs: []string{
+				windowsCSRPEM,
+			},
+			// Simulates "windowsCSRPEM2" not being accessible.
+			csrWarns: []*subcav1.CreateCSRWarning{
+				subcav1.CreateCSRWarning_builder{
+					UserMessage:   "private key inaccessible",
+					PublicKeyHash: "11b52b511de1f0d8c4b5e5a3beb053fb5497727d696de6dae338560e4e2f8e0c",
+				}.Build(),
+			},
+			wantReq: subcav1.CreateCSRRequest_builder{
+				CaType:    string(types.WindowsCA),
+				LocalOnly: true,
+			}.Build(),
+			wantStdout: windowsCSRPEM + "\n",
+			wantStderr: `public key "11b52b511de1f0d8c4b5e5a3beb053fb5497727d696de6dae338560e4e2f8e0c": private key inaccessible
+`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			fakeClient := &fakeAuthClient{
-				csrPEMs: test.csrPEMs,
+				csrPEMs:  test.csrPEMs,
+				csrWarns: test.csrWarns,
 			}
 			clientFunc := func(ctx context.Context) (_ subca.SubCAClientSource, closeFn func(context.Context), _ error) {
 				return fakeClient, func(ctx context.Context) {}, nil
@@ -179,8 +206,9 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				t.Errorf("CreateCSRRequest mismatch (-want +got)\n%s", diff)
 			}
 
-			// Verify stdout.
+			// Verify stdout/stderr.
 			assert.Equal(t, test.wantStdout, env.Stdout.String(), "stdout mismatch")
+			assert.Equal(t, test.wantStderr, env.Stderr.String(), "stderr mismatch")
 
 			// Verify side effects.
 			for filePath, wantContent := range test.wantFiles {
@@ -776,6 +804,7 @@ type fakeAuthClient struct {
 	subcav1.SubCAServiceClient
 
 	csrPEMs                      []string
+	csrWarns                     []*subcav1.CreateCSRWarning
 	lastCSRRequest               *subcav1.CreateCSRRequest
 	lastAddCertificateRequest    *subcav1.AddCertificateOverrideRequest
 	lastUpdateCertificateRequest *subcav1.UpdateCertificateOverrideRequest
@@ -795,7 +824,8 @@ func (f *fakeAuthClient) CreateCSR(
 	}
 
 	resp := subcav1.CreateCSRResponse_builder{
-		Csrs: make([]*subcav1.CertificateSigningRequest, len(f.csrPEMs)),
+		Csrs:     make([]*subcav1.CertificateSigningRequest, len(f.csrPEMs)),
+		Warnings: f.csrWarns,
 	}.Build()
 	for i, pem := range f.csrPEMs {
 		resp.GetCsrs()[i] = subcav1.CertificateSigningRequest_builder{

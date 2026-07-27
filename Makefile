@@ -308,6 +308,8 @@ export TEST_KUBE
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
 
+EXTLDFLAGS ?=
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","arm64")
@@ -326,16 +328,17 @@ CC=arm-linux-gnueabihf-gcc
 endif
 endif
 
+# Add "-Wl,--long-plt" to avoid ld assertion failure on large binaries.
+EXTLDFLAGS += -Wl,--long-plt
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -debugtramp=2
 endif
 endif # OS == linux
 
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 # Temporary link flags due to changes in Apple's linker
 # https://github.com/golang/go/issues/67854
-GO_LDFLAGS += -extldflags=-ld_classic
+EXTLDFLAGS += -ld_classic
 endif
 
 # Windows requires extra parameters to cross-compile with CGO.
@@ -425,6 +428,18 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	mkdir -p session/reexec/embed
 	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
 endif
+
+ifneq ($(strip $(EXTLDFLAGS)),)
+GO_LDFLAGS += -extldflags "$(EXTLDFLAGS)"
+endif
+
+# Strip unreachable native code from tsh.
+ifeq ("$(OS)","darwin")
+TSH_DEADSTRIP := -Wl,-dead_strip
+else
+TSH_DEADSTRIP := -Wl,--gc-sections
+endif
+$(BUILDDIR)/tsh: GO_LDFLAGS += -extldflags "$(EXTLDFLAGS) $(TSH_DEADSTRIP)"
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.

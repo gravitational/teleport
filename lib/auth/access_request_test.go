@@ -41,6 +41,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -222,6 +224,7 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
+	t.Run("drop requests keeps access list grants", func(t *testing.T) { testDropRequestsKeepsAccessListGrants(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
 	t.Run("cert extension resource IDs", func(t *testing.T) { testCertExtensionResourceIDs(t, testPack) })
@@ -1614,6 +1617,123 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 
 	// Verify that the new certs issued for the old client have the new role.
 	checkCerts(t, certs, []string{"requesters", "operators"}, nil, nil, nil)
+}
+
+// testDropRequestsKeepsAccessListGrants verifies that dropping access requests
+// resets the certificate roles and traits to the user login state, which
+// includes roles and traits granted by access lists, rather than to the bare
+// backend user. See https://github.com/gravitational/teleport/issues/45797.
+func testDropRequestsKeepsAccessListGrants(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "requester-with-access-list"
+	authServer := testPack.tlsServer.Auth()
+
+	// Create a user with the base "requesters" role.
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.AddRole("requesters")
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create a role that is granted only through an access list.
+	aclRole, err := types.NewRole("access-list-granted", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"acl-login"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, aclRole)
+	require.NoError(t, err)
+
+	// Grant the role through a real access list. Dropping access requests
+	// regenerates the user login state from the backend user and access
+	// lists, so the grant must be backed by an actual list membership.
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "requester-acl",
+		},
+		accesslist.Spec{
+			Title:  "requester-acl",
+			Owners: []accesslist.Owner{{Name: "acl-owner"}},
+			Audit:  accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour).UTC()},
+			Grants: accesslist.Grants{
+				Roles: []string{aclRole.GetName()},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, acl)
+	require.NoError(t, err)
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: username,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: acl.GetName(),
+			Name:       username,
+			Joined:     time.Now().UTC(),
+			AddedBy:    "acl-owner",
+			Expires:    time.Now().Add(24 * time.Hour).UTC(),
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create an approved access request for the "admins" role.
+	accessRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+	accessRequest.SetState(types.RequestState_APPROVED)
+	accessRequest.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+	require.NoError(t, authServer.UpsertAccessRequest(ctx, accessRequest))
+
+	clt, err := testPack.tlsServer.NewClient(authtest.TestUser(username))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	// Assume the access request.
+	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:   testPack.sshPubKey,
+		TLSPublicKey:   testPack.tlsPubKey,
+		Username:       username,
+		Expires:        time.Now().Add(time.Hour).UTC(),
+		AccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
+	require.NoError(t, err)
+	elevatedClient, err := testPack.tlsServer.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
+	defer elevatedClient.Close()
+
+	// Drop all access requests. The reissued certs must keep the roles and
+	// traits granted by access lists via the user login state.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{"*"},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
+
+	// Dropping a single request by ID must behave the same way.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
 }
 
 // checkCerts checks that the ssh and tls certs include the given roles, logins,

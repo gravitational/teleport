@@ -48,31 +48,8 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// parseScopeQualifiedAppName splits a scope-qualified app name argument
-// ("/scope::name") into cf.AppScope and cf.AppName. Bare names are left
-// untouched and refer to unscoped apps.
-func parseScopeQualifiedAppName(cf *CLIConf) error {
-	if !strings.Contains(cf.AppName, scopes.QualifiedNameSeparator) {
-		return nil
-	}
-	qn, err := scopes.ParseQualifiedName(cf.AppName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := scopes.StrongValidate(qn.Scope); err != nil {
-		return trace.Wrap(err)
-	}
-
-	cf.AppScope = qn.Scope
-	cf.AppName = qn.Name
-	return nil
-}
-
 // onAppLogin implements "tsh apps login" command.
 func onAppLogin(cf *CLIConf) error {
-	if err := parseScopeQualifiedAppName(cf); err != nil {
-		return trace.Wrap(err)
-	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -457,9 +434,6 @@ Example command: tsh gcloud compute instances list
 
 // onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
-	if err := parseScopeQualifiedAppName(cf); err != nil {
-		return trace.Wrap(err)
-	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -477,19 +451,19 @@ func onAppLogout(cf *CLIConf) error {
 	// If a specific app name was specified, just log out of that app.
 	// Otherwise, log out of all apps.
 	var logout []tlsca.RouteToApp
-	if cf.AppName != "" {
+	if cf.AppSQN.Name != "" {
 		for _, app := range activeRoutes {
-			if app.Name == cf.AppName && app.Scope == cf.AppScope {
+			if app.Name == cf.AppSQN.Name && app.Scope == cf.AppSQN.Scope {
 				logout = append(logout, app)
 			}
 		}
 
 		if len(logout) == 0 {
 			// Not logged in but still try to delete any dangling files.
-			if err := tc.LogoutApp(cf.AppName); err != nil {
+			if err := tc.LogoutApp(cf.AppSQN); err != nil {
 				return trace.Wrap(err)
 			}
-			return trace.BadParameter("not logged into app %q", cf.AppName)
+			return trace.BadParameter("not logged into app %q", cf.AppSQN)
 		}
 	} else {
 		logout = activeRoutes
@@ -501,27 +475,27 @@ func onAppLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		err = tc.LogoutApp(app.Name)
+		err = tc.LogoutApp(scopes.QualifiedName{Name: app.Name, Scope: app.Scope})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// remove generated local files for the provided app.
-		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, app.Name))
+		err := utils.RemoveFileIfExist(profile.AppLocalCAPath(tc.SiteName, scopes.QualifiedName{Name: app.Name, Scope: app.Scope}))
 		if err != nil {
 			logger.WarnContext(cf.Context, "Failed to clean up app session",
 				"error", err,
-				"profile", profile.AppLocalCAPath(tc.SiteName, app.Name))
+				"profile", profile.AppLocalCAPath(tc.SiteName, scopes.QualifiedName{Name: app.Name, Scope: app.Scope}))
 		}
 
 		if err := removeExternalFilesForApp(app); err != nil {
 			logger.WarnContext(cf.Context, "Failed to clean up app external files",
 				"error", err,
-				"app", cf.AppName)
+				"app", cf.AppSQN)
 		}
 	}
 
-	if cf.AppName == "" {
+	if cf.AppSQN.Name == "" {
 		// Try to delete any dangling files even if the app sessions are expired.
 		if err := tc.LogoutAllApps(); err != nil {
 			return trace.Wrap(err)
@@ -534,7 +508,7 @@ func onAppLogout(cf *CLIConf) error {
 	}
 
 	if len(logout) == 1 {
-		fmt.Printf("Logged out of app %q\n", logout[0].Name)
+		fmt.Printf("Logged out of app %q\n", scopes.QualifiedName{Name: logout[0].Name, Scope: logout[0].Scope}.String())
 	} else {
 		fmt.Println("Logged out of all apps")
 	}
@@ -543,9 +517,6 @@ func onAppLogout(cf *CLIConf) error {
 
 // onAppConfig implements "tsh apps config" command.
 func onAppConfig(cf *CLIConf) error {
-	if err := parseScopeQualifiedAppName(cf); err != nil {
-		return trace.Wrap(err)
-	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -602,10 +573,10 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	if tc.InsecureSkipVerify {
 		curlInsecureFlag = "--insecure "
 	}
-
-	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name)
-	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name)
-	appName := scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope}.String()
+	appSQN := scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope}
+	certPath := profile.AppCertPath(tc.SiteName, appSQN)
+	keyPath := profile.AppKeyPath(tc.SiteName, appSQN)
+	appName := appSQN.String()
 
 	curlCmd := fmt.Sprintf(`curl %s\
   --cert %q \
@@ -734,7 +705,7 @@ func getAppInfo(cf *CLIConf, clt authclient.ClientI, profile *client.ProfileStat
 	}
 
 	// If we didn't find an active profile for the app, get info from server.
-	app, logins, err := getApp(cf.Context, clt, cf.AppName, cf.AppScope)
+	app, logins, err := getApp(cf.Context, clt, cf.AppSQN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -822,7 +793,7 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 		return a.app.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
-	app, _, err := getApp(ctx, clt, a.Name, a.RouteToApp.Scope)
+	app, _, err := getApp(ctx, clt, scopes.QualifiedName{Name: a.GetName(), Scope: a.GetScope()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -833,7 +804,7 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 // getApp returns the registered application with the specified name and scope.
 // A bare name (empty scope) only ever resolves to an unscoped app; scoped apps
 // must be referenced by their scope-qualified name.
-func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope string) (app types.Application, logins []string, err error) {
+func getApp(ctx context.Context, clt apiclient.GetResourcesClient, appSQN scopes.QualifiedName) (app types.Application, logins []string, err error) {
 	// A (name, scope) pair identifies a single logical app.
 	// if a user does not supply a scope, we need to further parse the results to make sure
 	// that the results do not contain scopes - disallowing cross scope app access.
@@ -842,10 +813,10 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope s
 	//
 	// TODO (williamo/scopes): eventually revert back to retrieving just 1 result and pass the scope expression by
 	// default, and delete the client side filtering.
-	predicate := fmt.Sprintf("name == %q", name)
+	predicate := fmt.Sprintf("name == %q", appSQN.Name)
 	limit := apidefaults.DefaultChunkSize
-	if scope != "" {
-		predicate = fmt.Sprintf("name == %q && resource.scope == %q", name, scope)
+	if appSQN.Scope != "" {
+		predicate = fmt.Sprintf("name == %q && resource.scope == %q", appSQN.Name, appSQN.Scope)
 		limit = 1
 	}
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
@@ -868,12 +839,12 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope s
 		}
 
 		a := server.GetApp()
-		if a.GetScope() == scope {
+		if a.GetScope() == appSQN.Scope {
 			return a, r.Logins, nil
 		}
 	}
 
-	return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+	return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", appSQN.String())
 }
 
 // pickActiveApp returns the app the current profile is logged into.
@@ -881,7 +852,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope s
 // If logged into multiple apps, returns an error unless one was specified
 // explicitly on CLI.
 func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToApp, error) {
-	if cf.AppName == "" {
+	if cf.AppSQN.Name == "" {
 		switch len(activeRoutes) {
 		case 0:
 			return proto.RouteToApp{}, trace.NotFound("please login using 'tsh apps login' first")
@@ -898,14 +869,14 @@ func pickActiveApp(cf *CLIConf, activeRoutes []tlsca.RouteToApp) (proto.RouteToA
 	}
 
 	for _, r := range activeRoutes {
-		if r.Name == cf.AppName && r.Scope == cf.AppScope {
+		if r.Name == cf.AppSQN.Name && r.Scope == cf.AppSQN.Scope {
 			return tlscaRouteToAppToProto(r), nil
 		}
 	}
-	if cf.AppScope != "" {
-		return proto.RouteToApp{}, trace.NotFound("not logged into app %q in scope %q", cf.AppName, cf.AppScope)
+	if cf.AppSQN.Scope != "" {
+		return proto.RouteToApp{}, trace.NotFound("not logged into app %q in scope %q", cf.AppSQN.Name, cf.AppSQN.Scope)
 	}
-	return proto.RouteToApp{}, trace.NotFound("not logged into app %q", cf.AppName)
+	return proto.RouteToApp{}, trace.NotFound("not logged into app %q", cf.AppSQN.Name)
 }
 
 func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
@@ -940,7 +911,7 @@ func onAppLogins(cf *CLIConf) error {
 		}
 		defer clusterClient.Close()
 
-		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppName, cf.AppScope)
+		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppSQN)
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)

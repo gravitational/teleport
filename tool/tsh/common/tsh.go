@@ -280,13 +280,8 @@ type CLIConf struct {
 	DatabaseRoles string
 	// DatabaseCommand specifies the command to execute.
 	DatabaseCommand string
-
-	// AppName specifies proxied application name.
-	AppName string
-	// AppScope is the scope of the app to log into, parsed from a scope-qualified
-	// app name argument ("/scope::name"). Scoped apps must be referenced by their
-	// scope-qualified name; bare names refer to unscoped apps.
-	AppScope string
+	// AppSQN specifies proxied application name and scope.
+	AppSQN scopes.QualifiedName
 	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
 	// Mainly used for debugging purpose so the flag should be hidden.
 	AppHTTPSTunnel bool
@@ -1088,7 +1083,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// Use Interspersed(false) to forward all flags to AWS CLI.
 	aws := app.Command("aws", "Access AWS API.").Interspersed(false)
 	aws.Arg("command", "AWS command and subcommands arguments that are going to be forwarded to AWS CLI.").StringsVar(&cf.AWSCommandArgs)
-	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials.").StringVar(&cf.Exec)
@@ -1101,18 +1096,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
-	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
-	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
-	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
@@ -1126,7 +1121,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
-	appLogin.Arg("app", "App name to retrieve credentials for, as shown in `tsh apps ls`. Scoped apps use their scope-qualified name (\"/scope::name\").").Required().StringVar(&cf.AppName)
+	appLogin.Arg("app", "App name to retrieve credentials for, as shown in `tsh apps ls`. Scoped apps use their scope-qualified name (\"/scope::name\").").Required().SetValue(&cf.AppSQN)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("env", "(For AWS CLI access only) Obtain credentials as plain text in order to load into environments variables. Required when using per-session MFA.").Hidden().BoolVar(&cf.AppLoginAWSEnvOutput)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
@@ -1135,14 +1130,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	appLogin.Flag("interactive", "Prompt for AWS Roles interactively (--aws-role takes precedence).").Short('T').Default("true").Envar(awsLoginInteractive).BoolVar(&cf.Interactive)
 	appLogin.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
-	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
+	appLogout.Arg("app", "App to remove credentials for.").SetValue(&cf.AppSQN)
 	appConfig := apps.Command("config", "Print app connection information.")
-	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").StringVar(&cf.AppName)
+	appConfig.Arg("app", "App to print information for. Required when logged into multiple apps.").SetValue(&cf.AppSQN)
 	appConfig.Flag("format", fmt.Sprintf("Optional print format, one of: %q to print app address, %q to print CA cert path, %q to print cert path, %q print key path, %q to print example curl command, %q or %q to print everything as JSON or YAML.",
 		appFormatURI, appFormatCA, appFormatCert, appFormatKey, appFormatCURL, appFormatJSON, appFormatYAML),
 	).Short('f').StringVar(&cf.Format)
 	appLogins := apps.Command("logins", "List available logins for a Cloud console application.")
-	appLogins.Arg("app", "App name to list logins for. Currently only AWS is supported.").Required().StringVar(&cf.AppName)
+	appLogins.Arg("app", "App name to list logins for. Currently only AWS is supported.").Required().SetValue(&cf.AppSQN)
 	appLogins.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 
 	// Recordings.
@@ -1184,30 +1179,30 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyDB.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&cf.disableAccessRequest)
 
 	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
-	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
+	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
-	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
+	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().SetValue(&cf.AppSQN)
 	proxyMCP.Flag("port", "Specifies the listening port used by the proxy app listener.").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyMCP.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
-	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
-	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
 
 	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
-	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").SetValue(&cf.AppSQN)
 	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
