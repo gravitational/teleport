@@ -308,6 +308,8 @@ export TEST_KUBE
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
 
+EXTLDFLAGS ?=
+
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","arm64")
@@ -326,16 +328,17 @@ CC=arm-linux-gnueabihf-gcc
 endif
 endif
 
+# Add "-Wl,--long-plt" to avoid ld assertion failure on large binaries.
+EXTLDFLAGS += -Wl,--long-plt
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -debugtramp=2
 endif
 endif # OS == linux
 
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 # Temporary link flags due to changes in Apple's linker
 # https://github.com/golang/go/issues/67854
-GO_LDFLAGS += -extldflags=-ld_classic
+EXTLDFLAGS += -ld_classic
 endif
 
 # Windows requires extra parameters to cross-compile with CGO.
@@ -425,6 +428,18 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	mkdir -p session/reexec/embed
 	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
 endif
+
+ifneq ($(strip $(EXTLDFLAGS)),)
+GO_LDFLAGS += -extldflags "$(EXTLDFLAGS)"
+endif
+
+# Strip unreachable native code from tsh.
+ifeq ("$(OS)","darwin")
+TSH_DEADSTRIP := -Wl,-dead_strip
+else
+TSH_DEADSTRIP := -Wl,--gc-sections
+endif
+$(BUILDDIR)/tsh: GO_LDFLAGS += -extldflags "$(EXTLDFLAGS) $(TSH_DEADSTRIP)"
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
@@ -980,16 +995,17 @@ helmunit/installed:
 	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
 	if [ -z "$$actual" ]; then \
 		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts. Run:'; \
+			'Helm unittest plugin is required to test Helm charts.'; \
 	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
 		printf '%s\n' \
 			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
-			'Run:'; \
+			''; \
 	else \
 		exit 0; \
 	fi; \
 	printf '%s\n' \
 		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
+		'Run:' \
 		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
 		'  rm -rf "$$plugin_dir"' \
 		'  mkdir -p "$$plugin_dir"' \
@@ -1981,7 +1997,7 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
 ' Cargo.lock)
 
 # Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
-# from a per-version path under target/ rather than the shared ~/.cargo/bin. 
+# from a per-version path under target/ rather than the shared ~/.cargo/bin.
 WASM_BINDGEN_ISOLATE ?= 0
 WASM_BINDGEN_INSTALL_FLAGS =
 ifeq ($(WASM_BINDGEN_ISOLATE),1)
@@ -2049,8 +2065,20 @@ define rust_toolchain_warning
 endef
 export rust_toolchain_warning
 
+define rust_shadowed_warning
+  The 'cargo'/'rustc' on your PATH are not the ones managed by rustup.
+  Another Rust installation (for example the Homebrew 'rust' formula) is
+  shadowing rustup's shims. Builds will ignore rust-toolchain.toml.
+  Remove the other installation (e.g. 'brew uninstall rust') or put
+  rustup's shims ahead of it on your PATH. Inspect with 'which cargo'
+  and 'cargo --version'.
+endef
+export rust_shadowed_warning
+
 # inspect the current active toolchain and display a warning if it doesn't
-# match the version defined in our toolchain file.
+# match the version defined in our toolchain file. Also warn when the cargo
+# on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
+# silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
 rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
@@ -2058,6 +2086,15 @@ rustup-toolchain-warning:
 		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
 		echo  -en "\033[0m";\
+	fi
+	@if command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1; then \
+		rustup_cargo="$$(rustup which cargo 2>/dev/null)";\
+		if [ -n "$$rustup_cargo" ] && \
+			[ "$$("$$rustup_cargo" --version 2>/dev/null)" != "$$(cargo --version 2>/dev/null)" ]; then \
+			echo -en "\033[31m";\
+			echo  "$$rust_shadowed_warning";\
+			echo  -en "\033[0m";\
+		fi;\
 	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of

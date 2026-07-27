@@ -132,6 +132,24 @@ func (p *ClientParams) check() error {
 	return nil
 }
 
+// CheckForRole validates that the payload matches the requested SystemRole:
+// an Instance join must carry HostParams, a Bot join must carry BotParams.
+func (p *ClientParams) CheckForRole(role types.SystemRole) error {
+	switch role {
+	case types.RoleInstance:
+		if p.HostParams == nil {
+			return trace.BadParameter("HostParams is required to join as %s", role)
+		}
+	case types.RoleBot:
+		if p.BotParams == nil {
+			return trace.BadParameter("BotParams is required to join as %s", role)
+		}
+	default:
+		return trace.NotImplemented("new join service only supports Instance and Bot system roles, client requested %s", role)
+	}
+	return nil
+}
+
 // HostParams holds parameters that are specific to host joining and
 // irrelevant to bot joining.
 type HostParams struct {

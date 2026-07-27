@@ -945,7 +945,7 @@ func (x *Backend) setScreenSizeLocked(width, height uint16) error {
 
 	x.config.Logger.Log(x.ctx, logutils.TraceLevel, "setting crtc config",
 		"crtc", crtc,
-		"configTimestamp", resources.ConfigTimestamp,
+		"config_timestamp", resources.ConfigTimestamp,
 		"mode", modeID,
 		"output", output,
 		"width", width,

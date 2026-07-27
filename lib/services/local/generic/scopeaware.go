@@ -92,6 +92,10 @@ type ScopeAwareServiceConfig[T ScopedResource] struct {
 
 // NewScopeAwareService returns a new scope-aware service.
 func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*ScopeAwareService[T], error) {
+	if !cfg.ScopedOnly && cfg.ScopedBackendPrefix.Compare(cfg.UnscopedBackendPrefix) == 0 {
+		return nil, trace.BadParameter("scoped and unscoped backend services cannot have the same prefix")
+	}
+
 	scopedService, err := NewService(&ServiceConfig[T]{
 		Backend:                     cfg.Backend,
 		ResourceKind:                cfg.ResourceKind,
@@ -331,6 +335,15 @@ func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, re
 		return nul, trace.Wrap(err)
 	}
 	return svc.ConditionalUpdateResource(ctx, resource)
+}
+
+// MakeBackendItem will check and make the backend item.
+func (s *ScopeAwareService[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+	return svc.MakeBackendItem(resource)
 }
 
 // WithScopePrefix returns the unscoped service when scope is empty, otherwise

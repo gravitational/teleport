@@ -357,6 +357,8 @@ message UpdateOktaAssignmentStatusRequest {
 message DeleteOktaAssignmentRequest {
   // name is the name of the Okta assignment.
   string name = 1;
+  // revision is the optional revision of the Okta assignment resource.
+  string revision = 2;
 }
 
 // DeleteAllOktaAssignmentsRequest is the request for deleting all Okta assignments.

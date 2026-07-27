@@ -7,7 +7,8 @@ object:
 | Field        | Type             | Description                                                                     |
 | ------------ | ---------------- | ------------------------------------------------------------------------------- |
 | `identities` | IdentityAccess[] | One entry per identity in the query's scope. Empty (`[]`) when nothing matched. |
-| `warnings`   | string[]         | Non-fatal notices (truncation, activity-lookup failure). Omitted when none.     |
+| `activity_unavailable` | string | Set when the activity lookup could not run (e.g. Identity Activity Center not configured). The activity columns are then omitted and the access decisions are still returned. Omitted when activity is available. |
+| `warnings`   | string[]         | Non-fatal notices (e.g. truncation). Omitted when none.     |
 
 ## IdentityAccess
 
@@ -23,26 +24,26 @@ object:
 | `resource`       | Node          | The resource reached.                                                                                                                                     |
 | `level`          | string        | Resolved access level: `standing`, `impersonate`, `request`, or `denied` (see _Levels_).                                                                  |
 | `temporary`      | bool          | `true` when the access is self-expiring (granted by an access request). Rendered as a `*` in text.                                                        |
-| `grantor_counts` | GrantorCounts | How many grantors back this access at each level (`standing`/`impersonate`/`request`). Denied grantors are listed in `grantors` but **not** counted here. |
-| `grantors`       | Grantor[]     | The identity-group node(s) (access list / role / access request) that grant or deny the access. Ordered primary-first: `grantors[0]` is the grantor backing the resolved `level`. |
-| `activity`       | Activity      | Present only with a time window (`--from`/`--to`). Access count and last-access time over the window.                                                     |
+| `grant_counts`   | GrantCounts   | How many grants back this access at each level (`standing`/`impersonate`/`request`). Denied grants are listed in `granted_by` but **not** counted here. |
+| `granted_by`     | Grant[]       | The identity-group node(s) (access list / role / access request) that grant or deny the access. Ordered primary-first: `granted_by[0]` is the grant backing the resolved `level`. |
+| `activity`       | Activity      | Access count and last-access time over the window (default last 24h; widen with `--from`/`--to`). Omitted when `--no-activity` is passed or the activity lookup failed. |
 
-### GrantorCounts
+### GrantCounts
 
-`{ standing, impersonate, request }` — the number of grantors backing the access
-at each level (denied grantors excluded; they appear in `grantors`). More than
-one at a level means multiple grants back it, so removing a single grantor won't
-revoke the access. In text, shown under the `Grantor Counts` column as e.g.
+`{ standing, impersonate, request }` — the number of grants backing the access
+at each level (denied grants excluded; they appear in `granted_by`). More than
+one at a level means multiple grants back it, so removing a single grant won't
+revoke the access. In text, shown under the `Grants` column as e.g.
 `3 standing, 1 request`.
 
-### Grantor
+### Grant
 
 `{ node: Node, level: string }` — the attributing identity-group node and the
 level **it** contributes. The row's resolved `level` is the strongest across all
-its grantors (priority `denied > standing > impersonate > request`); a grantor's
+its grants (priority `denied > standing > impersonate > request`); a grant's
 own `level` can differ (this is what `--detailed` exposes). The list is returned
 in a stable order — by `level` priority, then permanent before temporary, then
-name, then `id` — so `grantors[0]` is the strongest-priority grantor, i.e. the
+name, then `id` — so `granted_by[0]` is the strongest-priority grant, i.e. the
 one whose `level` equals the resolved `level`. Act on it when acting on the
 resolved access.
 
@@ -50,9 +51,9 @@ resolved access.
 
 `{ count: number, last_access?: string (RFC3339) }`. Absent or null
 `last_access` renders as `never`; a zero count renders as `0`. Requires Identity
-Activity Center; if the activity lookup fails, `activity` is omitted and a
-`warnings` entry (`activity unavailable: …`) is added — the access decision is
-still returned.
+Activity Center; if the activity lookup can't run, `activity` is omitted, the
+top-level `activity_unavailable` field is set (shown in text as a note, with the
+activity columns omitted), and the access decisions are still returned.
 
 Counts come from **session-start audit events**, so activity only covers
 resources reached through a Teleport session (SSH, database, Kubernetes, app,
@@ -62,7 +63,7 @@ matter the real use. There, absent means "not tracked", not "unused".
 
 ## Node
 
-Used for identities, resources, and grantors.
+Used for identities, resources, and grants.
 
 | Field       | Type   | Description                                                                                                                                              |
 | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -73,7 +74,7 @@ Used for identities, resources, and grantors.
 | `sub_kind`  | string | e.g. identity → `user`/`bot`; resource → `ssh`/`database`/`kubernetes`/`app`/`desktop`; group → `role`/`access_list`/`access_request`. The text `Kind` columns show this. |
 | `source`    | string | Origin system, e.g. `TELEPORT`, `OKTA`.                                                                                                                  |
 | `origin`    | string | Finer origin, e.g. `teleport_user`.                                                                                                                      |
-| `temporary` | bool   | For a grantor, `true` if created by an access request (self-expiring).                                                                                   |
+| `temporary` | bool   | For a grant, `true` if created by an access request (self-expiring).                                                                                     |
 
 ## Levels
 
@@ -104,17 +105,17 @@ query to see the rest.
 shown once then blanked:
 
 ```
-Identity   Kind  Resource    Resource Kind  Access Level  Grantor        Grantor Counts  [Accesses  Last Access]
+Identity   Kind  Resource    Resource Kind  Access Level  Granted By     Grants          [Accesses  Last Access]
 ```
 
-**Detailed (`--detailed`)** — keeps the `Grantor` column and replaces `Grantor
-Counts` with `Grantor Level`, showing one row per grantor (each grantor's own level). A resource with multiple grantors gets a
+**Detailed (`--detailed`)** — keeps the `Granted By` column and replaces `Grants`
+with `Grant Level`, showing one row per grant (each grant's own level). A resource with multiple grants gets a
 summary row carrying the resolved level and the activity, then one indented
-(`↳`) row per grantor; a temporary grantor is marked `*`. A sole grantor is
+(`↳`) row per grant; a temporary grant is marked `*`. A sole grant is
 folded onto the resource's row.
 
 ```
-Identity   Kind  Resource    Resource Kind  Access Level  Grantor        Grantor Level  [Accesses  Last Access]
+Identity   Kind  Resource    Resource Kind  Access Level  Granted By     Grant Level     [Accesses  Last Access]
 ```
 
 With a window, a `Period: <from> → <to>` header precedes the table and the

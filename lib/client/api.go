@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -3511,17 +3512,17 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 }
 
 // LogoutApp removes key and cert for the specified app.
-func (tc *TeleportClient) LogoutApp(appName string) error {
+func (tc *TeleportClient) LogoutApp(appSQN scopes.QualifiedName) error {
 	if tc.localAgent == nil {
 		return nil
 	}
 	if tc.SiteName == "" {
 		return trace.BadParameter("cluster name must be set for app logout")
 	}
-	if appName == "" {
+	if appSQN.Name == "" {
 		return trace.BadParameter("please specify app name to log out of")
 	}
-	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{ScopedAppName(appSQN)})
 }
 
 // LogoutAllApps removes keys and certs for all apps in the cluster.

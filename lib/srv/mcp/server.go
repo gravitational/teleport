@@ -81,6 +81,8 @@ type ServerConfig struct {
 	CipherSuites []uint16
 	// InsecureMode defines whether insecure connections are allowed.
 	InsecureMode bool
+	// TargetHostPolicy restricts application target dials by resolved IP.
+	TargetHostPolicy appcommon.TargetHostPolicy
 
 	clock clockwork.Clock
 }
@@ -110,6 +112,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
+	}
+	if err := c.TargetHostPolicy.Check(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }

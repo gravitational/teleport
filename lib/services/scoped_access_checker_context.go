@@ -315,6 +315,10 @@ func (c *ScopedAccessCheckerContext) riskyEnumerateScopedCheckers(ctx context.Co
 // filters through this method so that an omitted filter is consistently and safely defaulted, minimizing
 // per-API defaulting logic. Note that this method only handles defaulting; callers are still responsible for
 // validating (see [scopes.ValidateFilter]) and authorizing the resulting filter.
+//
+// There is one subtle exception to this default behavior. The event system treats requests to watch certain
+// *always unscoped* kinds as having a default UNSCOPED filter, even for scoped callers. This behavior is only
+// present for unscoped kinds that have an unscoped read exception in place (e.g. cert authorities).
 func (c *ScopedAccessCheckerContext) ResolveScopeFilter(filter *scopesv1.Filter) *scopesv1.Filter {
 	if filter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
 		// the caller specified an explicit filter; return it unchanged.
@@ -347,6 +351,10 @@ func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext,
 // Decision calls fn against each checker in the resource scope evaluation order until one of three
 // conditions is met: (1) fn succeeds, (2) fn returns an explicitly denied error, or (3) all checkers
 // have been exhausted (implicit deny).
+//
+// Unscoped contexts resolve to exactly one checker, an error returned in this case is unmodified in order to
+// surface special unscoped requirements like trusted device or session MFA that only an unscoped checker can produce
+// right now.
 func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
 	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
 }
@@ -360,6 +368,12 @@ func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAcce
 		switch {
 		case err == nil:
 			return nil
+		case !c.isScoped():
+			// This surfaces requirements like trusted device and session MFA
+			// that only the unscoped checker can produce right now.
+			// Rather than masking them into an explicit deny,
+			// return errors here that unscoped checkers return.
+			return trace.Wrap(err)
 		case IsAccessExplicitlyDenied(err):
 			return trace.Wrap(err)
 		default:

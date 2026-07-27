@@ -297,6 +297,11 @@ type RouteToApp struct {
 	// This is a JSON string that conforms with
 	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
 	AWSCredentialProcessCredentials string
+
+	// Scope is the scope of the target application.
+	// TODO (williamo/scopes): consider creating a TargetScope parameter in the root
+	// Identity struct, and removing this.
+	Scope string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -683,6 +688,12 @@ var (
 	// the Machine ID bot the certificate was issued to, if any.
 	BotScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
 
+	// TargetScopeASN1ExtensionOID is an extension OID used to encode the scope of the
+	// target resource. A single TargetScope OID hinges on the fact that
+	// certificates are only issued for one resource at a time.
+	// If this is changed, we will need additional per protocol target scopes.
+	TargetScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -816,6 +827,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  AppNameASN1ExtensionOID,
 				Value: id.RouteToApp.Name,
+			})
+	}
+	if id.RouteToApp.Scope != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  TargetScopeASN1ExtensionOID,
+				Value: id.RouteToApp.Scope,
 			})
 	}
 	if id.RouteToApp.AWSRoleARN != "" {
@@ -1290,6 +1308,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.Name = val
+			}
+		case attr.Type.Equal(TargetScopeASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.Scope = val
 			}
 		case attr.Type.Equal(AppAWSRoleARNASN1ExtensionOID):
 			val, ok := attr.Value.(string)

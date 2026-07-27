@@ -41,3 +41,13 @@ extension Cluster {
 		return components.url
 	}
 }
+
+// MARK: - Preview Data
+
+extension Cluster {
+	static let previews: [Cluster] = [
+		Cluster(id: UUID(0), host: "production.teleport.example.com", port: 443),
+		Cluster(id: UUID(1), host: "staging.teleport.example.com", port: 3080),
+		Cluster(id: UUID(2), host: "development.teleport.example.com", port: 443),
+	]
+}

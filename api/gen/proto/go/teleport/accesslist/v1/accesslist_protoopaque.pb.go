@@ -1296,7 +1296,7 @@ func (x *ScopedRoleGrant) SetScope(v string) {
 type ScopedRoleGrant_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// role is scope-qualified name of the scoped role to be granted.
+	// role is the scope-qualified name of the scoped role to be granted.
 	Role string
 	// scope is the scope the role will be granted at. It must be an assignable
 	// scope of the role.

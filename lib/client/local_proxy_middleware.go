@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -318,7 +319,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(c.RouteToApp.Name)
+	appCert, err := keyRing.AppTLSCert(scopes.QualifiedName{Name: c.RouteToApp.Name, Scope: c.RouteToApp.Scope})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

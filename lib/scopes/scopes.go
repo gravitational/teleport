@@ -69,6 +69,10 @@ const (
 // for a policy. Policy resources should never use this or any other default scope value.
 const Root = separator
 
+// Unscoped is an empty string constant used in code to improve the readability of code that is intended
+// to handle a mix of scoped and unscoped values.
+const Unscoped = ""
+
 // StrongValidate checks if the scope is valid according to all scope formatting rules. This function
 // *must* be called on all scope values received from user input and/or cluster-external sources (e.g.
 // an identity provider). Use of this function should be avoided when checking the validity of scopes
@@ -140,6 +144,22 @@ func StrongValidateSegment(segment string) error {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
 	}
 
+	if err := strongValidateFormat(segment, segmentRegexp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(segment) > maxSegmentSize {
+		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
+	}
+
+	return nil
+}
+
+// strongValidateFormat applies the strong formatting checks:
+// - no uppercase characters
+// - the provided shape regexp
+// - weak checks as a defensive backstop
+func strongValidateFormat(segment string, shape *regexp.Regexp) error {
 	// check for uppercase characters separately. this would be caught by the regex, but its better
 	// UX to call out uppercase characters specifically since its a common mistake.
 	for _, r := range segment {
@@ -148,12 +168,8 @@ func StrongValidateSegment(segment string) error {
 		}
 	}
 
-	if !segmentRegexp.MatchString(segment) {
+	if !shape.MatchString(segment) {
 		return trace.BadParameter("segment %q is malformed", segment)
-	}
-
-	if len(segment) > maxSegmentSize {
-		return trace.BadParameter("segment %q is too long (max characters %d)", segment, maxSegmentSize)
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
@@ -182,6 +198,32 @@ func WeakValidateSegment(segment string) error {
 	// check for breaking characters
 	if strings.ContainsAny(segment, breakingChars) {
 		return trace.BadParameter("segment %q contains invalid character", segment)
+	}
+
+	return nil
+}
+
+// StrongValidateResourceName checks if a scoped resource name is valid according to all resource name
+// formatting rules. Scoped resource names follow the same character restrictions as scope segments, but
+// are not subject to the maximum segment length limit. This function *must* be called on all scoped
+// resource name values received from user input and/or cluster-external sources. Use of this function
+// should be avoided when checking the validity of names from the control-plane in logic that may be run
+// agent-side.
+func StrongValidateResourceName(name string) error {
+	if name == "" {
+		return trace.BadParameter("name is empty")
+	}
+
+	// check for uppercase characters separately. this would be caught by the regex, but its better
+	// UX to call out uppercase characters specifically since its a common mistake.
+	for _, r := range name {
+		if unicode.IsUpper(r) {
+			return trace.BadParameter("name %q contains uppercase character(s)", name)
+		}
+	}
+
+	if !nameRegexp.MatchString(name) {
+		return trace.BadParameter("name %q is malformed", name)
 	}
 
 	return nil
