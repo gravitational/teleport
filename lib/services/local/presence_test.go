@@ -2218,5 +2218,125 @@ func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
 		}
 	}
+}
 
+func TestScopedLease(t *testing.T) {
+	t.Parallel()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	const scope = "/aa"
+	expires := time.Now().Add(24 * time.Hour)
+	t.Run("kube servers", func(t *testing.T) {
+		ctx := t.Context()
+		unscoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "unscoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "unscoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "unscoped",
+					},
+				},
+			},
+		}
+
+		scoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "scoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "scoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "scoped",
+					},
+				},
+			},
+			Scope: scope,
+		}
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertKubernetesServer(ctx, unscoped)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertKubernetesServer(ctx, scoped)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+
+	t.Run("nodes", func(t *testing.T) {
+		ctx := t.Context()
+		unscopedNode, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		unscopedNode.SetExpiry(expires)
+
+		const scope = "/aa"
+		scopedNode, err := types.NewServerWithLabels("scoped-node", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		scopedServer, ok := scopedNode.(*types.ServerV2)
+		require.True(t, ok, "expected types.ServerV2")
+		scopedServer.Scope = scope
+		scopedServer.SetExpiry(expires)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertNode(ctx, unscopedNode)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertNode(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+
+	t.Run("apps", func(t *testing.T) {
+		ctx := t.Context()
+		expires := time.Now().Add(24 * time.Hour)
+		unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		unscopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    unscopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      unscopedApp,
+		})
+		require.NoError(t, err)
+
+		const scope = "/aa"
+		scopedApp, err := types.NewAppV3(types.Metadata{Name: "graf"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		scopedApp.Scope = scope
+		scopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    scopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      scopedApp,
+		})
+		require.NoError(t, err)
+		scopedServer.Scope = scope
+		require.NoError(t, err)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertApplicationServer(ctx, unscopedServer)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertApplicationServer(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
 }
