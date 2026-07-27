@@ -912,8 +912,7 @@ const ListFooter = styled.div`
 export function getResourceAvailabilityFilter(
   availableResourceMode: AvailableResourceMode,
   canRequestAllResources: boolean,
-  // TODO(bl-nero): This parameter should be mandatory once the enterprise code catches up.
-  scopedSession?: boolean
+  scopedSession: boolean = false
 ): ResourceAvailabilityFilter {
   if (scopedSession) {
     return { mode: 'accessible', canRequestAll: false };

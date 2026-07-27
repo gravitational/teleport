@@ -96,7 +96,8 @@ export function Main(props: MainProps) {
     () =>
       props.features.filter(
         feature =>
-          feature.hasAccess(featureFlags) && (!scope || feature.supportsScopes)
+          feature.hasAccess(featureFlags) &&
+          supportsCurrentScope(feature, scope)
       ),
     [featureFlags, props.features, scope]
   );
@@ -264,6 +265,13 @@ function renderRoutes(
   }
 
   return routes;
+}
+
+function supportsCurrentScope(
+  feature: TeleportFeature,
+  scope: string
+): boolean {
+  return !scope || feature.supportsScopes;
 }
 
 function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
