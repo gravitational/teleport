@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.10.0-dev.probakowski.linux.4
+VERSION=18.10.0-dev.probakowski.linux.5
 
 DOCKER_IMAGE ?= teleport
 
@@ -1957,7 +1957,7 @@ ensure-llvm:
 
 else
 ensure-llvm:
-	@echo "ensure-llvm noop"
+	@echo "ensure-llvm noop $(OS)"
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
