@@ -228,11 +228,27 @@ func baseScopedRole() *scopedaccessv1.ScopedRole {
 		Kind:     KindScopedRole,
 		Metadata: &headerv1.Metadata{Name: "test"},
 		Scope:    "/foo",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo/bar"},
-			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
-			Kube:             &scopedaccessv1.ScopedRoleKube{},
-		},
+			Ssh:              scopedaccessv1.ScopedRoleSSH_builder{}.Build(),
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "*",
+						Values: []string{"*"},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "*",
+						Namespace: "*",
+						Name:      "*",
+						ApiGroup:  "*",
+						Verbs:     []string{"*"},
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
 		Version: types.V1,
 	}
 }
@@ -357,9 +373,24 @@ func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.Spec.Kube = &scopedaccessv1.ScopedRoleKube{
+	sr.Spec.Kube = scopedaccessv1.ScopedRoleKube_builder{
 		DisconnectExpiredCert: ptr(true),
-	}
+		Labels: []*labelv1.Label{
+			labelv1.Label_builder{
+				Name:   "*",
+				Values: []string{"*"},
+			}.Build(),
+		},
+		Resources: []*scopedaccessv1.KubeResource{
+			scopedaccessv1.KubeResource_builder{
+				Kind:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Name:      types.Wildcard,
+				ApiGroup:  types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+			}.Build(),
+		},
+	}.Build()
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -431,12 +462,12 @@ func TestKubeConversion(t *testing.T) {
 	}{
 		{
 			name:   "empty conditions",
-			kube:   &scopedaccessv1.ScopedRoleKube{},
+			kube:   nil,
 			expect: types.RoleConditions{},
 		},
 		{
 			name: "sparse",
-			kube: &scopedaccessv1.ScopedRoleKube{
+			kube: scopedaccessv1.ScopedRoleKube_builder{
 				Users:  []string{"system:user"},
 				Groups: []string{"viewer"},
 				Labels: []*labelv1.Label{
@@ -445,7 +476,16 @@ func TestKubeConversion(t *testing.T) {
 						Values: []string{"red"},
 					},
 				},
-			},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						ApiGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
+					}.Build(),
+				},
+			}.Build(),
 			expect: types.RoleConditions{
 				KubeUsers:  []string{"system:user"},
 				KubeGroups: []string{"viewer"},
@@ -457,7 +497,7 @@ func TestKubeConversion(t *testing.T) {
 		},
 		{
 			name: "full",
-			kube: &scopedaccessv1.ScopedRoleKube{
+			kube: scopedaccessv1.ScopedRoleKube_builder{
 				Users:  []string{"system:user", "system:admin"},
 				Groups: []string{"viewer", "editor"},
 				Labels: []*labelv1.Label{
@@ -470,7 +510,21 @@ func TestKubeConversion(t *testing.T) {
 						Values: []string{"blue"},
 					},
 				},
-			},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						ApiGroup:  "pod-group",
+					}.Build(),
+				},
+				ClientIdleTimeout:     "30m",
+				DisconnectExpiredCert: new(bool),
+				Lock: scopedaccessv1.Lock_builder{
+					Mode: "strict",
+				}.Build(),
+			}.Build(),
 			expect: types.RoleConditions{
 				KubeUsers:  []string{"system:user", "system:admin"},
 				KubeGroups: []string{"viewer", "editor"},
@@ -478,7 +532,15 @@ func TestKubeConversion(t *testing.T) {
 					"env":  apiutils.Strings{"prod", "staging"},
 					"team": apiutils.Strings{"blue"},
 				},
-				KubernetesResources: wildcardResources,
+				KubernetesResources: []types.KubernetesResource{
+					types.KubernetesResource{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						APIGroup:  "pod-group",
+					},
+				},
 			},
 		},
 	}
