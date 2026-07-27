@@ -35,6 +35,7 @@ import (
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // descriptionTextMaxLen caps Description in the detailed text table so a long
@@ -220,11 +221,11 @@ func detectionRowHeaders(detailed bool) []string {
 func detectionRow(a accessgraph.SecurityAlert, detailed bool) []string {
 	row := []string{
 		a.Id.String(),
-		string(a.Status),
+		utils.EscapeControl(string(a.Status)),
 		a.CreatedAt.Format(time.RFC3339),
-		string(a.Source),
-		a.Title,
-		string(a.Severity),
+		utils.EscapeControl(string(a.Source)),
+		utils.EscapeControl(a.Title),
+		utils.EscapeControl(string(a.Severity)),
 	}
 	if !detailed {
 		return row
@@ -243,11 +244,11 @@ func detectionRow(a accessgraph.SecurityAlert, detailed bool) []string {
 		updated = a.UpdatedAt.Format(time.RFC3339)
 	}
 	row = append(row,
-		strPtrToStr(a.ReportedBy),
-		a.Type,
-		formatAffectedEntity(a),
-		tags,
-		description,
+		utils.EscapeControl(strPtrToStr(a.ReportedBy)),
+		utils.EscapeControl(a.Type),
+		utils.EscapeControl(formatAffectedEntity(a)),
+		utils.EscapeControl(tags),
+		utils.EscapeControl(description),
 		a.StartTime.Format(time.RFC3339),
 		a.EndTime.Format(time.RFC3339),
 		updated,
@@ -358,7 +359,7 @@ func fetchAlertEvents(ctx context.Context, client *accessgraph.ClientWithRespons
 // displayDetectionText renders the human-readable detail view for one alert.
 func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []logmodels.AccessgraphStorageV1alphaEvent, eventsErr error) error {
 	field := func(label, value string) {
-		fmt.Fprintf(out, "%-19s%s\n", label+":", value)
+		fmt.Fprintf(out, "%-19s%s\n", label+":", utils.EscapeControl(value))
 	}
 	field("ID", a.Id.String())
 	field("Title", a.Title)
@@ -381,19 +382,19 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 		field("Updated", a.UpdatedAt.Format(time.RFC3339))
 	}
 	if a.Description != nil && *a.Description != "" {
-		fmt.Fprintf(out, "\nDescription:\n%s\n", *a.Description)
+		fmt.Fprintf(out, "\nDescription:\n%s\n", utils.AllowWhitespace(*a.Description))
 	}
 	if a.MitigationSteps != nil && len(*a.MitigationSteps) > 0 {
 		fmt.Fprintln(out, "\nMitigation Steps:")
 		for _, step := range *a.MitigationSteps {
-			fmt.Fprintf(out, "  - %s\n", step)
+			fmt.Fprintf(out, "  - %s\n", utils.AllowWhitespace(step))
 		}
 	}
 	if eventsErr != nil || len(events) > 0 || (a.LogEntries != nil && len(*a.LogEntries) > 0) {
 		fmt.Fprintln(out, "\nLog Entries:")
 		switch {
 		case eventsErr != nil:
-			fmt.Fprintln(out, warningStyle.Render(eventsErr.Error()))
+			fmt.Fprintln(out, warningStyle.Render(utils.AllowWhitespace(eventsErr.Error())))
 		case len(events) == 0:
 			fmt.Fprintln(out, "Not found.")
 		default:
@@ -410,7 +411,12 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 			if log.Reason != nil {
 				reason = *log.Reason
 			}
-			changes.AddRow([]string{log.CreatedAt.Format(time.RFC3339), string(log.Status), log.User, reason})
+			changes.AddRow([]string{
+				log.CreatedAt.Format(time.RFC3339),
+				utils.EscapeControl(string(log.Status)),
+				utils.EscapeControl(log.User),
+				utils.EscapeControl(reason),
+			})
 		}
 		fmt.Fprintln(out, changes.String())
 	}
