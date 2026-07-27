@@ -1,4 +1,4 @@
-.version: &version "18.10.0-dev.probakowski.linux.5"
+.version: &version "18.10.0-dev.probakowski.linux.6"
 
 name: tbot-spiffe-daemon-set
 apiVersion: v2
