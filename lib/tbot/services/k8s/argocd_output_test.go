@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -243,4 +244,30 @@ func TestArgoCDOutput_EndToEnd(t *testing.T) {
 		List(ctx, metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 2)
+}
+
+func TestWriteSecret_SetsExistingResourceVersion(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	k8s := fake.NewSimpleClientset(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-secret",
+			Namespace:       "argocd",
+			ResourceVersion: "12345",
+		},
+	})
+
+	s := &ArgoCDOutput{k8s: k8s}
+	newSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: "argocd",
+		},
+	}
+	require.NoError(t, s.writeSecret(ctx, newSecret))
+
+	updated, err := k8s.CoreV1().Secrets("argocd").Get(ctx, "test-secret", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "12345", updated.ResourceVersion)
 }
