@@ -4442,7 +4442,9 @@ message RoleConditions {
 message AppResource {
   // Fields 1 to 4 and 6 to 9 are reserved for the upcoming fine-grained
   // rule fields (paths, methods, where, allow_encoded, allow_code,
-  // allow_reason, deny_code_hint, deny_reason_hint).
+  // allow_reason, deny_code_hint, deny_reason_hint). Unreserving one means
+  // re-evaluating AppResource.IsAllowAllOnly, which decides whether a rule
+  // is unrestricted.
   reserved 1 to 4, 6 to 9;
   reserved "Paths", "Methods", "Where", "AllowEncoded", "AllowCode", "AllowReason", "DenyCodeHint", "DenyReasonHint";
 

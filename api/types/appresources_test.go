@@ -17,10 +17,27 @@ limitations under the License.
 package types
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+// TestAppResourceFields fails when a field is added to or removed from
+// AppResource, so unreserving a proto field number cannot slip past the
+// checks that decide whether a rule is unrestricted. Any new field
+// restricts the rule, so IsAllowAllOnly and validateAppResources in
+// lib/services must account for it before this list changes.
+func TestAppResourceFields(t *testing.T) {
+	var fields []string
+	for f := range reflect.TypeFor[AppResource]().Fields() {
+		if !strings.HasPrefix(f.Name, "XXX_") {
+			fields = append(fields, f.Name)
+		}
+	}
+	require.Equal(t, []string{"AllowAll"}, fields)
+}
 
 // TestAppResourcesRequireV9 covers the read-path check in
 // CheckAndSetDefaults, which rejects app_resources below role version v9.
