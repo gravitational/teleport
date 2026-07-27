@@ -20,7 +20,7 @@
 // 	protoc        (unknown)
 // source: teleport/lib/vnet/v1/client_application_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package vnetv1
 

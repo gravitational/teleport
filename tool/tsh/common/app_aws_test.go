@@ -869,7 +869,7 @@ func TestAppLogins(t *testing.T) {
 			setHomePath(tmpHomePath),
 		)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "there are no roles configured for the AWS app \"aws-console-special\"")
+		require.ErrorContains(t, err, "could not determine any allowed IAM role ARNs for \"aws-console-special\": this can indicate lack of permissions or app misconfiguration")
 		require.True(t, trace.IsNotFound(err))
 	})
 

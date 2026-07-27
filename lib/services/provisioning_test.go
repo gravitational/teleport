@@ -21,7 +21,10 @@ package services_test
 import (
 	"testing"
 
+	gogotypes "github.com/gogo/protobuf/types"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -189,4 +192,161 @@ func TestDefaultsAppliedDuringMarshal(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, types.KubernetesJoinTypeInCluster, unmarshaled.GetKubernetes().Type)
+}
+
+// TestGenericOIDCStructSurvivesRoundTrip ensures `MustMatchFields` (a Struct
+// type) roundtrips correctly, i.e. it's custom marshal/unmarshal is executed
+// since the standard jsoniter implementation can't handle struct fields.
+func TestGenericOIDCStructSurvivesRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	token := &types.ProvisionTokenV2{
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "generic-oidc-token",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles:      []types.SystemRole{types.RoleNode},
+			JoinMethod: types.JoinMethodGenericOIDC,
+			GenericOIDC: &types.ProvisionTokenSpecV2GenericOIDC{
+				Issuer:   "https://example.com",
+				Audience: "example.teleport.sh/generic-oidc-token",
+				MustMatchFields: types.NewStructFromGogoValues(map[string]*gogotypes.Value{
+					"example": {Kind: &gogotypes.Value_StringValue{
+						StringValue: "foo",
+					}},
+					"nested": {
+						Kind: &gogotypes.Value_StructValue{
+							StructValue: &gogotypes.Struct{Fields: map[string]*gogotypes.Value{
+								"number": {Kind: &gogotypes.Value_NumberValue{
+									NumberValue: 123.456,
+								}},
+								"string": {Kind: &gogotypes.Value_StringValue{
+									StringValue: "string value",
+								}},
+								"bool": {Kind: &gogotypes.Value_BoolValue{
+									BoolValue: true,
+								}},
+							}},
+						},
+					},
+				}),
+				AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Expression: "claims.foo == \"bar\"",
+					},
+					{
+						Conditions: []*types.ProvisionTokenSpecV2GenericOIDC_Condition{
+							{
+								Attribute: "foo",
+								Eq: &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+									Value: "bar",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	marshaled, err := services.MarshalProvisionToken(token)
+	require.NoError(t, err)
+
+	unmarshaled, err := services.UnmarshalProvisionToken(marshaled)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(token, unmarshaled, protocmp.Transform()), "generic_oidc structs must roundtrip correctly")
+
+	token = &types.ProvisionTokenV2{
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "generic-oidc-token",
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			Roles:      []types.SystemRole{types.RoleNode},
+			JoinMethod: types.JoinMethodGenericOIDC,
+			GenericOIDC: &types.ProvisionTokenSpecV2GenericOIDC{
+				Issuer:          "https://example.com",
+				Audience:        "example.teleport.sh/generic-oidc-token",
+				MustMatchFields: nil,
+				AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+					{
+						Expression: "claims.foo == \"bar\"",
+					},
+					{
+						Conditions: []*types.ProvisionTokenSpecV2GenericOIDC_Condition{
+							{
+								Attribute: "foo",
+								Eq: &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+									Value: "bar",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	marshaled, err = services.MarshalProvisionToken(token)
+	require.NoError(t, err)
+
+	unmarshaled, err = services.UnmarshalProvisionToken(marshaled)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(token, unmarshaled, protocmp.Transform()), "nil MustMatchFields must roundtrip correctly")
+}
+
+// TestGenericOIDCStructSurvivesRoundTrip_FastMarshal ensures struct
+// roundtripping works explicitly through FastMarshal.
+func TestGenericOIDCStructSurvivesRoundTrip_FastMarshal(t *testing.T) {
+	t.Parallel()
+
+	want := &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:   "https://example.com",
+		Audience: "example",
+		MustMatchFields: types.NewStructFromGogoValues(map[string]*gogotypes.Value{
+			"sub":    {Kind: &gogotypes.Value_StringValue{StringValue: "repo:foo/bar"}},
+			"count":  {Kind: &gogotypes.Value_NumberValue{NumberValue: 3}},
+			"active": {Kind: &gogotypes.Value_BoolValue{BoolValue: true}},
+		}),
+	}
+
+	// Explicitly route through FastMarshal to ensure it calls our overridden
+	// marshal impl, otherwise the test could plausibly be testing jsonpb
+	// and the actual impl could fail.
+	data, err := utils.FastMarshal(want)
+	require.NoError(t, err)
+
+	var got types.ProvisionTokenSpecV2GenericOIDC
+	require.NoError(t, utils.FastUnmarshal(data, &got))
+
+	require.Empty(t, cmp.Diff(want, &got, protocmp.Transform()), "generic_oidc must_match_fields must survive round-trip")
+}
+
+func TestGenericOIDCUnmarshalDocumentedFieldNames(t *testing.T) {
+	raw := []byte(`{
+		"kind": "token",
+		"version": "v2",
+		"metadata": {"name":"go"},
+		"spec":{
+			"roles": ["Node"],
+			"join_method": "generic_oidc",
+			"generic_oidc": {
+				"issuer": "https://example.com",
+				"audience": "aud",
+				"allow_any":[{"expression":"x == 1"}],
+				"must_match_fields": {"sub":"repo:foo/bar"}
+			}
+		}
+	}`)
+
+	tok, err := services.UnmarshalProvisionToken(raw)
+	require.NoError(t, err) // fails today: CheckAndSetDefaults rejects empty config
+	spec, err := tok.GetGenericOIDC()
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com", spec.Issuer)
+	require.Len(t, spec.AllowAny, 1)
+	require.Equal(t, "repo:foo/bar", spec.MustMatchFields.GetFields()["sub"].GetStringValue())
 }

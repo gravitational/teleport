@@ -174,7 +174,10 @@ func TestCreateBot(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -1282,7 +1285,10 @@ func TestUpsertBot(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -2069,7 +2075,10 @@ func TestGetBot(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -2357,7 +2366,10 @@ func TestListBots(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -2379,7 +2391,10 @@ func TestListBots(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser2.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/ungranted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/ungranted",
+					}.Build(),
 				},
 			},
 		},
@@ -2639,7 +2654,10 @@ func TestDeleteBot(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -3083,6 +3101,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			})
 			require.NoError(t, err)
 		}
@@ -3173,7 +3192,10 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -3300,7 +3322,10 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -3427,7 +3452,10 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			},
 		},
@@ -3445,7 +3473,10 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/other"},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/other",
+					}.Build(),
 				},
 			},
 		},
@@ -3627,7 +3658,10 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					Bot: scopes.QualifiedName{Scope: "/scopes/test", Name: botName}.String(),
 					Assignments: []*scopedaccessv1.Assignment{
-						{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/test"},
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+							Scope: "/scopes/test",
+						}.Build(),
 					},
 				},
 			},

@@ -48,8 +48,8 @@ spec:
                 items:
                   properties:
                     role:
-                      description: Roles is the name of the role that is assigned
-                        by this assignment.
+                      description: Role is the scope-qualified name of the role that
+                        is assigned by this assignment.
                       type: string
                     scope:
                       description: Scope is the scope to which the role is assigned.

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/desktop/v1/tdpb.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package tdpbv1
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/auditlog/v1/auditlog.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package auditlogv1
 

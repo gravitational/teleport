@@ -261,28 +261,30 @@ var defaultScopeList = []string{
 func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credentialspb.GenerateAccessTokenResponse, error) {
 	key := cacheKey{serviceAccount}
 
-	cancelCtx, cancel := context.WithCancel(ctx)
+	type result struct {
+		token *credentialspb.GenerateAccessTokenResponse
+		err   error
+	}
+	resultChan := make(chan result, 1)
+
+	ctx, cancel := context.WithTimeout(ctx, getTokenTimeout)
 	defer cancel()
 
-	var tokenResult *credentialspb.GenerateAccessTokenResponse
-	var errorResult error
-
-	// call Clock.After() before FnCacheGet gets called in a different go-routine.
-	// this ensures there is no race condition in the timeout tests
-	timeoutChan := s.Clock.After(getTokenTimeout)
-
 	go func() {
-		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+		token, err := utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
 		})
-		cancel()
+		resultChan <- result{
+			token: token,
+			err:   err,
+		}
 	}()
 
 	select {
-	case <-timeoutChan:
-		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
-	case <-cancelCtx.Done():
-		return tokenResult, errorResult
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case result := <-resultChan:
+		return result.token, trace.Wrap(result.err)
 	}
 }
 

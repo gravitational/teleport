@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -37,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
@@ -143,8 +141,7 @@ func (c *sessionHandlerConfig) checkAndSetDefaults() error {
 type sessionHandler struct {
 	sessionHandlerConfig
 
-	idTracker   *mcputils.IDTracker
-	accessCache *utils.FnCache
+	idTracker *mcputils.IDTracker
 }
 
 func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
@@ -161,15 +158,6 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Cache access check like tool name for a small period of time.
-	accessCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   time.Minute * 10,
-		Clock: cfg.clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Always begins with session start event for single-connection sessions.
 	if cfg.sessionCtx.transport != types.MCPTransportHTTP {
 		cfg.sessionAuditor.appendStartEvent(cfg.parentCtx)
@@ -178,24 +166,19 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 	return &sessionHandler{
 		sessionHandlerConfig: cfg,
 		idTracker:            idTracker,
-		accessCache:          accessCache,
 	}, nil
 }
 
 func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string) error {
-	authErr, err := utils.FnCacheGet(ctx, s.accessCache, toolName, func(ctx context.Context) (error, error) {
-		authPref, err := s.accessPoint.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		matcher := &services.MCPToolMatcher{
-			Name: toolName,
-		}
-		authErr := s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
-		return trace.Wrap(authErr), nil
-	})
-	// Fails the check on either authErr or internal error.
-	return trace.NewAggregate(authErr, err)
+	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	matcher := &services.MCPToolMatcher{
+		Name: toolName,
+	}
+	err = s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
+	return trace.Wrap(err)
 }
 
 // NOTE: the onClientXXX/onServerXXX functions and the close function below

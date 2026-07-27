@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	goslices "slices"
 	"sort"
 	"strings"
 	"sync"
@@ -3002,10 +3003,10 @@ func TestGenerateOpenSSHCertScoped(t *testing.T) {
 			Spec: &scopedaccessv1pb.ScopedRoleAssignmentSpec{
 				User: "scoped-user",
 				Assignments: []*scopedaccessv1pb.Assignment{
-					{
-						Role:  "staging-ssh",
+					scopedaccessv1pb.Assignment_builder{
+						Role:  "/staging::staging-ssh",
 						Scope: "/staging",
-					},
+					}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -3083,15 +3084,13 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	_, _, err = p.a.GenerateUserTestCertsWithContext(ctx, certReq)
 	require.NoError(t, err)
 
-	testTargets := append(
-		[]types.LockTarget{
-			{User: user.GetName()},
-			{MFADevice: mfaID},
-			{AccessRequest: requestID},
-			{Device: deviceID},
-		},
-		services.RolesToLockTargets(user.GetRoles())...,
-	)
+	testTargets := []types.LockTarget{
+		{User: user.GetName()},
+		{MFADevice: mfaID},
+		{AccessRequest: requestID},
+		{Device: deviceID},
+	}
+	testTargets = goslices.AppendSeq(testTargets, services.RolesToLockTargets(goslices.Values(user.GetRoles())))
 	for _, target := range testTargets {
 		t.Run(fmt.Sprintf("lock targeting %v", target), func(t *testing.T) {
 			lockWatch, err := p.a.SubscribeToLockTarget(ctx, target)

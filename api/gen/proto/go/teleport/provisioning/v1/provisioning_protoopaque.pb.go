@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/provisioning/v1/provisioning.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package provisioningv1
 

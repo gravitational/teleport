@@ -85,6 +85,7 @@ type collections struct {
 	nodes                              *collection[types.Server, nodeIndex]
 	apps                               *collection[types.Application, appIndex]
 	beams                              *collection[*beamsv1.Beam, beamIndex]
+	beamsConfig                        *collection[*beamsv1.BeamsConfig, beamsConfigIndex]
 	appServers                         *collection[types.AppServer, appServerIndex]
 	dbs                                *collection[types.Database, databaseIndex]
 	dbServers                          *collection[types.DatabaseServer, databaseServerIndex]
@@ -162,7 +163,11 @@ type collections struct {
 // resources events can be processed by downstream watchers.
 func isKnownUncollectedKind(kind string) bool {
 	switch kind {
-	case types.KindAccessRequest, types.KindHeadlessAuthentication, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+	case types.KindAccessRequest,
+		types.KindHeadlessAuthentication,
+		types.KindPendingCSRRequest,
+		scopedaccess.KindScopedRole,
+		scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -272,6 +277,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.beams = collect
 			out.byKind[resourceKind] = out.beams
+		case types.KindBeamsConfig:
+			collect, err := newBeamsConfigCollection(c.BeamsConfig, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.beamsConfig = collect
+			out.byKind[resourceKind] = out.beamsConfig
 		case types.KindAppServer:
 			collect, err := newAppServerCollection(c.Presence, watch)
 			if err != nil {

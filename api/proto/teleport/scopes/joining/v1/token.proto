@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.scopes.joining.v1;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
@@ -104,6 +105,9 @@ message ScopedTokenSpec {
   //
   // Mutually exclusive with assigned_scope.
   string bot = 15;
+
+  // Configuration specific to the "generic_oidc" join method.
+  GenericOIDC generic_oidc = 16;
 }
 
 // The host certificate parameters that should be cached and leveraged for
@@ -499,4 +503,137 @@ message BoundKeypairStatus {
   // a bot, or if no agent has joined yet. It is mutually exclusive with
   // bound_bot_instance_id but otherwise behaves identically.
   string bound_host_id = 7;
+}
+
+// Configuration for `generic_oidc`-type tokens.
+message GenericOIDC {
+  // The attribute casted to a string must be equal to the value.
+  message ConditionEq {
+    // The value to compare the attribute against.
+    string value = 1;
+  }
+
+  // The attribute casted to a string must not be equal to the value.
+  message ConditionNotEq {
+    // The value to compare the attribute against.
+    string value = 1;
+  }
+
+  // The attribute casted to a string must be in the list of values.
+  message ConditionIn {
+    // The list of values to compare the attribute against.
+    repeated string values = 1;
+  }
+
+  // The attribute casted to a string must not be in the list of values.
+  message ConditionNotIn {
+    // The list of values to compare the attribute against.
+    repeated string values = 1;
+  }
+
+  // An allow rule condition for simple checks against a specific field.
+  message Condition {
+    // The name of the field this condition should check, separated by "." for
+    // nested fields.
+    string attribute = 1;
+
+    // An "equals" operator. Only one operator may be set within a condition.
+    ConditionEq eq = 2;
+
+    // A "not equals" operator. Only one operator may be set within a condition.
+    ConditionNotEq not_eq = 3;
+
+    // An "in" operator. Only one operator may be set within a condition.
+    ConditionIn in = 4;
+
+    // A "not in" operator. Only one operator may be set within a condition.
+    ConditionNotIn not_in = 5;
+  }
+
+  // An allow rule, containing either a predict expression or simple field
+  // check.
+  message Rule {
+    // Conditions are simple eq/not_eq/in/not_in conditions that check
+    // individual fields. All conditions must be satisfied for a join attempt to
+    // be allowed. Mutually exclusive with `expression`.
+    repeated Condition conditions = 1;
+
+    // A predicate expression that must evaluate to `true` for the join attempt
+    // to be allowed. It is mutually exclusive with `conditions`.
+    // TODO: Include name of variable available to the expr in docs
+    string expression = 2;
+  }
+
+  // The expected `iss` value as written in the JWT you wish to trust. Unless
+  // `static_jwks` is configured, this issuer must be accessible over HTTPS to
+  // the Teleport cluster and must serve valid OIDC metadata, including
+  // discovery configuration and JWKS keys.
+  string issuer = 1;
+
+  // If set, disables the requirement that the issuer must use HTTPS.
+  bool insecure_allow_http_issuer = 2;
+
+  // The expected JWT audience value (required). This must match or be included
+  // in the list of `aud` values in the JWT provided by the client when joining.
+  //
+  // For providers that do not allow you to configure this value yourself (this
+  // is technically an OIDC spec violation, but is common), use the value they
+  // provide. Otherwise, we recommend using a value that uniquely identifies the
+  // Teleport cluster and join token. For example, you can use this scheme:
+  //   $clusterName/$tokenName
+  //
+  // For a cluster named `example.teleport.sh` and a token named `example`, this
+  // would result in an audience of `example.teleport.sh/example`. If you
+  // prefer, you can also use a UUID instead of the token name. Note that you
+  // will need to configure the matching value with the issuer, usually at
+  // request time.
+  string audience = 3;
+
+  // An optional static JWKS value that can be used to specify JWKS keys when
+  // either OIDC discovery is either not supported by the provider or the
+  // discovery configuration is not accessible to Teleport. When set,
+  // configuration and JWKS keys will not be fetched from the URL contained in
+  // `issuer` and JWTs will be validated using the key set specified here.
+  string static_jwks = 4;
+
+  // A TLS CA certificate that should be used to verify requests for OIDC
+  // metadata from the issuer instead of Teleport's CA store, useful if the
+  // issuer is not public or otherwise uses a self-signed certificate. If unset,
+  // the standard web PKI root certificates will be used to verify the
+  // connection to the issuer when fetching OIDC metadata. Note that this value
+  // only applies to requests using this token, and will be used instead of and
+  // not in addition to the system CA store, and will need to be updated
+  // manually if the remote CA is updated.
+  string tls_ca = 5;
+
+  // "Must match" fields perform simple comparison matches using "AND"
+  // semantics. Rules are specified by mirroring the structure of the JWT, using
+  // values that are expected to be equal to those on the incoming token. These
+  // field matching rules can only be used to compare simple values: strings,
+  // numbers, booleans, and nested fields. Complex values, including lists, will
+  // need to use `allow_any` expression rules instead.
+  //
+  // If any field match rules are specified, all must be equal to corresponding
+  // JWT fields for the join attempt to succeed. If complex rules are specified
+  // in `allow_any`, those are evaluated after `must_match_fields`. If
+  // `must_match_fields` is not specified or is empty, only rules in `allow_any`
+  // are evaluated.
+  //
+  // These rules can be used as "global" rules that apply to all join attempts.
+  // For example, you can use these to ensure all attempts originate from your
+  // organization, then use `allow_any` rules to allow individual repositories,
+  // pipelines, or workspaces.
+  //
+  // Note that at least one rule, either in `must_match_fields` or `allow_any`,
+  // must be specified for any join attempts to succeed.
+  google.protobuf.Struct must_match_fields = 6;
+
+  // Complex rules evaluated using "OR" semantics. If any rules are specified,
+  // at least one rule must evaluate to `true` for the join attempt/ to be
+  // allowed. These rules are evaluated after `must_match_fields`, if any field
+  // matchers are specified in that block.
+  //
+  // Note that at least one rule, either in `must_match_fields` or `allow_any`,
+  // must be specified for any join attempts to succeed.
+  repeated Rule allow_any = 7;
 }

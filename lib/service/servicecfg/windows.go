@@ -100,15 +100,32 @@ type LDAPDiscoveryConfig struct {
 	Filters []string
 	// Labels are static labels to apply to hosts discovered via LDAP.
 	Labels map[string]string
+	// RDPPort is the RDP port to register for each host discovered with this configuration.
+	RDPPort int
+
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string
-	// RDPPort is the RDP port to register for each host discovered with this configuration.
-	RDPPort int
+	// LabelAttributeMode determines how multi-valued LDAP attributes are
+	// treated. Valid values are:
+	//     - "first" (the default if unspecified): use the first attribute value
+	//     - "join": multi-valued attributes are joined with the specified separator
+	LabelAttributeMode string
+	// LabelAttributeJoinSeparator is used when LabelAttributeMode is "join".
+	LabelAttributeJoinSeparator string
 }
+
+const (
+	// LabelAttributeModeFirst configures Teleport to select the first attribute
+	// value for multi-value attributes.
+	LabelAttributeModeFirst = "first"
+	// LabelAttributeModeJoin configures Teleport to join all attribute values
+	// into a single string.
+	LabelAttributeModeJoin = "join"
+)
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
 type HostLabelRules struct {

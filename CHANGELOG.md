@@ -1,12 +1,16 @@
 # Changelog
 
+## 18.10.1 (07/17/27)
+
+This is a private security release. The changelog will be publicly announced in a later version.
+
+More information about private releases is available here: https://github.com/gravitational/teleport/blob/master/SECURITY.md#private-releases.
+
 ## 18.10.0 (07/07/26)
 
 ### Directory sharing enhancements for Windows desktop access
 
-Teleport now supports sharing multiple directories in a single RDP session. In
-addition, users will be able to unmount shared directories without terminating
-the session.
+Teleport now supports sharing multiple directories in a single RDP session.
 
 ### Windows sessions summaries
 

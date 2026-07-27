@@ -32,29 +32,10 @@ We plan to release the following versions in the coming months:
 
 | Version | Date                       |
 |---------|----------------------------|
-| 18.10.0 | Week of July 6, 2026       |
 | 18.11.0 | Week of August 3, 2026     |
 | 19.0.0  | Week of September 14, 2026 |
 
-### 18.10.0
-
-#### Directory sharing enhancements for Windows desktop access
-
-Teleport will support sharing multiple directories in a single RDP session. In
-addition, users will be able to unmount shared directories without terminating
-the session.
-
-#### Windows sessions summaries
-
-Identity Security will support AI summarization for Windows desktop access
-session recordings.
-
 ### 18.11.0
-
-#### Audit Log Reliability Improvements
-
-Teleport will improve audit log stability and durability in the face of failure
-scenarios like control plane, networking issues and agent restarts.
 
 #### Agentic UX for Access Configuration
 
@@ -67,17 +48,43 @@ Teleport will support remote desktop sessions to Linux hosts.
 
 _Delayed from Teleport 18.10.0._
 
+#### Desktop Session Recording Export
+
+Desktop session recordings can be exported to video files with the revamped
+`tsh recordings export` command.
+
+#### Identity Security CLI
+
+Teleport will add commands to `tctl` for querying Identity Security, letting you
+explore identities, resources, and their access relationships from the command
+line.
+
 #### Generic OIDC Join Method
 
 Teleport will include a new generic OIDC join method for bots and agents.
 Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
 that lack a dedicated Teleport join method.
 
+#### Auto-Discovery Improvements
+
+Teleport will extend AWS EC2 and Azure VM auto-discovery to support enrollment
+at an organization/tenant level in addition to a single account.
+
+In addition, Teleport will extend cloud database auto-discovery support to
+GCP CloudSQL.
+
 ### 19.0.0
 
 #### Amazon Aurora DSQL Cluster State Backend
 
 Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Audit Log Reliability Improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+_Delayed from Teleport 18.11.0._
 
 #### Improved Principal Selection for Access Requests
 

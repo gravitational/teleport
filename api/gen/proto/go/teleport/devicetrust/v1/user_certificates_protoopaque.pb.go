@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/user_certificates.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package devicetrustv1
 

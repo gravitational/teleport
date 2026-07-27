@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/workloadcluster/v1/workloadcluster.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package workloadcluster
 

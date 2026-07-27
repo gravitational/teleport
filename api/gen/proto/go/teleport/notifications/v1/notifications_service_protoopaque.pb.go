@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/notifications/v1/notifications_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package notificationsv1
 

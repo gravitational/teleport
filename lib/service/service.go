@@ -145,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -179,6 +180,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -1372,12 +1374,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
-	var resolverAddr utils.NetAddr
-	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
-		resolverAddr = cfg.ProxyServer
-	} else {
-		resolverAddr = cfg.AuthServerAddresses()[0]
-	}
+	resolverAddr := cfg.ProxyWebAddr()
 
 	process.resolver, err = reversetunnelclient.CachingResolver(
 		process.ExitContext(),
@@ -3076,6 +3073,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+
+	if err := subca.RegisterMetrics(process.metricsRegistry); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -3133,6 +3135,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.AppSession = services.IdentityInternal
 	cfg.Apps = services.ApplicationsInternal
 	cfg.Beams = services.Beams
+	cfg.BeamsConfig = services.BeamsConfigService
 	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
@@ -5005,6 +5008,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -5060,6 +5068,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
+		// The proxy's node watcher is a routing construct; it must observe nodes in
+		// every scope, not just unscoped ones, so it watches with MODE_ALL. This is
+		// backed by the ForProxy cache, which mirrors nodes in all scopes (see
+		// cache.ForProxy). Sibling routing watchers backed by ForRelay/ForRemoteProxy
+		// intentionally stay unscoped since those caches do not mirror scoped nodes.
+		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -6041,13 +6055,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
-		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: component,
-				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-				Client:    accessPoint,
-			},
-			KubernetesServerGetter: accessPoint,
+		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			AccessPoint:    accessPoint,
+			FallbackGetter: conn.Client, // use auth client as a fallback
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6300,6 +6311,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6327,6 +6339,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Listener:          listeners.reverseTunnelALPN,
 				ClusterName:       clusterName,
 				AccessPoint:       accessPoint,
+				Limiter:           reverseTunnelLimiter,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6866,6 +6879,7 @@ func (process *TeleportProcess) initApps() {
 			if app.AWS != nil {
 				aws = &types.AppAWS{
 					ExternalID: app.AWS.ExternalID,
+					Region:     app.AWS.Region,
 				}
 			}
 

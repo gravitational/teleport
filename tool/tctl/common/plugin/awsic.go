@@ -130,7 +130,7 @@ func (a *awsICInstallArgs) validateSCIMBaseURL(ctx context.Context, log *slog.Lo
 	return trace.Wrap(err)
 }
 
-func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseGroupFilters() ([]*types.AWSICResourceFilter, error) {
 	filters := make([]*types.AWSICResourceFilter, 0, len(a.groupNameFilters)+len(a.excludeGroupNameFilters))
 	for _, n := range a.groupNameFilters {
 		filters = append(filters, &types.AWSICResourceFilter{
@@ -142,10 +142,15 @@ func (a *awsICInstallArgs) parseGroupFilters() (icfilters.Filters, error) {
 			Exclude: &types.AWSICResourceFilter_ExcludeNameRegex{ExcludeNameRegex: n},
 		})
 	}
-	return icfilters.New(filters)
+
+	if err := icfilters.Validate(filters); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
 }
 
-func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
+func (a *awsICInstallArgs) parseAccountFilters() ([]*types.AWSICResourceFilter, error) {
 	filtersCap := len(a.accountNameFilters) + len(a.excludeAccountNameFilters) + len(a.accountIDFilters) + len(a.excludeAccountIDFilters)
 	filters := make([]*types.AWSICResourceFilter, 0, filtersCap)
 	for _, n := range a.accountNameFilters {
@@ -172,7 +177,11 @@ func (a *awsICInstallArgs) parseAccountFilters() (icfilters.Filters, error) {
 		})
 	}
 
-	return icfilters.New(filters)
+	if err := icfilters.Validate(filters); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filters, nil
 }
 
 func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, error) {

@@ -31,7 +31,7 @@ func NewOSUpstreamNameserverSource(logger *slog.Logger) (UpstreamNameserverSourc
 	)
 }
 
-// AddrWithDNSPort returns addr with DNS port 53.
+// AddrWithDNSPort returns addr with the DNS port (see DNSServerPort).
 func AddrWithDNSPort(addr netip.Addr) string {
-	return netip.AddrPortFrom(addr, 53).String()
+	return netip.AddrPortFrom(addr, DNSServerPort).String()
 }

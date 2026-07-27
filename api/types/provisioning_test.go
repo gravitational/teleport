@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -1903,6 +1904,140 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			desc: "generic oidc success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "https://example.teleport.sh",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields: NewStructFromGogoValues(map[string]*types.Value{
+							"foo": {
+								Kind: &types.Value_StringValue{
+									StringValue: "bar",
+								},
+							},
+						}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{
+								Expression: "claims.foo == \"bar\"",
+							},
+							{
+								Conditions: []*ProvisionTokenSpecV2GenericOIDC_Condition{
+									{
+										Attribute: "foo",
+										Eq:        &ProvisionTokenSpecV2GenericOIDC_ConditionEq{Value: "bar"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "generic oidc failure with no rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "https://example.teleport.sh",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny:                []*ProvisionTokenSpecV2GenericOIDC_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc failure with invalid issuer",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "invalid",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc failure with http issuer without opt-in",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "http://invalid.com",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc success with http issuer with opt-in",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "http://invalid.com",
+						InsecureAllowHTTPIssuer: true,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 

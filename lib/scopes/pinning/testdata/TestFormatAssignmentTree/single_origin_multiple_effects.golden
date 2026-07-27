@@ -1,5 +1,5 @@
 └── / (root)
-    ├── / - global
-    ├── /staging - staging-reader, staging-test
-    ├── /staging/east - staging-east-debug
-    └── /staging/west - staging-west-debug
+    ├── / - /::global
+    ├── /staging - /::staging-reader, /::staging-test
+    ├── /staging/east - /::staging-east-debug
+    └── /staging/west - /::staging-west-debug

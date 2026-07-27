@@ -98,3 +98,26 @@ tfclean:
 		-or -name '.terraform.lock.hcl' \
 		-or -name 'terraform.tfstate*' \
 	\) -exec rm -rf {} \+
+
+.PHONY: create-module
+create-module:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+	./gen/module.sh "$(MODULE)" "$(REMOTE_SYSTEM)"
+
+.PHONY: create-example
+create-example:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+ifndef EXAMPLE
+	$(error EXAMPLE is required)
+endif
+	./gen/example.sh "$(MODULE)" "$(REMOTE_SYSTEM)" "$(EXAMPLE)"

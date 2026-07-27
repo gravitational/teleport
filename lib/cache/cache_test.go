@@ -85,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -174,6 +175,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	beams                   *local.BeamService
+	beamsConfig             *local.BeamsConfigService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
 	plugin                  *local.PluginsService
@@ -426,6 +428,9 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: p.backend,
 		Modules: modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -460,6 +465,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.beams = beamSvc
+
+	beamsConfigSvc, err := local.NewBeamsConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.beamsConfig = beamsConfigSvc
 
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
@@ -568,6 +579,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -842,6 +854,7 @@ func TestCompletenessInit(t *testing.T) {
 			SnowflakeSession:        p.snowflakeSessionS,
 			WebToken:                p.webTokenS,
 			Beams:                   p.beams,
+			BeamsConfig:             p.beamsConfig,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
@@ -934,6 +947,7 @@ func TestCompletenessReset(t *testing.T) {
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1101,6 +1115,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1205,6 +1220,7 @@ func initStrategy(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1965,6 +1981,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindBeam:                              types.Resource153ToLegacy(newBeamResource("some-beam", "curious-harbor", clock.Now().Add(time.Hour))),
+		types.KindBeamsConfig:                       types.ProtoResource153ToLegacy(services.DefaultBeamsConfig()),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:                  types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindStaticHostUser:                    types.Resource153ToLegacy(newStaticHostUser(t, "test")),
@@ -1993,6 +2010,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
+		types.KindPendingCSRRequest:                 types.Resource153ToLegacy(&subcav1.PendingCSRRequest{}),
 	}
 
 	for name, cfg := range cases {
@@ -2074,8 +2092,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.Beam]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.BeamsConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

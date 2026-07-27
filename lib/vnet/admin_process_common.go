@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplicationServiceClient) (*networkStackConfig, error) {
@@ -44,7 +46,7 @@ func newNetworkStackConfig(ctx context.Context, tun TUNDevice, clt *clientApplic
 	if err != nil {
 		return nil, trace.Wrap(err, "creating new IPv6 prefix")
 	}
-	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, []byte{2})
+	dnsIPv6 := ipv6WithSuffix(ipv6Prefix, dns.DNSServerSuffix)
 	return &networkStackConfig{
 		tunDevice:          tun,
 		ipv6Prefix:         ipv6Prefix,

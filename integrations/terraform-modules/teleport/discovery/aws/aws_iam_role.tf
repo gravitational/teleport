@@ -16,7 +16,7 @@ locals {
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
-  count = local.create ? 1 : 0
+  count = local.create_discovery_service_iam_role ? 1 : 0
 
   dynamic "statement" {
     for_each = var.discovery_service_iam_credential_source.use_oidc_integration ? [1] : []
@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
 }
 
 resource "aws_iam_role" "teleport_discovery_service" {
-  count = local.create ? 1 : 0
+  count = local.create_discovery_service_iam_role ? 1 : 0
 
   assume_role_policy   = data.aws_iam_policy_document.teleport_discovery_service_iam_role_trust[0].json
   description          = "AWS IAM role that Teleport Discovery Service will assume."

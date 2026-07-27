@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/integration/v1/awsoidc_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package integrationv1
 

@@ -48,50 +48,88 @@ to prevent various operations, e.g., preventing access from a locked user.
 
 - (!docs/pages/includes/tctl.mdx!)
 
+- Your user must have permissions to manage Teleport lock resources. The preset
+  `editor` role has these permissions, though we recommend defining more
+  granular roles for security.
+
+  <details>
+  <summary>Grant permissions to your user</summary>
+
+    To grant your user permissions to manage locks:
+    
+    1. Define a role with the following permissions (this one is called
+       `locksmith`):
+    
+       ```yaml
+       kind: role
+       version: v5
+       metadata:
+         name: locksmith
+       spec:
+         allow:
+           rules:
+             - resources: [lock]
+               verbs: [list, create, read, update, delete]
+       ```
+    
+    1. Create the role:
+    
+       ```code
+       $ tctl create -f locksmith.yaml
+       # role 'locksmith' has been created
+       ```
+    
+       (!docs/pages/includes/create-role-using-web.mdx!)
+    
+    1. (!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
+
+  </details>
+
 ## Step 1/2. Create a lock
 
 You can create a new lock with the `tctl lock` command. Specify the lock target
-with one of the following options:
+and time to live using the following command, depending on the resource that you
+would like to lock: 
 
 <Tabs>
   <TabItem label="Username">
   ```code
-  $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=10h
+  $ tctl lock --user=foo@example.com --message="Suspicious activity." --ttl=24h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
   <TabItem label="Role">
   All users with assigned roles matching the target role will be locked.
   ```code
-  $ tctl lock --role=contractor --message="All contractor access is disabled for 10h." --ttl=10h
+  $ tctl lock --role=contractor --message="All contractor access is disabled for 24h." --ttl=24h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
   <TabItem label="Trusted device">
   All connections initiated from a device matching the device ID will be locked.
   ```code
-  $ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --message="Compromised device" --ttl=48h
+  $ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --message="Compromised device" --ttl=24h
   Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
   ```
   </TabItem>
   <TabItem label="Multi-factor device">
   All connections initiated with per-session MFA matching the device ID will be locked.
   ```code
-  $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 10h." --ttl=10h
+  $ tctl lock --mfa-device=d6c06a18-e147-4232-9dfe-6f83a28d5850 --message="All contractor access is disabled for 24h." --ttl=24h
   # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
   ```
   </TabItem>
   <TabItem label="Agent">
   All connections to the specified agent will be locked and the agent will be excluded from the Teleport cluster.
   ```code
-  $ tctl lock --server-id=363256df-f78a-4d99-803c-bae19da9ede4 --message="The server running the Kubernetes Service and Database Service is under investigation." --ttl=10h
+  $ tctl lock --server-id=363256df-f78a-4d99-803c-bae19da9ede4 --message="The server running the Kubernetes Service and Database Service is under investigation." --ttl=24h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
   <TabItem label="Windows Desktop">
   All connections to the specified Windows Desktop will be locked.
   ```code
-  $ tctl lock --windows-desktop=WIN-FMPFM5UF1SS-teleport-example-com --ttl=10h
+  $ tctl lock --windows-desktop=WIN-FMPFM5UF1SS-teleport-example-com --ttl=24h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
@@ -109,60 +147,23 @@ with one of the following options:
   For [delegated join methods](../reference/deployment/join-methods.mdx#secret-vs-delegated),
   it's best to target the specific join token the bot is using to join:
   ```code
-  $ tctl lock --join-token=example-token-name
+  $ tctl lock --join-token=example-token-name --ttl=24h
   ```
 
   The join token name cannot be targeted for bots joined using the `token` join
   method, so it's best to use the
   [bot instance ID](../reference/architecture/machine-id-architecture.mdx#bot-instances):
   ```code
-  $ tctl lock --bot-instance-id aabbccdd-1234-5678-0000-3b04d7d03acc
+  $ tctl lock --bot-instance-id aabbccdd-1234-5678-0000-3b04d7d03acc --ttl=24h
   ```
 
   In all cases, you may also target the bot user, which will lock all instances
   of a bot that share the same underlying user:
   ```code
-  $ tctl lock --user bot-example
+  $ tctl lock --user bot-example --ttl=24h
   ```
   </TabItem>
 </Tabs>
-
-<details>
-<summary>Troubleshooting: failed to create a lock?</summary>
-
-If your user is missing a lock permission, you will get an error when creating
-a lock:
-
-```txt
-ERROR: access denied to perform action "create" on "lock"
-```
-
-Define a role `locksmith`:
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: locksmith
-spec:
-  allow:
-    rules:
-      - resources: [lock]
-        verbs: [list, create, read, update, delete]
-```
-
-Create the role:
-
-```code
-$ tctl create -f locksmith.yaml
-# role 'locksmith' has been created
-```
-
-(!docs/pages/includes/create-role-using-web.mdx!)
-
-(!docs/pages/includes/add-role-to-user.mdx role="locksmith"!)
-
-</details>
 
 With a lock in force, all established connections involving the lock's target
 get terminated while any new requests are rejected.
@@ -221,7 +222,11 @@ $ tctl rm locks/24679348-baff-4987-a2cd-e820ab7f9d2b
 lock "24679348-baff-4987-a2cd-e820ab7f9d2b" has been deleted
 ```
 
-Deleting a lock will allow new sessions or host connections.
+The change may take a moment to take effect as Teleport services that implement
+lock watchers need to pick up on it.
+
+Once the deletion has taken effect, your cluster will allow new sessions or host
+connections.
 
 ## Next steps: Locking modes
 

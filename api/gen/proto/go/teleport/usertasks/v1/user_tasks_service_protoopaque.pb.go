@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/usertasks/v1/user_tasks_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package usertasksv1
 

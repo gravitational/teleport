@@ -32,6 +32,10 @@ type Review struct {
 
 	// Spec is the specification for the access list review.
 	Spec ReviewSpec `json:"spec" yaml:"spec"`
+
+	// Scope is the scope of the access list review, must match the scope of
+	// the reviewed access list.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 const (
@@ -71,12 +75,31 @@ type ReviewChanges struct {
 
 	// ReviewDayOfMonthChanged is populated if the review day of month has changed.
 	ReviewDayOfMonthChanged ReviewDayOfMonth `json:"review_day_of_month_changed" yaml:"review_day_of_month_changed"`
+
+	// ScopedRemovedMembers contains the scope-qualified names of scoped
+	// members that were removed as part of this review.
+	ScopedRemovedMembers []string `json:"scoped_removed_members" yaml:"scoped_removed_members"`
 }
 
 // NewReview will create a new access list review.
 func NewReview(metadata header.Metadata, spec ReviewSpec) (*Review, error) {
 	review := &Review{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
+		Spec:           spec,
+	}
+
+	if err := review.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return review, nil
+}
+
+// NewReviewWithScope will create a new access list review.
+func NewReviewWithScope(metadata header.Metadata, spec ReviewSpec, scope string) (*Review, error) {
+	review := &Review{
+		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
+		Scope:          scope,
 		Spec:           spec,
 	}
 
@@ -119,6 +142,10 @@ func (r *Review) CheckAndSetDefaults() error {
 // and should be removed when possible.
 func (r *Review) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(r.Metadata)
+}
+
+func (r *Review) GetScope() string {
+	return r.Scope
 }
 
 // Clone returns a copy of the review.

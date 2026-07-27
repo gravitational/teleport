@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/public_key_hash.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package subcav1
 

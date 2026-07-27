@@ -24,7 +24,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet"
 )
 
 // Satisfy unused linter.
@@ -47,6 +47,6 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 }
 
 //nolint:staticcheck // SA4023. runVnetDiagnostics on unsupported platforms always returns err.
-func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
+func runVnetDiagnostics(ctx context.Context, vnetProcess *vnet.UserProcess) error {
 	return trace.NotImplemented("diagnostics are not implemented yet on this platform")
 }

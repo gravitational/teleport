@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/summarizer/v1/summarizer_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package summarizerv1
 

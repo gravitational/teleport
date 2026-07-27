@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/loginrule/v1/loginrule.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package loginrulev1
 

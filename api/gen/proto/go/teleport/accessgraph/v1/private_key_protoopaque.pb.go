@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/access_graph/v1/private_key.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package accessgraphv1
 

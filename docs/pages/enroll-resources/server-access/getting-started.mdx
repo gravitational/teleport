@@ -151,10 +151,13 @@ configuration:
 ### Access the Web UI
 
 Run the following command to create a local user that can access the Teleport
-Web UI:
+Web UI and SSH into Teleport-protected servers. Replace 
+<Var name="root,ubuntu,ec2-user" /> with a comma-separated list of logins you
+know to exist on your target server, since this command grants the user
+permissions to SSH into Teleport-protected servers as those logins:
 
 ```code
-$ tctl users add myuser --roles=editor,access --logins=root,ubuntu,ec2-user
+$ tctl users add myuser --roles=editor,access --logins=<Var name="root,ubuntu,ec2-user" />
 ```
 
 This will generate an initial login link where you can create a password and set
@@ -273,7 +276,7 @@ which are used for establishing SSH connections:
 
 ```code
 # Use tsh to ssh into a server
-$ tsh ssh root@ip-172-31-41-144
+$ tsh ssh <Var name="root" />@ip-172-31-41-144
 ```
 
 Now, they can:
@@ -293,7 +296,7 @@ into a server using a third-party tool. Compare the two equivalent commands:
   <TabItem label="tsh">
 
     ```code
-    $ tsh ssh root@ip-172-31-41-144
+    $ tsh ssh <Var name="root" />@ip-172-31-41-144
     ```
 
   </TabItem>
@@ -304,7 +307,7 @@ into a server using a third-party tool. Compare the two equivalent commands:
 
     ```code
     $ tsh config > ssh_config_teleport
-    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.example.teleport.sh
+    $ ssh -F ssh_config_teleport <Var name="root" />@ip-172-31-41-144.example.teleport.sh
     ```
 
   </TabItem>
@@ -358,11 +361,12 @@ that label since it remains unchanged.
 
 `myuser` can also execute commands on all servers that share a label, vastly
 simplifying repeated operations. For example, the following command will execute
-the `ls` command on each server and display the results in your terminal:
+the `ls` command on each server and display the results in your terminal.
+Replace <Var name="root" /> with a login that exists on the server:
 
 ```code
 # Run the ls command on all servers with a label
-$ tsh ssh root@env=example ls
+$ tsh ssh <Var name="root" />@env=example ls
 ```
 
 ## Optional: Harden your server

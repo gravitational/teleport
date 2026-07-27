@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/secreports/v1/secreports_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package secreportsv1
 

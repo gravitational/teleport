@@ -98,6 +98,23 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 				KubeCluster:     kubeCluster,
 			}},
 		},
+		{
+			// A hardware-key policy can't be served by the exec-plugin
+			// credentials path, so the local proxy must be used even when ALPN
+			// connection upgrade is not required (RequireKubeLocalProxy is false).
+			name: "use local proxy for hardware key policy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "localhost:443",
+				KubeProxyAddr:    "localhost:443",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			inputArgs:      []string{"kubectl", "--kubeconfig", kubeconfigLocation, "version"},
+			wantLocalProxy: true,
+			wantKubeClusters: kubeconfig.LocalProxyClusters{{
+				TeleportCluster: "localhost",
+				KubeCluster:     kubeCluster,
+			}},
+		},
 	}
 
 	for _, test := range tests {
