@@ -292,7 +292,7 @@ func TestJoinKubernetes(t *testing.T) {
 		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
 			Scope: "/test",
 			Metadata: &headerv1.Metadata{
-				Name: "scoped_" + pt.GetName(),
+				Name: pt.GetName(),
 			},
 			Spec: &joiningv1.ScopedTokenSpec{
 				AssignedScope: "/test/one",
@@ -536,9 +536,11 @@ func TestJoinKubernetes(t *testing.T) {
 			})
 
 			t.Run("scoped join", func(t *testing.T) {
+				secret, _ := tt.provisionToken.GetSecret()
 				_, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token:      "scoped_" + tt.provisionToken.GetName(),
-					JoinMethod: types.JoinMethodKubernetes,
+					Token:       scopes.QualifiedName{Scope: tt.provisionToken.GetScope(), Name: tt.provisionToken.GetName()}.String(),
+					TokenSecret: secret,
+					JoinMethod:  types.JoinMethodKubernetes,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance, // RoleNode is not allowed
 						NodeName: "testnode",

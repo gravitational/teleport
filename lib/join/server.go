@@ -26,7 +26,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -147,89 +146,75 @@ func NewServer(cfg *ServerConfig) *Server {
 	}
 }
 
-// getProvisionToken attempts to resolve a name to a [provision.Token] by first attempting to
-// fetch a [joiningv1.ScopedToken] and then falling back to a [types.ProvisionTokenV2] if a
-// scoped token can not be found.
+// getProvisionToken attempts to resolve a [provision.Token] from the provided name. If
+// the name is a Scope Qualified Name, then only [joiningv1.ScopedTokens] are considered
+// for a match. If the name is _not_ a Scope Qualified Name, then a legacy [types.ProvisionTokenV2]
+// is returned.
 func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.Token, error) {
-	var scoped provision.Token
-	var scopedErr error
-
-	var classic provision.Token
-	var classicErr error
-
-	wg := &sync.WaitGroup{}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+	// The token name was NOT a SQN so it must only match a [types.ProvisionTokenV2].
+	if !scopes.MaybeSQN(name) || !s.cfg.ScopesFeatures.Enabled {
+		classic, err := s.cfg.AuthService.ValidateToken(ctx, name)
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
-			}
+			return nil, trace.Wrap(err)
 		}
 
-		// short circuit if a matching static scoped token is found
-		for _, tok := range staticTokens.GetSpec().GetTokens() {
-			if tok.GetMetadata().GetName() == name {
-				scoped, scopedErr = joining.NewToken(tok)
-				return
-			}
-		}
-
-		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-			Name:       name,
-			WithSecret: true,
-		})
-		if err != nil {
-			scopedErr = err
-			return
-		}
-		if err := joining.ValidateTokenForUse(res.GetToken(), s.cfg.ScopesFeatures); err != nil {
-			scopedErr = err
-			return
-		}
-
-		scoped, scopedErr = joining.NewToken(res.GetToken())
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// Fetch the provision token and validate that it is not expired.
-		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
-	}()
-	wg.Wait()
-
-	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
-	if scoped != nil && classic != nil {
-		return nil, trace.AccessDenied("joining with an ambiguous token name is not permitted")
-	}
-
-	if scoped != nil {
-		return scoped, nil
-	}
-
-	if classic != nil {
 		return classic, nil
 	}
 
-	// if both errors are [trace.NotFoundError], just return a single err
-	if trace.IsNotFound(scopedErr) && trace.IsNotFound(classicErr) {
-		return nil, trace.NotFound("token expired or not found")
+	qn, err := scopes.ParseQualifiedName(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// prefer reporting errors other than [trace.NotFoundError]
-	if trace.IsNotFound(scopedErr) {
-		return nil, trace.Wrap(classicErr)
+	// The token name was a SQN so it must only match a [joiningv1.ScopedToken].
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if trace.IsNotFound(classicErr) {
-		return nil, trace.Wrap(scopedErr)
+	staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		s.cfg.Logger.ErrorContext(ctx, "could not fetch static scoped tokens", "error", err)
 	}
 
-	// return both errors as an aggregate if we couldn't reasonably return one
-	return nil, trace.NewAggregate(scopedErr, classicErr)
+	// short circuit if a matching static scoped token is found
+	for _, tok := range staticTokens.GetSpec().GetTokens() {
+		if tok.GetMetadata().GetName() == qn.Name && tok.GetScope() == qn.Scope {
+			if err := joining.ValidateTokenForUse(tok, s.cfg.ScopesFeatures); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			token, err := joining.NewToken(tok)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return token, nil
+		}
+	}
+
+	res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:       qn.Name,
+		Scope:      qn.Scope,
+		WithSecret: true,
+	}.Build())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.AccessDenied("token expired or not found")
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	if err := joining.ValidateTokenForUse(res.GetToken(), s.cfg.ScopesFeatures); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := joining.NewToken(res.GetToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // Join implements cluster joining for nodes and bots.
