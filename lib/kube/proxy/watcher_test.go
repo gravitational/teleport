@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
@@ -216,7 +217,10 @@ func TestWatcher(t *testing.T) {
 	}
 
 	// Remove kube2.
-	err = testCtx.AuthServer.DeleteKubernetesCluster(ctx, kube2.GetName())
+	err = testCtx.AuthServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+		Name:  kube2.GetName(),
+		Scope: kube2.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Only static kube_cluster should remain.

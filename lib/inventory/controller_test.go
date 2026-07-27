@@ -128,7 +128,7 @@ func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, serve
 	return server, a.err
 }
 
-func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+func (a *fakeAuth) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
 	return nil
 }
 
