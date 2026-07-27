@@ -252,13 +252,17 @@ loop:
 			d.progress.Add(1)
 
 			switch evt := evt.(type) {
-			case *apievents.WindowsDesktopSessionStart:
+			case *apievents.WindowsDesktopSessionStart, *apievents.LinuxDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
 				if !evt.StartTime.IsZero() && !evt.EndTime.IsZero() {
 					endMillis = max(endMillis, evt.EndTime.Sub(evt.StartTime).Milliseconds())
 				}
 				break loop
-
+			case *apievents.LinuxDesktopSessionEnd:
+				if !evt.StartTime.IsZero() && !evt.EndTime.IsZero() {
+					endMillis = max(endMillis, evt.EndTime.Sub(evt.StartTime).Milliseconds())
+				}
+				break loop
 			case *apievents.DesktopRecording:
 				screenData, err := decoder.UpdateScreen(evt)
 				if err != nil {
