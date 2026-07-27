@@ -22,7 +22,7 @@ func TestMetrics(t *testing.T) {
 
 	t.Run("full sync insert collection", func(t *testing.T) {
 		storage := msgraphtest.NewDefaultStorage()
-		env := newFakeEnv(t, storage)
+		env := newFakeEnv(t, withFakeEnvStorage(storage))
 		r, registry := newMeasuredReconciler(t, env)
 		_, err := r.Reconcile(t.Context(), mdmsync.SyncModeFull)
 		require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestMetrics(t *testing.T) {
 
 	t.Run("full sync reconciler", func(t *testing.T) {
 		storage := msgraphtest.NewDefaultStorage()
-		env := newFakeEnv(t, storage)
+		env := newFakeEnv(t, withFakeEnvStorage(storage))
 		r, registry := newMeasuredReconciler(t, env)
 
 		// Create Access List so the sync goes through the reconciler and not the collection insert.
@@ -54,7 +54,7 @@ func TestMetrics(t *testing.T) {
 		defaultStorage := msgraphtest.NewDefaultStorage()
 		storage := msgraphtest.NewStorage()
 		storage.Applications = defaultStorage.Applications
-		env := newFakeEnv(t, storage)
+		env := newFakeEnv(t, withFakeEnvStorage(storage))
 		env.cfg.DeltaSyncEnabled = true
 		r, registry := newMeasuredReconciler(t, env)
 

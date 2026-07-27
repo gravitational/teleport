@@ -972,7 +972,7 @@ func TestDeltaUserSyncConvertsSSOUser(t *testing.T) {
 		// Start with zero users.
 		graphStorage.Users = make(map[string]*models.User)
 
-		env := newFakeEnv(t, graphStorage)
+		env := newFakeEnv(t, withFakeEnvStorage(graphStorage))
 		env.cfg.DeltaSyncEnabled = true
 
 		r, err := New(env.cfg)
@@ -1033,7 +1033,7 @@ func TestDeltaUserSyncConvertsSSOUser(t *testing.T) {
 		// Start with zero users.
 		graphStorage.Users = make(map[string]*models.User)
 
-		env := newFakeEnv(t, graphStorage)
+		env := newFakeEnv(t, withFakeEnvStorage(graphStorage))
 		env.cfg.DeltaSyncEnabled = true
 
 		r, err := New(env.cfg)
@@ -1093,7 +1093,7 @@ func TestDeltaUserSyncConvertsSSOUser(t *testing.T) {
 	})
 }
 
-func TestUserResourceEqualsInDeltaAndFullSync(t *testing.T) {
+func TestUserResourceEqualsInDeltaAndFullSync_WithoutGroupMembershp(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -1110,126 +1110,339 @@ func TestUserResourceEqualsInDeltaAndFullSync(t *testing.T) {
 		Surname:                  to.Ptr("Builder"),
 	}
 
-	assertBasicUserAttributes := func(t *testing.T, u types.User) {
-		t.Helper()
+	cmpIgnore := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
-		// Check traits matches.
-		// First item expected to match from traits values.
-		traits := u.GetTraits()
-		require.Equal(t, bobUsername, traits[entraIDSAMLClaimName][0], "username")
-		require.Equal(t, tenantID, traits[tenantIDClaim][0], "tenant ID")
-		require.Equal(t, *bob.GetID(), traits[objectIdentifierClaim][0], "user object ID")
-		require.Equal(t, *bob.DisplayName, traits[displayNameClaim][0], "display name")
-		require.Equal(t, *bob.GivenName, traits[entraIDSAMLGivenName][0], "given name")
-		require.Equal(t, *bob.Surname, traits[entraIDSAMLSurname][0], "surname")
+	// Setup test env with msgraphtest fake server.
+	graphStorage := msgraphtest.NewStorage()
+	graphStorage.Applications = msgraphtest.NewDefaultStorage().Applications
+	// Create one Entra ID user Bob.
+	graphStorage.Users = make(map[string]*models.User)
+	graphStorage.Users[msgraphtest.BobID] = bob
 
-		// Check labels matches.
-		require.Equal(t, types.OriginEntraID, u.Origin(), "user origin")
-		labels := u.GetAllLabels()
-		require.Equal(t, *bob.GetID(), labels[types.EntraUniqueIDLabel], "Entra unique ID")
-		require.Equal(t, tenantID, labels[types.EntraTenantIDLabel], "Entra tenant ID")
-		require.Equal(t, *bob.UserPrincipalName, labels[types.EntraUPNLabel], "Entra UPN")
-		require.Equal(t, *bob.OnPremisesSAMAccountName, labels[types.EntraSAMAccountNameLabel], "Entra SAM account name")
+	env := newFakeEnv(t, withFakeEnvStorage(graphStorage))
+	env.cfg.DeltaSyncEnabled = true
+	r, err := New(env.cfg)
+	require.NoError(t, err)
 
-		isExternal, err := strconv.ParseBool(labels[types.TeleportInternalLabelPrefix+"entra-is-external"])
-		require.NoError(t, err)
-		require.False(t, isExternal, "entra-is-external label")
+	// Initial full sync
+	_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+	require.NoError(t, err)
 
-		// Check CreatedBy matches.
-		require.Equal(t, constants.SAML, u.GetCreatedBy().Connector.Type, "user CreatedBy connector type")
-		require.Equal(t, ssoConnectorID, u.GetCreatedBy().Connector.ID, "user CreatedBy connector ID")
-		require.Equal(t, *bob.UserPrincipalName, u.GetCreatedBy().Connector.Identity, "user CreatedBy identity")
+	bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+	require.NoError(t, err, "expected Bob account in Teleport backend")
+
+	// Sanity check basic user attributes.
+	expectBasicUserAttributes(t, bob, bobResourceAfterFullSync)
+
+	// entraIDSAMLClaimGroups should be nil because user has zero group membership.
+	require.Nil(t, bobResourceAfterFullSync.GetTraits()[entraIDSAMLClaimGroups], "group traits")
+	// No role grants because user has zero group membership.
+	require.Empty(t, bobResourceAfterFullSync.GetRoles(), "role grants")
+
+	// Run reconciler mimicking delta sync.
+	_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+	require.NoError(t, err)
+	bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+	require.NoError(t, err, "expected Bob account in Teleport backend")
+
+	require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
+}
+
+func TestUserResourceEqualsInDeltaAndFullSync_WithGroupMembership(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Default user.
+	const bobUsername = "bob@example.com"
+	bob := &models.User{
+		DirectoryObject: models.DirectoryObject{
+			ID:          to.Ptr(msgraphtest.BobID),
+			DisplayName: to.Ptr("Bob Builder"),
+		},
+		UserPrincipalName:        to.Ptr(bobUsername),
+		Mail:                     to.Ptr(bobUsername),
+		OnPremisesSAMAccountName: to.Ptr("Bob the Builder"),
+		GivenName:                to.Ptr("Bob"),
+		Surname:                  to.Ptr("Builder"),
+	}
+	// Setup test env with msgraphtest fake server.
+	defaultStorage := msgraphtest.NewDefaultStorage()
+	defaultGroups := map[string]*models.Group{
+		msgraphtest.Group1ID: defaultStorage.Groups[msgraphtest.Group1ID],
+		msgraphtest.Group2ID: defaultStorage.Groups[msgraphtest.Group2ID],
 	}
 
 	cmpIgnore := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
-	t.Run("with group memberships", func(t *testing.T) {
-		// Setup test env with msgraphtest fake server.
-		defaultStorage := msgraphtest.NewDefaultStorage()
-		graphStorage := msgraphtest.NewStorage()
-		graphStorage.Applications = defaultStorage.Applications
-		// Create one Entra ID user Alice.
-		graphStorage.Users = make(map[string]*models.User)
-		graphStorage.Users[msgraphtest.BobID] = bob
 
-		graphStorage.Groups = make(map[string]*models.Group)
-		graphStorage.Groups[msgraphtest.Group1ID] = defaultStorage.Groups[msgraphtest.Group1ID]
-		graphStorage.Groups[msgraphtest.Group2ID] = defaultStorage.Groups[msgraphtest.Group2ID]
+	testCases := []struct {
+		name string
+		// applicationProperties to be added to the enterprise application.
+		applicationProperties []string
+		// groups defines incoming entra group with custom properties such as OnPremisesNetBiosName, OnPremisesSamAccountName etc.
+		groups              map[string]*models.Group
+		roleMapping         []types.AttributeMapping
+		expectedTraitName   string
+		expectedTraitValues []string
+		expectedRoles       []string
+	}{
+		{
+			name:                  "defaults to groups claim with group id",
+			applicationProperties: nil,
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group1ID, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group2ID, Roles: []string{"editor"}},
+			},
+			groups:              defaultGroups,
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{msgraphtest.Group1ID, msgraphtest.Group2ID},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name: "default with emit as roles",
+			applicationProperties: []string{
+				models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES,
+			},
+			groups: defaultGroups,
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimRoles, Value: msgraphtest.Group1ID, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimRoles, Value: msgraphtest.Group2ID, Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimRoles,
+			expectedTraitValues: []string{msgraphtest.Group1ID, msgraphtest.Group2ID},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name:                  "default with security and office365 group",
+			applicationProperties: []string{},
+			groups: map[string]*models.Group{
+				msgraphtest.Group1ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group1ID, "group1")
+					g.GroupTypes = []string{"Unified"} // Office 365 group
+					return g
+				}(),
+				msgraphtest.Group2ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group2ID, "group2") // non-Office 365 group
+					return g
+				}(),
+			},
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group1ID, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group2ID, Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{msgraphtest.Group2ID}, // group1 filtered out from traits
+			expectedRoles:       []string{"editor"},             // access role does not match
+		},
+		{
+			name:                  "sam account name",
+			applicationProperties: []string{models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME},
+			groups: map[string]*models.Group{
+				msgraphtest.Group1ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group1ID, "group1")
+					g.OnPremisesSamAccountName = to.Ptr("group1-sam")
+					return g
+				}(),
+				msgraphtest.Group2ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group2ID, "group2")
+					g.OnPremisesSamAccountName = to.Ptr("group2-sam")
+					return g
+				}(),
+			},
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: "group1-sam", Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: "group2-sam", Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{"group1-sam", "group2-sam"},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name:                  "sam account name fallback to group id",
+			applicationProperties: []string{models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME},
+			groups:                defaultGroups,
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group1ID, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: msgraphtest.Group2ID, Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{msgraphtest.Group1ID, msgraphtest.Group2ID},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name: "emit sam account names as roles",
+			applicationProperties: []string{
+				models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_SAM_ACCOUNT_NAME,
+				models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_EMIT_AS_ROLES,
+			},
+			groups: map[string]*models.Group{
+				msgraphtest.Group1ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group1ID, "group1")
+					g.OnPremisesSamAccountName = to.Ptr("group1-sam")
+					return g
+				}(),
+				msgraphtest.Group2ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group2ID, "group2")
+					g.OnPremisesSamAccountName = to.Ptr("group2-sam")
+					return g
+				}(),
+			},
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimRoles, Value: "group1-sam", Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimRoles, Value: "group2-sam", Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimRoles,
+			expectedTraitValues: []string{"group1-sam", "group2-sam"},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name:                  "dns domain and sam account name",
+			applicationProperties: []string{models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_DNS_DOMAIN_AND_SAM_ACCOUNT_NAME},
+			groups: map[string]*models.Group{
+				msgraphtest.Group1ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group1ID, "group1")
+					g.OnPremisesDomainName = to.Ptr("group1.example.com")
+					g.OnPremisesSamAccountName = to.Ptr("group1-sam")
+					return g
+				}(),
+				msgraphtest.Group2ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group2ID, "group2")
+					g.OnPremisesDomainName = to.Ptr("group2.example.com")
+					g.OnPremisesSamAccountName = to.Ptr("group2-sam")
+					return g
+				}(),
+			},
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: `group1.example.com\group1-sam`, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: `group2.example.com\group2-sam`, Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{`group1.example.com\group1-sam`, `group2.example.com\group2-sam`},
+			expectedRoles:       []string{"access", "editor"},
+		},
+		{
+			name:                  "netbios domain and sam account name",
+			applicationProperties: []string{models.OPTIONAL_CLAIM_ADDITIONAL_PROPERTIES_NETBIOS_DOMAIN_AND_SAM_ACCOUNT_NAME},
+			groups: map[string]*models.Group{
+				msgraphtest.Group1ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group1ID, "group1")
+					g.OnPremisesNetBiosName = to.Ptr("group1-nb")
+					g.OnPremisesSamAccountName = to.Ptr("group1-sam")
+					return g
+				}(),
+				msgraphtest.Group2ID: func() *models.Group {
+					g := newEntraGroup(t, msgraphtest.Group2ID, "group2")
+					g.OnPremisesNetBiosName = to.Ptr("group2-nb")
+					g.OnPremisesSamAccountName = to.Ptr("group2-sam")
+					return g
+				}(),
+			},
+			roleMapping: []types.AttributeMapping{
+				{Name: entraIDSAMLClaimGroups, Value: `group1-nb\group1-sam`, Roles: []string{"access"}},
+				{Name: entraIDSAMLClaimGroups, Value: `group2-nb\group2-sam`, Roles: []string{"editor"}},
+			},
+			expectedTraitName:   entraIDSAMLClaimGroups,
+			expectedTraitValues: []string{`group1-nb\group1-sam`, `group2-nb\group2-sam`},
+			expectedRoles:       []string{"access", "editor"},
+		},
+	}
 
-		graphStorage.GroupMembers = make(map[string][]models.GroupMember)
-		graphStorage.GroupMembers[msgraphtest.Group1ID] = []models.GroupMember{bob}
-		graphStorage.GroupMembers[msgraphtest.Group2ID] = []models.GroupMember{bob}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup test env with msgraphtest fake server.
+			graphStorage := msgraphtest.NewStorage()
+			graphStorage.Applications = defaultStorage.Applications
+			graphStorage.Applications[msgraphtest.App1ID].OptionalClaims = &models.OptionalClaims{
+				SAML2Token: []models.OptionalClaim{
+					{
+						Name:                 to.Ptr(models.OPTIONAL_CLAIM_GROUP_NAME),
+						AdditionalProperties: tc.applicationProperties,
+					},
+				},
+			}
+			// Create one Entra ID user Bob.
+			graphStorage.Users = make(map[string]*models.User)
+			graphStorage.Users[msgraphtest.BobID] = bob
+			graphStorage.Groups = tc.groups
+			graphStorage.GroupMembers = make(map[string][]models.GroupMember)
+			graphStorage.GroupMembers[msgraphtest.Group1ID] = []models.GroupMember{bob}
+			graphStorage.GroupMembers[msgraphtest.Group2ID] = []models.GroupMember{bob}
 
-		env := newFakeEnv(t, graphStorage)
-		env.cfg.DeltaSyncEnabled = true
-		r, err := New(env.cfg)
-		require.NoError(t, err)
+			connector := mustNewSAMLConnectorWithRoleMapping(t, ssoConnectorID, tc.roleMapping)
+			env := newFakeEnv(t, withFakeEnvStorage(graphStorage), withFakeEnvConnector(connector))
+			env.cfg.DeltaSyncEnabled = true
+			r, err := New(env.cfg)
+			require.NoError(t, err)
 
-		// Initial full sync
-		_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-		require.NoError(t, err)
+			// Initial full sync
+			_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+			require.NoError(t, err)
 
-		bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
-		require.NoError(t, err)
+			bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+			require.NoError(t, err)
 
-		// Sanity check basic user attributes.
-		assertBasicUserAttributes(t, bobResourceAfterFullSync)
+			// Sanity check basic user attributes.
+			expectBasicUserAttributes(t, bob, bobResourceAfterFullSync)
 
-		// Check role and traits.
-		// Bob is member of Group1ID and Group1ID.
-		expectedTraits := []string{msgraphtest.Group1ID, msgraphtest.Group2ID}
-		require.ElementsMatch(t, expectedTraits, bobResourceAfterFullSync.GetTraits()[entraIDSAMLClaimGroups], "group traits")
+			// Check role and traits.
+			// Bob is member of Group1ID and Group2ID.
+			require.ElementsMatch(t, tc.expectedTraitValues, bobResourceAfterFullSync.GetTraits()[tc.expectedTraitName], "group traits")
+			require.ElementsMatch(t, tc.expectedRoles, bobResourceAfterFullSync.GetRoles(), "roles differ")
 
-		// access and editor role grant is baked in newSAMLConnector that matches with
-		// msgraphtest Group1ID and Group2ID.
-		expectedRoles := []string{"access", "editor"}
-		require.ElementsMatch(t, expectedRoles, bobResourceAfterFullSync.GetRoles(), "roles differ")
+			// Run reconciler mimicking delta sync.
+			_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+			require.NoError(t, err)
+			bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+			require.NoError(t, err, "expected Bob account to be found after delta sync")
 
-		// Run reconciler mimicking delta sync.
-		_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
-		require.NoError(t, err)
-		bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
-		require.NoError(t, err, "expected Bob account in Teleport backend")
+			require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
+		})
+	}
+}
 
-		require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
-	})
+func expectBasicUserAttributes(t *testing.T, expected *models.User, got types.User) {
+	t.Helper()
 
-	t.Run("without group memberships", func(t *testing.T) {
-		// Setup test env with msgraphtest fake server.
-		graphStorage := msgraphtest.NewStorage()
-		graphStorage.Applications = msgraphtest.NewDefaultStorage().Applications
-		// Create one Entra ID user Alice.
-		graphStorage.Users = make(map[string]*models.User)
+	// Check traits matches.
+	// First item expected to match from traits values.
+	traits := got.GetTraits()
+	require.Equal(t, *expected.UserPrincipalName, traits[entraIDSAMLClaimName][0], "username")
+	require.Equal(t, tenantID, traits[tenantIDClaim][0], "tenant ID")
+	require.Equal(t, *expected.GetID(), traits[objectIdentifierClaim][0], "user object ID")
+	require.Equal(t, *expected.DisplayName, traits[displayNameClaim][0], "display name")
+	require.Equal(t, *expected.GivenName, traits[entraIDSAMLGivenName][0], "given name")
+	require.Equal(t, *expected.Surname, traits[entraIDSAMLSurname][0], "surname")
 
-		graphStorage.Users[msgraphtest.BobID] = bob
+	// Check labels matches.
+	require.Equal(t, types.OriginEntraID, got.Origin(), "user origin")
+	labels := got.GetAllLabels()
+	require.Equal(t, *expected.GetID(), labels[types.EntraUniqueIDLabel], "Entra unique ID")
+	require.Equal(t, tenantID, labels[types.EntraTenantIDLabel], "Entra tenant ID")
+	require.Equal(t, *expected.UserPrincipalName, labels[types.EntraUPNLabel], "Entra UPN")
+	require.Equal(t, *expected.OnPremisesSAMAccountName, labels[types.EntraSAMAccountNameLabel], "Entra SAM account name")
 
-		env := newFakeEnv(t, graphStorage)
-		env.cfg.DeltaSyncEnabled = true
-		r, err := New(env.cfg)
-		require.NoError(t, err)
+	isExternal, err := strconv.ParseBool(labels[types.TeleportInternalLabelPrefix+"entra-is-external"])
+	require.NoError(t, err)
+	require.False(t, isExternal, "entra-is-external label")
 
-		// Initial full sync
-		_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-		require.NoError(t, err)
+	// Check CreatedBy matches.
+	require.Equal(t, constants.SAML, got.GetCreatedBy().Connector.Type, "user CreatedBy connector type")
+	require.Equal(t, ssoConnectorID, got.GetCreatedBy().Connector.ID, "user CreatedBy connector ID")
+	require.Equal(t, *expected.UserPrincipalName, got.GetCreatedBy().Connector.Identity, "user CreatedBy identity")
+}
 
-		bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
-		require.NoError(t, err, "expected Bob account in Teleport backend")
+func mustNewSAMLConnectorWithRoleMapping(t *testing.T, connectorID string, roleMapping []types.AttributeMapping) types.SAMLConnector {
+	t.Helper()
 
-		// Sanity check basic user attributes.
-		assertBasicUserAttributes(t, bobResourceAfterFullSync)
-
-		// entraIDSAMLClaimGroups should be nil because user has zero group membership.
-		require.Nil(t, bobResourceAfterFullSync.GetTraits()[entraIDSAMLClaimGroups], "group traits")
-		// No role grants because user has zero group membership.
-		require.Empty(t, bobResourceAfterFullSync.GetRoles(), "role grants")
-
-		// Run reconciler mimicking delta sync.
-		_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
-		require.NoError(t, err)
-		bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
-		require.NoError(t, err, "expected Bob account in Teleport backend")
-
-		require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
-	})
+	connector, err := types.NewSAMLConnector(
+		connectorID,
+		types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "http://localhost:65535/acs", // not called
+			Issuer:                   "test",
+			SSO:                      "https://localhost:65535/sso", // not called
+			AttributesToRoles:        roleMapping,
+		})
+	require.NoError(t, err)
+	return connector
 }
 
 func TestGroupFilters(t *testing.T) {
@@ -1637,7 +1850,7 @@ func TestRestoreDeltaLink(t *testing.T) {
 	alice := entraUser(t, msgraphtest.AliceID, aliceUsername)
 	graphStorage.Users[msgraphtest.AliceID] = alice
 
-	env := newFakeEnv(t, graphStorage)
+	env := newFakeEnv(t, withFakeEnvStorage(graphStorage))
 	env.cfg.DeltaSyncEnabled = true
 	r, err := New(env.cfg)
 	require.NoError(t, err)
@@ -1760,8 +1973,36 @@ func NewEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConn
 	}
 }
 
+type fakeEnvConfig struct {
+	storage   *msgraphtest.Storage
+	connector types.SAMLConnector
+}
+
+type fakeEnvOpt func(*fakeEnvConfig)
+
+func withFakeEnvStorage(storage *msgraphtest.Storage) fakeEnvOpt {
+	return func(cfg *fakeEnvConfig) {
+		cfg.storage = storage
+	}
+}
+
+func withFakeEnvConnector(connector types.SAMLConnector) fakeEnvOpt {
+	return func(cfg *fakeEnvConfig) {
+		cfg.connector = connector
+	}
+}
+
 // newFakeEnv creates new [directoryReconcilerEnv] based on msgraphtest fake server.
-func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerEnv {
+func newFakeEnv(t *testing.T, opts ...fakeEnvOpt) directoryReconcilerEnv {
+	t.Helper()
+
+	cfg := fakeEnvConfig{
+		storage: msgraphtest.NewDefaultStorage(),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	bk := backend.NewSanitizer(mem)
@@ -1776,8 +2017,10 @@ func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerE
 	samlService, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
 
-	connector := newSAMLConnector(t, ssoConnectorID, msgraphtest.Group1ID, msgraphtest.Group2ID)
-	_, err = samlService.CreateSAMLConnector(t.Context(), connector)
+	if cfg.connector == nil {
+		cfg.connector = newSAMLConnector(t, ssoConnectorID, msgraphtest.Group1ID, msgraphtest.Group2ID)
+	}
+	_, err = samlService.CreateSAMLConnector(t.Context(), cfg.connector)
 	require.NoError(t, err)
 
 	defaultOwners := []accesslist.Owner{
@@ -1791,7 +2034,10 @@ func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerE
 	}
 
 	// Set up fake graph API server.
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
+	if cfg.storage == nil {
+		cfg.storage = msgraphtest.NewDefaultStorage()
+	}
+	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(cfg.storage))
 	t.Cleanup(fakeServer.TLSServer.Close)
 	httpClient := &http.Client{
 		Transport: &msgraphtest.RewriteTransport{
@@ -1805,7 +2051,7 @@ func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerE
 	})
 	require.NoError(t, err)
 
-	cfg := Config{
+	reconcilerConfig := Config{
 		Clock:       clockwork.NewRealClock(),
 		Logger:      logtest.NewLogger(),
 		GraphClient: graphClient,
@@ -1815,14 +2061,14 @@ func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerE
 			connectorAccessPoint:  samlService,
 		},
 		DefaultOwners:  defaultOwners,
-		SSOConnectorID: connector.GetName(),
+		SSOConnectorID: cfg.connector.GetName(),
 		TenantID:       tenantID,
 		EntraAppID:     msgraphtest.App1ID,
 	}
-	require.NoError(t, cfg.Validate())
+	require.NoError(t, reconcilerConfig.Validate())
 
 	return directoryReconcilerEnv{
-		cfg:             cfg,
+		cfg:             reconcilerConfig,
 		identitySvc:     identitySvc,
 		aclSvc:          alSvc,
 		fakeGraphServer: fakeServer,
