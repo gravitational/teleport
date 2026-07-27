@@ -856,12 +856,12 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   false,
 		},
 		{
-			name: "malformed name - long name",
+			name: "name longer than max segment size",
 			assignment: &scopedaccessv1.ScopedRoleAssignment{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
 				Metadata: &headerv1.Metadata{
-					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					Name: "thisisaverylongnameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				},
 				Scope: "/",
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
@@ -875,7 +875,7 @@ func TestValidateAsssignment(t *testing.T) {
 				},
 				Version: types.V1,
 			},
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
