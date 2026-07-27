@@ -19,6 +19,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
+	devicetrustpublicv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/workloadcluster/workloadclusterv1"
 	beamsv1 "github.com/gravitational/teleport/e/lib/beams/v1"
 	beamscompute "github.com/gravitational/teleport/e/lib/beams/v1/compute"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustpublicv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/externalauditstorage/externalauditstoragev1"
@@ -979,8 +981,17 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	publicDeviceService, err := devicetrustpublicv1.New(devicetrustpublicv1.ServiceParams{
+		Logger:        logger,
+		EnrollPairing: authServer.Services,
+		Storage:       deviceStorage,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)
+	devicetrustpublicv1pb.RegisterDeviceTrustServiceServer(s, publicDeviceService)
 
 	// Wire DeviceWebToken creation into auth.Server.
 	authServer.SetCreateDeviceWebTokenFunc(deviceService.CreateDeviceWebToken)
