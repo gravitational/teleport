@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -327,6 +328,71 @@ func TestSessionWriter(t *testing.T) {
 			}
 		}, 300*time.Millisecond, 100*time.Millisecond)
 	})
+}
+
+// TestSessionWriterOrdersClonedEventsAtSerialization verifies that prepared
+// events may arrive in any index order without being mutated or stored out of
+// order.
+func TestSessionWriterOrdersClonedEventsAtSerialization(t *testing.T) {
+	test := newSessionWriterTest(t, nil)
+	defer test.cancel()
+
+	// Prepared indexes, recorded in an order that is deliberately not ascending.
+	indexes := []int64{0, 5, 3, 4, 2, 1, 9, 6, 8, 7}
+	var inputEvents []*apievents.SessionPrint
+	for _, idx := range indexes {
+		e := &apievents.SessionPrint{
+			Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Index: idx},
+			Data:     []byte{byte(idx)},
+		}
+		inputEvents = append(inputEvents, e)
+		require.NoError(t, test.writer.RecordEvent(test.ctx, eventstest.PrepareEvent(e)))
+		e.Data[0] = 255
+	}
+	require.NoError(t, test.writer.Complete(test.ctx))
+
+	out := test.collectEvents(t)
+	require.Len(t, out, len(indexes))
+	for i, event := range out {
+		require.Equal(t, int64(i), event.GetIndex())
+		require.Equal(t, []byte{byte(indexes[i])}, event.(*apievents.SessionPrint).Data)
+		require.Equal(t, indexes[i], inputEvents[i].GetIndex(), "RecordEvent mutated its input")
+	}
+}
+
+func TestSessionWriterAssignsIndexesForConcurrentEvents(t *testing.T) {
+	test := newSessionWriterTest(t, nil)
+	defer test.cancel()
+
+	const eventCount = 128
+	errCh := make(chan error, eventCount)
+	var wg sync.WaitGroup
+	for i := range eventCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			event := &apievents.SessionPrint{
+				Metadata: apievents.Metadata{
+					Type:  events.SessionPrintEvent,
+					Index: int64(i),
+				},
+				Data: []byte{byte(i)},
+			}
+			errCh <- test.writer.RecordEvent(test.ctx, eventstest.PrepareEvent(event))
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+	require.NoError(t, test.writer.Complete(test.ctx))
+
+	out := test.collectEvents(t)
+	require.Len(t, out, eventCount)
+	for i, event := range out {
+		require.Equal(t, int64(i), event.GetIndex())
+	}
 }
 
 type sessionWriterTest struct {
