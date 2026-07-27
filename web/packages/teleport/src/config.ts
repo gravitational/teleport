@@ -207,7 +207,8 @@ const cfg = {
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
-    linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
+    linuxDesktop:
+      '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
     bot: '/web/bot/:botName',
