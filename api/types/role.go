@@ -19,14 +19,15 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protowire"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -1712,34 +1713,110 @@ func (l Labels) ToProto() *wrappers.LabelValues {
 
 // Marshal marshals value into protobuf representation
 func (l Labels) Marshal() ([]byte, error) {
-	return proto.Marshal(l.ToProto())
+	data := make([]byte, l.Size())
+	n, err := l.MarshalTo(data)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return data[:n], nil
 }
 
 // MarshalTo marshals value to the array
 func (l Labels) MarshalTo(data []byte) (int, error) {
-	return l.ToProto().MarshalTo(data)
+	maxDataLen := len(data)
+	data = data[:0:maxDataLen]
+
+	for key, vals := range l {
+		sizeOfStringValues := len(vals)
+		for _, val := range vals {
+			sizeOfStringValues += protowire.SizeBytes(len(val))
+		}
+		sizeOfMapEntry := 2 + protowire.SizeBytes(len(key)) + protowire.SizeBytes(sizeOfStringValues)
+
+		const fieldOneTypeBytes = uint64(1<<3 | 2)
+		const fieldOneTypeBytesVarint = byte(fieldOneTypeBytes)
+		const fieldTwoTypeBytes = uint64(2<<3 | 2)
+		const fieldTwoTypeBytesVarint = byte(fieldTwoTypeBytes)
+
+		// message MapEntry {
+		//   string key = 1;
+		//   StringValues value = 2;
+		// }
+		// repeated MapEntry Values = 1;
+
+		// data = protowire.AppendTag(data, 1, protowire.BytesType)
+		data = append(data, fieldOneTypeBytesVarint)
+		data = protowire.AppendVarint(data, uint64(sizeOfMapEntry))
+
+		// MapEntry
+		{
+			// string key = 1;
+
+			// data = protowire.AppendTag(data, 1, protowire.BytesType)
+			data = append(data, fieldOneTypeBytesVarint)
+			data = protowire.AppendString(data, key)
+
+			// StringValues value = 2;
+
+			// data = protowire.AppendTag(data, 2, protowire.BytesType)
+			data = append(data, fieldTwoTypeBytesVarint)
+			data = protowire.AppendVarint(data, uint64(sizeOfStringValues))
+
+			// StringValues
+			{
+				for _, val := range vals {
+					// repeated string Values = 1;
+
+					// data = protowire.AppendTag(data, 1, protowire.BytesType)
+					data = append(data, fieldOneTypeBytesVarint)
+					data = protowire.AppendString(data, val)
+				}
+			}
+		}
+	}
+	if len(data) > maxDataLen {
+		return 0, io.ErrShortBuffer
+	}
+	return len(data), nil
 }
 
 // Unmarshal unmarshals value from protobuf
 func (l *Labels) Unmarshal(data []byte) error {
 	protoValues := &wrappers.LabelValues{}
-	err := proto.Unmarshal(data, protoValues)
-	if err != nil {
+	if err := protoValues.Unmarshal(data); err != nil {
 		return err
 	}
 	if protoValues.Values == nil {
 		return nil
 	}
-	*l = make(map[string]utils.Strings, len(protoValues.Values))
-	for key := range protoValues.Values {
-		(*l)[key] = protoValues.Values[key].Values
+	if *l == nil {
+		*l = make(Labels, len(protoValues.Values))
+	}
+	for key, value := range protoValues.Values {
+		(*l)[key] = value.Values
 	}
 	return nil
 }
 
 // Size returns protobuf size
 func (l Labels) Size() int {
-	return l.ToProto().Size()
+	// each entry has one byte of tag for the implicit map entry message, plus
+	// the size of the data as varint and the data itself
+	size := len(l)
+	for key, vals := range l {
+		// each string in the StringValues has one byte of tag, plus the size of
+		// the data and the data
+		sizeOfStringValues := len(vals)
+		for _, val := range vals {
+			sizeOfStringValues += protowire.SizeBytes(len(val))
+		}
+		// one byte of tag for the string key and one for the StringValues
+		// value, plus the sizes of the data and then the data
+		sizeOfMapEntry := 2 + protowire.SizeBytes(len(key)) + protowire.SizeBytes(sizeOfStringValues)
+
+		size += protowire.SizeBytes(sizeOfMapEntry)
+	}
+	return size
 }
 
 // Clone returns non-shallow copy of the labels set
@@ -1855,32 +1932,28 @@ func BoolDefaultTrue(v *BoolOption) bool {
 	return v.Value
 }
 
-func (b *BoolOption) protoType() *BoolValue {
-	return &BoolValue{
-		Value: b.Value,
-	}
-}
-
 // MarshalTo marshals value to the slice
 func (b BoolOption) MarshalTo(data []byte) (int, error) {
-	return b.protoType().MarshalTo(data)
-}
-
-// MarshalToSizedBuffer marshals value to the slice
-func (b BoolOption) MarshalToSizedBuffer(data []byte) (int, error) {
-	return b.protoType().MarshalToSizedBuffer(data)
+	if !b.Value {
+		return 0, nil
+	}
+	data[0] = 0x8
+	data[1] = 1
+	return 2, nil
 }
 
 // Marshal marshals value into protobuf representation
 func (b BoolOption) Marshal() ([]byte, error) {
-	return proto.Marshal(b.protoType())
+	if !b.Value {
+		return []byte{}, nil
+	}
+	return []byte{0x8, 1}, nil
 }
 
 // Unmarshal unmarshals value from protobuf
 func (b *BoolOption) Unmarshal(data []byte) error {
 	protoValue := &BoolValue{}
-	err := proto.Unmarshal(data, protoValue)
-	if err != nil {
+	if err := protoValue.Unmarshal(data); err != nil {
 		return err
 	}
 	b.Value = protoValue.Value
@@ -1889,7 +1962,10 @@ func (b *BoolOption) Unmarshal(data []byte) error {
 
 // Size returns protobuf size
 func (b BoolOption) Size() int {
-	return b.protoType().Size()
+	if b.Value {
+		return 2
+	}
+	return 0
 }
 
 // MarshalJSON marshals boolean value.

@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1531,4 +1533,33 @@ func TestRoleBeamLabelMatchers(t *testing.T) {
 		Labels:     Labels{"owner": []string{"alice"}},
 		Expression: `labels["owner"] == "alice"`,
 	}, denyMatchers)
+}
+
+func TestLabelsMarshalUnmarshal(t *testing.T) {
+	l := Labels{
+		"foo":  []string{"b", "ba", "barrrr", "bar"},
+		"baz":  []string{"quxxxxxx"},
+		"huh":  []string{},
+		"lmao": nil,
+	}
+
+	marshaled, err := l.Marshal()
+	require.NoError(t, err)
+
+	require.Equal(t, len(marshaled), l.Size())
+
+	lv := new(wrappers.LabelValues)
+	require.NoError(t, lv.Unmarshal(marshaled))
+
+	require.Empty(t, cmp.Diff(l.ToProto(), lv, protocmp.Transform()))
+
+	marshaled, err = lv.Marshal()
+	require.NoError(t, err)
+
+	l2 := make(Labels)
+	require.NoError(t, l2.Unmarshal(marshaled))
+
+	// roundtripping will not distinguish between empty slices and nil slices
+	l["huh"] = nil
+	require.Empty(t, cmp.Diff(l, l2))
 }

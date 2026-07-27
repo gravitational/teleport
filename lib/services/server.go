@@ -30,7 +30,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -232,9 +231,9 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 	if !slices.EqualFunc(a.GetResourceMatchers(), b.GetResourceMatchers(),
 		func(matcher *types.DatabaseResourceMatcher, matcher2 *types.DatabaseResourceMatcher) bool {
 			return matcher.AWS.AssumeRoleARN == matcher2.AWS.AssumeRoleARN &&
-				maps.EqualFunc(matcher.Labels.ToProto().Values, matcher2.Labels.ToProto().Values,
-					func(values wrappers.StringValues, values2 wrappers.StringValues) bool {
-						return slices.Equal(values.Values, values2.Values)
+				maps.EqualFunc(*matcher.Labels, *matcher2.Labels,
+					func(values apiutils.Strings, values2 apiutils.Strings) bool {
+						return slices.Equal(values, values2)
 					})
 		}) {
 		return Different
