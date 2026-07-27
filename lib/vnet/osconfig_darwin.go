@@ -107,6 +107,12 @@ func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSCo
 	return nil
 }
 
+// hostIPv6Disabled always returns false on macOS, there is no system-wide way
+// to disable IPv6 on macOS, it can only be turned off per link.
+func hostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+	return false, nil
+}
+
 const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")

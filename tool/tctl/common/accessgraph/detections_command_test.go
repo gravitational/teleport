@@ -530,14 +530,13 @@ func TestDetectionsGet(t *testing.T) {
 }
 
 func TestDisplayDetectionTextAffectedEntity(t *testing.T) {
-	strPtr := func(s string) *string { return &s }
 
 	cases := []struct {
 		name     string
 		entName  *string
 		wantLine string // empty = no Affected line
 	}{
-		{"name set", strPtr("alice@example.com"), "Affected Entity:   alice@example.com"},
+		{"name set", new("alice@example.com"), "Affected Entity:   alice@example.com"},
 		{"name nil", nil, ""},
 	}
 	for _, tc := range cases {

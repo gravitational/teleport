@@ -1657,7 +1657,7 @@ func TestValidateRoleName(t *testing.T) {
 			name:         "reserved role name proxy",
 			roleName:     string(types.RoleProxy),
 			err:          trace.BadParameter(""),
-			matchMessage: fmt.Sprintf("reserved role: %s", types.RoleProxy),
+			matchMessage: "reserved role: \"Proxy\"",
 		},
 		{
 			name:     "valid role name test-1",

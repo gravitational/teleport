@@ -49,9 +49,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -59,6 +56,9 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
+	httpstreamspdy "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1361,7 +1361,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// If the user has active Access requests we need to validate that they allow
 	// the kubeResource.
 	// This is required because CheckAccess does not validate the subresource type.
-	// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip
+	// TODO(eriktate/scopes): scoped identities don't support access requests, so we skip
 	// these checks for now.
 	if !isScoped && !actx.metaResource.isList {
 		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(unscopedCtx.Checker.GetAllowedResourceAccessIDs()) > 0 {
@@ -1802,7 +1802,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 		}
 	}()
 
-	executor, err := f.getExecutor(sess, req)
+	executor, executorCleanup, err := f.getExecutor(sess, req)
 	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
@@ -1810,6 +1810,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ ht
 		f.log.WarnContext(f.ctx, "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
@@ -1985,11 +1986,12 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 // remoteExec forwards an exec request to a remote cluster.
 func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *remoteCommandProxy) error {
-	executor, err := f.getExecutor(sess, req)
+	executor, executorCleanup, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WarnContext(req.Context(), "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 	streamOptions := proxy.options()
 	err = executor.StreamWithContext(req.Context(), streamOptions)
 	if err != nil {
@@ -2045,10 +2047,11 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getPortForwardDialer(sess, req)
+	dialer, dialerCleanup, err := f.getPortForwardDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer dialerCleanup()
 
 	auditSent := map[string]bool{} // Set of `addr`. Can be multiple ports on single call. Using bool to simplify the check.
 	var auditSentMu sync.Mutex
@@ -2414,10 +2417,10 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 
 // getWebsocketRestConfig builds a [*rest.Config] configuration to be
 // used when upgrading requests via websocket.
-func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (*rest.Config, error) {
+func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (_ *rest.Config, cleanup func(), _ error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	upgradeRoundTripper := NewWebsocketRoundTripperWithDialer(roundTripperConfig{
@@ -2435,7 +2438,8 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	rt = tracehttp.NewTransport(rt)
@@ -2453,35 +2457,41 @@ func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Reque
 			return rt
 		},
 	}
-	return cfg, nil
+	return cfg, upgradeRoundTripper.Cleanup, nil
 }
 
-func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
 	f.log.DebugContext(req.Context(), "Creating websocket remote executor for request",
 		"request_method", req.Method,
 		"request_uri", req.RequestURI,
 	)
-	cfg, err := f.getWebsocketRestConfig(sess, req)
+	cfg, wsCleanup, err := f.getWebsocketRestConfig(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create websocket executor")
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
+	executor, err := remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
+	if err != nil {
+		wsCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
+	}
+	return executor, wsCleanup, nil
 }
 
 func isRelevantWebsocketError(err error) bool {
 	return err != nil && !strings.Contains(err.Error(), "next reader: EOF")
 }
 
-func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	wsExec, err := f.getWebsocketExecutor(sess, req)
+func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
+	wsExec, wsCleanup, err := f.getWebsocketExecutor(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create websocket executor")
+		return nil, nil, trace.Wrap(err, "unable to create websocket executor")
 	}
-	spdyExec, err := f.getSPDYExecutor(sess, req)
+	spdyExec, spdyCleanup, err := f.getSPDYExecutor(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to create spdy executor")
+		wsCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create spdy executor")
 	}
-	return remotecommand.NewFallbackExecutor(
+	executor, err := remotecommand.NewFallbackExecutor(
 		wsExec,
 		spdyExec,
 		func(err error) bool {
@@ -2491,9 +2501,15 @@ func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remote
 				kubeerrors.IsForbidden(err) ||
 				isTeleportUpgradeFailure(err)
 		})
+	if err != nil {
+		wsCleanup()
+		spdyCleanup()
+		return nil, nil, trace.Wrap(err, "unable to create fallback executor")
+	}
+	return executor, func() { wsCleanup(); spdyCleanup() }, nil
 }
 
-func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ remotecommand.Executor, cleanup func(), _ error) {
 	f.log.DebugContext(req.Context(), "Creating SPDY remote executor for request",
 		"request_method", req.Method,
 		"request_uri", req.RequestURI,
@@ -2501,7 +2517,7 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
@@ -2519,42 +2535,55 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	rt = tracehttp.NewTransport(rt)
 
-	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
+	executor, err := remotecommand.NewSPDYExecutorForTransports(
+		rt,
+		spdy.NewUpgraderForStreaming(upgradeRoundTripper),
+		req.Method,
+		req.URL,
+	)
+	if err != nil {
+		upgradeRoundTripper.Cleanup()
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return executor, upgradeRoundTripper.Cleanup, nil
 }
 
-func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	wsDialer, err := f.getWebsocketDialer(sess, req)
+func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
+	wsDialer, wsCleanup, err := f.getWebsocketDialer(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	spdyDialer, err := f.getSPDYDialer(sess, req)
+	spdyDialer, spdyCleanup, err := f.getSPDYDialer(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		wsCleanup()
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
+	return portforward.NewFallbackDialerForStreaming(wsDialer, spdyDialer, func(err error) bool {
 		// If the error is a known upgrade failure, we can retry with the other protocol.
 		return httpstream.IsUpgradeFailure(err) ||
 			httpstream.IsHTTPSProxyError(err) ||
 			kubeerrors.IsForbidden(err) ||
 			isTeleportUpgradeFailure(err)
-	}), nil
+	}), func() { wsCleanup(); spdyCleanup() }, nil
 }
 
 // getSPDYDialer returns a dialer that can be used to upgrade the connection
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
 // The dialer uses an HTTP1.1 connection to upgrade to SPDY.
-func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	req = createSPDYRequest(req, PortForwardProtocolV1Name)
@@ -2573,23 +2602,26 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 		var err error
 		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			upgradeRoundTripper.Cleanup()
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 	client := &http.Client{
 		Transport: tracehttp.NewTransport(rt),
 	}
 
-	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+	return spdy.NewDialerForStreaming(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, req.Method, req.URL),
+		upgradeRoundTripper.Cleanup,
+		nil
 }
 
-func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	cfg, err := f.getWebsocketRestConfig(sess, req)
+func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
+	cfg, wsCleanup, err := f.getWebsocketRestConfig(sess, req)
 	if err != nil {
-		return nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
+		return nil, nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
 	}
-	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
-	return dialer, trace.Wrap(err)
+	dialer, err := portforward.NewSPDYOverWebsocketDialerForStreaming(req.URL, cfg)
+	return dialer, wsCleanup, trace.Wrap(err)
 }
 
 // createSPDYRequest modifies the passed request to remove

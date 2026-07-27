@@ -70,6 +70,7 @@ func Generate(ctx context.Context, joinMethod types.JoinMethod) (string, error) 
 		types.JoinMethodIAM,
 		types.JoinMethodCircleCI,
 		types.JoinMethodKubernetes,
+		types.JoinMethodGenericOIDC,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
 		types.JoinMethodAzure,

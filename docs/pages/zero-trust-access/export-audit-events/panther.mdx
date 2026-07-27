@@ -123,14 +123,14 @@ Add the <filter> and <match> sections to the file.
   </buffer>
 </source>
 -->
-<filter test.log>
+<filter events.log>
   @type record_transformer
   enable_ruby true
   <record>
     time ${time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")}
   </record>
 </filter>
-<match test.log>
+<match events.log>
   @type s3
   aws_key_id  REPLACE_aws_access_key
   aws_sec_key  REPLACE_aws_secret_access_key

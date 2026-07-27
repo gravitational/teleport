@@ -181,7 +181,8 @@ func TestStartTeleportExecXSession(t *testing.T) {
 				ExecLogConfig: config,
 				Writer:        os.Stderr,
 			},
-			Display: ":0",
+			Display:        ":0",
+			SessionWrapper: "sh -c",
 		}
 	}
 	t.Run("valid command", func(t *testing.T) {

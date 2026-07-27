@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+
+# Mock tsh binary for teleport-access-review evals. Serves the active profile so
+# the skill can confirm the target cluster without a real login.
+
+import os, sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt")
+elif args[:1] == ["login"]:
+    print("Logged in.")
+else:
+    print(f"mock-tsh: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)

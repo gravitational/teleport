@@ -94,6 +94,7 @@ function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
             userChannelId: 2,
             screenHeight: 100,
             screenWidth: 100,
+            shareId: 1,
           },
           clipboardEnabled: true,
           directoryRemoveSupported: canRemoveDirectory,
@@ -247,17 +248,23 @@ test('directory sharing menu', async () => {
   });
   expect(shareButton).toBeVisible();
 
-  // Clicking the new menu icon should open a menu
-  await userEvent.click(shareButton);
+  // The menu closes immediately after clicking the "Share a directory" button.
+  // 'openMenu' will help us open and re-acquire the menu element.
+  let openMenu = async (): Promise<HTMLElement> => {
+    // Clicking the new menu icon should open a menu
+    await userEvent.click(shareButton);
+    // Return the menu element
+    return screen.findByTestId('shared-directory-menu');
+  };
 
-  // Share a couple directories via this menu
-  let shareMenu = await screen.findByTestId('shared-directory-menu');
   await userEvent.click(
-    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+    within(await openMenu()).getByRole('button', { name: 'Share a directory' })
   );
   await userEvent.click(
-    within(shareMenu).getByRole('button', { name: 'Share a directory' })
+    within(await openMenu()).getByRole('button', { name: 'Share a directory' })
   );
+
+  let shareMenu = await openMenu();
 
   // retrieve the directories
   const directories = await getSharedDirectoryEntries(shareMenu);

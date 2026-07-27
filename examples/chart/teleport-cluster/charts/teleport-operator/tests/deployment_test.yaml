@@ -14,6 +14,7 @@ tests:
       - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: RELEASE-NAME-teleport-operator
@@ -25,6 +26,7 @@ tests:
       - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: teleport-operator
@@ -36,6 +38,7 @@ tests:
       - ../.lint/cloud-join.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: RELEASE-NAME-operator
@@ -46,17 +49,17 @@ tests:
     asserts:
       # Pod annotations
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
       # Deployment annotations
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
 
   - it: sets labels when specified
@@ -65,17 +68,17 @@ tests:
     asserts:
       # Pod labels
       - equal:
-          path: spec.template.metadata.labels.kubernetes\.io/pod
+          path: spec.template.metadata.labels["kubernetes.io/pod"]
           value: test-label
       - equal:
-          path: spec.template.metadata.labels.kubernetes\.io/pod-different
+          path: spec.template.metadata.labels["kubernetes.io/pod-different"]
           value: 4
       # Deployment labels
       - equal:
-          path: metadata.labels.kubernetes\.io/deployment
+          path: metadata.labels["kubernetes.io/deployment"]
           value: test-label
       - equal:
-          path: metadata.labels.kubernetes\.io/deployment-different
+          path: metadata.labels["kubernetes.io/deployment-different"]
           value: 3
 
   - it: should mount tls.existingCASecretName and set environment when set in values

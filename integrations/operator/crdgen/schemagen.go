@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize/english"
@@ -71,6 +72,7 @@ type RootSchema struct {
 	// different kinds. At some point we will suffix all kinds by the version
 	// and deprecate the old resources.
 	kubernetesKind string
+	scoped         bool
 }
 
 type SchemaVersion struct {
@@ -302,6 +304,8 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 			Rule:    "has(self.scope) == has(oldSelf.scope)",
 			Message: immutableScopeMessage,
 		})
+		// One scoped version is enough to mark the whole resource as scoped.
+		root.scoped = true
 	}
 
 	root.versions = append(root.versions, SchemaVersion{
@@ -560,6 +564,11 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("%s.%s", strings.ToLower(k8sKindPrefix+root.pluralName), root.groupName),
+			Annotations: map[string]string{
+				// The scoped annotation is used to mark resources that are scoped so that Helm can select them
+				// when the operator is deployed in scoped mode.
+				"resources.teleport.dev/scoped": strconv.FormatBool(root.scoped),
+			},
 		},
 		Spec: apiextv1.CustomResourceDefinitionSpec{
 			Group: root.groupName,

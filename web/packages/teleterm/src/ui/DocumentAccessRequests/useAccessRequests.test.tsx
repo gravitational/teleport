@@ -129,10 +129,12 @@ test('makeUiAccessRequest', async () => {
     ],
     reviewers: [
       {
+        display: undefined,
         name: 'sugested-reviewer-1',
         state: 'PENDING',
       },
       {
+        display: undefined,
         name: 'llama',
         state: 'DENIED',
       },
@@ -140,6 +142,7 @@ test('makeUiAccessRequest', async () => {
     reviews: [
       {
         author: 'llama',
+        authorDisplay: undefined,
         createdDuration: '6 days ago',
         promotedAccessListTitle: '',
         reason: 'not today',
@@ -154,6 +157,7 @@ test('makeUiAccessRequest', async () => {
     state: 'PENDING',
     thresholdNames: ['default'],
     user: 'sevy',
+    userDisplay: undefined,
     assumeStartTime: new Date('2024-03-07T23:20:50.520Z'),
     assumeStartTimeDuration: 'now',
     reasonMode: 'optional',

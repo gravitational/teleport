@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -333,6 +334,18 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	})
 	require.NoError(t, err)
 
+	inventoryHandle, err := inventory.NewDownstreamHandle(s.nodeClient.InventoryControlStream,
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello_builder{
+				ServerID: s.nodeID,
+				Version:  teleport.Version,
+				Services: []string{string(types.RoleNode)},
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
+
 	nodeDir := t.TempDir()
 	srv, err := regular.New(
 		ctx,
@@ -363,6 +376,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
 		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		regular.SetInventoryControlHandle(inventoryHandle),
 	)
 	require.NoError(t, err)
 	s.srv = srv

@@ -18,6 +18,9 @@
 		CD799A2A2FEB164100133048 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A292FEB164100133048 /* Dependencies */; };
 		CD799A2C2FEB164300133048 /* DependenciesMacros in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2B2FEB164300133048 /* DependenciesMacros */; };
 		CD799A2E2FEB164600133048 /* DependenciesTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CD799A2D2FEB164600133048 /* DependenciesTestSupport */; };
+		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
+		CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */; };
+		CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -95,7 +98,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */,
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
+				CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */,
 				CD65C8012FF711CE002FB1CD /* IdentifiedCollections in Frameworks */,
 				CD7999232FE33AE000133048 /* Core.framework in Frameworks */,
 				CD7999D62FE9C9F300133048 /* SwiftUINavigation in Frameworks */,
@@ -118,6 +123,7 @@
 			files = (
 				CD799A2C2FEB164300133048 /* DependenciesMacros in Frameworks */,
 				CD799A2A2FEB164100133048 /* Dependencies in Frameworks */,
+				CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */,
 				CD799A2E2FEB164600133048 /* DependenciesTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -191,6 +197,8 @@
 			packageProductDependencies = (
 				CD7999D52FE9C9F300133048 /* SwiftUINavigation */,
 				CD65C8002FF711CE002FB1CD /* IdentifiedCollections */,
+				CDAA8BB12FFD55CC00E6CA87 /* GRDB */,
+				CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -244,6 +252,7 @@
 				CD799A292FEB164100133048 /* Dependencies */,
 				CD799A2B2FEB164300133048 /* DependenciesMacros */,
 				CD799A2D2FEB164600133048 /* DependenciesTestSupport */,
+				CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */,
 			);
 			productName = VerifyTests;
 			productReference = CD799A202FEB15FD00133048 /* VerifyTests.xctest */;
@@ -285,6 +294,8 @@
 				CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */,
 				CD7999D42FE9C9F300133048 /* XCRemoteSwiftPackageReference "swift-navigation" */,
 				CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
+				CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */,
+				CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -573,7 +584,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.teleport.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -581,7 +592,6 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -622,7 +632,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
-				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.teleport.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -630,7 +640,6 @@
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -856,6 +865,24 @@
 				minimumVersion = 2.8.0;
 			};
 		};
+		CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.1.1;
+			};
+		};
+		CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/sqlite-data";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.6;
+			};
+			traits = (
+			);
+		};
 		CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SimplyDanny/SwiftLintPlugins";
@@ -906,6 +933,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD7999312FE345D400133048 /* XCRemoteSwiftPackageReference "swift-dependencies" */;
 			productName = DependenciesTestSupport;
+		};
+		CDAA8BB12FFD55CC00E6CA87 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
+		};
+		CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */;
+			productName = SQLiteData;
+		};
+		CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */;
+			productName = SQLiteDataTestSupport;
 		};
 		CDDEB8762FE1F5FC0052BC27 /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;

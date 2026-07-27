@@ -137,6 +137,17 @@ describe('services/history', () => {
       expect(history._pageRefresh).toHaveBeenCalledWith(expected);
     });
 
+    it('should not attempt to redirect from an unknown path', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/another-location']);
+      location.pathname = '/bogus-location';
+      history.goToLogin({ rememberLocation: true });
+
+      const expected = '/web/login?redirect_uri=http://localhost/web';
+      expect(history._pageRefresh).toHaveBeenCalledWith(expected);
+    });
+
     it('should navigate to login with access_changed param and no redirect_uri', () => {
       jest
         .spyOn(history, 'getRoutes')
@@ -209,5 +220,27 @@ describe('services/history', () => {
 
       window.history.replaceState({}, '', '/');
     });
+  });
+
+  describe('getScopePickerUrl', () => {
+    it('should have a redirection to the current page', () => {
+      jest
+        .spyOn(history, 'getRoutes')
+        .mockReturnValue(['/web/login', '/current-location']);
+      location.pathname = '/current-location';
+      expect(history.getScopePickerUrl()).toBe(
+        '/web/scope_picker?redirect_uri=http://localhost/current-location'
+      );
+    });
+  });
+
+  it('should not attempt to redirect from an unknown path', () => {
+    jest
+      .spyOn(history, 'getRoutes')
+      .mockReturnValue(['/web/login', '/another-location']);
+    location.pathname = '/bogus-location';
+    expect(history.getScopePickerUrl()).toBe(
+      '/web/scope_picker?redirect_uri=http://localhost/web'
+    );
   });
 });

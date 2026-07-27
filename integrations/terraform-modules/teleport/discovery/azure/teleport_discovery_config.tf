@@ -29,8 +29,7 @@ locals {
     )
   ]
 
-  azure_matcher_types   = distinct(flatten([for matcher in local.azure_matchers : matcher.types]))
-  azure_matcher_regions = distinct(flatten([for matcher in local.azure_matchers : matcher.regions]))
+  azure_matcher_types = distinct(flatten([for matcher in local.azure_matchers : matcher.types]))
   azure_matcher_subscriptions = (
     local.has_wildcard_subscription_matcher
     ? ["*"]

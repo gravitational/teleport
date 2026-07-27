@@ -11,7 +11,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for log-extra.yaml
     values:
@@ -22,7 +22,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for public-addresses.yaml
     values:
@@ -33,7 +33,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: wears annotations (annotations.yaml)
     values:
@@ -44,10 +44,10 @@ tests:
       - isKind:
           of: ConfigMap
       - equal:
-          path: metadata.annotations.kubernetes\.io/config
+          path: metadata.annotations["kubernetes.io/config"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/config-different
+          path: metadata.annotations["kubernetes.io/config-different"]
           value: 2
 
   - it: matches snapshot for proxy-listener-mode-multiplex.yaml
@@ -59,7 +59,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for proxy-listener-mode-separate.yaml
     values:
@@ -70,7 +70,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for separate-mongo-listener.yaml
     values:
@@ -81,7 +81,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for separate-postgres-listener.yaml
     values:
@@ -92,7 +92,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for aws-ha-acme.yaml
     values:
@@ -103,7 +103,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for existing-tls-secret.yaml
     values:
@@ -114,7 +114,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for acme-on.yaml
     values:
@@ -125,7 +125,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: matches snapshot for acme-uri-staging.yaml
     values:
@@ -136,7 +136,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: generates a config with a clusterName containing a regular string
     set:
@@ -147,7 +147,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: fails when clusterName contains a regular string and a colon
     set:
@@ -176,7 +176,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true
     chart:
@@ -191,7 +191,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set
     chart:
@@ -204,7 +204,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true
     chart:
@@ -219,7 +219,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set
     chart:
@@ -232,7 +232,7 @@ tests:
       - isKind:
           of: ConfigMap
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   - it: sets "proxy_protocol" to "on"
     set:
@@ -240,7 +240,7 @@ tests:
       clusterName: teleport.example.com
     asserts:
       - matchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol: "on"'
 
   - it: sets "proxy_protocol" to "off"
@@ -249,7 +249,7 @@ tests:
       clusterName: teleport.example.com
     asserts:
       - matchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol: "off"'
 
   - it: does not set "proxy_protocol"
@@ -257,7 +257,7 @@ tests:
       clusterName: teleport.example.com
     asserts:
       - notMatchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol:'
 
   - it: sets extraLabels on Configmap

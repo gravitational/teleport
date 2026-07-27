@@ -18,7 +18,9 @@ package subca
 
 import (
 	"context"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -81,10 +83,17 @@ func LoadCAOverrideResolver(
 	caGetter CAOverrideGetter,
 	isEnterpriseBuild bool,
 	id types.CertAuthorityOverrideID,
-) (*CAOverrideResolver, error) {
+) (_ *CAOverrideResolver, err error) {
 	if !isEnterpriseBuild {
 		return &CAOverrideResolver{}, nil
 	}
+
+	start := time.Now()
+	defer func() {
+		overrideReadHist.
+			WithLabelValues(id.CAType, resultFromError(err)).
+			Observe(time.Since(start).Seconds())
+	}()
 
 	parsed, isNotFound, err := getParsedCAOverride(ctx, caGetter, id)
 	if isNotFound {
@@ -163,10 +172,19 @@ func (res *CalculateOverrideResult) ToClientOverrideDetailsProto() *proto.CAOver
 //
 // Useful to determine current/active CA certificates. For more details on each
 // override, use [CAOverrideResolver.CalculateOverride].
-func (c *CAOverrideResolver) ApplyOverrides(certPEMs [][]byte) ([][]byte, error) {
+func (c *CAOverrideResolver) ApplyOverrides(certPEMs [][]byte) (_ [][]byte, err error) {
 	if !c.overridesActive {
 		return certPEMs, nil
 	}
+
+	start := time.Now()
+	defer func() {
+		caType := c.parsed.CAOverride.GetSubKind()
+		numCerts := strconv.Itoa(len(certPEMs))
+		overrideApplyHist.
+			WithLabelValues(caType, numCerts, resultFromError(err)).
+			Observe(time.Since(start).Seconds())
+	}()
 
 	overridePEMs := make([][]byte, len(certPEMs))
 	for i, certPEM := range certPEMs {
@@ -185,13 +203,22 @@ func (c *CAOverrideResolver) ApplyOverrides(certPEMs [][]byte) ([][]byte, error)
 // Returns a result with the CA certificate and chain to be used, with either
 // the input certificate or the one acquired from an active, matching CA
 // certificate override.
-func (c *CAOverrideResolver) CalculateOverride(caCert Certificate) (*CalculateOverrideResult, error) {
+func (c *CAOverrideResolver) CalculateOverride(caCert Certificate) (_ *CalculateOverrideResult, err error) {
 	switch {
 	case len(caCert.PEM) == 0:
 		return nil, trace.BadParameter("caCert required")
 	case !c.overridesActive:
 		return &CalculateOverrideResult{CACertificate: caCert}, nil
 	}
+
+	start := time.Now()
+	defer func() {
+		caType := c.parsed.CAOverride.GetSubKind()
+		const numCerts = "1"
+		overrideApplyHist.
+			WithLabelValues(caType, numCerts, resultFromError(err)).
+			Observe(time.Since(start).Seconds())
+	}()
 
 	const skipCAChain = false
 	return c.calculateOverride(caCert, skipCAChain)

@@ -26,6 +26,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -34,7 +35,9 @@ func (s *TerraformSuiteOSS) TestKubernetesCluster() {
 	s.T().Cleanup(cancel)
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetKubernetesCluster(ctx, "test")
+		_, err := s.client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+			Name: "test",
+		}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -106,7 +109,9 @@ func (s *TerraformSuiteOSS) TestImportKubernetesCluster() {
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err := s.client.GetKubernetesCluster(ctx, cluster.GetName())
+		_, err := s.client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+			Name: cluster.GetName(),
+		}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -138,7 +143,9 @@ func (s *TerraformSuiteOSSWithCache) TestKubernetesClusterWithCache() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetKubernetesCluster(ctx, "test")
+		_, err := s.client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+			Name: "test",
+		}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}

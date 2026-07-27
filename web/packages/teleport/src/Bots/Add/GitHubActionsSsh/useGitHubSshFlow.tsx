@@ -239,8 +239,8 @@ spec:
     # List of node labels that users can SSH into
     node_labels:
       ${nodeLabels}
-    options:
-      max_session_ttl: 8h0m0s
+  options:
+    max_session_ttl: 8h0m0s
 version: v7
   `;
 }

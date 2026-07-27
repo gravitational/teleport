@@ -14,7 +14,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for log-extra.yaml
@@ -28,7 +28,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for public-addresses.yaml
@@ -42,7 +42,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: wears annotations (annotations.yaml)
@@ -56,10 +56,10 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - equal:
-          path: metadata.annotations.kubernetes\.io/config
+          path: metadata.annotations["kubernetes.io/config"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/config-different
+          path: metadata.annotations["kubernetes.io/config-different"]
           value: 2
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
@@ -74,7 +74,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for proxy-listener-mode-separate.yaml
@@ -88,7 +88,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for separate-mongo-listener.yaml
@@ -102,7 +102,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for separate-postgres-listener.yaml
@@ -116,7 +116,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for aws-ha-acme.yaml
@@ -130,7 +130,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for existing-tls-secret.yaml
@@ -144,7 +144,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for acme-on.yaml
@@ -158,7 +158,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: matches snapshot for acme-uri-staging.yaml
@@ -172,7 +172,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: generates a config with a clusterName containing a regular string
@@ -186,7 +186,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: fails when clusterName contains a regular string and a colon
@@ -220,7 +220,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true
@@ -238,7 +238,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set
@@ -254,7 +254,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true
@@ -272,7 +272,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set
@@ -288,7 +288,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: sets "proxy_protocol" to "on"
@@ -303,7 +303,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol: "on"'
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
@@ -319,7 +319,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - matchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol: "off"'
 
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
@@ -334,7 +334,7 @@ tests:
           path: metadata.name
           value: RELEASE-NAME-proxy
       - notMatchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'proxy_protocol:'
 
   - it: sets extraLabels on Configmap
@@ -377,5 +377,5 @@ tests:
           value: RELEASE-NAME-proxy
       - matchSnapshot: {}
       - matchRegex:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
           pattern: 'svc.test.com:3025'

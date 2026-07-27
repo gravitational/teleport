@@ -45,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -580,11 +582,23 @@ func (k *KeyRing) DBTLSCertificates() (certs []x509.Certificate, err error) {
 	return certs, nil
 }
 
+// ScopedAppName returns the name that keys an app's TLS credential.
+// Unscoped apps are keyed by their plain name. Scoped apps are keyed by their
+// scope-qualified subdomain with a leading "@" prefix: app names must begin
+// with an alphanumeric character, so the prefix keeps scoped keys separate
+// from unscoped app names.
+func ScopedAppName(appSQN scopes.QualifiedName) string {
+	if appSQN.Scope == "" {
+		return appSQN.Name
+	}
+	return "@" + scopedapp.ScopedSubdomain(appSQN.Name, appSQN.Scope)
+}
+
 // AppTLSCert returns the tls.Certificate for authentication against a named app.
-func (k *KeyRing) AppTLSCert(appName string) (tls.Certificate, error) {
-	cred, ok := k.AppTLSCredentials[appName]
+func (k *KeyRing) AppTLSCert(appSQN scopes.QualifiedName) (tls.Certificate, error) {
+	cred, ok := k.AppTLSCredentials[ScopedAppName(appSQN)]
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appName)
+		return tls.Certificate{}, trace.NotFound("TLS certificate for application %q not found", appSQN.Name)
 	}
 	return cred.TLSCertificate()
 }

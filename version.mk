@@ -15,6 +15,7 @@ func init() { Gitref = \"$(GITREF)\" }\n"
 setver: validate-semver helm-version tsh-version
 	GOWORK=off CGO_ENABLED=0 go -C build.assets/tooling run ./cmd/apiversion "$(VERSION)" > api/version.go
 	@printf $(GITREF_GO) | gofmt > gitref.go
+	$(MAKE) -C integrations/terraform-modules update-version VERSION=$(VERSION)
 
 # helm-version automatically updates the versions of Helm charts to match the version set in the Makefile,
 # so that chart versions are also kept in sync when the Teleport version is updated for a release.

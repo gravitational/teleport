@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func setupWorkloadIdentityServiceTest(
@@ -64,6 +65,13 @@ func newValidWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentit
 			}.Build(),
 		}.Build(),
 	}.Build()
+}
+
+func newValidScopedWorkloadIdentity(name, scope string) *workloadidentityv1pb.WorkloadIdentity {
+	wi := newValidWorkloadIdentity(name)
+	wi.SetScope(scope)
+	wi.GetSpec().GetSpiffe().SetId(scope + "/_/" + name)
+	return wi
 }
 
 func TestWorkloadIdentityService_CreateWorkloadIdentity(t *testing.T) {
@@ -212,7 +220,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 			proto.Clone(want).(*workloadidentityv1pb.WorkloadIdentity),
 		)
 		require.NoError(t, err)
-		got, err := service.GetWorkloadIdentity(ctx, "example")
+		got, err := service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, got.GetMetadata().GetRevision())
 		require.Empty(t, cmp.Diff(
@@ -223,7 +231,7 @@ func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 		))
 	})
 	t.Run("not found", func(t *testing.T) {
-		_, err := service.GetWorkloadIdentity(ctx, "not-found")
+		_, err := service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "not-found"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -239,18 +247,18 @@ func TestWorkloadIdentityService_DeleteWorkloadIdentity(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, "example")
+		_, err = service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 
-		err = service.DeleteWorkloadIdentity(ctx, "example")
+		err = service.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.NoError(t, err)
 
-		_, err = service.GetWorkloadIdentity(ctx, "example")
+		_, err = service.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: "example"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
 	t.Run("not found", func(t *testing.T) {
-		err := service.DeleteWorkloadIdentity(ctx, "foo.example.com")
+		err := service.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Name: "foo.example.com"}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})
@@ -365,6 +373,82 @@ func TestWorkloadIdentityService_UpdateWorkloadIdentity(t *testing.T) {
 	})
 }
 
+// TestWorkloadIdentityService_Scoped exercises each operation against a scoped
+// WorkloadIdentity. The scope-routing mechanics are covered by the generic
+// ScopeAwareServiceWrapper tests; this verifies the service is wired to them:
+// scoped writes are validated, both key ranges are addressable, and scoped and
+// unscoped resources of the same name stay isolated.
+func TestWorkloadIdentityService_Scoped(t *testing.T) {
+	ctx, service := setupWorkloadIdentityServiceTest(t)
+
+	const scope = "/staging"
+	scopedName := scopes.QualifiedName{Scope: scope, Name: "example"}
+	unscopedName := scopes.QualifiedName{Name: "example"}
+	getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+		return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+	}
+	delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+		return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+	}
+
+	// A scoped and an unscoped identity sharing a name do not collide.
+	_, err := service.CreateWorkloadIdentity(ctx, newValidWorkloadIdentity("example"))
+	require.NoError(t, err)
+	_, err = service.CreateWorkloadIdentity(ctx, newValidScopedWorkloadIdentity("example", scope))
+	require.NoError(t, err)
+
+	// Scoped validation applies on write.
+	invalid := newValidScopedWorkloadIdentity("invalid", scope)
+	invalid.GetSpec().GetSpiffe().SetId("/elsewhere/_/svc")
+	_, err = service.CreateWorkloadIdentity(ctx, invalid)
+	require.ErrorContains(t, err, "must be prefixed with the scope")
+
+	// Get addresses each key range independently.
+	gotScoped, err := service.GetWorkloadIdentity(ctx, getReq(scopedName))
+	require.NoError(t, err)
+	require.Equal(t, scope, gotScoped.GetScope())
+	gotUnscoped, err := service.GetWorkloadIdentity(ctx, getReq(unscopedName))
+	require.NoError(t, err)
+	require.Empty(t, gotUnscoped.GetScope())
+
+	// Update and Upsert route by the resource's own scope, leaving the
+	// unscoped identity of the same name untouched.
+	gotScoped.GetSpec().GetSpiffe().SetHint("updated")
+	updated, err := service.UpdateWorkloadIdentity(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(gotScoped).(*workloadidentityv1pb.WorkloadIdentity),
+	)
+	require.NoError(t, err)
+	_, err = service.UpsertWorkloadIdentity(
+		ctx,
+		// Clone to avoid Marshaling modifying want
+		proto.Clone(updated).(*workloadidentityv1pb.WorkloadIdentity),
+	)
+	require.NoError(t, err)
+	gotScoped, err = service.GetWorkloadIdentity(ctx, getReq(scopedName))
+	require.NoError(t, err)
+	require.Equal(t, "updated", gotScoped.GetSpec().GetSpiffe().GetHint())
+	gotUnscoped, err = service.GetWorkloadIdentity(ctx, getReq(unscopedName))
+	require.NoError(t, err)
+	require.NotEqual(t, "updated", gotUnscoped.GetSpec().GetSpiffe().GetHint())
+
+	// Range spans both key ranges, unscoped first.
+	var ranged []scopes.QualifiedName
+	for wi, err := range service.RangeWorkloadIdentities(ctx, "", "", "", false) {
+		require.NoError(t, err)
+		ranged = append(ranged, scopes.QualifiedName{Scope: wi.GetScope(), Name: wi.GetMetadata().GetName()})
+	}
+	require.Equal(t, []scopes.QualifiedName{unscopedName, scopedName}, ranged)
+
+	// Deleting the scoped identity leaves the unscoped one intact.
+	require.NoError(t, service.DeleteWorkloadIdentity(ctx, delReq(scopedName)))
+	_, err = service.GetWorkloadIdentity(ctx, getReq(scopedName))
+	require.True(t, trace.IsNotFound(err))
+	_, err = service.GetWorkloadIdentity(ctx, getReq(unscopedName))
+	require.NoError(t, err)
+}
+
 func TestWorkloadIdentityParser(t *testing.T) {
 	t.Parallel()
 	parser := newWorkloadIdentityParser()
@@ -378,7 +462,35 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		require.True(t, parser.match(event.Item.Key))
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
+		// Unscoped deletes keep their historical ResourceHeader representation
+		// so existing consumers of these events are unaffected.
+		require.IsType(t, &types.ResourceHeader{}, resource)
 		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("delete scoped", func(t *testing.T) {
+		const scope = "/staging"
+		const name = "scoped-example"
+		encodedScope, err := scopes.EncodeForKey(scope)
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpDelete,
+			Item: backend.Item{
+				Key: backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, name),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		// A scoped delete event carries only the backend key; the parser
+		// recovers the (scope, name) and emits a skeleton WorkloadIdentity
+		// (a ResourceHeader has no scope field) so the cache can evict the
+		// entry from its scope-aware name index.
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*workloadidentityv1pb.WorkloadIdentity])
+		require.True(t, ok)
+		skeleton := unwrapper.UnwrapT()
+		require.Equal(t, types.KindWorkloadIdentity, skeleton.GetKind())
+		require.Equal(t, name, skeleton.GetMetadata().GetName())
+		require.Equal(t, scope, skeleton.GetScope())
 	})
 	t.Run("put", func(t *testing.T) {
 		event := backend.Event{
@@ -392,6 +504,39 @@ func TestWorkloadIdentityParser(t *testing.T) {
 		resource, err := parser.parse(event)
 		require.NoError(t, err)
 		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("put scoped", func(t *testing.T) {
+		encodedScope, err := scopes.EncodeForKey("/staging")
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key:   backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, "example"),
+				Value: []byte(`{"kind":"workload_identity","version":"v1","metadata":{"name":"example"},"scope":"/staging","spec":{"spiffe":{"id":"/staging/_/test"}}}`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		resource, err := parser.parse(event)
+		require.NoError(t, err)
+		require.Equal(t, "example", resource.GetMetadata().Name)
+	})
+	t.Run("put with invalid scope", func(t *testing.T) {
+		// Identical to the passing scoped put, except the payload scope fails
+		// weak validation. The parser rejects the event so the invalid scope
+		// never reaches downstream consumers; the watcher drops it with a
+		// warning.
+		encodedScope, err := scopes.EncodeForKey("/staging")
+		require.NoError(t, err)
+		event := backend.Event{
+			Type: types.OpPut,
+			Item: backend.Item{
+				Key:   backend.NewKey(scopedPrefix, workloadIdentityPrefix, encodedScope, "example"),
+				Value: []byte(`{"kind":"workload_identity","version":"v1","metadata":{"name":"example"},"scope":"/foo bar","spec":{"spiffe":{"id":"/staging/_/test"}}}`),
+			},
+		}
+		require.True(t, parser.match(event.Item.Key))
+		_, err = parser.parse(event)
+		require.Error(t, err)
 	})
 	t.Run("does not match workload identity x509 revocation", func(t *testing.T) {
 		event := backend.Event{

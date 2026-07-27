@@ -13,23 +13,23 @@ adds operator permissions to ClusterRole:
         teleport.dev/majorVersion: "19"
       name: RELEASE-NAME
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - users
-      - groups
-      - serviceaccounts
-      verbs:
-      - impersonate
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      verbs:
-      - get
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - selfsubjectaccessreviews
-      verbs:
-      - create
+      - apiGroups:
+          - ""
+        resources:
+          - users
+          - groups
+          - serviceaccounts
+        verbs:
+          - impersonate
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - selfsubjectaccessreviews
+        verbs:
+          - create

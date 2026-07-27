@@ -48,11 +48,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -70,11 +70,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -92,11 +92,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -114,11 +114,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -136,11 +136,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/aa/bb::role-05",
 						Scope: "/aa/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/aa/bb::role-06",
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
@@ -158,11 +158,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/aa/bb::role-05",
 						Scope: "/aa/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/aa/bb::role-06",
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
@@ -180,11 +180,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "carol",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-07",
+						Role:  "/bb::role-07",
 						Scope: "/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-08",
+						Role:  "/bb::role-08",
 						Scope: "/bb/cc",
 					}.Build(),
 				},
@@ -197,6 +197,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.Error(t, err)
@@ -206,6 +207,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -214,8 +216,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify expected behavior for standard cursors in resources subject to scope mode
 	rsp, err := cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-02/dynamic@/aa",
@@ -226,8 +228,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious root out-of-band cursor in resources subject to scope mode (no effect)
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-01/dynamic@/",
@@ -238,8 +240,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious orthogonal out-of-band cursor in resources subject to scope mode (no effect)
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:carol-01/dynamic@/bb",
@@ -250,8 +252,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify expected behavior for standard cursors in policies applicable to scope mode
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-01/dynamic@/",
@@ -263,8 +265,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	// try to inject a malicious child out-of-band cursor in policies applicable to scope mode (effect is
 	// to ignore all items in valid query path).
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-03/dynamic@/aa/bb",
@@ -276,8 +278,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	// try to inject a malicious orthogonal out-of-band cursor in policies applicable to scope mode (effect is to
 	// ignore root, but process leaf normally).
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:carol-01/dynamic@/bb",
@@ -288,8 +290,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify rejection of unknown cursor version
 	_, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v2:bob-02/dynamic@/aa",
@@ -314,11 +316,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -336,11 +338,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -358,11 +360,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -380,11 +382,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -402,11 +404,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "carol",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/bb::role-05",
 						Scope: "/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/bb::role-06",
 						Scope: "/bb/cc",
 					}.Build(),
 				},
@@ -515,7 +517,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "role single page",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				Role: "role-01",
+				Role: "/::role-01",
 			}.Build(),
 			expect: [][]string{
 				{
@@ -528,7 +530,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			name: "role multi page",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 				PageSize: 1,
-				Role:     "role-01",
+				Role:     "/::role-01",
 			}.Build(),
 			expect: [][]string{
 				{"alice-01"},
@@ -538,15 +540,15 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "role nonexistent",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				Role: "role-99",
+				Role: "/::role-99",
 			}.Build(),
 			expect: nil,
 		},
 		{
 			name: "resource scope root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_DESCENDANTS,
 					Scope: "/",
 				}.Build(),
 			}.Build(),
@@ -563,8 +565,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "resource scope non-root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_DESCENDANTS,
 					Scope: "/aa",
 				}.Build(),
 			}.Build(),
@@ -578,8 +580,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "policy scope root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_ANCESTORS,
 					Scope: "/",
 				}.Build(),
 			}.Build(),
@@ -593,8 +595,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "policy scope non-root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_ANCESTORS,
 					Scope: "/aa",
 				}.Build(),
 			}.Build(),
@@ -613,6 +615,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.Error(t, err)
@@ -622,6 +625,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -690,6 +694,7 @@ func TestScopedRoleAssignmentSubKinds(t *testing.T) {
 	for _, tt := range []*scopedaccessv1.ScopedRoleAssignment{dynamic, materialized} {
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    tt.GetMetadata().GetName(),
+			Scope:   tt.GetScope(),
 			SubKind: tt.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -699,7 +704,8 @@ func TestScopedRoleAssignmentSubKinds(t *testing.T) {
 
 	// Trying to get an assignment without specifying a subkind returns NotFound.
 	_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
-		Name: "shared-name",
+		Name:  "shared-name",
+		Scope: "/",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)

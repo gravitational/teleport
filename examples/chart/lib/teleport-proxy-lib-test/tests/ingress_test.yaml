@@ -515,7 +515,7 @@ tests:
     values:
       - ../.lint/ingress.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.tls[0].secretName
       - matchSnapshot:
           path: spec.tls

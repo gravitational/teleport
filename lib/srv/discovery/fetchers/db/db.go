@@ -35,14 +35,17 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 type makeAWSFetcherFunc func(awsFetcherConfig) (common.Fetcher, error)
 type makeAzureFetcherFunc func(azureFetcherConfig) (common.Fetcher, error)
+type makeGCPFetcherFunc func(gcpFetcherConfig) (common.Fetcher, error)
 
 var (
 	makeAWSFetcherFuncs = map[string][]makeAWSFetcherFunc{
@@ -63,6 +66,10 @@ var (
 		types.AzureMatcherRedis:     {newAzureRedisFetcher, newAzureRedisEnterpriseFetcher},
 		types.AzureMatcherSQLServer: {newAzureSQLServerFetcher, newAzureManagedSQLServerFetcher},
 	}
+
+	makeGCPFetcherFuncs = map[string][]makeGCPFetcherFunc{
+		types.GCPMatcherCloudSQL: {newCloudSQLFetcher},
+	}
 )
 
 // IsAWSMatcherType checks if matcher type is a valid AWS matcher.
@@ -73,6 +80,11 @@ func IsAWSMatcherType(matcherType string) bool {
 // IsAzureMatcherType checks if matcher type is a valid Azure matcher.
 func IsAzureMatcherType(matcherType string) bool {
 	return len(makeAzureFetcherFuncs[matcherType]) > 0
+}
+
+// IsGCPMatcherType checks if matcher type is a valid GCP database matcher.
+func IsGCPMatcherType(matcherType string) bool {
+	return len(makeGCPFetcherFuncs[matcherType]) > 0
 }
 
 // AWSClientProvider provides AWS service API clients.
@@ -240,6 +252,40 @@ func MakeAzureFetchers(ctx context.Context, getAzureClients func(ctx context.Con
 						}
 						result = append(result, fetcher)
 					}
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+// MakeGCPFetchers creates new GCP database fetchers, one per project. A wildcard
+// project is expanded at fetch time rather than at construction.
+func MakeGCPFetchers(logger *slog.Logger, gcpClients gcp.Clients, matchers []types.GCPMatcher, discoveryConfigName string) (result []common.Fetcher, err error) {
+	for _, matcher := range matchers {
+		for _, matcherType := range matcher.Types {
+			makeFetchers, found := makeGCPFetcherFuncs[matcherType]
+			if !found {
+				return nil, trace.BadParameter("unknown matcher type %q. Supported GCP database matcher types are %v",
+					matcherType,
+					slices.Collect(maps.Keys(makeGCPFetcherFuncs)))
+			}
+
+			for _, projectID := range apiutils.Deduplicate(matcher.ProjectIDs) {
+				for _, makeFetcher := range makeFetchers {
+					fetcher, err := makeFetcher(gcpFetcherConfig{
+						Type:                matcherType,
+						GCPClients:          gcpClients,
+						ProjectID:           projectID,
+						Locations:           matcher.Locations,
+						Labels:              matcher.GetLabels(),
+						DiscoveryConfigName: discoveryConfigName,
+						Logger:              logger,
+					})
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					result = append(result, fetcher)
 				}
 			}
 		}

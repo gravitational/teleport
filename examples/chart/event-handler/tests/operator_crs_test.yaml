@@ -27,14 +27,17 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
+          any: true
           kind: TeleportRoleV8
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
       - containsDocument:
+          any: true
           kind: TeleportBotV1
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
       - containsDocument:
+          any: true
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
           name: RELEASE-NAME-tbot
@@ -49,16 +52,19 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
+          any: true
           kind: TeleportRoleV8
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
           namespace: test-namespace
       - containsDocument:
+          any: true
           kind: TeleportBotV1
           apiVersion: resources.teleport.dev/v1
           name: RELEASE-NAME-teleport-plugin-event-handler
           namespace: test-namespace
       - containsDocument:
+          any: true
           kind: TeleportProvisionToken
           apiVersion: resources.teleport.dev/v2
           name: RELEASE-NAME-tbot

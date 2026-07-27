@@ -313,8 +313,7 @@ func extractAdditionalSystemRoles(ctx context.Context, roles []string) types.Sys
 	var systemRoles types.SystemRoles
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err != nil {
+		if !systemRole.IsValid() {
 			// ignore unknown system roles rather than rejecting them, since new unknown system
 			// roles may be present on certs if we rolled back from a newer version.
 			logger.WarnContext(ctx, "Ignoring unknown system role", "unknown_role", role)
@@ -328,8 +327,7 @@ func extractAdditionalSystemRoles(ctx context.Context, roles []string) types.Sys
 func findPrimarySystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err == nil {
+		if systemRole.IsValid() {
 			return &systemRole
 		}
 	}

@@ -43,6 +43,20 @@ var testModules = &modulestest.Modules{
 	},
 }
 
+// testModulesCloud enables Cloud mode and the ClientIPRestrictions entitlement
+// so Cloud-only resources (which proxy to the Teleport Cloud API) are
+// registered and authorized. The plugin harness wires in a fake Cloud client
+// whenever Cloud is enabled (see plugin_ent_test.go).
+var testModulesCloud = &modulestest.Modules{
+	TestBuildType: modules.BuildEnterprise,
+	TestFeatures: modules.Features{
+		Cloud: true,
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.ClientIPRestrictions: {Enabled: true},
+		},
+	},
+}
+
 const entTestSkipMessage = "Skipping Enterprise test suite, auth plugin is missing. \n" +
 	"If you are running tests locally and have `e/` checked out: use `make test-ent` once, or run `go generate testlib/plugin_test.go`"
 
@@ -62,6 +76,28 @@ func TestTerraformEnterprise(t *testing.T) {
 				PluginRegistry: registry,
 				AuthConfig: authtest.AuthServerConfig{
 					Modules: testModules,
+				},
+			},
+		},
+	})
+}
+
+func TestTerraformEnterpriseCloud(t *testing.T) {
+	authPlugin, err := NewPlugin(testModulesCloud)
+	if trace.IsNotImplemented(err) {
+		t.Skip(entTestSkipMessage)
+	}
+	require.NoError(t, err)
+
+	registry := plugin.NewRegistry()
+	require.NoError(t, registry.Add(authPlugin))
+
+	suite.Run(t, &TerraformSuiteEnterpriseCloud{
+		TerraformBaseSuite: TerraformBaseSuite{
+			AuthHelper: &integration.MinimalAuthHelper{
+				PluginRegistry: registry,
+				AuthConfig: authtest.AuthServerConfig{
+					Modules: testModulesCloud,
 				},
 			},
 		},

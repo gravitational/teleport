@@ -73,7 +73,7 @@ client credentials available as a secret. Use the following command to create
 that secret in Kubernetes:
 
 ```code
-$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
+$ kubectl create secret generic teleport-plugin-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
 ```
 
 This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
@@ -126,10 +126,10 @@ longer-lived identity files with `tctl`:
 
 <Tabs>
 <TabItem label="Machine & Workload Identity">
-(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-event-handler-identity"!)
+(!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-event-handler-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" secret="teleport-event-handler-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler" plugin="event-handler" secret="teleport-plugin-event-handler-identity"!)
 </TabItem>
 </Tabs>
 

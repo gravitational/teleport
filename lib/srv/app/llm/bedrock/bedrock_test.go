@@ -32,18 +32,16 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
-func TestBuildURL(t *testing.T) {
+func TestBuildAnthropicURL(t *testing.T) {
 	for name, tc := range map[string]struct {
-		app           types.Application
-		expectedError require.ErrorAssertionFunc
-		expectedURL   require.ValueAssertionFunc
+		app         types.Application
+		expectedURL require.ValueAssertionFunc
 	}{
-		"anthropic format": {
+		"messages": {
 			app: newApp(t, &types.LLM{
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAWSBedrock,
 			}, &types.AppAWS{Region: "us-east-2"}),
-			expectedError: require.NoError,
 			expectedURL: func(tt require.TestingT, i1 any, i2 ...any) {
 				u, _ := i1.(*url.URL)
 				require.Equal(tt, "https", u.Scheme)
@@ -51,12 +49,50 @@ func TestBuildURL(t *testing.T) {
 				require.Equal(tt, "/anthropic/v1", u.Path)
 			},
 		},
-		"openai format": {
+		"default region": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{}),
+			expectedURL: func(tt require.TestingT, i1 any, i2 ...any) {
+				u, _ := i1.(*url.URL)
+				require.Equal(tt, "https", u.Scheme)
+				require.Equal(tt, "bedrock-mantle."+defaultRegion+".api.aws", u.Host)
+				require.Equal(tt, "/anthropic/v1", u.Path)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.expectedURL(t, BuildAnthropicURL(slog.Default(), tc.app))
+		})
+	}
+}
+
+func TestBuildOpenAIURL(t *testing.T) {
+	for name, tc := range map[string]struct {
+		app         types.Application
+		isResponses bool
+		expectedURL require.ValueAssertionFunc
+	}{
+		"responses": {
 			app: newApp(t, &types.LLM{
 				Format:   types.LLMFormatOpenAI,
 				Provider: types.LLMProviderAWSBedrock,
 			}, &types.AppAWS{Region: "eu-central-1"}),
-			expectedError: require.NoError,
+			isResponses: true,
+			expectedURL: func(tt require.TestingT, i1 any, i2 ...any) {
+				u, _ := i1.(*url.URL)
+				require.Equal(tt, "https", u.Scheme)
+				require.Equal(tt, "bedrock-mantle.eu-central-1.api.aws", u.Host)
+				require.Equal(tt, "/openai/v1", u.Path)
+			},
+		},
+		"chat completions": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{Region: "eu-central-1"}),
+			isResponses: false,
 			expectedURL: func(tt require.TestingT, i1 any, i2 ...any) {
 				u, _ := i1.(*url.URL)
 				require.Equal(tt, "https", u.Scheme)
@@ -69,19 +105,17 @@ func TestBuildURL(t *testing.T) {
 				Format:   types.LLMFormatOpenAI,
 				Provider: types.LLMProviderAWSBedrock,
 			}, &types.AppAWS{}),
-			expectedError: require.NoError,
+			isResponses: true,
 			expectedURL: func(tt require.TestingT, i1 any, i2 ...any) {
 				u, _ := i1.(*url.URL)
 				require.Equal(tt, "https", u.Scheme)
 				require.Equal(tt, "bedrock-mantle."+defaultRegion+".api.aws", u.Host)
-				require.Equal(tt, "/v1", u.Path)
+				require.Equal(tt, "/openai/v1", u.Path)
 			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			u, err := BuildURL(slog.Default(), tc.app)
-			tc.expectedError(t, err)
-			tc.expectedURL(t, u)
+			tc.expectedURL(t, BuildOpenAIURL(slog.Default(), tc.app, tc.isResponses))
 		})
 	}
 }

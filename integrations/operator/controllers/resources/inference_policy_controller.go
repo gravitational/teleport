@@ -37,10 +37,10 @@ type inferencePolicyClient struct {
 
 // Get gets an inference policy with a given name from Teleport.
 func (c inferencePolicyClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*summarizerv1.InferencePolicy, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferencePolicy(
-		ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: key.Name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,9 +70,9 @@ func (c inferencePolicyClient) Update(
 }
 
 // Delete deletes an inference policy with a given name from Teleport.
-func (c inferencePolicyClient) Delete(ctx context.Context, name string) error {
+func (c inferencePolicyClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferencePolicy(
-		ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: key.Name}.Build(),
 	)
 	return trace.Wrap(err)
 }

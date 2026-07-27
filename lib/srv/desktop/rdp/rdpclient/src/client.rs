@@ -26,7 +26,9 @@ use crate::{
 use boring::error::ErrorStack;
 use bytes::BytesMut;
 use ironrdp_cliprdr::{Cliprdr, CliprdrClient, CliprdrSvcMessages};
-use ironrdp_connector::connection_activation::ConnectionActivationState;
+use ironrdp_connector::connection_activation::{
+    ConnectionActivationFactory, ConnectionActivationState,
+};
 use ironrdp_connector::credssp::KerberosConfig;
 use ironrdp_connector::{
     Config, ConnectorError, ConnectorErrorKind, Credentials, DesktopSize, SmartCardIdentity,
@@ -60,7 +62,9 @@ use ironrdp_session::x224::{self, DisconnectDescription, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
-use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
+use ironrdp_tokio::{
+    single_sequence_step_read, split_tokio_framed, Framed, FramedWrite, TokioStream,
+};
 use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
@@ -69,7 +73,7 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::Duration;
-use tokio::io::{split, ReadHalf, WriteHalf};
+use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::TcpStream as TokioTcpStream;
 use tokio::sync::mpsc::{channel, error::SendError, Receiver, Sender};
 use tokio::task::{self, JoinError};
@@ -102,6 +106,7 @@ pub struct Client {
     function_receiver: Option<FunctionReceiver>,
     x224_processor: Arc<Mutex<x224::Processor>>,
     pending_resize: Arc<Mutex<PendingResize>>,
+    activation_factory: ConnectionActivationFactory,
 }
 
 /// A global, static tokio runtime for use by `Client`.
@@ -256,21 +261,22 @@ impl Client {
             connection_result.io_channel_id,
             connection_result.user_channel_id,
             connection_result.desktop_size,
+            connection_result.share_id,
         )
         .await?;
 
-        // Take the stream back out of the framed object for splitting.
-        let rdp_stream = rdp_stream.into_inner_no_leftover();
-        let (read_stream, write_stream) = split(rdp_stream);
-        let read_stream = Some(ironrdp_tokio::TokioFramed::new(read_stream));
-        let write_stream = Some(ironrdp_tokio::TokioFramed::new(write_stream));
+        // Split the framed stream into independent read/write halves for the
+        // read and write loops.
+        let (read_stream, write_stream) = split_tokio_framed(rdp_stream);
+        let read_stream = Some(read_stream);
+        let write_stream = Some(write_stream);
 
         let x224_processor = Arc::new(Mutex::new(x224::Processor::new(
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
+            connection_result.message_channel_id,
             connection_result.share_id,
-            connection_result.connection_activation,
         )));
 
         Ok(Self {
@@ -281,6 +287,7 @@ impl Client {
             function_receiver,
             x224_processor,
             pending_resize,
+            activation_factory: connection_result.activation_factory,
         })
     }
 
@@ -323,6 +330,7 @@ impl Client {
             read_stream,
             self.x224_processor.clone(),
             self.client_handle.clone(),
+            self.activation_factory.clone(),
         );
 
         let write_loop_handle = Client::run_write_loop(
@@ -349,6 +357,7 @@ impl Client {
         mut read_stream: RdpReadStream,
         x224_processor: Arc<Mutex<x224::Processor>>,
         write_requester: ClientHandle,
+        activation_factory: ConnectionActivationFactory,
     ) -> ClientResult<Option<DisconnectDescription>> {
         loop {
             let (action, mut frame) = read_stream.read_pdu().await?;
@@ -377,15 +386,16 @@ impl Client {
                             ProcessorOutput::Disconnect(reason) => {
                                 return Ok(Some(reason));
                             }
-                            ProcessorOutput::DeactivateAll(mut sequence) => {
+                            ProcessorOutput::DeactivateAll => {
                                 // Execute the Deactivation-Reactivation Sequence:
                                 // https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/dfc234ce-481a-4674-9a5d-2a7bafb14432
                                 debug!("Received Server Deactivate All PDU, executing Deactivation-Reactivation Sequence");
+                                let mut sequence = activation_factory.create();
                                 let mut buf = WriteBuf::new();
                                 loop {
                                     let written = single_sequence_step_read(
                                         &mut read_stream,
-                                        sequence.as_mut(),
+                                        &mut sequence,
                                         &mut buf,
                                     )
                                     .await?;
@@ -397,9 +407,8 @@ impl Client {
                                     }
 
                                     if let ConnectionActivationState::Finalized {
-                                        io_channel_id,
-                                        user_channel_id,
                                         desktop_size,
+                                        share_id,
                                         ..
                                     } = sequence.connection_activation_state()
                                     {
@@ -408,9 +417,10 @@ impl Client {
                                         // connection result in [`Self::connect`].
                                         Self::send_connection_activated(
                                             cgo_handle,
-                                            io_channel_id,
-                                            user_channel_id,
+                                            activation_factory.io_channel_id(),
+                                            activation_factory.user_channel_id(),
                                             desktop_size,
+                                            share_id,
                                         )
                                         .await?;
                                         break;
@@ -562,6 +572,7 @@ impl Client {
         io_channel_id: u16,
         user_channel_id: u16,
         desktop_size: DesktopSize,
+        share_id: u32,
     ) -> ClientResult<()> {
         task::spawn_blocking(move || unsafe {
             ClientResult::from(cgo_handle_rdp_connection_activated(
@@ -570,6 +581,7 @@ impl Client {
                 user_channel_id,
                 desktop_size.width,
                 desktop_size.height,
+                share_id,
             ))
         })
         .await?

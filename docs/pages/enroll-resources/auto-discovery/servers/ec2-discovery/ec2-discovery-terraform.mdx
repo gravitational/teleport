@@ -1,6 +1,7 @@
 ---
 title: Terraform EC2 Auto-Discovery Configuration
-sidebar_label: Terraform
+sidebar_label: Terraform Setup for Single Account
+sidebar_position: 3
 description: How to configure Teleport EC2 auto-discovery with Terraform
 page_type: how-to
 tags:
@@ -247,7 +248,7 @@ module "aws_discovery" {
 
   # Required inputs:
   # Edit this input to the host and port of the Teleport Proxy Service in your cluster
-  teleport_proxy_public_addr    = "https://<Var name="teleport.example.com:443" />"
+  teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
   # Edit this input to match the discovery group name in your Discovery Service config file
   teleport_discovery_group_name = "<Var name="discovery-group-name" />"
   # Discover EC2 instances

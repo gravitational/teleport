@@ -27,3 +27,47 @@ output "teleport_provision_token_name" {
   description = "Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials. Token details can be viewed with `tctl get token/<name>`."
   value       = try(nonsensitive(teleport_provision_token.aws_iam[0].metadata.name), null)
 }
+
+output "teleport_organization_account_enumeration_iam_policy_arn" {
+  description = "AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to enumerate accounts in the AWS organization. Only set when aws_organization_discovery is configured with the OIDC integration."
+  value       = one(aws_iam_policy.teleport_organization_account_enumeration[*].arn)
+}
+
+output "teleport_organization_join_validation_iam_policy_arn" {
+  description = "AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for the Teleport Auth Service to validate IAM-method join attempts against the organization. Only set when aws_organization_discovery is configured with the OIDC integration."
+  value       = one(aws_iam_policy.teleport_organization_join_validation[*].arn)
+}
+
+output "aws_child_account_iam_role_template" {
+  description = "Create this AWS IAM Role in each Organization's account, so that the Discovery Service can assume it to discover resources in those accounts."
+  value = local.create_child_account_iam_role_template ? {
+    role_name          = var.aws_child_account_iam_role_name,
+    assume_role_policy = data.aws_iam_policy_document.allow_assume_role_for_child_accounts[0].json,
+    policy = coalesce(
+      var.aws_iam_policy_document,
+      data.aws_iam_policy_document.teleport_discovery_service_single_account[0].json,
+    )
+  } : null
+}
+
+output "teleport_organization_account_enumeration_iam_role_template" {
+  description = "When not using OIDC, attach this policy to the AWS principal used by the Discovery Service."
+  value = local.create && local.organization_discovery_without_integration ? {
+    role_name = var.aws_organization_iam_policies.account_enumeration.name,
+    policy = coalesce(
+      var.aws_organization_iam_policies.account_enumeration.document,
+      data.aws_iam_policy_document.teleport_organization_account_enumeration[0].json,
+    )
+  } : null
+}
+
+output "teleport_organization_join_validation_iam_role_template" {
+  description = "When not using OIDC, attach this policy to the AWS principal used by the Auth Service."
+  value = local.create && local.organization_discovery_without_integration ? {
+    role_name = var.aws_organization_iam_policies.join_validation.name,
+    policy = coalesce(
+      var.aws_organization_iam_policies.join_validation.document,
+      data.aws_iam_policy_document.teleport_organization_join_validation[0].json,
+    )
+  } : null
+}

@@ -26,46 +26,46 @@ should be possible to override volume name (smtp on):
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/email/smtp_password
-              name: secret-volume
-              subPath: smtpPassword
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/email/smtp_password
+                  name: secret-volume
+                  subPath: smtpPassword
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: secret-volume
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-email-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: secret-volume
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-email-secret
 should match the snapshot:
   1: |
     apiVersion: apps/v1
@@ -94,39 +94,39 @@ should match the snapshot:
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: gcr.io/overridden/repository:v98.76.54
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: gcr.io/overridden/repository:v98.76.54
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
 should match the snapshot (mailgun on):
   1: |
     apiVersion: apps/v1
@@ -155,46 +155,46 @@ should match the snapshot (mailgun on):
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/email/mailgun_private_key
-              name: password-file
-              subPath: mailgunPrivateKey
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/email/mailgun_private_key
+                  name: password-file
+                  subPath: mailgunPrivateKey
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-email-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-email-secret
 should match the snapshot (smtp on):
   1: |
     apiVersion: apps/v1
@@ -223,46 +223,46 @@ should match the snapshot (smtp on):
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/email/smtp_password
-              name: password-file
-              subPath: smtpPassword
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/email/smtp_password
+                  name: password-file
+                  subPath: smtpPassword
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-email-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-email-secret
 should mount external secret (mailgun on):
   1: |
     apiVersion: apps/v1
@@ -291,46 +291,46 @@ should mount external secret (mailgun on):
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/email/mailgun_private_key
-              name: password-file
-              subPath: my-path-in-secret
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/email/mailgun_private_key
+                  name: password-file
+                  subPath: my-path-in-secret
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file
-            secret:
-              defaultMode: 384
-              secretName: my-secret-name
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file
+              secret:
+                defaultMode: 384
+                secretName: my-secret-name
 should mount external secret (smtp on):
   1: |
     apiVersion: apps/v1
@@ -359,43 +359,43 @@ should mount external secret (smtp on):
             helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-email.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-email
-            ports:
-            - containerPort: 80
-              name: http
-              protocol: TCP
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-email.toml
-              name: config
-              subPath: teleport-email.toml
-            - mountPath: /var/lib/teleport/plugins/email/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/email/smtp_password
-              name: password-file
-              subPath: my-path-in-secret
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-email.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-email:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-email
+              ports:
+                - containerPort: 80
+                  name: http
+                  protocol: TCP
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-email.toml
+                  name: config
+                  subPath: teleport-email.toml
+                - mountPath: /var/lib/teleport/plugins/email/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/email/smtp_password
+                  name: password-file
+                  subPath: my-path-in-secret
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-email
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file
-            secret:
-              defaultMode: 384
-              secretName: my-secret-name
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-email
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file
+              secret:
+                defaultMode: 384
+                secretName: my-secret-name

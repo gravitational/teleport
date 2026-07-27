@@ -57,7 +57,7 @@ func TestIdentityConversion(t *testing.T) {
 				Additional: []string{"proxy"},
 			}.Build(),
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
 		}.Build(),
 		Impersonator:            "impersonator",
@@ -155,7 +155,8 @@ func TestIdentityConversion(t *testing.T) {
 		"RoleNode.XXX_NoUnkeyedLiteral",
 		"RoleNode.XXX_unrecognized",
 		"RoleNode.XXX_sizecache",
-		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.Children",  // has to be empty in leaf nodes because of how trees work
+		"RolesByScope.Depth", // 0 is the only valid depth for root role assignments
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

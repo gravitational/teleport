@@ -187,7 +187,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
-    selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    selectSharedDirectory: (id: number) => Promise<SharedDirectoryAccess>,
     private logger: Logger,
     private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
@@ -396,6 +396,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   private initFastPathProcessor(
     ioChannelId: number,
     userChannelId: number,
+    shareId: number,
     spec: ClientScreenSpec
   ) {
     this.logger.info(
@@ -406,7 +407,8 @@ export class TdpClient extends EventEmitter<EventMap> {
       spec.width,
       spec.height,
       ioChannelId,
-      userChannelId
+      userChannelId,
+      shareId
     );
   }
 
@@ -584,7 +586,8 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleRdpConnectionActivated(activated: RdpConnectionActivated) {
-    const { ioChannelId, userChannelId, screenWidth, screenHeight } = activated;
+    const { ioChannelId, userChannelId, screenWidth, screenHeight, shareId } =
+      activated;
     // Scale is not relevant for the server's response; use 100 (1x) as default.
     const spec: ClientScreenSpec = {
       width: screenWidth,
@@ -595,7 +598,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
-    this.initFastPathProcessor(ioChannelId, userChannelId, {
+    this.initFastPathProcessor(ioChannelId, userChannelId, shareId, {
       width: screenWidth,
       height: screenHeight,
       scale: 100,
@@ -1060,7 +1063,9 @@ class SharedDirectoryManager {
   private sharedDirectories: Map<number, SharedDirectoryAccess>;
 
   constructor(
-    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    private selectSharedDirectory: (
+      id: number
+    ) => Promise<SharedDirectoryAccess>,
     private logger: Logger,
     private maxDirectories: number
   ) {
@@ -1105,10 +1110,17 @@ class SharedDirectoryManager {
       throw Error('Maximum allowed shared directories reached');
     }
 
-    let directory = await this.selectSharedDirectory();
     const id = this.deviceId.acquire();
     if (id === undefined) {
       throw Error('Error acquiring identifier for shared directory');
+    }
+
+    let directory: SharedDirectoryAccess;
+    try {
+      directory = await this.selectSharedDirectory(id);
+    } catch (err) {
+      this.deviceId.release(id);
+      throw err;
     }
 
     this.sharedDirectories.set(id, directory);

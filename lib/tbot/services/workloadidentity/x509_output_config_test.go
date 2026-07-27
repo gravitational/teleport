@@ -146,7 +146,7 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "no destination configured for output",
 		},
 		{
-			name:   "scoped",
+			name:   "valid scoped",
 			scoped: true,
 			in: func() *X509OutputConfig {
 				return &X509OutputConfig{
@@ -160,7 +160,6 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 					},
 				}
 			},
-			wantErr: "is not supported in scoped mode",
 		},
 		{
 			name: "valid trust domains",

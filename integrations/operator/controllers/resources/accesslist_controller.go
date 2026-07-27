@@ -35,8 +35,8 @@ type accessListClient struct {
 }
 
 // Get gets the Teleport access_list of a given name
-func (r accessListClient) Get(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	accessList, err := r.teleportClient.AccessListClient().GetAccessList(ctx, name)
+func (r accessListClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accesslist.AccessList, error) {
+	accessList, err := r.teleportClient.AccessListClient().GetAccessList(ctx, key.Name)
 	return accessList, trace.Wrap(err)
 }
 
@@ -53,8 +53,8 @@ func (r accessListClient) Update(ctx context.Context, accessList *accesslist.Acc
 }
 
 // Delete deletes a Teleport access_list
-func (r accessListClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.AccessListClient().DeleteAccessList(ctx, name))
+func (r accessListClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.AccessListClient().DeleteAccessList(ctx, key.Name))
 }
 
 // Mutate propagates fields from the existing AccessList resource

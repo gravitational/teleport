@@ -21,6 +21,7 @@ package auditqueue
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -34,19 +35,42 @@ import (
 
 const testDefaultTimeout = 2 * time.Second
 
-var allKinds []Kind = []Kind{KindSQLite}
+var allKinds []Kind = []Kind{KindSQLiteDisk, KindSQLiteMemory}
 
 func newTestQueue(tb testing.TB, kind Kind) Queue {
 	tb.Helper()
+	return newTestQueueWithConfig(tb, kind, Config{})
+}
 
-	path := filepath.Join(tb.TempDir(), queueDir)
-	q, err := New(kind, Config{Path: path})
+func newTestQueueWithConfig(tb testing.TB, kind Kind, cfg Config) Queue {
+	tb.Helper()
+	cfg.Path = filepath.Join(tb.TempDir(), queueDir)
+	q, err := New(kind, cfg)
 	require.NoError(tb, err)
 	tb.Cleanup(func() {
 		require.NoError(tb, q.Close())
 	})
-
 	return q
+}
+
+func underlyingQueue(tb testing.TB, q Queue) *sqliteQueue {
+	tb.Helper()
+	switch v := q.(type) {
+	case *sqliteQueue:
+		return v
+	case *sqliteInMemoryQueue:
+		return v.inner
+	default:
+		tb.Fatalf("unexpected queue type %T", q)
+		return nil
+	}
+}
+
+func quietLogs(tb testing.TB) {
+	tb.Helper()
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.DiscardHandler))
+	tb.Cleanup(func() { slog.SetDefault(prev) })
 }
 
 func newTestEvent(index int64) apievents.AuditEvent {
@@ -323,9 +347,176 @@ func TestRun_StopsCleanlyOnContextCancel(t *testing.T) {
 	}
 }
 
+func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+
+			const maxAttempts = 2
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             maxAttempts,
+				DeadLetterSweepInterval: time.Hour, // prevent sweep from interfering
+			})
+
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
+
+			var calls atomic.Int32
+			alwaysFail := func(_ context.Context, items []Item) []Item {
+				calls.Add(int32(len(items)))
+				return nil
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, alwaysFail) }()
+
+			// Wait until the handler has been called exactly maxAttempts times.
+			require.Eventually(t, func() bool {
+				return calls.Load() >= maxAttempts
+			}, testDefaultTimeout, 10*time.Millisecond)
+
+			// Confirm the handler is not called again after the event is
+			// promoted to the dead-letter queue.
+			require.Never(t, func() bool {
+				return calls.Load() > maxAttempts
+			}, 5*pollInterval, pollInterval,
+				"handler should not be called again after event is promoted to dead-letter")
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
+func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+
+			const sweepInterval = 50 * time.Millisecond
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             1,
+				DeadLetterSweepInterval: sweepInterval,
+			})
+
+			require.NoError(t, q.Enqueue(newTestEvent(99)))
+
+			var recovered atomic.Bool
+			delivered := make(chan apievents.AuditEvent, 1)
+			handler := func(_ context.Context, items []Item) []Item {
+				if !recovered.Load() {
+					return nil
+				}
+
+				// Once we are here, this means that the event has been moved to
+				// the dead letter queue. Let's now deliver it.
+				for _, it := range items {
+					select {
+					case delivered <- it.Event:
+					default:
+					}
+				}
+				return items
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			sq := underlyingQueue(t, q)
+
+			// Wait for the event to exhaust its attempts and land in the
+			// dead-letter queue, then signal recovery.
+			require.Eventually(t, func() bool {
+				dl, err := fetchDeadLetter(ctx, sq.db, 10)
+				return err == nil && len(dl) == 1
+			}, testDefaultTimeout, 10*time.Millisecond)
+			recovered.Store(true)
+
+			select {
+			case event := <-delivered:
+				require.Equal(t, int64(99), event.GetIndex(),
+					"dead-letter sweep should re-deliver the original event")
+			case <-time.After(testDefaultTimeout):
+				t.Fatal("dead-letter sweep never re-delivered the event after recovery")
+			}
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
+func TestEnqueueDequeue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type:        "user.login",
+			Code:        "T1000I",
+			Index:       42,
+			ClusterName: "my-cluster",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  "alice",
+			Login: "root",
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: "1.2.3.4:5678",
+			Protocol:   "ssh",
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		Method: "local",
+	}
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			q := newTestQueue(t, kind)
+
+			require.NoError(t, q.Enqueue(original))
+
+			delivered := make(chan apievents.AuditEvent, 1)
+			handler := func(_ context.Context, items []Item) []Item {
+				for _, item := range items {
+					delivered <- item.Event
+				}
+				return items
+			}
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			got := <-delivered
+			require.IsType(t, original, got)
+			require.Equal(t, original, got)
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
 func BenchmarkEnqueue(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {
+			quietLogs(b)
 			q := newTestQueue(b, kind)
 
 			b.ResetTimer()
@@ -342,6 +533,7 @@ func BenchmarkEnqueue(b *testing.B) {
 func BenchmarkEnqueueAndDrain(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {
+			quietLogs(b)
 			ctx := b.Context()
 			q := newTestQueue(b, kind)
 

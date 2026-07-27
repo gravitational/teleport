@@ -99,6 +99,9 @@ type Config struct {
 	// the beginning of the shutdown procedures.
 	ShutdownDelay time.Duration
 
+	// AuditQueue configures the audit log event queue.
+	AuditQueue AuditQueueConfig
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
@@ -326,9 +329,6 @@ type ConfigTesting struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
-
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
@@ -467,6 +467,7 @@ func DisableLongRunningServices(cfg *Config) {
 type JoinParams struct {
 	Azure        AzureJoinParams
 	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
@@ -491,6 +492,23 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
 }
 
 // RegistrationSecret returns the currently configured bound keypair
@@ -618,6 +636,22 @@ func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
 // SetAuthServerAddress sets the value of authServers to a single value
 func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
+}
+
+// ProxyWebAddr returns the address used to reach the cluster's web API: the
+// configured proxy for v3 configs, otherwise the first address in auth_servers
+// (in v1/v2 configs, this could be either a proxy or an auth server).
+//
+// Config validation guarantees one of the two is set. Returns an empty NetAddr
+// if no addresses are configured, which is unreachable for a validated config.
+func (cfg *Config) ProxyWebAddr() utils.NetAddr {
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		return cfg.ProxyServer
+	}
+	if authServers := cfg.AuthServerAddresses(); len(authServers) > 0 {
+		return authServers[0]
+	}
+	return utils.NetAddr{}
 }
 
 // Token returns token needed to join the auth server

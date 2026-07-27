@@ -166,11 +166,6 @@ func TestStrongValidateResourceName(t *testing.T) {
 			ok:    false,
 		},
 		{
-			name:  "name too short",
-			rname: "a",
-			ok:    false,
-		},
-		{
 			name:  "name with leading symbol",
 			rname: ".aa",
 			ok:    false,

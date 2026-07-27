@@ -311,3 +311,64 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 		})
 	}
 }
+
+// TestGenericListerDoesNotReturnFilteredNextToken is a regression test that asserts we do not return a nextToken
+// value that would have been filtered.
+func TestGenericListerDoesNotReturnFilteredNextToken(t *testing.T) {
+	t.Parallel()
+
+	const kind = types.KindApp
+	watchKind := types.WatchKind{Kind: kind}
+	collection := &collection[types.Application, appIndex]{
+		store: newStore(
+			kind,
+			func(app types.Application) types.Application {
+				return app.Copy()
+			},
+			map[appIndex]func(types.Application) string{
+				appNameIndex: types.Application.GetName,
+			}),
+		watch: watchKind,
+	}
+	cache := &Cache{
+		ok: true,
+		confirmedKinds: map[resourceKind]types.WatchKind{
+			{kind: kind}: watchKind,
+		},
+	}
+
+	newApp := func(name string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: name,
+		}, types.AppSpecV3{
+			URI: "localhost",
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	matching := newApp("app-a")
+	filtered := newApp("app-b")
+	require.NoError(t, collection.store.put(matching))
+	require.NoError(t, collection.store.put(filtered))
+
+	lister := genericLister[types.Application, appIndex]{
+		cache:      cache,
+		collection: collection,
+		index:      appNameIndex,
+		upstreamList: func(context.Context, int, string) ([]types.Application, string, error) {
+			require.FailNow(t, "unexpected upstream list")
+			return nil, "", nil
+		},
+		nextToken: types.Application.GetName,
+		filter: func(app types.Application) bool {
+			return app.GetName() == matching.GetName()
+		},
+	}
+
+	page, next, err := lister.list(t.Context(), 1, "")
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, matching.GetName(), page[0].GetName())
+	require.Empty(t, next)
+}

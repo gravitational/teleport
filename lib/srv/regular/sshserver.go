@@ -1042,15 +1042,11 @@ func New(
 		}
 	}
 
-	var heartbeatMode srv.HeartbeatMode
-	if s.proxyMode {
-		heartbeatMode = srv.HeartbeatModeProxy
-	} else {
-		heartbeatMode = srv.HeartbeatModeNode
-	}
-
 	var heartbeat srv.HeartbeatI
-	if heartbeatMode == srv.HeartbeatModeNode && s.inventoryHandle != nil {
+	if !s.proxyMode {
+		if s.inventoryHandle == nil {
+			return nil, trace.BadParameter("inventoryHandle must not be nil")
+		}
 		s.logger.DebugContext(ctx, "starting control-stream based heartbeat")
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.HeartbeatV2Config[*types.ServerV2]{
 			InventoryHandle: s.inventoryHandle,
@@ -1060,7 +1056,7 @@ func New(
 	} else {
 		s.logger.DebugContext(ctx, "starting legacy heartbeat")
 		heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
-			Mode:            heartbeatMode,
+			Mode:            srv.HeartbeatModeProxy,
 			Context:         ctx,
 			Component:       component,
 			Announcer:       s.authService,

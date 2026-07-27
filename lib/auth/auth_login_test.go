@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -973,6 +974,12 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	wildcardLabels := []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   "*",
+			Values: []string{"*"},
+		}.Build(),
+	}
 	// set up some scoped roles
 	scopedRoles := []*scopedaccessv1.ScopedRole{
 		scopedaccessv1.ScopedRole_builder{
@@ -984,6 +991,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa"},
 				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-a"},
 				}.Build(),
 			}.Build(),
@@ -998,6 +1006,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb"},
 				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-b"},
 				}.Build(),
 			}.Build(),
@@ -1012,6 +1021,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb/cc"},
 				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-c"},
 				}.Build(),
 			}.Build(),
@@ -1026,6 +1036,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/xx"},
 				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-x"},
 				}.Build(),
 			}.Build(),
@@ -1057,7 +1068,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  role.GetMetadata().GetName(),
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
 						}.Build(),
 					},
@@ -1072,7 +1083,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	timeout := time.After(30 * time.Second)
 	for {
 		unseen := slices.Clone(assignmentIDs)
-		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()) {
 			require.NoError(t, err)
 			id := assignment.GetMetadata().GetName()
 			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })
@@ -1099,9 +1112,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/aa":       {"/aa": {"role-a"}},
-			"/aa/bb":    {"/aa/bb": {"role-b"}},
-			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+			"/aa":       {"/aa": {"/aa::role-a"}},
+			"/aa/bb":    {"/aa/bb": {"/aa/bb::role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"/aa/bb/cc::role-c"}},
 		}),
 	}.Build()
 

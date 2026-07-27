@@ -94,13 +94,13 @@ enum EnrollPairingState {
 // os_type and serial_number are also used to gate retries of
 // CreatePairedDeviceEnrollToken.
 message EnrollPairingDevice {
-  // Device operating system.
+  // Device operating system. Required.
   OSType os_type = 1;
 
-  // Device serial number.
+  // Device serial number. Required.
   string serial_number = 2;
 
-  // OS version number, without the leading 'v'.
+  // OS version number, without the leading 'v'. Required.
   // Example: "13.2.1".
   string os_version = 3;
 }

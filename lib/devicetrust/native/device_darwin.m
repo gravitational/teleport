@@ -48,14 +48,71 @@ OSStatus findDeviceKey(NSNumber *retAttrs, CFTypeRef *out) {
   return SecItemCopyMatching((CFDictionaryRef)query, out);
 }
 
-void copyPublicKey(const char *id, CFDataRef pubKeyRep, PublicKey *pubKeyOut) {
-  pubKeyOut->id = strdup(id);
-  pubKeyOut->pub_key_len = CFDataGetLength(pubKeyRep);
-  pubKeyOut->pub_key = calloc(pubKeyOut->pub_key_len, sizeof(uint8_t));
-  memcpy(pubKeyOut->pub_key, CFDataGetBytePtr(pubKeyRep),
-         pubKeyOut->pub_key_len);
+// copyPublicKey populates (*pubKeyOut) with a copy of the public key from the
+// supplied pubKeyRep. On success it becomes the caller's responsibility to
+// free the buffers `id` and `pub_key` in pubKeyOut after use.
+//
+// Returns zero on success.
+OSStatus copyPublicKey(const char *id, CFDataRef pubKeyRep,
+                       PublicKey *pubKeyOut) {
+  if (id == NULL || pubKeyRep == NULL || pubKeyOut == NULL) {
+    return kPOSIXErrorEINVAL;
+  }
+
+  CFIndex keyLen = CFDataGetLength(pubKeyRep);
+  if (keyLen == 0) {
+    return kPOSIXErrorEINVAL;
+  }
+
+  uint8_t *keyDst = calloc(keyLen, sizeof(uint8_t));
+  if (keyDst == NULL) {
+    return kPOSIXErrorENOMEM;
+  }
+  memcpy(keyDst, CFDataGetBytePtr(pubKeyRep), keyLen);
+
+  char *idDst = strdup(id);
+  if (idDst == NULL) {
+    free(keyDst);
+    return kPOSIXErrorENOMEM;
+  }
+
+  pubKeyOut->id = idDst;
+  pubKeyOut->pub_key = keyDst;
+  pubKeyOut->pub_key_len = keyLen;
+
+  return 0;
 }
 
+// copySignature populates (*dst) with a copy of the signature from the
+// supplied CFDataRef. On success it becomes the caller's responsibility to
+// free the signature data buffer after use.
+//
+// Returns 0 on success.
+OSStatus copySignature(CFDataRef src, Signature *dst) {
+  if (src == NULL || dst == NULL) {
+    return kPOSIXErrorEINVAL;
+  }
+
+  CFIndex sigLen = CFDataGetLength(src);
+  if (sigLen == 0) {
+    return kPOSIXErrorEINVAL;
+  }
+
+  uint8_t *dstBuf = calloc(sigLen, sizeof(uint8_t));
+  if (dstBuf == NULL) {
+    return kPOSIXErrorENOMEM;
+  }
+  memcpy(dstBuf, CFDataGetBytePtr(src), sigLen);
+
+  dst->data_len = sigLen;
+  dst->data = dstBuf;
+  return 0;
+}
+
+// DeviceKeyGetOrCreate populates (*pubKeyOut) with the device's public key.
+// It is the caller's responsibility to free the `id` and `pub_key` buffers
+// in (*pubKeyOut) when finished with them. Returns 0 on success, or an
+// OSStatus on failure.
 int32_t DeviceKeyGetOrCreate(const char *newID, PublicKey *pubKeyOut) {
   CFErrorRef err = NULL;
   SecAccessControlRef access = NULL;
@@ -126,7 +183,10 @@ int32_t DeviceKeyGetOrCreate(const char *newID, PublicKey *pubKeyOut) {
     res = CFErrorGetCode(err);
     goto end;
   }
-  copyPublicKey(newID, pubKeyRep, pubKeyOut);
+  res = copyPublicKey(newID, pubKeyRep, pubKeyOut);
+  if (res != 0) {
+    goto end;
+  }
 
 end:
   if (pubKeyRep) {
@@ -186,7 +246,11 @@ int32_t DeviceKeyGet(PublicKey *pubKeyOut) {
     res = CFErrorGetCode(err);
     goto end;
   }
-  copyPublicKey([appTag UTF8String], pubKeyRep, pubKeyOut);
+
+  res = copyPublicKey([appTag UTF8String], pubKeyRep, pubKeyOut);
+  if (res != 0) {
+    goto end;
+  }
 
 end:
   if (pubKeyRep) {
@@ -224,9 +288,10 @@ int32_t DeviceKeySign(Digest digest, Signature *sigOut) {
     goto end;
   }
 
-  sigOut->data_len = CFDataGetLength(sig);
-  sigOut->data = calloc(sigOut->data_len, sizeof(uint8_t));
-  memcpy(sigOut->data, CFDataGetBytePtr(sig), sigOut->data_len);
+  res = copySignature(sig, sigOut);
+  if (res != 0) {
+    goto end;
+  }
 
 end:
   if (sig) {
@@ -241,7 +306,11 @@ end:
   return res;
 }
 
-// Duplicate a CFString or CFData `ref` as a C string.
+// Duplicate a CFString or CFData `ref` as a UTF-8 encoded, NULL-terminated
+// C string. It is the caller's responsibility to free the resulting buffer
+// after use.
+//
+// Returns NULL on failure.
 const char *refToCString(CFTypeRef ref) {
   NSData *data = NULL;  // managed by ARC.
   NSString *str = NULL; // managed by ARC.
@@ -257,11 +326,18 @@ const char *refToCString(CFTypeRef ref) {
   } else if (id == CFDataGetTypeID()) {
     data = (__bridge NSData *)ref;
     str = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    if (str == NULL) {
+      return NULL;
+    }
   } else {
     return NULL;
   }
 
-  return strdup([str UTF8String]);
+  const char *src = [str UTF8String];
+  if (src == NULL) {
+    return NULL;
+  }
+  return strdup(src);
 }
 
 int32_t DeviceCollectData(DeviceData *out) {

@@ -36,87 +36,87 @@ should match the snapshot (full):
             nodeAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
                 nodeSelectorTerms:
-                - matchExpressions:
-                  - key: topology.kubernetes.io/zone
-                    operator: In
-                    values:
-                    - antarctica-east1
-                    - antarctica-west1
+                  - matchExpressions:
+                      - key: topology.kubernetes.io/zone
+                        operator: In
+                        values:
+                          - antarctica-east1
+                          - antarctica-west1
           containers:
-          - args:
-            - start
-            - -c
-            - /config/tbot.yaml
-            - --debug
-            - --log-format
-            - json
-            - --extra-arg
-            - --diag-addr
-            - 0.0.0.0:3001
-            env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: TELEPORT_NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: KUBERNETES_TOKEN_PATH
-              value: /var/run/secrets/tokens/join-sa-token
-            - name: TELEPORT_ANONYMOUS_TELEMETRY
-              value: "1"
-            - name: TEST_ENV
-              value: test-value
-            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
-            imagePullPolicy: Always
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /livez
-                port: diagnostics
-              initialDelaySeconds: 10
-              periodSeconds: 10
-              timeoutSeconds: 5
-            name: tbot
-            ports:
-            - containerPort: 3001
-              name: diagnostics
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 3
-              httpGet:
-                path: /readyz
-                port: diagnostics
-              initialDelaySeconds: 5
-              periodSeconds: 10
-              timeoutSeconds: 5
-            resources:
-              limits:
-                cpu: 500m
-                memory: 128Mi
-              requests:
-                cpu: 250m
-                memory: 64Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-              runAsNonRoot: true
-              runAsUser: 9807
-              seccompProfile:
-                type: RuntimeDefault
-            volumeMounts:
-            - mountPath: /config
-              name: config
-            - mountPath: /var/run/secrets/tokens
-              name: join-sa-token
-            - mountPath: /test/path
-              name: test-volume
+            - args:
+                - start
+                - -c
+                - /config/tbot.yaml
+                - --debug
+                - --log-format
+                - json
+                - --extra-arg
+                - --diag-addr
+                - 0.0.0.0:3001
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: TELEPORT_NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: KUBERNETES_TOKEN_PATH
+                  value: /var/run/secrets/tokens/join-sa-token
+                - name: TELEPORT_ANONYMOUS_TELEMETRY
+                  value: "1"
+                - name: TEST_ENV
+                  value: test-value
+              image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
+              imagePullPolicy: Always
+              livenessProbe:
+                failureThreshold: 6
+                httpGet:
+                  path: /livez
+                  port: diagnostics
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                timeoutSeconds: 5
+              name: tbot
+              ports:
+                - containerPort: 3001
+                  name: diagnostics
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /readyz
+                  port: diagnostics
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+                requests:
+                  cpu: 250m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 9807
+                seccompProfile:
+                  type: RuntimeDefault
+              volumeMounts:
+                - mountPath: /config
+                  name: config
+                - mountPath: /var/run/secrets/tokens
+                  name: join-sa-token
+                - mountPath: /test/path
+                  name: test-volume
           imagePullSecrets:
-          - name: test-pull-secret
+            - name: test-pull-secret
           nodeSelector:
             test-key: test-node-selector
           securityContext:
@@ -124,22 +124,22 @@ should match the snapshot (full):
             runAsUser: 1000
           serviceAccountName: modified-sa-name
           tolerations:
-          - effect: NoSchedule
-            key: key1
-            operator: Exists
+            - effect: NoSchedule
+              key: key1
+              operator: Exists
           volumes:
-          - configMap:
-              name: RELEASE-NAME-tbot
-            name: config
-          - name: join-sa-token
-            projected:
-              sources:
-              - serviceAccountToken:
-                  audience: test.teleport.sh
-                  expirationSeconds: 600
-                  path: join-sa-token
-          - emptyDir: {}
-            name: test-volume
+            - configMap:
+                name: RELEASE-NAME-tbot
+              name: config
+            - name: join-sa-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: test.teleport.sh
+                      expirationSeconds: 600
+                      path: join-sa-token
+            - emptyDir: {}
+              name: test-volume
 should match the snapshot (simple):
   1: |
     apiVersion: apps/v1
@@ -170,62 +170,62 @@ should match the snapshot (simple):
             helm.sh/chart: tbot-19.0.0-prealpha.2
         spec:
           containers:
-          - args:
-            - start
-            - -c
-            - /config/tbot.yaml
-            - --log-format
-            - json
-            - --diag-addr
-            - 0.0.0.0:3001
-            env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: TELEPORT_NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: KUBERNETES_TOKEN_PATH
-              value: /var/run/secrets/tokens/join-sa-token
-            image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /livez
-                port: diagnostics
-              initialDelaySeconds: 10
-              periodSeconds: 10
-              timeoutSeconds: 5
-            name: tbot
-            ports:
-            - containerPort: 3001
-              name: diagnostics
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 3
-              httpGet:
-                path: /readyz
-                port: diagnostics
-              initialDelaySeconds: 5
-              periodSeconds: 10
-              timeoutSeconds: 5
-            volumeMounts:
-            - mountPath: /config
-              name: config
-            - mountPath: /var/run/secrets/tokens
-              name: join-sa-token
+            - args:
+                - start
+                - -c
+                - /config/tbot.yaml
+                - --log-format
+                - json
+                - --diag-addr
+                - 0.0.0.0:3001
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: TELEPORT_NODE_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: spec.nodeName
+                - name: KUBERNETES_TOKEN_PATH
+                  value: /var/run/secrets/tokens/join-sa-token
+              image: public.ecr.aws/gravitational/tbot-distroless:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 6
+                httpGet:
+                  path: /livez
+                  port: diagnostics
+                initialDelaySeconds: 10
+                periodSeconds: 10
+                timeoutSeconds: 5
+              name: tbot
+              ports:
+                - containerPort: 3001
+                  name: diagnostics
+                  protocol: TCP
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /readyz
+                  port: diagnostics
+                initialDelaySeconds: 5
+                periodSeconds: 10
+                timeoutSeconds: 5
+              volumeMounts:
+                - mountPath: /config
+                  name: config
+                - mountPath: /var/run/secrets/tokens
+                  name: join-sa-token
           serviceAccountName: RELEASE-NAME-tbot
           volumes:
-          - configMap:
-              name: RELEASE-NAME-tbot
-            name: config
-          - name: join-sa-token
-            projected:
-              sources:
-              - serviceAccountToken:
-                  audience: test.teleport.sh
-                  expirationSeconds: 600
-                  path: join-sa-token
+            - configMap:
+                name: RELEASE-NAME-tbot
+              name: config
+            - name: join-sa-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      audience: test.teleport.sh
+                      expirationSeconds: 600
+                      path: join-sa-token

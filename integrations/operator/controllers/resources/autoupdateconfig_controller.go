@@ -37,7 +37,7 @@ type autoUpdateConfigClient struct {
 }
 
 // Get gets the Teleport autoUpdateConfig of a given name
-func (l autoUpdateConfigClient) Get(ctx context.Context, name string) (*autoupdatev1pb.AutoUpdateConfig, error) {
+func (l autoUpdateConfigClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*autoupdatev1pb.AutoUpdateConfig, error) {
 	resp, err := l.teleportClient.
 		GetAutoUpdateConfig(ctx)
 	if err != nil {
@@ -61,7 +61,7 @@ func (l autoUpdateConfigClient) Update(ctx context.Context, resource *autoupdate
 }
 
 // Delete deletes a Teleport autoUpdateConfig
-func (l autoUpdateConfigClient) Delete(ctx context.Context, name string) error {
+func (l autoUpdateConfigClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	return trace.Wrap(l.teleportClient.DeleteAutoUpdateConfig(ctx))
 }
 

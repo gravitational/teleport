@@ -1878,7 +1878,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -1890,6 +1890,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, time.Second*10, 100*time.Millisecond)
@@ -2022,6 +2023,38 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 			}),
 		))
 	}, 5*time.Second, 5*time.Millisecond, "expected bot.join success event not found")
+
+	// The recovery event emitted for the first join should carry the bot's
+	// scope.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		evt, err := lastEvent(ctx, srv.Auth(), srv.Auth().GetClock(), events.BoundKeypairRecovery)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			&apievents.BoundKeypairRecovery{
+				Metadata: apievents.Metadata{
+					Type: events.BoundKeypairRecovery,
+					Code: events.BoundKeypairRecoveryCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: "127.0.0.1",
+				},
+				TokenName:        scopedToken.GetMetadata().GetName(),
+				BotName:          "test-scoped",
+				BotScopeOfOrigin: "/test",
+				PublicKey:        correctPublicKey,
+				RecoveryCount:    1,
+			},
+			evt,
+			protocmp.Transform(),
+			cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+				return key == "Time" || key == "ID"
+			}),
+		))
+	}, 5*time.Second, 5*time.Millisecond, "expected bound keypair recovery event not found")
+
 	// Status should be updated.
 	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
 	require.NoError(t, err)

@@ -796,6 +796,16 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				},
 			},
 		}
+	case types.JoinMethodGenericOIDC:
+		spec.GenericOIDC = &types.ProvisionTokenSpecV2GenericOIDC{
+			Issuer:   "https://example.com",
+			Audience: "example.teleport.sh",
+			AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+				{
+					Expression: "claims.foo == \"bar\"",
+				},
+			},
+		}
 	}
 }
 

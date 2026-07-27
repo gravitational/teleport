@@ -490,6 +490,7 @@ func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config pr
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
 	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
 	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
+	scoped := boolFromConfigOrEnv(config.Scoped, constants.EnvVarTerraformScoped)
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
@@ -537,6 +538,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			RenewalInterval: 20 * time.Minute,
 		},
 		Insecure: insecure,
+		Scoped:   scoped,
 	}
 	// slog default logger has been configured during the provider init.
 	bot, err := embeddedtbot.New(botConfig, slog.Default())

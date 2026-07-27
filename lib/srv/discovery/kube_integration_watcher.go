@@ -36,6 +36,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -132,7 +134,11 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := iterstream.Collect(clt.RangeKubernetesClusters(s.ctx, "", ""))
+				existingClusters, err := iterstream.Collect(clt.RangeKubeClusters(s.ctx, presencev1.ListKubeClustersRequest_builder{
+					ScopeFilter: scopesv1.Filter_builder{
+						Mode: scopesv1.Mode_MODE_UNSCOPED,
+					}.Build(),
+				}.Build()))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue

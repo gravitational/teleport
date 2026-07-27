@@ -11,12 +11,16 @@ tags:
   - ai
 enterprise: Identity Security
 page_type: how-to
+skills:
+  - teleport-session-review
 ---
 
 Teleport Identity Security allows you to generate and view session recording
 summaries for shell and database sessions. This allows you to see at a glance
 what your users do and estimate legitimacy of their actions before digging
 deeper and reviewing the entire recording.
+
+<SkillsBanner />
 
 In this guide, you will configure session recording summaries for your cluster.
 
@@ -103,6 +107,8 @@ Session Recording Summary Player and Timeline
   - Amazon Bedrock (see the availability table above).
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="tip" title="Teleport Enterprise Cloud Quick Start">
 Teleport Enterprise Cloud tenants include a pre-provisioned inference model

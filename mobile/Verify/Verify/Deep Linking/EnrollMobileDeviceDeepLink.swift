@@ -18,11 +18,13 @@ import Foundation
 
 struct EnrollMobileDeviceDeepLink: Equatable {
 	var hostname: String
-	var port: Int? = nil
+	var port: Int
 	var enrollPairingToken: String
 }
 
 extension EnrollMobileDeviceDeepLink {
+	static let enrollPairingTokenKey = "enroll_pairing_token"
+
 	init(from url: URL) throws(DeepLinkParseError) {
 		guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
 			throw DeepLinkParseError.urlComponentsFailed
@@ -30,13 +32,14 @@ extension EnrollMobileDeviceDeepLink {
 		guard let hostname = components.host, hostname != "" else {
 			throw DeepLinkParseError.missingPart("hostname")
 		}
-		guard let enrollPairingToken = components.nonEmptyQueryValue(named: "enroll_pairing_token") else {
+		guard let enrollPairingToken = components.nonEmptyQueryValue(named: Self.enrollPairingTokenKey) else {
 			throw DeepLinkParseError.missingPart("enroll pairing token")
 		}
 
+		let defaultHTTPSPort = 443
 		self.init(
 			hostname: hostname,
-			port: components.port,
+			port: components.port ?? defaultHTTPSPort,
 			enrollPairingToken: enrollPairingToken,
 		)
 	}
@@ -46,7 +49,11 @@ extension EnrollMobileDeviceDeepLink {
 
 extension EnrollMobileDeviceDeepLink: CustomDebugStringConvertible {
 	var debugDescription: String {
-		let portString = if let port { "\(port)" } else { "(nil)" }
-		return "\(hostname):\(portString)?enroll_pairing_token=\(enrollPairingToken)"
+		var components = URLComponents()
+		components.scheme = "https"
+		components.host = hostname
+		components.port = port
+		components.queryItems = [URLQueryItem(name: Self.enrollPairingTokenKey, value: enrollPairingToken)]
+		return components.debugDescription
 	}
 }
