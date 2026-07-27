@@ -5501,12 +5501,30 @@ func (a *ServerWithRoles) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+func (a *ServerWithRoles) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	authErr := a.authorizeAction(types.KindRole, types.VerbList, types.VerbRead)
+	if authErr == nil {
+		rsp, err := a.authServer.ListRolesForGRPC(ctx, req)
+		return rsp, trace.Wrap(err)
+	}
+
+	return a.listRoles(ctx, req, authErr)
+}
+
 // ListRoles is a paginated role getter.
 func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	authErr := a.authorizeAction(types.KindRole, types.VerbList, types.VerbRead)
 	if authErr == nil {
 		rsp, err := a.authServer.ListRoles(ctx, req)
 		return rsp, trace.Wrap(err)
+	}
+
+	return a.listRoles(ctx, req, authErr)
+}
+
+func (a *ServerWithRoles) listRoles(ctx context.Context, req *proto.ListRolesRequest, authErr error) (*proto.ListRolesResponse, error) {
+	if authErr == nil {
+		return nil, trace.Errorf("nil authErr in listRoles (this is a bug)")
 	}
 
 	firstPage := req.StartKey == ""

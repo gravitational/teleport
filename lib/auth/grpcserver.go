@@ -2296,6 +2296,23 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *authpb
 	return &emptypb.Empty{}, nil
 }
 
+// TODO(espadolini): role downgrade support can be deleted in v20
+
+func maybeDowngradeRolesFromContext(ctx context.Context) (bool, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		return false, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return false, trace.BadParameter("unrecognized client version: %+q is not a valid semver", clientVersionString)
+	}
+
+	// no downgrades are currently in play from v18 onwards
+	return clientVersion.Major < 18, nil
+}
+
 // maybeDowngradeRole tests the client version passed through the gRPC metadata,
 // and if the client version is unknown or less than the minimum supported
 // version for some features of the role returns a shallow copy of the given
@@ -2585,6 +2602,19 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 		return nil, trace.Wrap(err)
 	}
 
+	maybeDowngrade, err := maybeDowngradeRolesFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !maybeDowngrade {
+		return auth.ServerWithRoles.ListRolesForGRPC(ctx, req)
+	}
+
+	// if the client version is such that we might have to downgrade roles,
+	// we have to be able to inspect them later; ListRolesForGRPC is more
+	// efficient but returns pre-marshaled protobuf messages rather than
+	// real role objects
 	rsp, err := auth.ServerWithRoles.ListRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)

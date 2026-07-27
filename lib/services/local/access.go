@@ -85,6 +85,11 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// ListRoles implements [services.AccessInternal].
+func (s *AccessService) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	return s.ListRoles(ctx, req)
+}
+
 // ListRoles is a paginated role getter.
 func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	const maxPageSize = 16_000

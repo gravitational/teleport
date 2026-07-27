@@ -18,6 +18,7 @@ package cache
 import (
 	"context"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -126,6 +127,60 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 
 		resp.Roles = append(resp.Roles, r.Clone().(*types.RoleV6))
 
+	}
+	return &resp, nil
+}
+
+// ListRolesForGRPC implements [authclient.Cache].
+func (c *Cache) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRolesForGRPC")
+	defer span.End()
+
+	rg, err := acquireReadGuard(c, c.collections.roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		resp, err := c.Config.Access.ListRoles(ctx, req)
+		return resp, trace.Wrap(err)
+	}
+
+	// Match the page sizing behavior from backend reads.
+	pageSize := int(req.Limit)
+	if pageSize == 0 {
+		pageSize = 100
+	}
+
+	const maxPageSize = 16_000
+	if pageSize > maxPageSize {
+		return nil, trace.BadParameter("page size of %d is too large", pageSize)
+	}
+
+	var resp proto.ListRolesResponse
+	for r := range rg.store.resources(roleNameIndex, req.StartKey, "") {
+		rv6, ok := r.(*types.RoleV6)
+		if !ok {
+			continue
+		}
+
+		if req.Filter != nil && !req.Filter.Match(rv6) {
+			continue
+		}
+
+		if len(resp.Roles) == pageSize {
+			resp.NextKey = r.GetName()
+			break
+		}
+
+		b, err := gogoproto.Marshal(rv6)
+		if err != nil {
+			panic(err)
+		}
+
+		// this is a terrible hack but we live in a terrible world
+		resp.Roles = append(resp.Roles, &types.RoleV6{XXX_unrecognized: b})
 	}
 	return &resp, nil
 }

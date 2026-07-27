@@ -86,6 +86,10 @@ type AccessInternal interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
+
+	// ListRolesForGRPC is like [Access.ListRoles] but it's authorized to return
+	// unpopulated, pre-marshaled roles.
+	ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)

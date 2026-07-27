@@ -1241,6 +1241,10 @@ type Cache interface {
 	// ListRoles is a paginated role getter.
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
+	// ListRolesForGRPC is like [Cache.ListRoles] but it's authorized to return
+	// unpopulated, pre-marshaled roles.
+	ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
+
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error)
 
