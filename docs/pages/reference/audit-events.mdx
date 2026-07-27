@@ -169,9 +169,9 @@ Example:
 }
 ```
 
-## access_list.member.add
+## access_list.member.create
 
-There are multiple events with the `access_list.member.add` type.
+There are multiple events with the `access_list.member.create` type.
 
 ### TAL005I
 
@@ -182,7 +182,7 @@ Example:
 ```json
 {
   "code": "TAL005I",
-  "event": "access_list.member.add",
+  "event": "access_list.member.create",
   "time": "2023-05-08T19:21:36.144Z",
   "access_list_name": "access-list",
   "access_list_title": "example_title",
@@ -204,7 +204,7 @@ Example:
 ```json
 {
   "code": "TAL005E",
-  "event": "access_list.member.add",
+  "event": "access_list.member.create",
   "time": "2023-05-08T19:21:36.144Z",
   "access_list_name": "access-list",
   "access_list_title": "example_title",
@@ -1064,6 +1064,84 @@ Example:
 }
 ```
 
+## beams.config.create
+
+Beams Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM001I",
+  "ei": 0,
+  "event": "beams.config.create",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.delete
+
+Beams Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM003I",
+  "ei": 0,
+  "event": "beams.config.delete",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:23.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc82",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.update
+
+Beams Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM002I",
+  "ei": 0,
+  "event": "beams.config.update",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:22.869Z",
+  "uid": "f2973df2-4bee-4a67-9925-575c1d38cc81",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
 ## billing.create_card
 
 Credit Card Added
@@ -1263,6 +1341,21 @@ Example:
   "success": false,
   "time": "2024-04-08T17:33:48.877Z",
   "uid": "2bc5e2cb-5ba1-47d7-a7ae-381cf323ae7f"
+}
+```
+
+### TJ001L
+
+Bot Join Failed
+
+Example:
+
+```json
+{
+  "code": "TJ001L",
+  "event": "bot.join",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 
@@ -3033,34 +3126,6 @@ Example:
 }
 ```
 
-## device
-
-Device Enrolled
-
-Example:
-
-```json
-{
-  "cluster_name": "im-a-cluster-name",
-  "code": "TV005I",
-  "device": {
-    "asset_tag": "M2CQVQV64R",
-    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2",
-    "os_type": 2
-  },
-  "ei": 0,
-  "event": "device",
-  "status": {
-    "success": true
-  },
-  "time": "2023-01-12T19:28:36.842Z",
-  "uid": "94d33b77-82cd-4558-8893-0320699bf755",
-  "user": {
-    "user": "this user wont render properly"
-  }
-}
-```
-
 ## device.authenticate
 
 Device Authenticated
@@ -3148,6 +3213,30 @@ Example:
   "time": "2023-01-12T20:33:20.527Z",
   "uid": "a12e693e-1c45-43e4-a9d1-5fd8399e303c",
   "user": "3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name"
+}
+```
+
+## device.enroll
+
+Device Enrolled
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV005I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "0e288b23-f99f-4635-b182-06e9308095a8",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.enroll",
+  "success": true,
+  "time": "2023-01-12T21:31:29.191Z",
+  "uid": "bbbc496f-820b-4f49-ae0d-1c1b29faee85",
+  "user": "lisa"
 }
 ```
 
@@ -3856,10 +3945,46 @@ Example:
 
 ```json
 {
+  "cluster_name": "root.tele.ottr.sh",
   "code": "TJ002E",
+  "ei": 0,
   "event": "instance.join",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+  "error": "token expired or not found",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98"
+}
+```
+
+### TJ002L
+
+Instance Join Limit
+
+Example:
+
+```json
+{
+  "cluster_name": "root.tele.ottr.sh",
+  "code": "TJ002L",
+  "ei": 0,
+  "event": "instance.join",
+  "error": "scoped token usage exhausted",
+  "method": "token",
+  "node_name": "noah-laptop-follower",
+  "role": "Instance",
+  "success": true,
+  "time": "2022-12-06T09:17:06.392Z",
+  "token_name": "************************a2418147",
+  "uid": "c1ea0e6c-ee3a-4f7e-9a98-9df283b01a98",
+  "scope": "/ottr",
+  "roles": [
+    "Node",
+    "Kube"
+  ]
 }
 ```
 
@@ -4421,11 +4546,7 @@ Example:
 }
 ```
 
-## mfa.delete
-
-There are multiple events with the `mfa.delete` type.
-
-### T1006I
+## mfa.add
 
 MFA Device Added
 
@@ -4439,14 +4560,14 @@ Example:
   "mfa_device_type": "U2F",
   "mfa_device_uuid": "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
   "ei": 0,
-  "event": "mfa.delete",
+  "event": "mfa.add",
   "time": "2021-03-03T22:58:34.737Z",
   "uid": "9be91d9e-79ec-422b-b6ae-ccf7235476d4",
   "user": "awly"
 }
 ```
 
-### T1007I
+## mfa.delete
 
 MFA Device Deleted
 
@@ -5269,22 +5390,6 @@ Example:
 }
 ```
 
-### TSI004I
-
-All SAML IdP service provider deleted
-
-Example:
-
-```json
-{
-  "code": "TSI004I",
-  "event": "saml.idp.service.provider.delete",
-  "time": "2023-01-25T19:21:36.144Z",
-  "name": "saml-idp",
-  "updated_by": "mike"
-}
-```
-
 ### TSI004W
 
 SAML IdP service provider delete failed
@@ -5295,6 +5400,22 @@ Example:
 {
   "code": "TSI004W",
   "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+## saml.idp.service.provider.delete_all
+
+All SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI004I",
+  "event": "saml.idp.service.provider.delete_all",
   "time": "2023-01-25T19:21:36.144Z",
   "name": "saml-idp",
   "updated_by": "mike"
@@ -5654,6 +5775,197 @@ Example:
   "teleport_id": "test@example.com",
   "external_id": "external-id-000123456789",
   "display": "test@example.com"
+}
+```
+
+## scoped_token.create
+
+There are multiple events with the `scoped_token.create` type.
+
+### TST000I
+
+Scoped Join Token Created
+
+Example:
+
+```json
+{
+  "code": "TST000I",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "success": true,
+  "user": "alice@example.com"
+}
+```
+
+### TST000E
+
+Scoped Join Token Create Failed
+
+Example:
+
+```json
+{
+  "code": "TST000E",
+  "event": "scoped_token.create",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed create event"
+}
+```
+
+## scoped_token.delete
+
+There are multiple events with the `scoped_token.delete` type.
+
+### TST003I
+
+Scoped Join Token Deleted
+
+Example:
+
+```json
+{
+  "code": "TST003I",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST003E
+
+Scoped Join Token Delete Failed
+
+Example:
+
+```json
+{
+  "code": "TST003E",
+  "event": "scoped_token.delete",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed delete event"
+}
+```
+
+## scoped_token.update
+
+There are multiple events with the `scoped_token.update` type.
+
+### TST002I
+
+Scoped Join Token Updated
+
+Example:
+
+```json
+{
+  "code": "TST002I",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST002E
+
+Scoped Join Token Update Failed
+
+Example:
+
+```json
+{
+  "code": "TST002E",
+  "event": "scoped_token.update",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed update event"
+}
+```
+
+## scoped_token.upsert
+
+There are multiple events with the `scoped_token.upsert` type.
+
+### TST001I
+
+Scoped Join Token Upserted
+
+Example:
+
+```json
+{
+  "code": "TST001I",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com"
+}
+```
+
+### TST001E
+
+Scoped Join Token Upsert Failed
+
+Example:
+
+```json
+{
+  "code": "TST001E",
+  "event": "scoped_token.upsert",
+  "name": "test-token",
+  "time": "2022-12-23T19:14:07.763Z",
+  "roles": [
+    "node"
+  ],
+  "join_method": "token",
+  "scope": "/test",
+  "assigned_scope": "/test",
+  "user": "alice@example.com",
+  "success": false,
+  "error": "test failed upsert event"
 }
 ```
 
@@ -6815,6 +7127,36 @@ Example:
   "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
   "user": "bob",
   "user_kind": 1
+}
+```
+
+## spiffe.federation.create
+
+SPIFFE Federation Created
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE001I",
+  "event": "spiffe.federation.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## spiffe.federation.delete
+
+SPIFFE Federation Deleted
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE002I",
+  "event": "spiffe.federation.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 

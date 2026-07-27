@@ -1,4 +1,4 @@
   ├── / (root)
-  │   └── /staging - reader
+  │   └── /staging - /::reader
   └── /staging
-      └── /staging - admin
+      └── /staging - /staging::admin

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/trust/v1/trust_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package trustv1
 

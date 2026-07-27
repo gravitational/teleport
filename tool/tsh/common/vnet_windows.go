@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sys/windows/svc"
 
-	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/vnet"
 )
 
@@ -88,6 +87,6 @@ func newPlatformVnetAdminSetupCommand(*kingpin.Application) vnetCommandNotSuppor
 	return vnetCommandNotSupported{}
 }
 
-func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
+func runVnetDiagnostics(ctx context.Context, vnetProcess *vnet.UserProcess) error {
 	return trace.NotImplemented("diagnostics are not implemented yet on Windows")
 }

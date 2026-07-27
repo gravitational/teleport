@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/label/v1/label.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package labelv1
 

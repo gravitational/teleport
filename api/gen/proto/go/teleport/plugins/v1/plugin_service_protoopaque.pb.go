@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/plugins/v1/plugin_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package pluginsv1
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/transport/v1/transport_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package transportv1
 

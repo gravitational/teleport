@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/presence/v1/service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package presencev1
 

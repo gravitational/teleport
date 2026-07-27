@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/discoveryconfig/v1/discoveryconfig.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package discoveryconfigv1
 

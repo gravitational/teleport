@@ -82,6 +82,17 @@ type TerraformSuiteEnterpriseWithCache struct {
 	TerraformBaseSuite
 }
 
+// TerraformSuiteEnterpriseCloud runs enterprise tests for resources that are
+// only available on Teleport Cloud (Cloud mode is enabled in the suite's
+// modules and a fake Cloud API client is wired into the plugin).
+type TerraformSuiteEnterpriseCloud struct {
+	TerraformBaseSuite
+	// userClient is authenticated as the terraform test user. Some Cloud APIs
+	// (e.g. client_ip_restriction) reject non-user identities, so the suite's
+	// builtin-admin client cannot call them; use this for direct API calls.
+	userClient *client.Client
+}
+
 func (s *TerraformBaseSuite) SetupSuite() {
 	var err error
 	t := s.T()

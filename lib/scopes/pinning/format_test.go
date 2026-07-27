@@ -50,7 +50,7 @@ func TestFormatAssignmentTree(t *testing.T) {
 			name: "single origin single effect",
 			tree: AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {
-					"/staging": {"admin", "user"},
+					"/staging": {"/staging::admin", "/staging::user"},
 				},
 			}),
 		},
@@ -58,10 +58,10 @@ func TestFormatAssignmentTree(t *testing.T) {
 			name: "single origin multiple effects",
 			tree: AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {
-					"/":             {"global"},
-					"/staging":      {"staging-reader", "staging-test"},
-					"/staging/west": {"staging-west-debug"},
-					"/staging/east": {"staging-east-debug"},
+					"/":             {"/::global"},
+					"/staging":      {"/::staging-reader", "/::staging-test"},
+					"/staging/west": {"/::staging-west-debug"},
+					"/staging/east": {"/::staging-east-debug"},
 				},
 			}),
 		},
@@ -69,16 +69,16 @@ func TestFormatAssignmentTree(t *testing.T) {
 			name: "multiple origin and effect",
 			tree: AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {
-					"/staging":      {"staging-reader", "staging-test"},
-					"/staging/west": {"staging-west-debug"},
-					"/staging/east": {"staging-east-debug"},
+					"/staging":      {"/::staging-reader", "/::staging-test"},
+					"/staging/west": {"/::staging-west-debug"},
+					"/staging/east": {"/::staging-east-debug"},
 				},
 				"/staging": {
-					"/staging/west": {"staging-auditor", "staging-editor"},
-					"/staging/east": {"staging-user"},
+					"/staging/west": {"/staging::staging-auditor", "/staging::staging-editor"},
+					"/staging/east": {"/staging::staging-user"},
 				},
 				"/staging/west": {
-					"/staging/west": {"staging-west-test"},
+					"/staging/west": {"/staging/west::staging-west-test"},
 				},
 			}),
 		},
@@ -86,10 +86,10 @@ func TestFormatAssignmentTree(t *testing.T) {
 			name: "with indentation",
 			tree: AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {
-					"/staging": {"reader"},
+					"/staging": {"/::reader"},
 				},
 				"/staging": {
-					"/staging": {"admin"},
+					"/staging": {"/staging::admin"},
 				},
 			}),
 			prefix: "  ",
@@ -98,19 +98,19 @@ func TestFormatAssignmentTree(t *testing.T) {
 			name: "multi with orthogonals",
 			tree: AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {
-					"/prod":         {"prod-global"},
-					"/staging":      {"staging-global"},
-					"/dev":          {"dev-global"},
-					"/prod/east":    {"prod-east"},
-					"/staging/west": {"staging-west"},
+					"/prod":         {"/::prod-global"},
+					"/staging":      {"/::staging-global"},
+					"/dev":          {"/::dev-global"},
+					"/prod/east":    {"/::prod-east"},
+					"/staging/west": {"/::staging-west"},
 				},
 				"/staging": {
-					"/staging/west": {"west-admin"},
-					"/staging/east": {"east-admin"},
+					"/staging/west": {"/staging::west-admin"},
+					"/staging/east": {"/staging::east-admin"},
 				},
 				"/prod": {
-					"/prod/us": {"us-admin"},
-					"/prod/eu": {"eu-admin"},
+					"/prod/us": {"/prod::us-admin"},
+					"/prod/eu": {"/prod::eu-admin"},
 				},
 			}),
 		},

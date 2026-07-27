@@ -2,6 +2,10 @@ name: Lint
 on:
   pull_request:
   merge_group:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   GOFLAGS: '-buildvcs=false'
 
@@ -35,8 +39,8 @@ jobs:
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
@@ -85,6 +89,7 @@ jobs:
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
+              - 'e2e/**'
               - 'gen/proto/js/**'
               - 'gen/proto/ts/**'
               - 'package.json'

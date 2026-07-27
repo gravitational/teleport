@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/inventory/v1/inventory_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package inventoryv1
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/backendinfo/v1/backendinfo.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package backendinfov1
 

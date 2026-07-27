@@ -28,27 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/vnet/diag"
 )
 
-func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, error) {
-	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.InterfaceName,
+func (s *Service) platformRouteConflictDiag() (diag.DiagCheck, error) {
+	return diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+		VnetIfaceName: s.networkStackInfo.GetInterfaceName(),
 		Routing:       &diag.WindowsRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
-		ProfilePath: s.cfg.profilePath,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return []diag.DiagCheck{
-		routeConflictDiag,
-		sshDiag,
-	}, nil
 }
 
 // CheckInstallTimeRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.

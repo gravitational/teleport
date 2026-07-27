@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/certificate_override.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package subcav1
 
@@ -152,6 +152,9 @@ type CertificateOverride_builder struct {
 	// A disabled override may exist for recording purposes, to be enabled later,
 	// or simply to mark a certain public key as not overridden. In the latter
 	// case the certificate may be absent.
+	//
+	// Disabled overrides allow CRLs to be created asynchronously, using
+	// CertAuthorityOverride watchers.
 	Disabled bool
 }
 

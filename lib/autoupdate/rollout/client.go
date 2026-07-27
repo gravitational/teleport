@@ -90,7 +90,7 @@ func getAllValidReports(ctx context.Context, clt Client, now time.Time) ([]*auto
 		return nil, trace.Wrap(err, "getting all reports")
 	}
 
-	validReports := make([]*autoupdatepb.AutoUpdateAgentReport, len(allReports))
+	validReports := make([]*autoupdatepb.AutoUpdateAgentReport, 0, len(allReports))
 	for _, report := range allReports {
 		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= constants.AutoUpdateAgentReportPeriod {
 			validReports = append(validReports, report)

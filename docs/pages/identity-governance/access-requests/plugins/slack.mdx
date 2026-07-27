@@ -59,7 +59,7 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
   below your profile picture.
 - Either a Linux host or Kubernetes cluster where you will run the Slack plugin.
 
-(!/docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
@@ -437,3 +437,6 @@ $ sudo systemctl start teleport-slack
     Requests](../resource-requests.mdx) and [Role Access
     Requests](../role-requests.mdx) so you can get the most out
     of your Access Request plugins.
+- To see all of the options you can set in the values file for the
+`teleport-plugin-slack` Helm chart, consult our [Helm chart reference
+guide](../../../reference/helm-reference/teleport-plugin-slack.mdx).

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/dbobject/v1/dbobject.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package dbobjectv1
 

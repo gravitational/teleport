@@ -61,7 +61,8 @@ func TestCheckClientMeetsMinVersion(t *testing.T) {
 			minVersion:    "2.0.0-aa",
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				requireClientTooOld(t, err)
-				require.Contains(t, err.Error(), "minimum version of v2.0.0.")
+				require.Contains(t, err.Error(), "v2.0.0")
+				require.NotContains(t, err.Error(), "2.0.0-aa")
 			},
 		},
 		{
@@ -181,20 +182,9 @@ func TestEnforceVersionPolicy(t *testing.T) {
 			assertErr:        require.NoError,
 		},
 		{
-			name:             "client too old",
-			minClientVersion: tooOldMinVersion,
-			assertErr:        requireClientTooOld,
-		},
-		{
 			name:          "client too new",
 			serverVersion: tooNewServerVersion,
 			assertErr:     requireClientTooNew,
-		},
-		{
-			name:             "client too old but skip version check",
-			minClientVersion: tooOldMinVersion,
-			skipVersionCheck: true,
-			assertErr:        require.NoError,
 		},
 		{
 			name:             "client too new but skip version check",
@@ -203,26 +193,27 @@ func TestEnforceVersionPolicy(t *testing.T) {
 			assertErr:        require.NoError,
 		},
 		{
-			// The min parse error must fail open without short-circuiting the
-			// loop before the independent server check produces its verdict.
-			name:             "malformed minimum does not mask client too new",
-			minClientVersion: "not-a-version",
+			// Too-old is only advisory on the client.
+			name:             "client too old is not enforced",
+			minClientVersion: tooOldMinVersion,
+			assertErr:        require.NoError,
+		},
+		{
+			// Too-old must not mask an independent too-new verdict.
+			name:             "client too old does not mask client too new",
+			minClientVersion: tooOldMinVersion,
 			serverVersion:    tooNewServerVersion,
 			assertErr:        requireClientTooNew,
 		},
 		{
-			// The bad server version fails open and must not suppress the
-			// client-too-old verdict from the min check.
-			name:             "client too old with malformed server version",
-			minClientVersion: tooOldMinVersion,
-			serverVersion:    "not-a-version",
-			assertErr:        requireClientTooOld,
+			name:          "malformed server version fails open",
+			serverVersion: "not-a-version",
+			assertErr:     require.NoError,
 		},
 		{
-			name:             "both versions malformed fail open",
-			minClientVersion: "not-a-version",
-			serverVersion:    "not-a-version",
-			assertErr:        require.NoError,
+			name:          "no server version fails open",
+			serverVersion: "",
+			assertErr:     require.NoError,
 		},
 	}
 
@@ -238,6 +229,52 @@ func TestEnforceVersionPolicy(t *testing.T) {
 				ServerVersion:    tc.serverVersion,
 			})
 			tc.assertErr(t, err)
+		})
+	}
+}
+
+func TestClientTooOld(t *testing.T) {
+	t.Parallel()
+
+	tooOldMinVersion := semver.Version{Major: teleport.SemVer().Major + 1}.String()
+
+	cases := []struct {
+		name             string
+		minClientVersion string
+		wantTooOld       bool
+	}{
+		{
+			name:             "instance below minimum",
+			minClientVersion: tooOldMinVersion,
+			wantTooOld:       true,
+		},
+		{
+			name:             "instance meets minimum",
+			minClientVersion: teleport.MinClientSemVer().String(),
+			wantTooOld:       false,
+		},
+		{
+			name:             "no minimum advertised fails open",
+			minClientVersion: "",
+			wantTooOld:       false,
+		},
+		{
+			name:             "malformed minimum fails open",
+			minClientVersion: "not-a-version",
+			wantTooOld:       false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := clientTooOld(tc.minClientVersion)
+			if tc.wantTooOld {
+				var tooOld *clientTooOldError
+				require.ErrorAs(t, err, &tooOld)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

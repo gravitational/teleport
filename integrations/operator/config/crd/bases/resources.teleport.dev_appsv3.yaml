@@ -49,6 +49,10 @@ spec:
                     description: ExternalID is the AWS External ID used when assuming
                       roles in this app.
                     type: string
+                  region:
+                    description: Region is a cloud region for the app. This field
+                      is set for apps that integrates with AWS applications/APIs.
+                    type: string
                   roles_anywhere_profile:
                     description: RolesAnywhereProfile contains the IAM Roles Anywhere
                       fields associated with this Application. These fields are set

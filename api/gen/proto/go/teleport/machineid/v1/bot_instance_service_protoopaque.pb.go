@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/bot_instance_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package machineidv1
 

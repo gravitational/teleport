@@ -52,7 +52,12 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, a
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	// Set KUBECONFIG in the environment. Even if it was already set, we override it.
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, f.Name()))
+	// Also mark the shell as a live local-proxy session so `tsh kube credentials`
+	// can detect a Kubernetes client that bypasses the local proxy.
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, f.Name()),
+		fmt.Sprintf("%s=%s", kubeLocalProxyEnvVar, f.Name()),
+	)
 
 	if err := cmd.Start(); err != nil {
 		return trace.Wrap(err)

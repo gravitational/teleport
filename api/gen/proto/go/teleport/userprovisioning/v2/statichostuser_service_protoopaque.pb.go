@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/userprovisioning/v2/statichostuser_service.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package userprovisioningv2
 

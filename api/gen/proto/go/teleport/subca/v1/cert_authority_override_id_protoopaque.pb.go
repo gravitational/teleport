@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/cert_authority_override_id.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package subcav1
 

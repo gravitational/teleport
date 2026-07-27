@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/join_attrs.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package workloadidentityv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -54,6 +55,7 @@ type JoinAttrs struct {
 	xxx_hidden_Oracle         *JoinAttrsOracle         `protobuf:"bytes,13,opt,name=oracle,proto3"`
 	xxx_hidden_AzureDevops    *JoinAttrsAzureDevops    `protobuf:"bytes,14,opt,name=azure_devops,json=azureDevops,proto3"`
 	xxx_hidden_Env0           *JoinAttrsEnv0           `protobuf:"bytes,15,opt,name=env0,proto3"`
+	xxx_hidden_GenericOidc    *JoinAttrsGenericOIDC    `protobuf:"bytes,16,opt,name=generic_oidc,json=genericOidc,proto3"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
@@ -188,6 +190,13 @@ func (x *JoinAttrs) GetEnv0() *JoinAttrsEnv0 {
 	return nil
 }
 
+func (x *JoinAttrs) GetGenericOidc() *JoinAttrsGenericOIDC {
+	if x != nil {
+		return x.xxx_hidden_GenericOidc
+	}
+	return nil
+}
+
 func (x *JoinAttrs) SetMeta(v *JoinAttrsMeta) {
 	x.xxx_hidden_Meta = v
 }
@@ -246,6 +255,10 @@ func (x *JoinAttrs) SetAzureDevops(v *JoinAttrsAzureDevops) {
 
 func (x *JoinAttrs) SetEnv0(v *JoinAttrsEnv0) {
 	x.xxx_hidden_Env0 = v
+}
+
+func (x *JoinAttrs) SetGenericOidc(v *JoinAttrsGenericOIDC) {
+	x.xxx_hidden_GenericOidc = v
 }
 
 func (x *JoinAttrs) HasMeta() bool {
@@ -353,6 +366,13 @@ func (x *JoinAttrs) HasEnv0() bool {
 	return x.xxx_hidden_Env0 != nil
 }
 
+func (x *JoinAttrs) HasGenericOidc() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_GenericOidc != nil
+}
+
 func (x *JoinAttrs) ClearMeta() {
 	x.xxx_hidden_Meta = nil
 }
@@ -413,6 +433,10 @@ func (x *JoinAttrs) ClearEnv0() {
 	x.xxx_hidden_Env0 = nil
 }
 
+func (x *JoinAttrs) ClearGenericOidc() {
+	x.xxx_hidden_GenericOidc = nil
+}
+
 type JoinAttrs_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -447,6 +471,8 @@ type JoinAttrs_builder struct {
 	AzureDevops *JoinAttrsAzureDevops
 	// Attributes that are specific to the Env0 (`env0`) join method.
 	Env0 *JoinAttrsEnv0
+	// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+	GenericOidc *JoinAttrsGenericOIDC
 }
 
 func (b0 JoinAttrs_builder) Build() *JoinAttrs {
@@ -468,6 +494,7 @@ func (b0 JoinAttrs_builder) Build() *JoinAttrs {
 	x.xxx_hidden_Oracle = b.Oracle
 	x.xxx_hidden_AzureDevops = b.AzureDevops
 	x.xxx_hidden_Env0 = b.Env0
+	x.xxx_hidden_GenericOidc = b.GenericOidc
 	return m0
 }
 
@@ -2982,11 +3009,81 @@ func (b0 JoinAttrsEnv0_builder) Build() *JoinAttrsEnv0 {
 	return m0
 }
 
+// Attributes that are specific to the generic OIDC (`generic_oidc`) join method.
+type JoinAttrsGenericOIDC struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Claims *structpb.Struct       `protobuf:"bytes,1,opt,name=claims,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *JoinAttrsGenericOIDC) Reset() {
+	*x = JoinAttrsGenericOIDC{}
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinAttrsGenericOIDC) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinAttrsGenericOIDC) ProtoMessage() {}
+
+func (x *JoinAttrsGenericOIDC) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *JoinAttrsGenericOIDC) GetClaims() *structpb.Struct {
+	if x != nil {
+		return x.xxx_hidden_Claims
+	}
+	return nil
+}
+
+func (x *JoinAttrsGenericOIDC) SetClaims(v *structpb.Struct) {
+	x.xxx_hidden_Claims = v
+}
+
+func (x *JoinAttrsGenericOIDC) HasClaims() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Claims != nil
+}
+
+func (x *JoinAttrsGenericOIDC) ClearClaims() {
+	x.xxx_hidden_Claims = nil
+}
+
+type JoinAttrsGenericOIDC_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A complete set of token claims.
+	Claims *structpb.Struct
+}
+
+func (b0 JoinAttrsGenericOIDC_builder) Build() *JoinAttrsGenericOIDC {
+	m0 := &JoinAttrsGenericOIDC{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Claims = b.Claims
+	return m0
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\"\xda\b\n" +
+	"-teleport/workloadidentity/v1/join_attrs.proto\x12\x1cteleport.workloadidentity.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xb1\t\n" +
 	"\tJoinAttrs\x12?\n" +
 	"\x04meta\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsMetaR\x04meta\x12E\n" +
 	"\x06gitlab\x18\x02 \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsGitLabR\x06gitlab\x12E\n" +
@@ -3005,7 +3102,8 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"kubernetes\x12E\n" +
 	"\x06oracle\x18\r \x01(\v2-.teleport.workloadidentity.v1.JoinAttrsOracleR\x06oracle\x12U\n" +
 	"\fazure_devops\x18\x0e \x01(\v22.teleport.workloadidentity.v1.JoinAttrsAzureDevopsR\vazureDevops\x12?\n" +
-	"\x04env0\x18\x0f \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsEnv0R\x04env0\"X\n" +
+	"\x04env0\x18\x0f \x01(\v2+.teleport.workloadidentity.v1.JoinAttrsEnv0R\x04env0\x12U\n" +
+	"\fgeneric_oidc\x18\x10 \x01(\v22.teleport.workloadidentity.v1.JoinAttrsGenericOIDCR\vgenericOidc\"X\n" +
 	"\rJoinAttrsMeta\x12&\n" +
 	"\x0fjoin_token_name\x18\x01 \x01(\tR\rjoinTokenName\x12\x1f\n" +
 	"\vjoin_method\x18\x02 \x01(\tR\n" +
@@ -3150,9 +3248,11 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	" \x01(\tR\x0fdeploymentLogId\x12'\n" +
 	"\x0fdeployment_type\x18\v \x01(\tR\x0edeploymentType\x12%\n" +
 	"\x0edeployer_email\x18\f \x01(\tR\rdeployerEmail\x12\x19\n" +
-	"\benv0_tag\x18\r \x01(\tR\aenv0TagBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
+	"\benv0_tag\x18\r \x01(\tR\aenv0Tag\"G\n" +
+	"\x14JoinAttrsGenericOIDC\x12/\n" +
+	"\x06claims\x18\x01 \x01(\v2\x17.google.protobuf.StructR\x06claimsBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
 
-var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrs)(nil),                         // 0: teleport.workloadidentity.v1.JoinAttrs
 	(*JoinAttrsMeta)(nil),                     // 1: teleport.workloadidentity.v1.JoinAttrsMeta
@@ -3174,6 +3274,8 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{
 	(*JoinAttrsAzureDevops)(nil),              // 17: teleport.workloadidentity.v1.JoinAttrsAzureDevops
 	(*JoinAttrsAzureDevopsPipeline)(nil),      // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
 	(*JoinAttrsEnv0)(nil),                     // 19: teleport.workloadidentity.v1.JoinAttrsEnv0
+	(*JoinAttrsGenericOIDC)(nil),              // 20: teleport.workloadidentity.v1.JoinAttrsGenericOIDC
+	(*structpb.Struct)(nil),                   // 21: google.protobuf.Struct
 }
 var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	1,  // 0: teleport.workloadidentity.v1.JoinAttrs.meta:type_name -> teleport.workloadidentity.v1.JoinAttrsMeta
@@ -3191,15 +3293,17 @@ var file_teleport_workloadidentity_v1_join_attrs_proto_depIdxs = []int32{
 	16, // 12: teleport.workloadidentity.v1.JoinAttrs.oracle:type_name -> teleport.workloadidentity.v1.JoinAttrsOracle
 	17, // 13: teleport.workloadidentity.v1.JoinAttrs.azure_devops:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevops
 	19, // 14: teleport.workloadidentity.v1.JoinAttrs.env0:type_name -> teleport.workloadidentity.v1.JoinAttrsEnv0
-	11, // 15: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
-	14, // 16: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
-	13, // 17: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
-	18, // 18: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	20, // 15: teleport.workloadidentity.v1.JoinAttrs.generic_oidc:type_name -> teleport.workloadidentity.v1.JoinAttrsGenericOIDC
+	11, // 16: teleport.workloadidentity.v1.JoinAttrsGCP.gce:type_name -> teleport.workloadidentity.v1.JoinAttrsGCPGCE
+	14, // 17: teleport.workloadidentity.v1.JoinAttrsKubernetes.service_account:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesServiceAccount
+	13, // 18: teleport.workloadidentity.v1.JoinAttrsKubernetes.pod:type_name -> teleport.workloadidentity.v1.JoinAttrsKubernetesPod
+	18, // 19: teleport.workloadidentity.v1.JoinAttrsAzureDevops.pipeline:type_name -> teleport.workloadidentity.v1.JoinAttrsAzureDevopsPipeline
+	21, // 20: teleport.workloadidentity.v1.JoinAttrsGenericOIDC.claims:type_name -> google.protobuf.Struct
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_teleport_workloadidentity_v1_join_attrs_proto_init() }
@@ -3213,7 +3317,7 @@ func file_teleport_workloadidentity_v1_join_attrs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

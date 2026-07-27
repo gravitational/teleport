@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/sessionsearch/v1/session_search.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package sessionsearchv1
 

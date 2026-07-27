@@ -99,7 +99,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -113,7 +113,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -162,7 +162,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 					},
 				},
 			},
@@ -178,7 +178,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -199,7 +199,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -221,7 +221,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					Allow: types.RoleConditions{
 						DatabaseServiceLabels: defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels(false)[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Rules:                 defaultAllowRules(modules.BuildOSS)[teleport.PresetAccessRoleName],
 						GitHubPermissions: []types.GitHubPermission{{
 							Organizations: defaultGitHubOrgs()[teleport.PresetAccessRoleName],
 						}},
@@ -288,7 +288,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						},
 					},
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAuditorRoleName],
 					},
 				},
 			},
@@ -309,7 +309,7 @@ func TestAddRoleDefaults(t *testing.T) {
 						},
 					},
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+						Rules: defaultAllowRules(modules.BuildOSS)[teleport.PresetAuditorRoleName],
 					},
 				},
 			},
@@ -779,6 +779,7 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(access.KindScopedRole, RW()),
 							types.NewRule(access.KindScopedRoleAssignment, RW()),
 							types.NewRule(types.KindDatabaseObjectImportRule, RW()),
+							types.NewRule(types.KindBeamsConfig, RW()),
 						},
 					},
 				},
@@ -868,6 +869,71 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "beam-admin (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetBeamAdminRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetBeamAdminRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules(modules.BuildEnterprise)[teleport.PresetBeamAdminRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "beam-user (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetBeamUserRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetBeamUserRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules(modules.BuildEnterprise)[teleport.PresetBeamUserRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "beam-admin (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetBeamAdminRoleName,
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
 		},
 	}
 

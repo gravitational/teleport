@@ -21,18 +21,16 @@ lto = "thin"
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-core = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-displaycontrol = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-dvc = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03", features = [
-    "rustls",
-] }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "7dd4db0f6234da95f8d003bea406fbe74e238b03" }
+ironrdp-cliprdr = "0.7"
+ironrdp-connector = "0.10"
+ironrdp-core = "0.2"
+ironrdp-displaycontrol = "0.8"
+ironrdp-dvc = "0.8"
+ironrdp-graphics = "0.9"
+ironrdp-pdu = "0.9"
+ironrdp-rdpdr = "0.7"
+ironrdp-rdpsnd = "0.9"
+ironrdp-session = "0.11"
+ironrdp-svc = "0.8"
+ironrdp-tls = { version = "0.2", features = ["rustls"] }
+ironrdp-tokio = "0.10"

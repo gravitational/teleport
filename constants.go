@@ -302,6 +302,9 @@ const (
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
 
+	// ComponentLLM represents the LLM server handler.
+	ComponentLLM = "llm"
+
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
 
@@ -919,6 +922,10 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Access Graph API access.
+	UsageAccessGraphAPIOnly = "usage:access_graph_api"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that

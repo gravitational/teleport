@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package kubewaitingcontainerv1
 

@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/tls_identity.proto
 
-//go:build protoopaque
+//go:build teleport_protoopaque
 
 package decisionpb
 

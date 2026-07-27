@@ -1203,7 +1203,10 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user1.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: role.GetMetadata().GetName(), Scope: scope},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			},
 		},
@@ -5422,6 +5425,60 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
+// TestCreateWindowsDesktop verifies that a user with permission to create
+// Windows desktops cannot create a desktop with labels they wouldn't have
+// access to.
+func TestCreateWindowsDesktop(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	const username = "desktop-creator"
+	user, role, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		username,
+		nil, /* logins */
+		[]types.Rule{types.NewRule(types.KindWindowsDesktop, services.RW())},
+	)
+	require.NoError(t, err)
+
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"env": {"dev"}})
+	_, err = srv.Auth().UpsertRole(t.Context(), role)
+	require.NoError(t, err)
+
+	identity := authtest.TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
+
+	// Creating a desktop the user wouldn't have access to is denied
+	inaccessible, err := types.NewWindowsDesktopV3(
+		"prod-desktop",
+		map[string]string{"env": "prod"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	err = clt.CreateWindowsDesktop(t.Context(), inaccessible)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+
+	// the desktop is not created
+	desktops, err := srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: inaccessible.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, desktops)
+
+	// Creating a desktop the user has access to succeeds
+	accessible, err := types.NewWindowsDesktopV3(
+		"dev-desktop",
+		map[string]string{"env": "dev"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	require.NoError(t, clt.CreateWindowsDesktop(t.Context(), accessible))
+
+	desktops, err = srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: accessible.GetName()})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+}
+
 func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	ctx := t.Context()
 	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
@@ -5541,12 +5598,12 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	scopedAccess := srv.Auth().ScopedAccess()
-	scopes := []string{"/test", "/other"}
+	testScopes := []string{"/test", "/other"}
 	getScopeAsName := func(scope string) string {
 		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
 	}
 	// create scoped roles, users, and assignments
-	for _, scope := range scopes {
+	for _, scope := range testScopes {
 		roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: &scopedaccessv1.ScopedRole{
 				Kind:    scopedaccess.KindScopedRole,
@@ -5588,7 +5645,10 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
-						{Role: role.GetMetadata().GetName(), Scope: scope},
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Scope: scope,
+						}.Build(),
 					},
 				},
 			},
@@ -5601,14 +5661,14 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[0])+"-reader",
-		scopes[0],
+		getScopeAsName(testScopes[0])+"-reader",
+		testScopes[0],
 	))
 	require.NoError(t, err)
 
 	otherScopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[1])+"-reader",
-		scopes[1],
+		getScopeAsName(testScopes[1])+"-reader",
+		testScopes[1],
 	))
 	require.NoError(t, err)
 
@@ -5627,11 +5687,11 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "host2", "")
 
 	// Add scoped variants of the kube services
-	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", testScopes[0])
 
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", testScopes[0])
 
 	// Test upsert.
 	kubeServers, err := srv.Auth().GetKubernetesServers(ctx)
@@ -5774,6 +5834,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			})
 			require.NoError(t, err)
 		}
@@ -8851,7 +8912,10 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scope, Name: roleName}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -11054,7 +11118,6 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.Empty(t, next)
 	require.Len(t, page2, 1)
 	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
-
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -11907,8 +11970,6 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
-			tc := tc
-
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -11993,13 +12054,18 @@ func TestScopedRoleEvents(t *testing.T) {
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
+	// scoped resource kinds default to only matching unscoped resources (which never exist for these
+	// kinds), so watch with an explicit MODE_ALL filter to observe scoped roles/assignments at all scopes.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedaccess.KindScopedRole,
+				Kind:        scopedaccess.KindScopedRole,
+				ScopeFilter: allScopes,
 			},
 			{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:        scopedaccess.KindScopedRoleAssignment,
+				ScopeFilter: allScopes,
 			},
 		},
 	})
@@ -12052,20 +12118,24 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: role.Metadata.Name,
-	})
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: role.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	// delete events carry a skeleton typed resource (kind + scope + name), not a bare ResourceHeader.
+	deletedRole := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: types.Metadata{
-			Name: role.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		Metadata: headerv1.Metadata_builder{
+			Name: role.GetMetadata().GetName(),
+		}.Build(),
+		Scope: role.GetScope(),
+	}.Build(), deletedRole, protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
 	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
@@ -12085,10 +12155,10 @@ func TestScopedRoleEvents(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  role.Metadata.Name,
+				scopedaccessv1.Assignment_builder{
+					Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -12105,22 +12175,25 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    assignment.Metadata.Name,
-		SubKind: assignment.SubKind,
-	})
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:    assignment.GetMetadata().GetName(),
+		SubKind: assignment.GetSubKind(),
+		Scope:   assignment.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	deletedAssignment := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: types.Metadata{
-			Name: assignment.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		Metadata: headerv1.Metadata_builder{
+			Name: assignment.GetMetadata().GetName(),
+		}.Build(),
+		Scope: assignment.GetScope(),
+	}.Build(), deletedAssignment, protocmp.Transform()))
 }
 
 // TestWatchAllCacheKinds ensures the system builtin roles can watch every
@@ -12971,7 +13044,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.Len(t, retrievedAcks, 1)
 				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
 
-				//cluster alert is filtered out since it's acknowledged
+				// cluster alert is filtered out since it's acknowledged
 				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -12986,7 +13059,7 @@ func TestClusterAlertOperations(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, retrievedAcks)
 
-				//cluster alert is back since its acknowledgement is cleared
+				// cluster alert is back since its acknowledgement is cleared
 				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 					WithUntargeted: true,
 					AlertID:        testAlertAck,
@@ -13351,7 +13424,10 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetScope(), Name: scopedRole.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			},
 		},
@@ -13471,6 +13547,29 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
 				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+			},
+		},
+		{
+			// this is a separate test case from the previous because there are other
+			// checks specific to access graph that should start failing  if the restriction
+			// on usage is every removed
+			name: "for access graph",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+				Usage:        proto.UserCertsRequest_AccessGraphAPI,
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
+				// user cert gen
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
+				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
 			},
 		},
 	}

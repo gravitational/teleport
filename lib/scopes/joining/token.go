@@ -265,6 +265,88 @@ func validateOracle(oracle *joiningv1.Oracle) error {
 	return nil
 }
 
+// validates the given Generic OIDC configuration. Also implemented by
+// api/types/provisioning.go for unscoped generic_oidc tokens.
+func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
+	if spec == nil {
+		return trace.BadParameter("generic_oidc configuration must be defined for a scoped token when using the generic_oidc join method")
+	}
+	if spec.GetIssuer() == "" {
+		return trace.BadParameter("generic_oidc: issuer is required")
+	}
+	if spec.GetAudience() == "" {
+		return trace.BadParameter("generic_oidc: audience is required")
+	}
+
+	hasAnyAllowAny := len(spec.GetAllowAny()) > 0
+	hasAnyMustMatchFields := false
+	if spec.GetMustMatchFields() != nil {
+		hasAnyMustMatchFields = len(spec.GetMustMatchFields().GetFields()) > 0
+	}
+
+	// At least one must_match_fields or allow_any rule is required; this check
+	// is a simpler variant of the one in genericoidc's
+	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
+	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
+	if !hasAnyAllowAny && !hasAnyMustMatchFields {
+		return trace.BadParameter("generic_oidc: at least one rule must exist " +
+			"under either `must_match_fields` or `allow_any`")
+	}
+
+	for i, rule := range spec.GetAllowAny() {
+		if rule.GetExpression() == "" && len(rule.GetConditions()) == 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
+		if rule.GetExpression() != "" && len(rule.GetConditions()) > 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+
+		for j, cond := range rule.GetConditions() {
+			if cond.GetAttribute() == "" {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: an attribute "+
+						"is required", i, j)
+			}
+
+			conds := 0
+			if cond.GetEq() != nil {
+				conds++
+			}
+			if cond.GetNotEq() != nil {
+				conds++
+			}
+			if cond.GetIn() != nil {
+				conds++
+			}
+			if cond.GetNotIn() != nil {
+				conds++
+			}
+
+			if conds == 0 || conds > 1 {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: exactly one "+
+						"operator is required", i, j)
+			}
+		}
+	}
+
+	parsed, err := url.Parse(spec.GetIssuer())
+	if err != nil {
+		return trace.BadParameter("generic_oidc: issuer must be a valid URL")
+	}
+
+	if parsed.Scheme == "http" {
+		if !spec.GetInsecureAllowHttpIssuer() {
+			return trace.BadParameter("generic_oidc: issuer must be https:// unless insecure_allow_http_issuer is set")
+		}
+	} else if parsed.Scheme != "https" {
+		return trace.BadParameter("generic_oidc: issuer invalid URL scheme, must be https://")
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -288,6 +370,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	case types.JoinMethodBoundKeypair:
 		// Bound keypair tokens are always valid
+	case types.JoinMethodGenericOIDC:
+		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -686,6 +770,11 @@ func (t *Token) GetAssignedScope() string {
 	return t.scoped.GetSpec().GetAssignedScope()
 }
 
+// GetScope returns the scope of the wrapped [joiningv1.ScopedToken].
+func (t *Token) GetScope() string {
+	return t.scoped.GetScope()
+}
+
 // GetSecret returns the token's secret value.
 func (t *Token) GetSecret() (string, bool) {
 	return t.scoped.GetStatus().GetSecret(), t.GetJoinMethod() == types.JoinMethodToken
@@ -839,6 +928,81 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch {
+	case c.GetEq() != nil:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: c.GetEq().GetValue(),
+		}
+	case c.GetNotEq() != nil:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: c.GetNotEq().GetValue(),
+		}
+	case c.GetIn() != nil:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: c.GetIn().GetValues(),
+		}
+	case c.GetNotIn() != nil:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: c.GetNotIn().GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("an operator is required but found none")
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *types.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].

@@ -136,7 +136,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				Bot: scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "bot-role", Scope: botScope},
+					scopedaccessv1.Assignment_builder{Role: botScope + "::bot-role", Scope: botScope}.Build(),
 				},
 			},
 		},
@@ -366,7 +366,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				Bot: scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "test-role", Scope: testScope},
+					scopedaccessv1.Assignment_builder{Role: testScope + "::test-role", Scope: testScope}.Build(),
 				},
 			},
 		},
@@ -407,7 +407,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
-						{Role: "test-role", Scope: testScope},
+						scopedaccessv1.Assignment_builder{Role: testScope + "::test-role", Scope: testScope}.Build(),
 					},
 				},
 			},
@@ -499,6 +499,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			})
 			require.NoError(t, err)
 		}

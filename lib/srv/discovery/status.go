@@ -431,7 +431,14 @@ type awsEC2Tasks struct {
 	issuesSyncQueue map[awsEC2TaskKey]struct{}
 }
 
-// awsEC2TaskKey identifies a UserTask group.
+// awsEC2TaskKey identifies a unique UserTask group for EC2
+// discovery errors.
+//
+// Note: DiscoveryConfigName is intentionally excluded from the
+// key. EC2 permission and execution issues are account and
+// region scoped, so failures from multiple discovery configs
+// sharing the same credentials or installation parameters
+// deduplicate into a single UserTask.
 type awsEC2TaskKey struct {
 	integration     string
 	issueType       string
@@ -451,10 +458,13 @@ func (d *awsEC2Tasks) reset() {
 	d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 }
 
-// addFailedEnrollment adds an enrollment failure of a given instance.
+// addFailedEnrollment records an EC2 enrollment failure.
+//
+// Instance may be nil for failures that occur before any instance metadata is
+// known.
 func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1.DiscoverEC2Instance) {
-	// Only failures associated with an Integration are reported.
-	// There's no major blocking for showing non-integration User Tasks, but this keeps scope smaller.
+	// Only failures with non-empty Integration are reported. UserTask validation
+	// requires an Integration, so ambient-credential failures are intentionally skipped.
 	if g.integration == "" {
 		return
 	}
@@ -476,12 +486,20 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 			InstallerScript: g.installerScript,
 		}
 	}
-	d.instancesIssues[g].Instances[instance.InstanceId] = instance
+	if instance != nil {
+		d.instancesIssues[g].GetInstances()[instance.GetInstanceId()] = instance
+	}
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
 	}
 	d.issuesSyncQueue[g] = struct{}{}
+}
+
+// addFailedPermissionEnrollment records an EC2 permission failure
+// with no associated instance data.
+func (d *awsEC2Tasks) addFailedPermissionEnrollment(g awsEC2TaskKey) {
+	d.addFailedEnrollment(g, nil)
 }
 
 // awsEKSTasks contains the Discover EKS User Tasks that must be reported to the user.
@@ -667,10 +685,6 @@ func (s *taskUpdater) acquireSemaphoreForUserTask(userTaskName string) (releaseF
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
-	if len(failedInstances.Instances) == 0 {
-		return nil
-	}
-
 	userTaskName := usertasks.TaskNameForDiscoverEC2(usertasks.TaskNameForDiscoverEC2Parts{
 		Integration:     taskGroup.integration,
 		IssueType:       taskGroup.issueType,
