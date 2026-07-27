@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/okta/oktatest"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -103,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -1178,6 +1180,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				Kube: &scopedaccessv1.ScopedRoleKube{
 					Users:  []string{"scoped_kube_user"},
 					Groups: []string{"scoped_kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
 					Labels: []*labelv1.Label{
 						{
 							Name:   types.Wildcard,
@@ -5592,6 +5603,168 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	}
 }
 
+func TestScopedServerWithRolesSessionTrackers(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	scopedTestServerWithUserIdentity := func(srv *authtest.AuthServer) *auth.ScopedServerWithRoles {
+		scopedUser := authz.LocalUser{Username: "alice", Identity: tlsca.Identity{Username: "alice"}}
+		return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, &authz.ScopedContext{Identity: scopedUser})
+	}
+
+	const serverID = "test-app-server"
+	const scope = "/test/one"
+
+	newTracker := func(t *testing.T, sessionID string) types.SessionTracker {
+		t.Helper()
+		tracker, err := types.NewSessionTracker(types.SessionTrackerSpecV1{
+			SessionID: sessionID,
+			Kind:      string(types.AppSessionKind),
+		})
+		require.NoError(t, err)
+		return tracker
+	}
+
+	cases := []struct {
+		name      string
+		server    *auth.ScopedServerWithRoles
+		expectErr bool
+	}{
+		{
+			name:   "scoped pin server is allowed",
+			server: newScopePinnedTestServerForHost(t, srv, serverID, scope, types.RoleApp),
+		},
+		{
+			name:      "scoped non-server identity is denied",
+			server:    scopedTestServerWithUserIdentity(srv),
+			expectErr: true,
+		},
+		{
+			name:   "unscoped server identity is allowed",
+			server: newScopedTestServerWithUnscopedServer(t, srv, "unscoped-app-server", types.RoleApp),
+		},
+		{
+			name:      "unscoped non-server identity is denied",
+			server:    newScopedTestServerWithUnscopedUser(t, srv, "unscoped-user", nil),
+			expectErr: true,
+		},
+	}
+
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sessionID := fmt.Sprintf("sess-%d", i)
+
+			_, err := tc.server.CreateSessionTracker(ctx, newTracker(t, sessionID))
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			updateReq := &proto.UpdateSessionTrackerRequest{
+				SessionID: sessionID,
+				Update: &proto.UpdateSessionTrackerRequest_UpdateState{
+					UpdateState: &proto.SessionTrackerUpdateState{
+						State: types.SessionState_SessionStateTerminated,
+					},
+				},
+			}
+			require.NoError(t, tc.server.UpdateSessionTracker(ctx, updateReq))
+		})
+	}
+}
+
+func TestScopedServerWithRolesGenerateAppToken(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	const serverID = "test-app-server"
+	const scope = "/test/one"
+
+	baseReq := types.GenerateAppTokenRequest{
+		Username: "foo@example.com",
+		Roles:    []string{"bar", "baz"},
+		URI:      "http://localhost:8080",
+		Expires:  time.Now().Add(time.Minute),
+	}
+
+	cases := []struct {
+		name      string
+		server    *auth.ScopedServerWithRoles
+		reqScope  string
+		expectErr bool
+	}{
+		{
+			name:     "scoped app with matching scope is allowed",
+			server:   newScopePinnedTestServerForHost(t, srv, serverID, scope, types.RoleApp),
+			reqScope: scope,
+		},
+		{
+			name:      "scoped node is denied",
+			server:    newScopePinnedTestServerForHost(t, srv, serverID, scope, types.RoleNode),
+			reqScope:  scope,
+			expectErr: true,
+		},
+		{
+			name:      "scoped app with orthogonal scope is denied",
+			server:    newScopePinnedTestServerForHost(t, srv, serverID, scope, types.RoleApp),
+			reqScope:  "/other",
+			expectErr: true,
+		},
+		{
+			name:      "unscoped user without jwt access is denied",
+			server:    newScopedTestServerWithUnscopedUser(t, srv, "plain-user", nil),
+			expectErr: true,
+		},
+		{
+			name: "unscoped user with jwt access is allowed",
+			server: newScopedTestServerWithUnscopedUser(t, srv, "jwt-user",
+				[]types.Rule{types.NewRule(types.KindJWT, []string{types.VerbCreate})}),
+		},
+		{
+			// A scoped user is currently not allowed to be created with create permissions on jwt tokens.
+			// We pass in a rules here just to check that the decision api will reject the user properly
+			name:      "scoped user is denied",
+			server:    newScopePinnedTestServerWithScopedUser(t, srv, "scoped-user", scope, scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: []string{scope}}.Build()),
+			reqScope:  scope,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := baseReq
+			req.Scope = tc.reqScope
+			token, err := tc.server.GenerateAppToken(ctx, req)
+			if tc.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, token)
+		})
+	}
+}
+
 func TestListResources_KindKubernetesCluster(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -5617,6 +5790,15 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 					Kube: &scopedaccessv1.ScopedRoleKube{
 						Users:  []string{"kube_user"},
 						Groups: []string{"kube_group"},
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Namespace: "*",
+								Name:      "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
 						Labels: []*labelv1.Label{
 							{
 								Name:   types.Wildcard,
@@ -5856,6 +6038,240 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+	}
+}
+
+func TestDeleteAppSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/staging"
+
+	unscopedSrv := newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "alice", nil)
+	scopedSrv := newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, "scoped-alice", scope,
+		scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scope},
+			App: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `labels["env"] == "staging"`,
+			}.Build(),
+		}.Build())
+
+	cases := []struct {
+		name         string
+		srv          *auth.ScopedServerWithRoles
+		sessionOwner string
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped user deletes own session",
+			srv:          unscopedSrv,
+			sessionOwner: "alice",
+		},
+		{
+			name:         "unscoped user cannot delete another user's session",
+			srv:          unscopedSrv,
+			sessionOwner: "bob",
+			wantErr:      true,
+		},
+		{
+			name: "unscoped user with web_session rules deletes another user's session",
+			srv: newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "admin",
+				[]types.Rule{types.NewRule(types.KindWebSession, []string{types.VerbList, types.VerbDelete})}),
+			sessionOwner: "bob",
+		},
+		{
+			name:         "scoped user deletes own session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-alice",
+		},
+		{
+			name:         "scoped user cannot delete another user's session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-bob",
+			wantErr:      true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			ws, err := types.NewWebSession(uuid.NewString(), types.KindAppSession, types.WebSessionSpecV2{
+				User:    tc.sessionOwner,
+				Expires: srv.Clock().Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+			require.NoError(t, srv.Auth().UpsertAppSession(ctx, ws))
+
+			err = tc.srv.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: ws.GetName()})
+			if tc.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestListResources_ScopedApps(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/test"
+	const childScope = "/test/child"
+	const otherScope = "/other"
+
+	createAppServer := func(t *testing.T, name, scope, subkind string, labels map[string]string) {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+			types.AppSpecV3{URI: "http://localhost:8080"},
+			scope)
+		require.NoError(t, err)
+		if subkind != "" {
+			app.SubKind = subkind
+		}
+		if scope != "" {
+			app.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
+		}
+		server, err := types.NewAppServerV3FromApp(app, name+"-host", name+"-hostid")
+		if subkind != "" {
+			server.SubKind = subkind
+		}
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+	}
+
+	// Create apps in various scopes with differing labels
+	createAppServer(t, "prod-app", scope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "dev-app", scope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "dev-child-app", childScope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "other-scope-app", otherScope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "unscoped-app", "", "", map[string]string{"env": "prod"})
+	createAppServer(t, "ic-app", scope, types.KindIdentityCenterAccount, map[string]string{"env": "dev"})
+
+	appLabels := func(env string) *scopedaccessv1.ScopedRoleApp {
+		return scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{
+					Name:   "env",
+					Values: []string{env},
+				}.Build(),
+			},
+		}.Build()
+	}
+	appLabelExpression := func(expr string) *scopedaccessv1.ScopedRoleApp {
+		return scopedaccessv1.ScopedRoleApp_builder{LabelExpression: expr}.Build()
+	}
+
+	// scopedAppUser creates a scope-pinned user whose scoped role grants the given app block.
+	scopedAppUser := func(username, scope string, app *scopedaccessv1.ScopedRoleApp) *auth.ScopedServerWithRoles {
+		return newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, username, scope,
+			scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				App:              app,
+			}.Build())
+	}
+
+	cases := []struct {
+		name             string
+		server           *auth.ScopedServerWithRoles
+		appNamesExpected []string
+		req              proto.ListResourcesRequest
+	}{
+		{
+			name:             "prod labels in scope " + scope,
+			server:           scopedAppUser("test-prod-label", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "dev label in " + scope,
+			server:           scopedAppUser("test-dev-label", scope, appLabels("dev")),
+			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "dev label expression in " + scope,
+			server:           scopedAppUser("test-dev-expression", scope, appLabelExpression(`contains(labels["env"], "dev")`)),
+			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "label expression in " + scope,
+			server:           scopedAppUser("test-prod-expression", scope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "label expression in " + childScope,
+			server:           scopedAppUser("test-child-prod-expr", childScope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "label expression in " + otherScope,
+			server:           scopedAppUser("other-prod-expression", otherScope, appLabelExpression(`contains(labels["env"], "prod")`)),
+			appNamesExpected: []string{"other-scope-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
+		},
+		{
+			name:             "fake pagination path returns apps",
+			server:           scopedAppUser("test-fake-pagination", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindAppServer,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+				IncludeLogins:  true,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(ctx, tc.req)
+			require.NoError(t, err)
+
+			var names []string
+			for _, r := range res.Resources {
+				names = append(names, r.GetName())
+				require.NotEqual(t, "unscoped-app", r.GetName())
+				// Identity Center account apps must never appear in scoped
+				// listings, even when their labels match the role.
+				require.NotEqual(t, "ic-app", r.GetName())
+			}
+
+			require.ElementsMatch(t, tc.appNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
+		})
 	}
 }
 
@@ -8894,6 +9310,18 @@ func newScopePinnedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hos
 	return authWithRole
 }
 
+func newScopedTestServerWithUnscopedServer(t *testing.T, srv *authtest.AuthServer, serverID string, role types.SystemRole) *auth.ScopedServerWithRoles {
+	t.Helper()
+	ctx := t.Context()
+
+	authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestServerID(role, serverID).I))
+	require.NoError(t, err)
+
+	scoped := auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx).ScopedServerWithRoles()
+	t.Cleanup(func() { scoped.Close() })
+	return scoped
+}
+
 func newScopedTestServerWithUnscopedUser(t *testing.T, srv *authtest.AuthServer, username string, allowRules []types.Rule) *auth.ScopedServerWithRoles {
 	t.Helper()
 	ctx := t.Context()
@@ -8909,7 +9337,7 @@ func newScopedTestServerWithUnscopedUser(t *testing.T, srv *authtest.AuthServer,
 	return scoped
 }
 
-func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServer, username, scope string, rules []*scopedaccessv1.ScopedRule) *auth.ScopedServerWithRoles {
+func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServer, username, scope string, spec *scopedaccessv1.ScopedRoleSpec) *auth.ScopedServerWithRoles {
 	t.Helper()
 	ctx := t.Context()
 
@@ -8924,10 +9352,7 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 			Version:  types.V1,
 			Metadata: headerv1.Metadata_builder{Name: roleName}.Build(),
 			Scope:    scope,
-			Spec: scopedaccessv1.ScopedRoleSpec_builder{
-				Rules:            rules,
-				AssignableScopes: []string{scope},
-			}.Build(),
+			Spec:     spec,
 		}.Build(),
 	}.Build())
 	require.NoError(t, err)
@@ -9121,8 +9546,12 @@ func TestUpsertNode(t *testing.T) {
 			// Scoped roles cannot be created with node write permissions, so a scoped
 			// user never holds node:create/update and Decision should fail. Change this in the future
 			// if we ever let scoped users permissions for nodes.
-			name:      "scoped user denied",
-			server:    newScopePinnedTestServerWithScopedUser(t, authsrv, "scoped-user", "/staging", nil),
+			name: "scoped user denied",
+			server: newScopePinnedTestServerWithScopedUser(t, authsrv, "scoped-user", "/staging",
+				scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{
+						"/staging"},
+				}.Build()),
 			nodeName:  otherID,
 			nodeScope: "/staging",
 			shouldErr: true,
@@ -9387,7 +9816,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 				)
 
 				sid := session.NewID()
-				tracker, err := s.CreateSessionTracker(ctx, &types.SessionTrackerV1{
+				// CreateSessionTracker is now only on ScopedServerWithRoles (the scoped port
+				// supports both scoped and unscoped callers).
+				tracker, err := s.ScopedServerWithRoles().CreateSessionTracker(ctx, &types.SessionTrackerV1{
 					ResourceHeader: types.ResourceHeader{
 						Metadata: types.Metadata{
 							Name: sid.String(),
@@ -12344,11 +12775,14 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
+			username := utils.HostFQDN(hostID, domainName)
 			// Create a built-in role.
 			authContext, err := authz.ContextForBuiltinRole(
 				authz.BuiltinRole{
-					Role:     test.builtInRole,
-					Username: fmt.Sprintf("%s.%s", hostID, domainName),
+					Role:        test.builtInRole,
+					Username:    username,
+					Identity:    tlsca.Identity{Username: username},
+					ClusterName: domainName,
 				},
 				types.DefaultSessionRecordingConfig(),
 			)
@@ -13404,6 +13838,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy: {Enabled: true},
 				entitlements.K8s:    {Enabled: true},
+				entitlements.App:    {Enabled: true},
 			},
 		},
 	})
@@ -13413,29 +13848,46 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	username := "scoped-user"
 	scope := "/test"
 	scopedAccess := srv.Auth().ScopedAccess()
-	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	roleResp, err := scopedAccess.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: username,
 			},
 			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
-				Kube: &scopedaccessv1.ScopedRoleKube{
+				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
 					Labels: []*labelv1.Label{
 						{
 							Name:   types.Wildcard,
 							Values: []string{types.Wildcard},
 						},
 					},
-				},
-			},
-		},
-	})
+				}.Build(),
+				App: scopedaccessv1.ScopedRoleApp_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
@@ -13470,6 +13922,20 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name:   "test-app",
+		Labels: map[string]string{"env": "test"},
+	}, types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	scopedApp.Scope = scope
+	scopedApp.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, "test-app", "proxy.example.com")
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "test-app-host", "test-app-hostid")
+	require.NoError(t, err)
+	scopedAppServer.Scope = scope
+	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
+	require.NoError(t, err)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -13547,25 +14013,52 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		{
 			name: "app session creation",
 			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
 				RouteToApp: proto.RouteToApp{
-					Name: "app-name",
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+				},
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Equal(t, "test-app", identity.RouteToApp.Name)
+				require.Equal(t, scopedApp.GetPublicAddr(), identity.RouteToApp.PublicAddr)
+				// An app session is created and linked to the certificate.
+				require.NotEmpty(t, identity.RouteToApp.SessionID)
+			},
+		},
+		{
+			name: "app with AWS role ARN is rejected",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+					AWSRoleARN:  "arn:aws:iam::123456789012:role/example",
 				},
 			},
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "creating app session")
 				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for cloud app access")
 			},
 		},
 		{
-			name: "for non-kube usage",
+			name: "for non-kube non-app usage",
 			req: proto.UserCertsRequest{
 				SSHPublicKey: sshPubKey,
 				TLSPublicKey: tlsPubKey,
@@ -13576,7 +14069,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+				require.ErrorContains(t, err, "generating scoped user cert for unsupported usage \"All\"")
 			},
 		},
 		{
@@ -13597,7 +14090,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.ErrorContains(t, err, "scoped identities not supported")
 				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
 				// user cert gen
-				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for unsupported usage \"AccessGraphAPI\"")
 				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
 				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
 			},

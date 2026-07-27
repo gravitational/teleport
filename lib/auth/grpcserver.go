@@ -557,7 +557,7 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		componentName = auth.scopedContext.User.GetName()
 	} else {
 		var isBuiltinServer bool
-		componentName, isBuiltinServer = getBuiltinServerID(auth.scopedContext.Identity)
+		componentName, isBuiltinServer = getLocalServerID(auth.scopedContext.Identity)
 		if !isBuiltinServer {
 			return trace.BadParameter("could not derive component name from auth context")
 		}
@@ -1683,13 +1683,15 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 }
 
 // DeleteApplicationServer deletes an application server.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
-	if err != nil {
+	if err := auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -1904,7 +1906,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *authpb.DeleteAppSessionRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1989,7 +1991,7 @@ func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSC
 
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2005,6 +2007,7 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: types.CertAuthType(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5062,7 +5065,7 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5072,7 +5075,7 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.Creat
 		return nil, trace.BadParameter("missing SessionTracker from CreateSessionTrackerRequest")
 	}
 
-	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
+	tracker, err := auth.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5173,11 +5176,11 @@ func (g *GRPCServer) RemoveSessionTracker(ctx context.Context, req *authpb.Remov
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *authpb.UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpdateSessionTracker(ctx, req)
+	err = auth.UpdateSessionTracker(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

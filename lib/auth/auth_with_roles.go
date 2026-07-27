@@ -47,6 +47,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -63,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
@@ -373,51 +373,6 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	return false
 }
 
-// hasBuiltinRole checks that the attached identity is a builtin role and
-// whether any of the given roles match the role set.
-func (a *ScopedServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
-	unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
-	if isUnscoped {
-		for _, role := range roles {
-			if authz.HasBuiltinRole(*unscopedCtx, string(role)) {
-				return true
-			}
-		}
-		return false
-	}
-
-	// since we check if the underlying SWR is unscoped, and defer to the
-	// unscoped behavior if it is, the only valid role type at this point
-	// will be a [authz.ScopedBuiltinRole].
-	role, isBuiltin := a.scopedContext.Identity.(authz.ScopedBuiltinRole)
-	if !isBuiltin {
-		return false
-	}
-	// for service certs, the additional system roles will be empty so we only check if the
-	// primary role is included in the given roles
-	if primary := types.SystemRole(role.ScopePin.GetSystemRoles().GetPrimary()); primary != types.RoleInstance {
-		return types.SystemRoles(roles).Include(primary)
-	}
-	// for instance certs, we check if there is any overlap between the given roles and the
-	// additional system roles included in the scope pin
-	existingRoles := role.ScopePin.GetSystemRoles().GetAdditional()
-	for _, role := range roles {
-		if slices.Contains(existingRoles, string(role)) {
-			return true
-		}
-	}
-	return false
-}
-
-// HasBuiltinRole checks if the identity is a builtin role with the matching
-// name.
-// Deprecated: use authz.HasBuiltinRole instead.
-func HasBuiltinRole(authContext authz.Context, name string) bool {
-	// TODO(jakule): This function can be removed once teleport.e is updated
-	// to use authz.HasBuiltinRole.
-	return authz.HasBuiltinRole(authContext, name)
-}
-
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
 // matching name.
 func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
@@ -437,11 +392,10 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
-func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.localServerAction(); err != nil {
-		return nil, trace.Wrap(err)
+func (a *ScopedServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
+		return nil, trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-
 	tracker, err := a.authServer.CreateSessionTracker(ctx, tracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -680,11 +634,10 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 }
 
 // UpdateSessionTracker updates a tracker resource for an active session.
-func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.localServerAction(); err != nil {
-		return trace.Wrap(err)
+func (a *ScopedServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
+	if _, isServer := getLocalServerID(a.scopedContext.Identity); !isServer {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
@@ -783,7 +736,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 	}
 
 	// prohibit privilege escalations through role changes (except the instance cert exception, handled above).
-	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
+	if !a.scopedContext.HasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
 		return nil, trace.AccessDenied(
 			"roles do not match: %v and %v",
 			existingServerRoles,
@@ -802,7 +755,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	_, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	_, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -838,7 +791,7 @@ func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, 
 	// check if additional system roles are permissible
 Outer:
 	for _, requestedRole := range req.SystemRoles {
-		if a.hasBuiltinRole(requestedRole) {
+		if a.scopedContext.HasBuiltinRole(requestedRole) {
 			// instance is already known to hold this role
 			continue Outer
 		}
@@ -886,7 +839,7 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // use it for metrics purposes.
 func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	serverID, isBuiltinServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isBuiltinServer := getLocalServerID(a.scopedContext.Identity)
 	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
@@ -916,7 +869,7 @@ func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.Upstre
 	// services that are unrecognized or unauthorized, rather than rejecting hellos that claim them.
 	var filteredServices []string
 	for _, service := range hello.GetServices() {
-		if !a.hasBuiltinRole(types.SystemRole(service)) {
+		if !a.scopedContext.HasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
 				"instance", serverID,
@@ -1139,6 +1092,9 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 	// Note: UpsertNode doesn't allow any namespaces but "default".
 	// The Decision API only checks on the default namespace.
 	if err := a.scopedContext.CheckerContext.Decision(ctx, s.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := a.scopedContext.AgentOwnedResourceAction(s.GetScope(), s.GetName(), types.RoleNode); err == nil {
+			return nil
+		}
 		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbCreate, types.VerbUpdate)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -1151,8 +1107,8 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
-	if a.hasBuiltinRole(types.RoleNode) {
-		callerID, _ := getBuiltinServerID(a.scopedContext.Identity)
+	if a.scopedContext.HasBuiltinRole(types.RoleNode) {
+		callerID, _ := getLocalServerID(a.scopedContext.Identity)
 		if s.GetName() != callerID {
 			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
 		}
@@ -1163,6 +1119,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
+	scopedServer := a.ScopedServerWithRoles()
 	clusterName, err := a.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1174,13 +1131,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 
 	switch handle.GetType() {
 	case constants.KeepAliveNode:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleNode) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindNode, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleNode); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
@@ -1193,33 +1144,18 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		}
-		if !a.hasBuiltinRole(types.RoleApp) && !a.hasBuiltinRole(types.RoleOkta) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindAppServer, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleApp, types.RoleOkta); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabase:
 		// There can be multiple database servers per host so they send their
 		// host ID in a separate field because unlike SSH nodes the resource
 		// name cannot be the host ID.
-		if serverName != handle.HostID {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleDatabase) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindDatabaseServer, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleDatabase); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveWindowsDesktopService:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindWindowsDesktopService, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleWindowsDesktop); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
@@ -1230,20 +1166,11 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		}
 		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
 		// we need to check if the host has the Kube or Proxy role.
-		if !a.hasBuiltinRole(types.RoleKube, types.RoleProxy) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleKube, types.RoleProxy); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabaseService:
-		if serverName != handle.Name {
-			return trace.AccessDenied("access denied")
-		}
-		if !a.hasBuiltinRole(types.RoleDatabase) {
-			return trace.AccessDenied("access denied")
-		}
-		if err := a.authorizeAction(types.KindDatabaseService, types.VerbUpdate); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.Name, types.RoleDatabase); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1301,9 +1228,9 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 
 	watch.Kinds = validKinds
 	switch {
-	case a.hasBuiltinRole(types.RoleProxy):
+	case a.scopedContext.HasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
-	case a.hasBuiltinRole(types.RoleNode):
+	case a.scopedContext.HasBuiltinRole(types.RoleNode):
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 
@@ -2326,7 +2253,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	return &proto.ResolveSSHTargetResponse{Server: bestServer}, nil
 }
 
-// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server and
+// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server, app_server, and
 // kube_cluster resource types are currently supported for scoped identities. Advanced features like
 // search_as_roles, preview_as_roles, and login inclusion are not yet available for scoped identities.
 func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -2338,53 +2265,21 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		return nil, trace.AccessDenied("search_as_roles is not supported for scoped identities")
 	case req.UsePreviewAsRoles:
 		return nil, trace.AccessDenied("preview_as_roles is not supported for scoped identities")
-	case req.IncludeLogins:
-		return nil, trace.AccessDenied("include_logins is not supported for scoped identities")
+	case req.IncludeLogins && req.ResourceType != types.KindAppServer:
+		// include_logins is only used for AWS console apps and is otherwise unsupported for
+		// scoped identities. It will be left empty for now so that we can still list normal apps.
+		// Reject it for every other resource kind.
+		return nil, trace.AccessDenied("include_logins is not supported for scoped identities for resource %q", req.ResourceType)
 	}
 
 	switch req.ResourceType {
-	case types.KindKubeServer, types.KindKubernetesCluster:
+	case types.KindKubeServer, types.KindKubernetesCluster, types.KindAppServer:
 	default:
 		return nil, trace.AccessDenied("resource kind %q not supported for scoped identities", req.ResourceType)
 	}
 
 	if req.RequiresFakePagination() {
-		if req.ResourceType != types.KindKubernetesCluster {
-			// Kube clusters always use fake pagination but we don't have a need to support other kinds while using
-			// scoped credentials at this time. We explicitly disallow other kinds to avoid any potential for calling
-			// listResourcesWithSort with a kind that does not properly support scoped access.
-			return nil, trace.BadParameter("scoped resource kind %q does not support fake pagination", req.ResourceType)
-		}
-		if err := req.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeServers, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var clusters []types.KubeCluster
-		for _, svc := range kubeServers {
-			clusters = append(clusters, svc.GetCluster())
-		}
-		sortedClusters := types.KubeClusters(clusters)
-		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		params := local.FakePaginateParams{
-			ResourceType:   req.ResourceType,
-			Limit:          req.Limit,
-			Labels:         req.Labels,
-			SearchKeywords: req.SearchKeywords,
-			StartKey:       req.StartKey,
-		}
-		if req.PredicateExpression != "" {
-			expression, err := services.NewResourceExpression(req.PredicateExpression)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			params.PredicateExpression = expression
-		}
-		return local.FakePaginate(sortedClusters.AsResources(), params)
+		return a.listResourcesWithSort(ctx, req)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -2417,20 +2312,30 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	var resp types.ListResourcesResponse
 	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
 		if len(resp.Resources) == limit {
-			resp.NextKey = backend.GetPaginationKey(resource)
+			resp.NextKey = services.GetCursorForResource(resource)
 			return ErrDone
 		}
 
 		var err error
 		switch res := resource.(type) {
 		case types.KubeServer:
-			err = a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(res.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
 				return checker.Kube().CanAccessCluster(res.GetCluster())
 			})
 		case types.KubeCluster:
 			// kube clusters should always land in the fake pagination path, but we defensively ignore
 			// them here as a fallback since they're a supported type to be listed
 			err = trace.AccessDenied("resource type %q does not support pagination", res.GetKind())
+		case types.AppServer:
+			// Identity Center account apps are currently not supported for scoped applications.
+			// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+			if res.GetSubKind() == types.KindIdentityCenterAccount {
+				err = trace.AccessDenied("identity center account apps are not supported for scoped identities")
+				break
+			}
+			err = a.scopedContext.CheckerContext.Decision(ctx, res.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.App().CanAccessApp(res.GetApp())
+			})
 		}
 		if err != nil {
 			if trace.IsAccessDenied(err) {
@@ -2559,7 +2464,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	var resp types.ListResourcesResponse
 	if err := a.authServer.IterateResources(ctx, req, func(resource types.ResourceWithLabels) error {
 		if len(resp.Resources) == limit {
-			resp.NextKey = backend.GetPaginationKey(resource)
+			resp.NextKey = services.GetCursorForResource(resource)
 			return ErrDone
 		}
 
@@ -2756,7 +2661,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	case types.KindAppServer:
-		appservers, err := a.GetApplicationServers(ctx, req.Namespace)
+		appservers, err := a.ScopedServerWithRoles().GetApplicationServers(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2927,6 +2832,64 @@ func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) 
 		return trace.Wrap(err)
 	}
 	return a.authServer.UpsertAuthServer(ctx, s)
+}
+
+// listResourcesWithSort is the scoped equivalent of [ServerWithRoles.listResourcesWithSort].
+// It only supports listing apps servers (not apps) and kube clusters (not kube servers)
+// at this point and will need to be updated to reach feature parity with the Unscoped version.
+// This function only supports listing with fake pagination.
+func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindKubernetesCluster:
+		kubeServers, err := a.GetKubernetesServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var clusters []types.KubeCluster
+		for _, svc := range kubeServers {
+			clusters = append(clusters, svc.GetCluster())
+		}
+		sortedClusters := types.KubeClusters(clusters)
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
+	case types.KindAppServer:
+		appServers, err := a.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sortedServers := types.AppServers(appServers)
+		if err := sortedServers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedServers.AsResources()
+	default:
+		// We explicitly disallow other kinds to avoid any potential for calling
+		// FakePaginate with a kind that does not properly support scoped access.
+		return nil, trace.BadParameter("scoped resource kind %q does not support fake pagination", req.ResourceType)
+	}
+
+	params := local.FakePaginateParams{
+		ResourceType:   req.ResourceType,
+		Limit:          req.Limit,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.StartKey,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+	return local.FakePaginate(resources, params)
 }
 
 // Deprecated: Prefer paginated variant [ListAuthServers].
@@ -3948,14 +3911,8 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 }
 
 // GenerateUserCerts generates users certificates. Scoped identities are currently limited to
-// generating kubernetes certificates.
+// generating kubernetes and app certificates.
 func (a *ScopedServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	if _, isUnscoped := a.UnscopedServerWithRoles(); !isUnscoped {
-		// Scoped identities may only generate Kubernetes certificates.
-		if req.Usage != proto.UserCertsRequest_Kubernetes || req.KubernetesCluster == "" {
-			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes usage")
-		}
-	}
 	identity := a.scopedContext.Identity.GetIdentity()
 	return a.generateUserCerts(ctx, req, certRequestDeviceExtensions(identity.DeviceExtensions))
 }
@@ -4026,12 +3983,23 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		isScoped = false
 		unscopedSWR, _ = a.UnscopedServerWithRoles()
 	}
-	isKubeCert := req.Usage == proto.UserCertsRequest_Kubernetes && req.KubernetesCluster != ""
-	if isScoped && !isKubeCert {
-		// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
-		// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
-		// usages that have not been fully thought through or tested yet.
-		return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes usage")
+
+	if isScoped {
+		isKubeCert := req.Usage == proto.UserCertsRequest_Kubernetes && req.KubernetesCluster != ""
+		isAppCert := req.Usage == proto.UserCertsRequest_App
+		if !isKubeCert && !isAppCert {
+			// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
+			// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
+			// usages that have not been fully thought through or tested yet.
+			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
+		}
+
+		// Scoped identities cannot access cloud apps (AWS console / AWS Roles Anywhere, Azure, GCP).
+		// TODO(williamo/scopes): add support for this.
+		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS ||
+			req.RouteToApp.AWSRoleARN != "" || req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for cloud app access")
+		}
 	}
 
 	hasAdminRole := !isScoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin))
@@ -4313,9 +4281,6 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	var appSessionID string
 	var webSessionID string
 	if req.RouteToApp.Name != "" {
-		if isScoped {
-			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")
-		}
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
 		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
@@ -4345,8 +4310,12 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			MFAVerified:       verifiedMFADeviceID,
 			DeviceExtensions:  a.scopedContext.Identity.GetIdentity().DeviceExtensions,
 			AppName:           req.RouteToApp.Name,
+			TargetScope:       req.RouteToApp.Scope,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+			// Propagate the caller's identity so CreateAppSessionFromReq can build a scoped
+			// access checker context when the caller is scope-pinned.
+			Identity: a.scopedContext.Identity.GetIdentity(),
 
 			BotName:  getBotName(user),
 			BotScope: getBotScope(user),
@@ -4463,6 +4432,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		certReq.Usage = []string{teleport.UsageDatabaseOnly}
 	case proto.UserCertsRequest_App:
 		certReq.Usage = []string{teleport.UsageAppsOnly}
+		certReq.TargetScope = req.RouteToApp.Scope
 	case proto.UserCertsRequest_Kubernetes:
 		certReq.Usage = []string{teleport.UsageKubeOnly}
 	case proto.UserCertsRequest_AccessGraphAPI:
@@ -5308,11 +5278,11 @@ func (a *ScopedServerWithRoles) EmitAuditEvent(ctx context.Context, event apieve
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, &ruleCtx); err != nil {
 		return trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
-	err := events.ValidateServerMetadata(event, serverID, a.hasBuiltinRole(types.RoleProxy))
+	err := events.ValidateServerMetadata(event, serverID, a.scopedContext.HasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -5335,7 +5305,7 @@ func (a *ScopedServerWithRoles) CreateAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -5356,7 +5326,7 @@ func (a *ScopedServerWithRoles) ResumeAuditStream(ctx context.Context, sid sessi
 	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	serverID, isServer := getBuiltinServerID(a.scopedContext.Identity)
+	serverID, isServer := getLocalServerID(a.scopedContext.Identity)
 	if !isServer {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -5402,7 +5372,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 
 func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
-	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
+	err := events.ValidateServerMetadata(event, s.serverID, s.a.scopedContext.HasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
 		// notifying about access violation
@@ -6487,8 +6457,10 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 
 // UpsertDatabaseServer creates or updates a new database proxy server.
 func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
-	if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", server.GetHostID(), types.RoleDatabase); err != nil {
+		if err := a.actionNamespace(server.GetNamespace(), types.KindDatabaseServer, types.VerbCreate, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if server.GetScope() != "" {
 		return nil, trace.BadParameter("scoped database server must register a control stream")
@@ -6498,8 +6470,10 @@ func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types
 
 // DeleteDatabaseServer removes the specified database proxy server.
 func (a *ServerWithRoles) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
-	if err := a.actionNamespace(namespace, types.KindDatabaseServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleDatabase); err != nil {
+		if err := a.actionNamespace(namespace, types.KindDatabaseServer, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return a.authServer.DeleteDatabaseServer(ctx, namespace, hostID, name)
 }
@@ -6514,8 +6488,10 @@ func (a *ServerWithRoles) DeleteAllDatabaseServers(ctx context.Context, namespac
 
 // UpsertDatabaseService creates or updates a new DatabaseService resource.
 func (a *ServerWithRoles) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
-	if err := a.actionNamespace(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", service.GetName(), types.RoleDatabase); err != nil {
+		if err := a.actionNamespace(service.GetNamespace(), types.KindDatabaseService, types.VerbCreate, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.UpsertDatabaseService(ctx, service)
 }
@@ -6642,32 +6618,12 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		services.AccessState{MFAVerified: true})
 }
 
-// GetApplicationServers returns all registered application servers.
-func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	if err := a.actionNamespace(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := a.authServer.GetApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Filter out apps the caller doesn't have access to.
-	var filtered []types.AppServer
-	for _, server := range servers {
-		err := a.checkAccessToApp(server.GetApp())
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, server)
-		}
-	}
-	return filtered, nil
-}
-
 // UpsertApplicationServer registers an application server.
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
-	if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", server.GetHostID(), types.RoleApp); err != nil {
+		if err := a.actionNamespace(server.GetNamespace(), types.KindAppServer, types.VerbCreate, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if server.GetScope() != "" {
 		return nil, trace.BadParameter("scoped app server must register a control stream")
@@ -6675,12 +6631,21 @@ func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server ty
 	return a.authServer.UpsertApplicationServer(ctx, server)
 }
 
-// DeleteApplicationServer deletes specified application server.
+// DeleteApplicationServer deletes an unscoped application server. It serves
+// the legacy AuthService RPC for pre-scopes clients.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (a *ServerWithRoles) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
-	if err := a.actionNamespace(namespace, types.KindAppServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleApp); err != nil {
+		if err := a.actionNamespace(namespace, types.KindAppServer, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return a.authServer.DeleteApplicationServer(ctx, namespace, hostID, name)
+	return trace.Wrap(a.authServer.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: hostID,
+		Name:   name,
+	}.Build()))
 }
 
 // DeleteAllApplicationServers deletes all registered application servers.
@@ -6805,20 +6770,26 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
-// DeleteAppSession removes an application web session.
-func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
+// DeleteAppSession removes an application web session. Scoped users may only
+// delete their own sessions. The unscoped path additionally allows users with
+// web_session delete privileges to delete other users' sessions.
+func (a *ScopedServerWithRoles) DeleteAppSession(ctx context.Context, req types.DeleteAppSessionRequest) error {
 	session, err := a.authServer.GetAppSession(ctx, types.GetAppSessionRequest(req))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(session.GetUser()); err != nil {
-		return trace.Wrap(err)
+
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		if err := unscoped.canDeleteWebSession(session.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := a.scopedCurrentUserAction(session.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(a.authServer.DeleteAppSession(ctx, req))
 }
 
 // DeleteSnowflakeSession removes a Snowflake web session.
@@ -6903,7 +6874,6 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	const iterationLimit = 3
 	for range iterationLimit {
 		// DBSC public key can only be set once to prevent rebinding to a different key.
@@ -6932,6 +6902,34 @@ func (a *ServerWithRoles) SetAppSessionDBSCPublicKey(ctx context.Context, sessio
 	}
 
 	return trace.LimitExceeded("failed to update app session in %v iterations", iterationLimit)
+}
+
+// GenerateAppToken creates a JWT token with application access.
+func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+	}); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// TODO(williamo/scopes): bind req.Scope to the generated token.
+	//
+	// The app JWT is signed by a single cluster wide JWT CA, so its trust anchor spans every scope.
+	// A compromised app could replay a valid signed token against another
+	// app they can access, including one in a different scope, if that app
+	// verifies only the signature and not the "aud" claim. Setting "aud" to the
+	// app's address is a partial mitigation, but enforcement is up to the
+	// downstream app.
+	//
+	// This cross app replay risk is not strictly scope specific, but attackers
+	// can use this path to reach out to other applications not in the user's scope.
+	token, err := a.authServer.generateAppToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // SignDBSCChallenge creates a signed challenge.
@@ -7075,11 +7073,46 @@ func (a *ScopedServerWithRoles) GetKubernetesServers(ctx context.Context) ([]typ
 	return filtered, nil
 }
 
+// GetApplicationServers returns all registered application servers
+// that the calling identity has permissions to view.
+func (a *ScopedServerWithRoles) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	servers, err := a.authServer.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+
+	var filtered []types.AppServer
+	for _, server := range servers {
+		// Identity Center account apps are currently not supported for scoped applications.
+		// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+		if server.GetScope() != "" && server.GetApp().GetSubKind() == types.KindIdentityCenterAccount {
+			continue
+		}
+
+		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, types.VerbRead, types.VerbList); err != nil {
+				return trace.Wrap(err)
+			}
+			return checker.App().CanAccessApp(server.GetApp())
+		})
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+}
+
 // UpsertKubernetesServer creates or updates a Server representing a teleport
 // kubernetes server.
 func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
-	if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", s.GetHostID(), types.RoleKube); err != nil {
+		if err := a.authorizeAction(types.KindKubeServer, types.VerbCreate, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if s.GetScope() != "" {
 		return nil, trace.BadParameter("scoped kubernetes server must register a control stream")
@@ -7089,8 +7122,10 @@ func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.Ku
 
 // DeleteKubernetesServer deletes specified kubernetes server.
 func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleKube); err != nil {
+		if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
 }
@@ -7596,7 +7631,7 @@ func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster t
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
@@ -7624,7 +7659,7 @@ func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster t
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.hasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
 	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
@@ -7936,8 +7971,10 @@ func (a *ServerWithRoles) GetWindowsDesktopService(ctx context.Context, name str
 
 // UpsertWindowsDesktopService creates or updates a new windows desktop service.
 func (a *ServerWithRoles) UpsertWindowsDesktopService(ctx context.Context, s types.WindowsDesktopService) (*types.KeepAlive, error) {
-	if err := a.authorizeAction(types.KindWindowsDesktopService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", s.GetName(), types.RoleWindowsDesktop); err != nil {
+		if err := a.authorizeAction(types.KindWindowsDesktopService, types.VerbCreate, types.VerbUpdate); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return a.authServer.UpsertWindowsDesktopService(ctx, s)
 }
@@ -8046,6 +8083,10 @@ func (a *ServerWithRoles) UpdateWindowsDesktop(ctx context.Context, s types.Wind
 
 // UpsertWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
 func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", s.GetHostID(), types.RoleWindowsDesktop); err == nil {
+		return a.authServer.UpsertWindowsDesktop(ctx, s)
+	}
+
 	// Ensure caller has both Create and Update permissions.
 	if err := a.authorizeAction(types.KindWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -8079,6 +8120,9 @@ func (a *ServerWithRoles) UpsertWindowsDesktop(ctx context.Context, s types.Wind
 // Passing an empty host ID will not trigger "delete all" behavior. To delete
 // all desktops, use DeleteAllWindowsDesktops.
 func (a *ServerWithRoles) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleWindowsDesktop); err == nil {
+		return a.authServer.DeleteWindowsDesktop(ctx, hostID, name)
+	}
 	if err := a.authorizeAction(types.KindWindowsDesktop, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
@@ -9186,9 +9230,9 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	return okta.CheckAccess(authzCtx, existingLock, verb)
 }
 
-// getBuiltinServerID returns the builtin server ID associated with the identity.
+// getLocalServerID returns the builtin server ID associated with the identity.
 // If the identity is not a builtin server role, and empty string and false are returned.
-func getBuiltinServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
+func getLocalServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
 	switch role := identityGetter.(type) {
 	case authz.BuiltinRole:
 		return role.GetServerID(), role.IsServer()

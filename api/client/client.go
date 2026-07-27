@@ -1585,13 +1585,23 @@ func (c *Client) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return keepAlive, nil
 }
 
-// DeleteApplicationServer removes specified application server.
+// DeleteApplicationServer removes an unscoped application server.
+//
+// Deprecated: Use [Client.DeleteAppServer] instead, which supports
+// scoped application servers.
+// TODO (williamo): Remove in v20
 func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	_, err := c.grpc.DeleteApplicationServer(ctx, &proto.DeleteApplicationServerRequest{
 		Namespace: namespace,
 		HostID:    hostID,
 		Name:      name,
 	})
+	return trace.Wrap(err)
+}
+
+// DeleteAppServer removes a scoped or unscoped application server.
+func (c *Client) DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteAppServer(ctx, req)
 	return trace.Wrap(err)
 }
 
@@ -1777,6 +1787,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

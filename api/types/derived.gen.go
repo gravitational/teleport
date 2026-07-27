@@ -24,7 +24,8 @@ func deriveTeleportEqualAppV3(this, that *AppV3) bool {
 			this.SubKind == that.SubKind &&
 			this.Version == that.Version &&
 			deriveTeleportEqualMetadata(&this.Metadata, &that.Metadata) &&
-			deriveTeleportEqual(&this.Spec, &that.Spec)
+			deriveTeleportEqual(&this.Spec, &that.Spec) &&
+			this.Scope == that.Scope
 }
 
 // deriveTeleportEqualAWS returns whether this and that are equal.

@@ -1706,6 +1706,15 @@ func TestScopedBotKubernetes(t *testing.T) {
 					Labels: []*labelv1.Label{
 						{Name: "*", Values: []string{"*"}},
 					},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      types.Wildcard,
+							Name:      types.Wildcard,
+							Namespace: types.Wildcard,
+							ApiGroup:  types.Wildcard,
+							Verbs:     []string{types.Wildcard},
+						}.Build(),
+					},
 					Groups: []string{"system:masters"},
 				},
 			},

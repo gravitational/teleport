@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -975,6 +976,12 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	})
 	require.Error(t, err)
 
+	wildcardLabels := []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   "*",
+			Values: []string{"*"},
+		}.Build(),
+	}
 	// set up some scoped roles
 	scopedRoles := []*scopedaccessv1.ScopedRole{
 		{
@@ -985,9 +992,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-a"},
-				},
+				}.Build(),
 			},
 			Version: types.V1,
 		},
@@ -999,9 +1007,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-b"},
-				},
+				}.Build(),
 			},
 			Version: types.V1,
 		},
@@ -1013,9 +1022,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-c"},
-				},
+				}.Build(),
 			},
 			Version: types.V1,
 		},
@@ -1027,9 +1037,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Labels: wildcardLabels,
 					Logins: []string{"login-x"},
-				},
+				}.Build(),
 			},
 			Version: types.V1,
 		},

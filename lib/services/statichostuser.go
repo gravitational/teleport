@@ -25,6 +25,7 @@ import (
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services/label"
 )
 
 // StaticHostUserService manages host users that should be created on SSH nodes.
@@ -74,8 +75,8 @@ func ValidateStaticHostUser(u *userprovisioningpb.StaticHostUser) error {
 				return trace.BadParameter("selector *:<val> is not supported")
 			}
 		}
-		if len(matcher.NodeLabelsExpression) > 0 {
-			if _, err := parseLabelExpression(matcher.NodeLabelsExpression); err != nil {
+		if len(matcher.GetNodeLabelsExpression()) > 0 {
+			if _, err := label.ParseExpression(matcher.GetNodeLabelsExpression()); err != nil {
 				return trace.BadParameter("parsing node labels expression: %v", err)
 			}
 		}

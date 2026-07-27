@@ -37,6 +37,10 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindBotInstance:
 		// bot instances can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
+	case types.KindKubernetesCluster:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindAppServer:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	case types.KindAccessList:
 		// access lists can be read/written, and do not contain a concept of a secret.
 		// permissions for access list members are conferred by permissions for

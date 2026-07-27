@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -172,7 +173,7 @@ type suiteConfig struct {
 
 type fakeConnMonitor struct{}
 
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
 }
 
@@ -345,13 +346,13 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
-	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
+	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly", "")
 
 	// Generate certificate for AWS console application with integration
-	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
+	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly", "")
 
 	s.lockWatcher, err = services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -360,10 +361,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "cluster-name",
-		AccessPoint: s.authClient,
-		LockWatcher: s.lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "cluster-name",
+		AccessPoint:      s.authClient,
+		ScopedRoleReader: s.authClient.ScopedRoleReader(),
+		LockWatcher:      s.lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -459,7 +461,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	return s
 }
 
-func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN string) tls.Certificate {
+func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, awsRoleARN, scope string) tls.Certificate {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	privateKeyPEM, err := keys.MarshalPrivateKey(key)
@@ -474,6 +476,7 @@ func (s *Suite) generateCertificate(t *testing.T, user types.User, publicAddr, a
 		PublicAddr:  publicAddr,
 		ClusterName: "root.example.com",
 		LoginTrait:  s.login,
+		Scope:       scope,
 	}
 	if awsRoleARN != "" {
 		req.AWSRoleARN = awsRoleARN
@@ -1080,7 +1083,7 @@ func TestAuthorize(t *testing.T) {
 				user, err = authServer.Services.UpdateUser(ctx, user)
 				require.NoError(t, err, "UpdateUser")
 
-				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */, "")
 			}
 
 			if test.requireTrustedDevice {
@@ -1124,6 +1127,17 @@ func TestAuthorize(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestAuthorizeScopeMismatch(t *testing.T) {
+	s := SetUpSuite(t)
+
+	// App foo is unscoped, so expect this to fail
+	clientCert := s.generateCertificate(t, s.user, s.appFoo.GetPublicAddr(), "", "/staging")
+
+	s.checkHTTPResponse(t, clientCert, func(resp *http.Response) {
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
 }
 
 // TestAuthorizeWithLocks verifies that requests are forbidden when there is

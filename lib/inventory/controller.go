@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -59,7 +60,7 @@ type Auth interface {
 
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 	UnconditionalUpdateApplicationServer(context.Context, types.AppServer) (types.AppServer, error)
-	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
 
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
@@ -790,7 +791,11 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 			return
 		}
 
-		if err := c.auth.DeleteApplicationServer(cleanupCtx, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+		if err := c.auth.DeleteAppServer(cleanupCtx, presencev1.DeleteAppServerRequest_builder{
+			HostId: app.resource.GetHostID(),
+			Name:   app.resource.GetName(),
+			Scope:  app.resource.GetScope(),
+		}.Build()); err != nil && !trace.IsNotFound(err) {
 			if cleanupCtx.Err() != nil {
 				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
 				return
@@ -1100,7 +1105,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server ID (expected %q, got %q)", handle.Hello().ServerID, appServer.GetHostID())
 	}
 
-	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// Agents that don't know about scopes can still have a scoped identity. In that case, we consider an empty
 	// scope to defer to what was found in the identity during the initial hello.
 	if appServer.Scope == "" {
 		appServer.Scope = handle.Hello().GetScope()
@@ -1110,6 +1115,22 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 	if appServer.Scope != handle.Hello().GetScope() {
 		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
 	}
+
+	app := appServer.GetApp()
+
+	// Require the embedded app scope to equal the server scope.
+	if app != nil && !services.AppServerScopesEqual(appServer.Scope, app.GetScope()) {
+		return trace.AccessDenied("incorrect embedded app scope (server scope %q does not match app scope %q)", appServer.Scope, app.GetScope())
+	}
+
+	if appServer.Scope != "" && !scopedapp.ScopedAppPublicAddrValid(app.GetScope(), app.GetName(), app.GetPublicAddr()) {
+		return trace.AccessDenied("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), app.GetScope())
+	}
+
+	// Older agents send mixed-case names and URL-shaped public_addr;
+	// normalize before deriving the cache key so it matches the
+	// backend write.
+	services.NormalizeAppServerForHeartbeat(appServer)
 
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
