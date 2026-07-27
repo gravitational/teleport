@@ -245,7 +245,7 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	}
 	require.NoError(t, setup.K8sClient.Get(ctx, key, kubeAccessList))
 
-	reconciler, err := resources.NewAccessListReconciler(setup.K8sClient, clt)
+	reconciler, err := resources.NewAccessListReconciler(setup.K8sClient, clt, setup.OperatorMetadata())
 	require.NoError(t, err)
 
 	// Test execution: Kick off the reconciliation.

@@ -20,6 +20,7 @@ package reconcilers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -125,6 +126,13 @@ func TestScopedResource153Reconciler(t *testing.T) {
 		kubeClient,
 		resourceClient,
 		Config{Scoped: true},
+		OperatorMetadata{
+			Namespace: "ns",
+			ID:        "id",
+			TokenName: "token",
+			Scope:     scopeA,
+			Owner:     "test@example.com",
+		},
 	)
 	require.NoError(t, err)
 
@@ -141,6 +149,7 @@ func TestScopedResource153Reconciler(t *testing.T) {
 	roleA := resourceClient.store[ResourceKey{Name: name, Scope: scopeA}]
 	require.NotNil(t, roleA)
 	require.Equal(t, types.OriginKubernetes, roleA.GetMetadata().GetLabels()[types.OriginLabel])
+	require.Equal(t, name, roleA.GetMetadata().GetLabels()[customResourceNameLabel])
 	require.NotNil(t, resourceClient.store[ResourceKey{Name: name, Scope: scopeB}])
 
 	err = kubeClient.Delete(t.Context(), cr)
@@ -151,4 +160,257 @@ func TestScopedResource153Reconciler(t *testing.T) {
 
 	require.Nil(t, resourceClient.store[ResourceKey{Name: name, Scope: scopeA}])
 	require.NotNil(t, resourceClient.store[ResourceKey{Name: name, Scope: scopeB}])
+}
+
+type fakeResource153 struct {
+	ScopedResource153
+	metadata *headerv1.Metadata
+	scope    string
+}
+
+func (r *fakeResource153) GetMetadata() *headerv1.Metadata {
+	return r.metadata
+}
+
+func (r *fakeResource153) GetScope() string {
+	return r.scope
+}
+
+func TestResource153Adapter_CheckOwnership(t *testing.T) {
+	const (
+		testID        = "test-id"
+		conflictingID = "conflicting-id"
+	)
+	tests := []struct {
+		name           string
+		resource       *fakeResource153
+		expected       bool
+		expectedReason string
+	}{
+		{
+			name:           "no labels",
+			resource:       &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{}}.Build()},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name:           "labels but no origin",
+			resource:       &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{"foo": "bar"}}.Build()},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name:     "origin label match",
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes}}.Build()},
+			expected: true,
+		},
+	}
+
+	adapter := Resource153Adapter[*fakeResource153]{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			owned, reason := adapter.CheckOwnership(tt.resource, OperatorMetadata{})
+			require.Equal(t, tt.expected, owned)
+			require.Equal(t, tt.expectedReason, reason)
+		})
+	}
+}
+
+func TestScopedResource153Adapter_CheckOwnership(t *testing.T) {
+	const (
+		testID        = "test-id"
+		conflictingID = "conflicting-id"
+		testScope     = "/team/a"
+	)
+	tests := []struct {
+		name           string
+		resource       *fakeResource153
+		expected       bool
+		expectedReason string
+	}{
+		{
+			name:           "unscoped - no labels",
+			resource:       &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{}}.Build()},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name:           "uncscope - labels but no origin",
+			resource:       &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{"foo": "bar"}}.Build()},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name:           "unscoped - origin label mismatch",
+			resource:       &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginDefaults}}.Build()},
+			expected:       false,
+			expectedReason: fmt.Sprintf(ownershipIssueMismatchOriginLabel, types.OriginDefaults),
+		},
+		{
+			name:     "unscoped - origin label match but no id",
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes}}.Build()},
+			expected: true,
+		},
+		{
+			name:     "unscoped - origin label match but mismatch id",
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID}}.Build()},
+			expected: true,
+		},
+		{
+			name:     "unscoped - origin label match and matching id",
+			resource: &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID}}.Build()},
+			expected: true,
+		},
+		{
+			name: "scoped - no labels",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{}}.Build(),
+				scope:    testScope,
+			},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name: "scoped - labels but no origin",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{"foo": "bar"}}.Build(),
+				scope:    testScope,
+			},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOriginLabel,
+		},
+		{
+			name: "scoped - origin label mismatch",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginDefaults}}.Build(),
+				scope:    testScope,
+			},
+			expected:       false,
+			expectedReason: fmt.Sprintf(ownershipIssueMismatchOriginLabel, types.OriginDefaults),
+		},
+		{
+			name: "scoped - origin label match but no id",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes}}.Build(),
+				scope:    testScope,
+			},
+			expected:       false,
+			expectedReason: ownershipIssueMissingOperatorID,
+		},
+		{
+			name: "scoped - origin label match but mismatch id",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: conflictingID}}.Build(),
+				scope:    testScope,
+			},
+			expected:       false,
+			expectedReason: fmt.Sprintf(ownershipIssueMismatchOperatorID, conflictingID, testID),
+		},
+		{
+			name: "scoped - origin label match and matching id",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: map[string]string{types.OriginLabel: types.OriginKubernetes, OperatorIDLabel: testID}}.Build(),
+				scope:    testScope,
+			},
+			expected: true,
+		},
+	}
+
+	adapter := ScopedResource153Adapter[*fakeResource153]{}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			owned, reason := adapter.CheckOwnership(tt.resource, OperatorMetadata{ID: testID})
+			require.Equal(t, tt.expected, owned)
+			require.Equal(t, tt.expectedReason, reason)
+		})
+	}
+}
+
+func TestResource153Adapter_SetLabels(t *testing.T) {
+	adapter := Resource153Adapter[*fakeResource153]{}
+	resource := &fakeResource153{metadata: headerv1.Metadata_builder{Labels: map[string]string{}}.Build()}
+	adapter.SetResourceLabels(resource, map[string]string{
+		"foo": "bar",
+	}, OperatorMetadata{
+		Namespace: "unused",
+		ID:        "unused",
+		TokenName: "unused",
+		Scope:     "unused",
+		Owner:     "unused",
+	}, customResourceMetadata{
+		name:      "unused",
+		namespace: "unused",
+		gvk:       "unused",
+	})
+	require.Equal(t, map[string]string{
+		"foo":             "bar",
+		types.OriginLabel: types.OriginKubernetes,
+	}, resource.metadata.GetLabels())
+}
+
+func TestScopedResource153Adapter_SetLabels(t *testing.T) {
+	const testScope = "/team/a"
+	initialLabels := map[string]string{
+		"foo": "bar",
+	}
+	kubeLabels := map[string]string{
+		"kube": "label",
+	}
+
+	operatorMetadata := OperatorMetadata{
+		Namespace: "namespace",
+		ID:        "id",
+		TokenName: "token",
+		Scope:     "scope",
+		Owner:     "owner",
+	}
+	resourceMetadata := customResourceMetadata{
+		namespace: "cr-namespace",
+		name:      "name",
+		gvk:       "gvk",
+	}
+
+	tests := []struct {
+		name           string
+		resource       *fakeResource153
+		expectedLabels map[string]string
+	}{
+		{
+			name: "unscoped",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: initialLabels}.Build(),
+			},
+			expectedLabels: map[string]string{
+				"kube":            "label",
+				types.OriginLabel: types.OriginKubernetes,
+			},
+		},
+		{
+			name: "scoped",
+			resource: &fakeResource153{
+				metadata: headerv1.Metadata_builder{Labels: initialLabels}.Build(),
+				scope:    testScope,
+			},
+			expectedLabels: map[string]string{
+				"kube":                       "label",
+				types.OriginLabel:            types.OriginKubernetes,
+				OperatorIDLabel:              operatorMetadata.ID,
+				operatorNamespaceLabel:       operatorMetadata.Namespace,
+				operatorOwnerLabel:           operatorMetadata.Owner,
+				operatorTokenNameLabel:       operatorMetadata.TokenName,
+				customResourceNameLabel:      resourceMetadata.name,
+				customResourceNamespaceLabel: resourceMetadata.namespace,
+				customResourceGVKLabel:       resourceMetadata.gvk,
+			},
+		},
+	}
+
+	adapter := ScopedResource153Adapter[*fakeResource153]{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter.SetResourceLabels(tt.resource, kubeLabels, operatorMetadata, resourceMetadata)
+			require.Equal(t, tt.expectedLabels, tt.resource.metadata.GetLabels())
+		})
+	}
 }
