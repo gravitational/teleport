@@ -17,7 +17,8 @@ detections shown in the Web UI under [Alerts](../usage/alerts.mdx).
 
 See [Identity Security from the Command Line](./cli.mdx) for the shared
 prerequisites and how the CLI authenticates to Access Graph. This command
-requires Access Graph v1.28.0 or later.
+requires Access Graph v1.28.0 or later, and
+[Identity Activity Center](../access-graph/identity-activity-center.mdx).
 
 ## List detections
 
@@ -41,16 +42,16 @@ $ tctl detections ls --detailed
 $ tctl detections ls --format=json --limit=25
 ```
 
-| Flag | Description |
-| --- | --- |
-| `--status` | Filter by status: `in_progress`, `triaged`, `resolved`, `closed`. Repeatable. Default: `in_progress`, `triaged`. |
-| `--severity` | Filter by severity: `low`, `medium`, `high`, `critical`. Repeatable. |
-| `--source` | Filter by detection source. Repeatable. |
-| `--type` | Filter by detection type. Repeatable. |
-| `--from`, `--to` | Time window. Accepts RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. Default: `30d` to `now`. |
-| `--detailed` | Include extra columns in text output. |
-| `--limit` | Maximum detections to return. Default: `100`. |
-| `--format` | Output format: `text`, `json`, `yaml`. |
+| Flag             | Description                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `--status`       | Filter by status: `in_progress`, `triaged`, `resolved`, `closed`. Repeatable. Default: `in_progress`, `triaged`. |
+| `--severity`     | Filter by severity: `low`, `medium`, `high`, `critical`. Repeatable.                                             |
+| `--source`       | Filter by detection source. Repeatable.                                                                          |
+| `--type`         | Filter by detection type. Repeatable.                                                                            |
+| `--from`, `--to` | Time window. Accepts RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. Default: `30d` to `now`.              |
+| `--detailed`     | Include extra columns in text output.                                                                            |
+| `--limit`        | Maximum detections to return. Default: `100`.                                                                    |
+| `--format`       | Output format: `text`, `json`, `yaml`.                                                                           |
 
 ## Inspect a detection
 

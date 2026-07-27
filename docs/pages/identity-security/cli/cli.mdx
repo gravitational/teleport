@@ -17,10 +17,8 @@ to script investigations, feed automation, and work without leaving the shell.
 
 ## How it works
 
-These commands talk directly to Teleport Access Graph rather than the usual
-`tctl` administrative API. The first time you run one, `tctl` issues and caches
-an Access Graph certificate bound to your current `tsh` profile; later commands
-reuse that certificate until it expires.
+These commands query Teleport Access Graph through the Teleport Proxy Service,
+using the credentials from your current `tsh` session.
 
 ## Prerequisites
 
@@ -32,6 +30,9 @@ reuse that certificate until it expires.
 - `tctl` installed locally. See [Installation](../../installation/installation.mdx).
 - A logged-in session created with `tsh login`, or a Teleport identity file
   passed with `tctl -i <identity-file> --auth-server <proxy-or-auth-addr>`.
+- A Teleport user with a role that allows the `list` and `read` verbs on the
+  `access_graph` resource. The preset `editor` role has the required permissions
+  by default.
 
 ## Get started
 
@@ -42,9 +43,6 @@ $ tsh login --proxy=teleport.example.com --user=alice
 $ tctl detections ls
 ```
 
-The first command prompts `tctl` to issue an Access Graph certificate; you will
-not be asked again until it expires.
-
 ## Commands
 
 | Command                                       | What it does                                        | In the Web UI                             |
@@ -54,8 +52,7 @@ not be asked again until it expires.
 | [`tctl access-changes`](./access-changes.mdx) | Monitor access-path changes to crown jewels.        | [Crown Jewels](../usage/crown-jewels.mdx) |
 | [`tctl access-review`](./access-review.mdx)   | Review which identities can access which resources. | Access Graph                              |
 
-\* Requires [Identity Activity Center](../access-graph/identity-activity-center.mdx),
-currently available only in self-hosted Teleport Enterprise deployments.
+\* Requires [Identity Activity Center](../access-graph/identity-activity-center.mdx).
 
 ## Next steps
 

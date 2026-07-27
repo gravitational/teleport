@@ -18,7 +18,8 @@ what, from where, and when.
 
 See [Identity Security from the Command Line](./cli.mdx) for the shared
 prerequisites and how the CLI authenticates to Access Graph. This command
-requires Access Graph v1.28.0 or later.
+requires Access Graph v1.28.0 or later, and
+[Identity Activity Center](../access-graph/identity-activity-center.mdx).
 
 ## Explore with facets
 
@@ -44,18 +45,18 @@ $ tctl investigate --user=alice@example.com --status=failure --from=7d
 $ tctl investigate --event-type=session.start --exclude-source=okta
 ```
 
-| Flag | Description |
-| --- | --- |
-| `--user` | User (email for users, ID for bots). Repeatable. |
-| `--event-type` | Event type, e.g. `session.start`. Repeatable. |
-| `--resource`, `--resource-kind` | Target resource and kind (`ssh`, `kube`, …). Repeatable. |
-| `--status` | `success` or `failure`. Repeatable. |
-| `--source` | Event source. Repeatable. |
-| `--ip`, `--country`, `--city`, `--region` | Origin filters. Repeatable. |
-| `--from`, `--to` | Time window. Default: `1d` to `now`. |
-| `--limit`, `--order` | Cap results (default `100`) and order by time (`asc`/`desc`). |
-| `--all-facets`, `--show-unmatched` | Expand facet output. |
-| `--format` | `text`, `json`, `yaml`. |
+| Flag                                      | Description                                                   |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `--user`                                  | User (email for users, ID for bots). Repeatable.              |
+| `--event-type`                            | Event type, e.g. `session.start`. Repeatable.                 |
+| `--resource`, `--resource-kind`           | Target resource and kind (`ssh`, `kube`, …). Repeatable.      |
+| `--status`                                | `success` or `failure`. Repeatable.                           |
+| `--source`                                | Event source. Repeatable.                                     |
+| `--ip`, `--country`, `--city`, `--region` | Origin filters. Repeatable.                                   |
+| `--from`, `--to`                          | Time window. Default: `1d` to `now`.                          |
+| `--limit`, `--order`                      | Cap results (default `100`) and order by time (`asc`/`desc`). |
+| `--all-facets`, `--show-unmatched`        | Expand facet output.                                          |
+| `--format`                                | `text`, `json`, `yaml`.                                       |
 
 Every structured flag has an `--exclude-<flag>` counterpart. For the complete
 list (AWS, GitHub, Okta, Teleport-cluster, token, and user-agent filters), see
@@ -93,6 +94,7 @@ To let an AI agent drive this command, install the matching Agent Skill:
 ```code
 $ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
 ```
+
 </Admonition>
 
 ## Next steps
