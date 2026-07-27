@@ -660,7 +660,7 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubernetesClusters(ctx, "", ""))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
@@ -1306,7 +1306,7 @@ func (p *lockCollector) notifyStale() {
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
-		if target.IsEmpty() {
+		if target == (types.LockTarget{}) {
 			continue
 		}
 		filter, err := target.IntoMap()

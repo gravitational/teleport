@@ -59,6 +59,7 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -1326,6 +1327,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"scoped_kube_user"},
 					Groups: []string{"scoped_kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,
@@ -3460,7 +3470,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 	scopedCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name: "scoped-cluster",
+			Name: "cluster",
 			Labels: map[string]string{
 				types.CloudLabel: types.CloudAWS,
 			},
@@ -3482,14 +3492,18 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
-
-		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		listAllReq := presencev1.ListKubeClustersRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
+		}.Build()
+		clusters, next, err := discoveryClt.ListKubeClusters(ctx, listAllReq)
 		require.Empty(t, next)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		clusters, err = stream.Collect(discoveryClt.RangeKubeClusters(ctx, listAllReq))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 	})
@@ -3502,7 +3516,9 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		scopedEKSCluster, ok := eksCluster.Copy().(*types.KubernetesClusterV3)
 		require.True(t, ok, "expected eksCluster copy to be a *types.KubernetesClusterV3")
 		scopedEKSCluster.Scope = "/test"
-		require.True(t, trace.IsBadParameter(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)))
+		// should fail with not found because adding a scope to an unscoped cluster name results in a new resource,
+		// which means the fetch for the existing cluster before updating will return trace.NotFoundError
+		require.True(t, trace.IsNotFound(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)), "expected trace.NotFoundError when fetching existing kube cluster before update")
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
@@ -3510,6 +3526,8 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Empty(t, clusters)
@@ -3519,7 +3537,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
+		clusters, err = stream.Collect(srv.Auth().RangeKubeClusters(ctx, nil))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -3533,7 +3551,8 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		AgentPinEnabled: true,
 	}))
 
-	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", "/test", types.RoleKube)
+	const scope = "/test"
+	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", scope, types.RoleKube)
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
@@ -3559,9 +3578,9 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	scopedKubeCluster := &types.KubernetesClusterV3{
 		Kind:    types.KindKubernetesCluster,
 		Version: types.V3,
-		Scope:   "/test",
+		Scope:   scope,
 		Metadata: types.Metadata{
-			Name: "scoped-" + clusterName,
+			Name: clusterName,
 			Labels: map[string]string{
 				"env": "test",
 			},
@@ -3619,34 +3638,35 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("GetKubernetesCluster", func(t *testing.T) {
 		// unscoped kube clients SHOULD be able to fetch an unscoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.NoError(t, err)
 		require.NotNil(t, cluster)
 
 		// unscoped kube clients SHOULD be able to fetch a scoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		cluster, err = unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.NoError(t, err)
 		require.NotNil(t, cluster)
 
 		// scoped kube clients SHOULD NOT be able to fetch an unscoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		scopedCluster, err := scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
 		require.Nil(t, scopedCluster, "expected unscoped kube cluster to be nil")
 		require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
-
-		// scoped kube clients SHOULD be able to fetch a scoped kube cluster
-		scopedCluster, err = scopedKubeClient.GetKubernetesCluster(ctx, "scoped-"+clusterName)
-		require.NoError(t, err)
-		require.NotNil(t, scopedCluster)
 	})
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
+		// unscoped kube clients SHOULD be able to list all kube clusters
 		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Len(t, clusters, 2)
+		require.Len(t, clusters, 1)
 
-		// scoped kube clients SHOULD be able to list a kube clusters
+		// scoped kube clients SHOULD be able to list kube clusters within their scope
 		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, scopedClusters, 1)
@@ -3655,12 +3675,16 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	})
 
 	t.Run("ListKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
+		// unscoped kube clients SHOULD be able to list all unscoped kube clusters
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
-		require.Len(t, clusters, 2)
+		require.Len(t, clusters, 1)
 
-		// scoped kube clients SHOULD be able to list kube clusters
+		// scoped kube clients SHOULD be able to list kube clusters within their scope
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		scopedClusters, _, err := scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
 		require.Len(t, scopedClusters, 1)
@@ -3670,10 +3694,14 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
 		// neither scoped nor unscoped kube clients should be able to delete a kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		err := unscopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		err = scopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
@@ -5918,6 +5946,15 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 					Kube: scopedaccessv1.ScopedRoleKube_builder{
 						Users:  []string{"kube_user"},
 						Groups: []string{"kube_group"},
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Namespace: "*",
+								Name:      "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
 						Labels: []*labelv1.Label{
 							labelv1.Label_builder{
 								Name:   types.Wildcard,
@@ -6157,6 +6194,77 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+	}
+}
+
+func TestDeleteAppSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/staging"
+
+	unscopedSrv := newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "alice", nil)
+	scopedSrv := newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, "scoped-alice", scope,
+		scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scope},
+			App: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `labels["env"] == "staging"`,
+			}.Build(),
+		}.Build())
+
+	cases := []struct {
+		name         string
+		srv          *auth.ScopedServerWithRoles
+		sessionOwner string
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped user deletes own session",
+			srv:          unscopedSrv,
+			sessionOwner: "alice",
+		},
+		{
+			name:         "unscoped user cannot delete another user's session",
+			srv:          unscopedSrv,
+			sessionOwner: "bob",
+			wantErr:      true,
+		},
+		{
+			name: "unscoped user with web_session rules deletes another user's session",
+			srv: newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "admin",
+				[]types.Rule{types.NewRule(types.KindWebSession, []string{types.VerbList, types.VerbDelete})}),
+			sessionOwner: "bob",
+		},
+		{
+			name:         "scoped user deletes own session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-alice",
+		},
+		{
+			name:         "scoped user cannot delete another user's session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-bob",
+			wantErr:      true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			ws, err := types.NewWebSession(uuid.NewString(), types.KindAppSession, types.WebSessionSpecV2{
+				User:    tc.sessionOwner,
+				Expires: srv.Clock().Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+			require.NoError(t, srv.Auth().UpsertAppSession(ctx, ws))
+
+			err = tc.srv.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: ws.GetName()})
+			if tc.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -6650,6 +6758,36 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		}
 		require.IsDecreasing(t, names)
 	})
+
+	t.Run("pagination does not duplicate the boundary item", func(t *testing.T) {
+		t.Parallel()
+
+		page1, nextKey, err := s.ListUserGroups(ctx, 2, "")
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		require.Equal(t, testUg2.GetName(), page1[0].GetName())
+		require.Equal(t, testUg3.GetName(), page1[1].GetName())
+
+		// nextKey must point at the next UNFETCHED item
+		require.Equal(t, testUg1.GetName(), nextKey,
+			"nextKey should be the name of the next item to fetch, not the last item already returned")
+
+		page2, nextKey2, err := s.ListUserGroups(ctx, 2, nextKey)
+		require.NoError(t, err)
+		require.Empty(t, nextKey2)
+		require.Len(t, page2, 1)
+		require.Equal(t, testUg1.GetName(), page2[0].GetName())
+
+		// No group should be served on both pages.
+		seen := make(map[string]bool, len(page1))
+		for _, ug := range page1 {
+			seen[ug.GetName()] = true
+		}
+		for _, ug := range page2 {
+			require.Falsef(t, seen[ug.GetName()], "user group %q was returned on both pages", ug.GetName())
+		}
+	})
+
 }
 
 func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[string]string) types.UserGroup {
@@ -13868,6 +14006,15 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,

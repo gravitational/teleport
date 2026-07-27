@@ -56,6 +56,7 @@ import (
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -76,6 +77,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -130,6 +132,25 @@ func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandIn
 
 func (sm *mockSSMClient) GetCommandInvocation(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 	return sm.invokeOutput, nil
+}
+
+type mockAWSSTSClient struct {
+	output *sts.GetCallerIdentityOutput
+}
+
+func (m *mockAWSSTSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return m.output, nil
+}
+
+func mockGetAWSSTSClient(accountID string) server.AWSSTSGetter {
+	return func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.AWSSTSClient, error) {
+		return &mockAWSSTSClient{
+			output: &sts.GetCallerIdentityOutput{
+				Account: aws.String(accountID),
+				Arn:     aws.String("arn:aws:sts::" + accountID + ":assumed-role/Discovery/session"),
+			},
+		}, nil
+	}
 }
 
 type mockEmitter struct {
@@ -960,6 +981,7 @@ func TestDiscoveryServer(t *testing.T) {
 					GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 						return ec2Client, nil
 					},
+					GetAWSSTSClient: mockGetAWSSTSClient("123456789012"),
 					GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 						return tc.ssm, nil
 					},
@@ -1365,6 +1387,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		// Create Server1
 		server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 			GetEC2Client:     getEC2Client,
+			GetAWSSTSClient:  mockGetAWSSTSClient("123456789012"),
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -1378,6 +1401,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		// Create Server2
 		server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 			GetEC2Client:     getEC2Client,
+			GetAWSSTSClient:  mockGetAWSSTSClient("123456789012"),
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -4470,7 +4494,7 @@ func (f *fakeAccessPoint) EnrollEKSClusters(ctx context.Context, req *integratio
 	return &integrationpb.EnrollEKSClustersResponse{}, trace.NotImplemented("not implemented")
 }
 
-func (f *fakeAccessPoint) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+func (f *fakeAccessPoint) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	return f.kube, nil
 }
 

@@ -95,7 +95,7 @@ func TestLabelExpressions(t *testing.T) {
 				"env": "staging",
 			},
 			expectParseError: []string{
-				"parsing first argument to (contains)",
+				"parsing first argument to function (contains)",
 				"expected type []string",
 			},
 		},

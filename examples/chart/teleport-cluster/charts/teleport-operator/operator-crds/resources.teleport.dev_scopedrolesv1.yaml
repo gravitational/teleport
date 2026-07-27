@@ -172,6 +172,10 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  label_expression:
+                    description: LabelExpression is an optional predicate expression
+                      evaluated against a kubernetes server's labels.
+                    type: string
                   labels:
                     description: The map of kubernetes cluster labels used for RBAC.
                     items:
@@ -321,6 +325,10 @@ spec:
                         description: Shell is the shell to set for the user.
                         type: string
                     type: object
+                  label_expression:
+                    description: LabelExpression is an optional predicate expression
+                      evaluated against an ssh node's labels.
+                    type: string
                   labels:
                     description: Labels is the set of node labels used to dynamically
                       select which nodes this role applies to.

@@ -212,6 +212,11 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
+						"label_expression": {
+							Description: "LabelExpression is an optional predicate expression evaluated against a kubernetes server's labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"labels": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"name": {
@@ -361,6 +366,11 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							}),
 							Description: "HostUserCreation configures the creation of host users.",
 							Optional:    true,
+						},
+						"label_expression": {
+							Description: "LabelExpression is an optional predicate expression evaluated against an ssh node's labels.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"labels": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -1473,6 +1483,23 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["label_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.ssh.label_expression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.ssh.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LabelExpression = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -1809,6 +1836,23 @@ func CopyScopedRoleFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 														}
 													}
 												}
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["label_expression"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ScopedRole.spec.kube.label_expression"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ScopedRole.spec.kube.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.LabelExpression = t
 											}
 										}
 									}
@@ -3710,6 +3754,28 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 											}
 										}
 									}
+									{
+										t, ok := tf.AttrTypes["label_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.ssh.label_expression"})
+										} else {
+											v, ok := tf.Attrs["label_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.ssh.label_expression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.ssh.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LabelExpression) == ""
+											}
+											v.Value = string(obj.LabelExpression)
+											v.Unknown = false
+											tf.Attrs["label_expression"] = v
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["ssh"] = v
@@ -4280,6 +4346,28 @@ func CopyScopedRoleToTerraform(ctx context.Context, obj *github_com_gravitationa
 												v.Unknown = false
 												tf.Attrs["lock"] = v
 											}
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["label_expression"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ScopedRole.spec.kube.label_expression"})
+										} else {
+											v, ok := tf.Attrs["label_expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.label_expression", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.label_expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.LabelExpression) == ""
+											}
+											v.Value = string(obj.LabelExpression)
+											v.Unknown = false
+											tf.Attrs["label_expression"] = v
 										}
 									}
 								}

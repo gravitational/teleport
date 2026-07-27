@@ -52,6 +52,19 @@ const (
 	KindSQLiteMemory Kind = "sqlite_memory"
 )
 
+// SynchronousMode controls the SQLite synchronous pragma.
+type SynchronousMode string
+
+const (
+	// SynchronousNormal commits are durable against OS crashes but not against
+	// power loss mid-write. This is the default for SQLite and is safe for most
+	// use cases in WAL mode.
+	SynchronousNormal SynchronousMode = "NORMAL"
+	// SynchronousFull syncs to disk before each commit, providing full
+	// durability at the cost of higher write latency.
+	SynchronousFull SynchronousMode = "FULL"
+)
+
 // Config configures a Queue.
 type Config struct {
 	// Path is the path to the directory used by the audit log queue.
@@ -73,6 +86,8 @@ type Config struct {
 	// DeadLetterTTL is the maximum age of a dead-letter event before it is
 	// permanently deleted.
 	DeadLetterTTL time.Duration
+	// Synchronous controls the SQLite synchronous pragma.
+	Synchronous SynchronousMode
 }
 
 // Item is an event yielded to a Handler.

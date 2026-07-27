@@ -1409,6 +1409,7 @@ type AppKey struct {
 	xxx_hidden_Profile     string                 `protobuf:"bytes,1,opt,name=profile,proto3"`
 	xxx_hidden_LeafCluster string                 `protobuf:"bytes,2,opt,name=leaf_cluster,json=leafCluster,proto3"`
 	xxx_hidden_Name        string                 `protobuf:"bytes,3,opt,name=name,proto3"`
+	xxx_hidden_Scope       string                 `protobuf:"bytes,4,opt,name=scope,proto3"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1459,6 +1460,13 @@ func (x *AppKey) GetName() string {
 	return ""
 }
 
+func (x *AppKey) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *AppKey) SetProfile(v string) {
 	x.xxx_hidden_Profile = v
 }
@@ -1471,6 +1479,10 @@ func (x *AppKey) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
+func (x *AppKey) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
 type AppKey_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1481,6 +1493,8 @@ type AppKey_builder struct {
 	LeafCluster string
 	// Name is the name of the app.
 	Name string
+	// Scope is the scope of the app.
+	Scope string
 }
 
 func (b0 AppKey_builder) Build() *AppKey {
@@ -1490,6 +1504,7 @@ func (b0 AppKey_builder) Build() *AppKey {
 	x.xxx_hidden_Profile = b.Profile
 	x.xxx_hidden_LeafCluster = b.LeafCluster
 	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -4205,11 +4220,12 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1e\n" +
 	"\x03app\x18\x03 \x01(\v2\f.types.AppV3R\x03app\x12&\n" +
 	"\x0fipv4_cidr_range\x18\x04 \x01(\tR\ripv4CidrRange\x12D\n" +
-	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"Y\n" +
+	"\fdial_options\x18\x05 \x01(\v2!.teleport.lib.vnet.v1.DialOptionsR\vdialOptions\"o\n" +
 	"\x06AppKey\x12\x18\n" +
 	"\aprofile\x18\x01 \x01(\tR\aprofile\x12!\n" +
 	"\fleaf_cluster\x18\x02 \x01(\tR\vleafCluster\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\"\xee\x01\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\"\xee\x01\n" +
 	"\vDialOptions\x12$\n" +
 	"\x0eweb_proxy_addr\x18\x01 \x01(\tR\fwebProxyAddr\x12;\n" +
 	"\x1aalpn_conn_upgrade_required\x18\x02 \x01(\bR\x17alpnConnUpgradeRequired\x12\x10\n" +

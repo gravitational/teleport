@@ -33,6 +33,7 @@ page_type: how-to
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - AWS account with a DocumentDB cluster.
+
   <Admonition type="warning" title="IAM authentication and TLS">
   Teleport uses IAM authentication to connect users to DocumentDB, which is
   only supported for DocumentDB 5.0 or higher.
@@ -40,10 +41,13 @@ page_type: how-to
   In addition, the DocumentDB cluster must have Transport Layer Security (TLS)
   enabled. TLS is enabled by default when using the default parameter group.
   </Admonition>
+
 - Command-line client `mongosh` or `mongo` installed and added to your
   system's `PATH` environment variable.
+
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
+
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/6. Create a Teleport user

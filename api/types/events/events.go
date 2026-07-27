@@ -789,6 +789,31 @@ func (m *AppSessionRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
+func (m *AppSessionTargetDialDenied) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.TargetHost = ""
+	out.ResolvedIPs = nil
+	out.BlockedIP = ""
+	out.BlockedPrefix = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.TargetHost, m.BlockedIP, m.BlockedPrefix) + nonEmptyStrsInSlice(m.ResolvedIPs)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.TargetHost = trimStr(m.TargetHost, maxFieldsSize)
+	out.ResolvedIPs = trimStrSlice(m.ResolvedIPs, maxFieldsSize)
+	out.BlockedIP = trimStr(m.BlockedIP, maxFieldsSize)
+	out.BlockedPrefix = trimStr(m.BlockedPrefix, maxFieldsSize)
+
+	return out
+}
+
 func (m *AppSessionDynamoDBRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

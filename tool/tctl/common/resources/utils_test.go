@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -124,6 +125,49 @@ func TestFilterByNameOrDiscoveredName(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			got := FilterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
+			require.Empty(t, cmp.Diff(test.want, got))
+
+			// test cases that work for FilterByNameOrDiscoveredName should also
+			// work for FilterBySQNOrDiscoveredName
+			got = FilterBySQNOrDiscoveredName(resources, scopes.QualifiedName{Name: test.filter}, test.altNameGetters...)
+			require.Empty(t, cmp.Diff(test.want, got))
+		})
+	}
+}
+
+func TestFilterBySQNOrDiscoveredName(t *testing.T) {
+	unscopedFoo := mustCreateNewKubeCluster(t, "foo", "foo", nil)
+	scopedFoo := mustCreateNewKubeCluster(t, "foo", "foo", nil)
+	scopedFoo.Scope = "/foo"
+	orthogonalFoo := mustCreateNewKubeCluster(t, "foo", "foo", nil)
+	orthogonalFoo.Scope = "/bar"
+	resources := []types.KubeCluster{
+		unscopedFoo, scopedFoo, orthogonalFoo,
+	}
+	tests := []struct {
+		desc   string
+		filter scopes.QualifiedName
+		want   []types.KubeCluster
+	}{
+		{
+			desc: "filters by exact scoped SQN",
+			filter: scopes.QualifiedName{
+				Scope: "/foo",
+				Name:  "foo",
+			},
+			want: []types.KubeCluster{scopedFoo},
+		},
+		{
+			desc: "filters by exact unscoped SQN",
+			filter: scopes.QualifiedName{
+				Name: "foo",
+			},
+			want: []types.KubeCluster{unscopedFoo},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := FilterBySQNOrDiscoveredName(resources, test.filter)
 			require.Empty(t, cmp.Diff(test.want, got))
 		})
 	}

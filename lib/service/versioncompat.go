@@ -37,7 +37,7 @@ type clientTooOldError struct {
 }
 
 func (e *clientTooOldError) Error() string {
-	return fmt.Sprintf("Teleport instance is too old. This instance is running v%s. The server requires a minimum version of v%s. To connect anyway pass the --skip-version-check flag.", e.ClientVersion, e.MinVersion)
+	return fmt.Sprintf("This Teleport instance (v%s) is older than the minimum version supported by the cluster (v%s), which may be the cause of this connection failure.", e.ClientVersion, e.MinVersion)
 }
 
 // clientTooNewError indicates this client is a newer major version than the cluster.
@@ -50,47 +50,54 @@ func (e *clientTooNewError) Error() string {
 	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", e.LocalMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion-1)
 }
 
-// isVersionIncompatible reports whether err indicates this client's version is
-// incompatible with the cluster, either a [clientTooOldError] or [clientTooNewError].
+// isVersionIncompatible reports whether err is a fatal client-side version
+// incompatibility (a [clientTooNewError]).
 func isVersionIncompatible(err error) bool {
-	var tooOld *clientTooOldError
 	var tooNew *clientTooNewError
-	return errors.As(err, &tooOld) || errors.As(err, &tooNew)
+	return errors.As(err, &tooNew)
 }
 
-// enforceVersionPolicy implements this agent's policy for an incompatible cluster
-// version. Any version incompatibility is fatal unless the --skip-version-check
-// flag is provided. Parse errors fail open so malformed version information
-// advertised by the cluster can't block joining.
+// enforceVersionPolicy refuses an instance that is a newer major version than
+// the server. If --skip-version-check is provided, version incompatibility is
+// detected and logged but not enforced. Parse errors fail open to prevent
+// blocking a connection from an otherwise valid instance.
+//
+// Too-old is deliberately not checked here. The server is the authority and
+// will close connections unless it is running with TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes.
 func (process *TeleportProcess) enforceVersionPolicy(ctx context.Context, info joinclient.VersionInfo) error {
-	for _, err := range []error{
-		checkClientMeetsMinVersion(teleport.Version, info.MinClientVersion),
-		checkClientMeetsMaxVersion(teleport.Version, info.ServerVersion),
-	} {
-		if err == nil {
-			continue
-		}
-		if !isVersionIncompatible(err) {
-			process.logger.WarnContext(ctx,
-				"Could not determine version compatibility with the cluster, skipping check.",
-				"error", err,
-				"min_client_version", info.MinClientVersion,
-				"server_version", info.ServerVersion,
-				"instance_version", teleport.Version,
-			)
-			continue
-		}
-		if process.Config.SkipVersionCheck {
-			process.logger.WarnContext(ctx,
-				"Instance version is incompatible with the cluster, continuing anyway because --skip-version-check flag was provided.",
-				"error", err,
-				"min_client_version", info.MinClientVersion,
-				"server_version", info.ServerVersion,
-				"instance_version", teleport.Version,
-			)
-			continue
-		}
-		return trace.Wrap(err)
+	err := checkClientMeetsMaxVersion(teleport.Version, info.ServerVersion)
+	if err == nil {
+		return nil
+	}
+	if !isVersionIncompatible(err) {
+		process.logger.WarnContext(ctx,
+			"Could not determine version compatibility with the cluster, skipping check.",
+			"error", err,
+			"server_version", info.ServerVersion,
+			"instance_version", teleport.Version,
+		)
+		return nil
+	}
+	if process.Config.SkipVersionCheck {
+		process.logger.WarnContext(ctx,
+			"Instance is a newer major version than the cluster, continuing anyway because --skip-version-check flag was provided.",
+			"error", err,
+			"server_version", info.ServerVersion,
+			"instance_version", teleport.Version,
+		)
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
+// clientTooOld returns a [clientTooOldError] if this instance is older than the
+// server's advertised minimum client version, or nil if it is not (including an
+// empty or unparseable version). A parse error is treated as nil so uncertainty
+// never drives behavior.
+func clientTooOld(minClientVersion string) error {
+	var tooOld *clientTooOldError
+	if errors.As(checkClientMeetsMinVersion(teleport.Version, minClientVersion), &tooOld) {
+		return tooOld
 	}
 	return nil
 }
