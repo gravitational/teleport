@@ -2,7 +2,7 @@
 
 Teleport could not resolve the wildcard subscription matcher because the Azure integration cannot access any subscriptions.
 
-Verify that the integration uses the intended Azure tenant and managed identity or service principal. Grant that identity a role with the following actions at the management group or subscription scope that Teleport should discover:
+The UserTask's `tenant_id` and `client_id` fields identify the Microsoft Entra tenant and managed identity or service principal used by the integration. Verify that these identifiers are correct, then grant that identity a role with the following actions at the management group or subscription scope that Teleport should discover:
 
 - `Microsoft.Compute/virtualMachines/read`
 - `Microsoft.Compute/virtualMachines/runCommands/write`

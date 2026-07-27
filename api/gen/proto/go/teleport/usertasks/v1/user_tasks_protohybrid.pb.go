@@ -1293,7 +1293,11 @@ type DiscoverAzureVM struct {
 	// ResourceGroup is the Azure Resource Group where VMs are located.
 	ResourceGroup string `protobuf:"bytes,3,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
 	// Region is the Azure Region where Teleport failed to enroll VMs.
-	Region        string `protobuf:"bytes,4,opt,name=region,proto3" json:"region,omitempty"`
+	Region string `protobuf:"bytes,4,opt,name=region,proto3" json:"region,omitempty"`
+	// TenantID is the Microsoft Entra tenant ID used by the Azure integration.
+	TenantId string `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	// ClientID is the client ID of the Azure integration's managed identity or service principal.
+	ClientId      string `protobuf:"bytes,6,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1351,6 +1355,20 @@ func (x *DiscoverAzureVM) GetRegion() string {
 	return ""
 }
 
+func (x *DiscoverAzureVM) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *DiscoverAzureVM) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
 func (x *DiscoverAzureVM) SetInstances(v map[string]*DiscoverAzureVMInstance) {
 	x.Instances = v
 }
@@ -1367,6 +1385,14 @@ func (x *DiscoverAzureVM) SetRegion(v string) {
 	x.Region = v
 }
 
+func (x *DiscoverAzureVM) SetTenantId(v string) {
+	x.TenantId = v
+}
+
+func (x *DiscoverAzureVM) SetClientId(v string) {
+	x.ClientId = v
+}
+
 type DiscoverAzureVM_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1378,6 +1404,10 @@ type DiscoverAzureVM_builder struct {
 	ResourceGroup string
 	// Region is the Azure Region where Teleport failed to enroll VMs.
 	Region string
+	// TenantID is the Microsoft Entra tenant ID used by the Azure integration.
+	TenantId string
+	// ClientID is the client ID of the Azure integration's managed identity or service principal.
+	ClientId string
 }
 
 func (b0 DiscoverAzureVM_builder) Build() *DiscoverAzureVM {
@@ -1388,6 +1418,8 @@ func (b0 DiscoverAzureVM_builder) Build() *DiscoverAzureVM {
 	x.SubscriptionId = b.SubscriptionId
 	x.ResourceGroup = b.ResourceGroup
 	x.Region = b.Region
+	x.TenantId = b.TenantId
+	x.ClientId = b.ClientId
 	return m0
 }
 
@@ -1684,12 +1716,14 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x06engine\x18\x03 \x01(\tR\x06engine\x12)\n" +
 	"\x10discovery_config\x18\x04 \x01(\tR\x0fdiscoveryConfig\x12'\n" +
 	"\x0fdiscovery_group\x18\x05 \x01(\tR\x0ediscoveryGroup\x127\n" +
-	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\"\xbc\x02\n" +
+	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\"\xf6\x02\n" +
 	"\x0fDiscoverAzureVM\x12S\n" +
 	"\tinstances\x18\x01 \x03(\v25.teleport.usertasks.v1.DiscoverAzureVM.InstancesEntryR\tinstances\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12%\n" +
 	"\x0eresource_group\x18\x03 \x01(\tR\rresourceGroup\x12\x16\n" +
-	"\x06region\x18\x04 \x01(\tR\x06region\x1al\n" +
+	"\x06region\x18\x04 \x01(\tR\x06region\x12\x1b\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12\x1b\n" +
+	"\tclient_id\x18\x06 \x01(\tR\bclientId\x1al\n" +
 	"\x0eInstancesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12D\n" +
 	"\x05value\x18\x02 \x01(\v2..teleport.usertasks.v1.DiscoverAzureVMInstanceR\x05value:\x028\x01\"\x9a\x03\n" +

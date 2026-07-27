@@ -121,6 +121,62 @@ test('opens issue drawer and resolves a task', async () => {
   );
 });
 
+test('shows Azure integration identity in the issue drawer', async () => {
+  (useToastNotifications as jest.Mock).mockReturnValue({
+    add: jest.fn(),
+  });
+
+  jest.spyOn(integrationService, 'fetchUserTask').mockResolvedValueOnce({
+    name: 'task-azure',
+    taskType: 'discover-azure-vm',
+    state: 'OPEN',
+    issueType: 'azure-vm-subscription-list-denied',
+    title: 'Cannot access Azure subscriptions',
+    integration: 'azure-integration',
+    lastStateChange: '2025-10-24T12:30:00Z',
+    description: 'Details',
+    discoverAzureVm: {
+      instances: {},
+      subscription_id: '',
+      resource_group: '',
+      region: '',
+      tenant_id: 'azure-tenant-id',
+      client_id: 'azure-client-id',
+    },
+  });
+
+  render(
+    <QueryClientProvider client={testQueryClient}>
+      <ActivityTab
+        stats={{
+          name: 'azure-integration',
+          userTasks: [
+            {
+              name: 'task-azure',
+              taskType: 'discover-azure-vm',
+              state: 'OPEN',
+              issueType: 'azure-vm-subscription-list-denied',
+              title: 'Cannot access Azure subscriptions',
+              integration: 'azure-integration',
+              lastStateChange: '2025-10-24T12:30:00Z',
+            },
+          ],
+        }}
+      />
+    </QueryClientProvider>
+  );
+
+  await userEvent.click(screen.getByText('Details'));
+  await screen.findByRole('heading', {
+    name: 'Cannot access Azure subscriptions',
+  });
+
+  expect(screen.getByText('Tenant ID:')).toBeVisible();
+  expect(screen.getByText('azure-tenant-id')).toBeVisible();
+  expect(screen.getByText('Client ID:')).toBeVisible();
+  expect(screen.getByText('azure-client-id')).toBeVisible();
+});
+
 test('keeps failed tasks selected when bulk resolve partially fails', async () => {
   const addToast = jest.fn();
   (useToastNotifications as jest.Mock).mockReturnValue({

@@ -179,6 +179,10 @@ message DiscoverAzureVM {
   string resource_group = 3;
   // Region is the Azure Region where Teleport failed to enroll VMs.
   string region = 4;
+  // TenantID is the Microsoft Entra tenant ID used by the Azure integration.
+  string tenant_id = 5;
+  // ClientID is the client ID of the Azure integration's managed identity or service principal.
+  string client_id = 6;
 }
 
 // DiscoverAzureVMInstance contains the result of enrolling an Azure VM.

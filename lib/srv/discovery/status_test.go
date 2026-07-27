@@ -346,6 +346,8 @@ func TestUpsertAzureSubscriptionListTask(t *testing.T) {
 	require.NoError(t, updater.upsertAzureSubscriptionListTask(
 		"azure-integration",
 		usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
+		"azure-tenant-id",
+		"azure-client-id",
 	))
 	require.Len(t, ap.tasks, 1)
 
@@ -355,8 +357,43 @@ func TestUpsertAzureSubscriptionListTask(t *testing.T) {
 		require.Equal(t, "azure-integration", task.GetSpec().GetIntegration())
 		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetSubscriptionId())
 		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetInstances())
+		require.Equal(t, "azure-tenant-id", task.GetSpec().GetDiscoverAzureVm().GetTenantId())
+		require.Equal(t, "azure-client-id", task.GetSpec().GetDiscoverAzureVm().GetClientId())
 		require.True(t, updater.clock.Now().Add(2*updater.PollInterval).Equal(task.GetMetadata().GetExpires().AsTime()))
 	}
+}
+
+func TestUpsertAzureSubscriptionListTaskPreservesIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		integration = "azure-integration"
+		issueType   = usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied
+		tenantID    = "azure-tenant-id"
+		clientID    = "azure-client-id"
+	)
+
+	existingTask, err := usertasks.NewDiscoverAzureVMUserTask(
+		usertasks.TaskGroup{
+			Integration: integration,
+			IssueType:   issueType,
+		},
+		time.Now().Add(time.Hour),
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			TenantId:  tenantID,
+			ClientId:  clientID,
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	updater, ap := newTaskUpdater(t, existingTask)
+	require.NoError(t, updater.upsertAzureSubscriptionListTask(integration, issueType, "", ""))
+
+	task, err := ap.GetUserTask(t.Context(), existingTask.GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Equal(t, tenantID, task.GetSpec().GetDiscoverAzureVm().GetTenantId())
+	require.Equal(t, clientID, task.GetSpec().GetDiscoverAzureVm().GetClientId())
 }
 
 func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {

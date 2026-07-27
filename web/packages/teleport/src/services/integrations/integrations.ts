@@ -550,6 +550,8 @@ export const integrationService = {
           subscription_id: resp.discoverAzureVm?.subscription_id,
           resource_group: resp.discoverAzureVm?.resource_group,
           region: resp.discoverAzureVm?.region,
+          tenant_id: resp.discoverAzureVm?.tenant_id,
+          client_id: resp.discoverAzureVm?.client_id,
         },
       };
     });
