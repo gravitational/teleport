@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.10.0-dev.probakowski.linux.3"
+const Version = "18.10.0-dev.probakowski.linux.4"
 
 const VersionMajor = 18
 const VersionMinor = 10
 const VersionPatch = 0
-const VersionPreRelease = "dev.probakowski.linux.3"
+const VersionPreRelease = "dev.probakowski.linux.4"
 const VersionMetadata = ""

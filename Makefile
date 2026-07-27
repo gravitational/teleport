@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.10.0-dev.probakowski.linux.3
+VERSION=18.10.0-dev.probakowski.linux.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -1937,6 +1937,7 @@ build-ironrdp-wasm: CC = $(LLVM_DIR)/bin/clang
 build-ironrdp-wasm: AR = $(LLVM_DIR)/bin/llvm-ar
 
 ensure-llvm:
+	@echo "ensure-llvm darwin"
 	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
@@ -1956,6 +1957,7 @@ ensure-llvm:
 
 else
 ensure-llvm:
+	@echo "ensure-llvm noop"
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
