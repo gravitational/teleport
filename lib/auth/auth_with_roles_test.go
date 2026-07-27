@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -12774,11 +12775,14 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
+			username := utils.HostFQDN(hostID, domainName)
 			// Create a built-in role.
 			authContext, err := authz.ContextForBuiltinRole(
 				authz.BuiltinRole{
-					Role:     test.builtInRole,
-					Username: fmt.Sprintf("%s.%s", hostID, domainName),
+					Role:        test.builtInRole,
+					Username:    username,
+					Identity:    tlsca.Identity{Username: username},
+					ClusterName: domainName,
 				},
 				types.DefaultSessionRecordingConfig(),
 			)

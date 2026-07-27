@@ -2672,6 +2672,8 @@ func TestValidateScopedAppRegistration(t *testing.T) {
 }
 
 func TestInitScopedAppsFromConfig(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
 	const (
 		tokenName   = "scoped-app-token"
 		tokenSecret = "scoped-app-secret"
