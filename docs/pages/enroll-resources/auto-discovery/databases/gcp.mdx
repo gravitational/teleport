@@ -29,34 +29,37 @@ For manual enrollment guides, including Cloud Spanner and AlloyDB, see
 - Permission to create service accounts and grant IAM roles in that project.
 - A host to run the Teleport Discovery Service.
 - A host, such as a Compute Engine instance, to run the Teleport Database
-  Service. The Database Service must have network connectivity to your Cloud
-  SQL instances; the Discovery Service does not.
+  Service. The host must be able to reach your Cloud SQL instances over their
+  public IP, private IP (PSA), or Private Service Connect endpoint; the
+  Discovery Service does not need connectivity to your instances. For the
+  requirements of each option, such as authorized networks for public IP, see
+  [Choose how to connect to Cloud SQL](https://cloud.google.com/sql/docs/postgres/connection-options)
+  in the Google Cloud documentation.
 - Both hosts must be able to reach the Teleport Proxy and Google Cloud APIs over
   HTTPS.
+- A Google Cloud service account for the Discovery Service,
+  [granted](https://cloud.google.com/iam/docs/service-accounts-create) the
+  predefined
+  [Cloud SQL Viewer](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.viewer)
+  role (`roles/cloudsql.viewer`).
+- A Google Cloud service account for the Database Service,
+  [granted](https://cloud.google.com/iam/docs/service-accounts-create) the
+  predefined
+  [Cloud SQL Client](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.client)
+  role (`roles/cloudsql.client`).
+- Each host must be able to authenticate to Google Cloud as its service account
+  using
+  [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials).
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Install Teleport
+## Step 1/6. Install Teleport
 
 Install Teleport on the host or hosts that will run the Teleport Discovery
 Service and Teleport Database Service.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/8. Grant the Discovery Service permission to list instances
-
-Run the Discovery Service with a Google Cloud service account that has the
-predefined
-[Cloud SQL Viewer](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.viewer)
-role (`roles/cloudsql.viewer`).
-
-Teleport uses
-[Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials)
-to authenticate to Google Cloud. On Compute Engine,
-[attach the service account](https://cloud.google.com/compute/docs/instances/change-service-account)
-to the VM so Teleport can use its ambient credentials. On other platforms, use
-[Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation).
-
-## Step 3/8. Deploy the Discovery Service
+## Step 2/6. Deploy the Discovery Service
 
 ### Create a Teleport config file
 
@@ -98,7 +101,7 @@ This enables the `discovery_service` and joins it to your Teleport cluster.
 
 (!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
 
-## Step 4/8. Configure Cloud SQL discovery
+## Step 3/6. Configure Cloud SQL discovery
 
 Create a file named `discovery-cloudsql.yaml` with the same `discovery_group`
 you configured above:
@@ -136,7 +139,7 @@ to five minutes to appear as Teleport `db` resources. The Discovery Service
 skips instances that are unsupported or unavailable or that expose no usable
 connection endpoint.
 
-## Step 5/8. List registered databases
+## Step 4/6. List registered databases
 
 <Admonition type="info">
 At this stage, `tctl get db` lists discovered database resources. A database
@@ -174,43 +177,26 @@ label. Teleport uses the value without a suffix if it starts with a letter,
 contains only letters, digits, and hyphens, and does not end with a hyphen.
 
 For the labels applied to discovered databases, see the
-[Google Cloud database labels reference](../reference/labels.mdx#databases).
+[Google Cloud database labels reference](../reference/labels.mdx#google-cloud).
 
 </details>
 
-## Step 6/8. Grant the Database Service permission to connect
+<details>
+<summary>Endpoint selection</summary>
 
-Run the Database Service with a Google Cloud service account that has the
-predefined
-[Cloud SQL Client](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.client)
-role (`roles/cloudsql.client`).
-
-Provide the Database Service host with the service account credentials using
-the method from Step 2.
-
-## Step 7/8. Deploy the Database Service
-
-### Configure database connectivity
-
-The Database Service proxies connections to Cloud SQL instances, so it must be
-able to reach the endpoint registered by the Discovery Service:
-
-<Admonition type="info" title="Endpoint selection">
-When an instance has multiple endpoints, Teleport selects the first available
+When an instance has multiple endpoints, Teleport registers the first available
 in this order: public, private (PSA), then PSC. To override this selection, set
 the Cloud SQL instance's `teleport-database-endpoint-type` user label to
 `public`, `private`, or `psc`. Teleport does not try another endpoint type when
 an override is set.
-</Admonition>
 
-- **Public IP**: the Database Service host needs outbound access to the
-  instance's public IP, and its egress IP address must be in the instance's
-  authorized networks.
-- **Private Service Access (PSA)**: run the Database Service where it can route
-  to the instance's private IP, typically in the VPC network configured for the
-  instance.
-- **Private Service Connect (PSC)**: run the Database Service where it can reach
-  the instance's PSC endpoint.
+The Database Service host must be able to reach whichever endpoint Teleport
+registers. If that is a public IP, the host's egress IP address must also be in
+the instance's authorized networks.
+
+</details>
+
+## Step 5/6. Deploy the Database Service
 
 ### Create a Teleport config file
 
@@ -262,7 +248,7 @@ resource, the Database Service publishes a short-lived `db_server` resource.
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
-## Step 8/8. List database servers
+## Step 6/6. List database servers
 
 Confirm that the Database Service has registered servers for the discovered
 databases:
@@ -285,7 +271,7 @@ If the expected databases are missing, refer to
 - Configure user access with the
   [Google Cloud enrollment guides](../../database-access/enrollment/google-cloud/google-cloud.mdx).
 - Refer to the
-  [Google Cloud database labels reference](../reference/labels.mdx#databases)
+  [Google Cloud database labels reference](../reference/labels.mdx#google-cloud)
   for the full set of imported and generated labels.
 - Learn about
   [Dynamic Database Registration](../../database-access/guides/dynamic-registration.mdx).
