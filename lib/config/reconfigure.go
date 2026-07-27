@@ -21,6 +21,7 @@ package config
 import (
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -141,7 +142,7 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) ([]string, error) {
 		fc.CAPin = nil
 	}
 	if len(req.CAPins) > 0 {
-		fc.CAPin = apiutils.Strings(req.CAPins)
+		fc.CAPin = apiutils.Strings(slices.Clone(req.CAPins))
 	}
 
 	if req.Token != "" {

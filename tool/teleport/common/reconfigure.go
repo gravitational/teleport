@@ -92,7 +92,7 @@ func runReconfigure(flags reconfigureFlags, stdout, stderr io.Writer) error {
 	// Round-trip the output through the same reader the agent uses at
 	// start, so an invalid file is never written.
 	if _, err := config.ReadConfig(strings.NewReader(out)); err != nil {
-		return trace.Errorf("internal error: generated config failed validation, nothing written: %v", err)
+		return trace.Wrap(err, "internal error: generated config failed validation, nothing written")
 	}
 	if flags.output == "" {
 		if _, err := fmt.Fprint(stdout, out); err != nil {
