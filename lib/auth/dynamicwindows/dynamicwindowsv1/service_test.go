@@ -50,6 +50,21 @@ func TestFailedAccessCheck(t *testing.T) {
 	}.Build()
 	_, err = s.CreateDynamicWindowsDesktop(context.Background(), req)
 	require.NoError(t, err)
+
+	// The methods that accept a client-supplied desktop must reject a request
+	// whose kind doesn't equal types.KindDynamicWindowsDesktop.
+	for _, method := range []string{
+		"CreateDynamicWindowsDesktop",
+		"UpdateDynamicWindowsDesktop",
+		"UpsertDynamicWindowsDesktop",
+	} {
+		t.Run(fmt.Sprintf("%s rejects spoofed kind", method), func(t *testing.T) {
+			_, err := callMethod(s, method, types.KindIdentityCenterAccount)
+			require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			require.ErrorContains(t, err, "unexpected kind")
+		})
+	}
+
 	checker.failAccess = true
 	testCases := []string{
 		"CreateDynamicWindowsDesktop",
@@ -60,7 +75,7 @@ func TestFailedAccessCheck(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(fmt.Sprintf("%s failed access check", tt), func(t *testing.T) {
-			err := callMethod(s, tt)
+			_, err := callMethod(s, tt, types.KindDynamicWindowsDesktop)
 			require.True(t, trace.IsAccessDenied(err))
 		})
 	}
@@ -141,7 +156,7 @@ func TestServiceAccess(t *testing.T) {
 			for _, verbs := range utils.Combinations(tt.allowedVerbs) {
 				t.Run(fmt.Sprintf("%v,allowed:%v,verbs:%v", tt.name, stateToString(state), verbs), func(t *testing.T) {
 					service := newService(t, state, &fakeChecker{allowedVerbs: verbs})
-					err := callMethod(service, tt.name)
+					_, err := callMethod(service, tt.name, types.KindDynamicWindowsDesktop)
 					// expect access denied except with full set of verbs.
 					if len(verbs) == len(tt.allowedVerbs) {
 						require.False(t, trace.IsAccessDenied(err))
@@ -159,7 +174,7 @@ func TestServiceAccess(t *testing.T) {
 				// it is enough to test against tt.allowedVerbs,
 				// this is the only different data point compared to the test cases above.
 				service := newService(t, state, &fakeChecker{allowedVerbs: tt.allowedVerbs})
-				err := callMethod(service, tt.name)
+				_, err := callMethod(service, tt.name, types.KindDynamicWindowsDesktop)
 				require.True(t, trace.IsAccessDenied(err))
 			})
 		}
@@ -204,34 +219,45 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 	return out
 }
 
-// callMethod calls a method with given name in the DynamicWindowsDesktop service
-func callMethod(service *Service, method string) error {
+// callMethod calls a method with given name in the DynamicWindowsDesktop service.
+// For methods that accept a desktop, it submits one with the given kind so
+// callers can exercise both the happy path (the canonical kind) and the
+// rejection path (a mismatched kind). It returns the desktop from the response
+// when the method produces one.
+func callMethod(service *Service, method, kind string) (types.DynamicWindowsDesktop, error) {
 	for _, desc := range dynamicwindowsv1.DynamicWindowsService_ServiceDesc.Methods {
 		if desc.MethodName == method {
-			_, err := desc.Handler(service, context.Background(), func(arg any) error {
+			buildDesktop := func(name string) *types.DynamicWindowsDesktopV1 {
+				return &types.DynamicWindowsDesktopV1{
+					ResourceHeader: types.ResourceHeader{
+						Kind:     kind,
+						Metadata: types.Metadata{Name: name},
+					},
+					Spec: types.DynamicWindowsDesktopSpecV1{Addr: "addr"},
+				}
+			}
+			resp, err := desc.Handler(service, context.Background(), func(arg any) error {
 				switch arg := arg.(type) {
 				case *dynamicwindowsv1.GetDynamicWindowsDesktopRequest:
 					arg.SetName("test2")
-
 				case *dynamicwindowsv1.CreateDynamicWindowsDesktopRequest:
-					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{
-						Addr: "test",
-					})
+					arg.SetDesktop(buildDesktop("test"))
 				case *dynamicwindowsv1.UpdateDynamicWindowsDesktopRequest:
-					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{
-						Addr: "test",
-					})
+					arg.SetDesktop(buildDesktop("test2"))
 				case *dynamicwindowsv1.UpsertDynamicWindowsDesktopRequest:
-					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test2", nil, types.DynamicWindowsDesktopSpecV1{
-						Addr: "test",
-					})
+					arg.SetDesktop(buildDesktop("test2"))
 				}
 				return nil
 			}, nil)
-			return err
+			if err != nil {
+				return nil, err
+			}
+			// Get/Create/Update/Upsert return a desktop, Delete/List do not.
+			desktop, _ := resp.(*types.DynamicWindowsDesktopV1)
+			return desktop, nil
 		}
 	}
-	return fmt.Errorf("method %v not found", method)
+	return nil, fmt.Errorf("method %v not found", method)
 }
 
 type fakeChecker struct {

@@ -38,12 +38,12 @@ func (s *scopedTokenClient) Create(ctx context.Context, token *tokenv1.ScopedTok
 	return trace.Wrap(err)
 }
 
-func (s *scopedTokenClient) Delete(ctx context.Context, name string) error {
-	return s.teleportClient.DeleteScopedToken(ctx, name)
+func (s *scopedTokenClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return s.teleportClient.DeleteScopedToken(ctx, key.String())
 }
 
-func (s *scopedTokenClient) Get(ctx context.Context, name string) (*tokenv1.ScopedToken, error) {
-	return s.teleportClient.GetScopedToken(ctx, name, false)
+func (s *scopedTokenClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*tokenv1.ScopedToken, error) {
+	return s.teleportClient.GetScopedToken(ctx, key.String(), false)
 }
 
 func (s *scopedTokenClient) Update(ctx context.Context, token *tokenv1.ScopedToken) error {

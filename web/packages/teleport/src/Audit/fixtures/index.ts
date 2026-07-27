@@ -699,6 +699,27 @@ export const events = [
     user: 'alice',
   },
   {
+    app_name: 'internal-app',
+    app_public_addr: 'internal-app.root.gravitational.io',
+    app_uri: 'http://metadata.internal',
+    blocked_ip: '169.254.169.254',
+    blocked_prefix: '169.254.0.0/16',
+    cluster_name: 'root',
+    code: 'T2019E',
+    ei: 0,
+    event: 'app.session.target.dial.denied',
+    namespace: 'default',
+    policy: 'denied_hosts',
+    resolved_ips: ['169.254.169.254'],
+    server_id: '8e70002c-7a07-4513-a3fa-ac556a1d7534',
+    sid: '11c328b4-5a1e-4adc-b7cb-206389e5f130',
+    target_host: 'metadata.internal',
+    target_port: '80',
+    time: '2022-08-10T19:54:41.444Z',
+    uid: 'bc1fbf7e-b739-4ea3-8bb9-cf1e79c8acb5',
+    user: 'alice',
+  },
+  {
     action: 1,
     'addr.local': '[::1]:3022',
     'addr.remote': '127.0.0.1:41106',
@@ -1606,7 +1627,7 @@ export const events = [
     mfa_device_type: 'U2F',
     mfa_device_uuid: '7a6fbf23-d75c-4c62-8215-e962d0f2a1f3',
     ei: 0,
-    event: 'mfa.delete',
+    event: 'mfa.add',
     time: '2021-03-03T22:58:34.737Z',
     uid: '9be91d9e-79ec-422b-b6ae-ccf7235476d4',
     user: 'awly',
@@ -3031,44 +3052,6 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV005I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: 'this user wont render properly',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV005I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: false,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: 'this user wont render properly',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
     code: 'TV001I',
     device: {
       asset_tag: 'M2CQVQV64R',
@@ -3310,6 +3293,36 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
+    code: 'TV010I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '',
+      os_type: 4,
+    },
+    ei: 0,
+    event: 'device.enroll_pairing.request',
+    success: true,
+    time: '2024-04-08T19:37:48.1Z',
+    uid: 'a7b3e9f1-4d5c-6a8b-9012-def345678901',
+    user: 'llama',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV010W',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '',
+      os_type: 4,
+    },
+    ei: 0,
+    error: 'invalid pairing token',
+    event: 'device.enroll_pairing.request',
+    success: false,
+    time: '2024-04-08T19:38:48.1Z',
+    uid: 'a7b3e9f1-4d5c-6a8b-9012-def345678902',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
     code: 'TLR00I',
     ei: 0,
     event: 'login_rule.create',
@@ -3408,7 +3421,7 @@ export const events = [
   },
   {
     code: 'TSI004I',
-    event: 'saml.idp.service.provider.delete',
+    event: 'saml.idp.service.provider.delete_all',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',
@@ -3569,7 +3582,7 @@ export const events = [
   },
   {
     code: 'TAL005I',
-    event: 'access_list.member.add',
+    event: 'access_list.member.create',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
     access_list_title: 'example_title',
@@ -3582,7 +3595,7 @@ export const events = [
   },
   {
     code: 'TAL005E',
-    event: 'access_list.member.add',
+    event: 'access_list.member.create',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
     access_list_title: 'example_title',

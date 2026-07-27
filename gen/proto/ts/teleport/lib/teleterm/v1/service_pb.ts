@@ -1336,6 +1336,12 @@ export interface SetSharedDirectoryForDesktopSessionRequest {
      * @generated from protobuf field: string path = 3;
      */
     path: string;
+    /**
+     * DirectoryId assigned to this directory.
+     *
+     * @generated from protobuf field: uint32 directory_id = 4;
+     */
+    directoryId: number;
 }
 /**
  * Response for SetSharedDirectoryForDesktopSession.
@@ -5759,7 +5765,8 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest", [
             { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionRequest>): SetSharedDirectoryForDesktopSessionRequest {
@@ -5767,6 +5774,7 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         message.desktopUri = "";
         message.login = "";
         message.path = "";
+        message.directoryId = 0;
         if (value !== undefined)
             reflectionMergePartial<SetSharedDirectoryForDesktopSessionRequest>(this, message, value);
         return message;
@@ -5784,6 +5792,9 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
                     break;
                 case /* string path */ 3:
                     message.path = reader.string();
+                    break;
+                case /* uint32 directory_id */ 4:
+                    message.directoryId = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -5806,6 +5817,9 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         /* string path = 3; */
         if (message.path !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.path);
+        /* uint32 directory_id = 4; */
+        if (message.directoryId !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.directoryId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

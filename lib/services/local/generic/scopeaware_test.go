@@ -120,8 +120,7 @@ func TestScopeAwareService(t *testing.T) {
 
 		expected := make(map[scopes.QualifiedName]struct{})
 		for _, resource := range resources {
-			cursor, err := scopes.MakeResourceCursor(resource.GetScope(), resource.GetName())
-			require.NoError(t, err)
+			cursor := scopes.MakeResourceCursor(resource.GetScope(), resource.GetName())
 			if startKey != "" && cursor < startKey {
 				continue
 			}
@@ -170,8 +169,7 @@ func TestScopeAwareService(t *testing.T) {
 
 		// Verify a range that starts in unscoped resources and ends in scoped
 		// resources, forcing Resources to concatenate both underlying services.
-		scopedEnd, err := scopes.MakeResourceCursor("/base1", "name0")
-		require.NoError(t, err)
+		scopedEnd := scopes.MakeResourceCursor("/base1", "name0")
 		checkExpectedResources(t,
 			expectedResourcesInCursorRange(t, "name5", scopedEnd),
 			service.Resources(t.Context(), "name5", scopedEnd),
@@ -423,10 +421,8 @@ func TestScopeAwareService_ScopedOnly(t *testing.T) {
 		require.Empty(t, collectScopedStream(t, svc.Resources(ctx, "", "name5")))
 		require.Empty(t, collectScopedStream(t, svc.Resources(ctx, "", scopes.ResourceCursorScopedStart())))
 
-		start, err := scopes.MakeResourceCursor("/b", "2")
-		require.NoError(t, err)
-		end, err := scopes.MakeResourceCursor("/c", "3")
-		require.NoError(t, err)
+		start := scopes.MakeResourceCursor("/b", "2")
+		end := scopes.MakeResourceCursor("/c", "3")
 		require.Equal(t,
 			[]scopes.QualifiedName{{Scope: "/b", Name: "2"}},
 			scopedNames(collectScopedStream(t, svc.Resources(ctx, start, end))),

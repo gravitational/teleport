@@ -146,6 +146,8 @@ const (
 	AppSessionHTTPResponseCode = "T2017I"
 	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
 	AppSessionHTTPResponseBodyChunkCode = "T2018I"
+	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
+	AppSessionTargetDialDeniedCode = "T2019E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -289,6 +291,13 @@ const (
 	// for when a write operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
 	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
+	// LinuxDesktopSessionStartCode is the Linux desktop session start event code.
+	LinuxDesktopSessionStartCode = "TDP07I"
+	// LinuxDesktopSessionStartFailureCode is event code for Linux desktop sessions
+	// that failed to start.
+	LinuxDesktopSessionStartFailureCode = "TDP07W"
+	// LinuxDesktopSessionEndCode is the Linux desktop session end event code.
+	LinuxDesktopSessionEndCode = "TDP08I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -516,6 +525,11 @@ const (
 	DeviceWebTokenCreateCode = "TV008I"
 	// DeviceAuthenticateConfirmCode is the device authentication confirm code.
 	DeviceAuthenticateConfirmCode = "TV009I"
+	// DeviceEnrollPairingRequestCode is the device enroll pairing request code.
+	DeviceEnrollPairingRequestCode = "TV010I"
+	// DeviceEnrollPairingRequestFailureCode is the device enroll pairing request
+	// failure code.
+	DeviceEnrollPairingRequestFailureCode = "TV010W"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

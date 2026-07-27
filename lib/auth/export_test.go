@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client"
@@ -262,12 +261,6 @@ func EncodeProquint(x uint16) string {
 
 func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
 	emitSSOLoginFailureEvent(ctx, emitter, method, err, testFlow)
-}
-
-type UpsertServerRawReq = upsertServerRawReq
-
-func UpsertServer(srv *APIServer, auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (any, error) {
-	return srv.upsertServer(auth, role, r, p)
 }
 
 func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzContext authz.Context) *ServerWithRoles {

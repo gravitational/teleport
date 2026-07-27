@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_access_list Terraform data-source
 sidebar_label: access_list
-description: This page describes the supported values of the teleport_access_list data-source of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_access_list data-source of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_access_lis
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the `teleport_access_list` data source of the
+This page lists the supported values of the `teleport_access_list` data source of the
 Teleport Terraform provider.
 
 
@@ -51,7 +52,6 @@ Optional:
 - `expires` (String) expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) labels is a set of labels.
 - `namespace` (String) namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
-- `revision` (String) revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.
 
 
 
@@ -117,7 +117,7 @@ Optional:
 
 Optional:
 
-- `role` (String) role is scope-qualified name of the scoped role to be granted.
+- `role` (String) role is the scope-qualified name of the scoped role to be granted.
 - `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
 
 
@@ -158,7 +158,7 @@ Optional:
 
 Optional:
 
-- `role` (String) role is scope-qualified name of the scoped role to be granted.
+- `role` (String) role is the scope-qualified name of the scoped role to be granted.
 - `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
 
 

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/clientcache"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 )
@@ -297,7 +298,7 @@ func (p *vnetClientApplication) reissueAppCert(ctx context.Context, tc *client.T
 		return tls.Certificate{}, trace.Wrap(err, "logging in to app")
 	}
 
-	cert, err := keyRing.AppTLSCert(routeToApp.Name)
+	cert, err := keyRing.AppTLSCert(scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key")
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -139,6 +140,8 @@ func getScopedToken(ctx context.Context, client *authclient.Client, subKind stri
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: opts.WithSecrets,
+			// exhaustive user-facing views use MODE_ALL per RFD 0229i
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)

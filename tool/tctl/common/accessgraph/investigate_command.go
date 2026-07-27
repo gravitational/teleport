@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
@@ -516,7 +514,7 @@ func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error 
 		return trace.Wrap(err)
 	}
 
-	width := facetWrapWidth(out)
+	width := terminalWidth(out)
 	if _, err := fmt.Fprintln(out, "Facets:"); err != nil {
 		return trace.Wrap(err)
 	}
@@ -575,19 +573,6 @@ func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error 
 	}
 	_, err := fmt.Fprintln(out)
 	return trace.Wrap(err)
-}
-
-// facetWrapWidth returns the column count to wrap facet values at.
-func facetWrapWidth(out io.Writer) int {
-	f, ok := out.(*os.File)
-	if !ok {
-		return 80
-	}
-	width, _, err := term.GetSize(int(f.Fd()))
-	if err != nil || width <= 0 {
-		return 80
-	}
-	return width
 }
 
 // writeWrappedList prints "prefix" followed by items joined with ", ",

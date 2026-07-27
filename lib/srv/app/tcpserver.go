@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"log/slog"
 	"net"
 	"strconv"
@@ -29,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -42,15 +40,16 @@ import (
 )
 
 type tcpServer struct {
-	clock        clockwork.Clock
-	emitter      apievents.Emitter
-	hostID       string
-	log          *slog.Logger
-	accessPoint  authclient.AppsAccessPoint
-	authClient   authclient.ClientI
-	clusterName  string
-	cipherSuites []uint16
-	insecureMode bool
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	hostID           string
+	log              *slog.Logger
+	accessPoint      authclient.AppsAccessPoint
+	authClient       authclient.ClientI
+	clusterName      string
+	cipherSuites     []uint16
+	insecureMode     bool
+	targetHostPolicy common.TargetHostPolicy
 }
 
 // handleConnection handles connection from a TCP application.
@@ -61,13 +60,26 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 
-	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultIOTimeout,
-	}
 	dialTarget, err := pickDialTarget(app, uriAddr, identity.RouteToApp.TargetPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter:  s.emitter,
+		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dialer := common.NewTargetDialer(s.targetHostPolicy, common.TargetHostAuditConfig{
+		Emitter:  s.emitter,
+		Logger:   s.log,
+		ServerID: s.hostID,
+		Identity: identity,
+		App:      app,
+	})
 
 	var serverConn net.Conn
 	switch {
@@ -92,12 +104,12 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		tlsDialer := tls.Dialer{
-			NetDialer: &dialer,
-			Config:    tlsConfig,
+		tlsConfig = tlsConfig.Clone()
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = uriAddr.Host()
 		}
-		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+
+		serverConn, err = dialer.DialTLS(ctx, uriAddr.AddrNetwork, dialTarget, tlsConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -106,14 +118,6 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  s.emitter,
-		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {

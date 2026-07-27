@@ -206,6 +206,11 @@ func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) err
 	return o.assignmentSvc.DeleteResource(ctx, name)
 }
 
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return o.assignmentSvc.ConditionalDeleteResource(ctx, name, revision)
+}
+
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 	return o.assignmentSvc.DeleteAllResources(ctx)

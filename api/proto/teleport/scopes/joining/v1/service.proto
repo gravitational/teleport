@@ -62,11 +62,8 @@ message GetScopedTokenResponse {
 
 // ListScopedTokensRequest is the request to list scoped tokens.
 message ListScopedTokensRequest {
-  // Filter tokens by their resource scope.
-  teleport.scopes.v1.Filter resource_scope = 1;
-
-  // Filter tokens by their assigned scope.
-  teleport.scopes.v1.Filter assigned_scope = 2;
+  reserved 1, 2;
+  reserved "resource_scope", "assigned_scope";
 
   // The pagination cursor.
   string cursor = 3;
@@ -82,6 +79,15 @@ message ListScopedTokensRequest {
 
   // If true, include the token secrets in the response.
   bool with_secrets = 7;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 8;
+
+  // AssignedScopeFilter filters tokens by their assigned scope if specified.
+  teleport.scopes.v1.Filter assigned_scope_filter = 9;
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.

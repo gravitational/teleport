@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,12 +39,22 @@ import (
 // from assigning these roles to other users or referencing them in other roles.
 // Deleting a role assigned to other resources will lock a user out of their account.
 func (c *Command) Remove(ctx context.Context, client *authclient.Client) error {
-	al, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	aclName, err := c.accessListScopeQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	al, err := client.AccessListClient().GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: aclName.Scope,
+		Name:  aclName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := client.AccessListClient().DeleteAccessList(ctx, c.accessListName); err != nil {
+	if err := client.AccessListClient().DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
+		Scope: aclName.Scope,
+		Name:  aclName.Name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -59,7 +70,7 @@ func (c *Command) Remove(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(utils.WriteJSON(c.Stdout, resp), "failed to marshal access list delete response")
 	}
 
-	fmt.Fprintf(c.Stdout, "Deleted access list %q\n", c.accessListName)
+	fmt.Fprintf(c.Stdout, "Deleted access list %q\n", aclName.String())
 	c.printRolesToBeDeleted(resp.RolesToDelete)
 	return nil
 }

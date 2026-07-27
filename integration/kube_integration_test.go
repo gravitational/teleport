@@ -53,7 +53,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	kubetypes "k8s.io/apimachinery/pkg/types"
-	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -65,6 +64,7 @@ import (
 	watchtools "k8s.io/client-go/tools/watch"
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/transport/spdy"
+	streamspdy "k8s.io/streaming/pkg/httpstream/spdy"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -2204,7 +2204,7 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}
-	dialer := spdy.NewDialer(upgradeRoundTripper, client, "POST", u)
+	dialer := spdy.NewDialer(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, "POST", u)
 	if kubeConfig.Impersonate.UserName != "" {
 		client.Transport = transport.NewImpersonatingRoundTripper(
 			transport.ImpersonationConfig{

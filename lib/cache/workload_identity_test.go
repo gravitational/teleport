@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -121,7 +123,73 @@ func TestWorkloadIdentity(t *testing.T) {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
 		cacheList: workloadIdentityPageFunc(p.cache.RangeWorkloadIdentities),
-		cacheGet:  p.cache.GetWorkloadIdentity,
+		cacheGet: func(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+			return p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: name}.Build())
+		},
+	})
+}
+
+// TestWorkloadIdentityCacheScoped verifies the cache serves scoped reads, keeps
+// scoped and unscoped identities of the same name distinct, and evicts a scoped
+// identity when it is deleted, exercising the scope-aware watch path.
+func TestWorkloadIdentityCacheScoped(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		const scope = "/staging"
+		scopedName := scopes.QualifiedName{Scope: scope, Name: "shared"}
+		unscopedName := scopes.QualifiedName{Name: "shared"}
+		getReq := func(n scopes.QualifiedName) *workloadidentityv1pb.GetWorkloadIdentityRequest {
+			return workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
+		delReq := func(n scopes.QualifiedName) *workloadidentityv1pb.DeleteWorkloadIdentityRequest {
+			return workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{Scope: n.Scope, Name: n.Name}.Build()
+		}
+
+		// An unscoped and a scoped identity that share a name must not collide.
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, newWorkloadIdentity("shared"))
+		require.NoError(t, err)
+		scoped := workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "shared"}.Build(),
+			Scope:    scope,
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					Id: scope + "/_/svc",
+				}.Build(),
+			}.Build(),
+		}.Build()
+		_, err = p.workloadIdentity.CreateWorkloadIdentity(ctx, scoped)
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		// Both are independently retrievable from the cache by their qualified name.
+		gotUnscoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
+		require.NoError(t, err)
+		require.Empty(t, gotUnscoped.GetScope())
+		require.Equal(t, "/example", gotUnscoped.GetSpec().GetSpiffe().GetId())
+
+		gotScoped, err := p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
+		require.NoError(t, err)
+		require.Equal(t, scope, gotScoped.GetScope())
+
+		// Deleting the scoped identity evicts it from the cache without disturbing
+		// the unscoped identity of the same name.
+		require.NoError(t, p.workloadIdentity.DeleteWorkloadIdentity(ctx, delReq(scopedName)))
+		synctest.Wait()
+
+		_, err = p.cache.GetWorkloadIdentity(ctx, getReq(scopedName))
+		require.True(t, trace.IsNotFound(err))
+
+		gotUnscoped, err = p.cache.GetWorkloadIdentity(ctx, getReq(unscopedName))
+		require.NoError(t, err)
+		require.Empty(t, gotUnscoped.GetScope())
 	})
 }
 

@@ -37,10 +37,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -99,14 +101,19 @@ func TestJoinTPM(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		desc            string
-		tokenSpec       *types.ProvisionTokenSpecV2TPM
-		tpmKey          crypto.Signer
-		tpmCert         []byte
-		badTPMSolution  bool
-		oss             bool
-		assertError     require.ErrorAssertionFunc
-		expectJoinAttrs verifiedAttrs
+		desc           string
+		tokenSpec      *types.ProvisionTokenSpecV2TPM
+		tpmKey         crypto.Signer
+		tpmCert        []byte
+		badTPMSolution bool
+		oss            bool
+		// bypassAdmissionValidation injects the token directly into
+		// the backend, bypassing the admission validation. This allows
+		// testing that old non-conformant tokens still work for
+		// backward compatibility.
+		bypassAdmissionValidation bool
+		assertError               require.ErrorAssertionFunc
+		expectJoinAttrs           verifiedAttrs
 	}{
 		{
 			desc: "success, ekpub",
@@ -121,23 +128,6 @@ func TestJoinTPM(t *testing.T) {
 			assertError: require.NoError,
 			expectJoinAttrs: verifiedAttrs{
 				ekPubHash: goodTPMPubHash,
-			},
-		},
-		{
-			desc: "success, ekcert",
-			tokenSpec: &types.ProvisionTokenSpecV2TPM{
-				Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
-					{
-						EKCertificateSerial: tpmCertSerial1,
-					},
-				},
-			},
-			tpmKey:      goodTPMKey,
-			tpmCert:     tpmCert1,
-			assertError: require.NoError,
-			expectJoinAttrs: verifiedAttrs{
-				ekPubHash:    goodTPMPubHash,
-				ekCertSerial: tpmCertSerial1,
 			},
 		},
 		{
@@ -211,7 +201,13 @@ func TestJoinTPM(t *testing.T) {
 			assertError: allowRulesNotMatched,
 		},
 		{
-			desc: "failure, mismatched ekcert serial",
+			// A serial-only token with no ekcert_allowed_cas can
+			// no longer be created (admission rejects it), but
+			// tokens that already exist from before that
+			// validation must continue to work. The token is
+			// injected straight into the backend to simulate this,
+			// and joining must still succeed.
+			desc: "success, legacy ekcert serial without ekcert_allowed_cas",
 			tokenSpec: &types.ProvisionTokenSpecV2TPM{
 				Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
 					{
@@ -219,8 +215,30 @@ func TestJoinTPM(t *testing.T) {
 					},
 				},
 			},
+			bypassAdmissionValidation: true,
+			tpmKey:                    goodTPMKey,
+			tpmCert:                   tpmCert1,
+			assertError:               require.NoError,
+			expectJoinAttrs: verifiedAttrs{
+				ekPubHash:      goodTPMPubHash,
+				ekCertSerial:   tpmCertSerial1,
+				ekCertVerified: false,
+			},
+		},
+		{
+			desc: "failure, mismatched ekcert serial",
+			tokenSpec: &types.ProvisionTokenSpecV2TPM{
+				// A CA is required for a serial-only allow rule to be admitted;
+				// see lib/services/local validateTPMToken.
+				EKCertAllowedCAs: []string{string(goodTPMCA.caCertPEM)},
+				Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+					{
+						EKCertificateSerial: tpmCertSerial1,
+					},
+				},
+			},
 			tpmKey: goodTPMKey,
-			// TPM cert does not match serial in token.
+			// TPM cert is verified, but its serial does not match the rule.
 			tpmCert:     tpmCert2,
 			assertError: allowRulesNotMatched,
 		},
@@ -289,7 +307,20 @@ func TestJoinTPM(t *testing.T) {
 				TPM:        tc.tokenSpec,
 			})
 			require.NoError(t, err)
-			require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
+			if tc.bypassAdmissionValidation {
+				// Write the token straight to the backend, bypassing
+				// UpsertToken's validateProvisionToken admission check (which
+				// would now reject it). This goes through MarshalProvisionToken
+				// only, which still permits the configuration, simulating a
+				// token created before admission control was added.
+				ps := local.NewProvisioningService(server.AuthServer.Backend)
+				actions, err := ps.AppendPutProvisionTokenActions(nil, token, backend.Whatever())
+				require.NoError(t, err)
+				_, err = server.AuthServer.Backend.AtomicWrite(t.Context(), actions)
+				require.NoError(t, err)
+			} else {
+				require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
+			}
 
 			fakeTPM, err := newFakeTPM(tc.tpmKey, tc.tpmCert)
 			require.NoError(t, err)

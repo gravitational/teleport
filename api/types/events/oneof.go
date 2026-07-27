@@ -236,6 +236,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+	case *AppSessionTargetDialDenied:
+		out.Event = &OneOf_AppSessionTargetDialDenied{
+			AppSessionTargetDialDenied: e,
+		}
 	case *AppSessionDynamoDBRequest:
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,

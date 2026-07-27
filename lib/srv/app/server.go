@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -277,20 +279,44 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 }
 
 // removeAppServer deletes app server for the specified app.
-func (s *Server) removeAppServer(ctx context.Context, name string) error {
-	return s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace,
-		s.c.HostID, name)
+func (s *Server) removeAppServer(ctx context.Context, appSQN scopes.QualifiedName) error {
+	err := s.c.AuthClient.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: s.c.HostID,
+		Name:   appSQN.Name,
+		Scope:  appSQN.Scope,
+	}.Build())
+	if trace.IsNotImplemented(err) && appSQN.Scope == "" {
+		// Fall back for auth servers that don't have the DeleteAppServer RPC so
+		// that unscoped app servers are still cleaned up promptly rather
+		// than lingering until TTL expiry. Scoped app servers cannot exist
+		// against such auth servers, so no fallback is possible when a scope is set.
+		//nolint:staticcheck // SA1019. Deliberate fallback to the deprecated RPC.
+		return trace.Wrap(s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace, s.c.HostID, appSQN.Name))
+	}
+	return trace.Wrap(err)
+}
+
+// appScope returns the scope of the named app.
+func (s *Server) appScope(name string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if app, ok := s.apps[name]; ok {
+		return app.GetScope()
+	}
+	return ""
 }
 
 // stopAndRemoveApp uninitializes and deletes the app with the specified name.
 func (s *Server) stopAndRemoveApp(ctx context.Context, name string) error {
+	scope := s.appScope(name)
+
 	if err := s.stopApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Heartbeat is stopped but if we don't remove this app server,
 	// it can linger for up to ~10m until its TTL expires.
-	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+	if err := s.removeAppServer(ctx, scopes.QualifiedName{Name: name, Scope: scope}); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -372,6 +398,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
+
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -563,7 +590,7 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 		if currentApps[name] {
 			continue
 		}
-		if err := s.removeAppServer(ctx, name); err != nil {
+		if err := s.removeAppServer(ctx, scopes.QualifiedName{Name: name, Scope: server.GetScope()}); err != nil {
 			if !trace.IsNotFound(err) {
 				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
 			}
@@ -625,9 +652,10 @@ func (s *Server) close(ctx context.Context) error {
 			}
 
 			if shouldDeleteApps {
+				scope := s.apps[name].GetScope()
 				g.Go(func() error {
 					log.DebugContext(ctx, "Deleting app")
-					if err := s.removeAppServer(gctx, name); err != nil {
+					if err := s.removeAppServer(gctx, scopes.QualifiedName{Name: name, Scope: scope}); err != nil {
 						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
 						log.DebugContext(ctx, "Deleted app")
@@ -709,6 +737,17 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 	// Add in the cloud labels if the app has them.
 	if s.c.CloudLabels != nil {
 		s.c.CloudLabels.Apply(copy)
+	}
+
+	// A statically configured app on a scoped agent carries no scope, so use the agent's scope
+	// onto it.
+	// An app that already has a scope keeps it, rather than being silently re-scoped to the
+	// agent's scope.
+	// If it doesn't match this agent's scope, the resulting server/app scope mismatch
+	// is rejected via heartbeat (ValidateAppServer and the inventory controller).
+	// TODO (williamo/scopes) - reject scoped app creation via tctl
+	if copy.GetScope() == "" {
+		copy.Scope = s.c.GetScope()
 	}
 
 	return copy

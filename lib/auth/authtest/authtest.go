@@ -349,8 +349,10 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend: srv.Backend,
-		Modules: cfg.Modules,
+		Backend:                     srv.Backend,
+		Modules:                     cfg.Modules,
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1167,8 +1169,8 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1183,8 +1185,8 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1307,6 +1309,7 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 			ServerFQDN:  serverFQDN,
 			ScopePin:    pin,
 			Identity: tlsca.Identity{
+				Username: serverFQDN,
 				ScopePin: pin,
 			},
 		},

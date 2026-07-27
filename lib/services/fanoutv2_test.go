@@ -26,7 +26,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestFanoutV2Init verifies that Init event is sent exactly once.
@@ -90,6 +94,88 @@ func TestFanoutV2StreamFiltering(t *testing.T) {
 	require.Equal(t, "spam", stream.Item().Resource.GetKind())
 
 	require.NoError(t, stream.Done())
+}
+
+// TestFanoutV2ScopeFiltering verifies that a watch kind's scope filter selects which scoped events a
+// stream receives, that it applies to delete events (which carry scope) as well as puts, and that a
+// stream with no scope filter receives every event for the kind.
+func TestFanoutV2ScopeFiltering(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	scopedRole := func(scope string) types.Resource {
+		return types.Resource153ToLegacy(scopedaccessv1.ScopedRole_builder{
+			Kind:     scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{Name: "role"}.Build(),
+			Scope:    scope,
+		}.Build())
+	}
+
+	scopeOf := func(r types.Resource) string {
+		scoped, ok := r.(interface{ GetScope() string })
+		require.True(t, ok, "resource %T does not expose a scope", r)
+		return scoped.GetScope()
+	}
+
+	f := NewFanoutV2(FanoutV2Config{})
+
+	// a stream that watches only the exact scope /foo.
+	exact := f.NewStream(ctx, types.Watch{
+		Name: "exact",
+		Kinds: []types.WatchKind{{
+			Kind:        scopedaccess.KindScopedRole,
+			ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Scope: "/foo", Mode: scopesv1.Mode_MODE_EXACT}.Build()),
+		}},
+	})
+
+	// a stream with no scope filter, which should receive every event for the kind.
+	all := f.NewStream(ctx, types.Watch{
+		Name:  "all",
+		Kinds: []types.WatchKind{{Kind: scopedaccess.KindScopedRole}},
+	})
+
+	f.SetInit([]types.WatchKind{{Kind: scopedaccess.KindScopedRole}})
+
+	require.True(t, exact.Next())
+	require.Equal(t, types.OpInit, exact.Item().Type)
+	require.True(t, all.Next())
+	require.Equal(t, types.OpInit, all.Item().Type)
+
+	events := []struct {
+		op    types.OpType
+		scope string
+	}{
+		{types.OpPut, "/foo"},
+		{types.OpPut, "/bar"},
+		{types.OpPut, "/foo/sub"},
+		{types.OpDelete, "/foo"},
+		{types.OpDelete, "/bar"},
+	}
+	for _, e := range events {
+		f.Emit(types.Event{Type: e.op, Resource: scopedRole(e.scope)})
+	}
+
+	// the exact-scope stream sees only the two /foo events (put and delete), in order.
+	for _, want := range []struct {
+		op    types.OpType
+		scope string
+	}{
+		{types.OpPut, "/foo"},
+		{types.OpDelete, "/foo"},
+	} {
+		require.True(t, exact.Next())
+		require.Equal(t, want.op, exact.Item().Type)
+		require.Equal(t, want.scope, scopeOf(exact.Item().Resource))
+	}
+	require.NoError(t, exact.Done())
+
+	// the unfiltered stream sees every event, in order.
+	for _, want := range events {
+		require.True(t, all.Next())
+		require.Equal(t, want.op, all.Item().Type)
+		require.Equal(t, want.scope, scopeOf(all.Item().Resource))
+	}
+	require.NoError(t, all.Done())
 }
 
 func TestFanoutV2StreamOrdering(t *testing.T) {

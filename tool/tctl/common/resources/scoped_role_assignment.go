@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -160,18 +161,18 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, sub
 		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    sqn.Name,
 			SubKind: subKind,
+			Scope:   sqn.Scope,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		assignment := rsp.GetAssignment()
-		if assignment.GetScope() != sqn.Scope {
-			return nil, scopeMismatchNotFound(scopedaccess.KindScopedRoleAssignment, *sqn, assignment.GetScope())
-		}
-		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.GetAssignment()}}, nil
 	}
 
-	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,21 +192,10 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
 	}
 
-	// Fetch first to verify scope before deleting.
-	rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
-		Name:    sqn.Name,
-		SubKind: subKind,
-	}.Build())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rsp.GetAssignment().GetScope() != sqn.Scope {
-		return scopeMismatchNotFound(scopedaccess.KindScopedRoleAssignment, sqn, rsp.GetAssignment().GetScope())
-	}
-
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    sqn.Name,
 		SubKind: subKind,
+		Scope:   sqn.Scope,
 	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}

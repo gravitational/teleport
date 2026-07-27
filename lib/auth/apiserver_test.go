@@ -19,131 +19,14 @@
 package auth_test
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 )
-
-// TODO(noah): In a separate PR soon, nuke this test. We cover this elsewhere
-// much better. This test awkwardly skips some important layers.
-func TestUpsertServer(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	const remoteAddr = "request-remote-addr"
-
-	tests := []struct {
-		desc       string
-		role       types.SystemRole
-		reqServer  types.Server
-		wantServer types.Server
-		assertErr  require.ErrorAssertionFunc
-	}{
-		{
-			desc: "node",
-			reqServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindNode,
-			},
-			role: types.RoleNode,
-			wantServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindNode,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			desc: "proxy",
-			reqServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindProxy,
-			},
-			role: types.RoleProxy,
-			wantServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindProxy,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			desc: "auth",
-			reqServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindAuthServer,
-			},
-			role: types.RoleAuth,
-			wantServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindAuthServer,
-			},
-			assertErr: require.Error,
-		},
-		{
-			desc: "unknown",
-			reqServer: &types.ServerV2{
-				Metadata: types.Metadata{Name: "test-server", Namespace: apidefaults.Namespace},
-				Version:  types.V2,
-				Kind:     types.KindNode,
-			},
-			role:      types.SystemRole("unknown"),
-			assertErr: require.Error,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
-			// Set up backend to upsert servers into.
-			s := newTestServices(t)
-
-			// Create a fake HTTP request.
-			inSrv, err := services.MarshalServer(tt.reqServer)
-			require.NoError(t, err)
-			body, err := json.Marshal(auth.UpsertServerRawReq{Server: inSrv})
-			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
-			req.RemoteAddr = remoteAddr
-			req.Header.Add("Content-Type", "application/json")
-
-			_, err = auth.UpsertServer(new(auth.APIServer), s, tt.role, req, httprouter.Params{httprouter.Param{Key: "namespace", Value: apidefaults.Namespace}})
-			tt.assertErr(t, err)
-			if err != nil {
-				return
-			}
-
-			// Fetch all servers from the backend, there should only be 1.
-			var allServers []types.Server
-			addServers := func(servers []types.Server, err error) {
-				require.NoError(t, err)
-				allServers = append(allServers, servers...)
-			}
-			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-			addServers(s.GetAuthServers())
-			addServers(s.GetNodes(ctx, apidefaults.Namespace))
-			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-			addServers(s.GetProxies())
-			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-	}
-}
 
 // TestTokensRegisterReturnsTooOldError verifies that the re-added /tokens/register
 // route returns an explicit "too old" error rather than a 404, so that outdated

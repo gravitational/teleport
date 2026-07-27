@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"time"
@@ -460,6 +461,9 @@ type RunCommandClient interface {
 type runCommandClient struct {
 	virtualMachineRunCommandsAPI *armcompute.VirtualMachineRunCommandsClient
 	scaleSetVMRunCommandsAPI     *armcompute.VirtualMachineScaleSetVMRunCommandsClient
+	virtualMachineAPI            virtualMachinesLister
+	scaleSetVMsAPI               scaleSetVMsLister
+	logger                       *slog.Logger
 }
 
 // NewRunCommandClient creates a new Azure Run Command client by subscription
@@ -475,9 +479,24 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 		return nil, trace.Wrap(err)
 	}
 
+	virtualMachineAPI, err := armcompute.NewVirtualMachinesClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	scaleSetVMsAPI, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	logger := slog.With(teleport.ComponentKey, "azure_run_command_client")
+
 	return &runCommandClient{
 		virtualMachineRunCommandsAPI: runCommandAPI,
 		scaleSetVMRunCommandsAPI:     scaleSetVMRunCommandsAPI,
+		virtualMachineAPI:            virtualMachineAPI,
+		scaleSetVMsAPI:               scaleSetVMsAPI,
+		logger:                       logger,
 	}, nil
 }
 
@@ -487,9 +506,6 @@ const runCommandName = "teleport-install"
 // Run runs Teleport installation command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
 	runCommandTimeout := getRunCommandTimeout()
-	// pad the timeout so we can still attempt to collect output if it times out
-	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
-	defer cancel()
 
 	runCommand := armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
@@ -509,19 +525,19 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 		},
 	}
 
-	var runCommandProperties *armcompute.VirtualMachineRunCommandProperties
-	var err error
-
-	if req.isUniformVMSS() {
-		runCommandProperties, err = c.uniformScaleSetVirtualMachineRunCommand(ctx, req, runCommand)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	runCommandProperties, err := c.runCommandInVM(ctx, req, runCommand, runCommandTimeout)
+	if err != nil {
+		// If the runCommandInVM returns a context.DeadlineExceeded error (by default, 6m in that call), there's two likely causes:
+		// - script is executing but is taking too long (eg, teleport download from CDN is slow)
+		// - script is not executing because the VM Agent is down
+		// Azure does not provide a way to understand whether the script execution actually started or not.
+		// Instead of raising the context.DeadlineExceeded error, we will check the agent status and, if the agent is down, return a more specific error.
+		if errors.Is(err, context.DeadlineExceeded) {
+			if err := c.checkVMStatus(ctx, req); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
-	} else {
-		runCommandProperties, err = c.regularVirtualMachineRunCommand(ctx, req, runCommand)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 
 	commandResult, err := commandResultFromInstanceView(runCommandProperties)
@@ -530,6 +546,19 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	}
 
 	return commandResult, nil
+}
+
+func (c *runCommandClient) runCommandInVM(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand, runCommandTimeout time.Duration) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	// pad the timeout so we can still attempt to collect output if it times out
+	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
+	defer cancel()
+
+	switch {
+	case req.isUniformVMSS():
+		return c.uniformScaleSetVirtualMachineRunCommand(ctx, req, runCommand)
+	default:
+		return c.regularVirtualMachineRunCommand(ctx, req, runCommand)
+	}
 }
 
 func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
@@ -576,6 +605,127 @@ func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.C
 	}
 
 	return resp.Properties, nil
+}
+
+func (c *runCommandClient) checkVMStatus(ctx context.Context, req RunCommandRequest) error {
+	var vmStatus *vmStatus
+	var err error
+
+	logger := c.logger.With("resource_group", req.ResourceGroup, "region", req.Region, "vm_name", req.VMName)
+
+	if req.isUniformVMSS() {
+		logger = logger.With("uniform_scale_set_name", req.UniformScaleSetName, "uniform_scale_set_vm_instance_id", req.UniformScaleSetVMInstanceID)
+		vmStatus, err = c.vmssVMStatus(ctx, req)
+	} else {
+		vmStatus, err = c.regularVMStatus(ctx, req)
+	}
+	if err != nil {
+		logger.DebugContext(ctx, "failed to check if VM power status and agent state, continuing with run command", "error", err)
+		return nil
+	}
+
+	switch {
+	case vmStatus.VMIsRunning && vmStatus.AgentIsReady:
+		return nil
+
+	case !vmStatus.VMIsRunning:
+		return NewVMNotRunningError(nil)
+
+	case !vmStatus.AgentIsReady:
+		return NewVMAgentNotAvailableError(nil)
+	}
+
+	return nil
+}
+
+type vmStatus struct {
+	VMIsRunning  bool
+	AgentIsReady bool
+}
+
+func (c *runCommandClient) regularVMStatus(ctx context.Context, req RunCommandRequest) (*vmStatus, error) {
+	getVMResp, err := c.virtualMachineAPI.Get(ctx, req.ResourceGroup, req.VMName, &armcompute.VirtualMachinesClientGetOptions{
+		Expand: new(armcompute.InstanceViewTypesInstanceView),
+	})
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
+	}
+
+	if getVMResp.Properties != nil && getVMResp.Properties.InstanceView != nil {
+		instanceView := getVMResp.Properties.InstanceView
+		return checkStatus(instanceView.VMAgent, instanceView.Statuses)
+	}
+
+	return nil, trace.BadParameter("failed to get vm agent status")
+}
+
+func (c *runCommandClient) vmssVMStatus(ctx context.Context, req RunCommandRequest) (*vmStatus, error) {
+	getVMResp, err := c.scaleSetVMsAPI.Get(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, &armcompute.VirtualMachineScaleSetVMsClientGetOptions{
+		Expand: new(armcompute.InstanceViewTypesInstanceView),
+	})
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
+	}
+
+	if getVMResp.Properties != nil && getVMResp.Properties.InstanceView != nil {
+		instanceView := getVMResp.Properties.InstanceView
+		return checkStatus(instanceView.VMAgent, instanceView.Statuses)
+	}
+
+	return nil, trace.BadParameter("failed to get vm agent status")
+}
+
+func checkStatus(vmAgent *armcompute.VirtualMachineAgentInstanceView, powerStatuses []*armcompute.InstanceViewStatus) (*vmStatus, error) {
+	vmIsRunning, err := isVMRunning(powerStatuses)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	vmAgentReady, err := isVMAgentReady(vmAgent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &vmStatus{
+		VMIsRunning:  vmIsRunning,
+		AgentIsReady: vmAgentReady,
+	}, nil
+}
+
+func isVMAgentReady(vmAgent *armcompute.VirtualMachineAgentInstanceView) (bool, error) {
+	const (
+		// Azure does not have documentation around possible status codes for the VM Agent, but in practice we have observed the following:
+		// - code:ProvisioningState/succeeded   display_status:Ready     message:GuestAgent is running and processing the extensions. OR Guest Agent is running
+		// - code:ProvisioningState/Unavailable display_status:Not Ready message:VM Agent is unresponsive.
+		provisioningStateSucceeded   = "ProvisioningState/succeeded"
+		provisioningStateUnavailable = "ProvisioningState/Unavailable"
+	)
+	if vmAgent != nil {
+		for _, status := range vmAgent.Statuses {
+			if StringVal(status.Code) == provisioningStateSucceeded {
+				return true, nil
+			}
+			if StringVal(status.Code) == provisioningStateUnavailable {
+				return false, nil
+			}
+		}
+	}
+	return false, trace.BadParameter("failed to get vm agent status")
+}
+
+func isVMRunning(statuses []*armcompute.InstanceViewStatus) (bool, error) {
+	const (
+		powerStateRunning = "PowerState/running"
+		powerStateStopped = "PowerState/stopped"
+	)
+	for _, status := range statuses {
+		if StringVal(status.Code) == powerStateRunning {
+			return true, nil
+		}
+		if StringVal(status.Code) == powerStateStopped {
+			return false, nil
+		}
+	}
+	return false, trace.BadParameter("failed to get vm running status")
 }
 
 func commandResultFromInstanceView(properties *armcompute.VirtualMachineRunCommandProperties) (*RunCommandResult, error) {

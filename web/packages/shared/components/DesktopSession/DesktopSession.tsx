@@ -36,8 +36,10 @@ import {
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
 import { DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { Latency } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import Validation from 'shared/components/Validation';
 import {
   Attempt,
   makeEmptyAttempt,
@@ -552,6 +554,44 @@ function DisconnectedStateContainer(props: {
       </Flex>
       {props.children}
     </Flex>
+  );
+}
+
+export function SessionSelection(props: {
+  desktopName: string;
+  sessions: string[];
+  onConnect: (session: string) => void;
+}) {
+  const options = props.sessions.map(session => ({
+    value: session,
+    label: session,
+  }));
+  const [session, setSession] = useState(options[0]);
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Text mb={3}>Select session to start:</Text>
+      <Validation>
+        <FieldSelect
+          value={session}
+          options={options}
+          menuPosition="fixed"
+          isMulti={false}
+          isClearable={false}
+          onChange={setSession}
+        />
+      </Validation>
+      <ButtonPrimary
+        type="submit"
+        width="45%"
+        size="large"
+        onClick={e => {
+          e.preventDefault();
+          props.onConnect(session.value);
+        }}
+      >
+        Connect
+      </ButtonPrimary>
+    </DisconnectedStateContainer>
   );
 }
 

@@ -41,6 +41,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/header"
@@ -210,7 +211,10 @@ func TestUnifiedResourceWatcher(t *testing.T) {
 	nodeUpdated := newNodeServer(t, "node1", "hostname1", "192.168.0.1:22", false /*tunnel*/)
 	_, err = clt.UpsertNode(ctx, nodeUpdated)
 	require.NoError(t, err)
-	err = clt.DeleteApplicationServer(ctx, defaults.Namespace, "app1-host-id", "app1")
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "app1-host-id",
+		Name:   "app1",
+	}.Build())
 	require.NoError(t, err)
 
 	// this should include the updated node, and shouldn't have any apps included
@@ -981,6 +985,87 @@ func TestUnifiedResourceCache_AppServerComponentFeaturesIntersection(t *testing.
 	})
 }
 
+func TestUnifiedResourceWatcher_ScopedResources(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	client := newClient(t)
+	w, err := services.NewUnifiedResourceCache(ctx, services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentUnifiedResource,
+			Client:    client,
+		},
+		ResourceGetter: client,
+	})
+	require.NoError(t, err)
+
+	newScopedAppServer := func(scope string) *types.AppServerV3 {
+		app := newApp(t, "graf")
+		app.Scope = scope
+		srv, err := types.NewAppServerV3(types.Metadata{Name: "graf"}, types.AppServerSpecV3{
+			HostID: uuid.NewString(),
+			App:    app,
+		}, scope)
+		require.NoError(t, err)
+		return srv
+	}
+
+	staging := newScopedAppServer("/staging")
+	prod := newScopedAppServer("/prod")
+	unscoped := newScopedAppServer("")
+
+	for _, srv := range []*types.AppServerV3{staging, prod, unscoped} {
+		_, err = client.UpsertApplicationServer(ctx, srv)
+		require.NoError(t, err)
+	}
+
+	getScopes := func(res []types.ResourceWithLabels) []string {
+		require.NoError(t, err)
+		scopes := []string{}
+		for _, r := range res {
+			appServer, ok := r.(types.AppServer)
+			require.True(t, ok, "expected types.AppServer, got %T", r)
+			scopes = append(scopes, appServer.GetScope())
+		}
+		return scopes
+	}
+
+	// All three same-named apps must be distinct entries.
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 3)
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// Deleting the staging app server (identified by hostID/name only, like the
+	// real deletion paths) must prune exactly the staging entry.
+	require.NoError(t, client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: staging.Spec.HostID,
+		Name:   staging.GetName(),
+		Scope:  staging.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 2)
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+	// The unscoped app is still deletable through the legacy path.
+	require.NoError(t, client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: unscoped.Spec.HostID,
+		Name:   unscoped.GetName(),
+		Scope:  unscoped.GetScope(),
+	}.Build()))
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, err := w.GetUnifiedResources(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+		require.ElementsMatch(t, []string{"/prod"}, getScopes(res))
+	}, 5*time.Second, 10*time.Millisecond)
+
+}
+
 func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
@@ -1113,7 +1198,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	err = clt.DeleteDatabaseServer(ctx, "default", dbServers[0].Spec.HostID, dbServers[0].GetName())
 	require.NoError(t, err)
 	dbServers = dbServers[1:]
-	err = clt.DeleteApplicationServer(ctx, "default", appServers[0].Spec.HostID, appServers[0].GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].Spec.HostID,
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	appServers = appServers[1:]
 	err = clt.DeleteWindowsDesktop(ctx, desktops[0].Spec.HostID, desktops[0].GetName())
@@ -1151,7 +1240,11 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 		require.NoError(t, err)
 	}
 	for _, appServer := range appServers {
-		err = clt.DeleteApplicationServer(ctx, "default", appServer.Spec.HostID, appServer.GetName())
+		err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: appServer.Spec.HostID,
+			Name:   appServer.GetName(),
+			Scope:  appServer.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 	}
 	for _, desktop := range desktops {

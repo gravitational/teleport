@@ -194,7 +194,7 @@ export function createViteConfig(
         `^\\/v[0-9]+\\/webapi\\/(` +
         [
           `sites\\/${siteName}\\/connect`,
-          `sites\\/${siteName}\\/desktops\\/${siteName}\\/connect`,
+          `sites\\/${siteName}\\/(desktops|linuxdesktops)\\/${siteName}\\/connect`,
           `sites\\/${siteName}\\/(kube|db)\\/exec`,
           `sites\\/${siteName}\\/(desktopplayback|sessionrecording|ttyplayback)\\/.+`,
           `command\\/.+\\/execute`,

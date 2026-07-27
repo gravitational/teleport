@@ -84,7 +84,7 @@ func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, a
 	return err
 }
 
-func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runResourceCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
 		Stdout: &stdoutBuff,

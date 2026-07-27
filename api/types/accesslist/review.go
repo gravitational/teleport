@@ -36,12 +36,23 @@ type Review struct {
 	// Scope is the scope of the access list review, must match the scope of
 	// the reviewed access list.
 	Scope string `json:"scope" yaml:"scope"`
+
+	// Status contains dynamically calculated fields. It is ignored when
+	// marshaling so tctl users do not mistake these read-time values for fields
+	// they could update with resource YAML.
+	Status *ReviewStatus `json:"-" yaml:"-"`
 }
 
 const (
 	// reviewNotesMaxSizeBytes is the maximum size in bytes of review notes.
 	reviewNotesMaxSizeBytes = 200 * 1024 // 200 KB should be more than plenty
 )
+
+// ReviewStatus contains dynamic fields calculated during retrieval.
+type ReviewStatus struct {
+	// ReviewerDisplays maps reviewer usernames to read-time display values.
+	ReviewerDisplays map[string]types.UserDisplay `json:"-" yaml:"-"`
+}
 
 // ReviewSpec describes the specification of a review of an access list.
 type ReviewSpec struct {

@@ -9,14 +9,17 @@ tests:
       - hasDocuments:
           count: 3
       - containsDocument:
+          any: true
           kind: Issuer
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-issuer
       - containsDocument:
+          any: true
           kind: Certificate
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-selfsigned-ca
       - containsDocument:
+          any: true
           kind: Issuer
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-ca-issuer

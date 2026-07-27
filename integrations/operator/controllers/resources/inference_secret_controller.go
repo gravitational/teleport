@@ -38,9 +38,9 @@ type inferenceSecretClient struct {
 }
 
 // Get gets an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Get(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error) {
+func (c inferenceSecretClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*summarizerv1.InferenceSecret, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceSecret(
-		ctx, summarizerv1.GetInferenceSecretRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.GetInferenceSecretRequest_builder{Name: key.Name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -66,9 +66,9 @@ func (c inferenceSecretClient) Update(ctx context.Context, secret *summarizerv1.
 }
 
 // Delete deletes an inference secret with a given name from Teleport.
-func (c inferenceSecretClient) Delete(ctx context.Context, name string) error {
+func (c inferenceSecretClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceSecret(
-		ctx, summarizerv1.DeleteInferenceSecretRequest_builder{Name: name}.Build(),
+		ctx, summarizerv1.DeleteInferenceSecretRequest_builder{Name: key.Name}.Build(),
 	)
 	return trace.Wrap(err)
 }

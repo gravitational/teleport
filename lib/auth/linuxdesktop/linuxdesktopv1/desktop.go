@@ -50,6 +50,8 @@ func ValidateLinuxDesktop(desktop *linuxdesktopv1pb.LinuxDesktop) error {
 		return trace.BadParameter("spec.addr is required")
 	case desktop.GetSpec().GetHostname() == "":
 		return trace.BadParameter("spec.hostname is required")
+	case desktop.GetKind() != types.KindLinuxDesktop:
+		return trace.BadParameter("kind must be %q", types.KindLinuxDesktop)
 	}
 	return nil
 }

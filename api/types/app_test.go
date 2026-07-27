@@ -1040,8 +1040,8 @@ func TestLLMConfiguration(t *testing.T) {
 				spec.URI = SchemeLLMEndpoint + "://my-inference-endpoint"
 				return spec
 			},
-			"aws": func(spec AppSpecV3) AppSpecV3 {
-				spec.AWS = &AppAWS{ExternalID: "default-external-id"}
+			"non-bedrock aws configuration": func(spec AppSpecV3) AppSpecV3 {
+				spec.AWS = &AppAWS{Region: "us-west-2"}
 				return spec
 			},
 			"llm provider": func(spec AppSpecV3) AppSpecV3 {

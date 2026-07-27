@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,7 +62,7 @@ type Matcher func(readonly.AppServer) bool
 func MatchAppServerForRoute(name, publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {
 		app := appServer.GetApp()
-		if publicAddr != "" && app.GetPublicAddr() != publicAddr {
+		if publicAddr != "" && !appMatchesPublicAddr(app, publicAddr) {
 			return false
 		}
 		if name != "" && app.GetName() != name {
@@ -74,8 +75,21 @@ func MatchAppServerForRoute(name, publicAddr string) Matcher {
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {
-		return appServer.GetApp().GetPublicAddr() == publicAddr
+		return appMatchesPublicAddr(appServer.GetApp(), publicAddr)
 	}
+}
+
+// appMatchesPublicAddr reports whether the app should answer for the requested
+// public address.
+// Scoped apps match on the computed subdomain only,
+// so the app resolves regardless of which proxy the FQDN was assembled under.
+// Unscoped apps require an exact public_addr match.
+func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
+	if scope := app.GetScope(); scope != "" {
+		return scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), publicAddr)
+	}
+
+	return app.GetPublicAddr() == publicAddr
 }
 
 // MatchName matches on the name of an application.
@@ -115,7 +129,21 @@ func ResolveFQDN(
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		return pickAppServer(servers, canAccess), localClusterName, nil
+		srv := pickAppServer(servers, canAccess)
+		// A scoped app is addressed as <hash>.<proxy> and its hashed subdomain matches regardless of the
+		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
+		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
+		if srv.GetApp().GetScope() != "" {
+			host := strings.Split(fqdn, ":")[0]
+			// In the case where FindMatchingProxyDNS finds an actual found proxy match, this check is redundant.
+			// In the case where it finds no matches, FindMatchingProxyDNS returns the first element of proxyDNSNames,
+			// we must recheck to make sure that the proxy found matches, and reject if it doesn't.
+			proxyMatch := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
+			if host != proxyMatch && !strings.HasSuffix(host, "."+proxyMatch) {
+				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
+			}
+		}
+		return srv, localClusterName, nil
 	}
 
 	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)

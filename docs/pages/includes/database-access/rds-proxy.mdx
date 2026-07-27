@@ -16,7 +16,7 @@
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
 [PostgreSQL](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres.mdx),
-[MariaDB/MySQL](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres.mdx) or
+[MariaDB/MySQL](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-mysql.mdx) or
 [Microsoft SQL Server](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-sqlserver.mdx).
 </Admonition>
 
@@ -100,8 +100,12 @@ $ aws secretsmanager create-secret \
   --secret-string '{"username":"alice","password":"password_for_alice"}'
 ```
 
-Next, create an IAM role with a policy that can access these secrets, for
-example:
+Next, create an IAM role with a policy that can access these secrets. Assign
+<Var name="region"/> to the AWS Region of your secrets, <Var
+name="aws-account-id"/> to your AWS account ID, and <Var name="key-id"/> to
+the ID of the KMS key that encrypts your secrets. If your secrets are
+encrypted with the default AWS managed key (`aws/secretsmanager`), you can
+omit the `kms:Decrypt` statement:
 
 ```json
 {
@@ -111,17 +115,17 @@ example:
             "Effect": "Allow",
             "Action": "secretsmanager:GetSecretValue",
             "Resource": [
-                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_alice",
-                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
+                "arn:aws:secretsmanager:<Var name="region"/>:<Var name="aws-account-id"/>:secret:rdsproxy_alice",
+                "arn:aws:secretsmanager:<Var name="region"/>:<Var name="aws-account-id"/>:secret:rdsproxy_anotheruser"
             ]
         },
-        {   
+        {
             "Effect": "Allow",
             "Action": "kms:Decrypt",
-            "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
+            "Resource": "arn:aws:kms:<Var name="region"/>:<Var name="aws-account-id"/>:key/<Var name="key-id"/>",
             "Condition": {
                 "StringEquals": {
-                    "kms:ViaService": "secretsmanager.us-east-2.amazonaws.com"
+                    "kms:ViaService": "secretsmanager.<Var name="region"/>.amazonaws.com"
                 }
             }
         }
@@ -209,3 +213,4 @@ $ tsh db logout rds-proxy
   and [Setting up AWS Identity and Access Management (IAM)
   policies](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
   for RDS Proxy
+  

@@ -48,6 +48,7 @@
     "@gravitational/teleport": "workspace:*",
     "babel-plugin-transform-import-meta": "2.3.3",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
+    "babel-plugin-transform-vite-meta-hot": "^1.0.0",
     "jest-websocket-mock": "^2.5.0"
   }
 }

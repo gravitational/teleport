@@ -114,6 +114,9 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
+	// GetReferencedUsers returns the usernames referenced by this request: the
+	// requester, review authors, and suggested reviewers.
+	GetReferencedUsers() []string
 	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
@@ -442,6 +445,16 @@ func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
 }
 
+// GetReferencedUsers returns the usernames referenced by this request: the
+// requester, review authors, and suggested reviewers.
+func (r *AccessRequestV3) GetReferencedUsers() []string {
+	usernames := []string{r.GetUser()}
+	for _, review := range r.GetReviews() {
+		usernames = append(usernames, review.Author)
+	}
+	return append(usernames, r.GetSuggestedReviewers()...)
+}
+
 // GetPromotedAccessListName returns PromotedAccessListName.
 func (r *AccessRequestV3) GetPromotedAccessListName() string {
 	if r.Spec.AccessList == nil {
@@ -744,12 +757,17 @@ func (r *AccessRequestV3) GetAllLabels() map[string]string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	return MatchSearch(r.SearchableFields(), values, nil)
+}
+
+// SearchableFields returns the stored access request values used for search.
+func (r *AccessRequestV3) SearchableFields() []string {
 	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName(), r.GetUser())
 	fieldVals = append(fieldVals, r.GetRoles()...)
 	for _, resource := range r.GetRequestedResourceIDs() {
 		fieldVals = append(fieldVals, resource.Name)
 	}
-	return MatchSearch(fieldVals, values, nil)
+	return fieldVals
 }
 
 // Origin returns the origin value of the resource.

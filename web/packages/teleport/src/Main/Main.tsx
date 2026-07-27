@@ -53,6 +53,8 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
+import history from 'teleport/services/history/history';
+import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
@@ -115,6 +117,25 @@ export function Main(props: MainProps) {
     );
   }
 
+  const availableScopes = ctx.storeUser.getAvailableScopes();
+  const isScopePickerRoute = !!matchPath(
+    { path: cfg.routes.scopePicker, end: true },
+    location.pathname
+  );
+
+  // TODO(bl-nero): Don't redirect once the user picks a scope.
+  // For now, as the scope picker is not fully operational, we only enable it
+  // if a local storage flag is on.
+  if (storageService.getUseLoginScopePicker()) {
+    if (
+      cfg.scopesEnabled &&
+      availableScopes.length > 0 &&
+      !isScopePickerRoute
+    ) {
+      return <Redirect to={history.getScopePickerUrl()} />;
+    }
+  }
+
   // redirect to the default feature when hitting the root /web URL
   if (matchPath(cfg.routes.root, location.pathname)) {
     if (ctx.redirectUrl) {
@@ -152,7 +173,10 @@ export function Main(props: MainProps) {
 
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar CustomLogo={props.CustomLogo} />
+      <TopBar
+        CustomLogo={props.CustomLogo}
+        scopePickerMode={isScopePickerRoute}
+      />
       <Wrapper>
         <MainContainer>
           <Navigation showPoweredByLogo={!!props.CustomLogo} />

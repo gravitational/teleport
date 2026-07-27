@@ -590,7 +590,7 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy
-      - isEmpty:
+      - notExists:
           path: spec.tls[0].secretName
       - matchSnapshot:
           path: spec.tls

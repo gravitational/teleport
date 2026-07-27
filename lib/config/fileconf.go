@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
@@ -52,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -94,6 +96,10 @@ type FileConfig struct {
 	// WindowsDesktop is the "windows_desktop_service" that defines the
 	// configuration for Windows Desktop Access.
 	WindowsDesktop WindowsDesktopService `yaml:"windows_desktop_service,omitempty"`
+
+	// LinuxDesktop is the "linux_desktop_service" that defines the
+	// configuration for Linux Desktop Access.
+	LinuxDesktop LinuxDesktopService `yaml:"linux_desktop_service,omitempty"`
 
 	// Tracing is the "tracing_service" section in Teleport configuration file
 	Tracing TracingService `yaml:"tracing_service,omitempty"`
@@ -513,6 +519,12 @@ type JoinParams struct {
 	Method       types.JoinMethod   `yaml:"method"`
 	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
 	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
+	GenericOIDC  GenericOIDCParams  `yaml:"generic_oidc,omitempty"`
+}
+
+// IsEqual determines if two JoinParams objects are deeply equal.
+func (a *JoinParams) IsEqual(b *JoinParams) bool {
+	return deriveTeleportEqualJoinParams(a, b)
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -537,6 +549,28 @@ type BoundKeypairParams struct {
 	// do not support automatic keypair rotation, and must be used with a token
 	// set to use `insecure` recovery mode.
 	StaticPrivateKeyPath string `yaml:"static_key_path"`
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env,omitempty"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command,omitempty"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+}
+
+// IsSet returns true if `generic_oidc` contains usable configuration.
+func (p GenericOIDCParams) IsSet() bool {
+	return p.Env != "" || len(p.Command) > 0
 }
 
 // ConnectionRate configures rate limiter
@@ -673,6 +707,69 @@ type Global struct {
 
 	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
 	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
+
+	// AuditQueue is used for configuration options for the audit log event
+	// queue.
+	AuditQueue AuditQueueConfig `yaml:"audit_queue,omitempty"`
+}
+
+// AuditQueueConfig is used to control the audit log event queue.
+type AuditQueueConfig struct {
+	// SoftLimit is the database file size when we start warning.
+	SoftLimit string `yaml:"soft_limit,omitempty"`
+	// HardLimit is the database file size when we start dropping events.
+	HardLimit string `yaml:"hard_limit,omitempty"`
+	// MaxAttempts is the maximum number of times we retry sending an event
+	// before moving it to the dead-letter queue.
+	MaxAttempts int `yaml:"max_attempts,omitempty"`
+	// DeadLetterTTL is the time to live for an event in the dead-letter queue
+	// before we delete it.
+	DeadLetterTTL types.Duration `yaml:"dead_letter_ttl,omitempty"`
+	// DeadLetterSweepInterval is how often the dead-letter sweeper attempts to
+	// redeliver failed events.
+	DeadLetterSweepInterval types.Duration `yaml:"dead_letter_sweep_interval,omitempty"`
+	// OrphanScanInterval is how often the process scans for orphaned queues.
+	OrphanScanInterval types.Duration `yaml:"orphan_scan_interval,omitempty"`
+	// Backend is the ordered list of preferred audit queue backends.
+	Backend []string `yaml:"backend,omitempty"`
+	// Synchronous can either be NORMAL or FULL, depending on the tradeoffs
+	// between durability and performance we want to make
+	Synchronous string `yaml:"synchronous,omitempty"`
+}
+
+// Parse parses the audit log options from the Teleport config.
+func (a *AuditQueueConfig) Parse() (servicecfg.AuditQueueConfig, error) {
+	out := servicecfg.AuditQueueConfig{
+		MaxAttempts:             a.MaxAttempts,
+		DeadLetterTTL:           a.DeadLetterTTL.Value(),
+		DeadLetterSweepInterval: a.DeadLetterSweepInterval.Value(),
+		OrphanScanInterval:      a.OrphanScanInterval.Value(),
+		Backends:                a.Backend,
+	}
+	if a.SoftLimit != "" {
+		v, err := humanize.ParseBytes(a.SoftLimit)
+		if err != nil {
+			return out, trace.BadParameter("invalid audit_queue.soft_limit %q: %v", a.SoftLimit, err)
+		}
+		out.SoftLimit = int64(v)
+	}
+	if a.HardLimit != "" {
+		v, err := humanize.ParseBytes(a.HardLimit)
+		if err != nil {
+			return out, trace.BadParameter("invalid audit_queue.hard_limit %q: %v", a.HardLimit, err)
+		}
+		out.MaxBytes = int64(v)
+	}
+	switch auditqueue.SynchronousMode(a.Synchronous) {
+	case "", auditqueue.SynchronousNormal:
+		out.Synchronous = auditqueue.SynchronousNormal
+	case auditqueue.SynchronousFull:
+		out.Synchronous = auditqueue.SynchronousFull
+	default:
+		return out, trace.BadParameter("invalid audit_queue.synchronous %q: must be %q or %q",
+			a.Synchronous, auditqueue.SynchronousNormal, auditqueue.SynchronousFull)
+	}
+	return out, nil
 }
 
 // CachePolicy is used to control  local cache
@@ -1775,9 +1872,9 @@ type Discovery struct {
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
+	// Types are GCP resource types to match: "gke", "gce", "cloudsql".
 	Types []string `yaml:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
+	// Locations are GCP locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
 	// Labels are GCP labels to match.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
@@ -2406,6 +2503,14 @@ type Apps struct {
 
 	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+
+	// AllowedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are allowed to resolve to.
+	AllowedHosts []string `yaml:"allowed_hosts,omitempty"`
+
+	// DeniedHosts is the list of IP addresses and CIDR ranges that proxied
+	// application targets are not allowed to resolve to.
+	DeniedHosts []string `yaml:"denied_hosts,omitempty"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -2515,6 +2620,9 @@ type Rewrite struct {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string `yaml:"external_id,omitempty"`
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string `yaml:"region,omitempty"`
 }
 
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
@@ -2948,6 +3056,29 @@ func (wds *WindowsDesktopService) Check() error {
 	return nil
 }
 
+// LinuxDesktopService contains configuration for linux_desktop_service.
+type LinuxDesktopService struct {
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Labels are the configured linux desktops service labels.
+	Labels    map[string]string `yaml:"labels,omitempty"`
+	XSessions XSessions         `yaml:"xsessions,omitempty"`
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string `yaml:"session_wrapper,omitempty"`
+}
+
+// Enabled returns true if the Linux desktop service is enabled.
+func (s *LinuxDesktopService) Enabled() bool {
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	return err == nil && v
+}
+
+type XSessions struct {
+	Included string `yaml:"included,omitempty"`
+	Excluded string `yaml:"excluded,omitempty"`
+}
+
 // WindowsHostLabelRule describes how a set of labels should be applied to
 // a Windows host.
 type WindowsHostLabelRule struct {
@@ -3014,6 +3145,9 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 	// Labels are static labels applied to all hosts discovered via
 	// this policy.
 	Labels map[string]string `yaml:"labels,omitempty"`
@@ -3023,9 +3157,13 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
-	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
-	// Optional, defaults to 3389 if unspecified.
-	RDPPort int `yaml:"rdp_port"`
+	// LabelAttributeMode determines how multi-valued LDAP attributes are
+	// treated. Valid values are:
+	//     - "first" (the default if unspecified): use the first attribute value
+	//     - "join": multi-valued attributes are joined with the specified separator
+	LabelAttributeMode string `yaml:"label_attribute_mode"`
+	// LabelAttributeJoinSeparator is used when LabelAttributeMode is "join".
+	LabelAttributeJoinSeparator string `yaml:"label_attribute_join_separator"`
 }
 
 // TracingService contains configuration for the tracing_service.

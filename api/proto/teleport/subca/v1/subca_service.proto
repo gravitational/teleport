@@ -51,11 +51,17 @@ service SubCAService {
   // CreateCSR creates certificate signing requests for all certificates of the
   // specified CA, in preparation for the creation of a CertAuthorityOverride.
   //
-  // On clusters that use HSMs this must be called on every Auth server
-  // instance, so it every private key is covered. Each Auth issues CSRs for all
-  // the private keys it holds.
+  // On clusters where Auth server instances have access to distinct keys
+  // (multi-Auth, multi-HSM), CreateCSR attempts to collect CSRs from all Auth
+  // servers using PendingCSRRequest watchers. Attempts are gated by a timeout.
+  // If the timeout expires, the RPC returns as many CSRs as it managed to
+  // collect.
   //
-  // CreateCSR requires cert_authority_override:read+list permissions.
+  // If local_only is set, the request will not fan out to other Auth servers;
+  // instead it will use local keys. In this case, each Auth server must be
+  // contacted independently to create their corresponding CSRs.
+  //
+  // CreateCSR requires cert_authority_override:create+update permissions.
   rpc CreateCSR(CreateCSRRequest) returns (CreateCSRResponse);
 
   // CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
@@ -80,7 +86,7 @@ service SubCAService {
   // value of CertificateOverride.disabled. See it for reference.
   rpc UpsertCertAuthorityOverride(UpsertCertAuthorityOverrideRequest) returns (UpsertCertAuthorityOverrideResponse);
 
-  // AddCertificateOverride adds a single CertiticateOverride to a
+  // AddCertificateOverride adds a single CertificateOverride to a
   // CertAuthorityOverride resource.
   //
   // The CertAuthorityOverride resource may be created as a consequence of this
@@ -90,14 +96,14 @@ service SubCAService {
   // value of CertificateOverride.disabled. See it for reference.
   rpc AddCertificateOverride(AddCertificateOverrideRequest) returns (AddCertificateOverrideResponse);
 
-  // UpdateCertificateOverride updates a single CertiticateOverride in a
+  // UpdateCertificateOverride updates a single CertificateOverride in a
   // CertAuthorityOverride resource.
   //
   // Disabling an active override is disallowed. See
   // UpdateCertificateOverrideRequest.force_immediate_disable.
   rpc UpdateCertificateOverride(UpdateCertificateOverrideRequest) returns (UpdateCertificateOverrideResponse);
 
-  // RemoveCertificateOverride removes a single CertiticateOverride inside a
+  // RemoveCertificateOverride removes a single CertificateOverride inside a
   // CertAuthorityOverride resource.
   //
   // If the last CertificateOverride of a CertAuthorityOverride is removed as a
@@ -145,12 +151,31 @@ message CreateCSRRequest {
   //
   // Optional. If present the request must target a single certificate.
   DistinguishedName custom_subject = 3;
+
+  // If true, don't fan out CSR requests of unusable private keys to other Auth
+  // servers.
+  bool local_only = 4;
 }
 
 // Response for CreateCSR.
+//
+// A successful response contains at least one CSR and zero or more warnings.
+// If the server is incapable of returning any CSRs the response will be an
+// error (instead of a CreateCSRResponse).
 message CreateCSRResponse {
   // Created CSRs.
   repeated CertificateSigningRequest csrs = 1;
+  // Warnings about missing/skipped CSRs.
+  repeated CreateCSRWarning warnings = 2;
+}
+
+// A warning returned as part of a CreateCSRResponse.
+message CreateCSRWarning {
+  // The end-user warning message.
+  string user_message = 1;
+  // Public key hash of the certificate/public key that generated the warning.
+  // Empty if not applicable.
+  string public_key_hash = 2;
 }
 
 // Request for CreateCertAuthorityOverride.

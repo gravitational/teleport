@@ -18,6 +18,7 @@ package itertools
 
 import (
 	"errors"
+	"iter"
 )
 
 // ErrCannotReduceBatchSize is returned when an attempt is made to reduce the batch size
@@ -89,4 +90,21 @@ func (it *DynamicBatchSizeIterator[T]) ReduceSize() error {
 	it.currentSize = (it.currentSize + 1) / 2
 	it.currentChunk = nil
 	return nil
+}
+
+// Skip returns an iterator that yields the items of seq after skipping its first n items. If seq
+// yields fewer than n items, the returned iterator yields nothing. A non-positive n is a no-op.
+func Skip[T any](seq iter.Seq[T], n int) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		n := n // copy
+		for item := range seq {
+			if n > 0 {
+				n--
+				continue
+			}
+			if !yield(item) {
+				return
+			}
+		}
+	}
 }

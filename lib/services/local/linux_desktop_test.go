@@ -76,6 +76,11 @@ func TestLinuxDesktopServiceCRUD(t *testing.T) {
 	out, _, err = service.ListLinuxDesktops(ctx, 10, "")
 	require.NoError(t, err)
 	require.Empty(t, out)
+
+	badKindDesktop := newLinuxDesktop("bad-kind")
+	badKindDesktop.SetKind("bad-kind")
+	_, err = service.CreateLinuxDesktop(ctx, badKindDesktop)
+	require.Error(t, err)
 }
 
 func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {

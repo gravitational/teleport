@@ -9,10 +9,12 @@ tests:
       - hasDocuments:
           count: 2
       - containsDocument:
+          any: true
           kind: Certificate
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-server
       - containsDocument:
+          any: true
           kind: Certificate
           apiVersion: cert-manager.io/v1
           name: RELEASE-NAME-teleport-plugin-event-handler-client

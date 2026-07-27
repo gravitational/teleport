@@ -111,7 +111,7 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		Hostname: hostname,
 		HostID:   hostID,
 		App:      app,
-	})
+	}, app.GetScope())
 }
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access

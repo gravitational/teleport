@@ -20,9 +20,10 @@ import { Flex, Text } from 'design';
 import { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
 import { StatusDot, type StatusKind } from 'design/Status';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { AccessRequest } from 'shared/services/accessRequests';
 
-export const renderUserCell = ({ user }: AccessRequest) => {
+export const renderUserCell = ({ user, userDisplay }: AccessRequest) => {
   return (
     <Cell
       style={{
@@ -31,9 +32,13 @@ export const renderUserCell = ({ user }: AccessRequest) => {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
       }}
-      title={user}
     >
-      {user}
+      <UserDisplayName
+        username={user}
+        primaryText={userDisplay?.primary}
+        secondaryText={userDisplay?.secondary}
+        layout="stacked"
+      />
     </Cell>
   );
 };

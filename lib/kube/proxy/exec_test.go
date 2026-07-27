@@ -20,6 +20,8 @@ package proxy
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,9 +29,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +49,7 @@ import (
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
@@ -67,27 +72,28 @@ var (
 	stdinContent             = []byte("stdin_data")
 )
 
-func TestExecKubeService(t *testing.T) {
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
+func wildcardResource() []*accessv1.KubeResource {
+	return []*accessv1.KubeResource{
+		accessv1.KubeResource_builder{
+			Kind:      types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			ApiGroup:  types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		}.Build(),
+	}
+}
 
-	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := SetupTestContext(
-		t.Context(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-			Scope:    scopedTestScope,
-			ScopesFeatures: scopes.Features{
-				Enabled:         true,
-				AgentPinEnabled: true,
-			},
-		},
-	)
+func wildcardLabel() []*labelv1.Label {
+	return []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   types.Wildcard,
+			Values: []string{types.Wildcard},
+		}.Build(),
+	}
+}
 
-	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
+func testExecKubeService(t *testing.T, testCtx *TestContext) {
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
 		testCtx.Context,
@@ -105,6 +111,7 @@ func TestExecKubeService(t *testing.T) {
 		userWithSingleKubeUser.GetName(),
 		kubeCluster,
 	)
+	require.NotNil(t, configWithSingleKubeUser)
 
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
 	userMultiKubeUsers, _ := testCtx.CreateUserAndRole(
@@ -123,6 +130,8 @@ func TestExecKubeService(t *testing.T) {
 		userMultiKubeUsers.GetName(),
 		kubeCluster,
 	)
+	require.NotNil(t, configMultiKubeUsers)
+
 	scopedWithSingleKubeUser, scopedSingleKubeUserRole := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+username,
@@ -130,14 +139,10 @@ func TestExecKubeService(t *testing.T) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
 			}.Build(),
 		}.Build())
 
@@ -148,14 +153,10 @@ func TestExecKubeService(t *testing.T) {
 		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: accessv1.ScopedRoleKube_builder{
-				Users:  append(slices.Clone(roleKubeUsers), "admin"),
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					}.Build(),
-				},
+				Users:     append(slices.Clone(roleKubeUsers), "admin"),
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
 			}.Build(),
 		}.Build(),
 	)
@@ -342,6 +343,7 @@ func TestExecKubeService(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
@@ -350,7 +352,7 @@ func TestExecKubeService(t *testing.T) {
 				stderr     = &bytes.Buffer{}
 			)
 
-			_, err = stdinWrite.Write(stdinContent)
+			_, err := stdinWrite.Write(stdinContent)
 			require.NoError(t, err)
 
 			streamOpts := remotecommand.StreamOptions{
@@ -387,6 +389,150 @@ func TestExecKubeService(t *testing.T) {
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stderr.String())
 		})
 	}
+}
+
+func TestExecKubeService(t *testing.T) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		Scope:    scopedTestScope,
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+	testExecKubeService(t, testCtx)
+}
+
+// failingWatcherAccessPoint is a mocked accesspoint which when triggered closes the watcher and forwards an error.
+type failingWatcherAccessPoint struct {
+	authclient.ClientI
+	failCh          chan struct{} // closed when failure is triggered
+	err             atomic.Value
+	newWatcherFails atomic.Int32
+}
+
+func newFailingWatcherAccessPoint() (*failingWatcherAccessPoint, func(error)) {
+	a := &failingWatcherAccessPoint{
+		failCh: make(chan struct{}),
+	}
+
+	trigger := func(err error) {
+		a.err.Store(err)
+		close(a.failCh)
+	}
+
+	return a, trigger
+}
+
+func (f *failingWatcherAccessPoint) failed() bool {
+	select {
+	case <-f.failCh:
+		return true
+	default:
+		return false
+	}
+}
+
+func (f *failingWatcherAccessPoint) failureErr() error {
+	if v := f.err.Load(); v != nil {
+		return v.(error)
+	}
+	return nil
+}
+
+func (f *failingWatcherAccessPoint) NewWatcher(ctx context.Context, w types.Watch) (types.Watcher, error) {
+	if f.failed() {
+		f.newWatcherFails.Add(1)
+		return nil, trace.Wrap(f.failureErr(), "injected failure: NewWatcher")
+	}
+
+	watcher, err := f.ClientI.NewWatcher(ctx, w)
+	if err != nil {
+		return nil, err
+	}
+
+	return &failingWatcher{
+		Watcher: watcher,
+		failCh:  f.failCh,
+		errFn:   f.failureErr,
+	}, nil
+}
+
+type failingWatcher struct {
+	types.Watcher
+
+	failCh <-chan struct{}
+	errFn  func() error
+
+	doneOnce sync.Once
+	doneCh   chan struct{}
+}
+
+func (f *failingWatcher) Done() <-chan struct{} {
+	f.doneOnce.Do(func() {
+		f.doneCh = make(chan struct{})
+
+		go func() {
+			defer close(f.doneCh)
+
+			select {
+			case <-f.Watcher.Done():
+			case <-f.failCh:
+			}
+		}()
+	})
+
+	return f.doneCh
+}
+
+func (f *failingWatcher) Error() error {
+	select {
+	case <-f.failCh:
+		return trace.Wrap(f.errFn(), "injected failure: watcher stream")
+	default:
+		return f.Watcher.Error()
+	}
+}
+
+// TestExecKubeServiceWithFaultyPrimary tests that exec still works when the primary access point watcher
+// is failing.
+func TestExecKubeServiceWithFaultyPrimary(t *testing.T) {
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	failingAccessPoint, triggerFailure := newFailingWatcherAccessPoint()
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(t.Context(), t, TestConfig{
+		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
+			failingAccessPoint.ClientI = client
+			return failingAccessPoint
+		},
+		Scope: scopedTestScope,
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	triggerFailure(errors.New("injected failure"))
+
+	// Ensure the watcher has failed the fallback back path is now in effect.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		require.Greater(c, failingAccessPoint.newWatcherFails.Load(), int32(1))
+	}, time.Minute, time.Second)
+
+	testExecKubeService(t, testCtx)
 }
 
 type generateExecRequestConfig struct {
@@ -559,14 +705,10 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 					accessv1.ScopedRoleSpec_builder{
 						AssignableScopes: []string{scopedTestScope},
 						Kube: accessv1.ScopedRoleKube_builder{
-							Users:  roleKubeUsers,
-							Groups: roleKubeGroups,
-							Labels: []*labelv1.Label{
-								labelv1.Label_builder{
-									Name:   types.Wildcard,
-									Values: []string{types.Wildcard},
-								}.Build(),
-							},
+							Users:     roleKubeUsers,
+							Groups:    roleKubeGroups,
+							Resources: wildcardResource(),
+							Labels:    wildcardLabel(),
 						}.Build(),
 					}.Build())
 
@@ -788,6 +930,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.C
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}

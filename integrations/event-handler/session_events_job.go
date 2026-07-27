@@ -327,7 +327,11 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 
 // consumeSession ingests session
 func (j *SessionEventsJob) consumeSession(ctx context.Context, s session) (bool, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	url := j.app.Config.FluentdSessionURL + "." + s.ID + ".log"
+
 	chEvt, chErr := j.app.client.StreamUnstructuredSessionEvents(ctx, s.ID, s.Index)
 
 	cursorSyncLimiter := rate.NewLimiter(rate.Every(time.Second), 1)
