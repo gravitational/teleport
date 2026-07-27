@@ -19,7 +19,6 @@
 package scopes
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -111,20 +110,6 @@ func (q QualifiedName) WeakValidate() error {
 	}
 
 	return nil
-}
-
-// nameRegexp is the regular expression used to validate scoped resource names. It enforces
-// the same character rules as segmentRegexp, but allows for single character names.
-var nameRegexp = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\_\.]*[a-z0-9])?$`)
-
-// strongValidateName checks if a scoped resource name is valid according to scope character
-// formatting rules. Unlike scope segments, names carry no length constraints.
-func strongValidateName(name string) error {
-	if name == "" {
-		return trace.BadParameter("name is empty")
-	}
-
-	return trace.Wrap(strongValidateFormat(name, nameRegexp))
 }
 
 // ParseQualifiedName parses a scope-qualified name string into its scope and name
