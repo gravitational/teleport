@@ -139,9 +139,10 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 
 func (c *beamsAddCommand) discoverProxyRegion(ctx context.Context, tc *client.TeleportClient) (string, error) {
 	resp, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: tc.WebProxyAddr,
-		Insecure:  tc.InsecureSkipVerify,
+		Context:      ctx,
+		ProxyAddr:    tc.WebProxyAddr,
+		Insecure:     tc.InsecureSkipVerify,
+		ExtraHeaders: tc.ExtraProxyHeaders,
 	})
 	if err != nil {
 		return "", trace.Wrap(err, "discovering proxy region")

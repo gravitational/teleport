@@ -379,9 +379,9 @@ type BeamSpec struct {
 	// is responsible for garbage-collecting the compute resources, so we need the
 	// actual record not to be deleted until we're ready.
 	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
-	// requested_region is the Cloud region requested for Beam routing. This is
-	// either the proxy region discovered by tsh or the user's explicit region
-	// override.
+	// RequestedRegion is the Cloud region requested for Beam routing.
+	// This field may differ from the actual resolved region in BeamStatus.Region,
+	// in the case that the RequestedRegion was unable to fulfill the request.
 	RequestedRegion string `protobuf:"bytes,5,opt,name=requested_region,json=requestedRegion,proto3" json:"requested_region,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -505,9 +505,9 @@ type BeamSpec_builder struct {
 	// is responsible for garbage-collecting the compute resources, so we need the
 	// actual record not to be deleted until we're ready.
 	Expires *timestamppb.Timestamp
-	// requested_region is the Cloud region requested for Beam routing. This is
-	// either the proxy region discovered by tsh or the user's explicit region
-	// override.
+	// RequestedRegion is the Cloud region requested for Beam routing.
+	// This field may differ from the actual resolved region in BeamStatus.Region,
+	// in the case that the RequestedRegion was unable to fulfill the request.
 	RequestedRegion string
 }
 
@@ -645,8 +645,7 @@ type BeamStatus struct {
 	WorkloadIdentityName string `protobuf:"bytes,11,opt,name=workload_identity_name,json=workloadIdentityName,proto3" json:"workload_identity_name,omitempty"`
 	// ComputeStatus represents the current state of the beam's compute resources.
 	ComputeStatus ComputeStatus `protobuf:"varint,12,opt,name=compute_status,json=computeStatus,proto3,enum=teleport.beams.v1.ComputeStatus" json:"compute_status,omitempty"`
-	// Region is the Cloud region where the Beam compute resources were actually
-	// created after Cloud's proxy-region to Beam-region mapping.
+	// Region is the Cloud region where the Beam was created.
 	Region        string `protobuf:"bytes,13,opt,name=region,proto3" json:"region,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -854,8 +853,7 @@ type BeamStatus_builder struct {
 	WorkloadIdentityName string
 	// ComputeStatus represents the current state of the beam's compute resources.
 	ComputeStatus ComputeStatus
-	// Region is the Cloud region where the Beam compute resources were actually
-	// created after Cloud's proxy-region to Beam-region mapping.
+	// Region is the Cloud region where the Beam was created.
 	Region string
 }
 

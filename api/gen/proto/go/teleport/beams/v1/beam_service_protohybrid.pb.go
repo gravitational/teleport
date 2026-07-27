@@ -147,10 +147,10 @@ type CreateBeamRequest struct {
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
 	// be provided when EGRESS_MODE_RESTRICTED is set.
 	AllowedDomains []string `protobuf:"bytes,2,rep,name=allowed_domains,json=allowedDomains,proto3" json:"allowed_domains,omitempty"`
-	// proxy_region is the closest proxy region discovered from /webapi/find.
+	// ProxyRegion is the closest proxy region, discovered from /webapi/find.
 	ProxyRegion string `protobuf:"bytes,3,opt,name=proxy_region,json=proxyRegion,proto3" json:"proxy_region,omitempty"`
-	// override_region is the requested Beam routing region. If empty, Auth uses
-	// proxy_region as the default.
+	// OverrideRegion is the user-requested Beam routing region.
+	// This field may override ProxyRegion.
 	OverrideRegion string `protobuf:"bytes,4,opt,name=override_region,json=overrideRegion,proto3" json:"override_region,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -233,10 +233,10 @@ type CreateBeamRequest_builder struct {
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
 	// be provided when EGRESS_MODE_RESTRICTED is set.
 	AllowedDomains []string
-	// proxy_region is the closest proxy region discovered from /webapi/find.
+	// ProxyRegion is the closest proxy region, discovered from /webapi/find.
 	ProxyRegion string
-	// override_region is the requested Beam routing region. If empty, Auth uses
-	// proxy_region as the default.
+	// OverrideRegion is the user-requested Beam routing region.
+	// This field may override ProxyRegion.
 	OverrideRegion string
 }
 
