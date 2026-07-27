@@ -61,6 +61,14 @@ type OngoingAssignmentsMembershipFilter struct {
 	// It should interact directly with the backend (not a cache) to avoid
 	// propagation delays that could result in missing filtered members.
 	AssignmentsService OktaAssignmentService
+	// IncludeAssignmentProcessorRaces enables the filter stages that guard
+	// against race windows with the assignment processor and user monitor
+	// (pendingAssignmentFilter, cleanupAssignmentFilter, staleOktaMemberFilter).
+	// These stages are only meaningful when bidirectional sync is enabled:
+	// NOTE: The access-request stage always runs regardless of this setting
+	// because it protects syncing Okta Group/App assignments for ongoing JIT
+	// Access Request but the Bidirectional sync was toggled to disable.
+	IncludeAssignmentProcessorRaces bool
 }
 
 // Filter excludes members from the access list sync whose Okta assignments are
@@ -69,8 +77,15 @@ type OngoingAssignmentsMembershipFilter struct {
 //
 //  1. ongoingAccessRequestAssignments – removes members added via JIT access
 //     requests so that temporary Okta group memberships are not imported as
-//     permanent access list members.
+//     permanent access list members. This stage always runs: even with
+//     bidirectional sync disabled, an Okta group membership provisioned by an
+//     access request (e.g. before bidirectional sync was turned off) must not
+//     be re-imported as a persistent member.
 //     See: https://github.com/gravitational/teleport-private/issues/1944
+//
+// The following stages guard against races with the assignment processor and
+// only run when IncludeAssignmentProcessorRaces is set:
+//
 //  2. pendingAssignmentFilter – removes members whose assignments are pending
 //     (not yet provisioned to Okta) to avoid the sync from prematurely deleting
 //     a membership that the assignment processor is about to create.
@@ -78,15 +93,21 @@ type OngoingAssignmentsMembershipFilter struct {
 //     for cleanup (cleanup_time set, not yet finalized) to prevent stale Okta
 //     group data from causing re-addition of a member that is being removed.
 //     See: https://github.com/gravitational/teleport.e/issues/6558
+//  4. staleOktaMemberFilter – removes members that were deleted from Teleport
+//     but whose assignment cleanup has not been scheduled by the user monitor yet.
 //
 // Note: This function modifies the input parameters in place. Both inOktaMembers and inTeleportMembers
 // maps are filtered on the fly, removing entries that match filter.
 func (a *OngoingAssignmentsMembershipFilter) Filter(ctx context.Context, inOktaMembers, inTeleportMembers map[string]*accesslist.AccessListMember) error {
 	filter := []assignmentFilterStage{
 		&ongoingAccessRequestAssignments{},
-		&pendingAssignmentFilter{},
-		&cleanupAssignmentFilter{},
-		&staleOktaMemberFilter{},
+	}
+	if a.IncludeAssignmentProcessorRaces {
+		filter = append(filter,
+			&pendingAssignmentFilter{},
+			&cleanupAssignmentFilter{},
+			&staleOktaMemberFilter{},
+		)
 	}
 	if err := a.collectAssignments(ctx, filter); err != nil {
 		return trace.Wrap(err)

@@ -13,12 +13,15 @@ import (
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	libokta "github.com/gravitational/teleport/e/lib/okta"
 	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/e/tests/common/idp"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestSCIMAuth(t *testing.T) {
@@ -695,4 +698,92 @@ func TestSCIMOnlyAPICredentials(t *testing.T) {
 
 	teleportUser3 := mustGetUser(t, authServer, oktaUserLogin(u3))
 	require.Empty(t, teleportUser3.GetTraits())
+}
+
+// TestSCIMGroupUpdateWithPendingAssignments verifies that SCIM push
+// propagates group membership changes even when bidirectional sync
+// (the Teleport -> Okta assignment processor) is disabled.
+//
+// When bidirectional sync is disabled, the flow still crates
+// OktaAssignment records. However, because the assignment processor loop is not running.
+// The SCIM push should not filter out the group members that have PENDING OktaAssignment records.
+func TestSCIMGroupUpdateWithPendingAssignments(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(
+		withUserCount(3),
+		withAppCount(1),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	// Assign all users to the SAML app so the sync can import them.
+	for _, u := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedApps[0].Id, u.Id))
+	}
+
+	groupID := fakeOkta.provisionedGroups[0].Id
+
+	// Put all three users in the Okta group so the access-list sync picks them
+	// up as group members and creates per-user PENDING OktaAssignment records.
+	for _, u := range fakeOkta.provisionedUsers[0:2] {
+		fakeOkta.AddUserToGroup(groupID, u.Id)
+	}
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+
+	// Use access-list sync without bidirectional sync. The Okta -> Teleport import
+	// runs and creates PENDING OktaAssignment records, but the assignment
+	// processor (Teleport -> Okta) is disabled, so the assignments stay PENDING.
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta,
+		withAccessListSettings(oktav1.AccessListSettings_builder{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{},
+			DefaultOwner: []string{"alice-admin"},
+		}.Build()),
+		withAccessListSyncEnabledNoBidirectional(),
+		withTimeBetweenImports(time.Hour),
+	)
+	scimClient := createSCIMClient(t, sut, scimToken)
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	// Wait for the access-list sync to create the per-user PENDING assignments.
+	waitForPerUserOktaAssignments(t, assignmentWatcher, len(fakeOkta.provisionedUsers))
+
+	syncedUsers := mustListOktaUsers(t, authServer.Services)
+	require.Len(t, syncedUsers, len(fakeOkta.provisionedUsers))
+
+	group, err := scimClient.GetGroup(ctx, groupID)
+	require.NoError(t, err)
+	require.Len(t, group.Members, 2)
+	require.NotEqual(t, len(syncedUsers), len(group.Members))
+
+	group.Members = make([]*scimsdk.GroupMember, len(syncedUsers))
+	for i, u := range syncedUsers {
+		group.Members[i] = &scimsdk.GroupMember{ExternalID: u.GetName()}
+	}
+	updatedGroup, err := scimClient.UpdateGroup(ctx, group)
+	require.NoError(t, err)
+	require.Len(t, updatedGroup.Members, len(fakeOkta.provisionedUsers),
+		"regression: pendingAssignmentFilter stripped all members from SCIM group push")
+
+	// TimeBetweenImports is set to 1h, so we can be sure here AccessList sync won't compete to
+	// revert SCIM push changes here.
+	members, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return authServer.Services.ListAccessListMembers(ctx, groupID, pageSize, pageToken)
+		},
+	))
+	require.NoError(t, err)
+	require.Len(t, members, len(fakeOkta.provisionedUsers))
 }

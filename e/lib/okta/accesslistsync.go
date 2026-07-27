@@ -97,6 +97,8 @@ type accessListSyncConfig struct {
 	// Backend is used to directly interact with the backend instead of fetching thought cache
 	// where stale object can be returned.
 	Backend Backend
+	// BidirectionalSyncEnabled indicates whether to sync Teleport permissions changes back to Okta.
+	BidirectionalSyncEnabled bool
 }
 
 func (a *accessListSyncConfig) CheckAndSetDefaults() error {
@@ -232,6 +234,8 @@ type accessListSync struct {
 	serviceStatus serviceStatusUpdater
 	// Backend is used to directly interact with the backend instead of fetching thought cache
 	Backend Backend
+	// bidirectionalSyncEnabled indicates whether to sync Teleport permissions changes back to Okta.
+	bidirectionalSyncEnabled bool
 }
 
 // newAccessListSync will create a new access list synchronizer.
@@ -249,23 +253,24 @@ func newAccessListSync(cfg accessListSyncConfig) (*accessListSync, error) {
 	}
 
 	a := &accessListSync{
-		logger:        cfg.Logger,
-		clock:         cfg.Clock,
-		clusterName:   cfg.ClusterName,
-		client:        cfg.Client,
-		owners:        owners,
-		emitter:       cfg.Emitter,
-		access:        cfg.Access,
-		accessLists:   cfg.AccessLists,
-		orgURL:        cfg.OrgURL,
-		syncInterval:  cfg.SyncInterval,
-		appsGetter:    cfg.AppsGetter,
-		groupsGetter:  cfg.GroupsGetter,
-		appFilters:    cfg.AppFilters,
-		groupFilters:  cfg.GroupFilters,
-		stopCh:        cfg.StopChannel,
-		serviceStatus: cfg.ServiceStatus,
-		Backend:       cfg.Backend,
+		logger:                   cfg.Logger,
+		clock:                    cfg.Clock,
+		clusterName:              cfg.ClusterName,
+		client:                   cfg.Client,
+		owners:                   owners,
+		emitter:                  cfg.Emitter,
+		access:                   cfg.Access,
+		accessLists:              cfg.AccessLists,
+		orgURL:                   cfg.OrgURL,
+		syncInterval:             cfg.SyncInterval,
+		appsGetter:               cfg.AppsGetter,
+		groupsGetter:             cfg.GroupsGetter,
+		appFilters:               cfg.AppFilters,
+		groupFilters:             cfg.GroupFilters,
+		stopCh:                   cfg.StopChannel,
+		serviceStatus:            cfg.ServiceStatus,
+		Backend:                  cfg.Backend,
+		bidirectionalSyncEnabled: cfg.BidirectionalSyncEnabled,
 	}
 
 	// Create the reconcilers we need.
@@ -342,12 +347,20 @@ func (a *accessListSync) reconcileAll(ctx context.Context) error {
 	// These temporary assignments should not be treated as long-term members
 	// during the sync process, to avoid syncing back assignments created by short-term
 	// access requests as long-term Access List (ACL) memberships in Teleport.
+	// This stage runs regardless of bidirectional sync: an access request can
+	// provision an Okta group membership while sync is one-way, and we must not
+	// re-import it as a persistent member.
+	//
+	// The assignment-processor race-window stages are only meaningful when
+	// bidirectional sync is enabled, since they guard against Teleport pushing
+	// changes to Okta via the assignment processor.
 	//
 	// Note: If the access request was promoted (`RequestState_PROMOTED`), then the Okta assignment
 	// originating from the access request is not created. Instead, the Access Request promotion
 	// results in a new Okta assignment based on the ACL membership.
 	ongoingAccessRequestFilter := common.OngoingAssignmentsMembershipFilter{
-		AssignmentsService: a.Backend,
+		AssignmentsService:              a.Backend,
+		IncludeAssignmentProcessorRaces: a.bidirectionalSyncEnabled,
 	}
 	if err := ongoingAccessRequestFilter.Filter(ctx, oktaMembers, existingMembers); err != nil {
 		return trace.Wrap(err)

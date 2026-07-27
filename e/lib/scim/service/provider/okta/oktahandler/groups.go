@@ -35,6 +35,7 @@ type GroupHandler struct {
 	common.Config
 	ProviderGroup
 	common.NotImplementedHandler
+	IncludeAssignmentProcessorRaces bool
 }
 
 // CreateResource handles the "create group" request from the SCIM client. If an
@@ -140,7 +141,10 @@ func (h *GroupHandler) UpdateResource(ctx context.Context, req *scimpb.UpdateSCI
 
 	// Exclude Okta members who were assigned via an ongoing Access Request.
 	// These temporary assignments should not be treated as long-term membership.
-	f := oktacommon.OngoingAssignmentsMembershipFilter{AssignmentsService: h.Backend}
+	f := oktacommon.OngoingAssignmentsMembershipFilter{
+		AssignmentsService:              h.Backend,
+		IncludeAssignmentProcessorRaces: h.IncludeAssignmentProcessorRaces,
+	}
 
 	if err = f.Filter(ctx, oktaMemberMap, oldMembersMap); err != nil {
 		return nil, trace.Wrap(err, "filtering members with an ongoing Access Request")

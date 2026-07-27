@@ -22,12 +22,14 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 		notFinalized = false
 	)
 	tests := []struct {
-		name                    string
-		inputOktaMembers        map[string]*accesslist.AccessListMember
-		inputTeleportMembers    map[string]*accesslist.AccessListMember
-		assignments             []types.OktaAssignment
-		expectedOktaMembers     []string
-		expectedTeleportMembers []string
+		name                                   string
+		inputOktaMembers                       map[string]*accesslist.AccessListMember
+		inputTeleportMembers                   map[string]*accesslist.AccessListMember
+		assignments                            []types.OktaAssignment
+		excludeAssignmentProcessorRaces        bool
+		expectedOktaMembers                    []string
+		expectedTeleportMembers                []string
+		disableAssignmentProcessorRacesFilters bool
 	}{
 		{
 			name: "filters access-request assignment not in teleport members",
@@ -230,12 +232,28 @@ func TestOngoingAccessRequestMembershipFilter_Filter(t *testing.T) {
 			expectedOktaMembers:     nil,
 			expectedTeleportMembers: nil,
 		},
+		{
+			name: "pending assignment filter should not trigger when on IncludeAssignmentProcessorRaces set to false",
+			inputOktaMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			inputTeleportMembers: map[string]*accesslist.AccessListMember{
+				"groupA/alice": newMember("groupA", "alice"),
+			},
+			assignments: []types.OktaAssignment{
+				newAssignment("alice", "groupA", "assignment-processor", types.OktaAssignmentSpecV1_PENDING),
+			},
+			disableAssignmentProcessorRacesFilters: true,
+			expectedOktaMembers:                    []string{"groupA/alice"},
+			expectedTeleportMembers:                []string{"groupA/alice"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filter := &OngoingAssignmentsMembershipFilter{
-				AssignmentsService: &mockAssignmentsService{assignments: tt.assignments},
+				AssignmentsService:              &mockAssignmentsService{assignments: tt.assignments},
+				IncludeAssignmentProcessorRaces: !tt.disableAssignmentProcessorRacesFilters,
 			}
 			ctx := context.Background()
 

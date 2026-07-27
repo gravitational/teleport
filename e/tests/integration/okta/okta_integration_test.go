@@ -1360,6 +1360,65 @@ func TestOktaAssignmentProcessingRemovedUser(t *testing.T) {
 	})
 }
 
+// access list sync propagates group membership changes even when bidirectional sync
+// (the Teleport -> Okta assignment processor) is disabled.
+//
+// When bidirectional sync is disabled, the flow  still creates OktaAssignment
+// records. However, because the assignment processor loop is not running, the
+// ongoing assignments filter should be skipped during access list sync.
+func TestAccessListSyncWithBidirectionalSyncDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(
+		withUserCount(1),
+		withAppCount(1),
+		withGroupCount(1),
+		withSAMLApp(),
+	)
+	t.Cleanup(fakeOkta.Stop)
+
+	for _, u := range fakeOkta.provisionedUsers {
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
+		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedApps[0].Id, u.Id))
+	}
+
+	memberID := fakeOkta.provisionedUsers[0].Id
+	memberLogin := oktaUserLogin(fakeOkta.provisionedUsers[0])
+	groupID := fakeOkta.provisionedGroups[0].Id
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithUser(t, "alice-admin", "editor"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+	)
+
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	// Start with access-list sync enabled but bidirectional sync (assignment processor)
+	// disabled. Only the Okta -> Teleport direction is active.
+	createAndWaitForOktaIntegration(t, sut, fakeOkta,
+		withAccessListSettings(oktav1.AccessListSettings_builder{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{},
+			DefaultOwner: []string{"alice-admin"},
+		}.Build()),
+		withAccessListSyncEnabledNoBidirectional(),
+	)
+	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
+
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+
+	fakeOkta.AddUserToGroup(groupID, memberID)
+
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+	assertUserIsAccessListMember(ctx, t, sut, groupID, memberLogin)
+	fakeOkta.RemoveUserFromGroup(groupID, memberID)
+
+	mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent)
+	assertUserIsNotAccessListMember(ctx, t, sut, groupID, memberLogin)
+}
+
 // waitForNAssignmentTransitions waits for the assignment to transition n times.
 // When provided with a 'static' assignment, it can be used to wait for n iterations of the assignment processor loop.
 func waitForNAssignmentTransitions(t *testing.T, watcher types.Watcher, since time.Time, assignmentName string, n int) {

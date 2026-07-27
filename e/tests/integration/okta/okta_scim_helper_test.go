@@ -59,9 +59,11 @@ func createSCIMClient(t *testing.T, sut *common.SUT, scimToken string) scimsdk.C
 }
 
 type scimIntegrationOptions struct {
-	ApiCredentials     *oktav1.OktaAPICredentials
-	AccessListSettings *oktav1.AccessListSettings
-	EnableFullSync     bool
+	ApiCredentials           *oktav1.OktaAPICredentials
+	AccessListSettings       *oktav1.AccessListSettings
+	EnableFullSync           bool
+	DisableBidirectionalSync bool
+	TimeBetweenImports       time.Duration
 }
 
 type oktaIntegrationOption func(*scimIntegrationOptions)
@@ -84,12 +86,32 @@ func withEnableFullSync() oktaIntegrationOption {
 	}
 }
 
+// withAccessListSyncEnabledNoBidirectional enables access-list and user sync (so the
+// Okta -> Teleport import runs and creates PENDING OktaAssignment records) but
+// leaves bidirectional sync disabled. This prevents the assignment processor
+// from running and processing the OktaAssignment records and syncing
+// Teleport -> Okta changes to Okta upstream.
+func withAccessListSyncEnabledNoBidirectional() oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.EnableFullSync = true
+		opts.DisableBidirectionalSync = true
+	}
+}
+
+// withTimeBetweenImports allows to conform the Teleport Okta sync interval.
+func withTimeBetweenImports(d time.Duration) oktaIntegrationOption {
+	return func(opts *scimIntegrationOptions) {
+		opts.TimeBetweenImports = d
+	}
+}
+
 // createAndWaitForOktaIntegration creates Okta integration and waits for the plugin to be running.
 func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, options ...oktaIntegrationOption) string {
 	t.Helper()
 	opts := scimIntegrationOptions{
 		ApiCredentials:     oktav1.OktaAPICredentials_builder{SswsBearerToken: proto.String("12345")}.Build(),
 		AccessListSettings: oktav1.AccessListSettings_builder{DefaultOwner: []string{"alice"}}.Build(),
+		TimeBetweenImports: time.Second,
 	}
 	for _, v := range options {
 		v(&opts)
@@ -109,7 +131,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 		ReuseConnector:      "okta-pre-created-test",
 	}.Build()
 	if opts.EnableFullSync {
-		req.SetEnableBidirectionalSync(true)
+		req.SetEnableBidirectionalSync(!opts.DisableBidirectionalSync)
 		req.SetEnableAppGroupSync(true)
 		req.SetEnableUserSync(true)
 		req.SetDisableAssignDefaultRoles(false)
@@ -123,7 +145,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 	defer w.Close()
 
 	updateOktaDelays(t, sut, delays{
-		timeBetweenImports:                1 * time.Second,
+		timeBetweenImports:                opts.TimeBetweenImports,
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 

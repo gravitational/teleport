@@ -44,6 +44,7 @@ func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (c
 		return nil, trace.BadParameter("missing okta settings")
 	}
 	config.Logger = slog.With(teleport.ComponentKey, teleport.Component("scim", eteleport.ComponentOkta))
+	syncSettings := getSyncSettings(pluginV1)
 	switch resourceType {
 	case "Users":
 		return &oktahandler.UserHandler{
@@ -55,7 +56,8 @@ func New(config common.Config, pluginV1 *types.PluginV1, resourceType string) (c
 		}, nil
 	case "Groups":
 		return &oktahandler.GroupHandler{
-			Config: config,
+			IncludeAssignmentProcessorRaces: !syncSettings.DisableBidirectionalSync && syncSettings.SyncAccessLists,
+			Config:                          config,
 			ProviderGroup: &oktaShim{
 				Config: config,
 				plugin: pluginV1,
@@ -70,12 +72,16 @@ func (s *oktaShim) oktaOrgURL() string {
 	return s.plugin.Spec.GetOkta().OrgUrl
 }
 
-func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
-	syncSettings := s.plugin.Spec.GetOkta().GetSyncSettings()
+func getSyncSettings(p *types.PluginV1) *types.PluginOktaSyncSettings {
+	syncSettings := p.Spec.GetOkta().GetSyncSettings()
 	if syncSettings == nil {
 		return &types.PluginOktaSyncSettings{}
 	}
 	return syncSettings
+}
+
+func (s *oktaShim) syncSettings() *types.PluginOktaSyncSettings {
+	return getSyncSettings(s.plugin)
 }
 
 // AccessListPredicate checks if the access list is "owned" by this okta.
