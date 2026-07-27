@@ -48,7 +48,7 @@ func GetEventSchemaFromType(eventType string) (*Event, error) {
 // getMessageName takes a message struct and returns its name.
 // The struct name is also the protobuf message name.
 func getMessageName(eventStruct any) string {
-	if t := reflect.TypeOf(eventStruct); t.Kind() == reflect.Ptr {
+	if t := reflect.TypeOf(eventStruct); t.Kind() == reflect.Pointer {
 		return t.Elem().Name()
 	} else {
 		return t.Name()

@@ -90,12 +90,6 @@ extension AppDatabase {
 		return database
 	}
 
-	/// An in-memory database that can be used when persisting to disk isn't appropriate, such as in SwiftUI Previews.
-	///
-	/// This property will always return the same in-memory database when called multiple times. If a brand new
-	/// in-memory database is explicitly required, call `makeInMemoryDatabase()` instead.
-	static let inMemory: any DatabaseWriter = makeInMemoryDatabase()
-
 	/// Initializes an in-memory database suitable for scenarios where persistence across runs is not required.
 	static func makeInMemoryDatabase() -> any DatabaseWriter {
 		do {
@@ -109,6 +103,25 @@ extension AppDatabase {
 		} catch {
 			fatalError("Error while initializing in-memory database: \(error)")
 		}
+	}
+
+	/// Initializes an in-memory database with some dummy values pre-populated values for SwiftUI previews.
+	static func makePreviewDatabase() -> any DatabaseWriter {
+		let database = makeInMemoryDatabase()
+
+		do {
+			try database.write { db in
+				try Cluster.insert { Cluster.previews }.execute(db)
+			}
+		} catch {
+			// We `print(...)` to the console instead of calling `logger.error(...)` because the SwiftUI preview console
+			// only sees stdout.
+			let errorMessage = "Failed to seed preview database: \(error)"
+			print(errorMessage)
+			fatalError(errorMessage)
+		}
+
+		return database
 	}
 }
 

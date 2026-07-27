@@ -169,7 +169,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "max_output_tokens": 1024, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "max_output_tokens": 1024, "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"modified fields": {
@@ -182,7 +182,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 1024, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 1024, "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"set model via SetModel": {
@@ -194,7 +194,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-4o", "stream": true, "max_output_tokens": 1024, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-4o", "stream": true, "max_output_tokens": 1024, "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"duplicate fields": {
@@ -204,7 +204,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 5555, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "max_output_tokens": 5555, "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"duplicate fields different casing": {
@@ -215,7 +215,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
 				// Expect values from lowercase keys.
-				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"full uppercase keys": {
@@ -225,7 +225,7 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "", "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "", "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 		"valid json missing fields": {
@@ -235,12 +235,254 @@ func TestEncodeResponsesRequest(t *testing.T) {
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
-				require.JSONEq(tt, `{"model": "", "input":"Hello"}`, resp)
+				require.JSONEq(tt, `{"model": "", "input":"Hello","store":false,"background":false}`, resp)
 			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var r responsesAPIRequest
+			require.NoError(t, utils.FastUnmarshal([]byte(tc.input), &r))
+			tc.modifyRequest(&r)
+
+			res, err := utils.FastMarshal(r)
+			tc.expectError(t, err)
+			tc.expectValue(t, string(res))
+		})
+	}
+}
+
+func TestParseChatCompletionsRequest(t *testing.T) {
+	for name, tc := range map[string]struct {
+		input       string
+		expectError require.ErrorAssertionFunc
+		expectValue require.ValueAssertionFunc
+	}{
+		"valid json with fields": {
+			input:       `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "stream_options": {"include_usage": true}, "messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Equal(tt, "gpt-5", req.Model, i2...)
+				require.True(tt, req.Stream, i2...)
+				require.True(tt, req.StreamOptions.IncludeUsage, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"valid json missing fields": {
+			input:       `{"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Empty(tt, req.Model, i2...)
+				require.False(tt, req.Stream, i2...)
+				require.False(tt, req.StreamOptions.IncludeUsage, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"model duplicates": {
+			input:       `{"model":"gpt-5","model":"gpt-5-mini","MODEL":"gpt-4o","max_completion_tokens":1024,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Equal(tt, "gpt-5-mini", req.Model, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"model duplicates different casing": {
+			input:       `{"model":"gpt-5","MODEL":"gpt-4o","max_completion_tokens":1024,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Equal(tt, "gpt-5", req.Model, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"stream duplicates": {
+			input:       `{"model":"gpt-5","stream":true,"stream":false,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.False(tt, req.Stream, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"stream duplicates different casing": {
+			input:       `{"model":"gpt-5","stream":true,"STREAM":false,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.True(tt, req.Stream, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"max completion tokens duplicates": {
+			input:       `{"model":"gpt-5","max_completion_tokens":1024,"max_completion_tokens":5555,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"max completion tokens duplicates different casing": {
+			input:       `{"model":"gpt-5","max_completion_tokens":1024,"MAX_COMPLETION_TOKENS":9999,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"fields in uppercase": {
+			input:       `{"MODEL":"gpt-5","MAX_COMPLETION_TOKENS":1024,"STREAM":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Empty(tt, req.Model, i2...)
+				require.False(tt, req.Stream, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"stream invalid format": {
+			input:       `{"model":"gpt-5","stream":"yes","messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.Error,
+			expectValue: require.NotEmpty,
+		},
+		"duplicated other fields no error": {
+			input:       `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "messages":[{"role":"user","content":"Hello"}], "reasoning_effort": "low", "reasoning_effort": "high"}`,
+			expectError: require.NoError,
+			expectValue: require.NotEmpty,
+		},
+		"invalid json": {
+			input:       `{random}`,
+			expectError: require.Error,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(chatCompletionsAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Empty(tt, req.Model, i2...)
+				require.False(tt, req.Stream, i2...)
+				require.Empty(tt, req.raw, i2...)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var r chatCompletionsAPIRequest
+			tc.expectError(t, utils.FastUnmarshal([]byte(tc.input), &r))
+			tc.expectValue(t, r)
+		})
+	}
+}
+
+func TestEncodeChatCompletionsRequest(t *testing.T) {
+	// For this test we use the value generated from a raw chat completions API
+	// request, so effectively we're also testing the parsing/decoding part as
+	// well.
+
+	for name, tc := range map[string]struct {
+		input         string
+		modifyRequest func(*chatCompletionsAPIRequest)
+		output        string
+		expectError   require.ErrorAssertionFunc
+		expectValue   require.ValueAssertionFunc
+	}{
+		"unmodified fields": {
+			input:         `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "stream_options": {"include_obfuscation": false, "include_usage": false}, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "stream_options": {"include_obfuscation": false, "include_usage": false}, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"modified fields": {
+			input: `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {
+				r.Model = "gpt-5-mini"
+				r.Stream = false
+			},
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "stream": false, "max_completion_tokens": 1024, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"enable report usage": {
+			input: `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {
+				r.EnableReportUsage()
+			},
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "stream_options": {"include_usage": true}, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"enable report usage with obfuscation": {
+			input: `{"model": "gpt-5", "stream": true, "stream_options": {"include_obfuscation": false}, "max_completion_tokens": 1024, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {
+				r.EnableReportUsage()
+			},
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "max_completion_tokens": 1024, "stream_options": {"include_obfuscation": false, "include_usage": true}, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"duplicate fields": {
+			input:         `{"model": "gpt-5", "model": "gpt-5-mini", "stream": true, "stream": false, "max_completion_tokens": 1024, "max_completion_tokens": 5555, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "gpt-5-mini", "stream": false, "max_completion_tokens": 5555, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"duplicate fields different casing": {
+			input:         `{"model": "gpt-5", "MODEL": "gpt-5-mini", "stream": true, "STREAM": false, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				// Expect values from lowercase keys.
+				require.JSONEq(tt, `{"model": "gpt-5", "stream": true, "stream_options": {"include_usage": false}, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"full uppercase keys": {
+			input:         `{"MODEL": "gpt-5", "STREAM": true, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "", "stream": false, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+		"valid json missing fields": {
+			input:         `{"messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *chatCompletionsAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "", "stream": false, "messages":[{"role":"user","content":"Hello"}],"store":false}`, resp)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var r chatCompletionsAPIRequest
 			require.NoError(t, utils.FastUnmarshal([]byte(tc.input), &r))
 			tc.modifyRequest(&r)
 

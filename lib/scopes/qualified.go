@@ -19,6 +19,7 @@
 package scopes
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -55,6 +56,25 @@ func (q QualifiedName) String() string {
 	return q.Scope + QualifiedNameSeparator + q.Name
 }
 
+// Set sets a possible scope qualified name. If the "::" separator is not present,
+// then the scope qualified name will have an empty scope. This implements
+// the flag/kingping Value interface.
+func (q *QualifiedName) Set(val string) error {
+	if !strings.Contains(val, QualifiedNameSeparator) {
+		*q = QualifiedName{Name: val}
+		return nil
+	}
+	sqn, err := ParseQualifiedName(val)
+	if err != nil {
+		return err
+	}
+	if err := sqn.StrongValidate(); err != nil {
+		return err
+	}
+	*q = sqn
+	return nil
+}
+
 // StrongValidate validates this QualifiedName using strong validation rules. This method
 // *must* be called on all QualifiedName values derived from user input and/or cluster-external
 // sources. Use [QualifiedName.WeakValidate] when checking values from the control plane in
@@ -64,7 +84,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := StrongValidateSegment(q.Name); err != nil {
+	if err := strongValidateName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 
@@ -91,6 +111,20 @@ func (q QualifiedName) WeakValidate() error {
 	}
 
 	return nil
+}
+
+// nameRegexp is the regular expression used to validate scoped resource names. It enforces
+// the same character rules as segmentRegexp, but allows for single character names.
+var nameRegexp = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\_\.]*[a-z0-9])?$`)
+
+// strongValidateName checks if a scoped resource name is valid according to scope character
+// formatting rules. Unlike scope segments, names carry no length constraints.
+func strongValidateName(name string) error {
+	if name == "" {
+		return trace.BadParameter("name is empty")
+	}
+
+	return trace.Wrap(strongValidateFormat(name, nameRegexp))
 }
 
 // ParseQualifiedName parses a scope-qualified name string into its scope and name

@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/tunnel"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -189,7 +191,6 @@ func (s *TunnelService) buildLocalProxyConfig(ctx context.Context) (lpCfg alpnpr
 	alpnProtocol, err := common.ToALPNProtocol(routeToDatabase.Protocol)
 	if err != nil {
 		return alpnproxy.LocalProxyConfig{}, trace.Wrap(err)
-
 	}
 	lpConfig := alpnproxy.LocalProxyConfig{
 		Middleware: middleware,
@@ -233,8 +234,20 @@ func (s *TunnelService) Run(ctx context.Context) error {
 		}()
 	}
 
-	lpCfg, err := s.buildLocalProxyConfig(ctx)
+	var lpCfg alpnproxy.LocalProxyConfig
+	err := tunnel.RetryInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
+		var proxyErr error
+		lpCfg, proxyErr = s.buildLocalProxyConfig(ctx)
+		return proxyErr
+	})
 	if err != nil {
+		// If the context got canceled do not to pollute
+		// the shutdown with that error. Similar to what is
+		// being done at the end of this function.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+
 		return trace.Wrap(err, "building local proxy config")
 	}
 	lpCfg.Listener = l
@@ -253,7 +266,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
 	// made after the context is canceled.
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
 	}()

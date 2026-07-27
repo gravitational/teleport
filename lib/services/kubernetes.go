@@ -24,7 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -32,12 +34,14 @@ import (
 type KubernetesClusterGetter interface {
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	// ListKubeClusters returns a page of registered kube clusters with the ability to apply
+	// scope filters.
+	ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
+	// RangeKubeClusters returns a sequence of kube clusters filtered by the given
+	// [*presencev1.ListKubeClustersRequest].
+	RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
+	// GetKubeCluster returns the specified kube cluster resource by scope and name.
+	GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error)
 }
 
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
@@ -54,10 +58,11 @@ type Kubernetes interface {
 	CreateKubernetesCluster(context.Context, types.KubeCluster) error
 	// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 	UpdateKubernetesCluster(context.Context, types.KubeCluster) error
-	// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-	DeleteKubernetesCluster(ctx context.Context, name string) error
 	// DeleteAllKubernetesClusters removes all kubernetes resources.
 	DeleteAllKubernetesClusters(context.Context) error
+	// DeleteKubeCluster removes the specified kube cluster resource with
+	// respect to its scope.
+	DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error
 }
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.
@@ -166,4 +171,10 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
+}
+
+// GetCursorForKubeCluster returns the backend key for a kube cluster with
+// consideration for whether or not it is scoped.
+func GetCursorForKubeCluster(cluster types.KubeCluster) string {
+	return scopes.MakeResourceCursor(cluster.GetScope(), cluster.GetName())
 }

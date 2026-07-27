@@ -32,7 +32,7 @@ const (
 	// CLI-facing access type values (what the user sees and uses,
 	// which aligns with terms used in docs).
 	accessTypeLongTerm  = "standing"
-	accessTypeShortTerm = "request-based"
+	accessTypeShortTerm = "access-request"
 
 	standardRolePrefixName = "access-standard"
 	awsicRolePrefixName    = "access-awsic"

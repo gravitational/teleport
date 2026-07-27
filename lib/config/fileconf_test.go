@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -1932,4 +1933,85 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:7e12c17c20d9cb", "sha256:7e12c17c20d9cb"}, fc.CAPin)
 	})
+}
+
+func TestAuditQueueConfig_Parse(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc      string
+		cfg       AuditQueueConfig
+		want      servicecfg.AuditQueueConfig
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc: "empty",
+			cfg:  AuditQueueConfig{},
+			want: servicecfg.AuditQueueConfig{
+				Synchronous: auditqueue.SynchronousNormal,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "valid fields",
+			cfg: AuditQueueConfig{
+				SoftLimit:               "100MiB",
+				HardLimit:               "1GiB",
+				MaxAttempts:             5,
+				DeadLetterTTL:           types.Duration(24 * time.Hour),
+				DeadLetterSweepInterval: types.Duration(5 * time.Minute),
+				OrphanScanInterval:      types.Duration(10 * time.Minute),
+				Backend:                 []string{"sqlite_disk", "sqlite_memory"},
+			},
+			want: servicecfg.AuditQueueConfig{
+				SoftLimit:               100 * 1024 * 1024,
+				MaxBytes:                1024 * 1024 * 1024,
+				MaxAttempts:             5,
+				DeadLetterTTL:           24 * time.Hour,
+				DeadLetterSweepInterval: 5 * time.Minute,
+				OrphanScanInterval:      10 * time.Minute,
+				Backends:                []string{"sqlite_disk", "sqlite_memory"},
+				Synchronous:             auditqueue.SynchronousNormal,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "synchronous FULL",
+			cfg:  AuditQueueConfig{Synchronous: "FULL"},
+			want: servicecfg.AuditQueueConfig{
+				Synchronous: auditqueue.SynchronousFull,
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc: "invalid soft_limit",
+			cfg:  AuditQueueConfig{SoftLimit: "not-a-size"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "invalid hard_limit",
+			cfg:  AuditQueueConfig{HardLimit: "not-a-size"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc: "invalid synchronous",
+			cfg:  AuditQueueConfig{Synchronous: "OFF"},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			got, err := tt.cfg.Parse()
+			tt.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
 }

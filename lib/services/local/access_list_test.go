@@ -342,11 +342,11 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 	accessList := newAccessList(t, "accessList-scoped", clock, withOwnerRequires(accesslist.Requires{}), withMemberRequires(accesslist.Requires{}))
 	accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
 		{
-			Role:  "scoped-role-1",
+			Role:  "/::scoped-role-1",
 			Scope: "/eng",
 		},
 		{
-			Role:  "scoped-role-2",
+			Role:  "/::scoped-role-2",
 			Scope: "/platform",
 		},
 	}
@@ -365,7 +365,7 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 
 	fetched.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
 		{
-			Role:  "scoped-role-3",
+			Role:  "/::scoped-role-3",
 			Scope: "/ops",
 		},
 	}
@@ -2327,8 +2327,8 @@ func newScopedAccessList(t *testing.T, name scopes.QualifiedName, clock clockwor
 		}
 	} else {
 		accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
-			{Role: "gscopedrole1", Scope: name.Scope},
-			{Role: "gscopedrole2", Scope: name.Scope},
+			{Role: "/::gscopedrole1", Scope: name.Scope},
+			{Role: "/::gscopedrole2", Scope: name.Scope},
 		}
 	}
 

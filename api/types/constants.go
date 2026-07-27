@@ -742,6 +742,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
@@ -934,6 +937,9 @@ const (
 	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
 	// group for the managed identity created by the Azure discovery Terraform module.
 	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -980,10 +986,9 @@ const (
 	// cloud-specific labels from eachother.
 	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
 
-	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
-	// overriding the database name in discovered cloud databases.
-	// It's used for AWS, GCP, and Azure, but not exported to decouple the
-	// cloud-specific labels from eachother.
+	// cloudDatabaseNameOverrideLabel is a label key for overriding the database
+	// name in discovered cloud databases. It is used for AWS and Azure. GCP uses
+	// GCPDatabaseNameOverrideLabel instead, as GCP label keys must be lowercase.
 	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
 
 	// AzureDatabaseNameOverrideLabel is the label key containing the database
@@ -991,6 +996,17 @@ const (
 	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
 	// start with the namespace prefix.
 	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
+
+	// GCPDatabaseNameOverrideLabel is the GCP user-label key that overrides the
+	// database name for discovered GCP databases.
+	//
+	// GCP label keys must be lowercase, which makes the default "TeleportDatabaseName" unusable for GCP.
+	GCPDatabaseNameOverrideLabel = "teleport-database-name"
+
+	// GCPDatabaseEndpointTypeOverrideLabel is the GCP user-label key on a Cloud
+	// SQL instance that overrides the connection endpoint type chosen by
+	// discovery. Valid values are "public", "private", and "psc".
+	GCPDatabaseEndpointTypeOverrideLabel = "teleport-database-endpoint-type"
 
 	// AzureKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered Azure kube clusters.
@@ -1151,6 +1167,8 @@ const (
 	DiscoveryLabelEngineVersion = "engine-version"
 	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
 	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelInstanceType is the label key containing the instance type.
+	DiscoveryLabelInstanceType = "instance-type"
 	// DiscoveryLabelVPCID is the label key containing the VPC ID.
 	DiscoveryLabelVPCID = "vpc-id"
 	// DiscoveryLabelNamespace is the label key for namespace name.
@@ -1781,8 +1799,9 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. This map has been duplicated in lib/scopes/access/access.go.
+// Any changes should also be made there.
 //
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
 // The format is "<plural>.<apigroup>".

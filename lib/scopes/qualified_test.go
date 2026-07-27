@@ -252,9 +252,9 @@ func TestValidateQualifiedName(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name:     "name too short",
+			name:     "single-character name",
 			sqn:      "/staging::x",
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
@@ -294,6 +294,56 @@ func TestValidateQualifiedName(t *testing.T) {
 			} else {
 				require.Error(t, err)
 			}
+		})
+	}
+}
+
+func TestSet(t *testing.T) {
+	t.Parallel()
+	tts := []struct {
+		name     string
+		val      string
+		ok       bool
+		expected QualifiedName
+	}{
+		{
+			name:     "only name provided",
+			val:      "bare-name",
+			ok:       true,
+			expected: QualifiedName{Name: "bare-name"},
+		},
+		{
+			name: "valid scope and name",
+			val:  "/scope::name",
+
+			ok:       true,
+			expected: QualifiedName{Name: "name", Scope: "/scope"},
+		},
+		{
+			name: "invalid name",
+			val:  "/scope::!!name",
+			ok:   false,
+		},
+		{
+			name: "invalid scope",
+			val:  "!bad::test",
+			ok:   false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var sqn QualifiedName
+			err := sqn.Set(tt.val)
+			if tt.ok {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				return
+			}
+			require.Equal(t, tt.expected, sqn)
 		})
 	}
 }

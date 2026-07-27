@@ -1,0 +1,79 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.subca.v1;
+
+import "google/rpc/status.proto";
+import "teleport/header/v1/metadata.proto";
+import "teleport/subca/v1/csr.proto";
+import "teleport/subca/v1/distinguished_name.proto";
+import "teleport/subca/v1/public_key_hash.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1";
+
+// A pending CSR request, created as part of a CreateCSR invocation on
+// multi-Auth, multi-HSM clusters.
+//
+// Requests are registered by the requester Auth server (the one processing the
+// CreateCSR call), in multi-HSM scenarios, when certain keys can't be used.
+// Auth servers watch PendingCSRRequest resources and fulfill requests
+// automatically, assigning a CSR and status to the corresponding PendingCSR
+// message. Once all pending CSRs have a terminal result, the RPC resumes.
+//
+// PendingCSRRequest are system-managed, "UncollectedKind" resources. They are
+// not user visible.
+message PendingCSRRequest {
+  // Kind is "pending_csr_request".
+  string kind = 1;
+  // Sub kind is unused.
+  string sub_kind = 2;
+  // Version is "v1".
+  string version = 3;
+  // Metadata for the resource.
+  // The name of the resource is the request identifier.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec for the resource.
+  PendingCSRRequestSpec spec = 5;
+  // Status for the resource.
+  PendingCSRRequestStatus status = 6;
+}
+
+// Spec of a [PendingCSRRequest] resource.
+message PendingCSRRequestSpec {
+  // Cluster of the CSR request.
+  string cluster_name = 1;
+  // CA type of the CSR request.
+  string ca_type = 2;
+  // Custom subject for the CSRs.
+  // Optional.
+  DistinguishedName custom_subject = 3;
+  // Public key hashes of the requested CSRs.
+  repeated PublicKeyHash public_key_hashes = 4;
+}
+
+// Status of a [PendingCSRRequest] resource.
+message PendingCSRRequestStatus {
+  // Fulfilled pending CSR requests.
+  map<string, PendingCSR> public_key_hash_to_pending_csr = 1;
+}
+
+// A pending CSR, to be fulfilled as part of a [PendingCSRRequest].
+message PendingCSR {
+  // Status of the CSR signing attempt.
+  google.rpc.Status status = 1;
+  // The CSR itself. Non-nil if status is OK.
+  CertificateSigningRequest csr = 2;
+}

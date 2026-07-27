@@ -180,7 +180,7 @@ message AccessListGrants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 message ScopedRoleGrant {
-  // role is scope-qualified name of the scoped role to be granted.
+  // role is the scope-qualified name of the scoped role to be granted.
   string role = 1;
   // scope is the scope the role will be granted at. It must be an assignable
   // scope of the role.

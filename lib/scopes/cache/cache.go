@@ -35,7 +35,7 @@ import (
 type Cursor[K cmp.Ordered] struct {
 	// Scope is the scope to resume from.
 	Scope string
-	// Key is the primary key of the item to resume from.
+	// Key is the key of the item to resume from.
 	Key K
 }
 
@@ -52,11 +52,19 @@ type options[T any, K cmp.Ordered] struct {
 	filter func(T) bool
 }
 
+// ScopedKey uniquely identifies a value within the cache by its scope and key.
+type ScopedKey[K cmp.Ordered] struct {
+	// Scope is the scope of the target value.
+	Scope string
+	// Key is the key of the target value within its scope.
+	Key K
+}
+
 // Config configures a cache.
 type Config[T any, K cmp.Ordered] struct {
 	// Scope is the function used to determine the scope of a value.
 	Scope func(T) string
-	// Key is the function used to determine the primary key of a value.
+	// Key is the function used to determine the key of a value.
 	Key func(T) K
 	// Clone is an optional clone function that can be used to create deep copies
 	// of values prior to yielding them.
@@ -64,18 +72,18 @@ type Config[T any, K cmp.Ordered] struct {
 }
 
 // node is a tree node in the cache which stores values at a given scope.
-type node[K cmp.Ordered] struct {
-	// members is the set of values "at" this scope.
-	members *sortmap.Map[K, struct{}]
+type node[K cmp.Ordered, T any] struct {
+	// members is the set of values "at" this scope indexed by key.
+	members *sortmap.Map[K, T]
 
 	// children is the set of child scopes.
-	children *sortmap.Map[string, *node[K]]
+	children *sortmap.Map[string, *node[K, T]]
 }
 
-func newNode[K cmp.Ordered]() *node[K] {
-	return &node[K]{
-		members:  sortmap.New[K, struct{}](),
-		children: sortmap.New[string, *node[K]](),
+func newNode[K cmp.Ordered, T any]() *node[K, T] {
+	return &node[K, T]{
+		members:  sortmap.New[K, T](),
+		children: sortmap.New[string, *node[K, T]](),
 	}
 }
 
@@ -89,10 +97,9 @@ func newNode[K cmp.Ordered]() *node[K] {
 //   - Iteration order of read methods is nondeterministic.
 //   - No cleanup of empty scopes.
 type Cache[T any, K cmp.Ordered] struct {
-	cfg   Config[T, K]
-	rw    sync.RWMutex
-	items map[K]T
-	root  *node[K]
+	cfg  Config[T, K]
+	rw   sync.RWMutex
+	root *node[K, T]
 }
 
 // New builds a new cache instance based on the supplied config.
@@ -110,8 +117,7 @@ func New[T any, K cmp.Ordered](cfg Config[T, K]) (*Cache[T, K], error) {
 	}
 
 	return &Cache[T, K]{
-		cfg:   cfg,
-		items: make(map[K]T),
+		cfg: cfg,
 	}, nil
 }
 
@@ -126,7 +132,7 @@ func Must[T any, K cmp.Ordered](cfg Config[T, K]) *Cache[T, K] {
 	return cache
 }
 
-// KeyOf returns the primary key of the given value.
+// KeyOf returns the key of the given value.
 func (c *Cache[T, K]) KeyOf(value T) K {
 	return c.cfg.Key(value)
 }
@@ -149,12 +155,26 @@ func (c *Cache[T, K]) WithFilter(filter func(T) bool) Option[T, K] {
 	}
 }
 
-// Get retrieves the value associated with the given primary key.
-func (c *Cache[T, K]) Get(key K) (T, bool) {
+// Get retrieves the value associated with the given scope and key.
+func (c *Cache[T, K]) Get(sk ScopedKey[K]) (T, bool) {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
 
-	value, ok := c.items[key]
+	if c.root == nil {
+		return *new(T), false
+	}
+
+	// navigate to the node for the requested scope.
+	current := c.root
+	for segment := range scopes.DescendingSegments(sk.Scope) {
+		var ok bool
+		current, ok = current.children.Get(segment)
+		if !ok {
+			return *new(T), false
+		}
+	}
+
+	value, ok := current.members.Get(sk.Key)
 	if !ok {
 		return *new(T), false
 	}
@@ -242,7 +262,7 @@ func (c *Cache[T, K]) ExactScope(scope string, opts ...Option[T, K]) iter.Seq[Sc
 		}
 
 		// yield only the members at exactly the target scope (no recursion into descendants).
-		if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+		if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 			return
 		}
 	}
@@ -275,7 +295,7 @@ func (c *Cache[T, K]) ScopeAndAncestors(scope string, opts ...Option[T, K]) iter
 		defer descender.Stop()
 
 		for segment := range scopes.DescendingSegments(scope) {
-			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 				return
 			}
 
@@ -294,7 +314,7 @@ func (c *Cache[T, K]) ScopeAndAncestors(scope string, opts ...Option[T, K]) iter
 		}
 
 		// yield the final scope if it is non-empty
-		if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+		if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 			return
 		}
 	}
@@ -344,7 +364,7 @@ func (c *Cache[T, K]) ScopeAndDescendants(scope string, opts ...Option[T, K]) it
 		}
 
 		// recursively yield starting position and all of its descendants
-		if !recursiveYield(yield, visited, &descender, current, c.items, c.cfg.Clone, options.filter) {
+		if !recursiveYield(yield, visited, &descender, current, c.cfg.Clone, options.filter) {
 			return
 		}
 	}
@@ -380,7 +400,7 @@ func (c *Cache[T, K]) ScopeAndRelatives(scope string, opts ...Option[T, K]) iter
 		defer descender.Stop()
 
 		for segment := range scopes.DescendingSegments(scope) {
-			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.items, c.cfg.Clone, options.filter) {
+			if !maybeYieldScopedItems(yield, visited, &descender, current.members, c.cfg.Clone, options.filter) {
 				return
 			}
 
@@ -401,7 +421,7 @@ func (c *Cache[T, K]) ScopeAndRelatives(scope string, opts ...Option[T, K]) iter
 		}
 
 		// recursively yield current position and all of its descendants
-		if !recursiveYield(yield, visited, &descender, current, c.items, c.cfg.Clone, options.filter) {
+		if !recursiveYield(yield, visited, &descender, current, c.cfg.Clone, options.filter) {
 			return
 		}
 	}
@@ -409,9 +429,9 @@ func (c *Cache[T, K]) ScopeAndRelatives(scope string, opts ...Option[T, K]) iter
 
 // recursiveYield is a helper function for recursively yielding all members of a given scope node, and all
 // members of all of its children. The returned bool is the return value of the last call to yield.
-func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visited []string, descender *descender[K], current *node[K], items map[K]T, clone func(T) T, filter func(T) bool) bool {
+func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visited []string, descender *descender[K], current *node[K, T], clone func(T) T, filter func(T) bool) bool {
 	// yield the current scope if we've finished descending to resume position and it is non-empty
-	if !maybeYieldScopedItems(yield, visited, descender, current.members, items, clone, filter) {
+	if !maybeYieldScopedItems(yield, visited, descender, current.members, clone, filter) {
 		return false
 	}
 
@@ -420,7 +440,7 @@ func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visit
 		descender.Descend(segment)
 
 		// recursively yield all child and all of its descendants
-		if !recursiveYield(yield, append(visited, segment), descender, child, items, clone, filter) {
+		if !recursiveYield(yield, append(visited, segment), descender, child, clone, filter) {
 			return false
 		}
 	}
@@ -428,8 +448,23 @@ func recursiveYield[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, visit
 	return true
 }
 
+// recursiveLen is a helper function for recursively counting all members of a given scope node, and all
+// members of its children.
+func recursiveLen[T any, K cmp.Ordered](current *node[K, T]) int {
+	if current == nil {
+		return 0
+	}
+
+	count := current.members.Len()
+	for _, child := range current.children.Ascend("") {
+		count += recursiveLen(child)
+	}
+
+	return count
+}
+
 // Put inserts the given value, potentially displacing an existing value with the same
-// primary key.
+// scope and key.
 func (c *Cache[T, K]) Put(value T) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
@@ -437,62 +472,48 @@ func (c *Cache[T, K]) Put(value T) {
 	// get scope and key for this value
 	scope, key := c.cfg.Scope(value), c.cfg.Key(value)
 
-	// ensure that any previous value at this primary key has been removed
-	c.deleteLocked(key)
-
 	if c.root == nil {
-		c.root = newNode[K]()
+		c.root = newNode[K, T]()
 	}
 
 	// find the node for this scope
 	current := c.root
 	for segment := range scopes.DescendingSegments(scope) {
-		current = current.children.GetOrCreate(segment, newNode[K])
+		current = current.children.GetOrCreate(segment, newNode[K, T])
 	}
 
 	// add the value to the set of members at this scope
-	current.members.Set(key, struct{}{})
-
-	// add the value to the set of members at this primary key
-	c.items[key] = value
+	current.members.Set(key, value)
 }
 
-// Del deletes the value associated with the given primary key.
-func (c *Cache[T, K]) Del(key K) {
+// Del deletes the value associated with the given scope and key.
+func (c *Cache[T, K]) Del(sk ScopedKey[K]) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 
-	c.deleteLocked(key)
-}
-
-func (c *Cache[T, K]) deleteLocked(key K) {
-	// get the value associated with this primary key
-	value, ok := c.items[key]
-	if !ok {
+	if c.root == nil {
 		return
 	}
 
-	// determine the scope for this value
-	scope := c.cfg.Scope(value)
-
-	// get the node for this scope
+	// navigate to the node for the requested scope.
 	current := c.root
-	for segment := range scopes.DescendingSegments(scope) {
-		current, _ = current.children.Get(segment)
+	for segment := range scopes.DescendingSegments(sk.Scope) {
+		var ok bool
+		current, ok = current.children.Get(segment)
+		if !ok {
+			return
+		}
 	}
 
-	// remove the value from the set of members at this scope
-	current.members.Del(key)
-
-	// remove the value from the set of members at this primary key
-	delete(c.items, key)
+	current.members.Del(sk.Key)
 }
 
 // Len gets the total number of unique items stored in the cache.
 func (c *Cache[T, K]) Len() int {
 	c.rw.RLock()
 	defer c.rw.RUnlock()
-	return len(c.items)
+
+	return recursiveLen(c.root)
 }
 
 // ScopedItems provides the canonical representation of a scope and an iterator over the items within it. Typically
@@ -517,7 +538,7 @@ func (s *ScopedItems[T]) Items() iter.Seq[T] {
 	return s.items()
 }
 
-func maybeYieldScopedItems[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, segments []string, descender *descender[K], members *sortmap.Map[K, struct{}], items map[K]T, clone func(T) T, filter func(T) bool) bool {
+func maybeYieldScopedItems[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool, segments []string, descender *descender[K], members *sortmap.Map[K, T], clone func(T) T, filter func(T) bool) bool {
 
 	if !descender.Yield() || members.Len() == 0 {
 		// we are still descending to a cursor position or there are no items to yield
@@ -530,8 +551,8 @@ func maybeYieldScopedItems[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool
 		// we don't want to yield a scope unless it contains at least one value that matches the filter,
 		// so we seek to the position of the first item prior to yielding.
 		var foundMatch bool
-		for key, _ := range members.Ascend(start) {
-			if !filter(items[key]) {
+		for key, val := range members.Ascend(start) {
+			if !filter(val) {
 				continue
 			}
 			start = key
@@ -543,17 +564,16 @@ func maybeYieldScopedItems[T any, K cmp.Ordered](yield func(ScopedItems[T]) bool
 		}
 	}
 
-	return yield(newScopedItems(segments, start, members, items, clone, filter))
+	return yield(newScopedItems(segments, start, members, clone, filter))
 }
 
 // newScopedItems is a helper function for creating a ScopedItems instance within a top-level iterator.
-func newScopedItems[T any, K cmp.Ordered](segments []string, start K, members *sortmap.Map[K, struct{}], items map[K]T, clone func(T) T, filter func(T) bool) ScopedItems[T] {
+func newScopedItems[T any, K cmp.Ordered](segments []string, start K, members *sortmap.Map[K, T], clone func(T) T, filter func(T) bool) ScopedItems[T] {
 	return ScopedItems[T]{
 		segments: segments,
 		items: func() iter.Seq[T] {
 			return func(yield func(T) bool) {
-				for key, _ := range members.Ascend(start) {
-					val := items[key]
+				for _, val := range members.Ascend(start) {
 					if filter != nil && !filter(val) {
 						continue
 					}
