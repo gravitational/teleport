@@ -20,13 +20,18 @@ package pgevents
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -277,4 +282,136 @@ func TestBuildSchema(t *testing.T) {
 			tt.assertSchema(t, schemas)
 		})
 	}
+}
+
+func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
+	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
+	log := newLogForTesting(t)
+	ctx := t.Context()
+
+	truncate := func(t *testing.T) {
+		t.Helper()
+		_, err := log.pool.Exec(ctx, "TRUNCATE events")
+		require.NoError(t, err, "truncate events")
+	}
+
+	eventTime := time.Now().UTC().Truncate(time.Microsecond)
+	from := eventTime.Add(-time.Minute)
+	to := eventTime.Add(time.Minute)
+
+	t.Run("IdenticalReDeliveryIsDeduplicated", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+		ev := makeDedupTestEvent(id, eventTime, "alpaca")
+
+		before := testutil.ToFloat64(writeRequestsDeduped)
+		require.NoError(t, log.EmitAuditEvent(ctx, ev), "first delivery")
+		require.NoError(t, log.EmitAuditEvent(ctx, ev), "at-least-once re-delivery")
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		require.Len(t, stored, 1, "an identical re-delivery should be stored exactly once")
+		require.InDelta(t, before+1, testutil.ToFloat64(writeRequestsDeduped), 0.0001,
+			"the duplicate delivery should increment the deduped counter exactly once")
+	})
+
+	t.Run("DistinctEventsSharingIDAreBothStored", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+		alice := makeDedupTestEvent(id, eventTime, "alice")
+		bob := makeDedupTestEvent(id, eventTime, "bob") // same (id, time), different payload
+
+		before := testutil.ToFloat64(eventIDCollisions)
+		require.NoError(t, log.EmitAuditEvent(ctx, alice))
+		require.NoError(t, log.EmitAuditEvent(ctx, bob))
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		require.Len(t, stored, 2, "two distinct events sharing an id must both be stored")
+		require.True(t, containsMarker(stored, "alice"), "the event for alice must not be dropped")
+		require.True(t, containsMarker(stored, "bob"), "the event for bob must not be dropped")
+		require.InDelta(t, before+1, testutil.ToFloat64(eventIDCollisions), 0.0001,
+			"the colliding distinct event should increment the collision counter exactly once")
+	})
+
+	t.Run("ConcurrentDistinctEventsSharingIDAreNotLost", func(t *testing.T) {
+		truncate(t)
+		id := uuid.NewString()
+		const n = 20
+
+		var wg sync.WaitGroup
+		errs := make([]error, n)
+		for i := range n {
+			wg.Go(func() {
+				ev := makeDedupTestEvent(id, eventTime, fmt.Sprintf("user-%02d", i))
+				errs[i] = log.EmitAuditEvent(ctx, ev)
+			})
+		}
+		wg.Wait()
+
+		for i, err := range errs {
+			require.NoError(t, err, "concurrent emit %d", i)
+		}
+
+		stored := fetchEventData(ctx, t, log, from, to)
+		for i := range n {
+			marker := fmt.Sprintf("user-%02d", i)
+			require.True(t, containsMarker(stored, marker),
+				"distinct event %q must not be lost under concurrent delivery", marker)
+		}
+	})
+}
+
+func makeDedupTestEvent(id string, eventTime time.Time, marker string) *apievents.AppSessionStart {
+	return &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			ID:          id,
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: "mycluster",
+			Time:        eventTime,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID:        "18d877c6-c8ab-46fc-9806-b638c0d6c556",
+			ServerNamespace: apidefaults.Namespace,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: "11111111-1111-1111-1111-111111111111",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:     marker,
+			UserKind: apievents.UserKind_USER_KIND_HUMAN,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        "http://127.0.0.1:52932",
+			AppPublicAddr: "dumper.zarq.dev",
+			AppName:       "dumper",
+		},
+	}
+}
+
+func fetchEventData(ctx context.Context, t *testing.T, log *Log, from, to time.Time) []string {
+	t.Helper()
+	rows, err := log.pool.Query(ctx,
+		"SELECT event_data::text FROM events WHERE event_time BETWEEN $1 AND $2",
+		from, to,
+	)
+	require.NoError(t, err, "query events")
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var data string
+		require.NoError(t, rows.Scan(&data), "scan event_data")
+		out = append(out, data)
+	}
+	require.NoError(t, rows.Err(), "iterate event rows")
+	return out
+}
+
+func containsMarker(data []string, marker string) bool {
+	for _, d := range data {
+		if strings.Contains(d, marker) {
+			return true
+		}
+	}
+	return false
 }

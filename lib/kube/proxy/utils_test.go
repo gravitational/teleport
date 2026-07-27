@@ -583,7 +583,7 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 				User: username,
 				Assignments: []*accessv1.Assignment{
 					accessv1.Assignment_builder{
-						Role:  role.GetRole().GetMetadata().GetName(),
+						Role:  scopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
 						Scope: scope,
 					}.Build(),
 				},

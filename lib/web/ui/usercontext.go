@@ -76,6 +76,9 @@ type UserContext struct {
 	AllowedSearchAsRoles []string `json:"allowedSearchAsRoles"`
 	// PasswordState specifies whether the user has a password set or not.
 	PasswordSate types.PasswordState `json:"passwordState"`
+	// AvailableScopes is a list of scopes available to the user through their
+	// scoped role assignments.
+	AvailableScopes []string `json:"availableScopes"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {

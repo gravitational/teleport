@@ -13,12 +13,12 @@ For self-hosted Teleport deployments, you can configure Teleport to integrate
 with other storage types based on the nature of the stored data (size,
 read/write ratio, mutability, etc.).
 
-| Data type               | Description                                                                                                                                 | Supported storage backends                                                                             |
-|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
-| core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
-| audit events            | Events from the audit log (e.g. user logins, RBAC changes)                                                                                  | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, Amazon S3, GCP Firestore |
-| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and certain S3-compatible services), GCP Cloud Storage, Azure Blob Storage         |
-| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
+| Data type               | Description                                                                                                                                 | Supported storage backends                                                                                  |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB, Amazon Aurora DSQL |
+| audit events            | Events from the audit log (e.g. user logins, RBAC changes)                                                                                  | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, Amazon S3, GCP Firestore                         |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and certain S3-compatible services), GCP Cloud Storage, Azure Blob Storage      |
+| teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                          |
 
 ## Cluster state
 
@@ -1683,3 +1683,111 @@ teleport:
     # frequently may have performance implications for CockroachDB.
     ttl_job_cron: '*/20 * * * *'
 ```
+
+## Amazon Aurora DSQL
+
+<Admonition type="warning" title="Enterprise-only feature">
+  Use of the DSQL storage backend requires Teleport Enterprise.
+</Admonition>
+
+<Admonition type="note" title="Version requirement">
+  The DSQL storage backend is supported in Teleport v19.0.0 and later.
+</Admonition>
+
+Teleport can use [Amazon Aurora DSQL](https://aws.amazon.com/rds/aurora/dsql/) as a storage backend to achieve high availability and survive regional failures.
+
+### Infrastructure setup
+
+The DSQL storage backend requires a DSQL cluster and a Kinesis stream receiving events from a DSQL [Change data capture stream](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/cdc-streams.html). For multi-region operation, a multi-region DSQL cluster in two peered regions ([in the same region set](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/what-is-aurora-dsql.html#aurora-dsql-multi-region-availability)) can be used by Teleport Auth Service instances from either region, and each cluster pair can be configured to emit CDC events to a regional Kinesis data stream.
+
+Since it's not currently possible to configure the CDC stream in such a way that would restrict the changes available to any reader of the Kinesis data stream, we strongly recommend not using the same DSQL cluster for additional workloads, as the Auth Service instances will have access to the unrestricted change feed for the whole cluster, which is essentially equivalent to having full read permissions over every table in every schema of the cluster.
+
+<Admonition type="danger">
+
+No more than two Auth Service instances should be reading from the same Kinesis data stream, or it's possible that throttling will prevent Teleport from keeping up with the event stream; as such, you should deploy no more than two Auth Service instances per region.
+
+</Admonition>
+
+Teleport will only use a single schema in the DSQL cluster, expecting to be able to create tables and run migrations as needed. Because of this, we recommend either letting Teleport use the `admin` database user (requiring permissions to use the `dsql:DbConnectAdmin` action) and the pre-existing `public` schema, or you should [create a database user](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/using-database-and-iam-roles.html#using-database-and-iam-roles-custom-database-roles) and grant it full permissions over a schema (Teleport will then need permissions to use the `dsql:DbConnect` action):
+
+```sql
+CREATE ROLE teleport WITH LOGIN;
+AWS IAM GRANT teleport TO 'arn:aws:iam::0123456789012:role/<role name>';
+CREATE SCHEMA teleport;
+GRANT ALL PRIVILEGES ON SCHEMA teleport TO teleport;
+```
+
+It is not possible to grant all privileges on the `public` schema to a non-admin user.
+
+The IAM role used by Teleport will need, at a minimum, permissions for `kinesis:ListShards`, `kinesis:GetShardIterator` and `kinesis:GetRecords` on the Kinesis data stream that's receiving the DSQL CDC stream, and either `dsql:DbConnectAdmin` or `dsql:DbConnect` on the DSQL cluster to use the `admin` database user or some other database user, respectively. Depending on the configuration, additional permissions might be required - for example, [user-generated KMS keys in Kinesis require `kms:Decrypt`](https://docs.aws.amazon.com/streams/latest/dev/permissions-user-key-KMS.html).
+
+### Configuration
+
+The cluster state backend configuration lives in the `teleport.storage` section of the `teleport.yaml` config file:
+
+```yaml
+teleport:
+  storage:
+    type: dsql
+
+    # The identifier of the cluster, also shown as "Cluster ID" in the
+    # AWS console. Required.
+    dsql_identifier: ln7855l7l8l77ln4m5v8787lm7n7vl
+    # The region that the DSQL cluster is in. In multi-region setups,
+    # auths in different regions should be pointed at different DSQL
+    # clusters in different regions. Required.
+    dsql_region: us-west-2
+
+    # The full hostname used to connect to the DSQL cluster over AWS
+    # PrivateLink, it should be left unset or empty otherwise. The
+    # hostname depends on the VPC endpoint service name, which can
+    # change from cluster to cluster (see https://docs.aws.amazon.com/aurora-dsql/latest/userguide/privatelink-managing-clusters.html#privatelink-connecting-clusters).
+    dsql_endpoint: ln7855l7l8l77ln4m5v8787lm7n7vl.dsql-7cwu.us-west-2.on.aws
+
+    # The name of the AWS profile used as a source of credentials and
+    # configuration for DSQL. If unset or blank, the default profile
+    # is used. A non-default profile can be used to use a different
+    # source for the credentials used to connect to DSQL, or to assume
+    # a specific role. The profile configuration, by default, is read
+    # from the ~/.aws/config file, but a different file can be used
+    # by specifying the aws_config_file_path option (see below).
+    dsql_aws_profile: profile-name
+
+    # The name of the Kinesis data stream that is receiving CDC events
+    # from the DSQL cluster. Required.
+    kinesis_stream_name: change-feed-stream-name
+    # The region that the Kinesis data stream is in. In multi-region
+    # setups, each DSQL cluster peer should be configured to emit CDC
+    # events to a regional Kinesis data stream. Required.
+    kinesis_stream_region: us-west-2
+
+    # The name of the AWS profile used as a source of credentials and
+    # configuration for the Kinesis data stream. If unset or blank,
+    # the default profile is used.
+    kinesis_aws_profile: profile-name
+
+    # The path to an AWS config file (see https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html).
+    # If set, only the specified file will be used as configuration for
+    # AWS credentials for DSQL and Kinesis. If unset, the default
+    # configuration file (at ~/.aws/config) is used.
+    aws_config_file_path: path/to/aws/config
+
+    # The username and schema name to use in the DSQL cluster. The
+    # "admin" user requires permissions for the dsql:DbConnectAdmin
+    # action rather than the dsql:DbConnect action. The schema must
+    # already exist and the selected user should have full privileges
+    # on it (as such, the public schema is only really suitable for
+    # use by the admin user).
+    database_user: admin
+    database_schema: public
+
+    # The maximum amount of parallel connections that Teleport will
+    # open to use the DSQL cluster. A higher number of connections
+    # can reduce latency but it will increase the memory requirements
+    # of the Auth Service instance.
+    max_conns: 1000
+```
+
+### Monitoring
+
+In addition to the general Teleport backend metrics (see the [Teleport Metrics reference](./monitoring/metrics.mdx)), DSQL and Kinesis have specific CloudWatch metrics that should be monitored. The DSQL `CommitLatency` and `OccConflicts` metrics can warn about problems with the service, and the `BehindSourceLag` and `IsImpaired` metrics for the CDC stream can signal that something is wrong with the CDC configuration. The Kinesis metrics `ReadProvisionedThroughputExceeded` and `GetRecords.IteratorAgeMilliseconds` can warn about Teleport not being able to keep up (perhaps because of throughput throttling, but it could be caused by network problems between Teleport and Kinesis).

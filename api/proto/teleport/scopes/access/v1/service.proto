@@ -66,6 +66,9 @@ service ScopedAccessService {
 message GetScopedRoleRequest {
   // Name is the name of the scoped role.
   string name = 1;
+
+  // Scope is the resource scope of the scoped role (required).
+  string scope = 2;
 }
 
 // GetScopedRoleResponse is the response to get a scoped role.
@@ -151,6 +154,9 @@ message DeleteScopedRoleRequest {
 
   // Revision asserts the revision of the scoped role to delete (optional).
   string revision = 2;
+
+  // Scope is the resource scope of the scoped role to delete (required).
+  string scope = 3;
 }
 
 // DeleteScopedRoleResponse is the response to delete a scoped role.
@@ -160,8 +166,12 @@ message DeleteScopedRoleResponse {}
 message GetScopedRoleAssignmentRequest {
   // Name is the name of the scoped role assignment.
   string name = 1;
+
   // SubKind is the sub kind of the scoped role assignment.
   string sub_kind = 2;
+
+  // Scope is the resource scope of the scoped role assignment (required).
+  string scope = 3;
 }
 
 // GetScopedRoleAssignmentResponse is the response to get a scoped role assignment.
@@ -265,6 +275,9 @@ message DeleteScopedRoleAssignmentRequest {
 
   // SubKind is the sub kind of the scoped role assignment.
   string sub_kind = 3;
+
+  // Scope is the resource scope of the scoped role assignment to delete (required).
+  string scope = 4;
 }
 
 // DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.

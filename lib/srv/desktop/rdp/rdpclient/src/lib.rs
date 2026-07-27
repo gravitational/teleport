@@ -49,6 +49,7 @@ use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
 mod license;
+#[cfg(feature = "desktop-encoder")]
 mod linux_desktop_encoder;
 mod network_client;
 mod piv;

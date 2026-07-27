@@ -74,6 +74,18 @@ var (
 			Help: "Number of batch read requests to firestore events",
 		},
 	)
+	writeRequestsDeduped = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "firestore_events_backend_write_deduped",
+			Help: "Number of write requests that were de-duplicated because an identical event already existed.",
+		},
+	)
+	eventIDCollisions = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "firestore_events_backend_event_id_collisions",
+			Help: "Number of distinct audit events that collided with an existing event sharing the same id and were re-inserted under a newly generated id.",
+		},
+	)
 	writeLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: "firestore_events_backend_write_seconds",
@@ -105,6 +117,7 @@ var (
 	prometheusCollectors = []prometheus.Collector{
 		writeRequests, batchWriteRequests, batchReadRequests,
 		writeLatencies, batchWriteLatencies, batchReadLatencies,
+		writeRequestsDeduped, eventIDCollisions,
 	}
 )
 
@@ -341,14 +354,94 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		CreatedAt:      in.GetTime().Unix(),
 		Fields:         string(data),
 	}
+
+	// All audit log events get assigned a UUID by the function
+	// `checkAndSetEventFields`. This happens when EmitAuditEvent is called.
+	// It should not happen, but if for some reason an event ID is missing, then
+	// we will generate an event ID. We want to prioritize durability of events
+	// and ensure that we don't error if a bug caused an event to be missing an
+	// ID.
+	eventID, err := uuid.Parse(in.GetID())
+	if err != nil {
+		eventID = uuid.New()
+		l.logger.InfoContext(ctx,
+			"Audit event does not have a valid UUID. Using a generated doc id, this event will not be de-duplicated if it is re-delivered.",
+			"error", err,
+			"event_id", in.GetID(),
+			"event_type", in.GetType(),
+			"generated_doc_id", eventID,
+		)
+	}
+
 	start := time.Now()
-	_, err = l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent()).Create(l.svcContext, event)
+	err = l.insertEvent(ctx, in, eventID, event)
 	writeLatencies.Observe(time.Since(start).Seconds())
 	writeRequests.Inc()
+	return trace.Wrap(err)
+}
+
+func (l *Log) insertEvent(ctx context.Context, in apievents.AuditEvent, docID uuid.UUID, e event) error {
+	inserted, isDuplicate, err := l.tryInsertEvent(docID, e)
 	if err != nil {
-		return firestorebk.ConvertGRPCError(err)
+		return trace.Wrap(err)
 	}
-	return nil
+	if inserted {
+		return nil
+	}
+	if isDuplicate {
+		writeRequestsDeduped.Inc()
+		l.logger.DebugContext(ctx, "Dropped duplicate audit event.",
+			"event_id", docID,
+			"event_type", in.GetType(),
+		)
+		return nil
+	}
+
+	newID := uuid.New()
+	l.logger.WarnContext(ctx,
+		"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
+		"event_type", in.GetType(),
+		"original_event_id", docID,
+		"new_event_id", newID,
+	)
+	eventIDCollisions.Inc()
+
+	inserted, isDuplicate, err = l.tryInsertEvent(newID, e)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if inserted || isDuplicate {
+		return nil
+	}
+	return trace.AlreadyExists(
+		"audit event id collision persisted after generating a new id (original_event_id %v)",
+		docID,
+	)
+}
+
+func (l *Log) tryInsertEvent(docID uuid.UUID, e event) (inserted, isDuplicate bool, err error) {
+	docRef := l.svc.Collection(l.CollectionName).Doc(docID.String())
+	if _, err := docRef.Create(l.svcContext, e); err != nil {
+		convertedErr := firestorebk.ConvertGRPCError(err)
+		if !trace.IsAlreadyExists(convertedErr) {
+			return false, false, trace.Wrap(convertedErr)
+		}
+	} else {
+		return true, false, nil
+	}
+
+	docSnap, err := docRef.Get(l.svcContext)
+	if err != nil {
+		return false, false, trace.Wrap(firestorebk.ConvertGRPCError(err), "read existing/collided event")
+	}
+
+	var existing event
+	if err := docSnap.DataTo(&existing); err != nil {
+		return false, false, trace.Wrap(firestorebk.ConvertGRPCError(err), "populate existing/collided event")
+	}
+	// TODO(kkloberdanz): We currently do a strict bytes comparison. Should this
+	// be a proper JSON comparison?
+	return false, existing.Fields == e.Fields, nil
 }
 
 // SearchEvents is a flexible way to find events.
@@ -675,10 +768,6 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 func (l *Log) Close() error {
 	l.svcCancel()
 	return l.svc.Close()
-}
-
-func (l *Log) getDocIDForEvent() string {
-	return uuid.New().String()
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {

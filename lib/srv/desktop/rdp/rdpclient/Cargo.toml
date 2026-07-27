@@ -30,7 +30,7 @@ iso7816 = "0.2.0"
 iso7816-tlv = "0.4.4"
 log = "0.4.30"
 rand = { version = "0.9.4", features = ["os_rng"] }
-rdp-decoder = { path = "../decoder" }
+rdp-decoder = { path = "../decoder", features = ["image-resize"] }
 rsa = "0.9.10"
 sspi = { version = "^0.21.0", features = ["network_client"] }
 tokio = { version = "1.52", features = ["full"] }
@@ -45,13 +45,12 @@ reqwest = { version = "0.13", default-features = false }
 rustls = { version = "0.23.40", default-features = false, features = [
     "aws-lc-rs",
 ] }
-qoi = "0.4.1"
-zstd = "0.13.3"
+qoi  = { version = "0.4.1",  optional = true }
+zstd = { version = "0.13.3", optional = true }
 
 [dev-dependencies]
 ironrdp-graphics.workspace = true
 ironrdp-session.workspace = true
-ironrdp-session.features = ["qoiz"]
 base64 = "0.22.1"
 
 [build-dependencies]
@@ -60,3 +59,4 @@ tempfile = "3.27.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
+desktop-encoder = ["dep:qoi", "dep:zstd", "ironrdp-session/qoiz"]

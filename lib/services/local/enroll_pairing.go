@@ -197,20 +197,14 @@ func (s *EnrollPairingService) GetEnrollPairingByToken(ctx context.Context, toke
 	return pairing, nil
 }
 
-// RequestEnrollPairingApproval transitions the pairing identified by token from
-// AWAITING_DEVICE to AWAITING_APPROVAL, persisting device, and returns the
-// updated pairing.
-func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context, token string, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error) {
-	if token == "" {
-		return nil, trace.BadParameter("token required")
+// RequestEnrollPairingApproval transitions pairing from AWAITING_DEVICE to
+// AWAITING_APPROVAL, persisting device, and returns the updated pairing.
+func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context, pairing *devicepb.EnrollPairing, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error) {
+	if pairing == nil {
+		return nil, trace.BadParameter("pairing required")
 	}
 	if device == nil {
 		return nil, trace.BadParameter("device required")
-	}
-
-	pairing, err := s.GetEnrollPairingByToken(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	const errNotAwaitingDevice = "enroll pairing is not awaiting a device"

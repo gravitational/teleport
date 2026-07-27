@@ -34,6 +34,13 @@ type LinuxDesktopService struct {
 
 const linuxDesktopKey = "linux_desktop"
 
+func validateLinuxDesktopKind(d *linuxdesktopv1.LinuxDesktop) error {
+	if d.GetKind() != types.KindLinuxDesktop {
+		return trace.CompareFailed("expecting kind %q but got %q", types.KindLinuxDesktop, d.GetKind())
+	}
+	return nil
+}
+
 // NewLinuxDesktopService creates a new LinuxDesktopService.
 func NewLinuxDesktopService(b backend.Backend) (*LinuxDesktopService, error) {
 	service, err := generic.NewServiceWrapper(
@@ -43,6 +50,7 @@ func NewLinuxDesktopService(b backend.Backend) (*LinuxDesktopService, error) {
 			BackendPrefix: backend.NewKey(linuxDesktopKey),
 			MarshalFunc:   services.MarshalLinuxDesktop,
 			UnmarshalFunc: services.UnmarshalLinuxDesktop,
+			ValidateFunc:  validateLinuxDesktopKind,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

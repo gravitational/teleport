@@ -294,8 +294,11 @@ file to base64, then indent it and add it to the `kube_cluster.yaml` resource
 definition using the following command:
 
 ```code
-$ printf "    %s" $(cat kubeconfig | base64) >> kube_cluster.yaml
+$ printf "    %s\n" "$(cat kubeconfig | base64 | tr -d '\n')" >> kube_cluster.yaml
 ```
+
+This command also removes any newlines added to the middle of the base64-encoded
+string before writing it to the `kube_cluster` resource definition.
 
 <details>
 <summary>Add labels to your kube_cluster</summary>

@@ -39,8 +39,8 @@ type githubConnectorClient struct {
 }
 
 // Get gets the Teleport github_connector of a given name
-func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
-	github, err := r.teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
+func (r githubConnectorClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.GithubConnector, error) {
+	github, err := r.teleportClient.GetGithubConnector(ctx, key.Name, false /* with secrets*/)
 	return github, trace.Wrap(err)
 }
 
@@ -57,8 +57,8 @@ func (r githubConnectorClient) Update(ctx context.Context, github types.GithubCo
 }
 
 // Delete deletes a Teleport github_connector
-func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteGithubConnector(ctx, name))
+func (r githubConnectorClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteGithubConnector(ctx, key.Name))
 }
 
 func (r githubConnectorClient) Mutate(ctx context.Context, new, _ types.GithubConnector, crKey kclient.ObjectKey) error {

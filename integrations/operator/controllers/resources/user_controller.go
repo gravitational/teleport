@@ -37,8 +37,8 @@ type userClient struct {
 }
 
 // Get gets the Teleport user of a given name
-func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
-	user, err := r.teleportClient.GetUser(ctx, name, false /* with secrets*/)
+func (r userClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.User, error) {
+	user, err := r.teleportClient.GetUser(ctx, key.Name, false /* with secrets*/)
 	return user, trace.Wrap(err)
 }
 
@@ -55,8 +55,8 @@ func (r userClient) Update(ctx context.Context, user types.User) error {
 }
 
 // Delete deletes a Teleport user
-func (r userClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteUser(ctx, name))
+func (r userClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteUser(ctx, key.Name))
 }
 
 // Mutate ensures the spec.createdBy property is persisted

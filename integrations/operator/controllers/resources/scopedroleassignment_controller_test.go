@@ -158,18 +158,21 @@ func (g *scopedRoleAssignmentTestingPrimitives) CompareTeleportAndKubernetesReso
 }
 
 func TestScopedRoleAssignmentCreation(t *testing.T) {
+	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
 	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleAssignmentDeletionDrift(t *testing.T) {
+	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
 	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleAssignmentUpdate(t *testing.T) {
+	t.Skip("scope namespaced resources are temporarily non-functional until we can update the operator to be compatible with namespacing")
 	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
 	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))

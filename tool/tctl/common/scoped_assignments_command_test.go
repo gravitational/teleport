@@ -76,7 +76,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "role1",
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
 				}.Build()},
 			}.Build(),
@@ -92,7 +92,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "role1",
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
 				}.Build()},
 			}.Build(),
@@ -108,7 +108,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "charlie",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "role2",
+					Role:  "/testscope::role2",
 					Scope: "/testscope",
 				}.Build()},
 			}.Build(),
@@ -124,7 +124,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "charlie",
 				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-					Role:  "role3",
+					Role:  "/testscope::role3",
 					Scope: "/testscope",
 				}.Build()},
 			}.Build(),
@@ -183,12 +183,12 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 		},
 		{
 			desc:                    "charlie role2",
-			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "role2"},
+			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "/testscope::role2"},
 			expectedAssignmentNames: []string{"charlie-role2"},
 		},
 		{
 			desc:                    "role1",
-			args:                    []string{"assignments", "ls", "--role", "role1"},
+			args:                    []string{"assignments", "ls", "--role", "/testscope::role1"},
 			expectedAssignmentNames: []string{"alice-role1", "bob-role1"},
 		},
 		{

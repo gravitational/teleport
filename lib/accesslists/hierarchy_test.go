@@ -853,11 +853,11 @@ func TestGetInheritedGrants(t *testing.T) {
 		Roles: []string{"root-owner-role"},
 		ScopedRoles: []accesslist.ScopedRoleGrant{
 			{
-				Role:  "root-scoped-role",
+				Role:  "/::root-scoped-role",
 				Scope: "/root/bb",
 			},
 			{
-				Role:  "root-scoped-role",
+				Role:  "/::root-scoped-role",
 				Scope: "/root/aa",
 			},
 		},
@@ -872,11 +872,11 @@ func TestGetInheritedGrants(t *testing.T) {
 		Roles: []string{"1-member-role"},
 		ScopedRoles: []accesslist.ScopedRoleGrant{
 			{
-				Role:  "1-scoped-role",
+				Role:  "/::1-scoped-role",
 				Scope: "/1/bb",
 			},
 			{
-				Role:  "1-scoped-role",
+				Role:  "/::1-scoped-role",
 				Scope: "/1/aa",
 			},
 		},
@@ -909,19 +909,19 @@ func TestGetInheritedGrants(t *testing.T) {
 		Roles: []string{"1-member-role", "root-owner-role"},
 		ScopedRoles: []accesslist.ScopedRoleGrant{
 			{
-				Role:  "1-scoped-role",
+				Role:  "/::1-scoped-role",
 				Scope: "/1/aa",
 			},
 			{
-				Role:  "1-scoped-role",
+				Role:  "/::1-scoped-role",
 				Scope: "/1/bb",
 			},
 			{
-				Role:  "root-scoped-role",
+				Role:  "/::root-scoped-role",
 				Scope: "/root/aa",
 			},
 			{
-				Role:  "root-scoped-role",
+				Role:  "/::root-scoped-role",
 				Scope: "/root/bb",
 			},
 		},

@@ -149,9 +149,11 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	fallback := &mockKubeServerWatcherGetter{}
 
 	var calls int32
+	primaryReady := make(chan time.Time)
 
 	primary.On("NewWatcher", mock.Anything, mock.Anything).
 		Return(nil, context.DeadlineExceeded).
+		WaitUntil(primaryReady).
 		Run(func(args mock.Arguments) {
 			atomic.AddInt32(&calls, 1)
 		})
@@ -169,16 +171,17 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	waitCh := make(chan error)
-	defer close(waitCh)
 
 	go func() {
 		// This should block until the watcher is ready or closed.
 		waitCh <- w.WaitInitialization()
 	}()
+	synctest.Wait()
 
 	require.True(t, isHealthy(w), "Watcher starts healthy")
 	require.False(t, w.IsInitialized())
 
+	close(primaryReady)
 	time.Sleep(2 * time.Second)
 	require.False(t, w.IsInitialized())
 	require.False(t, isHealthy(w), "Watcher should not be hot since primary is failing")

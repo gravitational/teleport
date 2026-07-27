@@ -354,7 +354,7 @@ func (grants *Grants) Clone() Grants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
-	// Role is the name of the scoped role to be granted.
+	// Role is the scope-qualified name of the scoped role to be granted.
 	Role string `json:"role" yaml:"role"`
 	// Scope is the scope the role will be assigned at. It must be an assignable
 	// scope of the role.

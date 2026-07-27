@@ -4659,7 +4659,10 @@ func newScopedWorkloadIdentityUser(
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: role.GetRole().GetMetadata().GetName(), Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: role.GetRole().GetScope(), Name: role.GetRole().GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -4671,6 +4674,7 @@ func newScopedWorkloadIdentityUser(
 		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -4776,7 +4780,10 @@ func createScopedWorkloadIdentityUser(
 
 	assignments := make([]*scopedaccessv1.Assignment, 0, len(roleNames))
 	for _, roleName := range roleNames {
-		assignments = append(assignments, scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build())
+		assignments = append(assignments, scopedaccessv1.Assignment_builder{
+			Role:  scopes.QualifiedName{Scope: "/scopes", Name: roleName}.String(),
+			Scope: scope,
+		}.Build())
 	}
 	resp, err := adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
@@ -4800,6 +4807,7 @@ func createScopedWorkloadIdentityUser(
 		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)

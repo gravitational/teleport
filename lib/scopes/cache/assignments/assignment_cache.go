@@ -88,12 +88,15 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
 
-	assignment, ok := c.cache.Get(assignmentKey{
-		name:    req.GetName(),
-		subKind: req.GetSubKind(),
-	}.String())
+	assignment, ok := c.cache.Get(cache.ScopedKey[string]{
+		Scope: req.GetScope(),
+		Key: assignmentKey{
+			name:    req.GetName(),
+			subKind: req.GetSubKind(),
+		}.String(),
+	})
 	if !ok {
-		return nil, trace.NotFound("scoped role assignment %q not found", req.GetName())
+		return nil, trace.NotFound("scoped role assignment %q not found in scope %q", req.GetName(), req.GetScope())
 	}
 
 	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
@@ -194,12 +197,15 @@ func (c *AssignmentCache) Put(assignment *scopedaccessv1.ScopedRoleAssignment) e
 	return nil
 }
 
-// Delete removes an assignment from the cache by name.
-func (c *AssignmentCache) Delete(name, subKind string) {
-	c.cache.Del(assignmentKey{
-		name:    name,
-		subKind: subKind,
-	}.String())
+// Delete removes an assignment from the cache by its scope-qualified name and sub-kind.
+func (c *AssignmentCache) Delete(assignment scopes.QualifiedName, subKind string) {
+	c.cache.Del(cache.ScopedKey[string]{
+		Scope: assignment.Scope,
+		Key: assignmentKey{
+			name:    assignment.Name,
+			subKind: subKind,
+		}.String(),
+	})
 }
 
 // Len returns the total number of assignments in the cache.

@@ -98,9 +98,11 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
-# BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
-# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+# BUILDARCH and TARGETARCH are automatically set by Docker when building the
+# image with BuildKit. See:
+# https://docs.docker.com/reference/dockerfile/#automatic-platform-args-in-the-global-scope
 ARG BUILDARCH
+ARG TARGETARCH
 
 # Install packages.
 # Latest git 2.18+ is required for GitHub actions.
@@ -264,18 +266,24 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
-    chown -R ci /home/ci/.local/share/helm && \
-    helm plugin uninstall unittest && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
-RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
-    chown -R ci /home/ci/.local/share/helm && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
+COPY helm-unittest.sha256 /tmp/helm-unittest.sha256
+# Extract the release archive directly instead of using `helm plugin install`.
+# The Helm installer executes plugin-provided hooks, which duplicates setup and
+# would require separately verifying those scripts.
+RUN plugin_arch="${TARGETARCH:-$BUILDARCH}" && \
+    archive_name="$(grep "helm-unittest-linux-${plugin_arch}-" /tmp/helm-unittest.sha256 | head -n 1 | awk '{print $2}')" && \
+    test -n "$archive_name" && \
+    plugin_version="${archive_name#helm-unittest-linux-${plugin_arch}-}" && \
+    plugin_version="v${plugin_version%.tgz}" && \
+    test -n "$plugin_version" && \
+    plugin_dir=/home/ci/.local/share/helm/plugins/helm-unittest && \
+    archive=/tmp/$archive_name && \
+    mkdir -p "$plugin_dir" && \
+    curl -fsSL -o "$archive" "https://github.com/helm-unittest/helm-unittest/releases/download/${plugin_version}/helm-unittest-linux-${plugin_arch}-${plugin_version#v}.tgz" && \
+    (cd /tmp && grep "[[:space:]]$archive_name$" helm-unittest.sha256 | sha256sum -c -) && \
+    tar -xz -f "$archive" -C "$plugin_dir" && \
+    rm -f "$archive" && \
+    chown -R ci /home/ci/.local/share/helm
 
 # Install JS gRPC tools.
 ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"

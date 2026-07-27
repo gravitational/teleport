@@ -18,11 +18,14 @@ package tlsca_test
 
 import (
 	"crypto/x509/pkix"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tlscatest"
 )
 
 func TestClusterName(t *testing.T) {
@@ -102,6 +105,54 @@ func TestClusterName(t *testing.T) {
 				return
 			}
 			assert.Equal(t, test.want, got, "Cluster name mismatch")
+		})
+	}
+}
+
+func TestParseCertificatePEMs(t *testing.T) {
+	t.Parallel()
+
+	_, validCAPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		input     []byte
+		wantErr   string
+		wantCerts int
+	}{
+		{
+			name:      "valid single certificate",
+			input:     validCAPEM,
+			wantCerts: 1,
+		},
+		{
+			name:      "valid multiple certificates",
+			input:     slices.Concat(validCAPEM, validCAPEM),
+			wantCerts: 2,
+		},
+		{
+			name:    "empty input",
+			input:   nil,
+			wantErr: "missing PEM encoded block",
+		},
+		{
+			// non-empty input containing no PEM block must fail with an error
+			name:    "non-empty input with no PEM block",
+			input:   []byte("this is not a PEM-encoded certificate"),
+			wantErr: "no PEM-encoded certificate found",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			certs, err := tlsca.ParseCertificatePEMs(test.input)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr)
+				assert.Empty(t, certs)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Len(t, certs, test.wantCerts)
 		})
 	}
 }

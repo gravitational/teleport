@@ -39,8 +39,8 @@ type openSSHServerClient struct {
 }
 
 // Get gets the Teleport OpenSSH server of a given name.
-func (r openSSHServerClient) Get(ctx context.Context, name string) (types.Server, error) {
-	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, name)
+func (r openSSHServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
+	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, key.Name)
 	if err != nil {
 		return server, trace.Wrap(err)
 	}
@@ -67,8 +67,8 @@ func (r openSSHServerClient) Update(ctx context.Context, server types.Server) er
 }
 
 // Delete deletes a Teleport OpenSSH server.
-func (r openSSHServerClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, name))
+func (r openSSHServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, key.Name))
 }
 
 // NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller

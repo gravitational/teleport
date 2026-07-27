@@ -216,6 +216,10 @@ func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	if f.Matcher.IsRegionWildcard() {
 		enabled, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, matcherCredentialOpts(f.Matcher)...)
 		if err != nil {
+			if trace.IsAccessDenied(err) {
+				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
+					"Add this permission to the IAM Role, or enumerate the regions explicitly.")
+			}
 			return nil, trace.Wrap(err)
 		}
 		regions = enabled

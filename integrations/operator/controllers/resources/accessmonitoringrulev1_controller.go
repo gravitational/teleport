@@ -37,9 +37,9 @@ type accessMonitoringRuleClient struct {
 }
 
 // Get gets the Teleport accessMonitoringRule of a given name
-func (l accessMonitoringRuleClient) Get(ctx context.Context, name string) (*accessmonitoringrulesv1pb.AccessMonitoringRule, error) {
+func (l accessMonitoringRuleClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accessmonitoringrulesv1pb.AccessMonitoringRule, error) {
 	resp, err := l.teleportClient.AccessMonitoringRulesClient().
-		GetAccessMonitoringRule(ctx, name)
+		GetAccessMonitoringRule(ctx, key.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,8 +61,8 @@ func (l accessMonitoringRuleClient) Update(ctx context.Context, resource *access
 }
 
 // Delete deletes a Teleport accessMonitoringRule
-func (l accessMonitoringRuleClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(l.teleportClient.AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, name))
+func (l accessMonitoringRuleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(l.teleportClient.AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, key.Name))
 }
 
 // NewAccessMonitoringRuleV1Reconciler instantiates a new Kubernetes controller reconciling accessMonitoringRule

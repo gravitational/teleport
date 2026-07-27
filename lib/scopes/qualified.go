@@ -55,6 +55,25 @@ func (q QualifiedName) String() string {
 	return q.Scope + QualifiedNameSeparator + q.Name
 }
 
+// Set sets a possible scope qualified name. If the "::" separator is not present,
+// then the scope qualified name will have an empty scope. This implements
+// the flag/kingping Value interface.
+func (q *QualifiedName) Set(val string) error {
+	if !strings.Contains(val, QualifiedNameSeparator) {
+		*q = QualifiedName{Name: val}
+		return nil
+	}
+	sqn, err := ParseQualifiedName(val)
+	if err != nil {
+		return err
+	}
+	if err := sqn.StrongValidate(); err != nil {
+		return err
+	}
+	*q = sqn
+	return nil
+}
+
 // StrongValidate validates this QualifiedName using strong validation rules. This method
 // *must* be called on all QualifiedName values derived from user input and/or cluster-external
 // sources. Use [QualifiedName.WeakValidate] when checking values from the control plane in
@@ -64,7 +83,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := StrongValidateSegment(q.Name); err != nil {
+	if err := StrongValidateResourceName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 

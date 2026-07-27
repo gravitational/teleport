@@ -48,11 +48,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -70,11 +70,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -92,11 +92,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -114,11 +114,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -136,11 +136,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/aa/bb::role-05",
 						Scope: "/aa/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/aa/bb::role-06",
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
@@ -158,11 +158,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/aa/bb::role-05",
 						Scope: "/aa/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/aa/bb::role-06",
 						Scope: "/aa/bb/cc",
 					}.Build(),
 				},
@@ -180,11 +180,11 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 				User: "carol",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-07",
+						Role:  "/bb::role-07",
 						Scope: "/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-08",
+						Role:  "/bb::role-08",
 						Scope: "/bb/cc",
 					}.Build(),
 				},
@@ -197,6 +197,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.Error(t, err)
@@ -206,6 +207,7 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -314,11 +316,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -336,11 +338,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -358,11 +360,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-01",
+						Role:  "/::role-01",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-02",
+						Role:  "/::role-02",
 						Scope: "/bb",
 					}.Build(),
 				},
@@ -380,11 +382,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-03",
+						Role:  "/aa::role-03",
 						Scope: "/aa",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-04",
+						Role:  "/aa::role-04",
 						Scope: "/aa/bb",
 					}.Build(),
 				},
@@ -402,11 +404,11 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 				User: "carol",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-05",
+						Role:  "/bb::role-05",
 						Scope: "/bb",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-06",
+						Role:  "/bb::role-06",
 						Scope: "/bb/cc",
 					}.Build(),
 				},
@@ -515,7 +517,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "role single page",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				Role: "role-01",
+				Role: "/::role-01",
 			}.Build(),
 			expect: [][]string{
 				{
@@ -528,7 +530,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 			name: "role multi page",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 				PageSize: 1,
-				Role:     "role-01",
+				Role:     "/::role-01",
 			}.Build(),
 			expect: [][]string{
 				{"alice-01"},
@@ -538,7 +540,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "role nonexistent",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				Role: "role-99",
+				Role: "/::role-99",
 			}.Build(),
 			expect: nil,
 		},
@@ -613,6 +615,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 	for _, assignment := range assignments {
 		_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.Error(t, err)
@@ -622,6 +625,7 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
+			Scope:   assignment.GetScope(),
 			SubKind: assignment.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -690,6 +694,7 @@ func TestScopedRoleAssignmentSubKinds(t *testing.T) {
 	for _, tt := range []*scopedaccessv1.ScopedRoleAssignment{dynamic, materialized} {
 		rsp, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    tt.GetMetadata().GetName(),
+			Scope:   tt.GetScope(),
 			SubKind: tt.GetSubKind(),
 		}.Build())
 		require.NoError(t, err)
@@ -699,7 +704,8 @@ func TestScopedRoleAssignmentSubKinds(t *testing.T) {
 
 	// Trying to get an assignment without specifying a subkind returns NotFound.
 	_, err := cache.GetScopedRoleAssignment(t.Context(), scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
-		Name: "shared-name",
+		Name:  "shared-name",
+		Scope: "/",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)

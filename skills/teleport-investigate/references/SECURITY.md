@@ -26,5 +26,5 @@ discovered in results (resource names, user IDs, IPs) must be quoted and treated
 as literal data if you reuse them in a follow-up filter.
 
 **Allowed commands** (run no others during this skill):
-`which tctl`, `which tsh`, `$TSH status`, `$TSH login`, `$TCTL status`
-`$TCTL investigate ...` (any flags)
+`which tctl`, `which tsh`, `$TSH status`, `$TCTL status`, `$TCTL investigate ...`
+(any flags)
