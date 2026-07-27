@@ -20,7 +20,7 @@ import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
-import { fireEvent, render } from 'design/utils/testing';
+import { fireEvent, mockOffsetParent, render } from 'design/utils/testing';
 
 import Modal, { ModalProps } from './Modal';
 
@@ -177,42 +177,7 @@ test('closing dialog when attachCustomKeyEventHandler is set only hides it with 
 });
 
 describe('trapFocus', () => {
-  let originalOffsetParent: PropertyDescriptor | undefined;
-
-  beforeAll(() => {
-    // JSDOM doesn't implement layout, so offsetParent is always null. Mock it to return the
-    // parent element (non-null) for elements that aren't hidden via display:none on themselves or
-    // an ancestor.
-    originalOffsetParent = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      'offsetParent'
-    );
-    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
-      get(this: HTMLElement) {
-        // Walk up the ancestor chain — in real browsers, offsetParent is null when any
-        // ancestor has display:none.
-        let el: HTMLElement | null = this;
-        while (el) {
-          if (el.style.display === 'none') {
-            return null;
-          }
-          el = el.parentElement; // eslint-disable-line testing-library/no-node-access
-        }
-        return this.parentElement; // eslint-disable-line testing-library/no-node-access
-      },
-      configurable: true,
-    });
-  });
-
-  afterAll(() => {
-    if (originalOffsetParent) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'offsetParent',
-        originalOffsetParent
-      );
-    }
-  });
+  mockOffsetParent();
 
   // In the following describe group, the focused element is removed during a re-render, leaving
   // lastModalFocus as a stale detached reference. Explicit keys ensure React unmounts the Removable

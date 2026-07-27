@@ -111,6 +111,7 @@ export default class Modal extends React.Component<ModalProps> {
   modalEl: HTMLDivElement | null = null;
   mounted = false;
   lastTabKeyDirection: 'forward' | 'backward' | null = null;
+  wasOpen = false;
 
   componentDidMount() {
     this.mounted = true;
@@ -123,7 +124,6 @@ export default class Modal extends React.Component<ModalProps> {
     if (prevProps.open && !this.props.open) {
       this.handleClose();
     } else if (!prevProps.open && this.props.open) {
-      this.lastFocus = document.activeElement as HTMLElement;
       this.handleOpen();
     } else if (
       this.props.open &&
@@ -377,6 +377,15 @@ export default class Modal extends React.Component<ModalProps> {
       className,
       keepInDOMAfterClose,
     } = this.props;
+
+    // Capture the element to restore focus to before the children render. Waiting until
+    // componentDidUpdate would be too late: layout effects of the children run first, so anything
+    // that moves focus inside the modal on mount would be captured instead of the element that was
+    // focused before the modal opened.
+    if (open && !this.wasOpen) {
+      this.lastFocus = document.activeElement as HTMLElement;
+    }
+    this.wasOpen = open;
 
     if (!open && !keepInDOMAfterClose) {
       return null;
