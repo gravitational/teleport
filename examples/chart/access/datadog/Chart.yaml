@@ -1,4 +1,4 @@
-.version: &version "18.10.0-dev.probakowski.linux"
+.version: &version "18.10.0-dev.probakowski.linux.1"
 
 apiVersion: v2
 name: teleport-plugin-datadog
