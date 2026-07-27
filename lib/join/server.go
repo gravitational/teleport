@@ -274,6 +274,9 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 			i.RequestedJoinMethod = joinutils.SanitizeUntrustedString(*clientInit.JoinMethod)
 		}
 		if clientInit.HostName != "" {
+			// Sanitizing won't prevent an invalid hostname from being used
+			// but we don't care about that because the ClientInit.HostName
+			// is only used for diagnostic purposes.
 			i.NodeName = joinutils.SanitizeUntrustedString(clientInit.HostName)
 		}
 	})
