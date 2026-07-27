@@ -272,6 +272,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		BotScope:                            unmappedIdentity.BotScope,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
