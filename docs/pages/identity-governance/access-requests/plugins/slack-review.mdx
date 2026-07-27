@@ -8,9 +8,10 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
-This guide will explain how to configure the Teleport Slack plugin to be able to review
+In this guide, you will configure the Teleport Slack plugin to be able to review
 Access Requests directly within Slack.
 
 Currently, only self-hosted plugins support this feature.
@@ -115,7 +116,7 @@ approve or deny Access Requests directly within Slack without being redirected t
 
   </details>
 
-(!/docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Configure your Slack app
 
@@ -490,8 +491,14 @@ Request Reviewed` in the Teleport Web UI.
 This section is only relevant if you are running the Teleport Slack plugin on a
 Linux host.
 
+Copy the `teleport-slack.toml` file to `/etc` on your Linux server:
+
+```code
+$ sudo mv teleport-slack.toml /etc
+```
+
 In production, we recommend starting the Teleport plugin daemon via an init
-system like systemd.  Here's the recommended Teleport plugin service unit file
+system like systemd. Here's the recommended Teleport plugin service unit file
 for systemd:
 
 ```ini
