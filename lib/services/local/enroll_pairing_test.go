@@ -207,6 +207,7 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 		// created has advanced past AWAITING_DEVICE, so a second attempt is rejected.
 		_, err = s.RequestEnrollPairingApproval(ctx, created, device)
 		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+		assert.ErrorContains(t, err, "enroll pairing is not awaiting a device")
 	})
 
 	t.Run("rejects a stale pairing that lost the compare-and-swap", func(t *testing.T) {
@@ -224,6 +225,7 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 
 		_, err = s.RequestEnrollPairingApproval(ctx, created, device)
 		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+		assert.ErrorContains(t, err, "enroll pairing is not awaiting a device")
 	})
 
 	t.Run("rejects a nil pairing", func(t *testing.T) {
