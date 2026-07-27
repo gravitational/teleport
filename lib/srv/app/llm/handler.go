@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
 	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 	"github.com/gravitational/teleport/lib/srv/app/llm/openai"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
@@ -65,6 +66,8 @@ type HandlerConfig struct {
 	// Transport is the transport used to issue requests to the upstream
 	// LLM provider.
 	Transport *http.Transport
+	// Limiter is the tokens limiter applied to the requests.
+	Limiter Limiter
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -88,6 +91,31 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		c.Transport = tr
+	}
+	if c.Limiter == nil {
+		// Attempt to initialize the in-memory limiter which acts on the entire
+		// server instance.
+		inputRaw := os.Getenv(inputTokensQuotaEnvVar)
+		outputRaw := os.Getenv(outputTokensQuotaEnvVar)
+		if inputRaw != "" || outputRaw != "" {
+			if inputRaw == "" || outputRaw == "" {
+				return trace.BadParameter("both %q and %q environment variables must be set to enable the in-memory limiter", inputTokensQuotaEnvVar, outputTokensQuotaEnvVar)
+			}
+
+			input, err := strconv.ParseUint(inputRaw, 10, 64)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse input limit set on %q environment variable", inputTokensQuotaEnvVar)
+			}
+			output, err := strconv.ParseUint(outputRaw, 10, 64)
+			if err != nil {
+				return trace.Wrap(err, "failed to parse output limit set on %q environment variable", outputTokensQuotaEnvVar)
+			}
+			c.Limiter = llmlimiter.NewInMemory(uint(input), uint(output))
+			c.Log.InfoContext(context.Background(), "using in-memory limiter", "input", input, "output", output)
+		} else {
+			// No settings, default to no limiter.
+			c.Limiter = &noopLimiter{}
+		}
 	}
 	return nil
 }
@@ -223,7 +251,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case types.LLMFormatAnthropic:
 		h.handleRequest(
 			sessionCtx, w, r,
-			func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
+			func(app types.Application, r *http.Request) (*llmrequest.Request, error) {
 				return anthropic.NewRequest(&llmrequest.Config{
 					App:               app,
 					DownstreamRequest: r,
@@ -232,6 +260,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 						return h.anthropicAPIKey
 					},
 					SignBedrockRequest: h.signBedrockRequest,
+					Reserve:            h.cfg.Limiter.Reserve,
 				})
 			},
 			func(l *slog.Logger, _ llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
@@ -242,7 +271,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case types.LLMFormatOpenAI:
 		h.handleRequest(
 			sessionCtx, w, r,
-			func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
+			func(app types.Application, r *http.Request) (*llmrequest.Request, error) {
 				return openai.NewRequest(&llmrequest.Config{
 					App:               app,
 					DownstreamRequest: r,
@@ -251,6 +280,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 						return h.openAIAPIKey
 					},
 					SignBedrockRequest: h.signBedrockRequest,
+					Reserve:            h.cfg.Limiter.Reserve,
 				})
 			},
 			func(l *slog.Logger, info llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
@@ -278,7 +308,7 @@ func (h *Handler) signBedrockRequest(ctx context.Context, app types.Application,
 type WriteErrorFunc func(http.ResponseWriter, error) error
 
 // NewUpstreamRequestFunc function used to create a new upstream request.
-type NewUpstreamRequestFunc func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error)
+type NewUpstreamRequestFunc func(app types.Application, r *http.Request) (*llmrequest.Request, error)
 
 // NewUpstreamRecoderFunc function used to initialize a upstream response
 // recorder.
@@ -319,9 +349,10 @@ func (h *Handler) handleRequest(
 	)
 
 	var (
-		err  error
-		info llmrequest.RequestInfo
-		rec  UpstreamRecorder
+		err        error
+		info       llmrequest.RequestInfo
+		rec        UpstreamRecorder
+		settleFunc llmlimiter.SettleFunc = llmlimiter.EmptySettleFunc
 	)
 
 	defer func() {
@@ -335,13 +366,25 @@ func (h *Handler) handleRequest(
 			resp.InputTokenCount = rec.InputTokensCount()
 			resp.OutputTokenCount = rec.OutputTokensCount()
 		}
+		if settleFunc != nil {
+			settleFunc(h.closeContext, llmlimiter.Usage{
+				InputTokens:  uint(resp.InputTokenCount),
+				OutputTokens: uint(resp.OutputTokenCount),
+			})
+		}
 		if err := sessionCtx.Audit.OnLLMRequest(h.closeContext, sessionCtx, r, req, resp); err != nil {
 			log.ErrorContext(h.closeContext, "failed to emit audit event", "error", err)
 		}
 	}()
 
-	var req *http.Request
-	req, info, err = newRequestFunc(sessionCtx.App, r)
+	providerReq, err := newRequestFunc(sessionCtx.App, r)
+	// Even in cases of error the request could contain the info and settle
+	// we need to still perform. So we do the assignment before dealing with
+	// the error.
+	if providerReq != nil {
+		info = providerReq.Info
+		settleFunc = providerReq.SettleFunc
+	}
 	if err != nil {
 		log.ErrorContext(r.Context(), "failed to rewrite request", "error", err)
 		if werr := writeErrorFunc(w, err); werr != nil {
@@ -389,7 +432,7 @@ func (h *Handler) handleRequest(
 	}
 
 	start := time.Now()
-	fwd.ServeHTTP(rec, req)
+	fwd.ServeHTTP(rec, providerReq.HTTPRequest)
 	if err := rec.Close(); err != nil {
 		log.ErrorContext(h.closeContext, "failed to close llm recorder", "error", err)
 	}
@@ -424,6 +467,22 @@ func (h *Handler) handleRequest(
 	).Add(float64(rec.OutputTokensCount()))
 }
 
+// Limiter defines the interface of tokens limiter.
+type Limiter interface {
+	Reserve(context.Context, llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error)
+}
+
+// noopLimiter implements a noop tokens limiter.
+type noopLimiter struct{}
+
+// Reserve implements [Limiter].
+func (n *noopLimiter) Reserve(_ context.Context, req llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
+	return llmlimiter.ReserveInfo{
+		// This should skip all APIs from limits.
+		NotApplicable: true,
+	}, llmlimiter.EmptySettleFunc, nil
+}
+
 const (
 	// anthropicAddressEnvVarName is the Anthropic's default environment
 	// variable used to set base API address.
@@ -441,4 +500,11 @@ const (
 	// openAIAPIKeyEnvVarName is the OpenAI's environment variable used to
 	// set API keys.
 	openAIAPIKeyEnvVarName = "OPENAI_API_KEY"
+
+	// inputTokensQuotaEnvVar is the name of the environment variable used to
+	// set the input tokens quota.
+	inputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_INPUT_TOKENS_QUOTA"
+	// outputTokensQuotaEnvVar is the name of the environment variable used to
+	// set the output tokens quota.
+	outputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_OUTPUT_TOKENS_QUOTA"
 )

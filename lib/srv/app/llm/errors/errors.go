@@ -45,6 +45,8 @@ var (
 	ErrConfig = errors.New("unable to serve request due to an app configuration error. Contact your Teleport administrator")
 	// ErrInternal returned when there is a Teleport processing error (nothing to do with the inference provider).
 	ErrInternal = errors.New("unable to serve the request due to an internal error. Contact your Teleport administrator")
+	// ErrLimitExceeded returned when Teleport rejects the request due to limit exceeded.
+	ErrLimitExceeded = errors.New("tokens quota exceeded. Contact you Teleport administrator")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )
@@ -90,7 +92,7 @@ func StatusCodeFromErr(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrUnauthorized):
 		return http.StatusUnauthorized
-	case errors.Is(err, ErrRejected):
+	case errors.Is(err, ErrRejected), errors.Is(err, ErrLimitExceeded):
 		return http.StatusTooManyRequests
 	case errors.Is(err, ErrUnsupported):
 		return http.StatusNotFound
