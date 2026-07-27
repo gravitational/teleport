@@ -48,6 +48,24 @@ var (
 	// the client user.
 	ErrMFANotSupported = trace.BadParameterError{Message: "re-authentication with MFA is not supported for this client"}
 
+	// ErrMFANotSupportedContextUser is returned by the Auth server's
+	// CreateAuthenticateChallenge when a caller that is not an end user (for
+	// example, the built-in admin identity) requests a challenge for itself via
+	// ContextUser. Such callers cannot perform an MFA ceremony.
+	//
+	// The message must not change: MFA ceremonies detect this condition by message
+	// so it remains recognizable across version skew, including against older Auth
+	// servers that returned it as a bare bad-parameter error.
+	ErrMFANotSupportedContextUser = trace.BadParameterError{Message: "only end users are allowed to issue authentication challenges using ContextUser"}
+
+	// ErrMFANotSupportedMFARequiredCheck is returned by the Auth server's
+	// CreateAuthenticateChallenge when a caller that is not an end user supplies an
+	// MFARequiredCheck. Such callers cannot perform an MFA ceremony.
+	//
+	// The message must not change, for the same backwards-compatibility reason as
+	// [ErrMFANotSupportedContextUser].
+	ErrMFANotSupportedMFARequiredCheck = trace.BadParameterError{Message: "only end users are allowed to supply MFARequiredCheck"}
+
 	// ErrExpiredReusableMFAResponse is returned by Auth APIs like
 	// GenerateUserCerts when an expired reusable MFA response is provided.
 	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{
