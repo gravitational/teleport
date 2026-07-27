@@ -3375,6 +3375,8 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
@@ -3407,13 +3409,10 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
-		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
-		require.NoError(t, err)
-		require.Empty(t, clusters)
 
 		// TODO (eriktate): remove in v20
 		//nolint:staticcheck // SA1019
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		clusters, err := stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
@@ -3548,11 +3547,15 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
 		// unscoped kube clients SHOULD be able to list all kube clusters
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
 		// scoped kube clients SHOULD be able to list kube clusters within their scope
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, scopedClusters, 1)
