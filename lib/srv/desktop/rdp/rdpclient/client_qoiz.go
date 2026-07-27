@@ -18,17 +18,18 @@
 
 package rdpclient
 
-import (
-	"unsafe"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
-	"github.com/gravitational/trace"
-)
-
 /*
 #include <librdpclient.h>
 */
 import "C"
+
+import (
+	"unsafe"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+)
 
 // EncodeQOIZ encodes changed frame to series of FastPath SetSurface PDUs using QOIZ codec.
 // Resulting frames can be consumed directly by the FastPath processor from IronRDP if qoiz
