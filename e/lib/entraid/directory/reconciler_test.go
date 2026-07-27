@@ -3,6 +3,7 @@ package directory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
 
 	"github.com/gravitational/teleport/api/constants"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
@@ -39,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	libutils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -895,6 +898,48 @@ func TestUserSync(t *testing.T) {
 		al1 = requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
 		_, err = env.aclSvc.GetAccessListMember(t.Context(), al1.GetName(), "bob@example.com")
 		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("Conflicting users are skipped safely", func(t *testing.T) {
+		graphClient := newFakeGraphClient()
+		env := NewEnv(t, graphClient, nil /* custom saml connector */)
+
+		// Users count less than 1000 are sequentially processed.
+		// 1500 users should reliably trigger concurrency error.
+		const userCount = 1500
+		conflictingUsernames := make([]string, 0, userCount)
+		graphClient.users = make([]*models.User, 0, userCount)
+
+		for i := range userCount {
+			username := fmt.Sprintf("conflict-%s@example.com", strconv.Itoa(i))
+			conflictingUsernames = append(conflictingUsernames, username)
+
+			// Create local user.
+			localUser, err := types.NewUser(username)
+			require.NoError(t, err)
+			_, err = env.identitySvc.CreateUser(ctx, localUser)
+			require.NoError(t, err)
+
+			// Add Entra users with the same username as local users.
+			graphClient.users = append(
+				graphClient.users,
+				entraUser(t, "u"+strconv.Itoa(i), username),
+			)
+		}
+
+		// Reconcile.
+		r, err := New(env.cfg)
+		require.NoError(t, err)
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err) // Proves the reconciler ran without any race error.
+
+		// Zero users imported due to conflict.
+		require.Equal(t, 0, result.ImportedUsers)
+
+		for _, username := range conflictingUsernames {
+			// Proves that conflicting users were collected in a concurrency safe manner.
+			require.ErrorContains(t, result.ErrSkippedResources, username)
+		}
 	})
 }
 
@@ -1902,4 +1947,97 @@ func (t *fakeTokenProvider) GetToken(ctx context.Context, opts policy.TokenReque
 	return azcore.AccessToken{
 		Token: t.token,
 	}, nil
+}
+
+func TestUserReconcilerGoroutineLimit(t *testing.T) {
+	const minUsersCountThreshold = 500
+	const maxUserCount = 5_000 // large enough to trigger concurrent reconciliation unless overridden.
+
+	// Truthy and falsy values accepted by [libutils.AsBool].
+	truthyEnvValues := rapid.SampledFrom(([]string{"yes", "yeah", "y", "true", "1", "on"}))
+	// Falsy values explicitly accepted by [libutils.AsBool].
+	falsyEnvValues := rapid.SampledFrom([]string{"no", "nope", "n", "false", "0", "off"})
+	nonTruthyEnvValues := rapid.OneOf(
+		rapid.Just(""),
+		falsyEnvValues,
+		rapid.Map(
+			rapid.String(),
+			func(value string) string {
+				return "random:" + value // Prefix random string to avoid generating truthy value.
+			}),
+	)
+
+	t.Run("truthy env var returns minReconcilerGoroutineLimit", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			// Override reconciler to run in a sequential mode.
+			envValue := truthyEnvValues.Draw(t, "env_value")
+			// Users count large enough to trigger concurrent reconciler.
+			entraUsers := rapid.IntRange(minUsersCountThreshold, maxUserCount).Draw(t, "entra_users")
+			teleportUsers := rapid.IntRange(minUsersCountThreshold, maxUserCount).Draw(t, "teleport_users")
+
+			got := userReconcilerGoroutineLimit(
+				entraUsers,
+				teleportUsers,
+				libutils.AsBool(envValue),
+			)
+			// Expect [minReconcilerGoroutineLimit] despite having larger users count.
+			require.Equal(t, minReconcilerGoroutineLimit, got,
+				"got env=%q entra_users=%d teleport_users=%d", envValue, entraUsers, teleportUsers,
+			)
+		})
+	})
+
+	t.Run("smaller users count returns minReconcilerGoroutineLimit without override", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			envValue := nonTruthyEnvValues.Draw(t, "env_value")
+			entraUsers := rapid.IntRange(0, minUsersCountThreshold-1).Draw(t, "entra_users")
+			teleportUsers := rapid.IntRange(0, minUsersCountThreshold-1).Draw(t, "teleport_users")
+
+			got := userReconcilerGoroutineLimit(
+				entraUsers,
+				teleportUsers,
+				libutils.AsBool(envValue),
+			)
+			// Expect [minReconcilerGoroutineLimit] despite having false env var
+			// because users count are small enough to warrant sequential reconciliation.
+			require.Equal(t, minReconcilerGoroutineLimit, got,
+				"got env=%q entra_users=%d teleport_users=%d", envValue, entraUsers, teleportUsers,
+			)
+		})
+	})
+
+	t.Run("larger users count returns maxReconcilerGoroutineLimit without override", func(t *testing.T) {
+		rapid.Check(t, func(t *rapid.T) {
+			envValue := nonTruthyEnvValues.Draw(t, "env_value")
+
+			// Create baseline that ranges from zero to max user count.
+			entraUsers := rapid.IntRange(0, maxUserCount).Draw(t, "entra_users")
+			teleportUsers := rapid.IntRange(0, maxUserCount).Draw(t, "teleport_users")
+
+			// Ensure either entra user or teleport user exceeds the max threshold
+			// so that [userReconcilerGoroutineLimit] returns max goroutine value.
+			if rapid.Bool().Draw(t, "large_user_set") {
+				entraUsers = rapid.IntRange(
+					minUsersCountThreshold,
+					maxUserCount,
+				).Draw(t, "large_entra_users")
+			} else {
+				teleportUsers = rapid.IntRange(
+					minUsersCountThreshold,
+					maxUserCount,
+				).Draw(t, "large_teleport_users")
+			}
+
+			got := userReconcilerGoroutineLimit(
+				entraUsers,
+				teleportUsers,
+				libutils.AsBool(envValue),
+			)
+			// Expect [maxReconcilerGoroutineLimit] because the env var provides
+			// falsy value and the users count is larger than 500.
+			require.Equal(t, maxReconcilerGoroutineLimit, got,
+				"got env=%q entra_users=%d teleport_users=%d", envValue, entraUsers, teleportUsers,
+			)
+		})
+	})
 }

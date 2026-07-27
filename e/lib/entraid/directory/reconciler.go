@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -20,7 +22,30 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
+
+const (
+	// minReconcilerGoroutineLimit is the minimum goroutine limit to be used by
+	// the user reconciler. Value 1 means it will run sequentially.
+	minReconcilerGoroutineLimit int = 1
+
+	// maxReconcilerGoroutineLimit is the maximum goroutine limit to be used by
+	// the user reconciler.
+	maxReconcilerGoroutineLimit int = 5
+
+	// useSequentialUserReconcilerEnvKey is an env var key to override user reconciler
+	// concurrency mode. Value is parsed with [libutils.AsBool] and used by [userReconcilerGoroutineLimit]
+	// to deduce reconciler mode. Using "TELEPORT_UNSTABLE" prefix in favor
+	// of keeping this env var as an undocumented escape hatch.
+	useSequentialUserReconcilerEnvKey = "TELEPORT_UNSTABLE_ENTRAID_INTEGRATION_USE_SEQUENTIAL_RECONCILER"
+)
+
+// useSequentialUserReconciler reads `useSequentialUserReconcilerEnvKey` value
+// from OS env var.
+var useSequentialUserReconciler = sync.OnceValue(func() bool {
+	return libutils.AsBool(os.Getenv(useSequentialUserReconcilerEnvKey))
+})
 
 // Reconciler uses the Microsoft Graph API
 // to synchronize Entra ID users and groups into the Teleport cluster
@@ -470,7 +495,12 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 	syncMode mdmsync.SyncMode,
 ) (map[entraUniqueID]types.User, error) {
 
-	usersByEntraID := map[entraUniqueID]types.User{}
+	var (
+		// conflictMu guards modifications to conflictingUsers and usersByEntraID.
+		conflictMu       sync.Mutex
+		conflictingUsers []string
+		usersByEntraID   = make(map[entraUniqueID]types.User, len(entraUsers))
+	)
 	for _, u := range entraUsers {
 		id, ok := u.GetLabel(types.EntraUniqueIDLabel)
 		if !ok {
@@ -484,7 +514,11 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 		pruneUntrackedTeleportSSOUsers(entraUsers, teleportUsers)
 	}
 
-	var conflictingUsers []string
+	shouldRunSequentially := useSequentialUserReconciler()
+	if shouldRunSequentially {
+		r.logger.DebugContext(ctx, "Entra ID user reconiler is forced to run sequentially", "sync_mode", syncMode)
+	}
+
 	backend, err := services.NewReconciler(services.ReconcilerConfig[types.User]{
 		Matcher:             matchByLabel[types.User],
 		CompareResources:    func(u1, u2 types.User) int { return services.EqualFromBool(u1.IsEqual(u2)) },
@@ -492,13 +526,14 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 		GetNewResources:     func() map[string]types.User { return entraUsers },
 		OnCreate: func(ctx context.Context, u types.User) error {
 			_, err := r.accessPoint.CreateUser(ctx, u)
-			// if Entra user clashes with a local user, do not overwrite
+			// If Entra user clashes with a local user, do not overwrite.
 			if trace.IsAlreadyExists(err) {
+				conflictMu.Lock()
 				conflictingUsers = append(conflictingUsers, u.GetName())
 
 				// Delete from the lookup map, since the Teleport user by this name is not an Entra user.
 				delete(usersByEntraID, entraUniqueID(u.GetMetadata().Labels[types.EntraUniqueIDLabel]))
-
+				conflictMu.Unlock()
 				return nil
 			}
 			return trace.Wrap(err)
@@ -512,6 +547,7 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 		},
 		Metrics:            r.metrics.userReconcilerMetrics,
 		AllowOriginChanges: true,
+		Concurrency:        userReconcilerGoroutineLimit(len(entraUsers), len(teleportUsers), shouldRunSequentially),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -846,4 +882,23 @@ func numEntraGroupMembers(in groupMembersByGroupID) float64 {
 		out += len(members)
 	}
 	return float64(out)
+}
+
+// userReconcilerGoroutineLimit returns goroutine limit value to be used by the
+// user reconciler.
+func userReconcilerGoroutineLimit(numEntraUsers, numTeleportUsers int, shouldBeSequential bool) int {
+	// We don't know beforehand that if the reconciler operation will be all
+	// create, update, delete operation or a mix of all three operations.
+	// Deleting 500 users or updating 1k users generally takes less than two minute
+	// to complete in a sequential mode, which is acceptable duration without stressing on
+	// parallel backend writes.
+	if numEntraUsers < 500 && numTeleportUsers < 500 || shouldBeSequential {
+		// Returning [minReconcilerGoroutineLimit] means the reconciler
+		// will run sequentially.
+		return minReconcilerGoroutineLimit
+	}
+
+	// Updating 20k users with [maxReconcilerGoroutineLimit] goroutine
+	// takes less than two minutes.
+	return maxReconcilerGoroutineLimit
 }
