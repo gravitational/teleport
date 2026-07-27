@@ -27,12 +27,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -170,6 +172,10 @@ type SessionWriter struct {
 	// doneCh is closed when all internal processes have exited
 	doneCh chan struct{}
 
+	// nextEventIndex is only accessed by processEvents. Assigning indexes in
+	// that single consumer makes index order match storage order.
+	nextEventIndex int64
+
 	backoffUntil   time.Time
 	lostEvents     atomic.Int64
 	acceptedEvents atomic.Int64
@@ -270,15 +276,12 @@ func (a *SessionWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 
 // RecordEvent emits audit event
 func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
-	event := pe.GetAuditEvent()
-	if err := checkBasicEventFields(event); err != nil {
+	event, err := cloneAuditEvent(pe.GetAuditEvent())
+	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// the index starts at 0, so we'll only know if the index is invalid
-	// if we've seen at least one event already
-	if event.GetIndex() == 0 && a.acceptedEvents.Load() > 0 {
-		return trace.BadParameter("missing mandatory event index field")
+	if err := checkBasicEventFields(event); err != nil {
+		return trace.Wrap(err)
 	}
 
 	a.acceptedEvents.Add(1)
@@ -295,9 +298,11 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 		return nil
 	}
 
+	preparedEvent := preparedSessionEvent{event: event}
+
 	// This fast path will be used all the time during normal operation.
 	select {
-	case a.eventsCh <- pe:
+	case a.eventsCh <- preparedEvent:
 		return nil
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
@@ -334,7 +339,7 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 	defer timerPool.Put(t)
 
 	select {
-	case a.eventsCh <- pe:
+	case a.eventsCh <- preparedEvent:
 		stopped := t.Stop()
 		if !stopped {
 			// Here and below, consume triggered (but not yet received) timer event
@@ -365,6 +370,18 @@ func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSe
 		}
 		return trace.ConnectionProblem(a.closeCtx.Err(), "writer is closed")
 	}
+}
+
+func cloneAuditEvent(event apievents.AuditEvent) (apievents.AuditEvent, error) {
+	message, ok := event.(proto.Message)
+	if !ok {
+		return nil, trace.BadParameter("session event %T is not a protobuf message", event)
+	}
+	clonedEvent, ok := apiutils.CloneProtoMsg(message).(apievents.AuditEvent)
+	if !ok {
+		return nil, trace.BadParameter("cloned session event %T does not implement AuditEvent", message)
+	}
+	return clonedEvent, nil
 }
 
 var timerPool sync.Pool
@@ -432,6 +449,8 @@ func (a *SessionWriter) processEvents() {
 		case status := <-a.stream.Status():
 			a.updateStatus(status)
 		case event := <-a.eventsCh:
+			event.GetAuditEvent().SetIndex(a.nextEventIndex)
+			a.nextEventIndex++
 			a.buffer = append(a.buffer, event)
 			err := a.stream.RecordEvent(a.cfg.Context, event)
 			if err != nil {
