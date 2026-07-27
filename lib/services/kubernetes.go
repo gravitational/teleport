@@ -178,3 +178,10 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 func GetCursorForKubeCluster(cluster types.KubeCluster) string {
 	return scopes.MakeResourceCursor(cluster.GetScope(), cluster.GetName())
 }
+
+// GetCursorForKubeServer returns the resource cursor identifying a kube server
+// in the logical resource stream: "<host-id>/<cluster-name>" for unscoped kube servers
+// and "~scoped/<encoded-scope>/<host-id>/<cluster-name>" for scoped kube servers.
+func GetCursorForKubeServer(server types.KubeServer) string {
+	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
