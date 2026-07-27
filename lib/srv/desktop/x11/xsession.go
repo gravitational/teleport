@@ -188,24 +188,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	stderrR, stderrW, err := os.Pipe()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer stderrW.Close()
-
-	cmd.Stderr = stderrW
-	go func() {
-		logger := cfg.Logger.With("xsession", cmdd)
-		scanner := bufio.NewScanner(stderrR)
-		for scanner.Scan() {
-			line := scanner.Text()
-			logger.ErrorContext(ctx, "xsession error output", "line", line)
-		}
-		outr.Close()
-	}()
-
+	
 	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
