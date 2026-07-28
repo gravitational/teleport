@@ -335,22 +335,25 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(bl-nero): Implement this for scoped sessions after support for device
-	// trust is added.
-	if unscopedChecker != nil {
-		if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+		if unscopedChecker != nil {
 			return unscopedChecker.Roles(), nil
-		}); err != nil {
-			a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
-		} else {
-			sess.SetTrustedDeviceRequirement(tdr)
+		}
+		// For scoped sessions, no traditional roles apply, so let's only compute
+		// the trusted device mode from global cluster settings.
+		// TODO(bl-nero): Update this once there's actual support for device trust
+		// in scoped sessions.
+		return nil, nil
+	}); err != nil {
+		a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
+	} else {
+		sess.SetTrustedDeviceRequirement(tdr)
 
-			if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
-				a.logger.DebugContext(ctx, "Calculated trusted device requirement for session",
-					"user", req.User,
-					"trusted_device_requirement", tdr,
-				)
-			}
+		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
+			a.logger.DebugContext(ctx, "Calculated trusted device requirement for session",
+				"user", req.User,
+				"trusted_device_requirement", tdr,
+			)
 		}
 	}
 
