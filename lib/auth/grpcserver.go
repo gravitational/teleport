@@ -4296,6 +4296,12 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
+	// Reject scoped apps before app validation.
+	// TODO(williamo/scopes): master branch validates in ServerWithRoles/Server rather
+	// than here, delete this once the changes in master are backported.
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := services.ValidateApp(app, auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4313,6 +4319,12 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
+	}
+	// Reject scoped apps before app validation.
+	// TODO(williamo/scopes): master branch validates in ServerWithRoles/Server rather
+	// than here, delete this once the changes in master are backported.
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := services.ValidateApp(app, auth); err != nil {
 		return nil, trace.Wrap(err)
