@@ -2346,6 +2346,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.DatabaseServiceLabels = labelMatchers.Labels
 		cond.DatabaseServiceLabelsExpression = labelMatchers.Expression
 		return nil
+	case KindLinuxDesktop:
+		cond.LinuxDesktopLabels = labelMatchers.Labels
+		cond.LinuxDesktopLabelsExpression = labelMatchers.Expression
+		return nil
 	case KindWindowsDesktop:
 		cond.WindowsDesktopLabels = labelMatchers.Labels
 		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
