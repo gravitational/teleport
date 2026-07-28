@@ -3085,6 +3085,9 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
+		if fallbackEmitter != nil {
+			warnOnErr(process.ExitContext(), fallbackEmitter.Close(), logger)
+		}
 		// The listeners have to be closed here, because if shutdown
 		// was called before the start of the http server,
 		// the http server would have not started tracking the listeners
