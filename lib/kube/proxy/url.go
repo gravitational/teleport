@@ -106,6 +106,8 @@ type apiResource struct {
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
 // All fields of the returned apiResource may be empty.
+//
+// TODO(jakealti): reuse k8s.io/apiserver request.RequestInfoFactory here instead of re-implementing it.
 func parseResourcePath(p string) apiResource {
 	// Kubernetes API reference: https://kubernetes.io/docs/reference/kubernetes-api/
 	// Let's try to parse this. Here be dragons!
