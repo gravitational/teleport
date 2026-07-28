@@ -163,6 +163,11 @@ describe('WorkloadIdentities', () => {
         'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
       )
     ).toBeInTheDocument();
+
+    // Scoped workload identities show their scope-qualified name.
+    expect(
+      screen.getByText('/staging::test-workload-identity-4')
+    ).toBeInTheDocument();
   });
 
   it('Allows paging', async () => {
