@@ -17,88 +17,33 @@
 package uacc
 
 import (
-	"database/sql"
-	"errors"
 	"net"
 	"time"
-
-	"github.com/gravitational/trace"
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
 )
-
-// defaultWtmpdbPath is the default location of the wtmpdb db file.
-const defaultWtmpdbPath = "/var/lib/wtmpdb/wtmp.db"
 
 // userProcess is the wtmpdb entry type for user sessions.
 const userProcess = 3
 
 // WtmpdbBackend handles user accounting on systems with wtmpdb.
 type WtmpdbBackend struct {
-	db *sql.DB
+	wtmpdbBackend
+}
+
+func WtmpdbBackendAvailable() error {
+	return wtmpdbBackendAvailable()
 }
 
 // NewWtmpdbBackend creates a new wtmpdb backend.
 func NewWtmpdbBackend(dbPath string) (*WtmpdbBackend, error) {
-	if dbPath == "" {
-		dbPath = defaultWtmpdbPath
-	}
-	if !fileExists(dbPath) {
-		return nil, trace.NotFound("no wtmpdb at %q", dbPath)
-	}
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &WtmpdbBackend{db: db}, nil
+	return newWtmpdbBackend(dbPath)
 }
 
 // Login creates a new session entry for the given user.
 func (w *WtmpdbBackend) Login(ttyName, username string, remote net.Addr, ts time.Time) (int64, error) {
-	// Schema: https://github.com/thkukuk/wtmpdb?tab=readme-ov-file#database
-	stmt, err := w.db.Prepare("INSERT INTO wtmp(Type, User, Login, TTY, RemoteHost) VALUES(?,?,?,?,?)")
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	defer stmt.Close()
-	result, err := stmt.Exec(userProcess, username, ts.UnixMicro(), ttyName, hostFromAddr(remote))
-	if err != nil {
-		var e *sqlite.Error
-		if ok := errors.As(err, &e); ok {
-			if e.Code() == sqlite3.SQLITE_READONLY {
-				return 0, trace.AccessDenied("cannot write to wtmpdb file, is Teleport running as root?")
-			}
-		}
-		return 0, trace.Wrap(err)
-	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	return id, nil
+	return w.login(ttyName, username, remote, ts)
 }
 
 // Logout marks the user corresponding to the given id (returned from Login) as logged out.
 func (w *WtmpdbBackend) Logout(id int64, ts time.Time) error {
-	stmt, err := w.db.Prepare("UPDATE wtmp SET Logout = ? WHERE ID = ?")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer stmt.Close()
-	_, err = stmt.Exec(ts.UnixMicro(), id)
-	return trace.Wrap(err)
-}
-
-// IsUserLoggedIn checks if the given user has an active session.
-func (w *WtmpdbBackend) IsUserLoggedIn(username string) (bool, error) {
-	stmt, err := w.db.Prepare("SELECT COUNT(1) FROM wtmp WHERE User = ? AND Logout IS NULL")
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer stmt.Close()
-	var count int
-	if err := stmt.QueryRow(username).Scan(&count); err != nil {
-		return false, nil
-	}
-	return count != 0, nil
+	return w.logout(id, ts)
 }
