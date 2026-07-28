@@ -398,9 +398,12 @@ func Test_getResourceFromRequest(t *testing.T) {
 	}
 }
 
-// The special verb form takes its verb from the path rather than the HTTP method,
-// and is always enforced as a single resource.
-// Treating a name-less request as a list would skip the kubernetes_resources matcher.
+// TestGetResourceFromRequest_SpecialVerbProxyPath covers the two properties of the
+// proxy special-verb form that RBAC relies on:
+//
+//   - The verb comes from the path, not the HTTP method, so every method maps to KubeVerbProxy.
+//   - A name-less path is still a single resource, not a list. Lists bypass KubernetesResourceMatcher
+//     and are enforced by filtering the response instead, but a proxied response carries no list to filter.
 func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 	t.Parallel()
 	details := &kubeDetails{kubeCodecs: &globalKubeCodecs, rbacSupportedTypes: getRBACSupportedTypes(t)}
