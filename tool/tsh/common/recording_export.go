@@ -191,11 +191,43 @@ func (d *desktopRecordingExporter) run(
 
 	var frameCount int
 	var gotScreenData bool
-	lastEmitted := int64(-1)
+
+	// startMillis is the timestamp of the first screen fragment.
+	startMillis := int64(-1)
+
+	// endMillis is how far into the recording the video should run.
+	// There are no updates if the screen isn't changing, so the last
+	// screen update doesn't necessarily mark the end of the session.
+	endMillis := int64(-1)
 
 	// canvas holds a max-size frame that smaller frames are composited onto, so the encoder always
 	// receives a constant frame size even when the recording changes resolution. Created lazily.
 	var canvas *image.RGBA
+
+	// catchUp emits howewever many frame are needed to catch up to this event.
+	catchUp := func(elapsedMillis, minTotal int64) error {
+		// The target is derived from the elapsed time since the start of the
+		// recording rather than from the gap since the previous event, so
+		// gaps shorter than a single frame interval accumulate instead of
+		// being truncated away.
+		target := max(int64(float64(elapsedMillis)/frameDelayMillis), minTotal)
+		framesToEmit := target - int64(frameCount)
+		if framesToEmit <= 0 {
+			return nil
+		}
+
+		logger.DebugContext(ctx, "emitting frames",
+			"elapsed_ms", elapsedMillis,
+			"frames_to_emit", framesToEmit,
+		)
+		var frame image.Image
+		frame, canvas = fitFrame(decoder.Image(), int(meta.maxWidth), int(meta.maxHeight), canvas)
+		if err := encoder.EmitFrames(frame, int(framesToEmit)); err != nil {
+			return trace.Wrap(err)
+		}
+		frameCount += int(framesToEmit)
+		return nil
+	}
 
 	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
 loop:
@@ -222,6 +254,9 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
+				if !evt.StartTime.IsZero() && !evt.EndTime.IsZero() {
+					endMillis = max(endMillis, evt.EndTime.Sub(evt.StartTime).Milliseconds())
+				}
 				break loop
 
 			case *apievents.DesktopRecording:
@@ -235,33 +270,29 @@ loop:
 
 				// if it's the very first screen fragment, mark the time and continue
 				// (no need to emit a frame yet)
-				if lastEmitted == -1 {
-					lastEmitted = evt.DelayMilliseconds
+				if startMillis == -1 {
+					startMillis = evt.DelayMilliseconds
 					continue loop
 				}
+
+				endMillis = max(endMillis, evt.DelayMilliseconds)
 
 				// If we haven't received any image data yet there's nothing to emit.
 				if !gotScreenData {
 					continue loop
 				}
 
-				// emit a frame if there's been enough of a time lapse between last event
-				delta := evt.DelayMilliseconds - lastEmitted
-				framesToEmit := int64(float64(delta) / frameDelayMillis)
-				if framesToEmit > 0 {
-					logger.DebugContext(ctx, "emitting frames",
-						"last_event_ms", delta,
-						"frames_to_emit", framesToEmit,
-					)
-					var frame image.Image
-					frame, canvas = fitFrame(decoder.Image(), int(meta.maxWidth), int(meta.maxHeight), canvas)
-					if err := encoder.EmitFrames(frame, int(framesToEmit)); err != nil {
-						return frameCount, trace.Wrap(err)
-					}
-					frameCount += int(framesToEmit)
+				if err := catchUp(evt.DelayMilliseconds-startMillis, 0); err != nil {
+					return frameCount, trace.Wrap(err)
 				}
-				lastEmitted = evt.DelayMilliseconds
 			}
+		}
+	}
+
+	// Always emit at least one frame so that we don't produce an empty video.
+	if gotScreenData {
+		if err := catchUp(endMillis-startMillis, 1); err != nil {
+			return frameCount, trace.Wrap(err)
 		}
 	}
 

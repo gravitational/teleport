@@ -337,6 +337,25 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
 }
 
+// GetCursorForAppServer returns the resource cursor identifying an app server
+// in the logical resource stream: "<host-id>/<name>" for unscoped app servers
+// and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
+func GetCursorForAppServer(server types.AppServer) string {
+	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
+
+// GetCursorForResource returns the pagination cursor for a
+// resource used in ListResources.
+func GetCursorForResource(r types.ResourceWithLabels) string {
+	switch res := r.(type) {
+	case types.AppServer:
+		return GetCursorForAppServer(res)
+	case types.KubeServer:
+		return GetCursorForKubeServer(res)
+	}
+	return backend.GetPaginationKey(r)
+}
+
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An
 // empty addr is treated as unset.
 func ValidatePublicAddr(appName, addr string) error {

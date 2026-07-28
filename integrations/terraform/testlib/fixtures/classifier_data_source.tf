@@ -1,4 +1,5 @@
 data "teleport_classifier" "test" {
+  kind    = "classifier"
   version = "v1"
   metadata = {
     name = "test-classifier"

@@ -48,6 +48,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -613,9 +614,6 @@ func alpnProtocolForApp(app types.Application, appHTTPSTunnel bool) (alpncommon.
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
-	if err := parseScopeQualifiedAppName(cf); err != nil {
-		return trace.Wrap(err)
-	}
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -671,7 +669,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appName := cf.AppName
+	appName := cf.AppSQN.Name
 	if portMapping.TargetPort != 0 {
 		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
@@ -874,13 +872,13 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+func loadAppCertificate(tc *libclient.TeleportClient, appName, scope string) (tls.Certificate, error) {
 	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(appName)
+	appCert, err := keyRing.AppTLSCert(scopes.QualifiedName{Name: appName, Scope: scope})
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
