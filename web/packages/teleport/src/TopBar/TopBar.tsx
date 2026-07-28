@@ -79,7 +79,11 @@ export function TopBar({
       </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
-          {!scope && <Notifications iconSize={iconSize} />}
+          {
+            // TODO(bl-nero): enable notifications once they're supported by
+            // scopes.
+            !scope && <Notifications iconSize={iconSize} />
+          }
           <UserMenuNav hideFeatures={feature instanceof FeatureScopes} />
         </Flex>
       )}
