@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -76,8 +77,11 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 	}, nil
 }
 
-// GetBotInstance returns the specified BotInstance resource.
-func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+// GetBotInstance returns the specified BotInstance resource. A bot is
+// identified by the request's (bot_scope, bot_name): a lookup with the wrong
+// scope misses, just as it would against the backend's scope-namespaced key
+// ranges.
+func (c *Cache) GetBotInstance(ctx context.Context, req *machineidv1.GetBotInstanceRequest) (*machineidv1.BotInstance, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetBotInstance")
 	defer span.End()
 
@@ -86,11 +90,11 @@ func (c *Cache) GetBotInstance(ctx context.Context, botName, instanceID string) 
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
-			return c.Config.BotInstanceService.GetBotInstance(ctx, botName, instanceID)
+			return c.Config.BotInstanceService.GetBotInstance(ctx, req)
 		},
 	}
 
-	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(botName, instanceID))
+	out, err := getter.get(ctx, makeBotInstanceNameIndexKey(req.GetBotScope(), req.GetBotName(), req.GetInstanceId()))
 	return out, trace.Wrap(err)
 }
 
@@ -144,6 +148,16 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
+			// A bot is identified by (scope, name), so any by-bot or by-scope
+			// filter constrains the scope: name without scope means the
+			// unscoped bot. Only the unfiltered listing spans all scopes.
+			// This mirrors the backend's range routing in
+			// local.BotInstanceService.ListBotInstances.
+			if options.GetFilterBotName() != "" || options.GetFilterBotScope() != "" {
+				if b.GetScope() != options.GetFilterBotScope() {
+					return false
+				}
+			}
 			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {
 				return false
 			}
@@ -165,13 +179,16 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 
 func keyForBotInstanceNameIndex(botInstance *machineidv1.BotInstance) string {
 	return makeBotInstanceNameIndexKey(
+		botInstance.GetScope(),
 		botInstance.GetSpec().GetBotName(),
 		botInstance.GetMetadata().GetName(),
 	)
 }
 
-func makeBotInstanceNameIndexKey(botName string, instanceID string) string {
-	return botName + "/" + instanceID
+// makeBotInstanceNameIndexKey builds the primary index key for a bot
+// instance.
+func makeBotInstanceNameIndexKey(botScope, botName, instanceID string) string {
+	return scopes.MakeResourceCursor(botScope, botName+"/"+instanceID)
 }
 
 func keyForBotInstanceActiveAtIndex(botInstance *machineidv1.BotInstance) string {
