@@ -105,6 +105,12 @@ export type ModalProps = {
   trapFocus?: boolean;
 };
 
+/**
+ * Modal instances with an active focus trap, in the order the traps were enabled. Only the
+ * topmost trap responds to focus and Tab events.
+ */
+const focusTrapStack: Modal[] = [];
+
 export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
   lastModalFocus: HTMLElement | undefined;
@@ -233,17 +239,24 @@ export default class Modal extends React.Component<ModalProps> {
     if (activeEl && this.modalEl?.contains(activeEl)) {
       this.lastModalFocus = activeEl;
     }
+    if (!focusTrapStack.includes(this)) {
+      focusTrapStack.push(this);
+    }
     document.addEventListener('focusin', this.handleFocusTrapFocusIn);
   };
 
   disableFocusTrap = () => {
+    const index = focusTrapStack.indexOf(this);
+    if (index !== -1) {
+      focusTrapStack.splice(index, 1);
+    }
     document.removeEventListener('focusin', this.handleFocusTrapFocusIn);
     this.lastModalFocus = undefined;
     this.lastTabKeyDirection = null;
   };
 
   handleFocusTrapFocusIn = (event: FocusEvent) => {
-    if (!this.modalEl) {
+    if (!this.modalEl || focusTrapStack.at(-1) !== this) {
       return;
     }
 
@@ -304,7 +317,12 @@ export default class Modal extends React.Component<ModalProps> {
   };
 
   handleFocusTrapTab = (event: KeyboardEvent) => {
-    if (!this.props.trapFocus || !this.modalEl || event.defaultPrevented) {
+    if (
+      !this.props.trapFocus ||
+      !this.modalEl ||
+      event.defaultPrevented ||
+      focusTrapStack.at(-1) !== this
+    ) {
       return;
     }
 
