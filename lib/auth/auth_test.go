@@ -3767,6 +3767,87 @@ func TestNewWebSession(t *testing.T) {
 	})
 }
 
+func TestNewWebSessionScopedTrustedDeviceRequirement(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:        t.TempDir(),
+		Modules:        modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+
+	authPref, err := p.a.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	authPref.SetDeviceTrust(&types.DeviceTrust{
+		Mode: constants.DeviceTrustModeRequired,
+	})
+	_, err = p.a.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	_, _, err = authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+
+	scopedService := p.a.ScopedAccess()
+	_, err = scopedService.CreateScopedRole(ctx, scopedaccessv1pb.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1pb.ScopedRole_builder{
+			Kind: "scoped_role",
+			Metadata: headerv1.Metadata_builder{
+				Name: "some-scoped-role",
+			}.Build(),
+			Scope: "/foo",
+			Spec: scopedaccessv1pb.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/foo/bar"},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = scopedService.CreateScopedRoleAssignment(ctx, scopedaccessv1pb.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1pb.ScopedRoleAssignment_builder{
+			Kind: "scoped_role_assignment",
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope:   "/foo",
+			SubKind: "dynamic",
+			Spec: scopedaccessv1pb.ScopedRoleAssignmentSpec_builder{
+				User: "test-user",
+				Assignments: []*scopedaccessv1pb.Assignment{
+					scopedaccessv1pb.Assignment_builder{
+						Role:  "/foo::some-scoped-role",
+						Scope: "/foo/bar",
+					}.Build(),
+				},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for scoped access cache to see the assignment.
+	pin := scopesv1pb.Pin_builder{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/foo/bar"}.Build()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, "test-user", pin)
+		assert.NoError(ct, err)
+		assert.NotNil(ct, pin.GetAssignmentTree())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	ws, _, err := p.a.NewWebSession(ctx, auth.NewWebSessionRequest{
+		User:  "test-user",
+		Scope: "/foo/bar",
+	}, nil /* opts */)
+	require.NoError(t, err)
+
+	assert.Equal(t, types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, ws.GetTrustedDeviceRequirement())
+
+	// Make sure this has actually created a scoped session.
+	_, identity := parseX509PEMAndIdentity(t, ws.GetTLSCert())
+	assert.NotNil(t, identity.ScopePin)
+}
+
 func TestDeleteMFADeviceSync(t *testing.T) {
 	t.Parallel()
 
