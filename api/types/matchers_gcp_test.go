@@ -151,18 +151,86 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "error if both labels and tags are set",
+			name: "error if both labels and tags are set with different values",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
 				Labels: Labels{
-					"*": []string{"*"},
+					"env": []string{"prod"},
 				},
 				Tags: Labels{
-					"*": []string{"*"},
+					"env": []string{"dev"},
 				},
 			},
 			errCheck: isBadParameterErr,
+		},
+		{
+			name: "error if both labels and tags are set with equal keys but different values",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod", "dev"},
+				},
+				Tags: Labels{
+					"env": []string{"dev", "prod"},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "equal labels and tags are accepted and preserved (legacy stored shape)",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
+		},
+		{
+			name: "tags only is preserved and not copied into labels",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
 		},
 		{
 			name: "invalid install suffix",
@@ -208,4 +276,59 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGCPMatcherCheckAndSetDefaultsIdempotent verifies that re-running
+// defaulting on an already-defaulted matcher succeeds and changes nothing.
+// Defaulting does not mutate the deprecated tags alias: it neither copies
+// tags into labels nor clears either field, so a tags-only matcher stays
+// tags-only and re-running defaulting on its own output changes nothing.
+// This is what lets stored or republished matchers (for example static
+// snapshot publication) be re-validated repeatedly without failing.
+func TestGCPMatcherCheckAndSetDefaultsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	newMatcher := func() *GCPMatcher {
+		return &GCPMatcher{
+			Types:      []string{"gce"},
+			ProjectIDs: []string{"project01"},
+			Tags: Labels{
+				"env": []string{"prod"},
+			},
+		}
+	}
+
+	once := newMatcher()
+	require.NoError(t, once.CheckAndSetDefaults())
+	// The spec is preserved exactly: tags kept, labels not synthesized.
+	require.Equal(t, Labels{"env": []string{"prod"}}, once.Tags)
+	require.Empty(t, once.Labels)
+	// The alias still resolves through GetLabels for matching.
+	require.Equal(t, Labels{"env": []string{"prod"}}, once.GetLabels())
+
+	twice := newMatcher()
+	require.NoError(t, twice.CheckAndSetDefaults())
+	require.NoError(t, twice.CheckAndSetDefaults())
+	require.Equal(t, once, twice)
+
+	// A legacy stored shape (older versions copied tags into labels
+	// without clearing tags) must validate, stay unmutated, and be a
+	// fixed point across further runs.
+	newLegacy := func() *GCPMatcher {
+		return &GCPMatcher{
+			Types:      []string{"gce"},
+			ProjectIDs: []string{"project01"},
+			Labels:     Labels{"env": []string{"prod"}},
+			Tags:       Labels{"env": []string{"prod"}},
+		}
+	}
+	legacyOnce := newLegacy()
+	require.NoError(t, legacyOnce.CheckAndSetDefaults())
+	require.Equal(t, Labels{"env": []string{"prod"}}, legacyOnce.Labels)
+	require.Equal(t, Labels{"env": []string{"prod"}}, legacyOnce.Tags)
+
+	legacyTwice := newLegacy()
+	require.NoError(t, legacyTwice.CheckAndSetDefaults())
+	require.NoError(t, legacyTwice.CheckAndSetDefaults())
+	require.Equal(t, legacyOnce, legacyTwice)
 }
