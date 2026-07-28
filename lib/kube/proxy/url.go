@@ -220,11 +220,18 @@ func parseResourcePath(p string) apiResource {
 		}
 	}
 
+	// The proxy special verb takes no subresource.
+	// Kubernetes apiserver stops parsing at the name and hands every segment after it to the proxied backend.
+	// Drop them so the kind we record and report is the one the API server resolved.
+	if r.isProxyVerb {
+		r.resourceKind = getResourceFromAPIResource(r.resourceKind)
+	}
+
 	// The core API accepts [scheme:]name[:port] in the name segment of its pods/services/nodes proxy endpoints,
 	// so the special verb form has to be normalized the same way the subresource form above is.
 	// Otherwise a rule naming the resource stops matching once a scheme or port is supplied.
 	if r.isProxyVerb && r.apiGroup == "" {
-		switch getResourceFromAPIResource(r.resourceKind) {
+		switch r.resourceKind {
 		case "pods", "services", "nodes":
 			r.resourceName = stripProxyNamePortScheme(r.resourceName)
 		}
