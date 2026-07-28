@@ -43,6 +43,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -51,6 +53,8 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedjoining "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -73,6 +77,14 @@ Use this token to add an MDM service to Teleport.
    --config=/path/to/teleport.yaml
 
 `))
+
+const (
+	chartNameKubeAgent = "teleport-kube-agent"
+	chartNameTbot      = "tbot"
+	chartNameOperator  = "teleport-operator"
+
+	defaultChartRepo = "teleport"
+)
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
@@ -123,6 +135,13 @@ type TokensCommand struct {
 	// kubeJoinType is the kubernetes join method type. Can be 'oidc' or 'static_jwks'.
 	kubeJoinType string
 	force        bool
+
+	// scope is the token scope
+	scope string
+	// chart is the name of the chart the user wants to craete a token for.
+	chart string
+	// ownerEmail is the email of the user/group owning the operator.
+	ownerEmail string
 
 	// ttl is how long the token will live for.
 	ttl time.Duration
@@ -195,6 +214,17 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
 	c.tokenKubeOIDC.Flag("update-group", "Optional update group used for version detection and agent updater configuration").StringVar(&c.updateGroup)
 	c.tokenKubeOIDC.Flag("force", "Force the token creation, even if the token already exists").Default("false").Short('f').BoolVar(&c.force)
+	c.tokenKubeOIDC.Flag("scope", "Scope of the created token. Only supported for bots currently.").StringVar(&c.scope)
+	c.tokenKubeOIDC.Flag("chart", "Chart to generate values for. When not set, default to teleport-kube-agent unless --bot is set.").EnumVar(&c.chart, chartNameKubeAgent, chartNameTbot, chartNameOperator)
+	c.tokenKubeOIDC.Flag("owner-email", fmt.Sprintf("Specifies the email of the user/group owning the operator. Required when --chart is set to %q and --scope is set.", chartNameOperator)).StringVar(&c.ownerEmail)
+	// user:
+	// bot setup:
+	//   create bot
+	//   create scoped role
+	//   create scoped role assignment
+	// create token:
+	//   specify scope
+	//   specify chart type
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -593,12 +623,30 @@ func (c *TokensCommand) ConfigureKube(ctx context.Context, client *authclient.Cl
 	}
 
 	// If the token name is not specified, we use the kube name suffixed by the bot name.
-	tokenName := c.tokenName
-	if tokenName == "" {
-		tokenName = kubeName
-		if c.botName != "" {
-			tokenName = tokenName + "-" + c.botName
+	var tokenQualifiedName scopes.QualifiedName
+	switch {
+	case c.tokenName != "" && c.scope == "":
+		tokenQualifiedName = scopes.QualifiedName{Name: c.tokenName}
+	case c.tokenName != "" && c.scope != "":
+		tokenQualifiedName, err = scopes.ParseQualifiedName(c.tokenName)
+		if err != nil {
+			return trace.Wrap(err, "parsing scoped token name %q", c.tokenName)
 		}
+	case c.botName != "" && c.scope == "":
+		tokenQualifiedName = scopes.QualifiedName{Name: kubeName + "-" + c.botName}
+	case c.botName != "" && c.scope != "":
+		botSQN, err := scopes.ParseQualifiedName(c.botName)
+		if err != nil {
+			return trace.Wrap(err, "parsing scoped token name %q", c.botName)
+		}
+		tokenQualifiedName = scopes.QualifiedName{
+			Name:  kubeName + "-" + botSQN.Name,
+			Scope: botSQN.Scope,
+		}
+	case c.scope != "":
+		tokenQualifiedName = scopes.QualifiedName{Name: kubeName, Scope: c.scope}
+	default:
+		tokenQualifiedName = scopes.QualifiedName{Name: kubeName}
 	}
 
 	tokenParams := createKubeTokenParams{
@@ -607,13 +655,13 @@ func (c *TokensCommand) ConfigureKube(ctx context.Context, client *authclient.Cl
 		kubeJoinType: kubeJoinType,
 		kubectlPath:  kubectlPath,
 
-		roles:          roles,
-		botName:        c.botName,
-		namespace:      c.namespace,
-		serviceAccount: c.serviceAccountName,
-		tokenName:      tokenName,
-		insecure:       client.Config().InsecureSkipVerify,
-		force:          c.force,
+		roles:              roles,
+		botName:            c.botName,
+		namespace:          c.namespace,
+		serviceAccount:     c.serviceAccountName,
+		tokenQualifiedName: tokenQualifiedName,
+		insecure:           client.Config().InsecureSkipVerify,
+		force:              c.force,
 	}
 
 	token, err := createKubeToken(ctx, client, tokenParams)
@@ -621,18 +669,31 @@ func (c *TokensCommand) ConfigureKube(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err, "creating token")
 	}
 
-	chartName := "teleport/teleport-kube-agent"
-	if c.botName != "" {
-		chartName = "teleport/tbot"
+	chartName := c.chart
+	if chartName == "" {
+		if c.botName != "" {
+			chartName = chartNameTbot
+		} else {
+			chartName = chartNameKubeAgent
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, "📝 Writing %s Helm values to: %q\n", chartName, c.outputPath)
 
 	var valueGenerator valueGeneratorFunc
-	if c.botName != "" {
-		valueGenerator = generateTbotValues
-	} else {
+
+	switch chartName {
+	case chartNameKubeAgent:
 		valueGenerator = generateAgentValues
+	case chartNameTbot:
+		valueGenerator = generateTbotValues
+	case chartNameOperator:
+		valueGenerator = generateOperatorValues
+		if c.scope != "" && c.ownerEmail == "" {
+			return trace.BadParameter("--owner-email is required when deploying a scoped operator")
+		}
+	default:
+		return trace.BadParameter("unknown chart name %q, this is a bug", chartName)
 	}
 
 	values, err := valueGenerator(valueGeneratorParams{
@@ -641,9 +702,12 @@ func (c *TokensCommand) ConfigureKube(ctx context.Context, client *authclient.Cl
 		proxyAddr:           proxyAddr,
 		enterprise:          proxyPong.Edition == modules.BuildEnterprise,
 		updateGroup:         c.updateGroup,
-		tokenName:           token.GetName(),
+		tokenName:           token,
 		teleportClusterName: authPong.GetClusterName(),
 		kubeClusterName:     kubeName,
+		scoped:              c.scope != "",
+		serviceAccountName:  c.serviceAccountName,
+		ownerEmail:          c.ownerEmail,
 	})
 	if err != nil {
 		return trace.Wrap(err, "error generating chart values")
@@ -659,6 +723,7 @@ func (c *TokensCommand) ConfigureKube(ctx context.Context, client *authclient.Cl
 	fmt.Println(craftHelmCommand(craftHelmCommandParams{
 		releaseName: c.serviceAccountName,
 		chartName:   chartName,
+		chartRepo:   defaultChartRepo,
 		namespace:   c.namespace,
 		version:     proxyPong.AutoUpdate.AgentVersion,
 		valuesPath:  c.outputPath,
@@ -675,13 +740,13 @@ type createKubeTokenParams struct {
 	kubectlPath  string
 
 	// token settings
-	roles          types.SystemRoles
-	botName        string
-	namespace      string
-	serviceAccount string
-	tokenName      string
-	insecure       bool
-	force          bool
+	roles              types.SystemRoles
+	botName            string
+	namespace          string
+	serviceAccount     string
+	tokenQualifiedName scopes.QualifiedName
+	insecure           bool
+	force              bool
 }
 
 func craftKubeOIDCToken(params createKubeTokenParams, dc *oidc.DiscoveryConfiguration) (types.ProvisionToken, error) {
@@ -704,10 +769,89 @@ func craftKubeOIDCToken(params createKubeTokenParams, dc *oidc.DiscoveryConfigur
 			},
 		},
 	}
-	token, err := types.NewProvisionTokenFromSpec(params.tokenName, time.Time{}, tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(params.tokenQualifiedName.Name, time.Time{}, tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err, "error crafting provision token for the Kube cluster")
 	}
+	return token, nil
+}
+
+func craftKubeOIDCScopedToken(params createKubeTokenParams, dc *oidc.DiscoveryConfiguration) (*scopedjoiningv1.ScopedToken, error) {
+	if dc == nil {
+		return nil, trace.BadParameter("cannot create token for a nil discovery configuration, this is a bug")
+	}
+
+	usageMode := scopedjoining.TokenUsageModeUnlimited
+	if params.botName != "" {
+		usageMode = scopedjoining.TokenUsageModeBot
+	}
+
+	token := scopedjoiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: params.tokenQualifiedName.Name,
+		}.Build(),
+		Spec: scopedjoiningv1.ScopedTokenSpec_builder{
+			Roles:      params.roles.StringSlice(),
+			UsageMode:  usageMode,
+			JoinMethod: string(types.JoinMethodKubernetes),
+			Bot:        params.botName,
+			Kubernetes: scopedjoiningv1.Kubernetes_builder{
+				Allow: []*scopedjoiningv1.Kubernetes_Rule{
+					scopedjoiningv1.Kubernetes_Rule_builder{ServiceAccount: fmt.Sprintf("%s:%s", params.namespace, params.serviceAccount)}.Build(),
+				},
+				Type: string(types.KubernetesJoinTypeOIDC),
+				Oidc: scopedjoiningv1.Kubernetes_OIDCConfig_builder{
+					Issuer:                  dc.Issuer,
+					InsecureAllowHttpIssuer: params.insecure,
+				}.Build(),
+			}.Build(),
+		}.Build(),
+		Scope: params.tokenQualifiedName.Scope,
+	}.Build()
+
+	return token, nil
+}
+
+func craftKubeJWKSScopedToken(params createKubeTokenParams, jwks *jose.JSONWebKeySet) (*scopedjoiningv1.ScopedToken, error) {
+	if jwks == nil {
+		return nil, trace.BadParameter("cannot create token for a nil JWKS, this is a bug")
+	}
+	jwksBytes, err := json.Marshal(jwks)
+	if err != nil {
+		return nil, trace.Wrap(err, "error marshaling JWKS")
+	}
+
+	usageMode := scopedjoining.TokenUsageModeUnlimited
+	if params.botName != "" {
+		usageMode = scopedjoining.TokenUsageModeBot
+	}
+
+	token := scopedjoiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: params.tokenQualifiedName.Name,
+		}.Build(),
+		Spec: scopedjoiningv1.ScopedTokenSpec_builder{
+			Roles:      params.roles.StringSlice(),
+			UsageMode:  usageMode,
+			JoinMethod: string(types.JoinMethodKubernetes),
+			Bot:        params.botName,
+			Kubernetes: scopedjoiningv1.Kubernetes_builder{
+				Allow: []*scopedjoiningv1.Kubernetes_Rule{
+					scopedjoiningv1.Kubernetes_Rule_builder{ServiceAccount: fmt.Sprintf("%s:%s", params.namespace, params.serviceAccount)}.Build(),
+				},
+				Type: string(types.KubernetesJoinTypeStaticJWKS),
+				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{
+					Jwks: string(jwksBytes),
+				}.Build(),
+			}.Build(),
+		}.Build(),
+		Scope: params.tokenQualifiedName.Scope,
+	}.Build()
+
 	return token, nil
 }
 
@@ -735,22 +879,65 @@ func craftKubeJWKSToken(params createKubeTokenParams, jwks *jose.JSONWebKeySet) 
 			},
 		},
 	}
-	token, err := types.NewProvisionTokenFromSpec(params.tokenName, time.Time{}, tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(params.tokenQualifiedName.Name, time.Time{}, tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err, "error crafting provision token for the Kube cluster")
 	}
 	return token, nil
 }
 
-func craftKubeToken(ctx context.Context, params createKubeTokenParams) (types.ProvisionToken, error) {
+type kubeJoinMethod struct {
+	joinMethod types.KubernetesJoinType
+	oidc       *oidc.DiscoveryConfiguration
+	jwks       *jose.JSONWebKeySet
+}
+
+func (k *kubeJoinMethod) craftToken(params createKubeTokenParams) (types.ProvisionToken, error) {
+	var token types.ProvisionToken
+	var err error
+
+	switch k.joinMethod {
+	case types.KubernetesJoinTypeOIDC:
+		token, err = craftKubeOIDCToken(params, k.oidc)
+	case types.KubernetesJoinTypeStaticJWKS:
+		token, err = craftKubeJWKSToken(params, k.jwks)
+	default:
+		return nil, trace.BadParameter("unsupported join type: %v, this is a bug", k.joinMethod)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "error crafting provision token for the Kube cluster")
+	}
+	return token, nil
+}
+
+func (k *kubeJoinMethod) craftScopedToken(params createKubeTokenParams) (*scopedjoiningv1.ScopedToken, error) {
+	var token *scopedjoiningv1.ScopedToken
+	var err error
+
+	switch k.joinMethod {
+	case types.KubernetesJoinTypeOIDC:
+		token, err = craftKubeOIDCScopedToken(params, k.oidc)
+	case types.KubernetesJoinTypeStaticJWKS:
+		token, err = craftKubeJWKSScopedToken(params, k.jwks)
+	default:
+		return nil, trace.BadParameter("unsupported join type: %v, this is a bug", k.joinMethod)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "error crafting provision token for the Kube cluster")
+	}
+	return token, nil
+}
+
+func detectJoinMethod(ctx context.Context, params createKubeTokenParams) (*kubeJoinMethod, error) {
 	switch params.kubeJoinType {
 	case types.KubernetesJoinTypeUnspecified, types.KubernetesJoinTypeOIDC:
 		// We don't know if we should use OIDC or static JWKS so we try one, and fallback if it doesn't work.
 		fmt.Fprintf(os.Stderr, "🔎 Detecting OIDC provider for Kubernetes cluster %q\n", params.kubeName)
 		dc, err := detectOIDC(ctx, params.kubectlPath, params.kubeContext)
 		if err == nil {
-			token, err := craftKubeOIDCToken(params, dc)
-			return token, trace.Wrap(err, "creating OIDC provision token for cluster %q", params.kubeName)
+			return &kubeJoinMethod{joinMethod: types.KubernetesJoinTypeOIDC, oidc: dc}, nil
+			// token, err := craftKubeOIDCToken(params, dc)
+			// return token, trace.Wrap(err, "creating OIDC provision token for cluster %q", params.kubeName)
 		}
 
 		// If the user explicitly asked for OIDC joining, we do a hard failure.
@@ -767,46 +954,101 @@ func craftKubeToken(ctx context.Context, params createKubeTokenParams) (types.Pr
 		if err != nil {
 			return nil, trace.Wrap(err, "retrieving the JWKS for cluster %q", params.kubeName)
 		}
-		token, err := craftKubeJWKSToken(params, jwks)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating OIDC provision token for cluster %q", params.kubeName)
-		}
-		return token, nil
+		return &kubeJoinMethod{joinMethod: types.KubernetesJoinTypeStaticJWKS, jwks: jwks}, nil
+		// token, err := craftKubeJWKSToken(params, jwks)
+		// if err != nil {
+		// 	return nil, trace.Wrap(err, "creating OIDC provision token for cluster %q", params.kubeName)
+		// }
+		// return token, nil
 	default:
 		return nil, trace.BadParameter("unknown join type: %v", params.kubeJoinType)
 	}
 }
 
-func createKubeToken(ctx context.Context, client *authclient.Client, params createKubeTokenParams) (types.ProvisionToken, error) {
-	token, err := craftKubeToken(ctx, params)
+func createKubeToken(ctx context.Context, client *authclient.Client, params createKubeTokenParams) (string, error) {
+	detectedJoinMethod, err := detectJoinMethod(ctx, params)
 	if err != nil {
-		return nil, trace.Wrap(err, "crafting token")
+		return "", trace.Wrap(err, "detecting join method")
+	}
+
+	if params.tokenQualifiedName.Scope != "" {
+		token, err := detectedJoinMethod.craftScopedToken(params)
+		if err != nil {
+			return "", trace.Wrap(err, "crafting scoped token")
+		}
+		tokenSQN := scopes.QualifiedName{
+			Scope: token.GetScope(),
+			Name:  token.GetMetadata().GetName(),
+		}
+		fmt.Fprintf(os.Stderr, "⚙️ Configuring trust by creating scoped token %q\n", tokenSQN.String())
+
+		err = applyScopedToken(ctx, client, token, params.force)
+		if err != nil {
+			return "", trace.Wrap(err, "applying scoped token")
+		}
+		return tokenSQN.String(), nil
+	}
+
+	token, err := detectedJoinMethod.craftToken(params)
+	if err != nil {
+		return "", trace.Wrap(err, "crafting token")
 	}
 	fmt.Fprintf(os.Stderr, "⚙️ Configuring trust by creating token %q\n", token.GetName())
 
-	if params.force {
+	err = applyUnscopedToken(ctx, client, token, params.force)
+	if err != nil {
+		return "", trace.Wrap(err, "applying token")
+	}
+	return token.GetName(), nil
+}
+
+func applyUnscopedToken(ctx context.Context, client *authclient.Client, token types.ProvisionToken, force bool) error {
+	if force {
 		err := client.UpsertToken(ctx, token)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to upsert provision token %q", token.GetName())
+			return trace.Wrap(err, "failed to upsert provision token %q", token.GetName())
 		}
 	} else {
 		err := client.CreateToken(ctx, token)
 		if err != nil {
 			if trace.IsAlreadyExists(err) {
-				return nil, trace.AlreadyExists(
+				return trace.AlreadyExists(
 					"token %q already exists, you can pick a different token name with --token-name, or overwrite the existing token with --force",
 					token.GetName(),
 				)
 			}
-			return nil, trace.Wrap(err, "failed to create provision token %q", token.GetName())
+			return trace.Wrap(err, "failed to create provision token %q", token.GetName())
 		}
 	}
-	return token, nil
+	return nil
+}
+
+func applyScopedToken(ctx context.Context, client *authclient.Client, token *scopedjoiningv1.ScopedToken, force bool) error {
+	if force {
+		_, err := client.UpsertScopedToken(ctx, token)
+		if err != nil {
+			return trace.Wrap(err, "failed to upsert provision token %q", token.GetMetadata().GetName())
+		}
+	} else {
+		_, err := client.CreateScopedToken(ctx, token)
+		if err != nil {
+			if trace.IsAlreadyExists(err) {
+				return trace.AlreadyExists(
+					"token %q already exists, you can pick a different token name with --token-name, or overwrite the existing token with --force",
+					token.GetMetadata().GetName(),
+				)
+			}
+			return trace.Wrap(err, "failed to create provision token %q", token.GetMetadata().GetName())
+		}
+	}
+	return nil
+
 }
 
 type craftHelmCommandParams struct {
 	releaseName string
 	chartName   string
+	chartRepo   string
 	namespace   string
 	version     string
 	valuesPath  string
@@ -815,9 +1057,9 @@ type craftHelmCommandParams struct {
 
 func craftHelmCommand(params craftHelmCommandParams) string {
 	sb := &strings.Builder{}
-	fmt.Fprintf(sb, "helm repo add teleport %q; \n", teleportassets.HelmRepoURL().String())
+	fmt.Fprintf(sb, "helm repo add %q %q; \n", params.chartRepo, teleportassets.HelmRepoURL().String())
 	sb.WriteString("helm repo update; \n")
-	fmt.Fprintf(sb, "helm upgrade --install %q %q", params.releaseName, params.chartName)
+	fmt.Fprintf(sb, "helm upgrade --install %q %q", params.releaseName, params.chartRepo+"/"+params.chartName)
 	fmt.Fprintf(sb, "\\\n  --namespace %s --create-namespace ", params.namespace)
 	fmt.Fprintf(sb, "\\\n  --version %s ", params.version)
 	fmt.Fprintf(sb, "\\\n  --values %s ", params.valuesPath)
@@ -834,6 +1076,9 @@ type valueGeneratorParams struct {
 	tokenName           string
 	teleportClusterName string
 	kubeClusterName     string
+	scoped              bool
+	serviceAccountName  string
+	ownerEmail          string
 }
 type valueGeneratorFunc func(valueGeneratorParams) ([]byte, error)
 
@@ -843,7 +1088,8 @@ type TbotChartValues struct {
 	DefaultOutput        struct {
 		SecretName string `yaml:"secretName"`
 	} `yaml:"defaultOutput"`
-	Token string `yaml:"token"`
+	Token  string `yaml:"token"`
+	Scoped bool   `yaml:"scoped"`
 }
 
 func generateTbotValues(params valueGeneratorParams) ([]byte, error) {
@@ -855,7 +1101,8 @@ func generateTbotValues(params valueGeneratorParams) ([]byte, error) {
 		}{
 			SecretName: fmt.Sprintf("%s-output", params.botName),
 		},
-		Token: params.tokenName,
+		Token:  params.tokenName,
+		Scoped: params.scoped,
 	}
 	return yaml.Marshal(tbotValues)
 }
@@ -900,6 +1147,31 @@ func generateAgentValues(params valueGeneratorParams) ([]byte, error) {
 	}
 
 	return yaml.Marshal(agentValues)
+}
+
+type OperatorChartValues struct {
+	TeleportAddress     string `yaml:"teleportAddress"`
+	TeleportClusterName string `yaml:"teleportClusterName"`
+	Token               string `yaml:"token"`
+	Scoped              bool   `yaml:"scoped"`
+	ServiceAccount      struct {
+		Name string `yaml:"name"`
+	} `yaml:"serviceAccount"`
+	OwnerEmail string `yaml:"ownerEmail"`
+}
+
+func generateOperatorValues(params valueGeneratorParams) ([]byte, error) {
+	operatorValues := OperatorChartValues{
+		TeleportAddress:     params.proxyAddr,
+		TeleportClusterName: params.teleportClusterName,
+		Token:               params.tokenName,
+		Scoped:              params.scoped,
+		ServiceAccount: struct {
+			Name string `yaml:"name"`
+		}{Name: params.serviceAccountName},
+		OwnerEmail: params.ownerEmail,
+	}
+	return yaml.Marshal(operatorValues)
 }
 
 type joinInstructionsInput struct {
