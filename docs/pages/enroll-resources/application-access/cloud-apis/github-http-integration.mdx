@@ -1,0 +1,224 @@
+---
+title: Proxy HTTP traffic with Teleport for GitHub
+description: How to use Teleport to proxy HTTP traffic to GitHub, enabling Git Commands over HTTPS, the `gh` CLI tool and general GitHub API access.
+tags:
+  - how-to
+  - zero-trust
+  - infrastructure-identity
+page_type: how-to
+---
+
+Teleport can be configured to proxy HTTP traffic to GitHub. This enables Git Commands over HTTPS, the `gh` CLI tool and general GitHub API access.
+
+In this guide, you will:
+
+- Create a GitHub App linked to Teleport.
+- Enable the integration for a GitHub Organisation
+- Configure access to the GitHub service
+- Verify access for an enabled user
+
+## How it works
+
+GitHub enables organizations to install third-party apps. Apps can be granted
+controlled access to one or more repositories owned by the organization.
+Organization users log in to the installed app via an OAuth flow. Once logged
+in, the issued credentials allow access to GitHub's services on the
+authenticated user's behalf.
+
+Teleport stores user credentials and refresh tokens, and provides a secure
+proxy to GitHub's services, including; Git Commands over HTTPS, the `gh` CLI
+tool, general access to GitHub's API. Users no longer need to log in locally
+with GitHub or prepare API keys. All proxied access is recorded in Teleport's
+audit log.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.11 or higher)"!)
+
+- Owner access to a GitHub Organization to which the integration will be configured
+- (!docs/pages/includes/tctl.mdx!)
+
+TODO: If GitHub enterprise is in use, then Teleport must be Enterprise to setup this integration.
+
+## Step 1/x. Create a GitHub App
+
+In this step, you'll create a new private GitHub App backed by Teleport in your
+GitHub organization.
+
+TODO: this does not necessarily have to be the same organization to which you'd
+like to grant users access. Maybe we shouldn't offer this complication.
+
+Use the command below to kick-off the app creation flow. You'll be redirected
+to GitHub in your browser to complete the setup.
+
+```bash
+tctl integrations add github --type http --org example-org
+```
+
+Once the GitHub app is successfully created, an integration resource containing
+the GitHub apps private key and a git server resource for the organisation will
+be created automatically.
+
+Example `integration` resource:
+
+```yaml
+kind: integration
+sub_kind: github
+version: v1
+metadata:
+  name: github-example-org
+spec:
+  github:
+    install_id: <github-app-install-id> # TODO: Check if this is needed or useful
+    install_organization: example-org # TODO: Check purpose of this field with Steve
+    allow_protocols: ['http']
+  credentials:
+    id_secret:
+      id: <github-app-client-id>
+      secret: <github-app-client-secret>
+```
+
+Example `git_server` resource:
+
+```yaml
+kind: git_server
+sub_kind: github
+version: v2
+metadata:
+  name: github-example-org
+spec:
+  github:
+    organization: example-org
+    integration: github-example-org
+    allow_protocols: ['http']
+```
+
+Finally, a link to install the GitHub app in a GitHub organization will be
+provided.
+
+```
+https://github.com/organizations/{github-org-name}/settings/apps/{app-slug}/installations
+```
+
+Technical notes:
+
+- The `tsh integrations add github` command will generate a manifest json and POST it to github for the specified organisation
+- Meanwhile a local webserver is started (on a random port) and will accept the redirect_url callback
+- The state param is validated
+- The code param is exchanged for client id and secret
+- The integration resource is created including the id and secret
+- The git_server resource is created for the org
+- The command returns the github app install url
+- An agent should be able to run this command
+- Will the agent's sandbox prevent the local webserver binding ports and/or receiving requests?
+
+## Step 2/x. Customize GitHub app permissions (optional)
+
+When the GitHub App is installed, it requests one or more permissions. By
+default the GitHub app is created with the following permissions;
+
+- Contents: Read & write
+- Issues: Read & write
+- Pull_requests: Read & write
+
+If you wish, these can be customized after the app is created and before the
+app is installed using the GitHub web UI at;
+https://github.com/organizations/{github-org-name}/settings/apps/{app-slug}/permissions
+
+## Step 3/x. Install the GitHub app
+
+Follow the link provided in Step 1 to install the GitHub app in your
+organization.
+
+You'll have the opportunity to review the app's permissions, and select which
+repositories will be accessible.
+
+Once installed, you'll be redirected to the Teleport web UI.
+TODO: this will require use of the `setup_url` which we might not be able to use.
+
+## Step 4/x. Verify the integration
+
+Run the `tctl integrations test` utility to verify GitHub is accessible using
+the integration. Teleport will connect to GitHub as the installed app. If the
+test is successful, the command will output organization and repository access
+information.
+
+```bash
+tctl integrations test github-example-org
+```
+
+Performing the test requires `use` permission on the integration resource. Some
+verification steps will be skipped if the calling user has not yet
+authenticated with GitHub - this is covered later in this guide.
+
+## Step 5/x. Configure access
+
+Grant users permission to proxy their GitHub HTTP traffic through Teleport.
+
+The example role below grants access to the GitHub organisation configured
+previously. Either amend an existing role or create a new role with the allow
+rules.
+
+Create a file called `github-example-org.yaml` with the following contents:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: github-example-org
+spec:
+  allow:
+    github_permissions:
+      - orgs:
+          - example-org
+```
+
+Create the resource with:
+
+```code
+$ tctl create awsoidc-integration.yaml
+```
+
+## Step 6/x. Connect to GitHub
+
+To access GitHub through Teleport, users perform a one-time authentication
+ceremony. This process securely stores the user's access token and refresh
+token. These credentials are used to authenticate requests on the user's
+behalf.
+
+Perform a login to the GitHub organisation. To list available git servers use
+`tsh git ls`.
+
+```bash
+tsh git login --github-org=example-org
+```
+
+The command will start the OAuth flow in the browser, where you will be asked
+to allow the GitHub app to access GitHub on your behalf.
+
+Once logged in, the integration can be fully verified;
+
+```bash
+tctl integrations test github-example-org
+```
+
+If successful, in addition to the organization and repository information, user
+information will be output.
+
+Users can remove their stored GitHub credentials:
+
+```code
+$ tsh git logout
+```
+
+## Next steps
+
+TODO: Add sub-docs for these guides
+
+- Clone a repository over HTTP
+- Use the `gh` CLI tool
+- Access the GitHub APIs
+
+## Further reading
+
+- Registering a GitHub App: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app
