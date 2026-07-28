@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian12
+ARG TELEPORT_VERSION_MAJOR
+FROM ghcr.io/gravitational/teleport-buildbox-node:teleport${TELEPORT_VERSION_MAJOR}-arm64 AS webassets
+
+USER root
+WORKDIR /home/ci
+
+# This COPY could be improved by only copying what's necessary
+# Currently this will be invalidated on ANY change to repo directory and not just webasset specific code
+COPY . .
+
+RUN /usr/bin/make ensure-webassets
+
+FROM ghcr.io/gravitational/teleport-buildbox-centos7:teleport${TELEPORT_VERSION_MAJOR}-arm64 AS teleport
+
+USER root
+WORKDIR /home/ci
+COPY . .
+COPY --from=webassets /home/ci/webassets /home/ci/webassets
+RUN /usr/bin/scl enable devtoolset-12 'make clean-build build/teleport -e ADDFLAGS="" OS=linux ARCH=arm64 RUNTIME=go1.25.8 FIDO2=yes PIV=yes REPRODUCIBLE=no'
+
+RUN mkdir -p /opt/staging/usr/local/bin && \
+    cp build/teleport /opt/staging/usr/local/bin/teleport
+
+FROM debian:12 AS staging
+RUN apt-get update
+COPY build.assets/charts/fetch-debs ./
+RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+
+FROM $BASE_IMAGE
+COPY --from=teleport /opt/staging /
+COPY --from=staging /opt/staging/root /
+COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
+ENV TELEPORT_TOOLS_VERSION=off
+# Attempt a graceful shutdown by default
+# See https://goteleport.com/docs/reference/signals/ for signal reference.
+STOPSIGNAL SIGQUIT
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
