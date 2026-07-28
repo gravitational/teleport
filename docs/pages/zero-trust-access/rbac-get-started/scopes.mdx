@@ -246,7 +246,7 @@ $ tsh ssh ubuntu@example-node
 
 Only static Kubernetes clusters support joining with scopes. Dynamic
 cluster registration, including those discovered by the Teleport Discovery
-Service, dot not yet support scopes.
+Service, does not yet support scopes.
 
 Log the scoped admin into the desired scope:
 
@@ -553,7 +553,7 @@ successfully added user charlie to access list /examples/basic::example-access-l
 
 Access Lists that grant scoped roles always result in a "materialized" scoped
 role assignment for each of their members and owners.
-A "materialized" scoped role assignment is an one that is automatically created
+A "materialized" scoped role assignment is one that is automatically created
 and kept up to date for each user that is granted a scoped role by an Access List.
 Each materialized scoped role assignment assigns all of the scoped roles granted
 by the Access List to the user.
