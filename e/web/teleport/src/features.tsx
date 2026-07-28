@@ -756,7 +756,7 @@ class FeatureBeamsQuickstart implements TeleportFeature {
   category = NavigationCategory.Beams;
 
   route = {
-    title: 'Quickstart',
+    title: NavTitle.BeamsQuickstart,
     path: cfg.getBeamsQuickstartRoute(),
     exact: true,
     component: BeamsQuickstart,
@@ -786,7 +786,7 @@ class FeatureBeamsList implements TeleportFeature {
   category = NavigationCategory.Beams;
 
   route = {
-    title: 'My Beams',
+    title: NavTitle.BeamsList,
     path: cfg.getBeamsListRoute(),
     exact: true,
     component: BeamsList,
@@ -803,7 +803,7 @@ class FeatureBeamsList implements TeleportFeature {
     getLink() {
       return cfg.getBeamsListRoute();
     },
-    searchableTags: ['beams', 'list', 'my beams'],
+    searchableTags: ['beams', 'list'],
   };
 
   getRoute() {
@@ -815,7 +815,7 @@ class FeatureBeamsFeedback implements TeleportFeature {
   category = NavigationCategory.Beams;
 
   route = {
-    title: 'Feedback',
+    title: NavTitle.BeamsFeedback,
     path: cfg.getBeamsFeedbackRoute(),
     exact: true,
     component: BeamsFeedback,
