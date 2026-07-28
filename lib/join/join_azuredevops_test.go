@@ -334,7 +334,7 @@ func TestJoinAzureDevops(t *testing.T) {
 			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tt.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
 				Metadata: headerv1.Metadata_builder{
-					Name: "scoped_" + token.GetName(),
+					Name: token.GetName(),
 				}.Build(),
 				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
@@ -349,7 +349,8 @@ func TestJoinAzureDevops(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err := auth.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-					Name: scopedToken.GetMetadata().GetName(),
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
 				}.Build())
 				require.NoError(t, err)
 			})
@@ -368,7 +369,8 @@ func TestJoinAzureDevops(t *testing.T) {
 			})
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: "scoped_" + token.GetName(),
+					Token:       scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}.String(),
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
 						NodeName: "testnode",

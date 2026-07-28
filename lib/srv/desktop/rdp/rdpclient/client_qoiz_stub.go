@@ -1,4 +1,4 @@
-//go:build !(desktop_access_rdp && desktop_encoder)
+//go:build !desktop_access_rdp
 
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.

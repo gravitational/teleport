@@ -70,7 +70,7 @@ func TestMakeBasicHTTPTransportClientCert(t *testing.T) {
 
 	t.Run("non-managed app does not require a workload identity client", func(t *testing.T) {
 		s := newServer(t, nil)
-		rt, err := s.makeBasicHTTPTransport(context.Background(), newApp(t, types.AppClientCertModeDisabled))
+		rt, err := s.makeBasicHTTPTransport(context.Background(), newApp(t, types.AppClientCertModeDisabled), nil)
 		require.NoError(t, err)
 
 		require.IsType(t, &http.Transport{}, rt)
@@ -93,7 +93,7 @@ func TestMakeBasicHTTPTransportClientCert(t *testing.T) {
 			}.Build(),
 		})
 
-		rt, err := s.makeBasicHTTPTransport(ctxWithUserCert(), newApp(t, types.AppClientCertModeManaged))
+		rt, err := s.makeBasicHTTPTransport(ctxWithUserCert(), newApp(t, types.AppClientCertModeManaged), nil)
 		require.NoError(t, err)
 
 		require.IsType(t, &http.Transport{}, rt)

@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
@@ -263,6 +264,84 @@ func TestHandleRequest(t *testing.T) {
 			tc.expectedResponse(t, w.Body.String())
 		})
 	}
+}
+
+func TestHandleError(t *testing.T) {
+	for name, tc := range map[string]struct {
+		llm              *types.LLM
+		err              error
+		expectResponse   require.ValueAssertionFunc
+		expectAuditEvent require.ValueAssertionFunc
+	}{
+		"supported format renders error and audit error": {
+			llm: &types.LLM{
+				Format: types.LLMFormatAnthropic,
+			},
+			err: trace.BadParameter("not supported value"),
+			expectResponse: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				rec, _ := i1.(*httptest.ResponseRecorder)
+				res := rec.Result()
+				body, err := io.ReadAll(res.Body)
+				require.NoError(tt, err, i2...)
+				require.Contains(tt, string(body), llmerrors.ErrInternal.Error(), i2...)
+			},
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.False(tt, evt.Status.Success, i2...)
+			},
+		},
+		"unsupported format renders error and audit error": {
+			llm: &types.LLM{
+				Format: "unsupported-format",
+			},
+			err: trace.BadParameter("not supported value"),
+			expectResponse: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				rec, _ := i1.(*httptest.ResponseRecorder)
+				res := rec.Result()
+				body, err := io.ReadAll(res.Body)
+				require.NoError(tt, err, i2...)
+				require.Contains(tt, string(body), llmerrors.ErrInternal.Error(), i2...)
+			},
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.False(tt, evt.Status.Success, i2...)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var auditEvent *apievents.AppSessionLLMRequest
+			h := newTestHandler(t, nil)
+			req := newTestSessionRequest(
+				t,
+				http.MethodPost,
+				"",
+				"/",
+				nil,
+				&common.SessionContext{
+					App: &types.AppV3{
+						Spec: types.AppSpecV3{
+							LLM: tc.llm,
+						},
+					},
+					Audit: newTestAudit(t, func(pe apievents.PreparedSessionEvent) {
+						if evt, ok := pe.GetAuditEvent().(*apievents.AppSessionLLMRequest); ok {
+							auditEvent = evt
+						}
+					}),
+				},
+			)
+
+			w := httptest.NewRecorder()
+			h.HandleError(req, w, tc.err)
+			tc.expectResponse(t, w)
+			tc.expectAuditEvent(t, auditEvent)
+		})
+	}
+
 }
 
 type mockUpstreamRecorder struct {

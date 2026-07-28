@@ -187,6 +187,8 @@ type Request struct {
 	HeadlessAuthenticationID string
 	// Login is the SSH login (OS username) the user is requesting to connect as.
 	Login string
+	// TargetScope is the scope of the target resource.
+	TargetScope string
 }
 
 // Check verifies the cert request is valid.

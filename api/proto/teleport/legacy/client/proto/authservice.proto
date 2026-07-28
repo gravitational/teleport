@@ -387,6 +387,8 @@ message RouteToApp {
   // This is a JSON string that conforms with
   // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
   string AWSCredentialProcessCredentials = 10 [(gogoproto.jsontag) = "aws_credentialprocess_credentials,omitempty"];
+  // Scope is the scope of the target application.
+  string scope = 11;
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -915,6 +917,8 @@ message CreateAppSessionRequest {
   string URI = 10 [(gogoproto.jsontag) = "uri"];
   // ClientAddr is a client (user's) address.
   string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
+  // Scope is the requested app session scope.
+  string scope = 12;
 }
 
 // CreateAppSessionResponse contains the requested application web session.

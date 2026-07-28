@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -310,4 +311,70 @@ func TestExport(t *testing.T) {
 	}
 	require.NoError(t, snl.Err())
 	require.Len(t, outEvents, count)
+}
+
+func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("in-memory backend", func(t *testing.T) {
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableSQLiteQueue:  true,
+			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+		err = emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Code: events.UserLocalLoginCode,
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("fallback to in-memory", func(t *testing.T) {
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableSQLiteQueue:  true,
+			AuditQueueBackends: []auditqueue.Kind{"invalid_backend", auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+	})
+
+	t.Run("all backends fail", func(t *testing.T) {
+		_, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableSQLiteQueue:  true,
+			AuditQueueBackends: []auditqueue.Kind{"invalid_backend"},
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("delivers to inner emitter", func(t *testing.T) {
+		inner := eventstest.NewChannelEmitter(1)
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              inner,
+			EnableSQLiteQueue:  true,
+			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+
+		sent := &apievents.UserLogin{
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Code: events.UserLocalLoginCode,
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(ctx, sent))
+
+		select {
+		case got := <-inner.C():
+			require.Equal(t, sent, got)
+		case <-time.After(5 * time.Second):
+			t.Fatal("event was never delivered to inner emitter")
+		}
+	})
 }

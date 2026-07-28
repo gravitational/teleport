@@ -132,5 +132,6 @@ msgfile/
 unit-tests*.xml
 unit-tests*.json
 
-# Local Claude config
-.claude
+# Local Claude config, except shared skills
+.claude/*
+!.claude/skills

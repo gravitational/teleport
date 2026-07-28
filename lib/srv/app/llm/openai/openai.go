@@ -114,10 +114,12 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	}
 
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
+	if closeErr := cfg.DownstreamRequest.Body.Close(); closeErr != nil {
+		cfg.Logger.WarnContext(cfg.DownstreamRequest.Context(), "failed to close downstream body", "error", closeErr)
+	}
 	if err != nil {
 		return nil, info, trace.Wrap(err)
 	}
-	defer cfg.DownstreamRequest.Body.Close()
 
 	if err := utils.FastUnmarshal(body, &req); err != nil {
 		return nil, info, trace.BadParameter("unable to parse request body")
