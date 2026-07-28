@@ -7510,6 +7510,9 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := services.EnsureNotScopedApp(app); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := services.ValidateApp(app, a.authServer); err != nil {
+		return trace.Wrap(err)
+	}
 	// Don't allow users create apps they wouldn't have access to (e.g.
 	// non-matching labels).
 	if err := a.checkAccessToApp(app); err != nil {
@@ -7535,6 +7538,9 @@ func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) 
 	// when scoped dynamic app registration is supported, we must check whether
 	// the updated scope differs or not, and reject if different.
 	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow users update apps they don't have access to (e.g.
