@@ -173,6 +173,88 @@ func TestWritesManyFrames(t *testing.T) {
 	require.Equal(t, framesPerSecond, frames)
 }
 
+func TestWritesFramesForSubFrameIntervalEvents(t *testing.T) {
+	t.Parallel()
+
+	// Test recordings with events that arrive closer together than a single frame interval.
+	// Events every 20ms, with the last one just over 1s after the first
+	events := []apievents.AuditEvent{
+		tdpEventMillis(t, legacy.ClientScreenSpec{Width: 128, Height: 128}, 0),
+	}
+	for millis := int64(0); millis <= 1000; millis += 20 {
+		events = append(events, tdpEventMillis(t, legacy.PNG2Frame(pngFrame), millis))
+	}
+	events = append(events, tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 1001))
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		t.Context(),
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
+	require.NoError(t, err)
+	require.Equal(t, framesPerSecond, frames)
+}
+
+func TestEmitsFrameForVeryShortSession(t *testing.T) {
+	t.Parallel()
+
+	// Every screen update lands within a single frame interval.
+	// The recording still has screen data, so it must not produce an empty video.
+	events := []apievents.AuditEvent{
+		tdpEventMillis(t, legacy.ClientScreenSpec{Width: 128, Height: 128}, 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 10),
+		&apievents.WindowsDesktopSessionEnd{},
+	}
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		t.Context(),
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
+	require.NoError(t, err)
+	require.Equal(t, 1, frames)
+}
+
+func TestPadsIdleTailToSessionEnd(t *testing.T) {
+	t.Parallel()
+
+	// A session that goes idle after its last update should not be truncated.
+	start := time.Now().UTC()
+	events := []apievents.AuditEvent{
+		tdpEventMillis(t, legacy.ClientScreenSpec{Width: 128, Height: 128}, 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 0),
+		tdpEventMillis(t, legacy.PNG2Frame(pngFrame), 100),
+		&apievents.WindowsDesktopSessionEnd{
+			StartTime: start,
+			EndTime:   start.Add(2001 * time.Millisecond),
+		},
+	}
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	frames, err := exporter.run(
+		t.Context(),
+		&recordingMetadata{},
+		recordingexport.NewPNGDecoder(128, 128),
+		nopEncoder{})
+	require.NoError(t, err)
+	require.Equal(t, 2*framesPerSecond, frames)
+}
+
 func TestGetSessionMetadataRemoteFX(t *testing.T) {
 	t.Parallel()
 
