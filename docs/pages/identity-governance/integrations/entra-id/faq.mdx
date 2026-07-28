@@ -28,8 +28,43 @@ by configuring [group filters](advanced-options.mdx#group-filters).
 If an Entra ID group is assigned as a member to another group, Teleport preserves this assignment 
 as a nested Access List. 
 
-However, note that Teleport does not support recursive groups where group A is a member of group B
-and group B is also a member of group A.
+However, Teleport does not support cyclic group membership where group A is a member of group B
+and group B is also a member of group A. 
+
+If your Entra ID directory has such cyclic memberships, Teleport filters out the 
+member edge that introduces a cycle in the following manner:
+- Groups are evaluated in sorted order by display name.
+- On the first sync, the last edge that introduces a cycle is removed.<br />
+  For example, given Entra ID groups `groupA` and `groupB` with cyclic membership:
+  ```code
+  groupA -> groupB
+  groupB -> groupA
+  ```
+  `groupA` is evaluated before `groupB`, so `groupA -> groupB` is accepted first.
+  `groupB -> groupA` introduces a cycle, so `groupB -> groupA` is removed.
+- On a subsequent sync, the existing membership edge is preserved and a new member
+  that introduces a cycle is removed. <br />For example, if `groupB -> groupA` 
+  membership exists in Teleport and the following membership is being synced from 
+  Entra ID:
+  ```code
+  groupB -> groupA
+  groupA -> groupB
+  ```
+  The existing membership `groupB -> groupA` wins and `groupA -> groupB` is removed.
+
+If you remove the cycle in Entra ID, only a [full sync](./advanced-options.mdx#sync-mode-and-intervals) 
+will properly reflect the new membership state. For example, given Entra ID groups 
+`groupA`, `groupB`, and `groupC` with cyclic membership:
+```code
+groupA -> groupB
+groupB -> groupC
+groupC -> groupA
+```
+Teleport removes the `groupC -> groupA` edge that introduces a cycle. Later, if you
+remove `groupB -> groupC` membership to break the cycle in Entra ID, delta sync will
+remove `groupB -> groupC` from Teleport, but it will not be able to restore `groupC -> groupA` 
+that was filtered out. Only a full sync can restore it, as it scans all groups 
+and group memberships from Entra ID.
 
 ## What permissions does Teleport need to authenticate with the Microsoft Graph API?
 
