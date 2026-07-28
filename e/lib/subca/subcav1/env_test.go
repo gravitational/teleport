@@ -54,8 +54,9 @@ type EnvParams struct {
 type Env struct {
 	*subcaenv.Env // storage Env
 
-	MockEmitter *eventstest.MockRecorderEmitter
-	SubCAClient subcav1.SubCAServiceClient
+	KeystoreManager KeystoreManager
+	MockEmitter     *eventstest.MockRecorderEmitter
+	SubCAClient     subcav1.SubCAServiceClient
 }
 
 // NewEnv creates a new gRPC test environment.
@@ -86,10 +87,10 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		require.NoError(t, err, "SetClusterName()")
 	}
 
-	km := p.KeystoreManager
-	if km == nil {
+	env.KeystoreManager = p.KeystoreManager
+	if env.KeystoreManager == nil {
 		var err error
-		km, err = keystore.NewManager(t.Context(),
+		env.KeystoreManager, err = keystore.NewManager(t.Context(),
 			&servicecfg.KeystoreConfig{},
 			&keystore.Options{
 				ClusterName:          cn,
@@ -113,10 +114,11 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		CachedClusterNameGetter: ccs,
 		CachedSubCA:             env.SubCA,
 		SubCA:                   env.SubCA,
+		PendingCSR:              env.SubCA,
 		Trust:                   env.Trust,
 		WatcherContext:          t.Context(), // Stop watchers on test end.
 		WatcherSource:           local.NewEventsService(env.Backend),
-		KeystoreManager:         km,
+		KeystoreManager:         env.KeystoreManager,
 		Authorizer:              authorizer,
 		Emitter:                 env.MockEmitter,
 	})

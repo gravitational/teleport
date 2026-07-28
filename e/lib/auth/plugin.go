@@ -1112,6 +1112,7 @@ func registerSubCAService(
 		CachedClusterNameGetter: authServer.Cache,
 		CachedSubCA:             authServer.Cache,
 		SubCA:                   authServer.Services,
+		PendingCSR:              authServer.Services,
 		Trust:                   authServer.Services,
 		WatcherContext:          processContext,
 		WatcherSource:           authServer.Cache,

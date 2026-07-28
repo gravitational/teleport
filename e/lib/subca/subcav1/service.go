@@ -94,6 +94,25 @@ type SubCAStorage interface {
 	) error
 }
 
+// PendingCSRStorage is the storage interface for PendingCSRRequest resources.
+//
+// See lib/services/local.SubCAService.
+type PendingCSRStorage interface {
+	GetPendingCSRRequest(
+		ctx context.Context,
+		name string,
+	) (*subcav1.PendingCSRRequest, error)
+	ListPendingCSRRequests(
+		ctx context.Context,
+		pageSize int,
+		pageToken string,
+	) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error)
+	UpdatePendingCSRRequest(
+		ctx context.Context,
+		resource *subcav1.PendingCSRRequest,
+	) (*subcav1.PendingCSRRequest, error)
+}
+
 // KeystoreManager is a subset of keystore.Manager methods used in CRL and CSR
 // generation.
 //
@@ -121,6 +140,8 @@ type ServiceParams struct {
 	// SubCA is a non-cached Sub CA storage service.
 	// Used by write RPCs.
 	SubCA SubCAStorage
+	// PendingCSR is the PendingCSRRequest storage service.
+	PendingCSR PendingCSRStorage
 	// Trust is the Trust storage service.
 	// A non-cached trust is used so CSRs and lateral validation are always
 	// executed against fresh data. (Writes are infrequent enough that it's not a
@@ -153,6 +174,7 @@ type Service struct {
 	cachedClusterNameGetter services.ClusterNameGetter
 	cachedSubCA             CachedSubCAStorage
 	subCA                   SubCAStorage
+	pendingCSR              PendingCSRStorage
 	trust                   services.AuthorityGetter
 
 	watcherSource WatcherSource
@@ -176,6 +198,8 @@ func New(p ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("param CachedSubCA required")
 	case p.SubCA == nil:
 		return nil, trace.BadParameter("param SubCA required")
+	case p.PendingCSR == nil:
+		return nil, trace.BadParameter("param PendingCSR required")
 	case p.Trust == nil:
 		return nil, trace.BadParameter("param Trust required")
 	case p.WatcherContext == nil:
@@ -198,13 +222,14 @@ func New(p ServiceParams) (*Service, error) {
 		cachedClusterNameGetter: p.CachedClusterNameGetter,
 		cachedSubCA:             p.CachedSubCA,
 		subCA:                   p.SubCA,
+		pendingCSR:              p.PendingCSR,
 		trust:                   p.Trust,
 		watcherSource:           p.WatcherSource,
 		keystoreManager:         p.KeystoreManager,
 		authorizer:              p.Authorizer,
 		emitter:                 p.Emitter,
 	}
-	go s.runCAOverrideWatcher(p.WatcherContext)
+	go s.runSubCAWatcher(p.WatcherContext)
 	return s, nil
 }
 
@@ -257,18 +282,25 @@ func (s *Service) CreateCSR(
 	}
 
 	// Prepare CA signers, as many as possible for this Auth instance.
-	candidateSigners, err := s.getCandidateCSRSigners(ctx, ca, req.GetPublicKeyHash().GetValue())
+	candidateResp, err := s.getCandidateCSRSigners(ctx, ca, req.GetPublicKeyHash().GetValue())
 	if err != nil {
 		return nil, trace.Wrap(err, "prepare signers")
 	}
-	if customSubject != nil && len(candidateSigners) > 1 {
+	if len(candidateResp.Signers) == 0 {
+		return nil, trace.BadParameter(
+			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
+	}
+	totalCSRs := len(candidateResp.Signers) + len(candidateResp.MissingPublicKeys)
+	if customSubject != nil && totalCSRs > 1 {
 		return nil, trace.BadParameter("" +
 			"requests with a custom subject cannot match more than one certificate, " +
 			"use public key hash to match a single certificate")
 	}
 
+	// TODO(codingllama): Surface missing keys as response warnings.
+
 	// Sign as many CSRs as we can with the current Auth.
-	csrs, err := createCSRs(candidateSigners, customSubject)
+	csrs, err := createCSRs(candidateResp.Signers, customSubject)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -340,6 +372,15 @@ func createCSR(
 	}.Build(), nil
 }
 
+type candidateCSRSignerResponse struct {
+	// Signers holds the (successfully created) signer+certificate pairs.
+	Signers []*candidateCSRSigner
+	// MissingPublicKeys records the public key hashes for signers that could not
+	// be created. It's expected that other Auth server instances are able to use
+	// the missing keys.
+	MissingPublicKeys []string
+}
+
 type candidateCSRSigner struct {
 	Signer crypto.Signer
 	Cert   *x509.Certificate
@@ -349,7 +390,7 @@ func (s *Service) getCandidateCSRSigners(
 	ctx context.Context,
 	ca types.CertAuthority,
 	publicKeyHash string,
-) ([]*candidateCSRSigner, error) {
+) (*candidateCSRSignerResponse, error) {
 	activeTLS := ca.GetActiveKeys().TLS
 	additionalTLS := ca.GetAdditionalTrustedKeys().TLS
 
@@ -365,11 +406,12 @@ func (s *Service) getCandidateCSRSigners(
 	pkhPresent := publicKeyHash != ""
 	var pkhMatched bool
 
-	respLen := lenAllKeys
+	numSigners := lenAllKeys
 	if pkhPresent {
-		respLen = 1
+		numSigners = 1
 	}
-	resp := make([]*candidateCSRSigner, 0, respLen)
+	signers := make([]*candidateCSRSigner, 0, numSigners)
+	var missingPublicKeys []string
 
 	// Attempt to create as many signers/CSRs as we can, from both active and
 	// additional key sets.
@@ -383,8 +425,10 @@ func (s *Service) getCandidateCSRSigners(
 			if err != nil {
 				return nil, trace.Wrap(err, "parse CA certificate (is_active=%v, index=%d)", isActive, j)
 			}
+			pkhCurrent := subca.HashCertificatePublicKey(cert)
+
 			// Apply publicKeyHash filter.
-			if pkhPresent && publicKeyHash != subca.HashCertificatePublicKey(cert) {
+			if pkhPresent && publicKeyHash != pkhCurrent {
 				continue
 			}
 			pkhMatched = pkhPresent
@@ -392,11 +436,7 @@ func (s *Service) getCandidateCSRSigners(
 			signer, err := s.keystoreManager.TLSSigner(ctx, kp)
 			switch {
 			case errors.Is(err, keystore.ErrUnusableKey):
-				// Hard fail if we are matching by PKH. This is the key the caller
-				// wants, but this Auth can't do it.
-				if pkhPresent {
-					return nil, trace.Wrap(err, "create signer")
-				}
+				missingPublicKeys = append(missingPublicKeys, pkhCurrent)
 				s.logger.Log(ctx, log.TraceLevel,
 					"Skipping unusable keypair during CSR generation",
 					"is_active", isActive,
@@ -407,24 +447,20 @@ func (s *Service) getCandidateCSRSigners(
 				return nil, trace.Wrap(err, "create signer (is_active=%v, index=%d)", isActive, j)
 			}
 
-			// TODO(codingllama): Notify user of keys that could not be used?
-
-			resp = append(resp, &candidateCSRSigner{
+			signers = append(signers, &candidateCSRSigner{
 				Signer: signer,
 				Cert:   cert,
 			})
 		}
 	}
-
-	switch {
-	case pkhPresent && !pkhMatched:
+	if pkhPresent && !pkhMatched {
 		return nil, trace.BadParameter("public_key_hash %q matches no CA certificates", publicKeyHash)
-	case len(resp) == 0:
-		return nil, trace.BadParameter(
-			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
 	}
 
-	return resp, nil
+	return &candidateCSRSignerResponse{
+		Signers:           signers,
+		MissingPublicKeys: missingPublicKeys,
+	}, nil
 }
 
 func (s *Service) CreateCertAuthorityOverride(

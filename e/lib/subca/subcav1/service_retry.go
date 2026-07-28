@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -34,27 +35,66 @@ const (
 	watcherBaseDuration = 5 * time.Second // Arbitrary. Approx MaxWatcherBackoff/16.
 )
 
-func (s *Service) conditionalUpdateWithRetry(
+func (s *Service) condUpdateCAOverride(
 	ctx context.Context,
 	id local.CertAuthorityOverrideID,
 	initial *subcav1.CertAuthorityOverride,
 	modify func(*subcav1.CertAuthorityOverride) (done bool, _ error),
 ) (*subcav1.CertAuthorityOverride, error) {
-	var updated *subcav1.CertAuthorityOverride
+	updated, err := condUpdateWithRetry(
+		ctx,
+		s.clock,
+		s.subCA.GetCertAuthorityOverride,
+		s.subCA.UpdateCertAuthorityOverride,
+		id,
+		initial,
+		modify,
+	)
+	return updated, trace.Wrap(err)
+}
+
+func (s *Service) condUpdatePendingCSRRequest(
+	ctx context.Context,
+	name string,
+	initial *subcav1.PendingCSRRequest,
+	modify func(*subcav1.PendingCSRRequest) (done bool, _ error),
+) (*subcav1.PendingCSRRequest, error) {
+	updated, err := condUpdateWithRetry(
+		ctx,
+		s.clock,
+		s.pendingCSR.GetPendingCSRRequest,
+		s.pendingCSR.UpdatePendingCSRRequest,
+		name,
+		initial,
+		modify,
+	)
+	return updated, trace.Wrap(err)
+}
+
+func condUpdateWithRetry[ID any, P *T, T any](
+	ctx context.Context,
+	clock clockwork.Clock,
+	getter func(context.Context, ID) (P, error),
+	updater func(context.Context, P) (P, error),
+	id ID,
+	initial P,
+	modify func(P) (done bool, _ error),
+) (P, error) {
+	var updated P
 	const maxAttempts = 5 // Arbitrary.
 	err := retryutils.UpdateWithRetry(
 		ctx,
-		s.clock,
+		clock,
 		// Refresher.
-		func(ctx context.Context, isRetry bool) (*subcav1.CertAuthorityOverride, error) {
+		func(ctx context.Context, isRetry bool) (P, error) {
 			if !isRetry && initial != nil {
 				return initial, nil
 			}
-			caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
-			return caOverride, trace.Wrap(err, "read CA override")
+			resource, err := getter(ctx, id)
+			return resource, trace.Wrap(err, "read resource")
 		},
 		// Updater.
-		func(ctx context.Context, resource *subcav1.CertAuthorityOverride) error {
+		func(ctx context.Context, resource P) error {
 			switch done, err := modify(resource); {
 			case done:
 				return nil
@@ -63,7 +103,7 @@ func (s *Service) conditionalUpdateWithRetry(
 			}
 
 			var err error
-			updated, err = s.subCA.UpdateCertAuthorityOverride(ctx, resource)
+			updated, err = updater(ctx, resource)
 			return trace.Wrap(err)
 		},
 		retryutils.WithMaxRetries(maxAttempts),

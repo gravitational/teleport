@@ -19,6 +19,10 @@ package subcav1
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
+	"errors"
+	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,9 +31,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/subca"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlscatest"
 )
+
+// ErrFailingSigner is the failing signer error. See SetFailingSigner.
+var ErrFailingSigner = errors.New("failed to sign for mysterious reasons")
 
 type HAEnvParams struct {
 	Storage     subcaenv.EnvParams
@@ -37,10 +45,25 @@ type HAEnvParams struct {
 	NumServices int
 }
 
+type HAEnvCredential struct {
+	Cert          *x509.Certificate
+	PublicKeyHash string
+}
+
+// HAEnv is a collection of Env instances. It represents a HA (High
+// Availability) environment.
+type HAEnv struct {
+	Envs []*Env
+
+	// CATypeToPublicKeyHash stores public key hashes per CA type.
+	// Credential order matches the environment order.
+	CATypeToCredentials map[types.CertAuthType][]*HAEnvCredential
+}
+
 // NewHAEnv creates a new HA-like (High Availability) env, with multiple Auths
 // plugged into distinct "HSM" modules (using a fake KeystoreManager
 // implementation).
-func NewHAEnv(t *testing.T, params HAEnvParams) []*Env {
+func NewHAEnv(t *testing.T, params HAEnvParams) *HAEnv {
 	storageEnv := subcaenv.New(t, params.Storage)
 	params.Service.StorageEnv = storageEnv
 
@@ -48,6 +71,17 @@ func NewHAEnv(t *testing.T, params HAEnvParams) []*Env {
 	// every created caType.
 	type keyPEM = []byte
 	keymanagerKeyPEMs := make([][]keyPEM, params.NumServices)
+
+	caTypeToPublicKeyHash := make(map[types.CertAuthType][]*HAEnvCredential)
+	appendCredential := func(caType types.CertAuthType, certPEM []byte) {
+		t.Helper()
+		cert, err := tlsutils.ParseCertificatePEM(certPEM)
+		require.NoError(t, err)
+		caTypeToPublicKeyHash[caType] = append(caTypeToPublicKeyHash[caType], &HAEnvCredential{
+			Cert:          cert,
+			PublicKeyHash: subca.HashCertificatePublicKey(cert),
+		})
+	}
 
 	for _, caType := range params.Storage.CATypesToCreate {
 		const loadKeys = true
@@ -65,6 +99,7 @@ func NewHAEnv(t *testing.T, params HAEnvParams) []*Env {
 			kp0.KeyType = types.PrivateKeyType_PKCS11 // faked by "fakeKeystoreManager".
 			keymanagerKeyPEMs[0] = append(keymanagerKeyPEMs[0], kp0.Key)
 			kp0.Key = nil
+			appendCredential(caType, kp0.Cert)
 		}
 
 		// 2nd to Nth keys (newly created).
@@ -80,6 +115,7 @@ func NewHAEnv(t *testing.T, params HAEnvParams) []*Env {
 			}
 			aks.TLS = append(aks.TLS, kp)
 			keymanagerKeyPEMs[j+1] = append(keymanagerKeyPEMs[j+1], keyPEM)
+			appendCredential(caType, certPEM)
 		}
 
 		require.NoError(t, ca.SetActiveKeys(aks))
@@ -92,7 +128,21 @@ func NewHAEnv(t *testing.T, params HAEnvParams) []*Env {
 		params.Service.KeystoreManager = newFakeKeystoreManager(t, keymanagerKeyPEMs[i])
 		envs[i] = NewEnv(t, params.Service)
 	}
-	return envs
+
+	return &HAEnv{
+		Envs:                envs,
+		CATypeToCredentials: caTypeToPublicKeyHash,
+	}
+}
+
+func SetFailingSigner(t *testing.T, env *Env, failing bool) {
+	t.Helper()
+
+	km, ok := env.KeystoreManager.(*fakeKeystoreManager)
+	require.True(t, ok, "env.KeystoreManager is not a fakeKeystoreManager: %T", env.KeystoreManager)
+	km.mu.Lock()
+	km.failingSigner = failing
+	km.mu.Unlock()
 }
 
 type comparablePublicKey interface {
@@ -101,6 +151,9 @@ type comparablePublicKey interface {
 
 type fakeKeystoreManager struct {
 	knownKeys []crypto.Signer
+
+	mu            sync.Mutex
+	failingSigner bool
 }
 
 func newFakeKeystoreManager(t *testing.T, keyPEMs [][]byte) *fakeKeystoreManager {
@@ -121,6 +174,9 @@ func newFakeKeystoreManager(t *testing.T, keyPEMs [][]byte) *fakeKeystoreManager
 }
 
 func (f *fakeKeystoreManager) TLSSigner(ctx context.Context, kp *types.TLSKeyPair) (crypto.Signer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	cert, err := tlsutils.ParseCertificatePEM(kp.Cert)
 	if err != nil {
 		return nil, err
@@ -129,8 +185,24 @@ func (f *fakeKeystoreManager) TLSSigner(ctx context.Context, kp *types.TLSKeyPai
 
 	for _, knownKey := range f.knownKeys {
 		if knownKey.Public().(comparablePublicKey).Equal(pub) {
+			if f.failingSigner {
+				return failingSigner{publicKey: knownKey.Public()}, nil
+			}
 			return knownKey, nil
 		}
 	}
 	return nil, keystore.ErrUnusableKey
+}
+
+type failingSigner struct {
+	publicKey crypto.PublicKey
+}
+
+func (s failingSigner) Public() crypto.PublicKey {
+	return s.publicKey
+}
+
+func (s failingSigner) Sign(
+	rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	return nil, ErrFailingSigner
 }

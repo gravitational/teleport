@@ -25,45 +25,34 @@ import (
 
 	"github.com/gravitational/trace"
 
-	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/utils/log"
 )
 
-type caOverrideWatcher struct {
+type resourceWatcher struct {
 	logger  *slog.Logger
 	source  WatcherSource
 	retry   *retryutils.RetryV2
 	ctx     context.Context
 	onInit  func(e *types.Event)
-	onEvent func(op types.OpType, caOverride *subcav1.CertAuthorityOverride)
+	onEvent func(op types.OpType, e *types.Event)
 	spec    types.Watch
 
 	current types.Watcher
 }
 
-func (s *Service) newCAOverrideWatcher(
+func (s *Service) newResourceWatcher(
 	ctx context.Context,
-	name string,
+	spec types.Watch,
 	onInit func(e *types.Event),
-	onEvent func(op types.OpType, caOverride *subcav1.CertAuthorityOverride),
-) (*caOverrideWatcher, error) {
+	onEvent func(op types.OpType, e *types.Event),
+) (*resourceWatcher, error) {
 	retry, err := s.newWatcherRetrier()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	spec := types.Watch{
-		Name: name,
-		Kinds: []types.WatchKind{
-			{
-				Kind: types.KindCertAuthorityOverride,
-			},
-		},
-	}
-	return &caOverrideWatcher{
-		logger:  s.logger.With("watcher", name),
+	return &resourceWatcher{
+		logger:  s.logger.With("watcher", spec.Name),
 		source:  s.watcherSource,
 		retry:   retry,
 		ctx:     ctx,
@@ -73,147 +62,121 @@ func (s *Service) newCAOverrideWatcher(
 	}, nil
 }
 
-func (w *caOverrideWatcher) run() {
+func (s *resourceWatcher) run() {
 	var exitErr error
 	defer func() {
 		if errors.Is(exitErr, context.Canceled) {
-			w.logger.DebugContext(w.ctx, "Watcher exited (context canceled)")
+			s.logger.DebugContext(s.ctx, "Watcher exited (context canceled)")
 		} else {
-			w.logger.DebugContext(w.ctx, "Watcher exited", "error", exitErr)
+			s.logger.DebugContext(s.ctx, "Watcher exited", "error", exitErr)
 		}
 	}()
 
 	for {
-		switch err, abort := w.init(); {
+		switch err, abort := s.init(); {
 		case abort:
 			exitErr = trace.Wrap(err)
 			return
 		case err != nil:
-			w.logger.DebugContext(w.ctx, "Watcher init errored, re-creating", "error", err)
+			s.logger.DebugContext(s.ctx, "Watcher init errored, re-creating", "error", err)
 			continue
 		}
 
 	Receive:
 		for {
-			switch err, abort := w.receive(); {
+			switch err, abort := s.receive(); {
 			case abort:
 				exitErr = trace.Wrap(err)
 				return
 			case err != nil:
-				w.logger.DebugContext(w.ctx, "Watcher receive errored, re-creating", "error", err)
+				s.logger.DebugContext(s.ctx, "Watcher receive errored, re-creating", "error", err)
 				break Receive
 			}
 		}
 	}
 }
 
-func (w *caOverrideWatcher) init() (_ error, abort bool) {
+func (s *resourceWatcher) init() (_ error, abort bool) {
 	select {
-	case <-w.ctx.Done():
-		return trace.Wrap(w.ctx.Err()), true
-	case <-w.retry.After():
+	case <-s.ctx.Done():
+		return trace.Wrap(s.ctx.Err()), true
+	case <-s.retry.After():
 	}
-	w.retry.Inc()
+	s.retry.Inc()
 
 	var err error
-	w.current, err = w.source.NewWatcher(w.ctx, w.spec)
+	s.current, err = s.source.NewWatcher(s.ctx, s.spec)
 	if err != nil {
 		return trace.Wrap(err), false
 	}
-	w.logger.DebugContext(w.ctx, "Watcher created")
-	w.retry.Reset()
+	s.logger.DebugContext(s.ctx, "Watcher created")
+	s.retry.Reset()
 
-	e, err, abort := w.receiveOnce()
+	e, err, abort := s.receiveOnce()
 	if err != nil {
 		return trace.Wrap(err), abort
 	}
 
 	if e.Type != types.OpInit {
 		const silent = false
-		w.closeCurrent(silent)
-		w.logger.WarnContext(w.ctx, "Initial watcher event.Type is not OpInit", "event_type", e.Type)
+		s.closeCurrent(silent)
+		s.logger.WarnContext(s.ctx, "Initial watcher event.Type is not OpInit", "event_type", e.Type)
 		return trace.Wrap(errors.New("initial watcher event.Type is not OpInit")), false
 	}
 
-	w.onInit(e)
+	s.onInit(e)
 	return nil, false
 }
 
-func (w *caOverrideWatcher) receive() (_ error, abort bool) {
-	e, err, abort := w.receiveOnce()
+func (s *resourceWatcher) receive() (_ error, abort bool) {
+	e, err, abort := s.receiveOnce()
 	if err != nil {
 		return trace.Wrap(err), abort
 	}
 	if e.Type == types.OpInit {
 		const silent = false
-		w.closeCurrent(silent)
-		w.logger.WarnContext(w.ctx, "Received unexpected OpInit event")
+		s.closeCurrent(silent)
+		s.logger.WarnContext(s.ctx, "Received unexpected OpInit event")
 		return trace.Wrap(errors.New("received unexpected OpInit event")), false
 	}
 
-	caOverride, ok := w.caOverrideFromEvent(e)
-	if ok {
-		w.onEvent(e.Type, caOverride)
-	}
+	s.onEvent(e.Type, e)
 	return nil, false
 }
 
-func (w *caOverrideWatcher) caOverrideFromEvent(e *types.Event) (_ *subcav1.CertAuthorityOverride, ok bool) {
-	rw, ok := e.Resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
-	if !ok {
-		w.logger.WarnContext(w.ctx, "Received non-types.Resource153UnwrapperT resource",
-			"resource_type", log.TypeAttr(e.Resource),
-			"kind", e.Resource.GetKind(),
-			"sub_kind", e.Resource.GetSubKind(),
-			"name", e.Resource.GetName(),
-		)
-		return nil, ok
-	}
-	caOverride := rw.UnwrapT()
-	if caOverride == nil {
-		w.logger.WarnContext(w.ctx, "Received nil CA override resource",
-			"kind", e.Resource.GetKind(),
-			"sub_kind", e.Resource.GetSubKind(),
-			"name", e.Resource.GetName(),
-		)
-		return nil, false
-	}
-	return caOverride, true
-}
-
-func (w *caOverrideWatcher) receiveOnce() (_ *types.Event, err error, abort bool) {
+func (s *resourceWatcher) receiveOnce() (_ *types.Event, err error, abort bool) {
 	silent := false
 	defer func() {
 		if err != nil {
-			w.closeCurrent(silent)
+			s.closeCurrent(silent)
 		}
 	}()
 
 	select {
-	case <-w.ctx.Done():
-		return nil, w.ctx.Err(), true
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err(), true
 
-	case <-w.current.Done():
+	case <-s.current.Done():
 		// Make sure the error is always non-nil here.
-		err = cmp.Or(w.current.Error(), errors.New("watcher closed"))
+		err = cmp.Or(s.current.Error(), errors.New("watcher closed"))
 		// Likely already closed.
 		silent = true
 		return nil, trace.Wrap(err), false
 
-	case e, ok := <-w.current.Events():
+	case e, ok := <-s.current.Events():
 		switch {
 		case !ok:
-			w.logger.DebugContext(w.ctx, "Watcher events channel closed, re-connecting")
+			s.logger.DebugContext(s.ctx, "Watcher events channel closed, re-connecting")
 			return nil, trace.Wrap(errors.New("events channel closed")), false
 		case e.Type != types.OpInit && e.Type != types.OpPut && e.Type != types.OpDelete:
-			w.logger.WarnContext(w.ctx, "Watcher event.Type unknown or disallowed, re-connecting", "event_type", e.Type)
+			s.logger.WarnContext(s.ctx, "Watcher event.Type unknown or disallowed, re-connecting", "event_type", e.Type)
 			return nil, trace.Wrap(fmt.Errorf("event.Type invalid: %v", e.Type)), false
 		case e.Type != types.OpInit && e.Resource == nil:
-			w.logger.WarnContext(w.ctx, "Watcher event has nil Resource, re-connecting")
+			s.logger.WarnContext(s.ctx, "Watcher event has nil Resource, re-connecting")
 			return nil, trace.Wrap(errors.New("event has nil Resource")), false
 		}
 
-		logger := w.logger
+		logger := s.logger
 		if e.Resource != nil {
 			logger = logger.With(
 				"kind", e.Resource.GetKind(),
@@ -222,13 +185,13 @@ func (w *caOverrideWatcher) receiveOnce() (_ *types.Event, err error, abort bool
 				"revision", e.Resource.GetRevision(),
 			)
 		}
-		logger.DebugContext(w.ctx, "Received watcher event", "event_type", e.Type)
+		logger.DebugContext(s.ctx, "Received watcher event", "event_type", e.Type)
 		return &e, nil, false
 	}
 }
 
-func (w *caOverrideWatcher) closeCurrent(silent bool) {
-	if err := w.current.Close(); err != nil && !silent {
-		w.logger.DebugContext(w.ctx, "Error closing watcher", "error", err)
+func (s *resourceWatcher) closeCurrent(silent bool) {
+	if err := s.current.Close(); err != nil && !silent {
+		s.logger.DebugContext(s.ctx, "Error closing watcher", "error", err)
 	}
 }
