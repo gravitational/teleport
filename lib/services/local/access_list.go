@@ -390,6 +390,12 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	return a.ListMatchingAccessLists(ctx, req)
+}
+
+// ListMatchingAccessLists returns a filtered and sorted paginated list of access lists.
+// Search term matchers are evaluated in order for terms that do not match stored access list fields.
+func (a *AccessListService) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, searchTermMatchers ...services.AccessListSearchTermMatcherFunc) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
 	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
@@ -402,7 +408,7 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 	}
 
 	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter()) && scopes.MatchScope(scopeFilter, item.GetScope())
+		return services.MatchAccessList(item, req.GetFilter(), searchTermMatchers...) && scopes.MatchScope(scopeFilter, item.GetScope())
 	})
 }
 
