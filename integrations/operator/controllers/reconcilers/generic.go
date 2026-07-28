@@ -359,6 +359,20 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 		key.Scope = scope
 	}
 
+	if condition, ok := r.checkScope(key, r.operatorMetadata); !ok {
+		// If the scope doesn't match, we must not delete the resource on the Teleport side.
+		// Then we have 2 choices:
+		// - error continually until the user manually adds the "keep" label.
+		// - silently skp the deletion to let the CR be removed.
+		// As it's unlikely that the operator was managing the resource to begin with, the second option seems saner.
+		// There's a small risk of an operator changing scope, the leaving leftovers. Today we cannot detect this edge
+		// case, a potential workaround would be to introduce something in the CR status to track if it was reconciled
+		// once, and keep the last known SQN.
+		log := ctrllog.FromContext(ctx).V(0)
+		log.Info("Scope mismatch, skipping deletion", "reason", condition.Reason, "operatorScope", r.operatorMetadata.Scope, "resourceScope", key.Scope, "resourceName", key.Name, "resourceNamespace", obj.GetNamespace())
+		return nil
+	}
+
 	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
 	// We can then check that we own the Resource before deleting it.
 	resource, err := r.resourceClient.Get(ctx, key)
@@ -530,14 +544,14 @@ func (r resourceReconciler[T, K]) checkScope(key ResourceKey, metadata OperatorM
 			Reason:  ConditionTypeUnscoped,
 			Message: "Neither resource or operator are scoped",
 		}, true
-	case key.Scope == "" && metadata.Scope != "":
+	case key.Scope != "" && metadata.Scope == "":
 		return metav1.Condition{
 			Type:    ConditionTypeValidScope,
 			Status:  metav1.ConditionFalse,
 			Reason:  ConditionReasonNonMatchingScope,
 			Message: "Resource is scoped but operator is not. Refusing to reconcile.",
 		}, false
-	case key.Scope != "" && metadata.Scope == "":
+	case key.Scope == "" && metadata.Scope != "":
 		return metav1.Condition{
 			Type:    ConditionTypeValidScope,
 			Status:  metav1.ConditionFalse,

@@ -149,6 +149,7 @@ func NewTeleportScopedResourceWithLabelsReconciler[T ScopedResourceWithLabels, K
 	kubeClient kclient.Client,
 	resourceClient resourceClient[T],
 	config Config,
+	metadata OperatorMetadata,
 ) (controllers.Reconciler, error) {
 	checkFeatures := controllers.AlwaysEnabled
 	if config.CheckFeatures != nil {
@@ -166,13 +167,14 @@ func NewTeleportScopedResourceWithLabelsReconciler[T ScopedResourceWithLabels, K
 	}
 
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:     kubeClient,
-		resourceClient: resourceClient,
-		gvk:            gvk,
-		adapter:        ScopedResourceWithLabelsAdapter[T]{},
-		scoped:         true,
-		teleportKind:   teleportKind,
-		checkFeatures:  checkFeatures,
+		kubeClient:       kubeClient,
+		resourceClient:   resourceClient,
+		gvk:              gvk,
+		adapter:          ScopedResourceWithLabelsAdapter[T]{},
+		scoped:           true,
+		teleportKind:     teleportKind,
+		checkFeatures:    checkFeatures,
+		operatorMetadata: metadata,
 	}
 	return reconciler, nil
 }

@@ -63,6 +63,11 @@ import (
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = controllers.Scheme
 
+const (
+	testScope       = "/test"
+	testNestedScope = testScope + "/nested"
+)
+
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
 		ObjectMeta: metav1.ObjectMeta{Name: ValidRandomResourceName("ns-")},
@@ -334,6 +339,7 @@ func WithScopesFeatures(features scopes.Features) TestOption {
 func WithScope(scope string) TestOption {
 	return func(setup *TestSetup) {
 		setup.scope = scope
+		setup.ScopesFeatures = scopes.Features{Enabled: true}
 	}
 }
 
@@ -379,7 +385,6 @@ func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 		Context:      t.Context(),
 		K8sClient:    k8sClient,
 		Namespace:    ns,
-		scope:        "/",
 		ResourceName: ValidRandomResourceName("resource-"),
 	}
 
