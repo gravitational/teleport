@@ -19,8 +19,10 @@
 package appresource
 
 import (
+	"net/url"
 	"strings"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/require"
@@ -78,17 +80,9 @@ func TestTokenize(t *testing.T) {
 			want: []string{"files", "caf%C3%A9.md"},
 		},
 		{
-			// %2F decodes to a real "/" before the NFKC check, so a
-			// combining mark after it has no "F" to fold with and
-			// accepts just like the real-slash form below.
-			name: "combining mark after an encoded slash is allowed",
-			path: "/p/a%2F%CC%87x",
-			want: []string{"p", "a%2F%CC%87x"},
-		},
-		{
-			name: "combining mark after a real slash is allowed",
-			path: "/p/a/%CC%87x",
-			want: []string{"p", "a", "%CC%87x"},
+			name: "combining mark %CC%87 (U+0307) on a base character is allowed",
+			path: "/p/q%CC%87x",
+			want: []string{"p", "q%CC%87x"},
 		},
 		{
 			name:    "path over the length cap is rejected",
@@ -108,6 +102,11 @@ func TestTokenize(t *testing.T) {
 		{
 			name:    "an encoded dot %2E (.) is rejected",
 			path:    "/files/a%2Eb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded hash %23 (#) is rejected",
+			path:    "/files/a%23b",
 			wantErr: true,
 		},
 		{
@@ -143,6 +142,16 @@ func TestTokenize(t *testing.T) {
 		{
 			name:    "a raw single-dot segment is rejected",
 			path:    "/api/./v4",
+			wantErr: true,
+		},
+		{
+			name:    "a segment starting with the combining mark %CC%87 is rejected",
+			path:    "/p/%CC%87x",
+			wantErr: true,
+		},
+		{
+			name:    "a combining mark after an encoded slash %2F is rejected",
+			path:    "/p/a%2F%CC%87x",
 			wantErr: true,
 		},
 		{
@@ -281,6 +290,13 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 			require.True(t, valid, "accepted token %q decodes to invalid UTF-8", tok)
 			normal := norm.NFKC.IsNormalString(content)
 			require.True(t, normal, "accepted token %q is not NFKC-stable; a fold bypass slipped through", tok)
+			for _, part := range strings.Split(content, "/") {
+				if part == "" {
+					continue
+				}
+				r, _ := utf8.DecodeRuneInString(part)
+				require.False(t, unicode.IsMark(r), "accepted token %q has a part starting with the combining mark %q", tok, string(r))
+			}
 		}
 		// An accepted token contains no raw non-ASCII bytes.
 		for _, tok := range tokens {
@@ -290,5 +306,9 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 		}
 		// Rejoining path segments roundtrips cleanly.
 		require.Equal(t, path, "/"+strings.Join(tokens, "/"))
+		// An accepted path is its own escaped form.
+		u, err := url.ParseRequestURI(path)
+		require.NoError(t, err, "accepted path does not parse: %q", path)
+		require.Equal(t, path, u.EscapedPath(), "accepted path is not its own escaped form")
 	})
 }

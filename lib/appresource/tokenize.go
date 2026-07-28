@@ -44,7 +44,7 @@ import (
 const lengthCap = 8 << 10 // 8 KiB
 
 // legalPathPunct is the non-alphanumeric bytes allowed in a raw
-// URL path. It is RFC 3986 pchar minus ";", plus "/" and "%".
+// URL path. It is RFC 3986 pchar except for ";", plus "/" and "%".
 //
 // ";" is dropped because matrix parameters and ";jsessionid" may
 // cause the matcher and the upstream app to disagree on where the
@@ -72,9 +72,10 @@ const legalPathPunct = "-._~!$&'()*+,=:@/%"
 //     written between encoded slashes ("a%2F..%2Fadmin") is
 //     rejected the same as a raw one.
 //  4. Each segment, once its non-ASCII escapes are decoded, must be
-//     valid, NFKC-stable UTF-8 and contain only graphic runes. The
-//     encoded separator %2F is a segment boundary for this check.
-//     "é" is allowed only as "%C3%A9".
+//     valid, NFKC-stable UTF-8 and contain only graphic runes, and
+//     must not start with a combining mark. The encoded separator
+//     %2F is a segment boundary for this check. "é" is allowed only
+//     as the precomposed "%C3%A9", not as the decomposed "e%CC%81".
 //  5. Split on real "/" only. An encoded slash stays one opaque
 //     token, hex case preserved.
 func Tokenize(path string) ([]string, error) {
@@ -157,14 +158,17 @@ func validateDecoded(path string) error {
 		const msg = "path %q has consecutive slashes once the encoded separator %%2F is decoded"
 		return trace.BadParameter(msg, path)
 	}
+	if !utf8.ValidString(decoded) {
+		return trace.BadParameter("path %q is not valid UTF-8 once decoded", path)
+	}
 	for seg := range strings.SplitSeq(decoded[1:], "/") {
 		if seg == "." || seg == ".." {
 			const msg = `path %q has a "." or ".." segment once the encoded separator %%2F is decoded`
 			return trace.BadParameter(msg, path)
 		}
-	}
-	if !utf8.ValidString(decoded) {
-		return trace.BadParameter("path %q is not valid UTF-8 once decoded", path)
+		if err := rejectLeadingMark(seg); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if !norm.NFKC.IsNormalString(decoded) {
 		return trace.BadParameter("path %q is not NFKC-normalized", path)
@@ -200,6 +204,23 @@ func decode(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+// rejectLeadingMark rejects a segment whose first rune is a combining
+// mark. The mark has no base character and renders on the separator
+// before it, so "/a/%CC%87b", where %CC%87 is U+0307 combining dot
+// above, looks like "/a/b". RFC 5891 section 4.2.3.2 bans the same
+// form at the start of a domain label.
+func rejectLeadingMark(seg string) error {
+	if seg == "" || seg[0] < utf8.RuneSelf {
+		return nil
+	}
+	r, _ := utf8.DecodeRuneInString(seg)
+	if unicode.IsMark(r) {
+		const msg = "segment %q starts with the combining mark %q; a mark must follow a base character"
+		return trace.BadParameter(msg, seg, string(r))
+	}
+	return nil
 }
 
 // isGraphicRune reports whether r is a letter, mark, number,
