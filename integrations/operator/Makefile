@@ -264,7 +264,7 @@ endif
 	kubectl create namespace test --dry-run=client -o yaml | kubectl apply -f -
 
 	$(if $(ENTERPRISE), kubectl -n test create secret generic license --from-file=/var/lib/teleport/license.pem --dry-run=client -o yaml | kubectl replace --force -f -)
-	
+
 	# deploy a teleport cluster with the operator
 	# To add feature flags, append --set "extraEnv[N].name=..." lines below.
 	KUBECONFIG=$(KUBECONFIG) helm upgrade \
@@ -280,5 +280,6 @@ endif
 		$(if $(LOCAL_BUILD),--set "image=$(TELEPORT_IMAGE)") \
 		$(if $(ENTERPRISE),--set "enterprise=true") \
 		$(if $(and $(ENTERPRISE),$(LOCAL_BUILD)),--set "enterpriseImage=$(TELEPORT_IMAGE)")
+
 
 	rm $$KUBECONFIG
