@@ -4644,11 +4644,12 @@ func sendKubeGet(t *testing.T, testCtx *TestContext, user types.User, urlPath st
 	transport, err := rest.TransportFor(cfg)
 	require.NoError(t, err)
 	client := &http.Client{Transport: transport}
+	defer client.CloseIdleConnections()
 	req, err := http.NewRequestWithContext(testCtx.Context, http.MethodGet, cfg.Host+urlPath, nil)
 	require.NoError(t, err)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	t.Cleanup(func() { resp.Body.Close() })
+	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	return resp.StatusCode, string(body)
