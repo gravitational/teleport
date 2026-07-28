@@ -228,7 +228,7 @@ type ScopedRoleSpec struct {
 	// The kubernetes specific configuration for a scoped role.
 	Kube *ScopedRoleKube `protobuf:"bytes,8,opt,name=kube,proto3" json:"kube,omitempty"`
 	// The App Access specific configuration for a scoped role.
-	App           *ScopedRoleApp `protobuf:"bytes,9,opt,name=app,proto3" json:"app,omitempty"`
+	App           *ScopedRoleApp `protobuf:"bytes,10,opt,name=app,proto3" json:"app,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2136,7 +2136,8 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
 	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kube\x12:\n" +
-	"\x03app\x18\t \x01(\v2(.teleport.scopes.access.v1.ScopedRoleAppR\x03appJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
+	"\x03app\x18\n" +
+	" \x01(\v2(.teleport.scopes.access.v1.ScopedRoleAppR\x03appJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
 	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\x12X\n" +
 	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +

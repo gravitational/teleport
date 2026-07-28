@@ -79,7 +79,7 @@ message ScopedRoleSpec {
   ScopedRoleKube kube = 8;
 
   // The App Access specific configuration for a scoped role.
-  ScopedRoleApp app = 9;
+  ScopedRoleApp app = 10;
 }
 
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
