@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/api/mfa"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -804,7 +803,7 @@ func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) 
 	}
 
 	var (
-		forceInBandMFA      = os.Getenv(mfa.ForceInBandEnvVar) == "yes"
+		forceInBandMFA      = os.Getenv(teleport.EnvVarForceInBandMFA) == "yes"
 		isLegacyClient      = !inBandMFASupported
 		isRegularSSHCert    = id.MFAVerified == ""
 		isPerSessionMFACert = !isRegularSSHCert
@@ -1283,7 +1282,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		osUser == teleport.SSHSessionJoinPrincipal &&
 			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
 			(state.MFARequired == services.MFARequiredNever ||
-				(os.Getenv(mfa.ForceInBandEnvVar) != "yes" && state.MFAVerified))
+				(os.Getenv(teleport.EnvVarForceInBandMFA) != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
 	var preconds []*decisionpb.Precondition
