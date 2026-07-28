@@ -7620,6 +7620,9 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.CreateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -7646,6 +7649,12 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.UpdateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
