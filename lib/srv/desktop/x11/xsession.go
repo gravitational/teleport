@@ -188,7 +188,7 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	
+
 	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
