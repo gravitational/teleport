@@ -195,6 +195,28 @@ func TestEKSFetcher(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
+			name: "per-cluster failure does not abort region",
+			args: args{
+				regions:      []string{"eu-west-1"},
+				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				clientsByRegion: map[string]EKSClient{
+					"eu-west-1": &mockEKSAPI{
+						clusters:    eksMockClusters[:2],
+						describeErr: map[string]error{"cluster1": denied},
+					},
+				},
+			},
+			want: eksClustersToResources(t, eksMockClusters[1]),
+			wantErr: func(t require.TestingT, err error, _ ...any) {
+				require.Error(t, err)
+				permissionErrors := EKSDiscoveryPermissionErrors(err)
+				require.Len(t, permissionErrors, 1)
+				require.Equal(t, EKSDiscoveryOperationDescribeCluster, permissionErrors[0].Operation)
+				require.Equal(t, "eu-west-1", permissionErrors[0].Region)
+				require.Equal(t, "cluster1", permissionErrors[0].Cluster)
+			},
+		},
+		{
 			name: "wildcard account:ListRegions denied",
 			args: args{
 				regions:       []string{types.Wildcard},
@@ -213,8 +235,9 @@ func TestEKSFetcher(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			stsClt := &mocks.STSClient{}
 			matcher := types.AWSMatcher{
-				Regions: tt.args.regions,
-				Tags:    tt.args.filterLabels,
+				Regions:     tt.args.regions,
+				Tags:        tt.args.filterLabels,
+				Integration: "integration",
 			}
 			if tt.args.assumeRole.RoleARN != "" {
 				matcher.AssumeRole = &tt.args.assumeRole
@@ -228,14 +251,21 @@ func TestEKSFetcher(t *testing.T) {
 				},
 				RegionsListerGetter: tt.args.regionsLister,
 				Matcher:             matcher,
+				DiscoveryConfigName: "discovery-config",
 				Logger:              logtest.NewLogger(),
 			}
 			fetcher, err := NewEKSFetcher(cfg)
 			require.NoError(t, err)
 			resources, err := fetcher.Get(context.Background())
 			tt.wantErr(t, err)
-			if err != nil {
-				return
+			for _, permissionError := range EKSDiscoveryPermissionErrors(err) {
+				require.Equal(t, "integration", permissionError.Integration)
+				require.Equal(t, "discovery-config", permissionError.DiscoveryConfigName)
+				expectedAccountID := "unknown"
+				if tt.args.assumeRole.RoleARN != "" {
+					expectedAccountID = "123456789012"
+				}
+				require.Equal(t, expectedAccountID, permissionError.AccountID)
 			}
 
 			clusters := types.ResourcesWithLabels{}
@@ -286,6 +316,7 @@ type mockEKSAPI struct {
 
 	clusters            []*ekstypes.Cluster
 	listErr             error
+	describeErr         map[string]error
 	accessEntryNotFound bool
 
 	describeAccessEntryCalls   int
@@ -325,6 +356,9 @@ func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInpu
 }
 
 func (m *mockEKSAPI) DescribeCluster(_ context.Context, req *eks.DescribeClusterInput, _ ...func(*eks.Options)) (*eks.DescribeClusterOutput, error) {
+	if err := m.describeErr[aws.ToString(req.Name)]; err != nil {
+		return nil, err
+	}
 	for _, cluster := range m.clusters {
 		if aws.ToString(cluster.Name) == aws.ToString(req.Name) {
 			return &eks.DescribeClusterOutput{

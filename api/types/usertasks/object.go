@@ -269,6 +269,10 @@ var DiscoverEC2IssueTypes = []string{
 // List of Auto Discover EKS issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EKS tasks.
 const (
+	// AutoDiscoverEKSIssuePermClusterDenied indicates the integration lacks
+	// permission to describe a known EKS cluster.
+	AutoDiscoverEKSIssuePermClusterDenied = "eks-perm-cluster-denied"
+
 	// AutoDiscoverEKSIssueStatusNotActive is used to identify clusters that failed to auto-enroll
 	// because their Status is not Active.
 	AutoDiscoverEKSIssueStatusNotActive = "eks-status-not-active"
@@ -293,6 +297,7 @@ const (
 
 // DiscoverEKSIssueTypes is a list of issue types that can occur when trying to auto enroll EKS clusters.
 var DiscoverEKSIssueTypes = []string{
+	AutoDiscoverEKSIssuePermClusterDenied,
 	AutoDiscoverEKSIssueStatusNotActive,
 	AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
 	AutoDiscoverEKSIssueAuthenticationModeUnsupported,
