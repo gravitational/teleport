@@ -81,7 +81,7 @@ type collections struct {
 	staticScopedTokens                 *collection[*joiningv1.StaticScopedTokens, staticScopedTokensIndex]
 	certAuthorities                    *collection[types.CertAuthority, certAuthorityIndex]
 	users                              *collection[types.User, userIndex]
-	roles                              *collection[types.Role, roleIndex]
+	roles                              *collection[*cachedRole, roleIndex]
 	authServers                        *collection[types.Server, authServerIndex]
 	proxyServers                       *collection[types.Server, proxyServerIndex]
 	nodes                              *collection[types.Server, nodeIndex]

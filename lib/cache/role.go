@@ -26,33 +26,80 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type roleIndex string
+type roleIndex struct{}
 
-const roleNameIndex roleIndex = "name"
+var roleNameIndex roleIndex
 
-func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.Role, roleIndex], error) {
+type cachedRole struct {
+	role *types.RoleV6
+	wire string
+}
+
+func newRoleCollection(a services.Access, w types.WatchKind) (*collection[*cachedRole, roleIndex], error) {
 	if a == nil {
 		return nil, trace.BadParameter("missing parameter Access")
 	}
 
-	return &collection[types.Role, roleIndex]{
-		store: newStore(
-			types.KindRole,
-			types.Role.Clone,
-			map[roleIndex]func(types.Role) string{
-				roleNameIndex: types.Role.GetName,
-			}),
-		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
-			return a.GetRoles(ctx)
+	store := newStore(
+		types.KindRole,
+		func(cr *cachedRole) *cachedRole {
+			return &cachedRole{
+				role: cloneRoleV6(cr.role),
+				wire: cr.wire,
+			}
 		},
-		headerTransform: func(hdr *types.ResourceHeader) types.Role {
-			return &types.RoleV6{
-				Kind:    hdr.Kind,
-				Version: hdr.Version,
-				Metadata: types.Metadata{
-					Name: hdr.Metadata.Name,
+		map[roleIndex]func(*cachedRole) string{
+			roleNameIndex: func(cr *cachedRole) string {
+				return cr.role.GetName()
+			},
+		})
+	return &collection[*cachedRole, roleIndex]{
+		store: store,
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*cachedRole, error) {
+			roles, err := a.GetRoles(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cachedRoles := make([]*cachedRole, 0, len(roles))
+			for _, role := range roles {
+				rv6, _ := role.(*types.RoleV6)
+				if rv6 == nil {
+					continue
+				}
+				wire, err := gogoproto.Marshal(rv6)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				cachedRoles = append(cachedRoles, &cachedRole{
+					role: rv6,
+					wire: string(wire),
+				})
+			}
+			return cachedRoles, nil
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *cachedRole {
+			return &cachedRole{
+				role: &types.RoleV6{
+					Metadata: types.Metadata{
+						Name: hdr.GetName(),
+					},
 				},
 			}
+		},
+		customPut: func(rsc types.Resource) error {
+			rv6, _ := rsc.(*types.RoleV6)
+			if rv6 == nil {
+				return trace.BadParameter("unexpected type %T (expected %T, this is a bug)", rsc, rv6)
+			}
+			wire, err := gogoproto.Marshal(rv6)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			store.put(&cachedRole{
+				role: rv6,
+				wire: string(wire),
+			})
+			return nil
 		},
 		watch: w,
 	}, nil
@@ -75,8 +122,8 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 
 	roles := make([]types.Role, 0, rg.store.len())
-	for r := range rg.store.resources(roleNameIndex, "", "") {
-		roles = append(roles, r.Clone())
+	for cr := range rg.store.resources(roleNameIndex, "", "") {
+		roles = append(roles, cloneRoleV6(cr.role))
 	}
 
 	return roles, nil
@@ -110,22 +157,17 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	}
 
 	var resp proto.ListRolesResponse
-	for r := range rg.store.resources(roleNameIndex, req.StartKey, "") {
-		rv6, ok := r.(*types.RoleV6)
-		if !ok {
-			continue
-		}
-
-		if req.Filter != nil && !req.Filter.Match(rv6) {
+	for cr := range rg.store.resources(roleNameIndex, req.StartKey, "") {
+		if req.Filter != nil && !req.Filter.Match(cr.role) {
 			continue
 		}
 
 		if len(resp.Roles) == pageSize {
-			resp.NextKey = r.GetName()
+			resp.NextKey = cr.role.GetName()
 			break
 		}
 
-		resp.Roles = append(resp.Roles, r.Clone().(*types.RoleV6))
+		resp.Roles = append(resp.Roles, cloneRoleV6(cr.role))
 
 	}
 	return &resp, nil
@@ -159,28 +201,18 @@ func (c *Cache) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesReques
 	}
 
 	var resp proto.ListRolesResponse
-	for r := range rg.store.resources(roleNameIndex, req.StartKey, "") {
-		rv6, ok := r.(*types.RoleV6)
-		if !ok {
-			continue
-		}
-
-		if req.Filter != nil && !req.Filter.Match(rv6) {
+	for cr := range rg.store.resources(roleNameIndex, req.StartKey, "") {
+		if req.Filter != nil && !req.Filter.Match(cr.role) {
 			continue
 		}
 
 		if len(resp.Roles) == pageSize {
-			resp.NextKey = r.GetName()
+			resp.NextKey = cr.role.GetName()
 			break
 		}
 
-		b, err := gogoproto.Marshal(rv6)
-		if err != nil {
-			panic(err)
-		}
-
 		// this is a terrible hack but we live in a terrible world
-		resp.Roles = append(resp.Roles, &types.RoleV6{XXX_unrecognized: b})
+		resp.Roles = append(resp.Roles, &types.RoleV6{XXX_unrecognized: []byte(cr.wire)})
 	}
 	return &resp, nil
 }
@@ -219,5 +251,14 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return r.Clone(), nil
+	return cloneRoleV6(r.role), nil
+}
+
+func cloneRoleV6(src *types.RoleV6) *types.RoleV6 {
+	if src == nil {
+		return nil
+	}
+	dst := new(types.RoleV6)
+	gogoproto.Merge(dst, src)
+	return dst
 }

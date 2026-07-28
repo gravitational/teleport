@@ -51,6 +51,7 @@ type collection[T any, I comparable] struct {
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
 	singleton bool
+	customPut func(types.Resource) error
 }
 
 func (c collection[_, _]) watchKind() types.WatchKind {
@@ -99,6 +100,9 @@ func (c *collection[T, _]) onDelete(r types.Resource) error {
 //
 // This is a no-op if the configured filter does not return true.
 func (c *collection[T, _]) onPut(r types.Resource) error {
+	if c.customPut != nil {
+		return c.customPut(r)
+	}
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
