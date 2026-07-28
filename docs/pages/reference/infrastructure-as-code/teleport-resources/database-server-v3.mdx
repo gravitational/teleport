@@ -204,6 +204,29 @@ result: "string"
 |period|A time between command runs|[Duration](#duration)|
 |result|Captures standard output|string|
 
+## Component Feature ID
+
+An identifier for a specific feature supported by a Teleport component.
+
+
+## Component Features
+
+Represents a set of features supported by a given Teleport component.
+
+
+Example:
+
+```yaml
+features: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|features|Features is a list of supported feature identifiers.|[][Component Feature ID](#component-feature-id)|
+
 ## Database Admin User
 
 Contains information about privileged database user used for automatic user provisioning.
@@ -243,10 +266,12 @@ relay_ids:
   - "string"
   - "string"
   - "string"
+component_features: # [...]
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
+|component_features|Component_features contains features supported by this database server.|[Component Features](#component-features)|
 |database|The database proxied by this database server.|[Database V3](#database-v3)|
 |host_id|The ID of the host the database server is running on.|string|
 |hostname|The database server hostname.|string|

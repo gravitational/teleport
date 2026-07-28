@@ -187,6 +187,12 @@ const (
 	PrincipalTypeLogins = "logins"
 	// PrincipalTypeRoleARNs is AWS role ARNs on AWS console apps.
 	PrincipalTypeRoleARNs = "role_arns"
+	// PrincipalTypeDBUsers is database users on databases.
+	PrincipalTypeDBUsers = "db_users"
+	// PrincipalTypeDBNames is database names on databases.
+	PrincipalTypeDBNames = "db_names"
+	// PrincipalTypeDBRoles is database roles on databases.
+	PrincipalTypeDBRoles = "db_roles"
 )
 
 // EnrichedResources is a wrapper of []*EnrichedResource.

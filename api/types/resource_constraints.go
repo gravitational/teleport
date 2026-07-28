@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"slices"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
@@ -39,6 +40,10 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	case *ResourceConstraints_Ssh:
+		if err := d.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *ResourceConstraints_Database:
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -83,6 +88,29 @@ func (awsc *ResourceConstraints_AwsConsole) Validate() error {
 func (sshc *ResourceConstraints_Ssh) Validate() error {
 	if sshc == nil || sshc.Ssh == nil || len(sshc.Ssh.Logins) == 0 {
 		return trace.BadParameter("ssh constraints require logins, none provided")
+	}
+	return nil
+}
+
+// Validate ensures at least one of Users, Names, or Roles is non-empty and
+// enforces wildcard shape rules: "*" must be a dimension's only value where
+// wildcard matching is supported (users, names), and db_roles are applied
+// literally at session time so "*" is never a valid database role constraint.
+func (dbc *ResourceConstraints_Database) Validate() error {
+	if dbc == nil || dbc.Database == nil {
+		return trace.BadParameter("database constraints require at least one of users, names, or roles")
+	}
+	if len(dbc.Database.Users) == 0 && len(dbc.Database.Names) == 0 && len(dbc.Database.Roles) == 0 {
+		return trace.BadParameter("database constraints require at least one of users, names, or roles")
+	}
+	if len(dbc.Database.Users) > 1 && slices.Contains(dbc.Database.Users, Wildcard) {
+		return trace.BadParameter("database user constraint %q must be the only value", Wildcard)
+	}
+	if len(dbc.Database.Names) > 1 && slices.Contains(dbc.Database.Names, Wildcard) {
+		return trace.BadParameter("database name constraint %q must be the only value", Wildcard)
+	}
+	if slices.Contains(dbc.Database.Roles, Wildcard) {
+		return trace.BadParameter("database role constraints do not support %q", Wildcard)
 	}
 	return nil
 }
