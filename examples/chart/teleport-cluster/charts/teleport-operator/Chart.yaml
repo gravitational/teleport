@@ -1,6 +1,6 @@
 name: teleport-operator
 apiVersion: v2
-version: &version "18.11.0-dev.alexh.3"
+version: &version "18.11.0-dev.alexh.4"
 appVersion: *version
 description: Teleport Operator provides management of select Teleport resources.
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg
