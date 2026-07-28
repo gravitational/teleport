@@ -66,7 +66,7 @@ type Auth interface {
 	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
 
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
 	DeleteRelayServer(ctx context.Context, name string) error
@@ -831,7 +831,11 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 			return
 		}
 
-		if err := c.auth.DeleteKubernetesServer(c.closeContext, kube.resource.GetHostID(), kube.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+		if err := c.auth.DeleteKubeServer(c.closeContext, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  kube.resource.GetScope(),
+			HostId: kube.resource.GetHostID(),
+			Name:   kube.resource.GetName(),
+		}.Build()); err != nil && !trace.IsNotFound(err) {
 			if cleanupCtx.Err() != nil {
 				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
 				return
@@ -1136,7 +1140,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
 
-	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
+	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName(), scope: appServer.GetScope()}
 
 	srv := handle.appServers[appKey]
 	if srv == nil {
@@ -1214,7 +1218,7 @@ func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServ
 		handle.databaseServers = make(map[resourceKey]*heartBeatInfo[*types.DatabaseServerV3])
 	}
 
-	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName()}
+	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName(), scope: databaseServer.GetScope()}
 
 	if _, ok := handle.databaseServers[dbKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveDatabase)
@@ -1283,8 +1287,7 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 		handle.kubernetesServers = make(map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3])
 	}
 
-	kubeKey := resourceKey{hostID: kubernetesServer.GetHostID(), name: kubernetesServer.GetCluster().GetName()}
-
+	kubeKey := resourceKey{hostID: kubernetesServer.GetHostID(), name: kubernetesServer.GetCluster().GetName(), scope: kubernetesServer.GetScope()}
 	if _, ok := handle.kubernetesServers[kubeKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveKube)
 		if c.kubeHBVariableDuration != nil {

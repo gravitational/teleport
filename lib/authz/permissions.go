@@ -1062,8 +1062,10 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:       []string{types.Wildcard},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),

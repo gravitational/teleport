@@ -1306,7 +1306,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindAccessListMember,
 		types.KindAccessListReview,
 		scopedaccess.KindScopedRole,
-		scopedaccess.KindScopedRoleAssignment:
+		scopedaccess.KindScopedRoleAssignment,
+		types.KindKubernetesCluster:
 		return true
 	default:
 		return false
@@ -7121,13 +7122,37 @@ func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.Ku
 }
 
 // DeleteKubernetesServer deletes specified kubernetes server.
-func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleKube); err != nil {
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
+func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req *proto.DeleteKubernetesServerRequest) error {
+	var existingServer types.KubeServer
+	for server, err := range a.authServer.RangeKubernetesServersWithName(ctx, req.GetName()) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// only allow unscoped kube servers to be deleted using this deprecated DeleteKubernetesServer method
+		if server.GetScope() == "" && server.GetHostID() == req.GetHostID() {
+			existingServer = server
+			break
+		}
+	}
+	if existingServer == nil {
+		return trace.NotFound("%s %q doesn't exist", types.KindKubeServer, req.GetName())
+	}
+	if err := a.scopedContext.AgentOwnedResourceAction(existingServer.GetScope(), existingServer.GetHostID(), types.RoleKube); err != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		if err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
+	return a.authServer.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  existingServer.GetScope(),
+		Name:   req.GetName(),
+		HostId: req.GetHostID(),
+	}.Build())
 }
 
 // DeleteAllKubernetesServers deletes all registered kubernetes servers.
@@ -7621,80 +7646,120 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
-func (a *ServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	// Don't allow users create clusters they wouldn't have access to (e.g.
-	// non-matching labels).
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+			return err
+		}
+		// Don't allow users to create clusters they wouldn't have access to (e.g.
+		// non-matching labels).
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
-	}
-	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
-	if cluster.GetScope() != "" {
-		return trace.BadParameter("scope must be empty")
 	}
 	return trace.Wrap(a.authServer.CreateKubernetesCluster(ctx, cluster))
 }
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
-func (a *ServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
-	existing, err := a.authServer.GetKubernetesCluster(ctx, cluster.GetName())
+	existing, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(existing); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+			return err
+		}
+		if err := checker.Kube().CanAccessCluster(existing); err != nil {
+			return err
+		}
+		if err := checker.Kube().CanAccessCluster(cluster); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
-		return trace.Wrap(err)
+
+	// We check if the scope has changed after the decision so we can provide a useful error message.
+	// We do a naive equality check to cover when both scopes are empty and scopes.Compare for a more complete check
+	// when at least one scope is set.
+	if existing.GetScope() != cluster.GetScope() && scopes.Compare(existing.GetScope(), cluster.GetScope()) != scopes.Equivalent {
+		return trace.BadParameter("scope of existing kubernetes cluster cannot be changed")
 	}
+
 	// Don't allow discovery service to create clusters with dynamic labels.
-	if a.ScopedServerWithRoles().scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
+	if a.scopedContext.HasBuiltinRole(types.RoleDiscovery) && len(cluster.GetDynamicLabels()) > 0 {
 		return trace.AccessDenied("discovered kubernetes cluster must not have dynamic labels")
 	}
-	// Dynamic scoped kube clusters are not implemented yet so we need to prevent their creation.
-	if cluster.GetScope() != "" {
-		return trace.BadParameter("scope must be empty")
-	}
+
 	return trace.Wrap(a.authServer.UpdateKubernetesCluster(ctx, cluster))
 }
 
 // GetKubernetesCluster returns specified kubernetes cluster resource.
-func (a *ServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbRead); err != nil {
+//
+// Deprecated: Use GetKubeCluster from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
+func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+
+	kubeCluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(kubeCluster); err != nil {
+
+	if err := a.scopedContext.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(kubeCluster)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return kubeCluster, nil
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
-func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, "", ""),
+			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
-				if a.checkAccessToKubeCluster(cluster) == nil {
+				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
 					return cluster, true
 				}
 				return nil, false
@@ -7709,66 +7774,72 @@ func (a *ServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []t
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
-func (a *ServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbRead); err != nil {
+//
+// Deprecated: Use ListKubeClusters from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
+func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	var next string
-	var seen int
-	out, err := iterstream.Collect(
-		iterstream.TakeWhile(
-			iterstream.FilterMap(
-				a.authServer.RangeKubernetesClusters(ctx, start, ""),
-				func(cluster types.KubeCluster) (types.KubeCluster, bool) {
-					// Filter out kube clusters user doesn't have access to.
-					if a.checkAccessToKubeCluster(cluster) == nil {
-						return cluster, true
+	return generic.CollectPageAndCursor(
+		iterstream.FilterMap(
+			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				PageToken:   start,
+				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+			}.Build()),
+			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
 					}
-					return nil, false
-				},
-			),
-			func(cluster types.KubeCluster) bool {
-				if seen < limit {
-					seen++
-					return true
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
+					return cluster, true
 				}
-				next = cluster.GetName()
-				return false
+				return cluster, false
 			},
 		),
+		limit,
+		services.GetCursorForKubeCluster,
 	)
-
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return out, next, nil
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-func (a *ServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbDelete); err != nil {
+//
+// Deprecated: Use DeleteKubeCluster from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
+func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
-	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	cluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.checkAccessToKubeCluster(cluster); err != nil {
+	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
+	return trace.Wrap(a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()))
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
-func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
-	if err := a.authorizeAction(types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
+func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure to only delete kubernetes cluster user has access to.
@@ -7776,12 +7847,29 @@ func (a *ServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var deletedAtLeastOneCluster bool
 	for _, cluster := range clusters {
-		if err := a.checkAccessToKubeCluster(cluster); err == nil {
-			if err := a.authServer.DeleteKubernetesCluster(ctx, cluster.GetName()); err != nil {
+		if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete, types.VerbList); err != nil {
+				return err
+			}
+			return checker.Kube().CanAccessCluster(cluster)
+		}); err == nil {
+			if err := a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+				Scope: cluster.GetScope(),
+				Name:  cluster.GetName(),
+			}.Build()); err != nil {
 				return trace.Wrap(err)
 			}
+			deletedAtLeastOneCluster = true
 		}
+	}
+
+	// if we found clusters to be deleted but there were no successful deletions, at least on
+	// return an access denied error so the caller knows the deletion was not successful
+	if len(clusters) > 0 && !deletedAtLeastOneCluster {
+		return trace.AccessDenied("access denied (decision)")
 	}
 	return nil
 }
