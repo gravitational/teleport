@@ -3118,6 +3118,9 @@ func (process *TeleportProcess) initAuthService() error {
 				}
 			}
 		}
+		if fallbackEmitter != nil {
+			shutdownEmitter(process, fallbackEmitter, payload, logger)
+		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 
@@ -3966,6 +3969,8 @@ func (process *TeleportProcess) initSSH() error {
 		if relayTunnelClient != nil {
 			relayTunnelClient.Close()
 		}
+
+		shutdownEmitter(process, asyncEmitter, event.Payload, logger)
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -5458,7 +5463,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
-		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
 	})
@@ -7273,11 +7278,8 @@ func (process *TeleportProcess) initApps() {
 				logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 				warnOnErr(process.ExitContext(), appServer.Shutdown(payloadContext(payload)), logger)
 			}
-			if asyncEmitter != nil {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
 			agentPool.Stop()
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			shutdownEmitter(process, asyncEmitter, payload, logger)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			logger.InfoContext(process.ExitContext(), "Exited.")
 		})
@@ -7289,6 +7291,27 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// drainableEmitter is an audit emitter whose queue can be drained on shutdown.
+type drainableEmitter interface {
+	Shutdown(context.Context) error
+	Close() error
+}
+
+const emitterDrainTimeout = time.Hour
+
+// shutdownEmitter drains the emitter's queue to the audit backend when payload
+// carries a graceful shutdown context, otherwise it closes the emitter
+// immediately.
+func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
+	if payload == nil {
+		warnOnErr(process.ExitContext(), emitter.Close(), logger)
+		return
+	}
+	drainCtx, cancel := context.WithTimeout(payloadContext(payload), emitterDrainTimeout)
+	defer cancel()
+	warnOnErr(process.ExitContext(), emitter.Shutdown(drainCtx), logger)
 }
 
 // TODO(williamo/scopes): Update this validate function when we add support for these features.

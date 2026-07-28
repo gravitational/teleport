@@ -187,3 +187,17 @@ func (f *FallbackEmitter) Close() error {
 	}
 	return nil
 }
+
+// Shutdown makes a best effort attempt to flush pending audit events to the
+// inner emitter before closing.
+func (f *FallbackEmitter) Shutdown(ctx context.Context) error {
+	if f.queue != nil {
+		if err := f.queue.Drain(ctx); err != nil {
+			slog.WarnContext(ctx,
+				"Audit fallback queue drain returned an error during graceful shutdown.",
+				"error", err,
+			)
+		}
+	}
+	return trace.Wrap(f.Close())
+}
