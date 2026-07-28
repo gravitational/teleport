@@ -51,6 +51,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1279,7 +1280,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindAccessListMember,
 		types.KindAccessListReview,
 		scopedaccess.KindScopedRole,
-		scopedaccess.KindScopedRoleAssignment:
+		scopedaccess.KindScopedRoleAssignment,
+		types.KindKubernetesCluster:
 		return true
 	default:
 		return false
@@ -3837,10 +3839,18 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 	}
 
 	if dropAnyRequests := len(req.DropAccessRequests) > 0; dropAnyRequests {
-		// Reset to the base roles and traits stored in the backend user,
-		// currently active requests (not being dropped) and new access requests
-		// will be filled in below.
-		accessInfo = services.AccessInfoFromUserState(user)
+		// When dropping access requests, reset to the base roles and traits
+		// from a freshly regenerated user login state, which extends user object
+		// by roles and traits granted through access lists. The login state is
+		// regenerated rather than read from the backend because the user may
+		// have been modified since it was last computed, leaving the stored
+		// user_login_state stale. Using the raw user object here instead
+		// would strip access list grants from the reissued certificate.
+		userState, err := a.authServer.regenerateUserLoginState(ctx, user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		accessInfo = services.AccessInfoFromUserState(userState)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -6995,13 +7005,37 @@ func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.Ku
 }
 
 // DeleteKubernetesServer deletes specified kubernetes server.
-func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleKube); err != nil {
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
+func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req *proto.DeleteKubernetesServerRequest) error {
+	var existingServer types.KubeServer
+	for server, err := range a.authServer.RangeKubernetesServersWithName(ctx, req.GetName()) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// only allow unscoped kube servers to be deleted using this deprecated DeleteKubernetesServer method
+		if server.GetScope() == "" && server.GetHostID() == req.GetHostID() {
+			existingServer = server
+			break
+		}
+	}
+	if existingServer == nil {
+		return trace.NotFound("%s %q doesn't exist", types.KindKubeServer, req.GetName())
+	}
+	if err := a.scopedContext.AgentOwnedResourceAction(existingServer.GetScope(), existingServer.GetHostID(), types.RoleKube); err != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		if err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
+	return a.authServer.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  existingServer.GetScope(),
+		Name:   req.GetName(),
+		HostId: req.GetHostID(),
+	}.Build())
 }
 
 // DeleteAllKubernetesServers deletes all registered kubernetes servers.
@@ -7368,6 +7402,10 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Reject scoped apps before the rest of validation
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	// Validate before the label-matching access check so callers with
 	// the correct role see input errors rather than access-denied from
 	// a label mismatch on a malformed app.
@@ -7392,6 +7430,13 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 // UpdateApp updates existing application resource.
 func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
 		return trace.Wrap(err)
 	}
 	// Validate before the GetApp existence check so a malformed name
@@ -7547,7 +7592,10 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
-	existing, err := a.authServer.GetKubernetesCluster(ctx, cluster.GetName())
+	existing, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7582,13 +7630,18 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 }
 
 // GetKubernetesCluster returns specified kubernetes cluster resource.
+//
+// Deprecated: Use GetKubeCluster from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	kubeCluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7614,7 +7667,9 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, "", ""),
+			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7637,6 +7692,9 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
@@ -7645,7 +7703,10 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 
 	return generic.CollectPageAndCursor(
 		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, start, ""),
+			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				PageToken:   start,
+				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7660,18 +7721,23 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 			},
 		),
 		limit,
-		types.KubeCluster.GetName,
+		services.GetCursorForKubeCluster,
 	)
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
+//
+// Deprecated: Use DeleteKubeCluster from lib/auth/presence/presencev1/service.go instead.
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
-	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	cluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7683,7 +7749,9 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
+	return trace.Wrap(a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()))
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
@@ -7706,7 +7774,10 @@ func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context)
 			}
 			return checker.Kube().CanAccessCluster(cluster)
 		}); err == nil {
-			if err := a.authServer.DeleteKubernetesCluster(ctx, cluster.GetName()); err != nil {
+			if err := a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
+				Scope: cluster.GetScope(),
+				Name:  cluster.GetName(),
+			}.Build()); err != nil {
 				return trace.Wrap(err)
 			}
 			deletedAtLeastOneCluster = true
@@ -8226,7 +8297,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedContextUser)
 		}
 	}
 
@@ -8238,7 +8309,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	if req.MFARequiredCheck != nil {
 		// Return a nicer error message.
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to supply MFARequiredCheck")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedMFARequiredCheck)
 		}
 
 		mfaRequiredResp, err := a.IsMFARequired(ctx, req.MFARequiredCheck)

@@ -356,21 +356,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	kubernetesCluster = payload{
-		Name:                   "KubeCluster",
-		TypeName:               "KubernetesClusterV3",
-		VarName:                "kubeCluster",
-		GetMethod:              "GetKubernetesCluster",
-		CreateMethod:           "CreateKubernetesCluster",
-		UpdateMethod:           "UpdateKubernetesCluster",
-		DeleteMethod:           "DeleteKubernetesCluster",
-		ID:                     `kubeCluster.Metadata.Name`,
-		Kind:                   "kube_cluster",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_kube_cluster",
-		HasCheckAndSetDefaults: true,
-	}
-
 	lock = payload{
 		Name:                   "Lock",
 		TypeName:               "LockV2",
@@ -588,52 +573,6 @@ var (
 		Kind:                   "okta_import_rule",
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_okta_import_rule",
-		HasCheckAndSetDefaults: true,
-	}
-
-	accessList = payload{
-		Name:                   "AccessList",
-		TypeName:               "AccessList",
-		VarName:                "accessList",
-		GetMethod:              "AccessListClient().GetAccessList",
-		CreateMethod:           "AccessListClient().UpsertAccessList",
-		UpsertMethodArity:      2,
-		UpdateMethod:           "AccessListClient().UpsertAccessList",
-		DeleteMethod:           "AccessListClient().DeleteAccessList",
-		ID:                     "accessList.Header.Metadata.Name",
-		Kind:                   "access_list",
-		HasStaticID:            false,
-		SchemaPackage:          "schemav1",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
-		ProtoPackage:           "accesslist",
-		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
-		TerraformResourceType:  "teleport_access_list",
-		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
-		HasCheckAndSetDefaults: true,
-		PropagatedFields:       []string{"Spec.Audit.NextAuditDate"},
-	}
-
-	accessListMember = payload{
-		Name:                   "Member",
-		TypeName:               "Member",
-		VarName:                "accessListMember",
-		GetMethod:              "AccessListClient().GetStaticAccessListMember",
-		CreateMethod:           "AccessListClient().UpsertStaticAccessListMember",
-		UpsertMethodArity:      2,
-		UpdateMethod:           "AccessListClient().UpsertStaticAccessListMember",
-		DeleteMethod:           "AccessListClient().DeleteStaticAccessListMember",
-		IDPrefix:               "accessListMember.Spec.AccessList",
-		ID:                     "accessListMember.Header.Metadata.Name",
-		Kind:                   "access_list_member",
-		HasStaticID:            false,
-		SchemaPackage:          "schemav1",
-		SchemaPackagePath:      "github.com/gravitational/teleport/integrations/terraform/tfschema/accesslist/v1",
-		ProtoPackage:           "accesslist",
-		ProtoPackagePath:       "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1",
-		TerraformResourceType:  "teleport_access_list_member",
-		ConvertPackagePath:     "github.com/gravitational/teleport/api/types/accesslist/convert/v1",
-		ConvertToProtoFunc:     "ToMemberProto",
-		ConvertFromProtoFunc:   "FromMemberProto",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -1055,88 +994,6 @@ var (
 		ForceSetKind: "apitypes.KindClassifier",
 	}
 
-	scopedRole = payload{
-		Name:                  "ScopedRole",
-		TypeName:              "ScopedRole",
-		VarName:               "scopedRole",
-		GetMethod:             "ScopedAccessServiceClient().GetScopedRole",
-		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRole",
-		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRole",
-		UpsertMethodArity:     2,
-		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRole",
-		ID:                    "scopedRole.Metadata.Name",
-		Kind:                  "scoped_role",
-		HasStaticID:           false,
-		ProtoPackage:          "accessv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/v1",
-		TerraformResourceType: "teleport_scoped_role",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
-		ForceSetKind:          "apitypes.KindScopedRole",
-		RequestWrapper: &RequestWrapper{
-			RequestResourceField: "Role",
-			GetRequest:           "GetScopedRoleRequest",
-			CreateRequest:        "CreateScopedRoleRequest",
-			UpdateRequest:        "UpsertScopedRoleRequest",
-			DeleteRequest:        "DeleteScopedRoleRequest",
-		},
-	}
-
-	scopedRoleAssignment = payload{
-		Name:                  "ScopedRoleAssignment",
-		TypeName:              "ScopedRoleAssignment",
-		VarName:               "scopedRoleAssignment",
-		GetMethod:             "ScopedAccessServiceClient().GetScopedRoleAssignment",
-		CreateMethod:          "ScopedAccessServiceClient().CreateScopedRoleAssignment",
-		UpdateMethod:          "ScopedAccessServiceClient().UpsertScopedRoleAssignment",
-		UpsertMethodArity:     2,
-		DeleteMethod:          "ScopedAccessServiceClient().DeleteScopedRoleAssignment",
-		ID:                    "scopedRoleAssignment.Metadata.Name",
-		Kind:                  "scoped_role_assignment",
-		HasStaticID:           false,
-		ProtoPackage:          "accessv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1",
-		SchemaPackage:         "assignmentschemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1",
-		TerraformResourceType: "teleport_scoped_role_assignment",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/lib/scopes/access\""},
-		ForceSetKind:          "apitypes.KindScopedRoleAssignment",
-		RequestWrapper: &RequestWrapper{
-			RequestResourceField: "Assignment",
-			GetRequest:           "GetScopedRoleAssignmentRequest",
-			CreateRequest:        "CreateScopedRoleAssignmentRequest",
-			UpdateRequest:        "UpsertScopedRoleAssignmentRequest",
-			DeleteRequest:        "DeleteScopedRoleAssignmentRequest",
-		},
-		DefaultSubKind: "\"dynamic\"",
-	}
-
-	scopedToken = payload{
-		Name:                  "ScopedToken",
-		TypeName:              "ScopedToken",
-		VarName:               "scopedToken",
-		GetMethod:             "GetScopedToken",
-		CreateMethod:          "CreateScopedToken",
-		UpdateMethod:          "UpsertScopedToken",
-		UpsertMethodArity:     2,
-		DeleteMethod:          "DeleteScopedToken",
-		ID:                    "scopedToken.Metadata.Name",
-		Kind:                  "scoped_token",
-		WithSecrets:           "true",
-		HasStaticID:           false,
-		ProtoPackage:          "joiningv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1",
-		TerraformResourceType: "teleport_scoped_token",
-		IsPlainStruct:         true,
-		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind:          "apitypes.KindScopedToken",
-	}
-
 	workloadCluster = payload{
 		Name:                  "WorkloadCluster",
 		TypeName:              "WorkloadCluster",
@@ -1281,8 +1138,6 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
-	generateResource(kubernetesCluster, pluralResource)
-	generateDataSource(kubernetesCluster, pluralDataSource)
 	generateResource(lock, pluralResource)
 	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
@@ -1309,10 +1164,6 @@ func genTFSchema() {
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
 	generateDataSource(oktaImportRule, pluralDataSource)
-	generateResource(accessList, pluralResource)
-	generateDataSource(accessList, pluralDataSource)
-	generateResource(accessListMember, pluralResource)
-	generateDataSource(accessListMember, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
@@ -1347,12 +1198,6 @@ func genTFSchema() {
 	generateDataSource(classifier, pluralDataSource)
 	generateResource(retrievalModel, singularResource)
 	generateDataSource(retrievalModel, singularDataSource)
-	generateResource(scopedRole, pluralResource)
-	generateDataSource(scopedRole, pluralDataSource)
-	generateResource(scopedRoleAssignment, pluralResource)
-	generateDataSource(scopedRoleAssignment, pluralDataSource)
-	generateResource(scopedToken, pluralResource)
-	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
 	generateResource(databaseObjectImportRule, pluralResource)

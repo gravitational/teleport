@@ -911,9 +911,10 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 			Optional:    true,
 		},
 		"scope": {
-			Description: "The App's scope.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description:   "The App's scope.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -4467,9 +4468,10 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 			Optional:    true,
 		},
 		"scope": {
-			Description: "The scope of the kube cluster.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description:   "The scope of the kube cluster.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{

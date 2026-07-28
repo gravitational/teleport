@@ -1281,7 +1281,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
+	require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].GetHostID(),
+		Name:   kubeServers[0].GetName(),
+	}.Build()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
 		require.NoError(t, err)
@@ -1312,7 +1316,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
+		require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  server.GetScope(),
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+		}.Build()))
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
