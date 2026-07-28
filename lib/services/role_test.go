@@ -34,6 +34,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -10211,6 +10212,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
 		types.Resource153ToResourceWithLabels(beamsv1.Beam_builder{
 			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Labels: map[string]string{},
+			}.Build(),
+		}.Build()),
+		types.Resource153ToResourceWithLabels(linuxdesktopv1.LinuxDesktop_builder{
+			Kind:    types.KindLinuxDesktop,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Labels: map[string]string{},
