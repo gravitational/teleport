@@ -78,6 +78,7 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 			DialTimeout:      sshDialTimeout,
 		},
 		ScopesEnabled: p.ServiceConfig.ScopesFeatures.Enabled,
+		GroupID:       p.ServiceConfig.Proxy.ProxyGroupID,
 	}
 
 	p.setProxyPublicAddressesSettings(&proxySettings)
@@ -97,7 +98,6 @@ func (p *ProxySettings) buildProxySettings(proxyListenerMode types.ProxyListener
 	if p.ServiceConfig.Proxy.Kube.Enabled {
 		proxySettings.Kube.ListenAddr = p.ServiceConfig.Proxy.Kube.ListenAddr.String()
 	}
-	proxySettings.GroupID = p.ServiceConfig.Proxy.ProxyGroupID
 	return &proxySettings
 }
 
