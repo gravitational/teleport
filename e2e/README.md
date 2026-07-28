@@ -175,19 +175,20 @@ start already authenticated without running the UI login flow.
 ### Teleport config
 
 If a test requires a Teleport config different from the base config that e2e tests use by default, it can declare one
-with `test.use({ teleport: { config: {...} } })`. The `config` is deep merged into the base config. A config can be either be 
-declared at the top of the file (for it to apply to all tests in the file), or inside a specific `test.describe()` block.
+with `test.use({ teleport: { config: {...} } })` inside a `test.describe()` block.
 Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
 
 ```ts
-test.use({
-  teleport: {
-    config: {
-      auth_service: {
-        license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
+test.describe('custom license', () => {
+  test.use({
+    teleport: {
+      config: {
+        auth_service: {
+          license_file: '${E2E_DIR}/testdata/licenses/custom-license.pem',
+        },
       },
     },
-  },
+  });
 });
 ```
 

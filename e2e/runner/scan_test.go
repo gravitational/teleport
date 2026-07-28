@@ -566,7 +566,7 @@ func TestScanRecordings(t *testing.T) {
 		},
 		{
 			name:           "no recordings",
-			content:         `test.use({ user: { roles: ['access'] } });`,
+			content:        `test.use({ user: { roles: ['access'] } });`,
 			wantUsers:      1,
 			wantRecordings: nil,
 			wantLoginAs:    true,
@@ -1231,11 +1231,6 @@ func TestExtractTeleportConfigs(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name:    "file-level config has line 0",
-			content: `test.use({ teleport: { config: { auth_service: { license_file: 'x.pem' } } } });`,
-			want:    []scopedTeleportConfig{{raw: `{ auth_service: { license_file: 'x.pem' } }`, line: 0}},
-		},
-		{
 			name: "describe-scoped config carries its line",
 			content: `test.describe('grp', () => {
   test.use({ teleport: { config: { a: 1 } } });
@@ -1244,23 +1239,29 @@ func TestExtractTeleportConfigs(t *testing.T) {
 			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 1}},
 		},
 		{
-			name: "a file-level and describe-level config can both be defined",
-			content: `test.use({ teleport: { config: { a: 1 } } });
-test.describe('grp', () => {
+			name: "two describes with different configs",
+			content: `test.describe('one', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+});
+test.describe('two', () => {
   test.use({ teleport: { config: { a: 2 } } });
 });`,
-			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 0}, {raw: `{ a: 2 }`, line: 2}},
+			want: []scopedTeleportConfig{
+				{raw: `{ a: 1 }`, line: 1},
+				{raw: `{ a: 2 }`, line: 4},
+			},
 		},
 		{
-			name: "same config twice at file level is fine",
-			content: `test.use({ teleport: { config: { a: 1 } } });
-test.use({ teleport: { config: { a: 1 } } });`,
-			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 0}, {raw: `{ a: 1 }`, line: 0}},
+			name:    "file-level config errors",
+			content: `test.use({ teleport: { config: { a: 1 } } });`,
+			wantErr: true,
 		},
 		{
-			name: "conflicting configs at the same scope errors",
-			content: `test.use({ teleport: { config: { a: 1 } } });
-test.use({ teleport: { config: { a: 2 } } });`,
+			name: "conflicting configs in one describe errors",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test.use({ teleport: { config: { a: 2 } } });
+});`,
 			wantErr: true,
 		},
 		{
@@ -1279,9 +1280,33 @@ test.use({ teleport: { config: { a: 2 } } });`,
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.Len(t, got, len(tt.want))
+			for i := range tt.want {
+				require.Equal(t, tt.want[i].raw, got[i].raw)
+				require.Equal(t, tt.want[i].line, got[i].line)
+			}
 		})
 	}
+}
+
+func TestDefaultSelectors(t *testing.T) {
+	content := `test.describe('configured', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test('in scope', () => {});
+});
+test('bare', () => {});
+test.describe('other', () => {
+  test('nested', () => {});
+});`
+
+	configs, err := extractTeleportConfigs(content, parseBlocks(strings.Split(content, "\n")), "x.spec.ts")
+	require.NoError(t, err)
+
+	got := defaultSelectors("tests/x.spec.ts", content, configs, 0)
+	require.Equal(t, []string{"tests/x.spec.ts:5", "tests/x.spec.ts:7"}, got)
+
+	// A file with no config just runs as a whole
+	require.Equal(t, []string{"tests/x.spec.ts"}, defaultSelectors("tests/x.spec.ts", content, nil, 0))
 }
 
 func TestNormalizeConfigText(t *testing.T) {
@@ -1292,4 +1317,37 @@ func TestNormalizeConfigText(t *testing.T) {
 
 	c := normalizeConfigText("{ auth_service: { license_file: 'y.pem' } }")
 	require.NotEqual(t, a, c)
+}
+
+func TestScanTeleportConfigsRejectsHelperConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "helper.ts", `
+test.use({
+  teleport: {
+    config: { proxy_service: { ssh_public_addr: ['example.com:3023'] } },
+  },
+});
+`)
+
+	_, _, err := scanTeleportConfigs([]scanTarget{{path: filepath.Join(dir, "helper.ts")}})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "helper modules cannot declare teleport:")
+}
+
+func TestScanTeleportConfigsAllowsHelperWithoutConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "helper.ts", `test.use({ fixtures: ['connect'] });`)
+
+	_, _, err := scanTeleportConfigs([]scanTarget{{path: filepath.Join(dir, "helper.ts")}})
+	require.NoError(t, err)
+}
+
+func TestExtractTeleportConfigsRejectsNonInlineOption(t *testing.T) {
+	content := `test.describe('d', () => {
+  test.use({ teleport: customTeleport });
+  test('t', async () => {});
+});`
+	_, err := extractTeleportConfigs(content, parseBlocks(strings.Split(content, "\n")), "spec.ts")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "must be an inline object")
 }

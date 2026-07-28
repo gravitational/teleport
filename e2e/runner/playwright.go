@@ -153,10 +153,10 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 	hasConfigs := len(p.config.teleportConfigs) > 0
 	defaultFiles := filesForProject(inst, p.config.testFiles)
 	if hasConfigs {
-		defaultFiles = filesForProject(inst, defaultConfigFiles(p.config.scanTargets, p.config.teleportConfigs))
+		defaultFiles = filesForProject(inst, p.config.defaultTestFiles)
 	}
 
-	// Skip the default pass if there's nothing to run against the base config
+	// Skip the default pass if this instance has nothing to run against the base config
 	if !hasConfigs || len(defaultFiles) > 0 {
 		blobPath := filepath.Join(blobBaseDir, inst.browser+".zip")
 		if err := p.runInstanceTests(ctx, inst, defaultFiles, blobPath, debug, extraArgs); err != nil {
@@ -248,6 +248,12 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 	}
 	if err := inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
 		return fmt.Errorf("teleport for %s not ready after config change: %w", inst.browser, err)
+	}
+
+	if inst.node != nil {
+		if err := inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+			return fmt.Errorf("node for %s failed to rejoin: %w", inst.browser, err)
+		}
 	}
 
 	blobPath := filepath.Join(blobBaseDir, fmt.Sprintf("%s-config-%d.zip", inst.browser, idx))

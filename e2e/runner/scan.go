@@ -40,6 +40,9 @@ var (
 	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
 	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
 	roleFileRe         = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
+	describeTitleRe    = regexp.MustCompile(`\.describe\(\s*['"]([^'"]*)['"]`)
+	testDefRe          = regexp.MustCompile(`\btest(?:\.(?:only|skip|fixme))?\(\s*['"]`)
+	teleportKeyRe      = regexp.MustCompile(`\bteleport\s*:`)
 
 	// The "key" regexes below require a word boundary so identifiers like
 	// `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
@@ -1122,29 +1125,38 @@ type uniqueTeleportConfig struct {
 	files []string
 }
 
-// scanTeleportConfigs looks for custom Teleport config declarations, dedupes them, and
-// returns them alongside the test files using them.
-func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, error) {
+// scanTeleportConfigs finds the unique custom Teleport configs declared by tests
+// and the base-config selectors (tests that run without one).
+func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, []string, error) {
 	byKey := make(map[string]*uniqueTeleportConfig)
 	var order []string
+	var defaults []string
 
 	for _, t := range targets {
+		cleaned, ok := readCleaned(t.path)
+		if !ok {
+			continue
+		}
+		content := strings.Join(cleaned, "\n")
+
+		// A config declared in a helper has no describe to scope it to so it should be rejected
 		if t.sourceFile == "" {
+			for _, call := range findTestUseCalls(content) {
+				if open, _ := findKeyValueAtDepth(content[call.start:call.end], "teleport", '{', '}', 1); open >= 0 {
+					return nil, nil, fmt.Errorf(
+						"%s:%d: helper modules cannot declare teleport: in test.use()",
+						t.path, 1+strings.Count(content[:call.start], "\n"))
+				}
+			}
 			continue
 		}
 
-		configs, err := scanFileTeleportConfig(t.path)
+		configs, err := extractTeleportConfigs(content, parseBlocks(cleaned), t.path)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		for _, sc := range configs {
-			// Block-scoped configs target their describe and file-level ones target the whole file
-			line := sc.line
-			if line == 0 {
-				line = t.line
-			}
-
 			key := normalizeConfigText(sc.raw)
 			u, ok := byKey[key]
 			if !ok {
@@ -1152,35 +1164,55 @@ func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, error) {
 				byKey[key] = u
 				order = append(order, key)
 			}
-			u.files = append(u.files, fileSelector(t.sourceFile, line))
+			u.files = append(u.files, fileSelector(t.sourceFile, sc.line))
 		}
+
+		defaults = append(defaults, defaultSelectors(t.sourceFile, content, configs, t.line)...)
 	}
 
 	result := make([]uniqueTeleportConfig, 0, len(order))
 	for _, k := range order {
 		result = append(result, *byKey[k])
 	}
-	return result, nil
+	return result, defaults, nil
 }
 
-// scopedTeleportConfig is a declared config and its scope line, 0 for a
-// file-level test.use or the describe's line for a block-scoped one
-type scopedTeleportConfig struct {
-	raw  string
-	line int
-}
-
-// scanFileTeleportConfig returns the teleport config object text declared in a
-// test file, or "" if none.
-func scanFileTeleportConfig(path string) ([]scopedTeleportConfig, error) {
-	cleaned, ok := readCleaned(path)
-	if !ok {
-		return nil, nil
+// defaultSelectors returns the selectors for this file's tests that run against
+// the base config which is either the whole file if it declares no config, or each test
+// defined outside a config-scoped describe.
+func defaultSelectors(sourceFile, content string, configs []scopedTeleportConfig, line int) []string {
+	if len(configs) == 0 {
+		return []string{fileSelector(sourceFile, line)}
 	}
-	return extractTeleportConfigs(strings.Join(cleaned, "\n"), parseBlocks(cleaned), path)
+
+	var out []string
+	for _, loc := range testDefRe.FindAllStringIndex(content, -1) {
+		if inConfiguredBlock(loc[0], configs) {
+			continue
+		}
+		out = append(out, fileSelector(sourceFile, 1+strings.Count(content[:loc[0]], "\n")))
+	}
+	return out
 }
 
-// extractTeleportConfigs returns every declared config with its describe's line (or 0 if it's file-level)
+func inConfiguredBlock(pos int, configs []scopedTeleportConfig) bool {
+	for _, c := range configs {
+		if pos > c.startByte && pos < c.endByte {
+			return true
+		}
+	}
+	return false
+}
+
+// scopedTeleportConfig is a declared config and the describe block it's scoped to.
+type scopedTeleportConfig struct {
+	raw                string
+	line               int
+	startByte, endByte int
+}
+
+// extractTeleportConfigs returns every declared config with the describe it is
+// scoped to.
 func extractTeleportConfigs(content string, blocks []blockRange, path string) ([]scopedTeleportConfig, error) {
 	var out []scopedTeleportConfig
 
@@ -1189,6 +1221,9 @@ func extractTeleportConfigs(content string, blocks []blockRange, path string) ([
 
 		teleportOpen, teleportClose := findKeyValueAtDepth(body, "teleport", '{', '}', 1)
 		if teleportOpen < 0 {
+			if teleportKeyRe.MatchString(body) {
+				return nil, fmt.Errorf("%s: the teleport option in test.use() must be an inline object", path)
+			}
 			continue
 		}
 
@@ -1198,20 +1233,36 @@ func extractTeleportConfigs(content string, blocks []blockRange, path string) ([
 			return nil, fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
 		}
 
-		sc := scopedTeleportConfig{raw: teleportBody[configOpen:configClose]}
-		if b := smallestEnclosingBlock(call.start, blocks); b != nil {
-			sc.line = b.start
+		b := smallestEnclosingBlock(call.start, blocks)
+		if b == nil || describeTitle(content, b.startByte) == "" {
+			return nil, fmt.Errorf("%s: a teleport config must be declared inside a named test.describe block", path)
 		}
 
+		sc := scopedTeleportConfig{
+			raw:       teleportBody[configOpen:configClose],
+			line:      b.start,
+			startByte: b.startByte,
+			endByte:   b.endByte,
+		}
 		for _, existing := range out {
 			if existing.line == sc.line && normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) {
-				return nil, fmt.Errorf("%s: conflicting teleport configs declared at the same scope", path)
+				return nil, fmt.Errorf("%s: conflicting teleport configs declared in the same describe", path)
 			}
 		}
 		out = append(out, sc)
 	}
 
 	return out, nil
+}
+
+// describeTitle returns the title of the innermost test.describe enclosing the
+// block that opens at blockStart, or "" if it isn't a named describe
+func describeTitle(content string, blockStart int) string {
+	ms := describeTitleRe.FindAllStringSubmatch(content[:blockStart], -1)
+	if len(ms) == 0 {
+		return ""
+	}
+	return ms[len(ms)-1][1]
 }
 
 // normalizeConfigText gets rid of whitespace.
@@ -1230,28 +1281,6 @@ func normalizeConfigText(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
-}
-
-// defaultConfigFiles returns the test files that didn't declare a custom config and thus will use the default base config.
-func defaultConfigFiles(targets []scanTarget, configs []uniqueTeleportConfig) []string {
-	if len(configs) == 0 {
-		return nil
-	}
-
-	configured := make(map[string]bool)
-	for _, c := range configs {
-		for _, f := range c.files {
-			configured[lineNumberSuffixRe.ReplaceAllString(f, "")] = true
-		}
-	}
-
-	var out []string
-	for _, t := range targets {
-		if t.sourceFile != "" && !configured[t.sourceFile] {
-			out = append(out, fileSelector(t.sourceFile, t.line))
-		}
-	}
-	return out
 }
 
 func fileSelector(sourceFile string, line int) string {

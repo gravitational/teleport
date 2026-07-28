@@ -149,6 +149,8 @@ type e2eConfig struct {
 
 	// teleportConfigs are the unique custom Teleport configs declared by tests.
 	teleportConfigs []uniqueTeleportConfig
+	// defaultTestFiles are the selectors for the tests that run against the base config.
+	defaultTestFiles []string
 }
 
 // run sets up the test environment (ports, certs, credentials, teleport instance)
@@ -294,7 +296,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 		slog.Debug("discovered bootstrap users", "count", len(scannedUsers))
 
-		config.teleportConfigs, err = scanTeleportConfigs(targets)
+		config.teleportConfigs, config.defaultTestFiles, err = scanTeleportConfigs(targets)
 		if err != nil {
 			return fmt.Errorf("failed to scan teleport configs: %w", err)
 		}
