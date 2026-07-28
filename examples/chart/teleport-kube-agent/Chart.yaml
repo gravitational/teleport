@@ -1,4 +1,4 @@
-.version: &version "18.10.0"
+.version: &version "18.10.0-dev.probakowski.linux3.1"
 
 name: teleport-kube-agent
 apiVersion: v2
