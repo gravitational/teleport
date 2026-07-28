@@ -23,6 +23,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
@@ -36,7 +37,11 @@ type accessListClient struct {
 
 // Get gets the Teleport access_list of a given name
 func (r accessListClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accesslist.AccessList, error) {
-	accessList, err := r.teleportClient.AccessListClient().GetAccessList(ctx, key.Name)
+	accessList, err := r.teleportClient.AccessListClient().GetAccessListV2(ctx,
+		accesslistv1.GetAccessListRequest_builder{
+			Name:  key.Name,
+			Scope: key.Scope,
+		}.Build())
 	return accessList, trace.Wrap(err)
 }
 
@@ -54,7 +59,11 @@ func (r accessListClient) Update(ctx context.Context, accessList *accesslist.Acc
 
 // Delete deletes a Teleport access_list
 func (r accessListClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.AccessListClient().DeleteAccessList(ctx, key.Name))
+	return trace.Wrap(r.teleportClient.AccessListClient().DeleteAccessListV2(ctx,
+		accesslistv1.DeleteAccessListRequest_builder{
+			Name:  key.Name,
+			Scope: key.Scope,
+		}.Build()))
 }
 
 // Mutate propagates fields from the existing AccessList resource
@@ -69,17 +78,18 @@ func (r accessListClient) Mutate(_ context.Context, new, existing *accesslist.Ac
 }
 
 // NewAccessListReconciler instantiates a new Kubernetes controller reconciling access_list resources
-func NewAccessListReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
+func NewAccessListReconciler(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	accessListClient := &accessListClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+	resourceReconciler, err := reconcilers.NewTeleportScopedResourceWithLabelsReconciler[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		client,
 		accessListClient,
 		reconcilers.Config{
 			CheckFeatures: controllers.RequireEnterprise,
 		},
+		metadata,
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/client"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
@@ -38,6 +39,7 @@ import (
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func newAccessListSpec(nextAudit time.Time) accesslist.Spec {
@@ -67,6 +69,30 @@ func newAccessListSpec(nextAudit time.Time) accesslist.Spec {
 	}
 }
 
+func newScopedAccessListSpec(nextAudit time.Time) accesslist.Spec {
+	return accesslist.Spec{
+		Title:       "crane operation",
+		Description: "Access list that Gru uses to allow the minions to operate the crane.",
+		Owners:      []accesslist.Owner{{Name: "Gru", Description: "The super villain.", MembershipKind: accesslist.MembershipKindUser}},
+		Audit: accesslist.Audit{
+			Recurrence: accesslist.Recurrence{
+				Frequency:  accesslist.SixMonths,
+				DayOfMonth: accesslist.FirstDayOfMonth,
+			},
+			NextAuditDate: nextAudit,
+		},
+		Grants: accesslist.Grants{
+			Traits: trait.Traits{},
+			ScopedRoles: []accesslist.ScopedRoleGrant{
+				{
+					Role:  scopes.QualifiedName{Name: "my-role", Scope: testScope}.String(),
+					Scope: testNestedScope,
+				},
+			},
+		},
+	}
+}
+
 type accessListTestingPrimitives struct {
 	setup *TestSetup
 	reconcilers.ResourceWithLabelsAdapter[*accesslist.AccessList]
@@ -84,10 +110,23 @@ func (g *accessListTestingPrimitives) CreateTeleportResource(ctx context.Context
 	metadata := header.Metadata{
 		Name: name,
 	}
-	accessList, err := accesslist.NewAccessList(metadata, newAccessListSpec(time.Time{}))
-	if err != nil {
-		return trace.Wrap(err)
+	var accessList *accesslist.AccessList
+	var err error
+	if scope := g.setup.OperatorMetadata().Scope; scope != "" {
+		accessList, err = accesslist.NewAccessListWithScope(metadata, newScopedAccessListSpec(time.Time{}), scope)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessList.Metadata.Labels = map[string]string{
+			reconcilers.OperatorIDLabel: g.setup.OperatorMetadata().ID,
+		}
+	} else {
+		accessList, err = accesslist.NewAccessList(metadata, newAccessListSpec(time.Time{}))
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,21 +136,37 @@ func (g *accessListTestingPrimitives) CreateTeleportResource(ctx context.Context
 }
 
 func (g *accessListTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	al, err := g.setup.TeleportClient.AccessListClient().GetAccessList(ctx, name)
+	al, err := g.setup.TeleportClient.AccessListClient().GetAccessListV2(ctx,
+		accesslistv1.GetAccessListRequest_builder{
+			Name:  name,
+			Scope: g.setup.OperatorMetadata().Scope,
+		}.Build())
 	return al, trace.Wrap(err)
 }
 
 func (g *accessListTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.TeleportClient.AccessListClient().DeleteAccessList(ctx, name))
+	return trace.Wrap(g.setup.TeleportClient.AccessListClient().DeleteAccessListV2(ctx,
+		accesslistv1.DeleteAccessListRequest_builder{
+			Name:  name,
+			Scope: g.setup.OperatorMetadata().Scope,
+		}.Build()))
 }
 
 func (g *accessListTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
+	var spec accesslist.Spec
+	if g.setup.OperatorMetadata().Scope != "" {
+		spec = newScopedAccessListSpec(time.Time{})
+	} else {
+		spec = newAccessListSpec(time.Time{})
+	}
+
 	accessList := &resourcesv1.TeleportAccessList{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: g.setup.Namespace.Name,
 		},
-		Spec: resourcesv1.TeleportAccessListSpec(newAccessListSpec(time.Time{})),
+		Spec:  resourcesv1.TeleportAccessListSpec(spec),
+		Scope: g.setup.OperatorMetadata().Scope,
 	}
 	return trace.Wrap(g.setup.K8sClient.Create(ctx, accessList))
 }
@@ -141,7 +196,21 @@ func (g *accessListTestingPrimitives) ModifyKubernetesResource(ctx context.Conte
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	accessList.Spec.Grants.Roles = []string{"crane-operator", "forklift-operator"}
+	if accessList.Scope != "" {
+		accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+			{
+				Role:  scopes.QualifiedName{Name: "my-role", Scope: testScope}.String(),
+				Scope: testNestedScope,
+			},
+			{
+				Role:  scopes.QualifiedName{Name: "my-other-role", Scope: testScope}.String(),
+				Scope: testScope,
+			},
+		}
+	} else {
+		accessList.Spec.Grants.Roles = []string{"crane-operator", "forklift-operator"}
+
+	}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, accessList))
 }
 
@@ -165,7 +234,7 @@ func (g *accessListTestingPrimitives) CompareTeleportAndKubernetesResource(tReso
 
 func AccessListCreationTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceCreationSynchronousTest(
+	ResourceCreationSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		t,
 		resources.NewAccessListReconciler,
 		test,
@@ -175,7 +244,7 @@ func AccessListCreationTest(t *testing.T, clt *client.Client) {
 
 func AccessListDeletionTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceDeletionSynchronousTest(
+	ResourceDeletionSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		t,
 		resources.NewAccessListReconciler,
 		test,
@@ -185,7 +254,7 @@ func AccessListDeletionTest(t *testing.T, clt *client.Client) {
 
 func AccessListDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceDeletionDriftSynchronousTest(
+	ResourceDeletionDriftSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		t,
 		resources.NewAccessListReconciler,
 		test,
@@ -195,11 +264,55 @@ func AccessListDeletionDriftTest(t *testing.T, clt *client.Client) {
 
 func AccessListUpdateTest(t *testing.T, clt *client.Client) {
 	test := &accessListTestingPrimitives{}
-	ResourceUpdateTestSynchronous(
+	ResourceUpdateTestSynchronous[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
 		t,
 		resources.NewAccessListReconciler,
 		test,
 		WithTeleportClient(clt),
+	)
+}
+
+func AccessListScopedCreationTest(t *testing.T, clt *client.Client) {
+	test := &accessListTestingPrimitives{}
+	ResourceCreationSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+		WithScope(testScope),
+	)
+}
+
+func AccessListScopedDeletionTest(t *testing.T, clt *client.Client) {
+	test := &accessListTestingPrimitives{}
+	ResourceDeletionSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+		WithScope(testScope),
+	)
+}
+
+func AccessListScopedDeletionDriftTest(t *testing.T, clt *client.Client) {
+	test := &accessListTestingPrimitives{}
+	ResourceDeletionDriftSynchronousTest[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+		WithScope(testScope),
+	)
+}
+
+func AccessListScopedUpdateTest(t *testing.T, clt *client.Client) {
+	test := &accessListTestingPrimitives{}
+	ResourceUpdateTestSynchronous[*accesslist.AccessList, *resourcesv1.TeleportAccessList](
+		t,
+		resources.NewAccessListReconciler,
+		test,
+		WithTeleportClient(clt),
+		WithScope(testScope),
 	)
 }
 
@@ -220,6 +333,7 @@ func AccessListMutateExistingTest(t *testing.T, clt *client.Client) {
 	accessList, err := accesslist.NewAccessList(metadata, spec)
 	require.NoError(t, err)
 	accessList.SetOrigin(types.OriginKubernetes)
+	accessList.Metadata.Labels[reconcilers.OperatorIDLabel] = setup.OperatorMetadata().ID
 	_, err = clt.AccessListClient().UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
