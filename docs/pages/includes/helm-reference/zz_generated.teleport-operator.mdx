@@ -134,6 +134,139 @@ pods run by the chart.
 You can override this to use your own Teleport Kubernetes Operator
 image rather than a Teleport-published image.
 
+## `updater`
+
+`updater` controls whether the Teleport Kube Updater should be deployed alongside
+the operator. The updater fetches the target version, validates the
+image signature, and updates the teleport operator.
+
+The updater fetches the update information using two protocols by querying the Teleport Proxy Service.
+
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+... default to the updater values. However, they can be overridden from the
+`updater` object. For example:
+
+```yaml
+# the operator pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+resources:
+  requests:
+    cpu: "1"
+    memory: "2Gi"
+  limits:
+    memory: "2Gi"
+
+# the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+updater:
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "512Mi"
+    limits: ~
+```
+
+Other updater-specific values that can be defined in `updater` are described
+below.
+
+### `updater.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`updater.enabled` Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+
+### `updater.group`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`updater.group` is the update group used when fetching the version using the webapi protocol.
+When unset, the group defaults to `default`.
+
+### `updater.image`
+
+| Type | Default |
+|------|---------|
+| `string` | `"public.ecr.aws/gravitational/teleport-kube-agent-updater"` |
+
+`updater.image` sets the container image used for Teleport updater
+pods run when `updater.enabled` is true.
+
+You can override this to use your own Teleport Kube Agent Updater image rather
+than a Teleport-published image.
+
+### `updater.serviceAccount`
+
+#### `updater.serviceAccount.name`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`updater.serviceAccount.name` is the updater Kubernetes Service
+Account name. When unset, it defaults to `<kube agent sa name>-updater`
+
+### `updater.pullCredentials`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`updater.pullCredentials` configures how the updater attempts to
+get the image pull credentials used to validate the image signature.
+
+This is not required when pulling images from official public Teleport
+registries (chart's default).
+
+Supported values are `aws`, `google`, `docker` and `none`.
+
+### `updater.extraArgs`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`updater.extraArgs` contains additional arguments to pass to the updater
+binary.
+
+### `updater.extraVolumes`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`updater.extraVolumes` contains extra volumes to mount into the Updater pods.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+updater:
+  extraVolumes:
+  - name: myvolume
+    secret:
+      secretName: testSecret
+```
+
+### `updater.extraVolumeMounts`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`updater.extraVolumeMounts` contains extra volumes mounts for the updater.
+See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+for more details.
+
+For example:
+```yaml
+updater:
+  extraVolumesMounts:
+  - name: myvolume
+    mountPath: /path/on/host
+```
+
 ## `annotations`
 
 ### `annotations.deployment`
