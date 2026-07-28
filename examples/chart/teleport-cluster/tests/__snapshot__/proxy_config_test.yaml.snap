@@ -1,6 +1,6 @@
 generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -30,7 +30,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       version: v3
 generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -56,7 +56,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       version: v3
 generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -86,7 +86,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       version: v3
 generates a config with a clusterName containing a regular string:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -116,7 +116,7 @@ generates a config with a clusterName containing a regular string:
       version: v3
 generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -143,7 +143,7 @@ generates a config with proxy_service.trust_x_forwarded_for=true when version = 
       version: v3
 generates a config with proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled=true:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -170,7 +170,7 @@ generates a config with proxy_service.trust_x_forwarded_for=true when version >=
       version: v3
 matches snapshot for acme-on.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -203,7 +203,7 @@ matches snapshot for acme-on.yaml:
       version: v3
 matches snapshot for acme-uri-staging.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -237,7 +237,7 @@ matches snapshot for acme-uri-staging.yaml:
       version: v3
 matches snapshot for aws-ha-acme.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -271,7 +271,7 @@ matches snapshot for aws-ha-acme.yaml:
       version: v3
 matches snapshot for existing-tls-secret.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -305,7 +305,7 @@ matches snapshot for existing-tls-secret.yaml:
       version: v3
 matches snapshot for log-basic.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -335,7 +335,7 @@ matches snapshot for log-basic.yaml:
       version: v3
 matches snapshot for log-extra.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -365,7 +365,7 @@ matches snapshot for log-extra.yaml:
       version: v3
 matches snapshot for proxy-listener-mode-multiplex.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -391,7 +391,7 @@ matches snapshot for proxy-listener-mode-multiplex.yaml:
       version: v3
 matches snapshot for proxy-listener-mode-separate.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -421,7 +421,7 @@ matches snapshot for proxy-listener-mode-separate.yaml:
       version: v3
 matches snapshot for public-addresses.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -466,7 +466,7 @@ matches snapshot for public-addresses.yaml:
       version: v3
 matches snapshot for separate-mongo-listener.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -498,7 +498,7 @@ matches snapshot for separate-mongo-listener.yaml:
       version: v3
 matches snapshot for separate-postgres-listener.yaml:
   1: |
-    |-
+    |
       auth_service:
         enabled: false
       proxy_service:
@@ -532,7 +532,7 @@ sets clusterDomain on Configmap:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |-
+      teleport.yaml: |
         auth_service:
           enabled: false
         proxy_service:

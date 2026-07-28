@@ -1,0 +1,140 @@
+# Default test fixture: the baseline values every teleport-proxy-lib unit test
+# inherits. Individual tests override only the keys they exercise. This is not
+# documentation of the teleport-proxy-lib interface.
+
+clusterName: ""
+
+teleportVersionOverride: ""
+forceHAReplicas: false
+
+proxyListenerMode: "separate"
+
+chartMode: standalone
+
+teleportConfig: {}
+
+separatePostgresListener: false
+separateMongoListener: false
+
+publicAddr: []
+kubePublicAddr: []
+mongoPublicAddr: []
+mysqlPublicAddr: []
+postgresPublicAddr: []
+sshPublicAddr: []
+tunnelPublicAddr: []
+
+acme: false
+acmeEmail: ""
+acmeURI: ""
+
+enterprise: false
+
+global:
+  clusterDomain: cluster.local
+
+validateConfigOnDeploy: true
+
+highAvailability:
+  requireAntiAffinity: false
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  certManager:
+    enabled: false
+    addCommonName: false
+    addPublicAddrs: false
+    issuerName: ""
+    issuerKind: Issuer
+    issuerGroup: cert-manager.io
+  minReadySeconds: 15
+
+tls:
+  existingSecretName: ""
+  existingCASecretName: ""
+  existingCASecretKeyName: "ca.pem"
+
+image: public.ecr.aws/gravitational/teleport-distroless
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
+imagePullSecrets: []
+imagePullPolicy: IfNotPresent
+
+log:
+  level: INFO
+  output: stderr
+  format: text
+  extraFields: ["timestamp", "level", "component", "caller"]
+
+nodeSelector: {}
+disableTopologySpreadConstraints: false
+topologySpreadConstraints: []
+affinity: {}
+tolerations: []
+
+annotations:
+  config: {}
+  deployment: {}
+  pod: {}
+  service: {}
+  serviceAccount: {}
+  certSecret: {}
+  ingress: {}
+
+extraLabels:
+  certSecret: {}
+  clusterRole: {}
+  clusterRoleBinding: {}
+  config: {}
+  deployment: {}
+  ingress: {}
+  job: {}
+  jobPod: {}
+  pod: {}
+  podDisruptionBudget: {}
+  secret: {}
+  service: {}
+  serviceAccount: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+service:
+  type: LoadBalancer
+  spec: {}
+
+ingress:
+  enabled: false
+  useExisting: false
+  suppressAutomaticWildcards: false
+  spec: {}
+
+extraArgs: []
+extraEnv: []
+extraContainers: []
+extraVolumes: []
+extraVolumeMounts: []
+initContainers: []
+
+postStart:
+  command: []
+
+resources: {}
+jobResources: {}
+goMemLimitRatio: 0.9
+
+podSecurityContext: {}
+securityContext: {}
+priorityClassName: ""
+probeTimeoutSeconds: 5
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 12
+  successThreshold: 1
+
+terminationGracePeriodSeconds: 60

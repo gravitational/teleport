@@ -1,0 +1,30 @@
+{{- define "teleport-proxy-lib.internal.predeploy_serviceaccount" }}
+# this is a carbon copy of the regular serviceAccount object which is only used to run pre-deploy jobs
+# upon first install of the chart. it will be deleted by Helm after the pre-deploy hooks run, then the
+# regular serviceAccount is created with the same name and exists for the lifetime of the release.
+{{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
+{{- if .Values.validateConfigOnDeploy }}
+{{- if .Values.serviceAccount.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "teleport-proxy-lib.internal.hookServiceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
+    {{- if .Values.extraLabels.serviceAccount }}
+    {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
+    {{- end }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+{{- if .Values.annotations.serviceAccount }}
+  {{- toYaml .Values.annotations.serviceAccount | nindent 4 }}
+{{- end -}}
+{{- if $projectedServiceAccountToken }}
+automountServiceAccountToken: false
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}{{/* predeploy_serviceaccount */}}
