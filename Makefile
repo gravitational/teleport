@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.10.0-dev.probakowski.linux.7
+VERSION=18.10.0-dev.probakowski.linux.8
 
 DOCKER_IMAGE ?= teleport
 
@@ -1958,20 +1958,6 @@ ensure-llvm:
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
-
-else ifeq ($(HOST_OS),windows)
-LLVM_DIR=$(shell vswhere.exe -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath)
-unexport LLVM_DIR
-build-ironrdp-wasm: override CC = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/clang
-build-ironrdp-wasm: override AR = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/llvm-ar
-
-ensure-llvm:
-	@echo "ensure-llvm windows"
-	@if [[ "x" = "x$(LLVM_DIR)" ]]; then \
-		echo "llvm is required, please install Visual Studio with LLVM component"; \
-		exit 1; \
-	fi
-
 else
 ensure-llvm:
 	@echo "ensure-llvm noop $(OS), $(HOST_OS)"
