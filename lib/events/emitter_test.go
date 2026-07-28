@@ -378,3 +378,26 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 		}
 	})
 }
+
+func TestAsyncEmitterShutdownDrainsQueue(t *testing.T) {
+	ctx := t.Context()
+	counter := eventstest.NewCountingEmitter()
+	emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		Inner:              counter,
+		EnableAuditQueue:   true,
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
+	for _, e := range evts {
+		require.NoError(t, emitter.EmitAuditEvent(ctx, e))
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, emitter.Shutdown(shutdownCtx))
+
+	require.EqualValues(t, len(evts), counter.Count(),
+		"Shutdown should drain every enqueued event to the inner emitter")
+}

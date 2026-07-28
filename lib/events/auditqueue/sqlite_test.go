@@ -1254,7 +1254,9 @@ func TestFetchDeadLetter_QuarantinesCorrupt(t *testing.T) {
 		corruptPayload, time.Now().Unix())
 	require.NoError(t, err)
 
-	items, err := q.fetchDeadLetter(10)
+	maxID, err := q.maxDeadLetterID()
+	require.NoError(t, err)
+	items, err := q.fetchDeadLetterRange(0, maxID, 10)
 	require.NoError(t, err)
 	require.Empty(t, items)
 
