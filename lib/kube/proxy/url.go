@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -100,6 +101,7 @@ type apiResource struct {
 	resourceName    string
 	skipEvent       bool
 	isWatch         bool
+	isProxyVerb     bool
 }
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
@@ -158,10 +160,15 @@ func parseResourcePath(p string) apiResource {
 		return r
 	}
 
-	// Watch API endpoints have an extra /watch/ prefix. For now, silently
-	// strip it from our result.
-	if len(parts) > 0 && parts[0] == "watch" {
+	// Special verb endpoints carry the verb in a segment ahead of the resource path.
+	// The API server consumes that segment and parses the rest as a normal resource path, so we do the same.
+	// See specialVerbs in https://github.com/kubernetes/apiserver/blob/master/pkg/endpoints/request/requestinfo.go
+	switch {
+	case len(parts) > 0 && parts[0] == "watch":
 		r.isWatch = true
+		parts = parts[1:]
+	case len(parts) > 1 && parts[0] == "proxy":
+		r.isProxyVerb = true
 		parts = parts[1:]
 	}
 
@@ -292,7 +299,7 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 	}
 	out.resourceDefinition = &resource
 
-	if apiResource.resourceName == "" && out.verb != types.KubeVerbCreate {
+	if apiResource.resourceName == "" && !slices.Contains([]string{types.KubeVerbCreate, types.KubeVerbProxy}, out.verb) {
 		// if the resource is supported but the resource name is not present and not a create request,
 		// return nil because it's a list request.
 		out.isList = true
@@ -410,6 +417,10 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 }
 
 func (r apiResource) getVerb(req *http.Request) string {
+	if r.isProxyVerb {
+		return types.KubeVerbProxy
+	}
+
 	verb := ""
 	isWatch := isKubeWatchRequest(req, r)
 	switch r.resourceKind {
