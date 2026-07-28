@@ -287,7 +287,7 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 		if status == nil {
 			return
 		}
-		if err := sender.Send(h.CloseContext(), &proto.InventoryHeartbeat{AuditQueue: status}); err != nil && !errors.Is(err, context.Canceled) {
+		if err := sender.Send(h.CloseContext(), proto.InventoryHeartbeat_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
 			slog.WarnContext(h.CloseContext(), "Failed to send audit queue status", "error", err)
 		}
 	}
