@@ -119,6 +119,16 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/api/v1/namespaces/default/services/https:svc:/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
 		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/healthz", resourceName: "foo"}},
 		{path: "/api/v1/nodes/https:node-1:10250/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
+		// The "special verb" form puts the verb ahead of the resource path.
+		// The verb segment is consumed and the remainder parses like any other resource path.
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1/extra/path", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles/extra/path", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/api/v1/proxy/namespaces/default/pods/foo", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods", resourceName: "foo", isProxyVerb: true}},
+		// A bare verb segment carries no resource path.
+		// The API server rejects it, so keep it as a kind the cluster doesn't serve rather than a resource-less request.
+		{path: "/apis/resources.teleport.dev/v6/proxy", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "proxy"}},
 	}
 
 	for _, tt := range tests {
@@ -271,6 +281,13 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1"), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1beta2/namespaces/default/deployments", body: bodyFunc("Deployment", "apps/v1beta2"), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
 		{path: "/apis/apps/v1/namespaces/default/deployments", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: "apps"}},
+		// The "special verb" form resolves to the kind the path targets and takes its
+		// verb from the path, not from the HTTP method.
+		{path: "/apis/apps/v1/proxy/namespaces/default/deployments/foo", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: "apps"}},
+		{path: "/apis/apps/v1/proxy/namespaces/default/deployments/foo/extra/path", want: &types.KubernetesResource{Kind: "deployments", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: "apps"}},
+		// A bare verb segment names no kind the cluster serves, so no RBAC resource
+		// is built and the forwarder denies the request.
+		{path: "/apis/apps/v1/proxy", want: nil},
 
 		// Statefulsets
 		{path: "/apis/apps/v1/statefulsets", want: &types.KubernetesResource{Kind: "statefulsets", Verbs: []string{"list"}, APIGroup: "apps"}},
@@ -369,6 +386,41 @@ func Test_getResourceFromRequest(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got.rbacResource(), "parsing path %q", tt.path)
+		})
+	}
+}
+
+// The special verb form takes its verb from the path rather than the HTTP method,
+// and is always enforced as a single resource.
+// Treating a name-less request as a list would skip the kubernetes_resources matcher.
+func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
+	t.Parallel()
+	details := &kubeDetails{kubeCodecs: &globalKubeCodecs, rbacSupportedTypes: getRBACSupportedTypes(t)}
+
+	const (
+		named    = "/apis/apps/v1/proxy/namespaces/default/deployments/foo"
+		nameless = "/apis/apps/v1/proxy/namespaces/default/deployments"
+	)
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: named},
+		{method: http.MethodPost, path: named},
+		{method: http.MethodPut, path: named},
+		{method: http.MethodPatch, path: named},
+		{method: http.MethodDelete, path: named},
+		{method: http.MethodGet, path: nameless},
+		{method: http.MethodDelete, path: nameless},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			got, err := getResourceFromRequest(&http.Request{Method: tt.method, URL: &url.URL{Path: tt.path}}, details)
+			require.NoError(t, err)
+			require.False(t, got.unsupportedResource)
+			require.False(t, got.isList)
+			require.Equal(t, types.KubeVerbProxy, got.verb)
 		})
 	}
 }

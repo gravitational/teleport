@@ -4460,22 +4460,6 @@ func TestProxySubresourceRBAC(t *testing.T) {
 		Verbs: []string{"get"}, APIGroup: types.Wildcard,
 	}}, nil)
 
-	sendGet := func(t *testing.T, user types.User, urlPath string, opts ...GenTestKubeClientTLSCertOptions) (int, string) {
-		t.Helper()
-		_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster, opts...)
-		transport, err := rest.TransportFor(cfg)
-		require.NoError(t, err)
-		client := &http.Client{Transport: transport}
-		req, err := http.NewRequestWithContext(testCtx.Context, http.MethodGet, cfg.Host+urlPath, nil)
-		require.NoError(t, err)
-		resp, err := client.Do(req)
-		require.NoError(t, err)
-		t.Cleanup(func() { resp.Body.Close() })
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		return resp.StatusCode, string(body)
-	}
-
 	tests := []struct {
 		name         string
 		user         types.User
@@ -4532,7 +4516,7 @@ func TestProxySubresourceRBAC(t *testing.T) {
 				opts = makeScopedOpts(t, testCtx, tt.user.GetName(), scope)
 			}
 			t.Run(fmt.Sprintf("%s scoped=%t", tt.name, scoped), func(t *testing.T) {
-				code, body := sendGet(t, tt.user, tt.urlPath, opts...)
+				code, body := sendKubeGet(t, testCtx, tt.user, tt.urlPath, opts...)
 				require.Equal(t, tt.wantCode, code, "body: %s", body)
 				require.Contains(t, body, tt.bodyContains)
 			})
@@ -4561,4 +4545,110 @@ func toScopedKubeResource(resource types.KubernetesResource) *accessv1.KubeResou
 
 func scopedUsername(username string) string {
 	return "scoped-" + username
+}
+
+// TestProxySpecialVerbPathRBAC verifies that the Kubernetes "special verb" URL form,
+// where a proxy segment precedes the resource path
+// (/apis/{group}/{version}/proxy/namespaces/{ns}/{kind}/{name}),
+// is parsed as the resource it targets and enforced with the KubeVerbProxy verb,
+// instead of being rejected as a resource kind the cluster doesn't serve.
+func TestProxySpecialVerbPathRBAC(t *testing.T) {
+	const (
+		basePath     = "/apis/resources.teleport.dev/v6"
+		resourceKind = "teleportroles"
+		resourceName = "telerole-1"
+	)
+	_, testCtx := newTestKubeCRDMock(t, "", tkm.WithTeleportRoleCRD)
+
+	newUser := func(name string, resources []types.KubernetesResource) types.User {
+		u, _ := testCtx.CreateUserAndRole(testCtx.Context, t, name, RoleSpec{
+			Name:          name,
+			KubeUsers:     roleKubeUsers,
+			KubeGroups:    roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) { r.SetKubeResources(types.Allow, resources) },
+		})
+		return u
+	}
+
+	proxyUser := newUser("crd-proxy", []types.KubernetesResource{{
+		Kind: types.Wildcard, APIGroup: "*.teleport.dev", Namespace: types.Wildcard, Name: types.Wildcard,
+		Verbs: []string{types.KubeVerbGet, types.KubeVerbList, types.KubeVerbProxy},
+	}})
+	// Same resources, no proxy verb.
+	getUser := newUser("crd-get", []types.KubernetesResource{{
+		Kind: resourceKind, APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard,
+		Verbs: []string{types.KubeVerbGet, types.KubeVerbList},
+	}})
+	// Negative control: the proxy verb, but on a different kind.
+	otherKindUser := newUser("crd-other-kind", []types.KubernetesResource{{
+		Kind: "pods", APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard,
+		Verbs: []string{types.KubeVerbProxy},
+	}})
+
+	const proxyPath = basePath + "/proxy/namespaces/default/" + resourceKind + "/" + resourceName
+
+	tests := []struct {
+		name         string
+		user         types.User
+		urlPath      string
+		wantCode     int
+		bodyContains string
+	}{
+		{
+			// Before the fix this failed with a 404 no role could allow,
+			// because the verb segment was folded into the resource kind.
+			name:         "allowed_with_proxy_verb",
+			user:         proxyUser,
+			urlPath:      proxyPath,
+			wantCode:     http.StatusOK,
+			bodyContains: resourceName,
+		},
+		{
+			name:         "denied_without_proxy_verb",
+			user:         getUser,
+			urlPath:      proxyPath,
+			wantCode:     http.StatusForbidden,
+			bodyContains: `User \"crd-get\" cannot proxy resource \"` + resourceKind,
+		},
+		{
+			name:         "denied_proxy_verb_on_other_kind",
+			user:         otherKindUser,
+			urlPath:      proxyPath,
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			// The plain resource path is unaffected. It still uses the method-derived verb.
+			name:         "plain_get_still_allowed",
+			user:         getUser,
+			urlPath:      basePath + "/namespaces/default/" + resourceKind + "/" + resourceName,
+			wantCode:     http.StatusOK,
+			bodyContains: resourceName,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, body := sendKubeGet(t, testCtx, tt.user, tt.urlPath)
+			require.Equal(t, tt.wantCode, code, "body: %s", body)
+			require.Contains(t, body, tt.bodyContains)
+		})
+	}
+}
+
+// sendKubeGet issues a raw GET against the kube proxy as the given user and returns the status code and body.
+// Raw HTTP rather than a typed client, so arbitrary URL paths can be exercised.
+func sendKubeGet(t *testing.T, testCtx *TestContext, user types.User, urlPath string, opts ...GenTestKubeClientTLSCertOptions) (int, string) {
+	t.Helper()
+	_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster, opts...)
+	transport, err := rest.TransportFor(cfg)
+	require.NoError(t, err)
+	client := &http.Client{Transport: transport}
+	req, err := http.NewRequestWithContext(testCtx.Context, http.MethodGet, cfg.Host+urlPath, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { resp.Body.Close() })
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, string(body)
 }
