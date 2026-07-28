@@ -69,7 +69,7 @@ func (r accessListClient) Mutate(_ context.Context, new, existing *accesslist.Ac
 }
 
 // NewAccessListReconciler instantiates a new Kubernetes controller reconciling access_list resources
-func NewAccessListReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+func NewAccessListReconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	accessListClient := &accessListClient{
 		teleportClient: tClient,
 	}
