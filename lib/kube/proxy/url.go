@@ -219,6 +219,16 @@ func parseResourcePath(p string) apiResource {
 			}
 		}
 	}
+
+	// The core API accepts [scheme:]name[:port] in the name segment of its pods/services/nodes proxy endpoints,
+	// so the special verb form has to be normalized the same way the subresource form above is.
+	// Otherwise a rule naming the resource stops matching once a scheme or port is supplied.
+	if r.isProxyVerb && r.apiGroup == "" {
+		switch getResourceFromAPIResource(r.resourceKind) {
+		case "pods", "services", "nodes":
+			r.resourceName = stripProxyNamePortScheme(r.resourceName)
+		}
+	}
 	return r
 }
 
