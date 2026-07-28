@@ -250,16 +250,6 @@ func TestNewAuditQueueSealer(t *testing.T) {
 	})
 }
 
-func requireRecipientKey(t *testing.T, recipients []age.Recipient, pubKeyDER []byte) {
-	t.Helper()
-	require.Len(t, recipients, 1)
-	parsed, err := x509.ParsePKIXPublicKey(pubKeyDER)
-	require.NoError(t, err)
-	recipient, ok := recipients[0].(*AuditQueueRecipient)
-	require.True(t, ok)
-	require.True(t, recipient.PublicKey.Equal(parsed.(*rsa.PublicKey)))
-}
-
 func TestAuditQueueSealerSeal(t *testing.T) {
 	ctx := t.Context()
 
@@ -391,38 +381,6 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, sealed)
 		require.Equal(t, plaintext, decrypt(t, keyA, payload))
-	})
-
-	t.Run("recipients are memoized by config revision", func(t *testing.T) {
-		pubA := testRSAPublicKeyDER(t)
-		pubB := testRSAPublicKeyDER(t)
-
-		srcA := encryptedSRC(t, true, pubA)
-		srcA.SetRevision("1")
-		getter := &swappableSRCGetter{src: srcA}
-		sealer, err := NewAuditQueueSealer(ctx, getter)
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
-
-		currentRecipients := func(t *testing.T) []age.Recipient {
-			t.Helper()
-			state, err := sealer.encryptionState()
-			require.NoError(t, err)
-			return state.recipients
-		}
-		requireRecipientKey(t, currentRecipients(t), pubA)
-
-		srcB := encryptedSRC(t, true, pubB)
-		srcB.SetRevision("1")
-		getter.set(srcB, nil)
-		require.NoError(t, sealer.refresh(ctx))
-		requireRecipientKey(t, currentRecipients(t), pubA)
-
-		srcB2 := encryptedSRC(t, true, pubB)
-		srcB2.SetRevision("2")
-		getter.set(srcB2, nil)
-		require.NoError(t, sealer.refresh(ctx))
-		requireRecipientKey(t, currentRecipients(t), pubB)
 	})
 
 	t.Run("seal does not block on a blocked getter", func(t *testing.T) {

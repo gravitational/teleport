@@ -1,5 +1,5 @@
 ---
-authors: Rafał Cieślak (rafal.cieslak@goteleport.com)
+authors: Maja Cieślak (maja.cieslak@goteleport.com)
 state: draft
 ---
 

@@ -55,6 +55,25 @@ func (q QualifiedName) String() string {
 	return q.Scope + QualifiedNameSeparator + q.Name
 }
 
+// Set sets a possible scope qualified name. If the "::" separator is not present,
+// then the scope qualified name will have an empty scope. This implements
+// the flag/kingping Value interface.
+func (q *QualifiedName) Set(val string) error {
+	if !strings.Contains(val, QualifiedNameSeparator) {
+		*q = QualifiedName{Name: val}
+		return nil
+	}
+	sqn, err := ParseQualifiedName(val)
+	if err != nil {
+		return err
+	}
+	if err := sqn.StrongValidate(); err != nil {
+		return err
+	}
+	*q = sqn
+	return nil
+}
+
 // StrongValidate validates this QualifiedName using strong validation rules. This method
 // *must* be called on all QualifiedName values derived from user input and/or cluster-external
 // sources. Use [QualifiedName.WeakValidate] when checking values from the control plane in
@@ -64,7 +83,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := StrongValidateSegment(q.Name); err != nil {
+	if err := StrongValidateResourceName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 
@@ -93,19 +112,24 @@ func (q QualifiedName) WeakValidate() error {
 	return nil
 }
 
+// MaybeSQN returns true if the given string *might* be a scope-qualified name. This function is intended to be used
+// for testing fields that may contain a mix of scope-qualified and unscoped names. Generally, any string that trips
+// this check should be considered to have been intended to be an SQN by the user, and treated as a typo if it fails
+// to parse as one.
+func MaybeSQN(s string) bool {
+	return strings.HasPrefix(s, separator) || strings.Contains(s, QualifiedNameSeparator)
+}
+
 // ParseQualifiedName parses a scope-qualified name string into its scope and name
 // components by splitting on the first occurrence of "::". Returns an error if the
 // separator is absent or either component is empty. This function does not validate
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	idx := strings.Index(sqn, QualifiedNameSeparator)
-	if idx < 0 {
+	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
+	if !ok {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
-
-	scope := sqn[:idx]
-	name := sqn[idx+len(QualifiedNameSeparator):]
 
 	if scope == "" {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)

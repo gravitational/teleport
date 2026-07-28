@@ -4715,6 +4715,10 @@ enum OSType {
   OS_TYPE_MACOS = 2;
   // Windows.
   OS_TYPE_WINDOWS = 3;
+  // iOS.
+  OS_TYPE_IOS = 4;
+  // iPadOS.
+  OS_TYPE_IPADOS = 5;
 }
 
 // DeviceOrigin is the same as teleport.devicetrust.v1.DeviceOrigin.

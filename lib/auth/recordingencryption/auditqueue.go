@@ -55,7 +55,6 @@ type AuditQueueSealer struct {
 	mu           sync.Mutex
 	initialized  bool
 	fetchFailing bool
-	revision     string
 	encrypted    bool
 	recipients   []age.Recipient
 }
@@ -233,12 +232,6 @@ func (s *AuditQueueSealer) applyConfig(config types.SessionRecordingConfig) erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	revision := config.GetRevision()
-	if s.initialized && revision != "" && revision == s.revision {
-		s.fetchFailing = false
-		return nil
-	}
-
 	encrypted, recipients, err := parseRecipients(config)
 	if err != nil {
 		return trace.Wrap(err)
@@ -246,7 +239,6 @@ func (s *AuditQueueSealer) applyConfig(config types.SessionRecordingConfig) erro
 
 	s.initialized = true
 	s.fetchFailing = false
-	s.revision = revision
 	s.encrypted = encrypted
 	s.recipients = recipients
 	return nil
