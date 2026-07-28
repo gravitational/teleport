@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
@@ -762,4 +763,43 @@ func NewUserAssignedIdentity(subscription, resourceGroupName, resourceName, clie
 			ClientID: &clientID,
 		},
 	}
+}
+
+// ARMNetworkMock mocks armnetwork.InterfacesClient.
+type ARMNetworkMock struct {
+	// NetworkInterfaces maps resource group name to the standalone NICs in it.
+	NetworkInterfaces map[string][]*armnetwork.Interface
+	// VMSSNetworkInterfaces maps "<resourceGroup>/<scaleSetName>" to the NICs
+	// of that uniform scale set.
+	VMSSNetworkInterfaces map[string][]*armnetwork.Interface
+	// VMSSListErrs maps scale set names to an error returned when listing
+	// that scale set's NICs.
+	VMSSListErrs map[string]error
+	NoAuth       bool
+}
+
+// Fail if ARMNetworkMock does not implement networkInterfacesLister.
+var _ networkInterfacesLister = (*ARMNetworkMock)(nil)
+
+func (m *ARMNetworkMock) NewListPager(resourceGroup string, _ *armnetwork.InterfacesClientListOptions) *runtime.Pager[armnetwork.InterfacesClientListResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListResponse, error) {
+		return armnetwork.InterfacesClientListResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: m.NetworkInterfaces[resourceGroup],
+			},
+		}, nil
+	})
+}
+
+func (m *ARMNetworkMock) NewListVirtualMachineScaleSetNetworkInterfacesPager(resourceGroup, scaleSetName string, _ *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) *runtime.Pager[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse, error) {
+		if err := m.VMSSListErrs[scaleSetName]; err != nil {
+			return armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{}, err
+		}
+		return armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: m.VMSSNetworkInterfaces[resourceGroup+"/"+scaleSetName],
+			},
+		}, nil
+	})
 }
