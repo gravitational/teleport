@@ -6320,29 +6320,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if alpnRouter != nil && !cfg.Proxy.DisableDatabaseProxy {
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolMySQL)),
-				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnection),
+				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnectionWithLimiting),
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),
-				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
+				Handler:   dbProxyServer.MySQLProxy().HandleConnectionWithLimiting,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
-				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
-			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// For the following protocols ALPN Proxy will handle the
-				// connection internally (terminate wrapped TLS traffic) and
-				// route extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(
-					alpncommon.ProtocolMongoDB,
-					alpncommon.ProtocolOracle,
-					alpncommon.ProtocolRedisDB,
-					alpncommon.ProtocolSnowflake,
-					alpncommon.ProtocolSQLServer,
-					alpncommon.ProtocolCassandra,
-					alpncommon.ProtocolSpanner,
-				),
+				Handler:   dbProxyServer.PostgresProxy().HandleConnectionWithLimiting,
 			})
 		}
 
