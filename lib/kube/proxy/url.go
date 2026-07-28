@@ -319,8 +319,8 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 	out.resourceDefinition = &resource
 
 	if apiResource.resourceName == "" && !slices.Contains([]string{types.KubeVerbCreate, types.KubeVerbProxy}, out.verb) {
-		// if the resource is supported but the resource name is not present and not a create request,
-		// return nil because it's a list request.
+		// A missing name means the request targets the whole collection: a list.
+		// Create and proxy are the exceptions. Create has the name in the body, proxy has none.
 		out.isList = true
 		return out, nil
 	}
