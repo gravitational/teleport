@@ -235,6 +235,11 @@ export const test = base.extend<E2EFixtures>({
   },
 });
 
+export function configureNoRetries() {
+  test.describe.configure({ retries: 0 });
+  test.use({ trace: 'retain-on-failure' });
+}
+
 export { expect } from '@playwright/test';
 export type { Locator, Page } from '@playwright/test';
 
