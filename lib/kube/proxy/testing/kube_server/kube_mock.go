@@ -270,6 +270,7 @@ func (s *KubeMockServer) setup() {
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/"+k.plural, s.withWriter(s.listCRDs(crd)))
 		router.Handle("GET /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.getCRD(crd)))
 		router.Handle("DELETE /apis/"+k.group+"/"+k.version+"/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.deleteCRD(crd)))
+		router.Handle("GET /apis/"+k.group+"/"+k.version+"/proxy/namespaces/{namespace}/"+k.plural+"/{name}", s.withWriter(s.getCRD(crd)))
 	}
 
 	router.Handle("GET /version", s.withWriter(s.versionEndpoint))
