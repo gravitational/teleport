@@ -100,6 +100,18 @@ type ApplicationsInternal interface {
 	) ([]backend.ConditionalAction, error)
 }
 
+// TODO(williamo/scopes): remove once dynamic scoped app registration is
+// supported.
+func EnsureNotScopedApp(app types.Application) error {
+	if app == nil {
+		return trace.BadParameter("nil application")
+	}
+	if scope := app.GetScope(); scope != "" {
+		return trace.BadParameter("application %q cannot be created with scope %q: dynamic registration of scoped applications is not supported, remove the scope attribute", app.GetName(), scope)
+	}
+	return nil
+}
+
 // ValidateApp checks an Application's name, public_addr, and
 // required_apps.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {

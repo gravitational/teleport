@@ -45,6 +45,9 @@ struct LandingView: View {
 			}
 			.padding(.horizontal)
 			.background(Color.Background.depth3)
+
+			// MARK: Toolbar
+			
 			.toolbarVisibility(viewModel.shouldShowToolbar ? .visible : .hidden)
 			.toolbar {
 				ToolbarItem {
@@ -55,6 +58,14 @@ struct LandingView: View {
 							role: .destructive,
 							action: viewModel.userTappedForgetAllClusters,
 						)
+						#if DEBUG
+							Divider()
+							Button(
+								"Debug",
+								systemImage: "apple.terminal",
+								action: viewModel.userTappedOnDebugButton,
+							)
+						#endif
 					} label: {
 						Label("Menu", systemImage: "ellipsis")
 					}
@@ -80,6 +91,17 @@ struct LandingView: View {
 			// MARK: Haptics
 
 			.sensoryFeedback(.success, trigger: viewModel.sensoryFeedbackTrigger)
+
+			// MARK: Debug
+
+			// swiftformat:disable indent
+			#if DEBUG
+			.sheet(item: $viewModel.destination.debug, id: \.presentationID) { debugViewModel in
+				DebugView(viewModel: debugViewModel)
+			}
+			#endif
+			// swiftformat:enable indent
+
 		}
 	}
 }
