@@ -175,8 +175,9 @@ start already authenticated without running the UI login flow.
 ### Teleport config
 
 If a test requires a Teleport config different from the base config that e2e tests use by default, it can declare one
-with `test.use({ teleport: { config: {...} } })`. The `config` will be deep merged and with the base config. Each test file may only
-declare up to one custom config. Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
+with `test.use({ teleport: { config: {...} } })`. The `config` is deep merged into the base config. A config can be either be 
+declared at the top of the file (for it to apply to all tests in the file), or inside a specific `test.describe()` block.
+Values are evaluated as a JS object literal, so they must be static (no imports or function calls).
 
 ```ts
 test.use({

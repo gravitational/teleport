@@ -1218,39 +1218,47 @@ func fixtureNames(ff []*fixtures.Fixture) []string {
 	return names
 }
 
-func TestExtractTeleportConfig(t *testing.T) {
+func TestExtractTeleportConfigs(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
-		want    string
+		want    []scopedTeleportConfig
 		wantErr bool
 	}{
 		{
 			name:    "no declaration",
 			content: `test.use({ user: { roles: ['access'] } });`,
-			want:    "",
+			want:    nil,
 		},
 		{
-			name:    "simple config",
+			name:    "file-level config has line 0",
 			content: `test.use({ teleport: { config: { auth_service: { license_file: 'x.pem' } } } });`,
-			want:    `{ auth_service: { license_file: 'x.pem' } }`,
+			want:    []scopedTeleportConfig{{raw: `{ auth_service: { license_file: 'x.pem' } }`, line: 0}},
 		},
 		{
-			name: "config alongside a user",
-			content: `test.use({
-  user: { roles: [{ file: 'r.yaml' }] },
-  teleport: { config: { auth_service: { license_file: 'lic.pem' } } },
+			name: "describe-scoped config carries its line",
+			content: `test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 1 } } });
+  test('x', () => {});
 });`,
-			want: `{ auth_service: { license_file: 'lic.pem' } }`,
+			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 1}},
 		},
 		{
-			name: "same config twice is fine",
+			name: "a file-level and describe-level config can both be defined",
+			content: `test.use({ teleport: { config: { a: 1 } } });
+test.describe('grp', () => {
+  test.use({ teleport: { config: { a: 2 } } });
+});`,
+			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 0}, {raw: `{ a: 2 }`, line: 2}},
+		},
+		{
+			name: "same config twice at file level is fine",
 			content: `test.use({ teleport: { config: { a: 1 } } });
 test.use({ teleport: { config: { a: 1 } } });`,
-			want: `{ a: 1 }`,
+			want: []scopedTeleportConfig{{raw: `{ a: 1 }`, line: 0}, {raw: `{ a: 1 }`, line: 0}},
 		},
 		{
-			name: "two different configs in one file errors",
+			name: "conflicting configs at the same scope errors",
 			content: `test.use({ teleport: { config: { a: 1 } } });
 test.use({ teleport: { config: { a: 2 } } });`,
 			wantErr: true,
@@ -1264,7 +1272,8 @@ test.use({ teleport: { config: { a: 2 } } });`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := extractTeleportConfig(tt.content, "test.spec.ts")
+			blocks := parseBlocks(strings.Split(tt.content, "\n"))
+			got, err := extractTeleportConfigs(tt.content, blocks, "test.spec.ts")
 			if tt.wantErr {
 				require.Error(t, err)
 				return

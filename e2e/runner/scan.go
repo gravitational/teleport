@@ -1133,22 +1133,27 @@ func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, error) {
 			continue
 		}
 
-		raw, err := scanFileTeleportConfig(t.path)
+		configs, err := scanFileTeleportConfig(t.path)
 		if err != nil {
 			return nil, err
 		}
-		if raw == "" {
-			continue
-		}
 
-		key := normalizeConfigText(raw)
-		u, ok := byKey[key]
-		if !ok {
-			u = &uniqueTeleportConfig{raw: raw}
-			byKey[key] = u
-			order = append(order, key)
+		for _, sc := range configs {
+			// Block-scoped configs target their describe and file-level ones target the whole file
+			line := sc.line
+			if line == 0 {
+				line = t.line
+			}
+
+			key := normalizeConfigText(sc.raw)
+			u, ok := byKey[key]
+			if !ok {
+				u = &uniqueTeleportConfig{raw: sc.raw}
+				byKey[key] = u
+				order = append(order, key)
+			}
+			u.files = append(u.files, fileSelector(t.sourceFile, line))
 		}
-		u.files = append(u.files, t.sourceFile)
 	}
 
 	result := make([]uniqueTeleportConfig, 0, len(order))
@@ -1158,20 +1163,26 @@ func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, error) {
 	return result, nil
 }
 
-// scanFileTeleportConfig returns the teleport config object text declared in a
-// test file, or "" if none.
-func scanFileTeleportConfig(path string) (string, error) {
-	cleaned, ok := readCleaned(path)
-	if !ok {
-		return "", nil
-	}
-	return extractTeleportConfig(strings.Join(cleaned, "\n"), path)
+// scopedTeleportConfig is a declared config and its scope line, 0 for a
+// file-level test.use or the describe's line for a block-scoped one
+type scopedTeleportConfig struct {
+	raw  string
+	line int
 }
 
-// extractTeleportConfig pulls the `config` object out of every
-// test.use({ teleport: { config: {...} } }) call in content.
-func extractTeleportConfig(content, path string) (string, error) {
-	var found string
+// scanFileTeleportConfig returns the teleport config object text declared in a
+// test file, or "" if none.
+func scanFileTeleportConfig(path string) ([]scopedTeleportConfig, error) {
+	cleaned, ok := readCleaned(path)
+	if !ok {
+		return nil, nil
+	}
+	return extractTeleportConfigs(strings.Join(cleaned, "\n"), parseBlocks(cleaned), path)
+}
+
+// extractTeleportConfigs returns every declared config with its describe's line (or 0 if it's file-level)
+func extractTeleportConfigs(content string, blocks []blockRange, path string) ([]scopedTeleportConfig, error) {
+	var out []scopedTeleportConfig
 
 	for _, call := range findTestUseCalls(content) {
 		body := content[call.start:call.end]
@@ -1184,17 +1195,23 @@ func extractTeleportConfig(content, path string) (string, error) {
 		teleportBody := body[teleportOpen:teleportClose]
 		configOpen, configClose := findKeyValueAtDepth(teleportBody, "config", '{', '}', 1)
 		if configOpen < 0 {
-			return "", fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
+			return nil, fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
 		}
 
-		raw := teleportBody[configOpen:configClose]
-if found != "" && strings.Join(strings.Fields(found), " ") != strings.Join(strings.Fields(raw), " ") {
-      return "", fmt.Errorf("%s: a test file may only declare one teleport config", path)
-}
-found = raw
+		sc := scopedTeleportConfig{raw: teleportBody[configOpen:configClose]}
+		if b := smallestEnclosingBlock(call.start, blocks); b != nil {
+			sc.line = b.start
+		}
+
+		for _, existing := range out {
+			if existing.line == sc.line && normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) {
+				return nil, fmt.Errorf("%s: conflicting teleport configs declared at the same scope", path)
+			}
+		}
+		out = append(out, sc)
 	}
 
-	return found, nil
+	return out, nil
 }
 
 // normalizeConfigText gets rid of whitespace.
@@ -1224,15 +1241,22 @@ func defaultConfigFiles(targets []scanTarget, configs []uniqueTeleportConfig) []
 	configured := make(map[string]bool)
 	for _, c := range configs {
 		for _, f := range c.files {
-			configured[f] = true
+			configured[lineNumberSuffixRe.ReplaceAllString(f, "")] = true
 		}
 	}
 
 	var out []string
 	for _, t := range targets {
 		if t.sourceFile != "" && !configured[t.sourceFile] {
-			out = append(out, t.sourceFile)
+			out = append(out, fileSelector(t.sourceFile, t.line))
 		}
 	}
 	return out
+}
+
+func fileSelector(sourceFile string, line int) string {
+	if line > 0 {
+		return fmt.Sprintf("%s:%d", sourceFile, line)
+	}
+	return sourceFile
 }
