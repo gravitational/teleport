@@ -4415,6 +4415,21 @@ func TestApps(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	// Clients can't create/update scoped apps right now.
+	// TODO (williamo/scopes) - delete this check when dynamic scoped app registration is supported.
+	scopedApp := adminApp.Copy()
+	scopedApp.SetName("scoped")
+	scopedApp.Scope = "/prod"
+	err = adminClt.CreateApp(ctx, scopedApp)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	require.ErrorContains(t, err, "dynamic registration of scoped applications is not supported")
+
+	scopedAdminApp := adminApp.Copy()
+	scopedAdminApp.Scope = "/prod"
+	err = adminClt.UpdateApp(ctx, scopedAdminApp)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	require.ErrorContains(t, err, "dynamic registration of scoped applications is not supported")
+
 	// Clients can't create/update apps for the beams service.
 	adminApp.GetMetadata().Labels["teleport.internal/beams/app-type"] = "llm"
 	err = adminClt.UpdateApp(ctx, adminApp)

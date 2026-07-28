@@ -7407,6 +7407,10 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Reject scoped apps before the rest of validation
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	// Validate before the label-matching access check so callers with
 	// the correct role see input errors rather than access-denied from
 	// a label mismatch on a malformed app.
@@ -7431,6 +7435,13 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 // UpdateApp updates existing application resource.
 func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
 		return trace.Wrap(err)
 	}
 	// Validate before the GetApp existence check so a malformed name
