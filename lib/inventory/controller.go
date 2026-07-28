@@ -624,8 +624,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
-				if m.AuditQueue != nil {
-					handle.setAuditQueueStatus(m.AuditQueue)
+				if m.HasAuditQueue() {
+					handle.setAuditQueueStatus(m.GetAuditQueue())
 				}
 
 			case *proto.UpstreamInventoryPong:
