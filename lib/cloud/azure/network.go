@@ -19,12 +19,14 @@ package azure
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 )
 
@@ -142,7 +144,7 @@ func (c *networkInterfacesClient) listStandardAndFlexibleNICs(ctx context.Contex
 
 func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, resourceGroup string, scaleSetNames []string) []*NetworkInterface {
 	var allNICs []*NetworkInterface
-	for _, scaleSetName := range scaleSetNames {
+	for _, scaleSetName := range slices.DeduplicateKey(scaleSetNames, strings.ToLower) {
 		pager := newAPIPager(
 			c.networkInterfacesLister.NewListVirtualMachineScaleSetNetworkInterfacesPager(resourceGroup, scaleSetName, nil),
 			func(resp armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse) []*armnetwork.Interface {
