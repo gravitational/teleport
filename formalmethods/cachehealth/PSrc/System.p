@@ -21,7 +21,8 @@ machine MetricBug {
 }
 
 machine Metric {
-    var health: map[machine, bool];
+    var live: set[machine];
+    var healthy: set[machine];
 
     start state Init {
         entry {
@@ -31,30 +32,26 @@ machine Metric {
 
     state Reporting {
         on eReport do (r: (who: machine, healthy: bool)) {
-            health[r.who] = r.healthy;
+            live += (r.who);
+            if (r.healthy) {
+                healthy += (r.who);
+            } else {
+                healthy -= (r.who);
+            }
             announce eMetricChanged, anyHealthy();
         }
 
         on eDeregister do (who: machine) {
-            health -= who;
+            live -= (who);
+            healthy -= (who);
             announce eMetricChanged, anyHealthy();
         }
     }
 
     fun anyHealthy(): bool {
-        var k: machine;
-
-        // If no cache is up, report healthy. This is a valid state and
-        // alternative to deleting this metric.
-        if (sizeof(health) == 0) {
-            return true;
-        }
-
         // If any cache is is healthy, report healthy status.
-        foreach (k in keys(health)) {
-            if (health[k]) {
-                return true;
-            }
+        if (sizeof(healthy) > 0) {
+            return true;
         }
 
         // If nothing is healthy, then report unhealthy.

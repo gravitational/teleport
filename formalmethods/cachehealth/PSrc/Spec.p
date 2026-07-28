@@ -70,6 +70,6 @@ spec MetricEventuallyConverges observes eCacheDown, eCacheHealth, eMetricChanged
     }
 
     fun expected(): bool {
-        return sizeof(up) == 0 || sizeof(healthyUp) > 0;
+        return sizeof(healthyUp) > 0;
     }
 }
