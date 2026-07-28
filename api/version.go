@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.10.2-dev.pki-domain-db.1"
+const Version = "18.10.2-dev.pki-domain-db.2"
 
 const VersionMajor = 18
 const VersionMinor = 10
 const VersionPatch = 2
-const VersionPreRelease = "dev.pki-domain-db.1"
+const VersionPreRelease = "dev.pki-domain-db.2"
 const VersionMetadata = ""
