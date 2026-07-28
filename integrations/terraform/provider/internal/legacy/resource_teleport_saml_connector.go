@@ -85,7 +85,7 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 
 	id := samlConnectorResource.Metadata.Name
 
-	_, err = r.p.Client().GetSAMLConnector(ctx, id, true)
+	_, err = r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, id, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("SAMLConnector exists in Teleport. Either remove it (tctl rm saml/%v)"+
@@ -115,7 +115,7 @@ func (r resourceTeleportSAMLConnector) Create(ctx context.Context, req tfsdk.Cre
 	}
 	for {
 		tries = tries + 1
-		samlConnectorI, err = r.p.Client().GetSAMLConnector(ctx, id, true)
+		samlConnectorI, err = r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, id, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
@@ -176,7 +176,7 @@ func (r resourceTeleportSAMLConnector) Read(ctx context.Context, req tfsdk.ReadR
 		return
 	}
 
-	samlConnectorI, err := r.p.Client().GetSAMLConnector(ctx, id.Value, true)
+	samlConnectorI, err := r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, id.Value, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -230,7 +230,7 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 	}
 	name := samlConnectorResource.Metadata.Name
 
-	samlConnectorBefore, err := r.p.Client().GetSAMLConnector(ctx, name, true)
+	samlConnectorBefore, err := r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, name, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", err, "saml"))
 		return
@@ -252,7 +252,7 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 	}
 	for {
 		tries = tries + 1
-		samlConnectorI, err = r.p.Client().GetSAMLConnector(ctx, name, true)
+		samlConnectorI, err = r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, name, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 		if err != nil {
 			resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", err, "saml"))
 			return
@@ -312,7 +312,7 @@ func (r resourceTeleportSAMLConnector) Delete(ctx context.Context, req tfsdk.Del
 
 // ImportState imports SAMLConnector state
 func (r resourceTeleportSAMLConnector) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	samlConnector, err := r.p.Client().GetSAMLConnector(ctx, req.ID, true)
+	samlConnector, err := r.p.Client().GetSAMLConnectorWithValidationOptions(ctx, req.ID, true, apitypes.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading SAMLConnector", trace.Wrap(err), "saml"))
 		return

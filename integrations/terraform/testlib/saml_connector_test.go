@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -157,17 +158,96 @@ func (s *TerraformSuiteEnterprise) TestImportSAMLConnector() {
 }
 
 func (s *TerraformSuiteEnterprise) TestSAMLConnectorWithEntityDescriptorURL() {
-	s.T().Skip("TODO(hugoShaka): fix test")
-	// Start test HTTP server that returns SAML descriptor.
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var unavailable atomic.Bool
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if unavailable.Load() {
+			http.NotFound(w, nil)
+			return
+		}
 		fmt.Fprintln(w, testDescriptor)
 	}))
 	s.T().Cleanup(httpServer.Close)
+
+	name := "teleport_saml_connector.test"
+	metadataURL := httpServer.URL + "/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"
+	config := s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", httpServer.URL)
+
 	resource.Test(s.T(), resource.TestCase{
 		ProtoV6ProviderFactories: s.terraformProviders,
 		Steps: []resource.TestStep{
 			{
-				Config: s.getFixture("saml_connector_0_create_with_entitydescriptorurl.tf", httpServer.URL),
+				Config: config,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "saml"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "spec.acs", "https://example.com/v1/webapi/saml/acs"),
+					resource.TestCheckResourceAttr(name, "spec.entity_descriptor_url", metadataURL),
+				),
+			},
+			{
+				PreConfig: func() {
+					unavailable.Store(true)
+				},
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterprise) TestSAMLConnectorDataSourceWithUnavailableEntityDescriptorURL() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+	var unavailable atomic.Bool
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if unavailable.Load() {
+			http.NotFound(w, nil)
+			return
+		}
+		fmt.Fprintln(w, testDescriptor)
+	}))
+	s.T().Cleanup(httpServer.Close)
+
+	const (
+		connectorName = "test_data_source"
+		roleName      = "saml-data-source-role"
+	)
+	metadataURL := httpServer.URL + "/app/exk4d7tmnz9DEaEw85d7/sso/saml/metadata"
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
+	require.NoError(s.T(), err)
+	_, err = s.client.UpsertRole(ctx, role)
+	require.NoError(s.T(), err)
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteRole(ctx, roleName))
+	})
+
+	connector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://example.com/v1/webapi/saml/acs",
+		EntityDescriptorURL:      metadataURL,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "okta-admin", Roles: []string{roleName}},
+		},
+	})
+	require.NoError(s.T(), err)
+	_, err = s.client.CreateSAMLConnector(ctx, connector)
+	require.NoError(s.T(), err)
+	s.T().Cleanup(func() {
+		require.NoError(s.T(), s.client.DeleteSAMLConnector(ctx, connectorName))
+	})
+
+	unavailable.Store(true)
+	name := "data.teleport_saml_connector.test"
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("saml_connector_data_source.tf", metadataURL),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", "saml"),
+					resource.TestCheckResourceAttr(name, "metadata.name", connectorName),
+					resource.TestCheckResourceAttr(name, "spec.acs", "https://example.com/v1/webapi/saml/acs"),
+					resource.TestCheckResourceAttr(name, "spec.entity_descriptor_url", metadataURL),
+				),
 			},
 		},
 	})

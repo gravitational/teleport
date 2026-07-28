@@ -142,6 +142,8 @@ type payload struct {
 	// not specify one in the resource config. The user-provided sub_kind (on
 	// the resource or in state) takes precedence; this is only a fallback.
 	DefaultSubKind string
+	// GetMethodAdditionalArgs contains arguments appended to non-envelope Get calls.
+	GetMethodAdditionalArgs []string
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -392,7 +394,7 @@ var (
 		Name:                   "SAMLConnector",
 		TypeName:               "SAMLConnectorV2",
 		VarName:                "samlConnector",
-		GetMethod:              "GetSAMLConnector",
+		GetMethod:              "GetSAMLConnectorWithValidationOptions",
 		CreateMethod:           "CreateSAMLConnector",
 		UpdateMethod:           "UpsertSAMLConnector",
 		UpsertMethodArity:      2,
@@ -403,6 +405,9 @@ var (
 		HasStaticID:            true,
 		TerraformResourceType:  "teleport_saml_connector",
 		HasCheckAndSetDefaults: true,
+		GetMethodAdditionalArgs: []string{
+			"apitypes.SAMLConnectorValidationFollowURLs(false)",
+		},
 	}
 
 	samlIdPServiceProvider = payload{

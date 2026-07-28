@@ -1,8 +1,8 @@
-resource "teleport_role" "admin" {
+resource "teleport_role" "test" {
   version = "v7"
   metadata = {
-    name        = "admin"
-    description = "admin role"
+    name        = "saml-test-role"
+    description = "SAML connector test role"
     expires     = "2032-12-12T00:00:00Z"
   }
 
@@ -25,7 +25,7 @@ resource "teleport_saml_connector" "test" {
   spec = {
     attributes_to_roles = [{
       name  = "groups"
-      roles = ["admin"]
+      roles = ["saml-test-role"]
       value = "okta-admin"
     }]
 
