@@ -73,6 +73,23 @@ func TestListWorkloadIdentities(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
+	scopedName := uuid.New().String()
+
+	_, err = env.server.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: scopedName,
+		}.Build(),
+		Scope: "/staging",
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: "/staging/_/svc",
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code")
@@ -80,7 +97,8 @@ func TestListWorkloadIdentities(t *testing.T) {
 	var instances ListWorkloadIdentitiesResponse
 	require.NoError(t, json.Unmarshal(response.Bytes(), &instances), "invalid response received")
 
-	assert.Len(t, instances.Items, 1)
+	assert.Len(t, instances.Items, 2)
+	// Scoped identities sort after unscoped ones in the name-ordered stream.
 	require.Empty(t, cmp.Diff(instances, ListWorkloadIdentitiesResponse{
 		Items: []WorkloadIdentity{
 			{
@@ -91,6 +109,11 @@ func TestListWorkloadIdentities(t *testing.T) {
 					"label-1": "value-1",
 					"label-2": "value-2",
 				},
+			},
+			{
+				Name:     scopedName,
+				Scope:    "/staging",
+				SpiffeID: "/staging/_/svc",
 			},
 		},
 	}))

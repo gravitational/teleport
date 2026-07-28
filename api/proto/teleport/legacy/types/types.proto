@@ -74,6 +74,8 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // The scope the resource being kept alive belongs to.
+  string scope = 11;
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -8454,6 +8456,8 @@ message PluginEntraIDStatusV1 {
   uint32 imported_users = 1;
   // imported_groups is the number of groups imported from Entra ID.
   uint32 imported_groups = 2;
+  // SyncMode indicates `full` or `delta` sync mode used in the latest sync.
+  string sync_mode = 3;
 }
 
 enum PluginStatusCode {
