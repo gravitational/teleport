@@ -88,7 +88,7 @@ func marshalTestBatch(t *testing.T, index int64) []byte {
 	t.Helper()
 	oneOf, err := apievents.ToOneOf(newTestEvent(index))
 	require.NoError(t, err)
-	payload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
+	payload, err := encodeBatch([]*apievents.OneOf{oneOf})
 	require.NoError(t, err)
 	return payload
 }
@@ -1377,10 +1377,7 @@ func TestRecoverCorruptEvents(t *testing.T) {
 
 	// A valid payload that now deserializes, as if written by a newer binary
 	// and quarantined before an upgrade made it readable.
-	oneOf, err := apievents.ToOneOf(newTestEvent(7))
-	require.NoError(t, err)
-	validPayload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
-	require.NoError(t, err)
+	validPayload := marshalTestBatch(t, 7)
 	_, err = q.db.Exec(
 		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'was unknown event type', 'audit_queue', ?)",
 		validPayload, time.Now().Unix())
@@ -1446,10 +1443,7 @@ func TestRecoverCorruptEvents_WatermarkAdvances(t *testing.T) {
 
 	// A recoverable row inserted after the first pass gets a higher id, so it
 	// lands above the watermark and is picked up on the next pass.
-	oneOf, err := apievents.ToOneOf(newTestEvent(7))
-	require.NoError(t, err)
-	validPayload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
-	require.NoError(t, err)
+	validPayload := marshalTestBatch(t, 7)
 	_, err = q.db.Exec(
 		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'was unknown', 'audit_queue', 0)",
 		validPayload)

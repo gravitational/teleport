@@ -19,6 +19,7 @@
 package auditqueue
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -31,6 +32,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/protoadapt"
 	sqlite "modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 
@@ -64,11 +67,11 @@ const (
 )
 
 const (
-	// formatPlaintext marks a row whose payload is a marshaled
-	// apievents.AuditEventBatch.
+	// formatPlaintext marks a row whose payload is a sequence of
+	// apievents.OneOf messages.
 	formatPlaintext = 0
 	// formatAgeV1 marks a row whose payload is an age encrypted
-	// apievents.AuditEventBatch. Such rows cannot be decrypted by this
+	// apievents.OneOf messages. Such rows cannot be decrypted by this
 	// process because the private keys live on the auth server.
 	formatAgeV1 = 1
 )
@@ -336,7 +339,7 @@ func (q *sqliteQueue) commitBatch(batch []writeRequest) error {
 	for _, req := range batch {
 		events = append(events, req.oneOf)
 	}
-	payload, err := (&apievents.AuditEventBatch{Events: events}).Marshal()
+	payload, err := encodeBatch(events)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1058,14 +1061,25 @@ type corruptRow struct {
 	err        error
 }
 
-func decodeBatch(payload []byte) ([]apievents.AuditEvent, error) {
-	var batch apievents.AuditEventBatch
-	if err := batch.Unmarshal(payload); err != nil {
-		return nil, trace.Wrap(err)
+func encodeBatch(events []*apievents.OneOf) ([]byte, error) {
+	var buf bytes.Buffer
+	for _, oneOf := range events {
+		if _, err := protodelim.MarshalTo(&buf, protoadapt.MessageV2Of(oneOf)); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	events := make([]apievents.AuditEvent, 0, len(batch.Events))
-	for _, oneOf := range batch.Events {
-		event, err := apievents.FromOneOf(*oneOf)
+	return buf.Bytes(), nil
+}
+
+func decodeBatch(payload []byte) ([]apievents.AuditEvent, error) {
+	var events []apievents.AuditEvent
+	r := bytes.NewReader(payload)
+	for r.Len() > 0 {
+		var oneOf apievents.OneOf
+		if err := protodelim.UnmarshalFrom(r, protoadapt.MessageV2Of(&oneOf)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		event, err := apievents.FromOneOf(oneOf)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
