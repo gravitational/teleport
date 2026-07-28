@@ -562,7 +562,7 @@ func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServ
 	return server
 }
 
-func TestRangeKubernetesServersWithName(t *testing.T) {
+func TestKubeServersCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -570,18 +570,22 @@ func TestRangeKubernetesServersWithName(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
 
-	presence := NewPresenceService(bk)
+	presence := NewPresenceService(backend.NewSanitizer(bk))
 
 	t.Run("ParameterValidation", func(t *testing.T) {
 		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
 		require.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 
+	const scope = "/aa"
 	server1 := mustCreateKubernetesServer(t, "shared-cluster")
 	server2 := mustCreateKubernetesServer(t, "shared-cluster")
 	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+	server4, ok := server2.Copy().(*types.KubernetesServerV3)
+	require.True(t, ok, "expected types.KubernetesServerV3")
+	server4.Scope = scope
 
-	for _, s := range []types.KubeServer{server1, server2, server3} {
+	for _, s := range []types.KubeServer{server1, server2, server3, server4} {
 		_, err := presence.UpsertKubernetesServer(ctx, s)
 		require.NoError(t, err)
 	}
@@ -589,7 +593,7 @@ func TestRangeKubernetesServersWithName(t *testing.T) {
 	t.Run("MultipleServersSameCluster", func(t *testing.T) {
 		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
 		require.NoError(t, err)
-		require.Len(t, servers, 2)
+		require.Len(t, servers, 3)
 		for _, s := range servers {
 			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
 		}
@@ -608,8 +612,27 @@ func TestRangeKubernetesServersWithName(t *testing.T) {
 		require.Empty(t, servers)
 	})
 
+	t.Run("DeletedServerWithScope", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  scope,
+			HostId: server2.GetHostID(),
+			Name:   server2.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, server := range servers {
+			require.Empty(t, server.GetScope())
+		}
+	})
+
 	t.Run("DeletedServersNotReturned", func(t *testing.T) {
-		err := presence.DeleteKubernetesServer(ctx, server1.GetHostID(), server1.GetName())
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+		}.Build())
 		require.NoError(t, err)
 
 		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
@@ -2227,5 +2250,129 @@ func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 			require.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
 		}
 	}
+}
 
+func TestScopedLease(t *testing.T) {
+	t.Parallel()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = backend.Close() })
+
+	presence := NewPresenceService(backend)
+
+	const scope = "/aa"
+	expires := time.Now().Add(24 * time.Hour)
+	t.Run("kube servers", func(t *testing.T) {
+		ctx := t.Context()
+		unscoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "unscoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "unscoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "unscoped",
+					},
+				},
+			},
+		}
+
+		scoped := &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name:    "scoped",
+				Expires: &expires,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID: "scoped",
+				Cluster: &types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "scoped",
+					},
+				},
+			},
+			Scope: scope,
+		}
+
+		// Create servers, check lease scopes, and try a keepalive
+		lease, err := presence.UpsertKubernetesServer(ctx, unscoped)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+
+		lease, err = presence.UpsertKubernetesServer(ctx, scoped)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+		err = presence.KeepAliveServer(ctx, *lease)
+		require.NoError(t, err)
+	})
+
+	t.Run("nodes", func(t *testing.T) {
+		ctx := t.Context()
+		unscopedNode, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		unscopedNode.SetExpiry(expires)
+
+		const scope = "/aa"
+		scopedNode, err := types.NewServerWithLabels("scoped-node", types.KindNode, types.ServerSpecV2{}, nil)
+		require.NoError(t, err)
+		scopedServer, ok := scopedNode.(*types.ServerV2)
+		require.True(t, ok, "expected types.ServerV2")
+		scopedServer.Scope = scope
+		scopedServer.SetExpiry(expires)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertNode(ctx, unscopedNode)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertNode(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
+
+	t.Run("apps", func(t *testing.T) {
+		ctx := t.Context()
+		expires := time.Now().Add(24 * time.Hour)
+		unscopedApp, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		unscopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    unscopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      unscopedApp,
+		})
+		require.NoError(t, err)
+
+		const scope = "/aa"
+		scopedApp, err := types.NewAppV3(types.Metadata{Name: "graf"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		scopedApp.Scope = scope
+		scopedServer, err := types.NewAppServerV3(types.Metadata{
+			Name:    scopedApp.GetName(),
+			Expires: &expires,
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      scopedApp,
+		})
+		require.NoError(t, err)
+		scopedServer.Scope = scope
+		require.NoError(t, err)
+
+		// Create servers and check lease scopes
+		lease, err := presence.UpsertApplicationServer(ctx, unscopedServer)
+		require.NoError(t, err)
+		require.Empty(t, lease.Scope)
+
+		lease, err = presence.UpsertApplicationServer(ctx, scopedServer)
+		require.NoError(t, err)
+		require.Equal(t, scope, lease.Scope)
+	})
 }

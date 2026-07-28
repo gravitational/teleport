@@ -23,6 +23,7 @@
 package presencev1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -1508,11 +1509,584 @@ func (b0 DeleteAppServerResponse_builder) Build() *DeleteAppServerResponse {
 	return m0
 }
 
+// The request for fetching a specific scoped or unscoped kube cluster resource.
+type GetKubeClusterRequest struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetKubeClusterRequest) Reset() {
+	*x = GetKubeClusterRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKubeClusterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKubeClusterRequest) ProtoMessage() {}
+
+func (x *GetKubeClusterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetKubeClusterRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *GetKubeClusterRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
+func (x *GetKubeClusterRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *GetKubeClusterRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
+type GetKubeClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the kube cluster resource.
+	Name string
+	// The scope the kube cluster resource belongs to. Can be empty.
+	Scope string
+}
+
+func (b0 GetKubeClusterRequest_builder) Build() *GetKubeClusterRequest {
+	m0 := &GetKubeClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
+	return m0
+}
+
+// The response for fetching a kube cluster.
+type GetKubeClusterResponse struct {
+	state              protoimpl.MessageState     `protogen:"opaque.v1"`
+	xxx_hidden_Cluster *types.KubernetesClusterV3 `protobuf:"bytes,1,opt,name=cluster,proto3"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *GetKubeClusterResponse) Reset() {
+	*x = GetKubeClusterResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetKubeClusterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetKubeClusterResponse) ProtoMessage() {}
+
+func (x *GetKubeClusterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetKubeClusterResponse) GetCluster() *types.KubernetesClusterV3 {
+	if x != nil {
+		return x.xxx_hidden_Cluster
+	}
+	return nil
+}
+
+func (x *GetKubeClusterResponse) SetCluster(v *types.KubernetesClusterV3) {
+	x.xxx_hidden_Cluster = v
+}
+
+func (x *GetKubeClusterResponse) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Cluster != nil
+}
+
+func (x *GetKubeClusterResponse) ClearCluster() {
+	x.xxx_hidden_Cluster = nil
+}
+
+type GetKubeClusterResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Cluster *types.KubernetesClusterV3
+}
+
+func (b0 GetKubeClusterResponse_builder) Build() *GetKubeClusterResponse {
+	m0 := &GetKubeClusterResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Cluster = b.Cluster
+	return m0
+}
+
+// The request to list kube cluster resources within the backend.
+type ListKubeClustersRequest struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PageSize    int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
+	xxx_hidden_PageToken   string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
+	xxx_hidden_ScopeFilter *v1.Filter             `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *ListKubeClustersRequest) Reset() {
+	*x = ListKubeClustersRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKubeClustersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKubeClustersRequest) ProtoMessage() {}
+
+func (x *ListKubeClustersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ListKubeClustersRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.xxx_hidden_PageSize
+	}
+	return 0
+}
+
+func (x *ListKubeClustersRequest) GetPageToken() string {
+	if x != nil {
+		return x.xxx_hidden_PageToken
+	}
+	return ""
+}
+
+func (x *ListKubeClustersRequest) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.xxx_hidden_ScopeFilter
+	}
+	return nil
+}
+
+func (x *ListKubeClustersRequest) SetPageSize(v int32) {
+	x.xxx_hidden_PageSize = v
+}
+
+func (x *ListKubeClustersRequest) SetPageToken(v string) {
+	x.xxx_hidden_PageToken = v
+}
+
+func (x *ListKubeClustersRequest) SetScopeFilter(v *v1.Filter) {
+	x.xxx_hidden_ScopeFilter = v
+}
+
+func (x *ListKubeClustersRequest) HasScopeFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_ScopeFilter != nil
+}
+
+func (x *ListKubeClustersRequest) ClearScopeFilter() {
+	x.xxx_hidden_ScopeFilter = nil
+}
+
+type ListKubeClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// Filters kube clusters by scope.
+	ScopeFilter *v1.Filter
+}
+
+func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
+	m0 := &ListKubeClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PageSize = b.PageSize
+	x.xxx_hidden_PageToken = b.PageToken
+	x.xxx_hidden_ScopeFilter = b.ScopeFilter
+	return m0
+}
+
+// The response for listing kube cluster resources within the backend.
+type ListKubeClustersResponse struct {
+	state                    protoimpl.MessageState        `protogen:"opaque.v1"`
+	xxx_hidden_Clusters      *[]*types.KubernetesClusterV3 `protobuf:"bytes,1,rep,name=clusters,proto3"`
+	xxx_hidden_NextPageToken string                        `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *ListKubeClustersResponse) Reset() {
+	*x = ListKubeClustersResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKubeClustersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKubeClustersResponse) ProtoMessage() {}
+
+func (x *ListKubeClustersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ListKubeClustersResponse) GetClusters() []*types.KubernetesClusterV3 {
+	if x != nil {
+		if x.xxx_hidden_Clusters != nil {
+			return *x.xxx_hidden_Clusters
+		}
+	}
+	return nil
+}
+
+func (x *ListKubeClustersResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.xxx_hidden_NextPageToken
+	}
+	return ""
+}
+
+func (x *ListKubeClustersResponse) SetClusters(v []*types.KubernetesClusterV3) {
+	x.xxx_hidden_Clusters = &v
+}
+
+func (x *ListKubeClustersResponse) SetNextPageToken(v string) {
+	x.xxx_hidden_NextPageToken = v
+}
+
+type ListKubeClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of kube clusters that matched the request.
+	Clusters []*types.KubernetesClusterV3
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListKubeClustersResponse_builder) Build() *ListKubeClustersResponse {
+	m0 := &ListKubeClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Clusters = &b.Clusters
+	x.xxx_hidden_NextPageToken = b.NextPageToken
+	return m0
+}
+
+// The request for deleting a specific scoped or unscoped kube cluster resource.
+type DeleteKubeClusterRequest struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DeleteKubeClusterRequest) Reset() {
+	*x = DeleteKubeClusterRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKubeClusterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKubeClusterRequest) ProtoMessage() {}
+
+func (x *DeleteKubeClusterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DeleteKubeClusterRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *DeleteKubeClusterRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
+func (x *DeleteKubeClusterRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *DeleteKubeClusterRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
+type DeleteKubeClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the kube cluster resource.
+	Name string
+	// The scope the kube cluster resource belongs to. Can be empty.
+	Scope string
+}
+
+func (b0 DeleteKubeClusterRequest_builder) Build() *DeleteKubeClusterRequest {
+	m0 := &DeleteKubeClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
+	return m0
+}
+
+// The response for deleting a specific scoped or unscoped kube cluster resource.
+type DeleteKubeClusterResponse struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteKubeClusterResponse) Reset() {
+	*x = DeleteKubeClusterResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKubeClusterResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKubeClusterResponse) ProtoMessage() {}
+
+func (x *DeleteKubeClusterResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteKubeClusterResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteKubeClusterResponse_builder) Build() *DeleteKubeClusterResponse {
+	m0 := &DeleteKubeClusterResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
+// The request to delete a specific scoped or unscoped kube server.
+type DeleteKubeServerRequest struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_HostId string                 `protobuf:"bytes,1,opt,name=host_id,json=hostId,proto3"`
+	xxx_hidden_Name   string                 `protobuf:"bytes,2,opt,name=name,proto3"`
+	xxx_hidden_Scope  string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DeleteKubeServerRequest) Reset() {
+	*x = DeleteKubeServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKubeServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKubeServerRequest) ProtoMessage() {}
+
+func (x *DeleteKubeServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DeleteKubeServerRequest) GetHostId() string {
+	if x != nil {
+		return x.xxx_hidden_HostId
+	}
+	return ""
+}
+
+func (x *DeleteKubeServerRequest) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *DeleteKubeServerRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
+func (x *DeleteKubeServerRequest) SetHostId(v string) {
+	x.xxx_hidden_HostId = v
+}
+
+func (x *DeleteKubeServerRequest) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *DeleteKubeServerRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
+type DeleteKubeServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kube server host uuid.
+	HostId string
+	// The name of the kube server to delete.
+	Name string
+	// The scope of the kube server to delete. Empty for unscoped
+	// servers.
+	Scope string
+}
+
+func (b0 DeleteKubeServerRequest_builder) Build() *DeleteKubeServerRequest {
+	m0 := &DeleteKubeServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_HostId = b.HostId
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
+	return m0
+}
+
+// The response for deleting a kube server.
+type DeleteKubeServerResponse struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteKubeServerResponse) Reset() {
+	*x = DeleteKubeServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteKubeServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteKubeServerResponse) ProtoMessage() {}
+
+func (x *DeleteKubeServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteKubeServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteKubeServerResponse_builder) Build() *DeleteKubeServerResponse {
+	m0 := &DeleteKubeServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 var File_teleport_presence_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/presence/v1/service.proto\x12\x14teleport.presence.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\"-\n" +
+	"\"teleport/presence/v1/service.proto\x12\x14teleport.presence.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a!teleport/legacy/types/types.proto\x1a'teleport/presence/v1/relay_server.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"-\n" +
 	"\x17GetRemoteClusterRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"W\n" +
 	"\x19ListRemoteClustersRequest\x12\x1b\n" +
@@ -1571,7 +2145,29 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x19\n" +
-	"\x17DeleteAppServerResponse2\x8b\v\n" +
+	"\x17DeleteAppServerResponse\"A\n" +
+	"\x15GetKubeClusterRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"N\n" +
+	"\x16GetKubeClusterResponse\x124\n" +
+	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\x94\x01\n" +
+	"\x17ListKubeClustersRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12=\n" +
+	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"z\n" +
+	"\x18ListKubeClustersResponse\x126\n" +
+	"\bclusters\x18\x01 \x03(\v2\x1a.types.KubernetesClusterV3R\bclusters\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"D\n" +
+	"\x18DeleteKubeClusterRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"\x1b\n" +
+	"\x19DeleteKubeClusterResponse\"\\\n" +
+	"\x17DeleteKubeServerRequest\x12\x17\n" +
+	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x1a\n" +
+	"\x18DeleteKubeServerResponse2\xd4\x0e\n" +
 	"\x0fPresenceService\x12Y\n" +
 	"\x10GetRemoteCluster\x12-.teleport.presence.v1.GetRemoteClusterRequest\x1a\x16.types.RemoteClusterV3\x12w\n" +
 	"\x12ListRemoteClusters\x12/.teleport.presence.v1.ListRemoteClustersRequest\x1a0.teleport.presence.v1.ListRemoteClustersResponse\x12_\n" +
@@ -1585,9 +2181,13 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x11DeleteRelayServer\x12..teleport.presence.v1.DeleteRelayServerRequest\x1a/.teleport.presence.v1.DeleteRelayServerResponse\x12n\n" +
 	"\x0fListAuthServers\x12,.teleport.presence.v1.ListAuthServersRequest\x1a-.teleport.presence.v1.ListAuthServersResponse\x12q\n" +
 	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponse\x12n\n" +
-	"\x0fDeleteAppServer\x12,.teleport.presence.v1.DeleteAppServerRequest\x1a-.teleport.presence.v1.DeleteAppServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x0fDeleteAppServer\x12,.teleport.presence.v1.DeleteAppServerRequest\x1a-.teleport.presence.v1.DeleteAppServerResponse\x12k\n" +
+	"\x0eGetKubeCluster\x12+.teleport.presence.v1.GetKubeClusterRequest\x1a,.teleport.presence.v1.GetKubeClusterResponse\x12q\n" +
+	"\x10ListKubeClusters\x12-.teleport.presence.v1.ListKubeClustersRequest\x1a..teleport.presence.v1.ListKubeClustersResponse\x12t\n" +
+	"\x11DeleteKubeCluster\x12..teleport.presence.v1.DeleteKubeClusterRequest\x1a/.teleport.presence.v1.DeleteKubeClusterResponse\x12q\n" +
+	"\x10DeleteKubeServer\x12-.teleport.presence.v1.DeleteKubeServerRequest\x1a..teleport.presence.v1.DeleteKubeServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
-var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*GetRemoteClusterRequest)(nil),    // 0: teleport.presence.v1.GetRemoteClusterRequest
 	(*ListRemoteClustersRequest)(nil),  // 1: teleport.presence.v1.ListRemoteClustersRequest
@@ -1610,54 +2210,75 @@ var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*ListProxyServersResponse)(nil),   // 18: teleport.presence.v1.ListProxyServersResponse
 	(*DeleteAppServerRequest)(nil),     // 19: teleport.presence.v1.DeleteAppServerRequest
 	(*DeleteAppServerResponse)(nil),    // 20: teleport.presence.v1.DeleteAppServerResponse
-	(*types.RemoteClusterV3)(nil),      // 21: types.RemoteClusterV3
-	(*fieldmaskpb.FieldMask)(nil),      // 22: google.protobuf.FieldMask
-	(*types.ReverseTunnelV2)(nil),      // 23: types.ReverseTunnelV2
-	(*RelayServer)(nil),                // 24: teleport.presence.v1.RelayServer
-	(*types.ServerV2)(nil),             // 25: types.ServerV2
-	(*emptypb.Empty)(nil),              // 26: google.protobuf.Empty
+	(*GetKubeClusterRequest)(nil),      // 21: teleport.presence.v1.GetKubeClusterRequest
+	(*GetKubeClusterResponse)(nil),     // 22: teleport.presence.v1.GetKubeClusterResponse
+	(*ListKubeClustersRequest)(nil),    // 23: teleport.presence.v1.ListKubeClustersRequest
+	(*ListKubeClustersResponse)(nil),   // 24: teleport.presence.v1.ListKubeClustersResponse
+	(*DeleteKubeClusterRequest)(nil),   // 25: teleport.presence.v1.DeleteKubeClusterRequest
+	(*DeleteKubeClusterResponse)(nil),  // 26: teleport.presence.v1.DeleteKubeClusterResponse
+	(*DeleteKubeServerRequest)(nil),    // 27: teleport.presence.v1.DeleteKubeServerRequest
+	(*DeleteKubeServerResponse)(nil),   // 28: teleport.presence.v1.DeleteKubeServerResponse
+	(*types.RemoteClusterV3)(nil),      // 29: types.RemoteClusterV3
+	(*fieldmaskpb.FieldMask)(nil),      // 30: google.protobuf.FieldMask
+	(*types.ReverseTunnelV2)(nil),      // 31: types.ReverseTunnelV2
+	(*RelayServer)(nil),                // 32: teleport.presence.v1.RelayServer
+	(*types.ServerV2)(nil),             // 33: types.ServerV2
+	(*types.KubernetesClusterV3)(nil),  // 34: types.KubernetesClusterV3
+	(*v1.Filter)(nil),                  // 35: teleport.scopes.v1.Filter
+	(*emptypb.Empty)(nil),              // 36: google.protobuf.Empty
 }
 var file_teleport_presence_v1_service_proto_depIdxs = []int32{
-	21, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
-	21, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
-	22, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
-	23, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
-	23, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
-	24, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
-	24, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
-	25, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
-	25, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
-	0,  // 9: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
-	1,  // 10: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
-	3,  // 11: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
-	4,  // 12: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
-	5,  // 13: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
-	7,  // 14: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
-	8,  // 15: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
-	9,  // 16: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
-	11, // 17: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
-	13, // 18: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
-	15, // 19: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
-	17, // 20: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
-	19, // 21: teleport.presence.v1.PresenceService.DeleteAppServer:input_type -> teleport.presence.v1.DeleteAppServerRequest
-	21, // 22: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
-	2,  // 23: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
-	21, // 24: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
-	26, // 25: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
-	6,  // 26: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
-	23, // 27: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
-	26, // 28: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
-	10, // 29: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
-	12, // 30: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
-	14, // 31: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
-	16, // 32: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
-	18, // 33: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
-	20, // 34: teleport.presence.v1.PresenceService.DeleteAppServer:output_type -> teleport.presence.v1.DeleteAppServerResponse
-	22, // [22:35] is the sub-list for method output_type
-	9,  // [9:22] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	29, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
+	29, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
+	30, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
+	31, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
+	31, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
+	32, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
+	32, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
+	33, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
+	33, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
+	34, // 9: teleport.presence.v1.GetKubeClusterResponse.cluster:type_name -> types.KubernetesClusterV3
+	35, // 10: teleport.presence.v1.ListKubeClustersRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
+	34, // 11: teleport.presence.v1.ListKubeClustersResponse.clusters:type_name -> types.KubernetesClusterV3
+	0,  // 12: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
+	1,  // 13: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
+	3,  // 14: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
+	4,  // 15: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
+	5,  // 16: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
+	7,  // 17: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
+	8,  // 18: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
+	9,  // 19: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
+	11, // 20: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
+	13, // 21: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
+	15, // 22: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
+	17, // 23: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
+	19, // 24: teleport.presence.v1.PresenceService.DeleteAppServer:input_type -> teleport.presence.v1.DeleteAppServerRequest
+	21, // 25: teleport.presence.v1.PresenceService.GetKubeCluster:input_type -> teleport.presence.v1.GetKubeClusterRequest
+	23, // 26: teleport.presence.v1.PresenceService.ListKubeClusters:input_type -> teleport.presence.v1.ListKubeClustersRequest
+	25, // 27: teleport.presence.v1.PresenceService.DeleteKubeCluster:input_type -> teleport.presence.v1.DeleteKubeClusterRequest
+	27, // 28: teleport.presence.v1.PresenceService.DeleteKubeServer:input_type -> teleport.presence.v1.DeleteKubeServerRequest
+	29, // 29: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
+	2,  // 30: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
+	29, // 31: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
+	36, // 32: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
+	6,  // 33: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
+	31, // 34: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
+	36, // 35: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
+	10, // 36: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
+	12, // 37: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
+	14, // 38: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
+	16, // 39: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
+	18, // 40: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
+	20, // 41: teleport.presence.v1.PresenceService.DeleteAppServer:output_type -> teleport.presence.v1.DeleteAppServerResponse
+	22, // 42: teleport.presence.v1.PresenceService.GetKubeCluster:output_type -> teleport.presence.v1.GetKubeClusterResponse
+	24, // 43: teleport.presence.v1.PresenceService.ListKubeClusters:output_type -> teleport.presence.v1.ListKubeClustersResponse
+	26, // 44: teleport.presence.v1.PresenceService.DeleteKubeCluster:output_type -> teleport.presence.v1.DeleteKubeClusterResponse
+	28, // 45: teleport.presence.v1.PresenceService.DeleteKubeServer:output_type -> teleport.presence.v1.DeleteKubeServerResponse
+	29, // [29:46] is the sub-list for method output_type
+	12, // [12:29] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_presence_v1_service_proto_init() }
@@ -1672,7 +2293,7 @@ func file_teleport_presence_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

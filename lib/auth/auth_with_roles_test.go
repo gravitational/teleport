@@ -59,6 +59,7 @@ import (
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -3354,7 +3355,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 	scopedCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
-			Name: "scoped-cluster",
+			Name: "cluster",
 			Labels: map[string]string{
 				types.CloudLabel: types.CloudAWS,
 			},
@@ -3367,25 +3368,31 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, scopedCluster))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
-		require.True(t, trace.IsBadParameter(discoveryClt.CreateKubernetesCluster(ctx, scopedCluster)))
 	})
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
-
-		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
+		listAllReq := presencev1.ListKubeClustersRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
+		}.Build()
+		clusters, next, err := discoveryClt.ListKubeClusters(ctx, listAllReq)
 		require.Empty(t, next)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		clusters, err = stream.Collect(discoveryClt.RangeKubeClusters(ctx, listAllReq))
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 	})
 
 	t.Run("Update", func(t *testing.T) {
@@ -3396,15 +3403,16 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		scopedEKSCluster, ok := eksCluster.Copy().(*types.KubernetesClusterV3)
 		require.True(t, ok, "expected eksCluster copy to be a *types.KubernetesClusterV3")
 		scopedEKSCluster.Scope = "/test"
-		require.True(t, trace.IsBadParameter(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)))
+		// should fail with not found because adding a scope to an unscoped cluster name results in a new resource,
+		// which means the fetch for the existing cluster before updating will return trace.NotFoundError
+		require.True(t, trace.IsNotFound(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)), "expected trace.NotFoundError when fetching existing kube cluster before update")
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
-		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
-		require.NoError(t, err)
-		require.Empty(t, clusters)
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		clusters, err := stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
@@ -3413,7 +3421,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
+		clusters, err = stream.Collect(srv.Auth().RangeKubeClusters(ctx, nil))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})
@@ -3422,20 +3430,18 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 func TestKubeCRUDFromKubeService(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t, withBufconnListener())
+	srv := newTestTLSServer(t, withBufconnListener(), withScopesFeatures(scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}))
 
-	scopedIdent := authtest.TestBuiltin(types.RoleKube)
-	// override the agent scope in the test identity
-	builtinRole, ok := scopedIdent.I.(authz.BuiltinRole)
-	require.True(t, ok, "expected ident to be a builtin role")
-
-	builtinRole.Identity.AgentScope = "/test"
-	scopedIdent.I = builtinRole
-
+	const scope = "/test"
+	const hostID = "host-id"
+	scopedIdent := authtest.TestScopePinnedHost(srv.ClusterName(), "scoped-host", scope, types.RoleKube)
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
-	unscopedKubeClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleKube))
+	unscopedKubeClient, err := srv.NewClient(authtest.TestServerID(types.RoleKube, hostID))
 	require.NoError(t, err)
 
 	// create an admin client to create resources and setup for test cases
@@ -3443,23 +3449,37 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	require.NoError(t, err)
 
 	const clusterName = "kube-cluster"
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
+	kubeCluster := &types.KubernetesClusterV3{
+		Kind:    types.KindKubernetesCluster,
+		Version: types.V3,
+		Metadata: types.Metadata{
 			Name: clusterName,
 			Labels: map[string]string{
 				"env": "test",
 			},
 		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
+	}
 
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
-	require.NoError(t, err)
+	scopedKubeCluster := &types.KubernetesClusterV3{
+		Kind:    types.KindKubernetesCluster,
+		Version: types.V3,
+		Scope:   scope,
+		Metadata: types.Metadata{
+			Name: clusterName,
+			Labels: map[string]string{
+				"env": "test",
+			},
+		},
+	}
 
 	err = adminClient.CreateKubernetesCluster(ctx, kubeCluster)
 	require.NoError(t, err)
 
+	err = adminClient.CreateKubernetesCluster(ctx, scopedKubeCluster)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", hostID)
+	require.NoError(t, err)
 	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 
@@ -3485,7 +3505,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
-		err = scopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		err = scopedKubeClient.CreateKubernetesCluster(ctx, scopedKubeCluster)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
@@ -3496,59 +3516,87 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
-		err = scopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		err = scopedKubeClient.UpdateKubernetesCluster(ctx, scopedKubeCluster)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 
 	t.Run("GetKubernetesCluster", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to fetch a kube cluster
+		// unscoped kube clients SHOULD be able to fetch an unscoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.NoError(t, err)
 		require.NotNil(t, cluster)
 
-		// scoped kube clients SHOULD NOT be able to fetch a kube cluster
-		_, err = scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		// unscoped kube clients SHOULD be able to fetch a scoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		cluster, err = unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.NoError(t, err)
+		require.NotNil(t, cluster)
+
+		// scoped kube clients SHOULD NOT be able to fetch an unscoped kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		scopedCluster, err := scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+		require.Nil(t, scopedCluster, "expected unscoped kube cluster to be nil")
+		require.True(t, trace.IsAccessDenied(err), "expected trace.AccessDeniedError")
 	})
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
+		// unscoped kube clients SHOULD be able to list all kube clusters
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		// scoped kube clients SHOULD NOT be able to list a kube clusters
-		clusters, err = scopedKubeClient.GetKubernetesClusters(ctx)
+		// scoped kube clients SHOULD be able to list kube clusters within their scope
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		scopedClusters, err := scopedKubeClient.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, clusters)
+		require.Len(t, scopedClusters, 1)
+
+		require.NotElementsMatch(t, clusters, scopedClusters)
 	})
 
 	t.Run("ListKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
+		// unscoped kube clients SHOULD be able to list all unscoped kube clusters
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		// scoped kube clients SHOULD NOT be able to list kube clusters
-		clusters, _, err = scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		// scoped kube clients SHOULD be able to list kube clusters within their scope
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		scopedClusters, _, err := scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
 		require.NoError(t, err)
-		require.Empty(t, clusters)
+		require.Len(t, scopedClusters, 1)
+
+		require.NotElementsMatch(t, clusters, scopedClusters)
 	})
 
 	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
 		// neither scoped nor unscoped kube clients should be able to delete a kube cluster
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		err := unscopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
 		err = scopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 
-	t.Run("DeleteAllKubernetesCluster", func(t *testing.T) {
+	t.Run("DeleteAllKubernetesClusters", func(t *testing.T) {
 		// neither scoped nor unscoped kube clients should be able to delete all kube clusters
 		err := unscopedKubeClient.DeleteAllKubernetesClusters(ctx)
 		require.Error(t, err)
@@ -3588,12 +3636,16 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
 		require.NoError(t, err)
 
-		// unscoped kube clients SHOULD be able to delete a kube server
-		err = unscopedKubeClient.DeleteKubernetesServer(ctx, "host-id", ks.GetName())
+		// unscoped kube clients SHOULD be able to delete their own kube server
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		err = unscopedKubeClient.DeleteKubernetesServer(ctx, hostID, ks.GetName())
 		require.NoError(t, err)
 
 		// scoped kube clients SHOULD NOT be able to delete a kube server
-		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", "host-id")
+		// TODO (eriktate): remove in v20
+		//nolint:staticcheck // SA1019
+		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", hostID)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})

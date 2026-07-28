@@ -39,6 +39,7 @@ func ScopedHandlers() map[string]ScopedHandler {
 		types.KindScopedToken:                 scopedTokenScopedHandler(),
 		scopedaccess.KindScopedRoleAssignment: scopedRoleAssignmentScopedHandler(),
 		types.KindAccessList:                  accessListScopedHandler(),
+		types.KindKubernetesCluster:           scopedKubeClusterHandler(),
 	}
 }
 
