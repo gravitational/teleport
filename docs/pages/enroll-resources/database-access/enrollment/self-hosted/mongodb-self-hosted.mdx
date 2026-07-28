@@ -47,6 +47,8 @@ page_type: how-to
 
   (!docs/pages/includes/database-access/split-db-ca-details.mdx db="MongoDB Replica Set"!)
 
+(!docs/pages/includes/database-access/single-node-note.mdx!)
+
 ## Step 1/3. Install and configure Teleport
 
 ### Set up the Teleport Database service
@@ -217,6 +219,13 @@ Once mutual TLS has been enabled, you will no longer be able to connect to
 the cluster without providing a valid client certificate. You can use the
 `net.tls.allowConnectionsWithoutCertificates` setting to allow connections
 from clients that do not present a certificate.
+
+<Admonition type="tip" title="Step ordering">
+Create your X.509 database users (e.g., `db.getSiblingDB("$external").runCommand(...)`)
+before setting `net.tls.mode: requireTLS`. Once strict TLS mode is enabled, you
+need a valid client certificate to connect. If you need to create users after
+enabling mutual TLS, temporarily set `net.tls.allowConnectionsWithoutCertificates: true`.
+</Admonition>
 
 See [Configure TLS/SSL](https://docs.mongodb.com/manual/tutorial/configure-ssl/)
 in the MongoDB documentation for more details.

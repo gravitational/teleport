@@ -304,6 +304,14 @@ teleport-kube-agent-0   1/1     Running   0          32s
 </TabItem>
 </Tabs>
 
+<Admonition type="warning" title="Databases not appearing">
+The Database Service requires outbound HTTPS access to
+`rds.<region>.amazonaws.com` to fetch database metadata. If databases do not
+appear in `tctl db ls` within 60 seconds of starting the service, enable DEBUG
+logging (`teleport.log.severity: DEBUG` in `teleport.yaml`) and look for AWS
+API timeout errors in the Teleport logs.
+</Admonition>
+
 ## Step 5/5. Connect
 
 Once the Database Service has started and joined the cluster, log in as the

@@ -30,6 +30,8 @@ connect to Teleport as the temporary bot.
 - Being locally logged in Teleport with a role that allows creating Bot and Token resources.
   You can use the default `editor` role for this.
 
+(!docs/pages/includes/tls-routing-note.mdx!)
+
 To check that you can connect to your Teleport cluster, sign in with `tsh login`, then
 verify that you can run `tctl` commands using your current credentials.
 
@@ -74,6 +76,16 @@ Detected security key tap
 🤖 Using the temporary bot to obtain certificates
 🚀 Certificates obtained, you can now use Terraform in this terminal for 1h0m0s
 ```
+
+<Admonition type="tip" title="Running tctl on the Auth Service host">
+If you are running `tctl terraform env` directly on the Auth Service host (e.g.,
+via SSH), the output `TF_TELEPORT_ADDR` will be `127.0.0.1:3025`, which is not
+reachable from a remote machine. Override it with your proxy's public address:
+
+```code
+$ export TF_TELEPORT_ADDR="<Var name="example.teleport.sh:443" />"
+```
+</Admonition>
 
 
 ## Step 2/2. Run the Terraform provider

@@ -61,6 +61,12 @@ If you are running Teleport Discovery v15.3.8 or later and the IAM role
 used by the Discovery Service has the necessary permissions to create and
 update Access Entries, you can skip this section. The service can self-bootstrap
 the required permissions automatically.
+
+Note: AWS SSO/Identity Center assumed roles cannot be used as EKS Access Entry
+principals. If you are using AWS SSO, create a dedicated IAM role for the
+Discovery Service instead of using your SSO role. The IAM policy should also
+include `eks:ListAccessEntries` for the auto-bootstrap to verify existing
+entries.
 </Admonition>
 
 When the Kubernetes Service uses an IAM role that is different from the one that

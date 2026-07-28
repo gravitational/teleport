@@ -149,13 +149,23 @@ $ tctl create -f awsoidc-integration.yaml
 integration '<Var name="my-integration"/>' has been created
 ```
 
-To validate the integration without making a mutating AWS change, run:
+To validate the integration, confirm it was created successfully:
 
 ```code
-$ tctl integrations test <Var name="my-integration"/>
+$ tctl get integrations/<Var name="my-integration"/>
 ```
 
-If the integration is working, the command returns the AWS account ID and caller ARN from AWS STS `GetCallerIdentity`.
+<Admonition type="note">
+The `tctl integrations test` command is available in Teleport v19+. On earlier
+versions, verify the integration by checking that the OIDC discovery endpoint
+is accessible from AWS:
+
+```code
+$ curl https://<Var name="example.teleport.sh" />/.well-known/openid-configuration
+```
+
+This should return a JSON document with `issuer` and `jwks_uri` fields.
+</Admonition>
 
 After the set up is complete, you can now use the "Enroll New Resource" flow in Teleport Web UI, or other integration dependent features.
 
