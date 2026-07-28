@@ -124,12 +124,12 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
 		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", isProxyVerb: true}},
 		{path: "/apis/resources.teleport.dev/v6/proxy/teleportroles/telerole-1", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
-		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1/extra/path", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles/extra/path", resourceName: "telerole-1", isProxyVerb: true}},
+		{path: "/apis/resources.teleport.dev/v6/proxy/namespaces/default/teleportroles/telerole-1/extra/path", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", namespace: "default", resourceKind: "teleportroles", resourceName: "telerole-1", isProxyVerb: true}},
 		{path: "/api/v1/proxy/namespaces/default/pods/foo", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods", resourceName: "foo", isProxyVerb: true}},
 		// The core API's proxyable kinds accept [scheme:]name[:port] here too,
 		// so the name is reduced the same way as in the subresource form above.
-		{path: "/api/v1/proxy/namespaces/default/services/https:admin:443/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/healthz", resourceName: "admin", isProxyVerb: true}},
-		{path: "/api/v1/proxy/nodes/https:node-1:10250/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/healthz", resourceName: "node-1", isProxyVerb: true}},
+		{path: "/api/v1/proxy/namespaces/default/services/https:admin:443/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services", resourceName: "admin", isProxyVerb: true}},
+		{path: "/api/v1/proxy/nodes/https:node-1:10250/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes", resourceName: "node-1", isProxyVerb: true}},
 		// Only those kinds: an aggregated API server gets the name segment verbatim,
 		// so reducing it would match a name the API server never sees.
 		{path: "/api/v1/proxy/namespaces/default/configmaps/https:admin:443", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "configmaps", resourceName: "https:admin:443", isProxyVerb: true}},
@@ -409,8 +409,9 @@ func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 	details := &kubeDetails{kubeCodecs: &globalKubeCodecs, rbacSupportedTypes: getRBACSupportedTypes(t)}
 
 	const (
-		named    = "/apis/apps/v1/proxy/namespaces/default/deployments/foo"
 		nameless = "/apis/apps/v1/proxy/namespaces/default/deployments"
+		named    = "/apis/apps/v1/proxy/namespaces/default/deployments/foo"
+		trailing = "/apis/apps/v1/proxy/namespaces/default/deployments/foo/extra/path"
 	)
 	tests := []struct {
 		method string
@@ -423,6 +424,8 @@ func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 		{method: http.MethodDelete, path: named},
 		{method: http.MethodGet, path: nameless},
 		{method: http.MethodDelete, path: nameless},
+		{method: http.MethodGet, path: trailing},
+		{method: http.MethodPost, path: trailing},
 	}
 
 	for _, tt := range tests {
@@ -432,6 +435,7 @@ func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 			require.False(t, got.unsupportedResource)
 			require.False(t, got.isList)
 			require.Equal(t, types.KubeVerbProxy, got.verb)
+			require.Equal(t, "deployments", got.requestedResource.resourceKind)
 		})
 	}
 }
