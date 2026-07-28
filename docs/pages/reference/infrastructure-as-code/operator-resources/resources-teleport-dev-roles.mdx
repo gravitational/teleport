@@ -64,6 +64,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|linux_desktop_labels|[object](#specallowlinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
+|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specallownode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -181,6 +184,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.allow.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.mcp
 
@@ -341,6 +351,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|linux_desktop_labels|[object](#specdenylinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
+|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specdenynode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -458,6 +471,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.deny.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.mcp
 
@@ -722,6 +742,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|linux_desktop_labels|[object](#specallowlinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
+|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specallownode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -839,6 +862,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.allow.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.allow.mcp
 
@@ -999,6 +1029,9 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|linux_desktop_labels|[object](#specdenylinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
+|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
+|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specdenynode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -1116,6 +1149,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |name|string|Name is the resource name. It supports wildcards.|
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
+
+### spec.deny.linux_desktop_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.deny.mcp
 

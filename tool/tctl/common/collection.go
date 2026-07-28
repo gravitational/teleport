@@ -40,6 +40,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -61,6 +62,7 @@ import (
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -863,6 +865,35 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
 	}
 	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type linuxDesktopCollection struct {
+	desktops []*linuxdesktopv1.LinuxDesktop
+}
+
+func (c *linuxDesktopCollection) Resources() (r []types.Resource) {
+	r = make([]types.Resource, 0, len(c.desktops))
+	for _, resource := range c.desktops {
+		r = append(r, linuxdesktop.ProtoToResource(resource))
+	}
+	return r
+}
+
+func (c *linuxDesktopCollection) WriteText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := common.FormatLabels(d.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{d.GetMetadata().GetName(), d.GetSpec().GetHostname(), labels})
+	}
+	headers := []string{"Name", "Host Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)

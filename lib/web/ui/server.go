@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -469,10 +470,25 @@ type Desktop struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-// MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
-	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
+func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.GetMetadata().GetLabels())
+
+	return Desktop{
+		Kind:            linuxDesktop.GetKind(),
+		OS:              constants.LinuxOS,
+		Name:            linuxDesktop.GetSpec().GetHostname(),
+		Addr:            linuxDesktop.GetSpec().GetAddr(),
+		Labels:          uiLabels,
+		HostID:          linuxDesktop.GetMetadata().GetName(),
+		Logins:          logins,
+		RequiresRequest: requiresRequest,
+	}
+}
+
+// MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
+func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
@@ -486,7 +502,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 		Kind:            windowsDesktop.GetKind(),
 		OS:              constants.WindowsOS,
 		Name:            windowsDesktop.GetName(),
-		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
+		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
 		Labels:          uiLabels,
 		HostID:          windowsDesktop.GetHostID(),
 		Logins:          logins,

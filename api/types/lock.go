@@ -279,6 +279,7 @@ func (t LockTarget) Match(lock Lock) bool {
 		(t.Login == "" || lockTarget.Login == t.Login) &&
 		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
 		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
+		(t.LinuxDesktop == "" || lockTarget.LinuxDesktop == t.LinuxDesktop) &&
 		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
 		(t.Device == "" || lockTarget.Device == t.Device) &&
 		(t.ServerID == "" || lockTarget.ServerID == t.ServerID) &&

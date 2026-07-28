@@ -58,8 +58,24 @@ BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=fals
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
+# HOST_OS is the platform make is running on, which is not necessarily
+# the same as the platform we are building for (that's OS).
+HOST_UNAME := $(shell uname -s 2>/dev/null)
+ifeq ($(HOST_UNAME),Darwin)
+HOST_OS := darwin
+else ifeq ($(HOST_UNAME),Linux)
+HOST_OS := linux
+else ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(HOST_UNAME)))
+HOST_OS := windows
+else ifeq ($(OS),Windows_NT)
+# Native Windows make has no uname, but Windows always sets OS=Windows_NT.
+HOST_OS := windows
+else
+HOST_OS := unknown
+endif
+
 GO_ENV_OS := $(shell go env GOOS)
-OS ?= $(GO_ENV_OS)
+OS ?= $(or $(GO_ENV_OS),$(HOST_OS))
 
 GO_ENV_ARCH := $(shell go env GOARCH)
 ARCH ?= $(GO_ENV_ARCH)
@@ -552,7 +568,11 @@ export ironrdp_package_json
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
+ifeq ($(HOST_OS),darwin)
+	CC="$(CC)" AR="$(AR)" RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+else
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+endif
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -1931,7 +1951,31 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm
+ifeq ($(HOST_OS),darwin)
+BREW_DIR = $(shell brew --prefix)
+LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+# Prevent these from being exported and expanded for every recipe.
+unexport BREW_DIR LLVM_PREFIX LLVM_DIR
+
+# The ironrdp WASM build needs clang/llvm-ar.
+# These are applied as target-specific variables so
+# brew is only invoked when necessary and so that
+# CC and AR are only overwritten for WASM compilation.
+build-ironrdp-wasm: override CC = $(LLVM_DIR)/bin/clang
+build-ironrdp-wasm: override AR = $(LLVM_DIR)/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
+		exit 1; \
+	fi
+else
+ensure-llvm:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \

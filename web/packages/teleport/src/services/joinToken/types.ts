@@ -65,6 +65,7 @@ export type JoinToken = {
 // - 'Node' is a role for a node in the cluster
 // - 'Bot' for MachineID (when set, "spec.bot_name" must be set in the token)
 // - 'WindowsDesktop' is a role for a windows desktop service.
+// - 'LinuxDesktop' is a role for a Linux desktop service.
 // - 'Discovery' is a role for a discovery service.
 export type JoinRole =
   | 'App'
@@ -73,6 +74,7 @@ export type JoinRole =
   | 'Kube'
   | 'Bot'
   | 'WindowsDesktop'
+  | 'LinuxDesktop'
   | 'Discovery';
 
 // JoinMethod is the method used for new nodes to join the cluster.

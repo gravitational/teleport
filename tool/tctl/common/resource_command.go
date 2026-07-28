@@ -51,6 +51,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -82,6 +83,7 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -165,6 +167,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                        rc.createIntegration,
 		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
+		types.KindLinuxDesktop:                       rc.createLinuxDesktop,
 		types.KindDiscoveryConfig:                    rc.createDiscoveryConfig,
 		types.KindAuditQuery:                         rc.createAuditQuery,
 		types.KindSecurityReport:                     rc.createSecurityReport,
@@ -215,6 +218,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:                   rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:                  rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
+		types.KindLinuxDesktop:                       rc.updateLinuxDesktop,
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
@@ -1071,6 +1075,35 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	}
 
 	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) createLinuxDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	ld, err := linuxdesktop.UnmarshalJSON(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.LinuxDesktopClient().CreateLinuxDesktop(ctx, ld); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("linux desktop %q has been updated\n", ld.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateLinuxDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	ld, err := linuxdesktop.UnmarshalJSON(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	linuxDesktopClient := client.LinuxDesktopClient()
+	if _, err := linuxDesktopClient.UpdateLinuxDesktop(ctx, ld); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("linux desktop %q has been updated\n", ld.GetMetadata().GetName())
 	return nil
 }
 
@@ -2038,6 +2071,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("dynamic windows desktop %q has been deleted\n", ref.Name)
+	case types.KindLinuxDesktop:
+		if err = client.LinuxDesktopClient().DeleteLinuxDesktop(ctx, ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("linux desktop %q has been deleted\n", ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: ref.Name})
@@ -2960,6 +2998,21 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		}
 
 		return &dynamicWindowsDesktopCollection{desktops}, nil
+	case types.KindLinuxDesktop:
+		linuxDesktopClient := client.LinuxDesktopClient()
+		if ref.Name != "" {
+			desktop, err := linuxDesktopClient.GetLinuxDesktop(ctx, ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &linuxDesktopCollection{desktops: []*linuxdesktopv1.LinuxDesktop{desktop}}, nil
+		}
+		desktops, err := stream.Collect(clientutils.Resources(ctx, linuxDesktopClient.ListLinuxDesktops))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &linuxDesktopCollection{desktops: desktops}, nil
 	case types.KindToken:
 		if ref.Name == "" {
 			tokens, err := getAllTokens(ctx, client)

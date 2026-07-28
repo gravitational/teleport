@@ -105,6 +105,7 @@ const kinds: {
   ssh: { icon: Icons.Cli, joinable: true },
   k8s: { icon: Icons.Kubernetes, joinable: true },
   desktop: { icon: Icons.Desktop, joinable: false },
+  linuxdesktop: { icon: Icons.Desktop, joinable: false },
   app: { icon: Icons.Application, joinable: false },
   db: { icon: Icons.Database, joinable: false },
 };
