@@ -272,7 +272,7 @@ require (
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
+	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8
 	helm.sh/helm/v3 v3.21.3
 	k8s.io/api v0.36.2
 	k8s.io/apiextensions-apiserver v0.36.2
@@ -432,7 +432,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
-	github.com/google/cel-go v0.27.0 // indirect
+	github.com/google/cel-go v0.29.0 // indirect
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
@@ -614,7 +614,7 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
-	oras.land/oras-go/v2 v2.6.1 // indirect
+	oras.land/oras-go/v2 v2.6.2 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kustomize/v5 v5.8.1 // indirect

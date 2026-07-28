@@ -263,11 +263,12 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer stream.CloseSend()
 
 	// Send the ClientInit message with the intended join method, token name,
-	// and system role.
+	// system role, and host name.
 	if err := stream.Send(&messages.ClientInit{
 		JoinMethod: joinMethodPtr,
 		TokenName:  params.Token,
 		SystemRole: params.ID.Role.String(),
+		HostName:   params.ID.NodeName,
 	}); err != nil {
 		// Failing to send the first message on the stream is always a connection error.
 		return nil, &connectionError{trace.Wrap(err, "sending ClientInit message")}
