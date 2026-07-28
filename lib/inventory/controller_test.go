@@ -76,6 +76,7 @@ type fakeAuth struct {
 	lastRawInstance []byte
 
 	lastServerExpiry time.Time
+	expectScope      string
 }
 
 func (a *fakeAuth) getLastServerExpiry() time.Time {
@@ -166,10 +167,21 @@ func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeSe
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
 	a.lastServerExpiry = server.Expiry()
-	return &types.KeepAlive{}, a.err
+	if a.lastServerExpiry.Equal(time.Time{}) {
+		return &types.KeepAlive{}, a.err
+	}
+
+	return &types.KeepAlive{
+		Type:      types.KeepAlive_KUBERNETES,
+		Name:      server.GetName(),
+		Namespace: server.GetNamespace(),
+		HostID:    server.GetHostID(),
+		Expires:   server.Expiry(),
+		Scope:     server.GetScope(),
+	}, a.err
 }
 
-func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+func (a *fakeAuth) DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error {
 	return nil
 }
 
@@ -180,6 +192,9 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error 
 	if a.failKeepAlives > 0 {
 		a.failKeepAlives--
 		return trace.Errorf("keepalive failed as test condition")
+	}
+	if ka.Scope != a.expectScope {
+		return trace.Errorf("keepalive has mismatched scope")
 	}
 	a.lastServerExpiry = ka.Expires
 	return a.err
@@ -1909,7 +1924,9 @@ func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) 
 
 		events := make(chan testEvent, 1024)
 
-		auth := &fakeAuth{}
+		auth := &fakeAuth{
+			expectScope: initialScope,
+		}
 
 		rc := &resourceCounter{}
 		controller := NewController(

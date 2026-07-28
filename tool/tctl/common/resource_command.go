@@ -154,7 +154,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindApp:                                rc.createApp,
 		types.KindAppServer:                          rc.createAppServer,
 		types.KindDatabase:                           rc.createDatabase,
-		types.KindKubernetesCluster:                  rc.createKubeCluster,
 		types.KindToken:                              rc.createToken,
 		types.KindInstaller:                          rc.createInstaller,
 		types.KindOIDCConnector:                      rc.createOIDCConnector,
@@ -1151,28 +1150,6 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 	return nil
 }
 
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
-			}
-			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
-	return nil
-}
-
 func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	crownJewel, err := services.UnmarshalCrownJewel(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2046,22 +2023,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes cluster"
-		clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
-		name, err := getOneResourceNameToDelete(clusters, ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
 		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2123,24 +2084,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, ref.SubKind, ref.Name)
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes server"
-		servers = filterByNameOrDiscoveredName(servers, ref.Name)
-		name, err := getOneResourceNameToDelete(servers, ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindUIConfig:
 		err := client.DeleteUIConfig(ctx)
 		if err != nil {
@@ -2878,22 +2821,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.NotFound("database server %q not found", ref.Name)
 		}
 		return &databaseServerCollection{servers: servers}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-		altNameFn := func(r types.KubeServer) string {
-			return r.GetHostname()
-		}
-		servers = filterByNameOrDiscoveredName(servers, ref.Name, altNameFn)
-		if len(servers) == 0 {
-			return nil, trace.NotFound("Kubernetes server %q not found", ref.Name)
-		}
-		return &kubeServerCollection{servers: servers}, nil
 
 	case types.KindAppServer:
 		servers, err := client.GetApplicationServers(ctx, rc.namespace)
@@ -2951,20 +2878,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.NotFound("database %q not found", ref.Name)
 		}
 		return &databaseCollection{databases: databases}, nil
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &kubeClusterCollection{clusters: clusters}, nil
-		}
-		clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
-		if len(clusters) == 0 {
-			return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
-		}
-		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
 		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
