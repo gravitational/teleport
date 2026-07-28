@@ -36,6 +36,8 @@ page_type: how-to
   your self-hosted database.
 - (!docs/pages/includes/tctl.mdx!)
 
+(!docs/pages/includes/database-access/single-node-note.mdx!)
+
 ## Step 1/4. Create the Teleport Database Token
 
 (!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
@@ -197,6 +199,13 @@ $ tsh db connect --db-user=alice --db-name=mysql example-mysql
 <Admonition type="note" title="Note">
   The `mysql` or `mariadb` command-line client should be available in `PATH` in order to be
   able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
+</Admonition>
+
+<Admonition type="tip" title="Using identity files">
+If you are using an identity file (`tsh -i identity.pem`) instead of interactive
+`tsh login`, use `tsh proxy db --tunnel --port=<local-port>` instead of
+`tsh db connect`. The `tsh db connect` command does not work with identity files
+because it references certificate paths that do not exist on disk.
 </Admonition>
 
 (!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="example-mysql" dbArgs="--db-user=alice --db-name=mysql"!)

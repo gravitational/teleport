@@ -62,6 +62,12 @@ provisioning](../../enroll-resources/database-access/auto-user-provisioning/post
 or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 </Admonition>
 
+<Admonition type="tip" title="Headless and automated environments">
+This guide uses interactive `tsh login`. For headless environments, CI/CD
+pipelines, or automation, use [Machine ID](../../machine-workload-identity/getting-started.mdx)
+(`tbot`) to issue short-lived credentials without interactive authentication.
+</Admonition>
+
 ## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`:

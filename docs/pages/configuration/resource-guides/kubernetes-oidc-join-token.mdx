@@ -130,6 +130,23 @@ $ curl <Var name="https://oidc.example.com/path/to/issuer/"/>.well-known/openid-
 }
 ```
 
+<Admonition type="warning" title="Self-managed Kubernetes clusters">
+Cloud-managed clusters (EKS, GKE) have publicly trusted TLS certificates and
+public OIDC endpoints by default. Self-managed clusters (k3s, kubeadm, k0s)
+require two additional steps:
+
+1. **Make the OIDC endpoint public.** Enable anonymous authentication on the
+   API server (e.g., `--anonymous-auth=true` for k3s) and create a
+   ClusterRoleBinding granting `system:unauthenticated` the
+   `system:service-account-issuer-discovery` ClusterRole.
+
+1. **Trust the API server's CA.** Teleport's Auth Service must trust the TLS
+   certificate of the OIDC endpoint. Copy the Kubernetes API server CA
+   certificate to the system trust store (e.g.,
+   `/usr/local/share/ca-certificates/`) and run `update-ca-certificates`, then
+   restart Teleport.
+</Admonition>
+
 ## Step 2/3. Create the Join Token
 
 In this step we will configure Teleport to trust tokens signed by the Kubernetes OIDC provider.

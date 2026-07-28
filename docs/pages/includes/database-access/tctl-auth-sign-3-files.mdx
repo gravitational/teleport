@@ -4,6 +4,22 @@ databases must be able to verify certificates presented by the Teleport Database
 Service. Self-hosted databases also need a certificate/key pair that Teleport
 can verify.
 
+<Admonition type="note" title="Teleport database certificate authorities">
+Teleport maintains two separate CAs for database access:
+
+- **Database CA (`db`)**: Signs certificates that databases present to the
+  Teleport Database Service. Export with `tctl auth export --type=db`.
+- **Database Client CA (`db_client`)**: Signs certificates that the Teleport
+  Database Service presents to databases. Export with
+  `tctl auth export --type=db-client`.
+
+When using `tctl auth sign`, the output files are:
+- `server.cas`: The Database Client CA certificate (for your database to verify
+  connections from Teleport).
+- `server.crt`: A server certificate for your database, signed by the Database CA.
+- `server.key`: The private key for the server certificate.
+</Admonition>
+
 By default, the Teleport Database Service trusts certificates issued by a
 certificate authority managed by the Teleport Auth Service. You can either:
 - Configure your self-hosted database to trust this CA, and instruct Teleport to
