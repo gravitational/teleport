@@ -209,6 +209,7 @@ func (handler *Handler) onPendingRequest(ctx context.Context, req types.AccessRe
 		req.GetUser(),
 		reviewRule.GetMetadata().GetName(),
 		reviewRule.GetSpec().GetAutomaticReview().GetDecision(),
+		reviewRule.GetSpec().GetAutomaticReview().GetReason(),
 		time.Now(),
 	)
 	if err != nil {
@@ -253,7 +254,7 @@ func (handler *Handler) getMatchingRule(
 	return reviewRule
 }
 
-func newAccessReview(userName, ruleName, state string, created time.Time) (types.AccessReview, error) {
+func newAccessReview(userName, ruleName, state, reason string, created time.Time) (types.AccessReview, error) {
 	var proposedState types.RequestState
 	switch state {
 	case types.RequestState_APPROVED.String():
@@ -264,13 +265,18 @@ func newAccessReview(userName, ruleName, state string, created time.Time) (types
 		return types.AccessReview{}, trace.BadParameter("proposed state is unsupported: %s", state)
 	}
 
+	reviewReason := reason
+	if reviewReason == "" {
+		reviewReason = fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
+			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
+			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state))
+	}
+
 	return types.AccessReview{
 		Author:        teleport.SystemAccessApproverUserName,
 		ProposedState: proposedState,
-		Reason: fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
-			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
-			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state)),
-		Created: created,
+		Reason:        reviewReason,
+		Created:       created,
 	}, nil
 }
 

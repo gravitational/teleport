@@ -442,6 +442,7 @@ type AutomaticReview struct {
 	state                  protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Integration string                 `protobuf:"bytes,1,opt,name=integration,proto3"`
 	xxx_hidden_Decision    string                 `protobuf:"bytes,2,opt,name=decision,proto3"`
+	xxx_hidden_Reason      string                 `protobuf:"bytes,3,opt,name=reason,proto3"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -485,12 +486,23 @@ func (x *AutomaticReview) GetDecision() string {
 	return ""
 }
 
+func (x *AutomaticReview) GetReason() string {
+	if x != nil {
+		return x.xxx_hidden_Reason
+	}
+	return ""
+}
+
 func (x *AutomaticReview) SetIntegration(v string) {
 	x.xxx_hidden_Integration = v
 }
 
 func (x *AutomaticReview) SetDecision(v string) {
 	x.xxx_hidden_Decision = v
+}
+
+func (x *AutomaticReview) SetReason(v string) {
+	x.xxx_hidden_Reason = v
 }
 
 type AutomaticReview_builder struct {
@@ -502,6 +514,7 @@ type AutomaticReview_builder struct {
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
 	Decision string
+	Reason   string
 }
 
 func (b0 AutomaticReview_builder) Build() *AutomaticReview {
@@ -510,6 +523,7 @@ func (b0 AutomaticReview_builder) Build() *AutomaticReview {
 	_, _ = b, x
 	x.xxx_hidden_Integration = b.Integration
 	x.xxx_hidden_Decision = b.Decision
+	x.xxx_hidden_Reason = b.Reason
 	return m0
 }
 
@@ -1457,10 +1471,11 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
 	"recipients\x18\x02 \x03(\tR\n" +
-	"recipients\"O\n" +
+	"recipients\"g\n" +
 	"\x0fAutomaticReview\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1a\n" +
-	"\bdecision\x18\x02 \x01(\tR\bdecision\"O\n" +
+	"\bdecision\x18\x02 \x01(\tR\bdecision\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"O\n" +
 	"\bSchedule\x12C\n" +
 	"\x04time\x18\x01 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xc4\x01\n" +
 	"\fTimeSchedule\x12M\n" +

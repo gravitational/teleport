@@ -474,6 +474,7 @@ type AutomaticReview struct {
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
 	Decision      string `protobuf:"bytes,2,opt,name=decision,proto3" json:"decision,omitempty"`
+	Reason        string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -517,12 +518,23 @@ func (x *AutomaticReview) GetDecision() string {
 	return ""
 }
 
+func (x *AutomaticReview) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
 func (x *AutomaticReview) SetIntegration(v string) {
 	x.Integration = v
 }
 
 func (x *AutomaticReview) SetDecision(v string) {
 	x.Decision = v
+}
+
+func (x *AutomaticReview) SetReason(v string) {
+	x.Reason = v
 }
 
 type AutomaticReview_builder struct {
@@ -534,6 +546,7 @@ type AutomaticReview_builder struct {
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
 	Decision string
+	Reason   string
 }
 
 func (b0 AutomaticReview_builder) Build() *AutomaticReview {
@@ -542,6 +555,7 @@ func (b0 AutomaticReview_builder) Build() *AutomaticReview {
 	_, _ = b, x
 	x.Integration = b.Integration
 	x.Decision = b.Decision
+	x.Reason = b.Reason
 	return m0
 }
 
@@ -1515,10 +1529,11 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1e\n" +
 	"\n" +
 	"recipients\x18\x02 \x03(\tR\n" +
-	"recipients\"O\n" +
+	"recipients\"g\n" +
 	"\x0fAutomaticReview\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1a\n" +
-	"\bdecision\x18\x02 \x01(\tR\bdecision\"O\n" +
+	"\bdecision\x18\x02 \x01(\tR\bdecision\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"O\n" +
 	"\bSchedule\x12C\n" +
 	"\x04time\x18\x01 \x01(\v2/.teleport.accessmonitoringrules.v1.TimeScheduleR\x04time\"\xc4\x01\n" +
 	"\fTimeSchedule\x12M\n" +
