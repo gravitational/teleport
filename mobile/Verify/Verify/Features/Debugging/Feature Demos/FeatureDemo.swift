@@ -16,27 +16,9 @@
 
 #if DEBUG
 
-	import Observation
-	import SwiftNavigation
+	import Foundation
 
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
-		}
-
-		var destination: Destination? = nil
-	}
-
-	// MARK: - SheetPresentable
-
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
-		}
-	}
+	/// An namespace for all feature demos we'd like to include inside of `DebugView`.
+	enum FeatureDemo {}
 
 #endif
