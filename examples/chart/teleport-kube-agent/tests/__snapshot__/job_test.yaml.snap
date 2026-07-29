@@ -11,7 +11,6 @@ should create ServiceAccount for post-delete hook by default:
       namespace: NAMESPACE
 ? should inherit ServiceAccount name from values and not create serviceAccount if serviceAccount.create is false and serviceAccount.name is set
 : 1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - kube-state
@@ -95,7 +94,6 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
             app: RELEASE-NAME
           name: RELEASE-NAME-delete-hook
         spec:
-          automountServiceAccountToken: true
           containers:
             - args:
                 - kube-state
@@ -126,7 +124,6 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
           serviceAccountName: lint-serviceaccount
 should not create ServiceAccount, Role or RoleBinding for post-delete hook if serviceAccount.create and rbac.create are false:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - kube-state
@@ -157,7 +154,6 @@ should not create ServiceAccount, Role or RoleBinding for post-delete hook if se
     serviceAccountName: lint-serviceaccount
 should set nodeSelector in post-delete hook:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - kube-state
@@ -190,7 +186,6 @@ should set nodeSelector in post-delete hook:
     serviceAccountName: RELEASE-NAME-delete-hook
 should set resources in the Job's pod spec if resources is set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - kube-state

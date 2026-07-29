@@ -13,7 +13,7 @@ sets clusterDomain on Deployment Pods:
         app.kubernetes.io/name: teleport-cluster
         app.kubernetes.io/version: 18.10.0
         helm.sh/chart: teleport-cluster-18.10.0
-        teleport.dev/majorVersion: "19"
+        teleport.dev/majorVersion: "18"
       name: RELEASE-NAME-proxy
       namespace: NAMESPACE
     spec:
@@ -26,7 +26,7 @@ sets clusterDomain on Deployment Pods:
       template:
         metadata:
           annotations:
-            checksum/config: d0c4c0f0778f4dc9f47c4fe2230358a10982bafc9843c0c02e0deca118ae0f20
+            checksum/config: d60a20afbe5d89261d106440fc1457483d306b9352ae13dba2b919ab280b1dd2
             kubernetes.io/pod: test-annotation
             kubernetes.io/pod-different: 4
           labels:
@@ -36,7 +36,7 @@ sets clusterDomain on Deployment Pods:
             app.kubernetes.io/name: teleport-cluster
             app.kubernetes.io/version: 18.10.0
             helm.sh/chart: teleport-cluster-18.10.0
-            teleport.dev/majorVersion: "19"
+            teleport.dev/majorVersion: "18"
         spec:
           affinity:
             podAntiAffinity: null
@@ -105,7 +105,7 @@ sets clusterDomain on Deployment Pods:
                 - teleport
                 - wait
                 - no-resolve
-                - RELEASE-NAME-auth-v18.NAMESPACE.svc.test.com
+                - RELEASE-NAME-auth-v17.NAMESPACE.svc.test.com
               image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
               name: wait-auth-update
           serviceAccountName: RELEASE-NAME-proxy
@@ -154,7 +154,7 @@ should provision initContainer correctly when set in values:
         - teleport
         - wait
         - no-resolve
-        - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+        - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
       image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
       name: wait-auth-update
       resources:
@@ -280,7 +280,7 @@ should set nodeSelector when set in values:
           - teleport
           - wait
           - no-resolve
-          - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+          - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
         image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
         name: wait-auth-update
     nodeSelector:
@@ -420,7 +420,7 @@ should set resources for wait-auth-update initContainer when set in values:
           - teleport
           - wait
           - no-resolve
-          - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+          - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
         image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
         name: wait-auth-update
         resources:
@@ -549,7 +549,7 @@ should set resources when set in values:
           - teleport
           - wait
           - no-resolve
-          - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+          - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
         image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
         name: wait-auth-update
         resources:
@@ -675,7 +675,7 @@ should set securityContext for initContainers when set in values:
           - teleport
           - wait
           - no-resolve
-          - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+          - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
         image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
         name: wait-auth-update
         securityContext:
@@ -801,7 +801,7 @@ should set securityContext when set in values:
           - teleport
           - wait
           - no-resolve
-          - RELEASE-NAME-auth-v18.NAMESPACE.svc.cluster.local
+          - RELEASE-NAME-auth-v17.NAMESPACE.svc.cluster.local
         image: public.ecr.aws/gravitational/teleport-distroless:18.10.0
         name: wait-auth-update
         securityContext:

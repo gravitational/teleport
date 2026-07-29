@@ -1,6 +1,5 @@
 sets Pod annotations when specified:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -87,7 +86,6 @@ sets Pod annotations when specified:
           secretName: teleport-kube-agent-join-token
 sets Pod labels when specified:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -198,7 +196,6 @@ sets StatefulSet labels when specified:
             app.kubernetes.io/name: teleport-kube-agent
             resource: pod
         spec:
-          automountServiceAccountToken: true
           containers:
             - args:
                 - --diag-addr=0.0.0.0:3000
@@ -316,7 +313,6 @@ sets by default a container security context:
       type: RuntimeDefault
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -404,7 +400,6 @@ should add insecureSkipProxyTLSVerify to args when set in values:
           secretName: teleport-kube-agent-join-token
 should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -511,7 +506,6 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
           labels:
             app: RELEASE-NAME
         spec:
-          automountServiceAccountToken: true
           containers:
             - args:
                 - --diag-addr=0.0.0.0:3000
@@ -608,7 +602,6 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
             storageClassName: aws-gp2
 should add volumeMount for data volume when using StatefulSet:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -695,7 +688,6 @@ should add volumeMount for data volume when using StatefulSet:
           secretName: teleport-kube-agent-join-token
 should expose diag port:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -782,7 +774,6 @@ should expose diag port:
           secretName: teleport-kube-agent-join-token
 should generate Statefulset when storage is disabled and mode is a Upgrade:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -883,7 +874,6 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
                       - RELEASE-NAME
               topologyKey: kubernetes.io/hostname
             weight: 50
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -982,7 +972,6 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
                       - RELEASE-NAME
               topologyKey: kubernetes.io/hostname
             weight: 50
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1069,7 +1058,6 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
           secretName: teleport-kube-agent-join-token
 should have one replica when replicaCount is not set:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1156,7 +1144,6 @@ should have one replica when replicaCount is not set:
           secretName: teleport-kube-agent-join-token
 should install Statefulset when storage is disabled and mode is a Fresh Install:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1245,7 +1232,6 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
         name: data
 should mount extraVolumes and extraVolumeMounts:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1337,7 +1323,6 @@ should mount extraVolumes and extraVolumeMounts:
           secretName: mySecret
 should mount jamfCredentialsSecret if it already exists and when role is jamf:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1432,7 +1417,6 @@ should mount jamfCredentialsSecret if it already exists and when role is jamf:
           secretName: existing-teleport-jamf-secret
 should mount jamfCredentialsSecret.name when role is jamf:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1527,7 +1511,6 @@ should mount jamfCredentialsSecret.name when role is jamf:
           secretName: teleport-jamf-api-credentials
 should mount tls.existingCASecretName and set environment when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1624,7 +1607,6 @@ should mount tls.existingCASecretName and set environment when set in values:
           secretName: helm-lint-existing-tls-secret-ca
 should mount tls.existingCASecretName and set extra environment when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1723,7 +1705,6 @@ should mount tls.existingCASecretName and set extra environment when set in valu
           secretName: helm-lint-existing-tls-secret-ca
 should not add emptyDir for data when using StatefulSet:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1810,7 +1791,6 @@ should not add emptyDir for data when using StatefulSet:
           secretName: teleport-kube-agent-join-token
 should provision initContainer correctly when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -1957,7 +1937,6 @@ should set affinity when set in values:
                       - teleport
               topologyKey: kubernetes.io/hostname
             weight: 1
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2044,7 +2023,6 @@ should set affinity when set in values:
           secretName: teleport-kube-agent-join-token
 should set default serviceAccountName when not set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2142,7 +2120,6 @@ should set dnsConfig when set in values:
       - my.dns.search.suffix
 should set environment when extraEnv set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2231,7 +2208,6 @@ should set environment when extraEnv set in values:
           secretName: teleport-kube-agent-join-token
 should set image and tag correctly:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2318,7 +2294,6 @@ should set image and tag correctly:
           secretName: teleport-kube-agent-join-token
 should set imagePullPolicy when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2405,7 +2380,6 @@ should set imagePullPolicy when set in values:
           secretName: teleport-kube-agent-join-token
 should set nodeSelector if set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2506,7 +2480,6 @@ should set preferred affinity when more than one replica is used:
                       - RELEASE-NAME
               topologyKey: kubernetes.io/hostname
             weight: 50
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2593,7 +2566,6 @@ should set preferred affinity when more than one replica is used:
           secretName: teleport-kube-agent-join-token
 should set probeTimeoutSeconds when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2690,7 +2662,6 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
                   values:
                     - RELEASE-NAME
             topologyKey: kubernetes.io/hostname
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2777,7 +2748,6 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
           secretName: teleport-kube-agent-join-token
 should set resources when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2873,7 +2843,6 @@ should set resources when set in values:
           secretName: teleport-kube-agent-join-token
 should set serviceAccountName when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -2960,7 +2929,6 @@ should set serviceAccountName when set in values:
           secretName: teleport-kube-agent-join-token
 should set storage.requests when set in values and action is an Upgrade:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -3047,7 +3015,6 @@ should set storage.requests when set in values and action is an Upgrade:
           secretName: teleport-kube-agent-join-token
 should set storage.storageClassName when set in values and action is an Upgrade:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
@@ -3134,7 +3101,6 @@ should set storage.storageClassName when set in values and action is an Upgrade:
           secretName: teleport-kube-agent-join-token
 should set tolerations when set in values:
   1: |
-    automountServiceAccountToken: true
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
