@@ -36,7 +36,7 @@ export default function makeMfaDevice(
   json: any,
   opts: MakeMfaDeviceOptions
 ): MfaDevice {
-  const { id, name, lastUsed, addedAt, residentKey } = json;
+  const { id, name, lastUsed, addedAt, residentKey, aaguid } = json;
   const usage = residentKey ? 'passwordless' : 'mfa';
   const type = getType(json.type);
 
@@ -48,6 +48,7 @@ export default function makeMfaDevice(
     lastUsedDate: new Date(lastUsed),
     type,
     usage,
+    aaguid,
   };
 }
 
