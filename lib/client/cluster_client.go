@@ -567,6 +567,13 @@ type IssueUserCertsWithMFAResult struct {
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
 func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
+	return c.issueUserCertsWithMFA(ctx, c.ConnectToCluster, params)
+}
+
+// dialAuthClientFunc dials the auth server of the named cluster.
+type dialAuthClientFunc func(ctx context.Context, clusterName string) (authclient.ClientI, error)
+
+func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (*IssueUserCertsWithMFAResult, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -590,27 +597,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}
 	}
 
-	// If the caller provided an auth client, use it.
-	// Otherwise, dial an auth client to the route's cluster if the MFA requirement check must be performed.
-	authClient, closeAuthClient, err := c.reissueAuthClient(ctx, params)
+	mfaRequired, rootAuthClient, releaseRootAuthClient, err := c.mfaRequired(ctx, dial, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer closeAuthClient()
-
-	mfaRequired := params.MFACheck.GetRequired()
-	if params.MFACheck == nil {
-		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
-		mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resp, err := authClient.IsMFARequired(ctx, mfaRequiredReq)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		mfaRequired = resp.Required
-	}
+	defer releaseRootAuthClient()
 
 	// SSH certs can be used without embedding the node name.
 	if !mfaRequired && params.usage() == proto.UserCertsRequest_SSH && keyRing.Cert != nil {
@@ -620,7 +611,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}, nil
 	}
 
-	certClient, closeCertClient, err := c.reissueCertClient(ctx, params, authClient)
+	certClient, closeCertClient, err := c.rootClusterClient(ctx, dial, rootAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -900,37 +891,73 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	}, nil
 }
 
-// reissueAuthClient returns the auth client that should be used to check the MFA requirement.
-func (c *ClusterClient) reissueAuthClient(ctx context.Context, params ReissueParams) (authclient.ClientI, func(), error) {
-	if params.MFACheck == nil && params.AuthClient == nil {
-		authClient, err := c.ConnectToCluster(ctx, params.RouteToCluster)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		return authClient, func() { authClient.Close() }, nil
+// mfaRequired reports whether MFA is required for the target.
+// When it dials the root cluster to ask, it hands that client back so the certs can be issued with it.
+func (c *ClusterClient) mfaRequired(ctx context.Context, dial dialAuthClientFunc, params ReissueParams) (bool, authclient.ClientI, func() error, error) {
+	if params.MFACheck != nil {
+		return params.MFACheck.Required, nil, noop, nil
 	}
-	// Never close the caller's client.
-	return params.AuthClient, func() {}, nil
+
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+	req, err := params.isMFARequiredRequest(sshLogin)
+	if err != nil {
+		return false, nil, noop, trace.Wrap(err)
+	}
+
+	// The caller's client answers the check, but nothing here can tell
+	// which cluster it serves, so it must not issue the certs.
+	if params.AuthClient != nil {
+		resp, err := params.AuthClient.IsMFARequired(ctx, req)
+		if err != nil {
+			return false, nil, noop, trace.Wrap(err)
+		}
+		return resp.Required, nil, noop, nil
+	}
+
+	authClient, err := dial(ctx, params.RouteToCluster)
+	if err != nil {
+		return false, nil, noop, trace.Wrap(err)
+	}
+
+	resp, err := authClient.IsMFARequired(ctx, req)
+	if err != nil {
+		return false, nil, noop, trace.NewAggregate(err, authClient.Close())
+	}
+
+	if params.RouteToCluster != c.root {
+		// A leaf's client answers the check and nothing more.
+		return resp.Required, nil, noop, trace.Wrap(authClient.Close())
+	}
+
+	return resp.Required, authClient, authClient.Close, nil
 }
 
-// reissueCertClient returns the cluster client that issues the certs.
-// Certs must be issued by the root cluster's auth server, to generate an MFA verified certificate.
-func (c *ClusterClient) reissueCertClient(ctx context.Context, params ReissueParams, authClient authclient.ClientI) (*ClusterClient, func(), error) {
+// rootClusterClient returns a cluster client whose auth client serves the root cluster,
+// which is where certs must be issued.
+// An MFA verified cert can only be minted where the challenge was validated,
+// and routing needs the target embedded by the root.
+// It reuses the client held for the MFA check when that client was dialed for the root,
+// so a call opens at most one root connection.
+func (c *ClusterClient) rootClusterClient(ctx context.Context, dial dialAuthClientFunc, rootAuthClient authclient.ClientI) (*ClusterClient, func() error, error) {
 	switch {
-	case params.RouteToCluster == c.root && authClient != nil:
-		// If we're connected to the root cluster and the caller provided an auth client, use it.
-		return c.withRootAuthClient(authClient), func() {}, nil
+	case rootAuthClient != nil:
+		// The client dialed for the MFA check serves the root, so reuse it.
+		return c.withRootAuthClient(rootAuthClient), noop, nil
 	case c.cluster != c.root:
-		// If we're connected to a leaf cluster, we need to connect to the root cluster to issue the certs.
-		rootAuthClient, err := c.ConnectToRootCluster(ctx)
+		// This client is backed by a leaf, so connect to the root.
+		var err error
+		rootAuthClient, err = dial(ctx, c.root)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return c.withRootAuthClient(rootAuthClient), func() { rootAuthClient.Close() }, nil
+		return c.withRootAuthClient(rootAuthClient), rootAuthClient.Close, nil
 	default:
-		return c, func() {}, nil
+		// This client is already backed by the root.
+		return c, noop, nil
 	}
 }
+
+func noop() error { return nil }
 
 func (c *ClusterClient) withRootAuthClient(authClient authclient.ClientI) *ClusterClient {
 	return &ClusterClient{
