@@ -345,9 +345,9 @@ func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 	})
 }
 
-// TestKubeCertIssuer_DistinctTeleportClusters verifies a fan-out spanning Teleport clusters:
+// TestKubeCertIssuer_RootAndLeafTeleportClusters verifies a fan-out spanning Teleport clusters:
 // per-cluster MFA checks, per-cluster cert routing, one ceremony replayed across all.
-func TestKubeCertIssuer_DistinctTeleportClusters(t *testing.T) {
+func TestKubeCertIssuer_RootAndLeafTeleportClusters(t *testing.T) {
 	t.Parallel()
 
 	clusters := kubeconfig.LocalProxyClusters{
