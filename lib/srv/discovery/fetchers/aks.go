@@ -33,12 +33,78 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
-type aksFetcher struct {
-	AKSFetcherConfig
+// MakeAKSFetchersFromAzureMatchers creates Azure AKS fetchers from the provided matchers.
+func MakeAKSFetchersFromAzureMatchers(
+	ctx context.Context,
+	logger *slog.Logger,
+	getAzureClients func(context.Context, string) (azure.Clients, error),
+	matchers []types.AzureMatcher,
+	discoveryConfigName string,
+) ([]common.Fetcher, error) {
+	var kubeFetchers []common.Fetcher
+	for _, matcher := range services.SimplifyAzureMatchers(matchers) {
+		if !slices.Contains(matcher.Types, types.AzureMatcherKubernetes) {
+			continue
+		}
+
+		azureClients, err := getAzureClients(ctx, matcher.Integration)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// TODO(gavin): instead of listing subscriptions during init, do it
+		// on every fetch to prevent stale discovery configuration when
+		// subscriptions are added or removed
+		subscriptions, err := getAzureSubscriptions(ctx, azureClients, matcher.Subscriptions)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, subscription := range subscriptions {
+			kubeClient, err := azureClients.GetKubernetesClient(ctx, subscription)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			fetcher, err := newAKSFetcher(aksFetcherConfig{
+				Logger:              logger,
+				Client:              kubeClient,
+				Regions:             matcher.Regions,
+				ResourceGroups:      matcher.ResourceGroups,
+				FilterLabels:        matcher.ResourceTags,
+				Integration:         matcher.Integration,
+				DiscoveryConfigName: discoveryConfigName,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			kubeFetchers = append(kubeFetchers, fetcher)
+		}
+	}
+
+	return kubeFetchers, nil
 }
 
-// AKSFetcherConfig configures the AKS fetcher.
-type AKSFetcherConfig struct {
+func getAzureSubscriptions(ctx context.Context, azureClients azure.Clients, subs []string) ([]string, error) {
+	subscriptionIds := subs
+	if slices.Contains(subs, types.Wildcard) {
+		subscriptionsClient, err := azureClients.GetSubscriptionClient(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		subscriptionIds, err := subscriptionsClient.ListSubscriptionIDs(ctx)
+		return subscriptionIds, trace.Wrap(err)
+	}
+
+	return subscriptionIds, nil
+}
+
+type aksFetcher struct {
+	aksFetcherConfig
+}
+
+// aksFetcherConfig configures the AKS fetcher.
+type aksFetcherConfig struct {
 	// Client is the Azure AKS client.
 	Client azure.AKSClient
 	// Regions are the regions where the clusters should be located.
@@ -55,8 +121,8 @@ type AKSFetcherConfig struct {
 	Integration string
 }
 
-// CheckAndSetDefaults validates and sets the defaults values.
-func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
+// checkAndSetDefaults validates and sets the defaults values.
+func (c *aksFetcherConfig) checkAndSetDefaults() error {
 	if c.Client == nil {
 		return trace.BadParameter("missing Client field")
 	}
@@ -74,9 +140,9 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAKSFetcher creates a new AKS fetcher configuration.
-func NewAKSFetcher(cfg AKSFetcherConfig) (common.Fetcher, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+// newAKSFetcher creates a new AKS fetcher configuration.
+func newAKSFetcher(cfg aksFetcherConfig) (common.Fetcher, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

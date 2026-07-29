@@ -47,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -82,24 +84,43 @@ func TestServer_getKubeFetchers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
-		Client:       &mockAKSAPI{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Regions:      []string{"region1"},
-	})
+	var azureClientsGetter = func(ctx context.Context, integrationName string) (azure.Clients, error) {
+		return &azuretest.Clients{
+			AzureAKSClient: &mockAKSAPI{},
+		}, nil
+	}
+
+	const noDiscoveryConfig = ""
+
+	azureFetchers, err := fetchers.MakeAKSFetchersFromAzureMatchers(t.Context(), logtest.NewLogger(), azureClientsGetter, []types.AzureMatcher{{
+		ResourceTags:  types.Labels{"l1": []string{"v1"}},
+		Regions:       []string{"region1"},
+		Subscriptions: []string{"subID"},
+		Types:         []string{types.AzureMatcherKubernetes},
+	}}, noDiscoveryConfig)
 	require.NoError(t, err)
-	aks2, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
-		Client:       &mockAKSAPI{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Regions:      []string{"region1"},
-	})
+	require.Len(t, azureFetchers, 1)
+	aks1 := azureFetchers[0]
+
+	azureFetchers, err = fetchers.MakeAKSFetchersFromAzureMatchers(t.Context(), logtest.NewLogger(), azureClientsGetter, []types.AzureMatcher{{
+		ResourceTags:  types.Labels{"l1": []string{"v1"}},
+		Regions:       []string{"region1"},
+		Subscriptions: []string{"subID"},
+		Types:         []string{types.AzureMatcherKubernetes},
+	}}, noDiscoveryConfig)
 	require.NoError(t, err)
-	aks3, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
-		Client:       &mockAKSAPI{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Regions:      []string{"region1"},
-	})
+	require.Len(t, azureFetchers, 1)
+	aks2 := azureFetchers[0]
+
+	azureFetchers, err = fetchers.MakeAKSFetchersFromAzureMatchers(t.Context(), logtest.NewLogger(), azureClientsGetter, []types.AzureMatcher{{
+		ResourceTags:  types.Labels{"l1": []string{"v1"}},
+		Regions:       []string{"region1"},
+		Subscriptions: []string{"subID"},
+		Types:         []string{types.AzureMatcherKubernetes},
+	}}, noDiscoveryConfig)
 	require.NoError(t, err)
+	require.Len(t, azureFetchers, 1)
+	aks3 := azureFetchers[0]
 
 	testCases := []struct {
 		kubeFetchers                   []common.Fetcher
