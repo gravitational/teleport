@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
@@ -42,6 +43,8 @@ func (rc *ResourceConstraints) CheckAndSetDefaults() error {
 		if err := d.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+	case nil:
+		return trace.BadParameter("constraints carry no supported content; they are either empty or from a newer Teleport version")
 	default:
 		return trace.BadParameter("unsupported Details type %T", d)
 	}
@@ -65,10 +68,33 @@ func (rc *ResourceConstraints) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
-	u := &jsonpb.Unmarshaler{
+	strict := &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
-	return trace.Wrap(u.Unmarshal(bytes.NewReader(b), rc))
+	strictErr := strict.Unmarshal(bytes.NewReader(b), rc)
+	if strictErr == nil {
+		if rc.Version == "" || rc.Version == ResourceConstraintVersionV1 {
+			return nil
+		}
+		// Fields all decoded, but the version is newer than this build
+		// understands. Zero all but the version; enforcement denies
+		// constraints with nil Details instead of the whole identity
+		// failing to decode.
+		*rc = ResourceConstraints{Version: rc.Version}
+		return nil
+	}
+	// Same for content that doesn't strictly decode: an unknown kind, or
+	// an unknown field in a known one.
+	var v struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		// Don't leave a half-parsed value behind.
+		*rc = ResourceConstraints{}
+		return trace.Wrap(strictErr)
+	}
+	*rc = ResourceConstraints{Version: v.Version}
+	return nil
 }
 
 // Validate ensures RoleArns is non-nil and contains Role ARNs.

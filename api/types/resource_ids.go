@@ -91,8 +91,18 @@ func (idl *ResourceAccessIDList) CheckAndSetDefaults() error {
 		}
 		if rc == nil {
 			continue
-		} else if err := rc.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+		}
+		if rc.Details == nil {
+			// Constraints this build couldn't decode (see
+			// [ResourceConstraints.UnmarshalJSON]). Keep the entry for
+			// enforcement to deny; erroring here would reject the whole
+			// identity.
+			continue
+		}
+		if err := rc.CheckAndSetDefaults(); err != nil {
+			// Treat invalid content like content we can't decode.
+			rc.Details = nil
+			continue
 		}
 	}
 	return nil

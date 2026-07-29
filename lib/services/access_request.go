@@ -77,6 +77,14 @@ const (
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
+	return validateAccessRequest(ar, false)
+}
+
+// validateAccessRequest implements [ValidateAccessRequest]. With
+// allowUnenforceable set, constraints with nil Details (content this
+// build couldn't decode, see [types.ResourceConstraints.UnmarshalJSON])
+// pass validation, keeping requests written by newer Auths readable.
+func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) error {
 	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
@@ -97,6 +105,10 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 	for _, r := range ar.GetRequestedResourceAccessIDs() {
 		if r.GetConstraints() == nil {
+			continue
+		}
+		if allowUnenforceable && r.GetConstraints().Details == nil {
+			// Skip all validation; these may carry a newer version.
 			continue
 		}
 		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
@@ -2357,7 +2369,8 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := utils.FastUnmarshal(data, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ValidateAccessRequest(&req); err != nil {
+	// Requests written by newer Auths must stay readable.
+	if err := validateAccessRequest(&req, true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
@@ -2371,6 +2384,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	// Writes stay strict; re-persisting a request whose constraints
+	// this build couldn't decode would overwrite the newer content in
+	// the backend.
 	if err := ValidateAccessRequest(accessRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}
