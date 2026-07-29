@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -349,6 +350,27 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		return trace.Wrap(err)
 	}
 	req.SetRequestReason(c.reason)
+
+	// Fail fast when a constrained request cannot be enforced (see RFD 228
+	// mixed-version behavior). tctl talks only to the local Auth, so resources
+	// in other clusters are skipped here; Auth-side validation and fail-closed
+	// enforcement still apply to them. This runs before the dry-run branch, so
+	// a dry run reports the same failure a real create would.
+	if len(req.GetRequestedResourceAccessIDs()) > 0 {
+		clusterName, err := client.GetClusterName(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		getClusterClient := func(ctx context.Context, name string) (common.ClusterSupportClient, error) {
+			if name != clusterName.GetClusterName() {
+				return nil, nil
+			}
+			return client, nil
+		}
+		if err := common.VerifyConstraintSupport(ctx, slog.Default(), clusterName.GetClusterName(), client, getClusterClient, req.GetRequestedResourceAccessIDs()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	if c.dryRun {
 		users := &struct {
