@@ -632,6 +632,19 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}
 	} else {
 		mfaRequired = params.MFACheck.Required
+
+		// Mirror the reuse above:
+		// If the caller supplied an auth client for the root cluster, store it for reuse.
+		if params.RouteToCluster == c.root && params.AuthClient != nil {
+			certClient = &ClusterClient{
+				tc:          c.tc,
+				ProxyClient: c.ProxyClient,
+				AuthClient:  params.AuthClient,
+				Tracer:      c.Tracer,
+				cluster:     c.root,
+				root:        c.root,
+			}
+		}
 	}
 
 	// SSH certs can be used without embedding the node name.
@@ -645,7 +658,8 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	// At this point, a connection to the root cluster is required to generate
 	// an MFA verified certificate OR to issue certificates with the target
 	// embedded in them for routing.
-	if params.RouteToCluster != certClient.root {
+	// Connect unless certClient is already backed by the root cluster.
+	if certClient.cluster != certClient.root {
 		authClient, err := c.ConnectToRootCluster(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
