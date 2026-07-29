@@ -308,7 +308,7 @@ func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient
 		issuer.mfa.Capture(result.ReusableMFAResponse)
 	}
 
-	// Save it if MFA was not required.
+	// Save to the keystore if MFA was not required.
 	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 		if err := issuer.keyStore.AddKubeKeyRing(result.KeyRing); err != nil {
 			return nil, trace.Wrap(err)
