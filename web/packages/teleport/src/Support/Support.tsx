@@ -16,20 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  Box,
+  ButtonLink,
+  Card,
+  Flex,
+  GraphIcon,
+  H1,
+  H2,
+  H3,
+  Subtitle2,
+  QuestionIcon,
+  SimpleGrid,
+  Stack,
+  styled,
+} from '@gravitational/design-system';
 import React from 'react';
 import { Link } from 'react-router';
-import styled from 'styled-components';
-
-import { Box, Card, Flex, H2, H3, Text } from 'design';
-import * as Icons from 'design/Icon';
-import { P } from 'design/Text/Text';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
 import cfg from 'teleport/config';
 import { useNoMinWidth } from 'teleport/Main';
 import { CtaEvent } from 'teleport/services/userEvent';
@@ -71,43 +76,50 @@ export const Support = ({
   const docs = getDocUrls(authVersion, isEnterprise);
 
   return (
-    <FeatureBox maxWidth="2000px" p={{ _: 2, small: 6 }}>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Help & Support</FeatureHeaderTitle>
-      </FeatureHeader>
-      <SupportSectionsWrapper isCloud={isCloud}>
-        <SupportSectionCard
-          css={`
-            grid-column: auto;
-            @media screen and (min-width: ${props =>
-                props.theme.breakpoints.small}) {
-              grid-column: span 2;
-            }
-          `}
-        >
+    <Flex
+      direction="column"
+      width="100%"
+      maxWidth="2000px"
+      minHeight="100%"
+      shrink={0}
+      p={{ base: 2, sm: 7 }}
+      pb={{ base: 6, sm: 10 }}
+    >
+      <Flex align="center" shrink={0} height="56px" mb={5}>
+        <H1 whiteSpace="nowrap">Help & Support</H1>
+      </Flex>
+      <SimpleGrid columns={{ base: 1, sm: 2 }} gap={{ base: 2, sm: 4 }}>
+        <SupportSectionCard gridColumn={{ base: 'auto', sm: 'span 2' }}>
           <Flex
-            alignItems={{ _: 'flex-start', small: 'center' }}
-            justifyContent="space-between"
-            flexDirection={{ _: 'column', small: 'row' }}
-            mb={3}
+            align={{ base: 'flex-start', sm: 'center' }}
+            justify="space-between"
+            direction={{ base: 'column', sm: 'row' }}
+            mb={4}
             gap={2}
           >
-            <Flex alignItems="center">
+            <Flex align="center">
               <IconBox>
-                <Icons.Question />
+                <QuestionIcon boxSize={4} />
               </IconBox>
               <H2>Support and Resource Pages</H2>
             </Flex>
-            <SupportButtonBox>
+            <Box width={{ base: '100%', sm: 'auto' }}>
               {showPremiumSupportCta && (
                 <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
                   Unlock Premium Support with&nbsp;Enterprise
                 </ButtonLockedFeature>
               )}
-            </SupportButtonBox>
+            </Box>
           </Flex>
-          <SupportLinksFlex>
-            <SupportLinkCategory>
+          <Flex
+            justify="space-between"
+            wrap="wrap"
+            maxWidth={{ base: '100%', md: '70%' }}
+            direction={{ base: 'column', sm: 'row' }}
+            gap={{ base: 4, sm: 0 }}
+            mb={{ base: 4, sm: 0 }}
+          >
+            <Stack gap={1}>
               <H3 ml={2} mb={1}>
                 Contact Support
               </H3>
@@ -129,8 +141,8 @@ export const Support = ({
                 title="Send Product Feedback"
                 url="mailto:support@goteleport.com"
               />
-            </SupportLinkCategory>
-            <SupportLinkCategory>
+            </Stack>
+            <Stack gap={1}>
               <H3 ml={2} mb={1}>
                 Resources
               </H3>
@@ -146,8 +158,8 @@ export const Support = ({
               />
               <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
               <ExternalSupportLink title="FAQ" url={docs.faq} />
-            </SupportLinkCategory>
-            <SupportLinkCategory>
+            </Stack>
+            <Stack gap={1}>
               <H3 ml={2} mb={1}>
                 Updates
               </H3>
@@ -163,119 +175,57 @@ export const Support = ({
                 title="Teleport Blog"
                 url="https://goteleport.com/blog/"
               />
-            </SupportLinkCategory>
-          </SupportLinksFlex>
+            </Stack>
+          </Flex>
         </SupportSectionCard>
         <SupportSectionCard
-          css={
-            !isCloud &&
-            `
-            grid-column: span 2;
-            @media screen and (max-width: ${props => props.theme.breakpoints.mobile}) {
-              grid-column: auto;
-            }
-          `
-          }
+          gridColumn={isCloud ? undefined : { base: 'auto', sm: 'span 2' }}
         >
-          <Flex alignItems="center" justifyContent="start" mb={3}>
+          <Flex align="center" mb={4}>
             <IconBox>
-              <Icons.Cluster />
+              <GraphIcon boxSize={4} />
             </IconBox>
             <H2>Cluster Information</H2>
           </Flex>
-          <Flex flexDirection="column" justifyContent="center">
-            <P>Cluster Name: {clusterId}</P>
-            <P>Teleport Version: {authVersion}</P>
-            <P>Public Address: {publicURL}</P>
+          <Stack gap={4}>
+            <Subtitle2>Cluster Name: {clusterId}</Subtitle2>
+            <Subtitle2>Teleport Version: {authVersion}</Subtitle2>
+            <Subtitle2>Public Address: {publicURL}</Subtitle2>
             {tunnelPublicAddress && (
-              <P>Public SSH Tunnel: {tunnelPublicAddress}</P>
+              <Subtitle2>Public SSH Tunnel: {tunnelPublicAddress}</Subtitle2>
             )}
             {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
-              <P>License Expiry: {licenseExpiryDateText}</P>
+              <Subtitle2>License Expiry: {licenseExpiryDateText}</Subtitle2>
             )}
-          </Flex>
+          </Stack>
         </SupportSectionCard>
 
         {children}
-      </SupportSectionsWrapper>
-    </FeatureBox>
+      </SimpleGrid>
+    </Flex>
   );
 };
 
-const SupportSectionsWrapper = styled(Box)<{ isCloud?: boolean }>`
-  display: grid;
-  gap: ${props => props.theme.space[3]}px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: auto;
-  width: 100%;
+export const SupportSectionCard = (props: Omit<Card.RootProps, 'css'>) => (
+  <Card.Root boxShadow="xs" p={{ base: 4, sm: 5 }} {...props} />
+);
 
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    grid-template-columns: 1fr !important;
-    gap: ${props => props.theme.space[2]}px;
-  }
-`;
+export const IconBox = styled('div', {
+  base: {
+    lineHeight: 0,
+    padding: 2,
+    borderRadius: 'md',
+    marginRight: { base: 1, sm: 4 },
+    border: 'sm',
+    borderColor: 'interactive.tonal.neutral.2',
+    background: { base: 'transparent', sm: 'interactive.tonal.neutral.0' },
 
-export const SupportSectionCard = styled(Card)`
-  padding: ${props => props.theme.space[4]}px;
-  box-shadow: ${props => props.theme.boxShadow[0]};
-
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    padding: ${props => props.theme.space[3]}px;
-  }
-`;
-
-export const IconBox = styled(Box)`
-  line-height: 0;
-  padding: ${props => props.theme.space[2]}px;
-  border-radius: ${props => props.theme.radii[3]}px;
-  margin-right: ${props => props.theme.space[3]}px;
-  background: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-  border: ${props => props.theme.borders[1]};
-  border-color: ${props => props.theme.colors.interactive.tonal.neutral[2]};
-
-  .icon {
-    height: 16px;
-    width: 16px;
-  }
-
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    background: transparent;
-    margin-right: ${props => props.theme.space[1]}px;
-  }
-`;
-
-const SupportLinkCategory = styled(Flex)`
-  flex-direction: column;
-  gap: ${props => props.theme.space[1]}px;
-`;
-
-const SupportButtonBox = styled(Box)`
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    width: 100%;
-  }
-`;
-
-const SupportLinksFlex = styled(Flex)`
-  justify-content: space-between;
-  flex-wrap: wrap;
-  max-width: 70%;
-  @media screen and (max-width: ${props => props.theme.breakpoints.medium}) {
-    max-width: 100%;
-  }
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    flex-direction: column;
-    gap: ${props => props.theme.space[3]}px;
-    margin-bottom: ${props => props.theme.space[3]}px;
-  }
-`;
-
-const DataItemFlex = styled(Flex)`
-  margin-bottom: ${props => props.theme.space[3]}px;
-  @media screen and (max-width: ${props => props.theme.breakpoints.small}) {
-    flex-direction: column;
-    padding-left: ${props => props.theme.space[2]}px;
-  }
-`;
+    '& .icon': {
+      height: '16px',
+      width: '16px',
+    },
+  },
+});
 
 /**
  * getDocUrls returns an object of URLs appended with
@@ -322,9 +272,11 @@ const DownloadLink = ({
 }) => {
   if (isCloud) {
     return (
-      <StyledSupportLink as={Link} to={cfg.routes.downloadCenter}>
-        Download Page
-      </StyledSupportLink>
+      <SupportLink>
+        <Link to={cfg.routes.downloadCenter} rel="noreferrer">
+          Download Page
+        </Link>
+      </SupportLink>
     );
   }
 
@@ -346,34 +298,44 @@ const DownloadLink = ({
 };
 
 const ExternalSupportLink = ({ title = '', url = '' }) => (
-  <StyledSupportLink href={url} target="_blank">
-    {title}
-  </StyledSupportLink>
+  <SupportLink>
+    <a href={url} target="_blank" rel="noreferrer">
+      {title}
+    </a>
+  </SupportLink>
 );
 
-const StyledSupportLink = styled.a.attrs({
-  rel: 'noreferrer',
-})`
-  display: block;
-  color: ${props => props.theme.colors.text.main};
-  border-radius: 4px;
-  text-decoration: none;
-  padding: 4px 8px;
-  transition: all 0.3s;
-
-  ${props => props.theme.typography.body2}
-  &:hover, &:focus {
-    background: ${props => props.theme.colors.spotBackground[0]};
-  }
-`;
-
-export const DataItem = ({ title = '', data = null }) => (
-  <DataItemFlex>
-    <Text typography="body2" bold style={{ width: '136px' }}>
-      {title}:
-    </Text>
-    <Text typography="body2">{data}</Text>
-  </DataItemFlex>
+const SupportLink = ({ children }: { children: React.ReactElement }) => (
+  <ButtonLink
+    asChild
+    display="block"
+    textStyle="body2"
+    fontWeight="light"
+    lineHeight="24px"
+    color="text.main"
+    textDecoration="none"
+    whiteSpace="normal"
+    borderWidth={0}
+    minW="auto"
+    minH="auto"
+    py={1}
+    _hover={{
+      background: 'interactive.tonal.neutral.0',
+      color: 'text.main',
+      textDecoration: 'none',
+    }}
+    _active={{
+      background: 'interactive.tonal.neutral.0',
+      color: 'text.main',
+    }}
+    _focusVisible={{
+      background: 'interactive.tonal.neutral.0',
+      color: 'text.main',
+      borderColor: 'transparent',
+    }}
+  >
+    {children}
+  </ButtonLink>
 );
 
 export type Props = {
