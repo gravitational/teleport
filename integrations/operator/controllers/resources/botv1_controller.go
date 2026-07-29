@@ -40,7 +40,10 @@ type botClient struct {
 func (l botClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*machineidv1.Bot, error) {
 	resp, err := l.teleportClient.
 		BotServiceClient().
-		GetBot(ctx, machineidv1.GetBotRequest_builder{BotName: key.Name}.Build())
+		GetBot(ctx, machineidv1.GetBotRequest_builder{
+			BotName: key.Name,
+			Scope:   key.Scope,
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -67,18 +70,21 @@ func (l botClient) Update(ctx context.Context, resource *machineidv1.Bot) error 
 func (l botClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{BotName: key.Name}.Build())
+		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{
+			BotName: key.Name,
+			Scope:   key.Scope,
+		}.Build())
 	return trace.Wrap(err)
 }
 
 // NewBotV1Reconciler instantiates a new Kubernetes controller reconciling bot
 // resources
-func NewBotV1Reconciler(client kclient.Client, tClient *client.Client, _ reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
+func NewBotV1Reconciler(client kclient.Client, tClient *client.Client, metadata reconcilers.OperatorMetadata) (controllers.Reconciler, error) {
 	botClient := &botClient{
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResource153Reconciler[
+	resourceReconciler, err := reconcilers.NewTeleportScopedResource153Reconciler[
 		*machineidv1.Bot, *resourcesv1.TeleportBotV1,
 	](
 		client,
@@ -86,6 +92,7 @@ func NewBotV1Reconciler(client kclient.Client, tClient *client.Client, _ reconci
 		reconcilers.Config{
 			Scoped: true,
 		},
+		metadata,
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
