@@ -6649,13 +6649,12 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if acmeCfg.URI != "" {
 			m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
 		}
-		// We have to duplicate the behavior of `m.TLSConfig()` here because
-		// http/1.1 needs to take precedence over h2 due to
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017#c5 in Chrome.
+		// We have to duplicate the behavior of `m.TLSConfig()` here so the
+		// protocol order matches SupportedProtocols, which advertises h2 first.
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos: []string{
-				string(alpncommon.ProtocolHTTP), string(alpncommon.ProtocolHTTP2), // enable HTTP/2
+				string(alpncommon.ProtocolHTTP2), string(alpncommon.ProtocolHTTP),
 				acme.ALPNProto, // enable tls-alpn ACME challenges
 			},
 		}

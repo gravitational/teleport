@@ -133,14 +133,12 @@ const (
 // SupportedProtocols is the list of supported ALPN protocols.
 var SupportedProtocols = WithPingProtocols(
 	append([]Protocol{
-		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
-		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
-		// If Chrome resolves this, we can switch the prioritization. We may
-		// also be able to get around this if https://github.com/golang/go/issues/49918
-		// is implemented and we can enable HTTP2 websockets on our end, but
-		// it's less clear this will actually fix the issue.
-		ProtocolHTTP,
+		// HTTP/2 is advertised ahead of HTTP/1.1 so browsers negotiate h2 and
+		// benefit from multiplexing. WebSockets remain on HTTP/1.1 because
+		// browsers open a separate connection for them, as RFC 8441 requires
+		// while the server does not advertise SETTINGS_ENABLE_CONNECT_PROTOCOL.
 		ProtocolHTTP2,
+		ProtocolHTTP,
 		ProtocolProxySSH,
 		ProtocolReverseTunnel,
 		ProtocolAuth,
