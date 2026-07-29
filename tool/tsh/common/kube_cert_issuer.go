@@ -304,7 +304,7 @@ func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient
 	}
 
 	// Save the reusable MFA response produced by a fresh ceremony for the other issuances to replay.
-	if result.ReusableMFAResponse != nil && params.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+	if result.ReusableMFAResponse != nil {
 		issuer.mfa.Capture(result.ReusableMFAResponse)
 	}
 
