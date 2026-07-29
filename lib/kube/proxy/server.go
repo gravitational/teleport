@@ -215,7 +215,7 @@ type TLSServer struct {
 	fwd          *Forwarder
 	mu           sync.Mutex
 	listener     net.Listener
-	heartbeats   map[string]*srv.HeartbeatV2
+	heartbeats   map[scopes.QualifiedName]*srv.HeartbeatV2
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 	// kubeClusterWatcher monitors changes to kube cluster resources.
@@ -286,7 +286,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server:          kubeHTTPserver,
-		heartbeats:      make(map[string]*srv.HeartbeatV2),
+		heartbeats:      make(map[scopes.QualifiedName]*srv.HeartbeatV2),
 		monitoredKubeClusters: monitoredKubeClusters{
 			static: fwd.kubeClusters(),
 		},
@@ -519,7 +519,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // GetServerInfo returns a services.Server object for heartbeats (aka
 // presence).
-func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error) {
+func (t *TLSServer) GetServerInfo(sqn scopes.QualifiedName) (*types.KubernetesServerV3, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	var addr string
@@ -529,7 +529,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 		addr = t.listener.Addr().String()
 	}
 
-	cluster, err := t.getKubeClusterWithServiceLabels(name)
+	cluster, err := t.getKubeClusterWithServiceLabels(sqn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -540,7 +540,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
 	if t.KubeServiceType != KubeService {
-		name += teleport.KubeLegacyProxySuffix
+		sqn.Name += teleport.KubeLegacyProxySuffix
 	}
 
 	var relayGroup string
@@ -552,7 +552,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	}
 	srv, err := types.NewKubernetesServerV3(
 		types.Metadata{
-			Name:      name,
+			Name:      sqn.Name,
 			Namespace: t.Namespace,
 		},
 		types.KubernetesServerSpecV3{
@@ -582,7 +582,10 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 
 // startHealthCheck starts checking the health of a Kubernetes cluster.
 func (t *TLSServer) startHealthCheck(cluster types.KubeCluster) error {
-	kubeDetails, err := t.fwd.findKubeDetailsByClusterName(cluster.GetName())
+	kubeDetails, err := t.fwd.findKubeDetailsByClusterName(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -606,7 +609,10 @@ func (t *TLSServer) startHeartbeatAndHealthCheck(cluster types.KubeCluster) erro
 	if err := t.startHealthCheck(cluster); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.startHeartbeat(cluster.GetName()); err != nil {
+	if err := t.startHeartbeat(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -618,7 +624,10 @@ func (t *TLSServer) stopHeartbeatAndHealthCheck(cluster types.KubeCluster) error
 	if err := t.stopHealthCheck(cluster); err != nil {
 		errs = append(errs, err)
 	}
-	if err := t.stopHeartbeat(cluster.GetName()); err != nil {
+	if err := t.stopHeartbeat(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	}); err != nil {
 		errs = append(errs, err)
 	}
 	return trace.NewAggregate(errs...)
@@ -655,10 +664,10 @@ func (t *TLSServer) getTargetHealth(ctx context.Context, cluster types.KubeClust
 // the cluster with the service dynamic and static labels.
 // We strip the Azure, AWS and Kubeconfig credentials so they are not leaked when
 // heartbeating the cluster.
-func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.KubernetesClusterV3, error) {
+func (t *TLSServer) getKubeClusterWithServiceLabels(sqn scopes.QualifiedName) (*types.KubernetesClusterV3, error) {
 	// it is safe do read from details since the structure is never updated.
 	// we replace the whole structure each time an update happens to a dynamic cluster.
-	details, err := t.fwd.findKubeDetailsByClusterName(name)
+	details, err := t.fwd.findKubeDetailsByClusterName(sqn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -690,10 +699,10 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (t *TLSServer) startHeartbeat(name string) error {
+func (t *TLSServer) startHeartbeat(sqn scopes.QualifiedName) error {
 	heartbeat, err := srv.NewKubernetesServerHeartbeat(srv.HeartbeatV2Config[*types.KubernetesServerV3]{
 		InventoryHandle: t.InventoryHandle,
-		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.GetServerInfo(name) },
+		GetResource:     func(context.Context) (*types.KubernetesServerV3, error) { return t.GetServerInfo(sqn) },
 		OnHeartbeat:     t.TLSServerConfig.OnHeartbeat,
 	})
 	if err != nil {
@@ -702,7 +711,7 @@ func (t *TLSServer) startHeartbeat(name string) error {
 	go heartbeat.Run()
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.heartbeats[name] = heartbeat
+	t.heartbeats[sqn] = heartbeat
 	return nil
 }
 
@@ -740,14 +749,14 @@ func (t *TLSServer) startStaticClustersHeartbeat() error {
 }
 
 // stopHeartbeat stops the registration heartbeat to the auth server.
-func (t *TLSServer) stopHeartbeat(name string) error {
+func (t *TLSServer) stopHeartbeat(sqn scopes.QualifiedName) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	heartbeat, ok := t.heartbeats[name]
+	heartbeat, ok := t.heartbeats[sqn]
 	if !ok {
 		return nil
 	}
-	delete(t.heartbeats, name)
+	delete(t.heartbeats, sqn)
 	return trace.Wrap(heartbeat.Close())
 }
 
@@ -796,9 +805,9 @@ func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {
 func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNameFunc, error) {
 	switch t.KubeServiceType {
 	case KubeService:
-		return func(_ context.Context, name string) ([]types.KubeServer, error) {
+		return func(_ context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
 			// If this is a kube_service, we can just return the local kube servers.
-			kube, err := t.getKubeClusterWithServiceLabels(name)
+			kube, err := t.getKubeClusterWithServiceLabels(sqn)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -811,13 +820,13 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 	case ProxyService:
 		return t.KubernetesServersWatcher.GetKubeServersForClusterName, nil
 	case LegacyProxyService:
-		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+		return func(ctx context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
 			// If this is a legacy kube proxy, then we need to return the local kube servers if
 			// the local server is proxying the target cluster, otherwise act like a proxy_service.
 			// and forward the request to the next proxy.
-			kube, err := t.getKubeClusterWithServiceLabels(name)
+			kube, err := t.getKubeClusterWithServiceLabels(sqn)
 			if err != nil {
-				servers, err := t.KubernetesServersWatcher.GetKubeServersForClusterName(ctx, name)
+				servers, err := t.KubernetesServersWatcher.GetKubeServersForClusterName(ctx, sqn)
 				return servers, trace.Wrap(err)
 			}
 			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)

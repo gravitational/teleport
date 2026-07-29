@@ -171,3 +171,16 @@ func WeakValidateQualifiedName(sqn string) error {
 	}
 	return qn.WeakValidate()
 }
+
+// Equals determines if the target [QualifiedName] is equivalent to the receiving [QualifiedName].
+func (qn QualifiedName) Equals(target QualifiedName) bool {
+	if qn.Name != target.Name {
+		return false
+	}
+
+	if qn.Scope == "" && target.Scope == "" {
+		return true
+	}
+
+	return Compare(qn.Scope, target.Scope) == Equivalent
+}

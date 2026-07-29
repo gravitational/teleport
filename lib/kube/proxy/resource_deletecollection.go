@@ -140,7 +140,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		return internalErrStatus, trace.Wrap(err)
 	}
 
-	details, err := f.findKubeDetailsByClusterName(sess.kubeClusterName)
+	details, err := f.findKubeDetailsByClusterName(sess.kubeClusterSQN)
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
 	}

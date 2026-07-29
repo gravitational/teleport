@@ -29,6 +29,7 @@ import (
 
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -201,7 +202,10 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
+	s.fwd.upsertKubeDetails(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	}, clusterDetails)
 	return trace.Wrap(s.startHeartbeatAndHealthCheck(cluster))
 }
 
@@ -213,7 +217,10 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
+	s.fwd.upsertKubeDetails(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	}, clusterDetails)
 	return nil
 }
 
@@ -226,8 +233,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 	if err := s.stopHeartbeatAndHealthCheck(cluster); err != nil {
 		errs = append(errs, err)
 	}
-	clusterName := cluster.GetName()
-	s.fwd.removeKubeDetails(clusterName)
+	clusterSQN := scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	}
+	s.fwd.removeKubeDetails(clusterSQN)
 
 	// A child process can be forked to upgrade the Teleport binary. The child
 	// will take over the heartbeats so do NOT delete them in that case.
@@ -243,7 +253,7 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 	}
 
 	if !isShutdown || shouldDeleteOnShutdown {
-		if err := s.deleteKubernetesServer(ctx, clusterName); err != nil {
+		if err := s.deleteKubernetesServer(ctx, clusterSQN); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -255,7 +265,7 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {
-		if sess.ctx.kubeClusterName == clusterName {
+		if clusterSQN.Equals(sess.ctx.kubeClusterSQN) {
 			// TODO(tigrato): check if we should send errors to each client
 			if err := sess.Close(); err != nil {
 				errs = append(errs, err)
@@ -267,11 +277,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 }
 
 // deleteKubernetesServer deletes kubernetes server for the specified cluster.
-func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) error {
+func (s *TLSServer) deleteKubernetesServer(ctx context.Context, sqn scopes.QualifiedName) error {
 	err := s.AuthClient.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
-		Scope:  s.GetScope(),
 		HostId: s.HostID,
-		Name:   name,
+		Name:   sqn.Name,
+		Scope:  sqn.Scope,
 	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)

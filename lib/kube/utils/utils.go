@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -187,4 +188,12 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 func GetKubeAgentVersion(ctx context.Context, versionGetter version.Getter) (*semver.Version, error) {
 	v, err := versionGetter.GetVersion(ctx)
 	return v, trace.Wrap(err)
+}
+
+// KubeClusterMatchesSQN checks if a given [types.KubeCluster] matches the given [scopes.QualifiedName]
+func KubeClusterMatchesSQN(cluster types.KubeCluster, sqn scopes.QualifiedName) bool {
+	return sqn.Equals(scopes.QualifiedName{
+		Name:  cluster.GetName(),
+		Scope: cluster.GetScope(),
+	})
 }

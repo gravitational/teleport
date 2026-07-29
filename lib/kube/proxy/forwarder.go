@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -344,7 +345,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails:  make(map[string]*kubeDetails),
+		clusterDetails:  make(map[scopes.QualifiedName]*kubeDetails),
 		cachedTransport: transportClients,
 	}
 
@@ -411,7 +412,7 @@ type Forwarder struct {
 	ctx context.Context
 	// clusterDetails contain kubernetes credentials for multiple clusters.
 	// map key is cluster name.
-	clusterDetails map[string]*kubeDetails
+	clusterDetails map[scopes.QualifiedName]*kubeDetails
 	rwMutexDetails sync.RWMutex
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
@@ -441,7 +442,7 @@ type cachedTransportEntry struct {
 
 // getKubeServersByNameFunc is a function that returns a list of
 // kubernetes servers for a given kube cluster.
-type getKubeServersByNameFunc = func(ctx context.Context, name string) ([]types.KubeServer, error)
+type getKubeServersByNameFunc = func(ctx context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error)
 
 // Close signals close to all outstanding or background operations
 // to complete
@@ -464,7 +465,7 @@ type authContext struct {
 	kubeGroups        map[string]struct{}
 	kubeUsers         map[string]struct{}
 	kubeClusterLabels map[string]string
-	kubeClusterName   string
+	kubeClusterSQN    scopes.QualifiedName
 	teleportCluster   teleportClusterClient
 	recordingConfig   types.SessionRecordingConfig
 	// clientIdleTimeout sets information on client idle timeout
@@ -504,13 +505,13 @@ type authContext struct {
 }
 
 func (c authContext) String() string {
-	return fmt.Sprintf("user: %v, users: %v, groups: %v, teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeClusterName)
+	return fmt.Sprintf("user: %v, users: %v, groups: %v, teleport cluster: %v, kube cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name, c.kubeClusterSQN.String())
 }
 
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeClusterName, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
+	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeClusterSQN.String(), c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
 func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
@@ -525,7 +526,7 @@ func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesCl
 	}
 
 	return apievents.KubernetesClusterMetadata{
-		KubernetesCluster: c.kubeClusterName,
+		KubernetesCluster: c.kubeClusterSQN.String(),
 		KubernetesUsers:   kubeUsers,
 		KubernetesGroups:  kubeGroups,
 		KubernetesLabels:  c.kubeClusterLabels,
@@ -881,7 +882,14 @@ func (f *Forwarder) setupContext(
 		err          error
 	)
 
-	kubeCluster := identity.KubernetesCluster
+	kubeClusterSQN := scopes.QualifiedName{Name: identity.KubernetesCluster}
+	if scopes.MaybeSQN(identity.KubernetesCluster) {
+		var err error
+		if kubeClusterSQN, err = scopes.ParseQualifiedName(identity.KubernetesCluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
 	// aliasing to isScoped because it's a bit easier to reason about
 	isScoped := !isUnscoped
@@ -891,24 +899,14 @@ func (f *Forwarder) setupContext(
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
-		kubeServers, err = f.getKubernetesServersForKubeCluster(ctx, kubeCluster)
+		kubeServers, err = f.getKubernetesServersForKubeCluster(ctx, kubeClusterSQN)
 		if err != nil || len(kubeServers) == 0 {
-			return nil, trace.NotFound("Kubernetes cluster %q not found", kubeCluster)
-		}
-
-		if !isScoped {
-			// If the calling identity is not scoped but there are multiple kube servers present in different scopes
-			// (e.g. when running in Proxy mode) we won't be able to disambiguate between them. In that case, we
-			// should return an error suggesting that the user logs in with scoped credentials
-			if err := checkAmbiguousClusters(kubeServers); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
+			return nil, trace.NotFound("Kubernetes cluster %q not found", kubeClusterSQN)
 		}
 	}
-	isLocalKubernetesCluster := f.isLocalKubeCluster(isRemoteCluster, kubeCluster)
+	isLocalKubernetesCluster := f.isLocalKubeCluster(isRemoteCluster, kubeClusterSQN)
 	if isLocalKubernetesCluster {
-		kubeResource, err = f.parseResourceFromRequest(req, kubeCluster)
+		kubeResource, err = f.parseResourceFromRequest(req, kubeClusterSQN)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -945,7 +943,7 @@ func (f *Forwarder) setupContext(
 		clientIdleTimeoutMessage: netConfig.GetClientIdleTimeoutMessage(),
 		sessionTTL:               sessionTTL,
 		recordingConfig:          recordingConfig,
-		kubeClusterName:          kubeCluster,
+		kubeClusterSQN:           kubeClusterSQN,
 		certExpires:              identity.Expires,
 		disconnectExpiredCert:    scopedCtx.GetDisconnectCertExpiry(authPref),
 		teleportCluster: teleportClusterClient{
@@ -974,10 +972,10 @@ func checkAmbiguousClusters(kubeServers []types.KubeServer) error {
 	return nil
 }
 
-func (f *Forwarder) parseResourceFromRequest(req *http.Request, kubeClusterName string) (metaResource, error) {
+func (f *Forwarder) parseResourceFromRequest(req *http.Request, kubeClusterSQN scopes.QualifiedName) (metaResource, error) {
 	switch f.cfg.KubeServiceType {
 	case LegacyProxyService:
-		if details, err := f.findKubeDetailsByClusterName(kubeClusterName); err == nil {
+		if details, err := f.findKubeDetailsByClusterName(kubeClusterSQN); err == nil {
 			out, err := getResourceFromRequest(req, details)
 			return out, trace.Wrap(err)
 		}
@@ -997,7 +995,7 @@ func (f *Forwarder) parseResourceFromRequest(req *http.Request, kubeClusterName 
 		out, err := getResourceFromRequest(req, nil /*details*/)
 		return out, trace.Wrap(err)
 	case KubeService:
-		details, err := f.findKubeDetailsByClusterName(kubeClusterName)
+		details, err := f.findKubeDetailsByClusterName(kubeClusterSQN)
 		if err != nil {
 			return metaResource{}, trace.Wrap(err)
 		}
@@ -1120,9 +1118,11 @@ func (f *Forwarder) getKubeAccessDetails(
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range actx.kubeServers {
 		c := s.GetCluster()
-		if c.GetName() != actx.kubeClusterName {
+		// we can filter out clusters that don't match the requested sqn
+		if !kubeutils.KubeClusterMatchesSQN(c, actx.kubeClusterSQN) {
 			continue
 		}
+
 		// Once we find at least one cluster that matches by name, we should no longer return errNoMatchingCluster.
 		if errors.Is(implicitDenyOrNotFound, errNoMatchingCluster) {
 			implicitDenyOrNotFound = errImplicitDeny
@@ -1222,7 +1222,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		)
 		return nil
 	}
-	if actx.kubeClusterName == "" {
+	if actx.kubeClusterSQN.Name == "" {
 		if isScoped {
 			return trace.Wrap(services.ErrScopedIdentity, "authorizing with remote cluster")
 		}
@@ -1243,7 +1243,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			"Kubernetes resource kind %q in API group %q is not known to cluster %q",
 			actx.metaResource.requestedResource.resourceKind,
 			actx.metaResource.requestedResource.apiGroup,
-			actx.kubeClusterName,
+			actx.kubeClusterSQN,
 		)
 	}
 
@@ -1254,7 +1254,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.Wrap(err)
 	}
 
-	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterName)
+	notFoundMessage := fmt.Sprintf("kubernetes cluster %q not found", actx.kubeClusterSQN)
 	var roleMatchers services.RoleMatchers
 	if !actx.metaResource.isList {
 		if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil {
@@ -1383,9 +1383,12 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// If we were not granted access to any kube users or groups, we need to check if we should bypass auth for a
 	// proxy-based kube cluster. We should only skip authZ for unscoped identities connecting to proxy-based kube
 	// clusters.
-	if actx.kubeClusterName == f.cfg.ClusterName {
+	if actx.kubeClusterSQN.Name == f.cfg.ClusterName {
 		if isScoped {
 			return trace.Wrap(services.ErrScopedIdentity, "scoped identities do not support kube clusters exposed directly from the Teleport Proxy Service, only clusters exposed by the Teleport Kubernetes Service are supported")
+		}
+		if actx.kubeClusterSQN.Scope != "" {
+			return trace.Wrap(services.ErrScopedIdentity, "Teleport Proxy Service cannot directly forward for scoped kube clusters, only clusters exposed by the Teleport Kubernetes Service can be scoped")
 		}
 		f.log.DebugContext(ctx, "Skipping authorization for proxy-based kubernetes cluster",
 			"auth_context", logutils.StringerAttr(actx),
@@ -2793,15 +2796,6 @@ func (s *clusterSession) getProxier() func(req *http.Request) (*url.URL, error) 
 	return utilnet.NewProxierWithNoProxyCIDR(http.ProxyFromEnvironment)
 }
 
-// getClusterScope returns the scope associated with the cluster that the clusterSession
-// refers to.
-func (s *clusterSession) getClusterScope() string {
-	if s.kubeCluster != nil {
-		return s.kubeCluster.GetScope()
-	}
-	return ""
-}
-
 // TODO(awly): unit test this
 func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	ctx, span := f.cfg.tracer.Start(
@@ -2850,21 +2844,21 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx context.Context, authCtx au
 	}
 
 	kubeServers := authCtx.kubeServers
-	if len(kubeServers) == 0 && authCtx.kubeClusterName == authCtx.teleportCluster.name {
+	if len(kubeServers) == 0 && authCtx.kubeClusterSQN.Name == authCtx.teleportCluster.name && authCtx.kubeClusterSQN.Scope == "" {
 		return nil, trace.Wrap(localErr)
 	}
 
 	if len(kubeServers) == 0 {
-		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
+		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterSQN)
 	}
 
 	return f.newClusterSessionDirect(ctx, authCtx)
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authContext) (*clusterSession, error) {
-	details, err := f.findKubeDetailsByClusterName(authCtx.kubeClusterName)
+	details, err := f.findKubeDetailsByClusterName(authCtx.kubeClusterSQN)
 	if err != nil {
-		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
+		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterSQN)
 	}
 
 	codecFactory, rbacSupportedResources, err := details.getClusterSupportedResources()
@@ -2948,46 +2942,46 @@ func (f *Forwarder) kubeClusters() types.KubeClusters {
 }
 
 // findKubeDetailsByClusterName searches for the cluster details otherwise returns a trace.NotFound error.
-func (f *Forwarder) findKubeDetailsByClusterName(name string) (*kubeDetails, error) {
+func (f *Forwarder) findKubeDetailsByClusterName(sqn scopes.QualifiedName) (*kubeDetails, error) {
 	f.rwMutexDetails.RLock()
 	defer f.rwMutexDetails.RUnlock()
 
-	if creds, ok := f.clusterDetails[name]; ok {
+	if creds, ok := f.clusterDetails[sqn]; ok {
 		return creds, nil
 	}
 
-	return nil, trace.NotFound("cluster %s not found", name)
+	return nil, trace.NotFound("cluster %s not found", sqn)
 }
 
 // upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
 // otherwise inserts them.
-func (f *Forwarder) upsertKubeDetails(key string, clusterDetails *kubeDetails) {
+func (f *Forwarder) upsertKubeDetails(sqn scopes.QualifiedName, clusterDetails *kubeDetails) {
 	f.rwMutexDetails.Lock()
 	defer f.rwMutexDetails.Unlock()
 
-	if oldDetails, ok := f.clusterDetails[key]; ok {
+	if oldDetails, ok := f.clusterDetails[sqn]; ok {
 		oldDetails.Close()
 	}
 	// replace existing details in map
-	f.clusterDetails[key] = clusterDetails
+	f.clusterDetails[sqn] = clusterDetails
 }
 
 // removeKubeDetails removes the kubeDetails from map.
-func (f *Forwarder) removeKubeDetails(name string) {
+func (f *Forwarder) removeKubeDetails(sqn scopes.QualifiedName) {
 	f.rwMutexDetails.Lock()
 	defer f.rwMutexDetails.Unlock()
 
-	if oldDetails, ok := f.clusterDetails[name]; ok {
+	if oldDetails, ok := f.clusterDetails[sqn]; ok {
 		oldDetails.Close()
 	}
-	delete(f.clusterDetails, name)
+	delete(f.clusterDetails, sqn)
 }
 
 // isLocalKubeCluster checks if the current service must hold the cluster and
 // if it's of Type KubeService.
 // KubeProxy services or remote clusters are automatically forwarded to
 // the final destination.
-func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeClusterName string) bool {
+func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, sqn scopes.QualifiedName) bool {
 	switch f.cfg.KubeServiceType {
 	case KubeService:
 		// Kubernetes service is always local.
@@ -2999,7 +2993,7 @@ func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeCluster
 		}
 		// Legacy proxy service is local only if the kube cluster name matches
 		// with clusters served by this agent.
-		_, err := f.findKubeDetailsByClusterName(kubeClusterName)
+		_, err := f.findKubeDetailsByClusterName(sqn)
 		return err == nil
 	default:
 		return false

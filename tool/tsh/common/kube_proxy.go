@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -258,7 +259,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 		for _, kc := range kubeClusters {
 			clusters = append(clusters, kubeconfig.LocalProxyCluster{
 				TeleportCluster:   tc.SiteName,
-				KubeCluster:       kc.GetName(),
+				KubeCluster:       scopes.QualifiedName{Name: kc.GetName(), Scope: kc.GetScope()}.String(),
 				Impersonate:       c.impersonateUser,
 				ImpersonateGroups: c.impersonateGroups,
 				Namespace:         c.namespace,
@@ -590,7 +591,11 @@ func combineMatchedClusters(matchMap map[string]types.KubeClusters) types.KubeCl
 func matchClustersByNames(clusters types.KubeClusters, names ...string) map[string]types.KubeClusters {
 	matchesForNames := make(map[string]types.KubeClusters)
 	for _, name := range names {
-		matchesForNames[name] = matchClustersByNameOrDiscoveredName(name, clusters)
+		sqn, err := scopes.ParseQualifiedName(name)
+		if err != nil {
+			sqn = scopes.QualifiedName{Name: name}
+		}
+		matchesForNames[name] = matchClustersByNameOrDiscoveredName(sqn, clusters)
 	}
 	return matchesForNames
 }

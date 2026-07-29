@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1241,7 +1242,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		CmdClause: parent.Command("login", "Login to a Kubernetes cluster."),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
-	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters. Can be scope-qualified using the format /<scope>::<cluster-name>.").StringVar(&c.kubeCluster)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
@@ -1363,7 +1364,15 @@ func (c *kubeLoginCommand) selectorsOrWildcard() string {
 
 // checkClusterSelection checks the kube clusters selected by user input.
 func (c *kubeLoginCommand) checkClusterSelection(cf *CLIConf, tc *client.TeleportClient, clusters types.KubeClusters) error {
-	clusters = matchClustersByNameOrDiscoveredName(c.kubeCluster, clusters)
+	sqn := scopes.QualifiedName{Name: c.kubeCluster}
+	if scopes.MaybeSQN(c.kubeCluster) {
+		var err error
+		sqn, err = scopes.ParseQualifiedName(c.kubeCluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	clusters = matchClustersByNameOrDiscoveredName(sqn, clusters)
 	err := checkClusterSelection(cf, clusters, c.kubeCluster)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1371,7 +1380,7 @@ func (c *kubeLoginCommand) checkClusterSelection(cf *CLIConf, tc *client.Telepor
 	if c.kubeCluster != "" && len(clusters) == 1 {
 		// Populate settings using the selected kube cluster, which contains
 		// the full cluster name.
-		c.kubeCluster = clusters[0].GetName()
+		c.kubeCluster = scopes.QualifiedName{Name: clusters[0].GetName(), Scope: clusters[0].GetScope()}.String()
 		// Set CLIConf.KubernetesCluster so that the kube cluster's context
 		// is automatically selected.
 		cf.KubernetesCluster = c.kubeCluster
@@ -1414,15 +1423,15 @@ func (c *kubeLoginCommand) getSelectors() resourceSelectors {
 	}
 }
 
-func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeClusters) types.KubeClusters {
-	if name == "" {
+func matchClustersByNameOrDiscoveredName(sqn scopes.QualifiedName, clusters types.KubeClusters) types.KubeClusters {
+	if sqn.Name == "" {
 		return clusters
 	}
 
 	// look for exact full name matches.
 	var out types.KubeClusters
 	for _, kc := range clusters {
-		if kc.GetName() == name {
+		if kubeutils.KubeClusterMatchesSQN(kc, sqn) {
 			out = append(out, kc)
 		}
 	}
@@ -1433,7 +1442,7 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 	// or look for exact "discovered name" matches.
 	for _, kc := range clusters {
 		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
-		if ok && discoveredName == name {
+		if ok && discoveredName == sqn.Name {
 			out = append(out, kc)
 		}
 	}
@@ -1533,7 +1542,7 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 func kubeClustersToStrings(kubeClusters []types.KubeCluster) []string {
 	names := make([]string, len(kubeClusters))
 	for i, cluster := range kubeClusters {
-		names[i] = cluster.GetName()
+		names[i] = scopes.QualifiedName{Name: cluster.GetName(), Scope: cluster.GetScope()}.String()
 	}
 
 	return names

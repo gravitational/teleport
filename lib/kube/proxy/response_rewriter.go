@@ -99,7 +99,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 				Message: "GKE Autopilot denied the request because it impersonates the \"system:masters\" group.\n" +
 					fmt.Sprintf(
 						"Your Teleport Roles %v have given access to the \"system:masters\" group "+
-							"for the cluster %q.\n", collectSystemMastersTeleportRoles(s), s.kubeClusterName) +
+							"for the cluster %q.\n", collectSystemMastersTeleportRoles(s), s.kubeClusterSQN) +
 					"For additional information and resolution, " +
 					"please visit https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
 			}
