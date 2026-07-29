@@ -176,6 +176,7 @@ func clientInitToMessage(req *joinv1.ClientInit) *messages.ClientInit {
 		TokenName:        req.GetTokenName(),
 		SystemRole:       req.GetSystemRole(),
 		ForwardedByProxy: req.GetForwardedByProxy(),
+		HostName:         req.GetHostName(),
 	}
 	if joinMethod := req.GetJoinMethod(); joinMethod != "" {
 		msg.JoinMethod = &joinMethod
@@ -195,6 +196,7 @@ func clientInitFromMessage(msg *messages.ClientInit) *joinv1.ClientInit {
 		TokenName:        msg.TokenName,
 		SystemRole:       msg.SystemRole,
 		ForwardedByProxy: msg.ForwardedByProxy,
+		HostName:         msg.HostName,
 	}
 	if proxySuppliedParams := msg.ProxySuppliedParams; proxySuppliedParams != nil {
 		req.ProxySuppliedParameters = &joinv1.ClientInit_ProxySuppliedParams{
