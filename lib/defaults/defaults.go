@@ -220,6 +220,10 @@ const (
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
 
+	// MFADeviceNameMaxLen is the maximum length of an MFA device name. Registration flows that name a
+	// device on the user's behalf have to fit within it.
+	MFADeviceNameMaxLen = 30
+
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
 

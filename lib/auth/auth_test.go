@@ -4208,7 +4208,7 @@ func TestAddMFADeviceSync(t *testing.T) {
 		},
 		{
 			name:       "invalid device name length",
-			deviceName: strings.Repeat("A", auth.MFADeviceNameMaxLen+1),
+			deviceName: strings.Repeat("A", defaults.MFADeviceNameMaxLen+1),
 			wantErr:    true,
 			getReq: func(t *testing.T, deviceName string) *clientproto.AddMFADeviceSyncRequest {
 				token, _, registerSolved := solveChallengeWithToken(

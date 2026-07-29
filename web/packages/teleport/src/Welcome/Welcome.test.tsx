@@ -262,7 +262,9 @@ describe('teleport/components/Welcome', () => {
         req: {
           tokenId: '5182',
           password: 'pwd_value_123',
-          deviceName: 'webauthn-device',
+          // The nickname now defaults to the authenticator; jsdom's dummy credential has no AAGUID, so
+          // it resolves to the generic label.
+          deviceName: 'Passkey',
         },
       })
     );
@@ -297,7 +299,7 @@ describe('teleport/components/Welcome', () => {
         req: {
           tokenId: '5182',
           password: '',
-          deviceName: 'passwordless-device',
+          deviceName: 'Passkey',
         },
       })
     );

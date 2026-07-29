@@ -24,8 +24,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
@@ -34,7 +36,9 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/webauthn/aaguid"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // RegistrationIdentity represents the subset of Identity methods used by
@@ -185,6 +189,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		rpID:                    f.Webauthn.RPID,
 		requireResidentKey:      passwordless,
 		requireUserVerification: passwordless,
+		preferDirectAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -251,7 +256,9 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 type RegisterResponse struct {
 	// User is the device owner.
 	User string
-	// DeviceName is the name for the new device.
+	// DeviceName is the name for the new device. Leave it empty to have the device named after the
+	// authenticator that produced the credential, which is what clients that collect the name before
+	// running the ceremony do.
 	DeviceName string
 	// CreationResponse is the response from the new device.
 	CreationResponse *wantypes.CredentialCreationResponse
@@ -266,12 +273,13 @@ type RegisterResponse struct {
 // Finish is the second and last step of the registration ceremony.
 // If successful, it returns the created MFADevice. Finish has the side effect
 // or writing the device to storage (using its Identity interface).
+// maxDefaultNameAttempts bounds the search for a free default device name.
+const maxDefaultNameAttempts = 100
+
 func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*types.MFADevice, error) {
 	switch {
 	case req.User == "":
 		return nil, trace.BadParameter("user required")
-	case req.DeviceName == "":
-		return nil, trace.BadParameter("device name required")
 	case req.CreationResponse == nil:
 		return nil, trace.BadParameter("credential creation response required")
 	}
@@ -319,6 +327,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		origin:                  origin,
 		requireResidentKey:      passwordless,
 		requireUserVerification: passwordless,
+		preferDirectAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -345,7 +354,17 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	newDevice, err := types.NewMFADevice(req.DeviceName, uuid.NewString() /* id */, time.Now() /* addedAt */, &types.MFADevice_Webauthn{
+	deviceName := req.DeviceName
+	if deviceName == "" {
+		// Clients that cannot name the device themselves send it empty: they collect the name before the
+		// ceremony runs, so the AAGUID that identifies the authenticator is not known to them yet.
+		deviceName, err = f.defaultDeviceName(ctx, req.User, credential.Authenticator.AAGUID, passwordless)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	newDevice, err := types.NewMFADevice(deviceName, uuid.NewString() /* id */, time.Now() /* addedAt */, &types.MFADevice_Webauthn{
 		Webauthn: &types.WebauthnDevice{
 			CredentialId:      credential.ID,
 			PublicKeyCbor:     credential.PublicKey,
@@ -381,6 +400,75 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 
 	return newDevice, nil
+}
+
+// defaultDeviceName names a device after the authenticator that produced it, falling back to what the
+// credential is for when the authenticator did not identify its make and model. The name is made unique
+// against the user's existing devices, since the server rejects duplicates.
+func (f *RegistrationFlow) defaultDeviceName(ctx context.Context, user string, credAaguid []byte, passwordless bool) (string, error) {
+	base, ok := aaguid.NameFromBytes(credAaguid)
+	if !ok {
+		base = "Security key"
+		if passwordless {
+			base = "Passkey"
+		}
+	}
+
+	// Generated names are within the limit already, but nothing downstream would catch one that grew
+	// past it: the length check in lib/auth only guards names the client supplied.
+	base = strings.TrimSpace(clipToBytes(base, defaults.MFADeviceNameMaxLen))
+
+	devices, err := f.Identity.GetMFADevices(ctx, user, false /* withSecrets */)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Check-then-act: two registrations racing on the same name both see it free, and the loser is
+	// rejected by the uniqueness check in UpsertMFADevice. Naming a device is not worth a transaction.
+	taken := make(map[string]struct{}, len(devices))
+	for _, dev := range devices {
+		taken[strings.ToLower(dev.GetName())] = struct{}{}
+	}
+
+	if _, ok := taken[strings.ToLower(base)]; !ok {
+		return base, nil
+	}
+
+	// Every credential from a given authenticator resolves to the same name, so a second one needs a
+	// counter. The bound is arbitrary: a user with this many identical authenticators can name the next
+	// one themselves.
+	for n := 2; n <= maxDefaultNameAttempts; n++ {
+		suffix := fmt.Sprintf(" (%d)", n)
+		candidate := strings.TrimSpace(clipToBytes(base, defaults.MFADeviceNameMaxLen-len(suffix))) + suffix
+		if _, ok := taken[strings.ToLower(candidate)]; !ok {
+			return candidate, nil
+		}
+	}
+
+	return "", trace.LimitExceeded("too many devices named %q, please name this one yourself", base)
+}
+
+// clipToBytes truncates s to at most max bytes without splitting a rune. It does not trim what the
+// truncation leaves behind; callers that care do it themselves.
+func clipToBytes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+
+	if len(s) <= max {
+		return s
+	}
+
+	var b strings.Builder
+	for _, r := range s {
+		if b.Len()+utf8.RuneLen(r) > max {
+			break
+		}
+
+		b.WriteRune(r)
+	}
+
+	return b.String()
 }
 
 func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) (*protocol.ParsedCredentialCreationData, error) {

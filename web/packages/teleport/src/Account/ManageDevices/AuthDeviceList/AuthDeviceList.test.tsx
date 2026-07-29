@@ -71,6 +71,22 @@ function getTableCellContents() {
   };
 }
 
+// The device column stacks the nickname over the device type. Reading them as separate lines keeps the
+// assertions legible and catches a type that should have been suppressed as a duplicate.
+function deviceRow(rowIndex: number) {
+  return within(screen.getAllByRole('row')[rowIndex + 1]);
+}
+
+function expectDeviceLines(rowIndex: number, nickname: string, type: string) {
+  expect(deviceRow(rowIndex).getByText(nickname)).toBeVisible();
+  expect(deviceRow(rowIndex).getByText(type)).toBeVisible();
+}
+
+// The type line is suppressed when it repeats the nickname, so the text appears exactly once.
+function expectNicknameOnly(rowIndex: number, nickname: string) {
+  expect(deviceRow(rowIndex).getAllByText(nickname)).toHaveLength(1);
+}
+
 test('renders devices', () => {
   render(
     <AuthDeviceList
@@ -81,13 +97,14 @@ test('renders devices', () => {
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
-  expect(getTableCellContents()).toEqual({
-    header: ['Device Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
-    rows: [
-      ['Passkey', 'touch_id', '2021-08-12', '2021-08-12', ''],
-      ['Hardware Key', 'yubikey', '2021-06-15', '2021-06-18', ''],
-    ],
-  });
+  const { header, rows } = getTableCellContents();
+  expect(header).toEqual(['Device', 'Added', 'Last Used', 'Actions']);
+  expect(rows.map(cells => cells.slice(1))).toEqual([
+    ['2021-08-12', '2021-08-12', ''],
+    ['2021-06-15', '2021-06-18', ''],
+  ]);
+  expectDeviceLines(0, 'touch_id', 'Passkey');
+  expectDeviceLines(1, 'yubikey', 'Hardware Key');
 
   const buttons = screen.queryAllByTitle('Delete');
   expect(buttons).toHaveLength(2);
@@ -135,14 +152,70 @@ test('delete button is disabled for sso devices', () => {
     />
   );
   expect(screen.getByText('Header')).toBeInTheDocument();
-  expect(getTableCellContents()).toEqual({
-    header: ['Device Type', 'Nickname', 'Added', 'Last Used', 'Actions'],
-    rows: [['SSO Provider', 'okta', '2021-08-12', '2021-08-12', '']],
-  });
+  const { header, rows } = getTableCellContents();
+  expect(header).toEqual(['Device', 'Added', 'Last Used', 'Actions']);
+  expect(rows.map(cells => cells.slice(1))).toEqual([
+    ['2021-08-12', '2021-08-12', ''],
+  ]);
+  expectDeviceLines(0, 'okta', 'SSO Provider');
 
   const button = screen.getByTitle('SSO device cannot be deleted');
   expect(button).toBeInTheDocument();
   expect(button).toBeDisabled();
+});
+
+test('omits the device type when the nickname already matches it', () => {
+  // adce0002 resolves to "Chrome on Mac", which is also what the passkey wizard suggests as a nickname.
+  const chromeAaguid = 'adce0002-35bc-c60a-648b-0b25f1f05503';
+  render(
+    <AuthDeviceList
+      header="Header"
+      devices={[
+        { ...devices[0], name: 'Chrome on Mac', aaguid: chromeAaguid },
+        {
+          ...devices[1],
+          name: 'work laptop',
+          aaguid: chromeAaguid,
+          registeredDate: new Date(1623722252000),
+        },
+        {
+          ...devices[1],
+          id: '3',
+          name: 'Hardware Key',
+          registeredDate: new Date(1600000000000),
+        },
+      ]}
+      attempt={{ status: 'success' }}
+      passkeysEnabled
+    />
+  );
+  expectNicknameOnly(0, 'Chrome on Mac');
+  expectDeviceLines(1, 'work laptop', 'Chrome on Mac');
+  expectNicknameOnly(2, 'Hardware Key');
+});
+
+test('sorting the device column groups by type, then nickname', async () => {
+  const user = userEvent.setup();
+  const chromeAaguid = 'adce0002-35bc-c60a-648b-0b25f1f05503'; // "Chrome on Mac"
+  render(
+    <AuthDeviceList
+      header="Header"
+      devices={[
+        { ...devices[1], id: '1', name: 'zeta', aaguid: chromeAaguid },
+        { ...devices[1], id: '2', name: 'alpha', description: 'Hardware Key' },
+        { ...devices[1], id: '3', name: 'beta', aaguid: chromeAaguid },
+      ]}
+      attempt={{ status: 'success' }}
+      passkeysEnabled
+    />
+  );
+
+  await user.click(screen.getByText('Device'));
+
+  // Chrome on Mac before Hardware Key, and alphabetical within the group.
+  expectDeviceLines(0, 'beta', 'Chrome on Mac');
+  expectDeviceLines(1, 'zeta', 'Chrome on Mac');
+  expectDeviceLines(2, 'alpha', 'Hardware Key');
 });
 
 test('renders no devices', () => {

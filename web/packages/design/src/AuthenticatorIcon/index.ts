@@ -17,4 +17,4 @@
  */
 
 export { AuthenticatorIcon } from './AuthenticatorIcon';
-export { resolveAuthenticatorName, authenticatorSpec } from './authenticator';
+export { resolveAuthenticatorName, authenticatorName } from './authenticator';

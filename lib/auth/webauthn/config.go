@@ -38,11 +38,15 @@ type webAuthnParams struct {
 	origin                  string
 	requireResidentKey      bool
 	requireUserVerification bool
+	// preferDirectAttestation requests direct attestation conveyance even without
+	// configured attestation CAs, so authenticators (esp. roaming security keys)
+	// reveal their AAGUID for naming. CA verification stays gated on configured CAs.
+	preferDirectAttestation bool
 }
 
 func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 	attestation := protocol.PreferNoAttestation
-	if len(p.cfg.AttestationAllowedCAs) > 0 || len(p.cfg.AttestationDeniedCAs) > 0 {
+	if p.preferDirectAttestation || len(p.cfg.AttestationAllowedCAs) > 0 || len(p.cfg.AttestationDeniedCAs) > 0 {
 		attestation = protocol.PreferDirectAttestation
 	}
 

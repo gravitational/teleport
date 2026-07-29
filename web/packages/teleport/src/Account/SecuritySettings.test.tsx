@@ -305,6 +305,7 @@ test('adding an MFA device', async () => {
       screen.getByRole('button', { name: 'Create an MFA method' })
     );
   });
+  await user.clear(screen.getByLabelText('MFA Method Name'));
   await user.type(screen.getByLabelText('MFA Method Name'), 'new-mfa');
 
   // The final assertion can be accidentally made irrelevant if the button name
@@ -354,6 +355,7 @@ test('adding a passkey', async () => {
     );
   });
   await user.click(screen.getByRole('button', { name: 'Create a passkey' }));
+  await user.clear(screen.getByLabelText('Passkey Nickname'));
   await user.type(screen.getByLabelText('Passkey Nickname'), 'new-passkey');
 
   // The final assertion can be accidentally made irrelevant if the button name

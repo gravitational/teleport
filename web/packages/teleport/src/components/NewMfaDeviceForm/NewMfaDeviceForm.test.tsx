@@ -83,7 +83,8 @@ test('WebAuthn', async () => {
   rerender(<NewMfaDeviceForm {...props} />);
 
   const methodNameInput = screen.getByLabelText(/MFA method name/i);
-  expect(methodNameInput).toHaveValue('webauthn-device');
+  // Pre-filled from the credential: jsdom's dummy has no AAGUID, so it resolves to the generic label.
+  expect(methodNameInput).toHaveValue('Passkey');
   await user.clear(methodNameInput);
   await user.type(methodNameInput, 'new-device');
   await user.click(screen.getByText('Submit Button'));

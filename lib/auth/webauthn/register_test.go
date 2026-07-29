@@ -25,10 +25,12 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestRegistrationFlow_BeginFinish(t *testing.T) {
@@ -299,6 +302,150 @@ func TestRegistrationFlow_Begin_errors(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err)) // user required
 }
 
+func TestRegistrationFlow_Begin_requestsDirectAttestation(t *testing.T) {
+	const user = "llama"
+	ctx := t.Context()
+
+	// Direct attestation is requested regardless of attestation policy: browsers scrub the AAGUID from
+	// the response unless attestation is requested, and the web UI names devices from it.
+	tests := []struct {
+		name string
+		cfg  *types.Webauthn
+	}{
+		{
+			name: "no attestation CAs",
+			cfg:  &types.Webauthn{RPID: "localhost"},
+		},
+		{
+			name: "attestation CAs configured",
+			cfg: &types.Webauthn{
+				RPID:                  "localhost",
+				AttestationAllowedCAs: []string{microsoftTPMRootCA2014},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			webRegistration := &wanlib.RegistrationFlow{
+				Webauthn: test.cfg,
+				Identity: newFakeIdentity(user),
+			}
+
+			for _, passwordless := range []bool{false, true} {
+				cc, err := webRegistration.Begin(ctx, user, passwordless)
+				require.NoError(t, err, "Begin failed")
+				require.Equal(t, protocol.PreferDirectAttestation, cc.Response.Attestation,
+					"passwordless=%v", passwordless)
+			}
+		})
+	}
+}
+
+func TestRegistrationFlow_Finish_defaultsDeviceName(t *testing.T) {
+	const user = "llama"
+	const rpID = "localhost"
+	const origin = "https://localhost"
+
+	// Google Password Manager, one of the AAGUIDs the generated table names.
+	gpmAAGUID, err := uuid.MustParse("ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4").MarshalBinary()
+	require.NoError(t, err, "MarshalBinary failed")
+
+	tests := []struct {
+		name         string
+		deviceName   string
+		aaguid       []byte
+		passwordless bool
+		existing     []*types.MFADevice
+		want         string
+	}{
+		{
+			name:   "named after the authenticator",
+			aaguid: gpmAAGUID,
+			want:   "Google Password Manager",
+		},
+		{
+			// Authenticators that decline to identify their make and model report all zeroes, leaving
+			// only what the credential is for to name it after.
+			name: "unidentified authenticator registering an MFA device",
+			want: "Security key",
+		},
+		{
+			name:         "unidentified authenticator registering a passkey",
+			passwordless: true,
+			want:         "Passkey",
+		},
+		{
+			// Every credential from one authenticator resolves to the same name, so the second one
+			// registered has to be told apart from the first.
+			name:     "counter appended when the name is taken",
+			aaguid:   gpmAAGUID,
+			existing: []*types.MFADevice{newTestWebauthnDevice(t, "Google Password Manager")},
+			want:     "Google Password Manager (2)",
+		},
+		{
+			name:   "counter skips names already taken",
+			aaguid: gpmAAGUID,
+			existing: []*types.MFADevice{
+				newTestWebauthnDevice(t, "Google Password Manager"),
+				newTestWebauthnDevice(t, "Google Password Manager (2)"),
+			},
+			want: "Google Password Manager (3)",
+		},
+		{
+			name:       "a name from the client is left alone",
+			deviceName: "my key",
+			aaguid:     gpmAAGUID,
+			want:       "my key",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			webRegistration := &wanlib.RegistrationFlow{
+				Webauthn: &types.Webauthn{RPID: rpID},
+				Identity: newFakeIdentity(user, test.existing...),
+			}
+
+			ctx := t.Context()
+			cc, err := webRegistration.Begin(ctx, user, test.passwordless)
+			require.NoError(t, err, "Begin failed")
+
+			key, err := mocku2f.Create()
+			require.NoError(t, err, "Create failed")
+			key.AAGUID = test.aaguid
+			key.SetUV = test.passwordless
+			key.AllowResidentKey = test.passwordless
+
+			ccr, err := key.SignCredentialCreation(origin, cc)
+			require.NoError(t, err, "SignCredentialCreation failed")
+
+			dev, err := webRegistration.Finish(ctx, wanlib.RegisterResponse{
+				User:             user,
+				DeviceName:       test.deviceName,
+				CreationResponse: ccr,
+				Passwordless:     test.passwordless,
+			})
+			require.NoError(t, err, "Finish failed")
+
+			require.Equal(t, test.want, dev.GetName())
+			require.LessOrEqual(t, len(dev.GetName()), defaults.MFADeviceNameMaxLen)
+		})
+	}
+}
+
+func newTestWebauthnDevice(t *testing.T, name string) *types.MFADevice {
+	t.Helper()
+
+	dev, err := types.NewMFADevice(name, uuid.NewString(), time.Now(), &types.MFADevice_Webauthn{
+		Webauthn: &types.WebauthnDevice{
+			CredentialId:  []byte(name),
+			PublicKeyCbor: []byte{1},
+		},
+	})
+	require.NoError(t, err, "NewMFADevice failed")
+
+	return dev
+}
+
 func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	const user = "llama"
 	const webOrigin = "https://localhost"
@@ -331,13 +478,6 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 			deviceName: "webauthn2",
 			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
 			wantErr:    "user required",
-		},
-		{
-			name:       "NOK device name empty",
-			user:       user,
-			deviceName: "",
-			createResp: func() *wantypes.CredentialCreationResponse { return okCCR },
-			wantErr:    "device name required",
 		},
 		{
 			name:       "NOK credential response nil",

@@ -215,6 +215,7 @@ export function SecuritySettings({
         <AddAuthDeviceWizard
           usage={newDeviceUsage}
           auth2faType={cfg.getAuth2faType()}
+          existingDeviceNames={devices.map(d => d.name)}
           onClose={closeAddDeviceWizard}
           onSuccess={onAddDeviceSuccess}
         />
