@@ -26,63 +26,31 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Mutex protected cache for memoizing functions which construct the CSP header string.
-// This is necessary because the CSP header is constructed on every request to the web UI,
-// so caching here has a significant performance impact.
-type cspCache struct {
-	sync.RWMutex
-	entries map[string]string
-}
-
-func (c *cspCache) get(key string) (string, bool) {
-	c.RLock()
-	defer c.RUnlock()
-
-	val, ok := c.entries[key]
-	return val, ok
-}
-
-func (c *cspCache) set(key, value string) {
-	c.Lock()
-	defer c.Unlock()
-
-	c.entries[key] = value
-}
-
-func newCSPCache() *cspCache {
-	return &cspCache{
-		entries: make(map[string]string),
-	}
-}
-
-// CSPMap holds a map of Content Security Policy.
+// CSPMap holds a map of Content Security Policy directives.
 type CSPMap map[string][]string
 
-var defaultContentSecurityPolicy = CSPMap{
-	"default-src": {"'self'"},
-	"script-src":  {"'self'"},
-	// specify CSP directives not covered by `default-src`
-	"base-uri":        {"'self'"},
-	"form-action":     {"'self'"},
-	"frame-ancestors": {"'none'"},
-	// additional default restrictions
-	"object-src": {"'none'"},
-	"img-src":    {"'self'", "data:", "blob:"},
-	"style-src":  {"'self'", "'unsafe-inline'"},
-}
-
-var defaultFontSrc = CSPMap{"font-src": {"'self'", "data:"}}
-var defaultConnectSrc = CSPMap{"connect-src": {"'self'", "wss:"}}
-
-var wasmSecurityPolicy = CSPMap{
-	"script-src": {"'self'", "'wasm-unsafe-eval'"},
-}
+var (
+	defaultContentSecurityPolicy = CSPMap{
+		"default-src": {"'self'"},
+		"script-src":  {"'self'"},
+		// specify CSP directives not covered by `default-src`
+		"base-uri":        {"'self'"},
+		"form-action":     {"'self'"},
+		"frame-ancestors": {"'none'"},
+		// additional default restrictions
+		"object-src": {"'none'"},
+		"img-src":    {"'self'", "data:", "blob:"},
+		"style-src":  {"'self'", "'unsafe-inline'"},
+	}
+	defaultFontSrc     = CSPMap{"font-src": {"'self'", "data:"}}
+	defaultConnectSrc  = CSPMap{"connect-src": {"'self'", "wss:"}}
+	wasmSecurityPolicy = CSPMap{"script-src": {"'self'", "'wasm-unsafe-eval'"}}
+)
 
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input CSPMap have the same key, their
@@ -179,76 +147,62 @@ func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
 	return combineCSPMaps(cspMaps...)
 }
 
-// desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
-// which is a route to a desktop session that uses WASM.
-var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
+var (
+	// desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
+	// which is a route to a Windows desktop session that uses WASM.
+	desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
-// linuxDesktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username
-// which is a route to a Linux desktop session that uses WASM.
-var linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+$`)
+	// linuxDesktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username
+	// which is a route to a Linux desktop session that uses WASM.
+	linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+$`)
 
-// regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
-// which is a route to a desktop recording that uses WASM.
-var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
+	// recordingRe is a regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
+	// which is a route to a desktop recording that uses WASM.
+	recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
 
-// regex for the ssh terminal endpoint /web/cluster/:clusterId/console/node/:sid/:login
-// which is a route to a ssh session that uses WASM.
-var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^/]+$`)
+	// sshSessionRe is a regex for the ssh terminal endpoint /web/cluster/:clusterId/console/node/:sid/:login
+	// which is a route to a SSH session that uses WASM.
+	// (Note: the WASM dependency comes from xterm.js extensions)
+	sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^/]+$`)
+)
 
-var indexCSPStringCache *cspCache = newCSPCache()
+const (
+	cspHeaderName         = "Content-Security-Policy"
+	contentTypeHeaderName = "Content-Type"
+)
+
+var (
+	indexCSPWithWASM    = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(true))
+	indexCSPWithoutWASM = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(false))
+)
 
 func getIndexContentSecurityPolicyString(urlPath string) string {
-	// Check for result with this urlPath in cache
-	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
-		return cspString
+	if wasm := desktopSessionRe.MatchString(urlPath) ||
+		linuxDesktopSessionRe.MatchString(urlPath) ||
+		recordingRe.MatchString(urlPath) ||
+		sshSessionRe.MatchString(urlPath); wasm {
+		return indexCSPWithWASM
 	}
-
-	// Nothing found in cache, calculate regex and result
-	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath) || linuxDesktopSessionRe.MatchString(urlPath)
-	cspString := GetContentSecurityPolicyString(
-		getIndexContentSecurityPolicy(withWasm),
-	)
-	// Add result to cache
-	indexCSPStringCache.set(urlPath, cspString)
-
-	return cspString
+	return indexCSPWithoutWASM
 }
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page.
 func SetIndexContentSecurityPolicy(h http.Header, urlPath string) {
-	cspString := getIndexContentSecurityPolicyString(urlPath)
-	h.Set("Content-Security-Policy", cspString)
+	h.Set(cspHeaderName, getIndexContentSecurityPolicyString(urlPath))
 }
 
-var redirectCSPStringCache *cspCache = newCSPCache()
-
-func getRedirectPageContentSecurityPolicyString(scriptSrc string) string {
-	if cspString, ok := redirectCSPStringCache.get(scriptSrc); ok {
-		return cspString
-	}
-
-	cspString := GetContentSecurityPolicyString(
-		defaultContentSecurityPolicy,
-		CSPMap{
-			"script-src": {"'" + scriptSrc + "'"},
-		},
-	)
-	redirectCSPStringCache.set(scriptSrc, cspString)
-
-	return cspString
-}
-
+// SetRedirectPageContentSecurityPolicy sets the Content-Security-Policy header
+// for when Teleport serves a redirect.
 func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
-	cspString := getRedirectPageContentSecurityPolicyString(scriptSrc)
-	h.Set("Content-Security-Policy", cspString)
+	h.Set(
+		cspHeaderName,
+		GetContentSecurityPolicyString(
+			defaultContentSecurityPolicy,
+			CSPMap{"script-src": {"'" + scriptSrc + "'"}},
+		))
 }
 
-// SetWebConfigHeaders sets headers for webConfig.js
-func SetWebConfigHeaders(h http.Header) {
-	h.Set("Content-Type", "application/javascript")
-}
-
-// SetScriptHeaders sets headers for the teleport install script
+// SetScriptHeaders sets headers for Teleport install scripts.
 func SetScriptHeaders(h http.Header) {
-	h.Set("Content-Type", "text/x-shellscript")
+	h.Set(contentTypeHeaderName, "text/x-shellscript")
 }
