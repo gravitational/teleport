@@ -142,7 +142,8 @@ func TestParseResourcePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			got := parseResourcePath(tt.path)
+			got, err := parseResourcePath(tt.path)
+			require.NoError(t, err)
 			diff := cmp.Diff(got, tt.want, cmp.AllowUnexported(apiResource{}))
 			require.Empty(t, diff, "parsing path %q", tt.path)
 		})

@@ -108,7 +108,7 @@ type apiResource struct {
 // All fields of the returned apiResource may be empty.
 //
 // TODO(jakealti): reuse k8s.io/apiserver request.RequestInfoFactory here instead of re-implementing it.
-func parseResourcePath(p string) apiResource {
+func parseResourcePath(p string) (apiResource, error) {
 	// Kubernetes API reference: https://kubernetes.io/docs/reference/kubernetes-api/
 	// Let's try to parse this. Here be dragons!
 	//
@@ -134,6 +134,15 @@ func parseResourcePath(p string) apiResource {
 	// for live updates on resources (specific resources or all of one kind)
 	var r apiResource
 
+	// Cleaning below resolves "." and ".." segments, which changes which resource the path names.
+	// The raw path is what gets forwarded, so parsing one and forwarding the other
+	// would authorize a name the cluster never resolves.
+	for segment := range strings.SplitSeq(p, "/") {
+		if segment == "." || segment == ".." {
+			return r, trace.BadParameter("kubernetes request path must not contain %q segments", segment)
+		}
+	}
+
 	// Clean up the path and make it absolute.
 	p = path.Clean(p)
 	if !path.IsAbs(p) {
@@ -156,10 +165,10 @@ func parseResourcePath(p string) apiResource {
 		// This is part of API discovery. Don't emit to audit log to reduce
 		// noise.
 		r.skipEvent = true
-		return r
+		return r, nil
 	default:
 		// Doesn't look like a k8s API path, return empty result.
-		return r
+		return r, nil
 	}
 
 	// Special verb endpoints carry the verb in a segment ahead of the resource path.
@@ -182,7 +191,7 @@ func parseResourcePath(p string) apiResource {
 		// This is part of API discovery. Don't emit to audit log to reduce
 		// noise.
 		r.skipEvent = true
-		return r
+		return r, nil
 	case 1:
 		// e.g. /api/v1/pods - list pods in all namespaces
 		r.resourceKind = parts[0]
@@ -240,7 +249,7 @@ func parseResourcePath(p string) apiResource {
 			r.resourceName = stripProxyNamePortScheme(r.resourceName)
 		}
 	}
-	return r
+	return r, nil
 }
 
 // stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
@@ -288,16 +297,10 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
-	// A "." or ".." segment splits our view of the path from the API server's.
-	// We parse the cleaned path but forward the raw one, so a name we authorize
-	// is not necessarily the one the cluster resolves. Reject instead of guessing.
-	for segment := range strings.SplitSeq(req.URL.Path, "/") {
-		if segment == "." || segment == ".." {
-			return metaResource{}, trace.BadParameter("kubernetes request path must not contain %q segments", segment)
-		}
+	apiResource, err := parseResourcePath(req.URL.Path)
+	if err != nil {
+		return metaResource{}, trace.Wrap(err)
 	}
-
-	apiResource := parseResourcePath(req.URL.Path)
 
 	out := metaResource{
 		requestedResource: apiResource,
