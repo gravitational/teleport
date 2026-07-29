@@ -297,14 +297,20 @@ type ClientIPRestrictionSpec_builder struct {
 	// (should be enforced by Teleport Cloud). An empty value is treated as
 	// "enforced" for backward compatibility.
 	Mode string
-	// expires is the time at which the restriction is disabled and mode reverts
-	// to "draft". An unset value means the restriction never expires. When set,
-	// it must be at least 20 minutes in the future.
+	// expires is the deadline on enforcement: the restriction is enforced until
+	// this time and not after it. An unset value means enforcement never lapses.
+	// When set, it must be at least 20 minutes in the future.
+	//
+	// Once it elapses, enforcement stops and status.state becomes "expired".
+	// Neither mode nor expires is modified by Teleport Cloud, so a lapsed
+	// restriction still reads "enforced until <past>"; enforcing again takes a new
+	// write. Whether the restriction is in effect is therefore derived from this
+	// field and mode, not stored on its own.
 	//
 	// Note: we do not use the `metadata.expires` field for this, because that
 	// conventionally denotes that the resource should be deleted once it elapses.
 	// Here expiry only stops enforcement on the Cloud side; the resource itself
-	// keeps existing, reverting to a "draft" state rather than being removed.
+	// keeps existing rather than being removed.
 	//
 	// Writes fully replace the resource, so a client editing other fields must
 	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
@@ -372,7 +378,8 @@ type ClientIPRestrictionStatus_builder struct {
 
 	// state is the current enforcement state of the restrictions at the ingress layer.
 	// Possible values: "pending" (written but not yet applied), "active" (applied
-	// and enforced), and "draft" (saved but not enforced because mode is "draft").
+	// and enforced), "draft" (saved but not enforced because mode is "draft"), and
+	// "expired" (saved but not enforced because spec.expires elapsed).
 	State string
 }
 
