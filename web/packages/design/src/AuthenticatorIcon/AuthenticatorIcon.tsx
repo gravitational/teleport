@@ -19,7 +19,7 @@
 import { useTheme } from 'styled-components';
 
 import * as Icon from '../Icon';
-import { authenticatorSpec } from './authenticator';
+import { authenticatorLogo } from './authenticator';
 
 interface AuthenticatorIconProps {
   /** The authenticator's AAGUID. Unknown or missing AAGUIDs render a generic key icon. */
@@ -38,11 +38,11 @@ export function AuthenticatorIcon({
   size = 24,
 }: AuthenticatorIconProps) {
   const theme = useTheme();
-  const spec = authenticatorSpec(aaguid);
+  const logo = authenticatorLogo(aaguid);
   const src =
     theme.type === 'dark'
-      ? (spec?.dark ?? spec?.light)
-      : (spec?.light ?? spec?.dark);
+      ? (logo?.dark ?? logo?.light)
+      : (logo?.light ?? logo?.dark);
 
   if (!src) {
     return <Icon.Key size={size} data-testid="authenticator-icon-fallback" />;

@@ -37,6 +37,10 @@ import (
 
 // SignAssertion signs a WebAuthn assertion following the
 // U2F-compat-getAssertion algorithm.
+const aaguidLen = 16
+
+var zeroAAGUID = make([]byte, aaguidLen)
+
 func (muk *Key) SignAssertion(origin string, assertion *wantypes.CredentialAssertion) (*wantypes.CredentialAssertionResponse, error) {
 	// Reference:
 	// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#u2f-authenticatorGetAssertion-interoperability
@@ -177,20 +181,32 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 	authData.Write(appIDHash[:])
 	authData.WriteByte(flags)
 	binary.Write(authData, binary.BigEndian, uint32(0)) // counter, zeroed
-	authData.Write(make([]byte, 16))                    // AAGUID, zeroed
+	aaguid := muk.AAGUID
+	if len(aaguid) != aaguidLen {
+		aaguid = zeroAAGUID
+	}
+	authData.Write(aaguid)
 	binary.Write(authData, binary.BigEndian, uint16(len(muk.KeyHandle)))
 	authData.Write(muk.KeyHandle)
 	authData.Write(pubKeyCBOR)
 
-	attObj, err := cbor.Marshal(&protocol.AttestationObject{
+	// U2F attestation is only valid for an authenticator with no AAGUID, so a Key that reports a make
+	// and model attests to nothing instead. Browser-bound providers behave the same way: Chrome's own
+	// passkeys report an AAGUID with a "none" attestation.
+	// See https://www.w3.org/TR/webauthn-2/#sctn-fido-u2f-attestation.
+	attObj := &protocol.AttestationObject{
 		RawAuthData: authData.Bytes(),
-		// See https://www.w3.org/TR/webauthn-2/#sctn-fido-u2f-attestation.
-		Format: "fido-u2f",
-		AttStatement: map[string]any{
+		Format:      "none",
+	}
+	if bytes.Equal(aaguid, zeroAAGUID) {
+		attObj.Format = "fido-u2f"
+		attObj.AttStatement = map[string]any{
 			"sig": res.Signature,
 			"x5c": []any{muk.Cert},
-		},
-	})
+		}
+	}
+
+	attObjCBOR, err := cbor.Marshal(attObj)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +238,7 @@ func (muk *Key) SignCredentialCreation(origin string, cc *wantypes.CredentialCre
 			AuthenticatorResponse: wantypes.AuthenticatorResponse{
 				ClientDataJSON: ccd,
 			},
-			AttestationObject: attObj,
+			AttestationObject: attObjCBOR,
 		},
 	}, nil
 }

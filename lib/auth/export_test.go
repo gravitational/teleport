@@ -64,8 +64,6 @@ const (
 
 	CompleteRecoveryGenericErrMsg = completeRecoveryGenericErrMsg
 
-	MFADeviceNameMaxLen = mfaDeviceNameMaxLen
-
 	ServerHostnameMaxLen = serverHostnameMaxLen
 
 	MaxUserAgentLen = maxUserAgentLen

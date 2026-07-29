@@ -24,18 +24,14 @@ import { AuthenticatorIcon } from './AuthenticatorIcon';
 
 // Stand in for the generated map so the theme and fallback behavior can be tested against
 // known AAGUIDs without pulling in every vendor asset.
-jest.mock('./authenticatorSpecs', () => ({
-  authenticatorSpecs: {
+jest.mock('./authenticatorIcons', () => ({
+  authenticatorIcons: {
     'ee882879-721c-4913-9775-3dfcce97072a': {
-      name: 'YubiKey 5 Series',
       light: 'yubikey-light.svg',
       dark: 'yubikey-dark.svg',
     },
-    'aaaaaaaa-1111-1111-1111-111111111111': {
-      name: 'Light only',
-      light: 'light-only.png',
-    },
-    'bbbbbbbb-2222-2222-2222-222222222222': { name: 'No icons' },
+    'aaaaaaaa-1111-1111-1111-111111111111': { light: 'light-only.png' },
+    'bbbbbbbb-2222-2222-2222-222222222222': {},
   },
 }));
 
@@ -59,7 +55,7 @@ test('renders the dark variant under the dark theme', () => {
   );
 });
 
-test('falls back to the other variant when a theme has no artwork', () => {
+test('falls back to the other variant when a theme has no logo', () => {
   const aaguid = 'aaaaaaaa-1111-1111-1111-111111111111';
   renderIcon(aaguid, { type: 'dark' });
 
@@ -81,7 +77,7 @@ test('sizes the image', () => {
 test.each([
   { name: 'an unknown AAGUID', aaguid: 'ffffffff-0000-0000-0000-000000000000' },
   {
-    name: 'a known AAGUID with no icons',
+    name: 'a known AAGUID with no logo',
     aaguid: 'bbbbbbbb-2222-2222-2222-222222222222',
   },
   { name: 'a missing AAGUID', aaguid: undefined },
