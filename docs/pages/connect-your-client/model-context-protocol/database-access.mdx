@@ -21,8 +21,9 @@ page_type: how-to
   }}
 />
 
-This guide shows you how to connect to your **PostgreSQL** Teleport databases
-with MCP clients.
+This guide shows you how to connect to your PostgreSQL Teleport databases with MCP clients using interactive tsh login. 
+For headless environments, CI/CD pipelines, or automation, see the Machine ID guide (tbot) to issue short-lived 
+credentials without interactive authentication.
 
 {/* lint ignore page-structure remark-lint */}
 
@@ -60,12 +61,6 @@ access the database using this user.
 You can also set up fine-grained permissions for use with MCP using [Auto-user
 provisioning](../../enroll-resources/database-access/auto-user-provisioning/postgres.mdx)
 or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
-</Admonition>
-
-<Admonition type="tip" title="Headless and automated environments">
-This guide uses interactive `tsh login`. For headless environments, CI/CD
-pipelines, or automation, use [Machine ID](../../machine-workload-identity/getting-started.mdx)
-(`tbot`) to issue short-lived credentials without interactive authentication.
 </Admonition>
 
 ## Step 1/2. List available MCP servers

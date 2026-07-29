@@ -1,10 +1,24 @@
-<Admonition type="note" title="TLS routing">
-This guide assumes your Teleport cluster uses TLS routing
+<details>
+<summary>Connecting with TLS routing disabled</summary>
+
+This guide's commands assume your Teleport cluster uses TLS routing
 (`proxy_listener_mode: multiplex`), where all client traffic goes through the
-proxy web address on port `443`. If your cluster uses separate listener ports,
-note that `tsh login` and web UI access still use the HTTPS port (typically
-`443` or `3080`), while service-to-service connections use dedicated ports:
-`3025` for the Auth Service, `3024` for the reverse tunnel, and `3023` for
-the SSH proxy. Replace the port in `proxy_server` or `--auth-server` settings
-accordingly, but keep the web port for `tsh login --proxy=`.
-</Admonition>
+proxy web address on port `443`. If you're not sure whether this applies to
+your cluster, check with whoever manages it.
+
+If your cluster uses separate listener ports instead, replace port `443` in
+this guide's commands with the port for the service you're connecting to:
+
+```text
+Auth Service     3025
+Reverse tunnel   3024
+SSH proxy        3023
+```
+
+For example, to reach the Auth Service directly with `tctl`:
+
+```code
+$ tctl status --auth-server=<Var name="teleport.example.com" />:3025
+```
+
+</details>
