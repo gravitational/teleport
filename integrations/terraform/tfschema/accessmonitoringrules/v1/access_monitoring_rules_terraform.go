@@ -113,6 +113,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"reason": {
+							Description: "reason specifies a reason for the review decision. This field is optional and if it is not supplied, a generic reason will be applied to reviews.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 					}),
 					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
@@ -579,6 +584,23 @@ func CopyAccessMonitoringRuleFromTerraform(_ context.Context, tf github_com_hash
 													t = string(v.Value)
 												}
 												obj.Decision = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["reason"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessMonitoringRule.spec.automatic_review.reason"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Reason = t
 											}
 										}
 									}
@@ -1418,6 +1440,28 @@ func CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx context.Context, obj
 												v.Unknown = false
 											}
 											tf.Attrs["decision"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["reason"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AccessMonitoringRule.spec.automatic_review.reason"})
+										} else {
+											v, ok := tf.Attrs["reason"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.reason", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.reason", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Reason) == ""
+											}
+											v.Value = string(obj.Reason)
+											v.Unknown = false
+											tf.Attrs["reason"] = v
 										}
 									}
 								}
