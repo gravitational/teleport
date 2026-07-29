@@ -33,6 +33,8 @@ export interface MfaDevice {
   lastUsedDate: Date;
   type: DeviceType;
   usage: DeviceUsage;
+  /** Resolved from aaguid client-side (webauthn only). */
+  aaguid?: string;
 }
 
 export type AddNewTotpDeviceRequest = {
