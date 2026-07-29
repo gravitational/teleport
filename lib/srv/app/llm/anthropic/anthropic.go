@@ -286,8 +286,8 @@ const (
 	// maxOutputTokens is the max value that can be used on the provider to
 	// avoid using the entire limit all at once.
 	//
-	// Anthropic supports different models, here we pick the model with most max
-	// output tokens: sonnet-5. This might change in the future.
+	// Anthropic supports different models, here we picked the latest "model
+	// class": `4.6`+ (that covers Opus, Sonnet, and Mythos/Fable).
 	//
 	// Reference: https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison
 	//

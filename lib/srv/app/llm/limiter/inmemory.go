@@ -32,11 +32,11 @@ import (
 // This should act as initial implementation and behavior reference for future
 // implementations like distributed solutions.
 type InMemory struct {
-	mu sync.Mutex
+	mu      sync.Mutex
+	storage map[appKey]Usage
 
 	inputTokensLimit  uint
 	outputTokensLimit uint
-	storage           map[appKey]Usage
 }
 
 // NewInMemory creates a new instance of the [InMemory] limiter.

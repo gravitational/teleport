@@ -25,8 +25,6 @@ import (
 )
 
 // ReserveRequest is a request to reserve tokens out of the application limits.
-// Reservations are made upfront, before the request reaches the provider, and
-// are later adjusted to the effective usage using the returned [SettleFunc].
 type ReserveRequest struct {
 	// App is the application that is serving the request.
 	App types.Application
@@ -65,7 +63,7 @@ type Usage struct {
 type ReserveInfo struct {
 	// NotApplicable indicates the request is exempt from limiting. Callers can
 	// still expect to receive a non-nil settle function, for example
-	// [EmptySettlFunc].
+	// [EmptySettleFunc].
 	NotApplicable bool
 	// OutputTokens is the max output tokens the provider can generate that
 	// won't exceed the limit.
