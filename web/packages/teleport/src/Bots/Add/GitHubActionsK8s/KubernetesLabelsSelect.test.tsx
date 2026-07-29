@@ -288,35 +288,60 @@ describe('KubernetesLabelsSelect', () => {
     const nameInput = within(selectedSection!).getByLabelText('Name');
     const valueInput = within(selectedSection!).getByLabelText('Value');
 
+    const checkFieldValidationPasses = () => {
+      // Name field validation message
+      expect(
+        within(selectedSection!).queryByText('Alphanumeric or * is required')
+      ).not.toBeInTheDocument();
+      // Value field validation message
+      expect(
+        within(selectedSection!).queryByText('Value is required')
+      ).not.toBeInTheDocument();
+    };
+
+    const checkForAddedLabel = (label: string) => {
+      expect(
+        within(selectedSection!).getByTestId(`label-action-${label}-remove`)
+      ).toBeInTheDocument();
+    };
+
     await user.type(nameInput, 'foo');
     await user.type(valueInput, 'bar{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo: bar');
 
     await user.type(nameInput, 'foo2:bar'); // colon in name
     await user.type(valueInput, 'baz{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo2:bar: baz');
 
     await user.type(nameInput, 'foo3');
     await user.type(valueInput, 'bar:baz'); // colon in value
     await user.type(nameInput, '{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo3: bar:baz');
 
     await user.type(nameInput, 'foo4');
     await user.type(valueInput, 'bar: baz{enter}'); // colon and space in value
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo4: bar: baz');
 
     await user.type(nameInput, 'env');
     await user.type(valueInput, '*{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('env: *');
 
     await user.type(nameInput, 'region');
-    // Extra square brackets are required to escape the initial pair
-    await user.type(valueInput, '^eu-(west|east)-[[0-9]]+$');
+    // Extra opening square bracket escapes the next
+    await user.type(valueInput, '^eu-(west|east)-[[0-9]+$');
     await user.click(
       within(selectedSection!).getByRole('button', { name: 'add label' })
     );
+    checkFieldValidationPasses();
+    checkForAddedLabel('region: ^eu-(west|east)-[0-9]+$');
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (6)' })
-    ).toBeInTheDocument();
-
-    expect(
-      within(selectedSection!).getByTestId('label-action-foo: bar-remove')
     ).toBeInTheDocument();
   });
 
