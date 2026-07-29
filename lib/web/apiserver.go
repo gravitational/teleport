@@ -2018,7 +2018,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	httplib.SetWebConfigHeaders(w.Header())
+	w.Header().Set("Content-Type", "application/javascript")
 
 	clusterFeatures := h.GetClusterFeatures()
 	automaticUpgradesEnabled := clusterFeatures.GetAutomaticUpgrades()
@@ -2569,7 +2569,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 				}
 			}
 		}
-		if errors.Is(err, auth.ErrGithubNoTeams) {
+		if errors.Is(err, auth.ErrGithubNoRoles) {
 			return sso.LoginFailedUnauthorizedRedirectURL
 		}
 

@@ -383,7 +383,6 @@ func ForNode(cfg Config) Config {
 // ForKubernetes sets up watch configuration for a kubernetes service.
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
-	unscoped := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
@@ -394,7 +393,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindKubeServer},
-		{Kind: types.KindKubernetesCluster, ScopeFilter: unscoped},
+		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindHealthCheckConfig},
 	}

@@ -319,7 +319,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("in-memory backend", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("fallback to in-memory", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{"invalid_backend", auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("all backends fail", func(t *testing.T) {
 		_, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{"invalid_backend"},
 		})
 		require.Error(t, err)
@@ -356,7 +356,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 		inner := eventstest.NewChannelEmitter(1)
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              inner,
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
@@ -377,4 +377,27 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 			t.Fatal("event was never delivered to inner emitter")
 		}
 	})
+}
+
+func TestAsyncEmitterShutdownDrainsQueue(t *testing.T) {
+	ctx := t.Context()
+	counter := eventstest.NewCountingEmitter()
+	emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		Inner:              counter,
+		EnableAuditQueue:   true,
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
+	for _, e := range evts {
+		require.NoError(t, emitter.EmitAuditEvent(ctx, e))
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, emitter.Shutdown(shutdownCtx))
+
+	require.EqualValues(t, len(evts), counter.Count(),
+		"Shutdown should drain every enqueued event to the inner emitter")
 }

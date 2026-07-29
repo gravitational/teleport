@@ -198,6 +198,12 @@ func TestValidateQualifiedName(t *testing.T) {
 			weakOk:   true,
 		},
 		{
+			name:     "name longer than max segment size",
+			sqn:      "/staging::aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
 			name:     "scope with breaking char",
 			sqn:      "/stag@ing::myrole",
 			strongOk: false,
@@ -346,4 +352,12 @@ func TestSet(t *testing.T) {
 			require.Equal(t, tt.expected, sqn)
 		})
 	}
+}
+
+func TestMaybeQualifiedName(t *testing.T) {
+	require.True(t, MaybeSQN("/foo/bar::llama"))
+	require.True(t, MaybeSQN("/llama"))
+	require.False(t, MaybeSQN("llama"))
+	require.False(t, MaybeSQN("llama/"))
+	require.False(t, MaybeSQN(""))
 }

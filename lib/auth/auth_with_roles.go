@@ -51,6 +51,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1279,7 +1280,8 @@ func supportedScopedWatchKind(kind string) bool {
 		types.KindAccessListMember,
 		types.KindAccessListReview,
 		scopedaccess.KindScopedRole,
-		scopedaccess.KindScopedRoleAssignment:
+		scopedaccess.KindScopedRoleAssignment,
+		types.KindKubernetesCluster:
 		return true
 	default:
 		return false
@@ -3837,10 +3839,18 @@ func (a *ScopedServerWithRoles) desiredAccessInfoForUser(ctx context.Context, re
 	}
 
 	if dropAnyRequests := len(req.DropAccessRequests) > 0; dropAnyRequests {
-		// Reset to the base roles and traits stored in the backend user,
-		// currently active requests (not being dropped) and new access requests
-		// will be filled in below.
-		accessInfo = services.AccessInfoFromUserState(user)
+		// When dropping access requests, reset to the base roles and traits
+		// from a freshly regenerated user login state, which extends user object
+		// by roles and traits granted through access lists. The login state is
+		// regenerated rather than read from the backend because the user may
+		// have been modified since it was last computed, leaving the stored
+		// user_login_state stale. Using the raw user object here instead
+		// would strip access list grants from the reissued certificate.
+		userState, err := a.authServer.regenerateUserLoginState(ctx, user.GetName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		accessInfo = services.AccessInfoFromUserState(userState)
 
 		// Check for ["*"] as special case to drop all requests.
 		if len(req.DropAccessRequests) == 1 && req.DropAccessRequests[0] == "*" {
@@ -6995,13 +7005,37 @@ func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.Ku
 }
 
 // DeleteKubernetesServer deletes specified kubernetes server.
-func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if err := a.ScopedServerWithRoles().scopedContext.AgentOwnedResourceAction("", hostID, types.RoleKube); err != nil {
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
+func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req *proto.DeleteKubernetesServerRequest) error {
+	var existingServer types.KubeServer
+	for server, err := range a.authServer.RangeKubernetesServersWithName(ctx, req.GetName()) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// only allow unscoped kube servers to be deleted using this deprecated DeleteKubernetesServer method
+		if server.GetScope() == "" && server.GetHostID() == req.GetHostID() {
+			existingServer = server
+			break
+		}
+	}
+	if existingServer == nil {
+		return trace.NotFound("%s %q doesn't exist", types.KindKubeServer, req.GetName())
+	}
+	if err := a.scopedContext.AgentOwnedResourceAction(existingServer.GetScope(), existingServer.GetHostID(), types.RoleKube); err != nil {
+		ruleCtx := a.scopedContext.RuleContext()
+		if err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
+	return a.authServer.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  existingServer.GetScope(),
+		Name:   req.GetName(),
+		HostId: req.GetHostID(),
+	}.Build())
 }
 
 // DeleteAllKubernetesServers deletes all registered kubernetes servers.
@@ -7368,6 +7402,10 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Reject scoped apps before the rest of validation
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	// Validate before the label-matching access check so callers with
 	// the correct role see input errors rather than access-denied from
 	// a label mismatch on a malformed app.
@@ -7392,6 +7430,13 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 // UpdateApp updates existing application resource.
 func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
 		return trace.Wrap(err)
 	}
 	// Validate before the GetApp existence check so a malformed name
@@ -8252,7 +8297,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedContextUser)
 		}
 	}
 
@@ -8264,7 +8309,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	if req.MFARequiredCheck != nil {
 		// Return a nicer error message.
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to supply MFARequiredCheck")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedMFARequiredCheck)
 		}
 
 		mfaRequiredResp, err := a.IsMFARequired(ctx, req.MFARequiredCheck)

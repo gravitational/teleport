@@ -74,6 +74,8 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // The scope the resource being kept alive belongs to.
+  string scope = 11;
 }
 
 // Rotation is a status of the rotation of the certificate authority

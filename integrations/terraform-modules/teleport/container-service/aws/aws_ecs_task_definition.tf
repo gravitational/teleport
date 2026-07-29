@@ -3,7 +3,12 @@
 ################################################################################
 
 locals {
-  managed_updates_proxy_addr = try(var.teleport_config.teleport.proxy_server, "")
+  managed_updates_proxy_addr = try(
+    replace(
+      trimspace(var.teleport_config.teleport.proxy_server),
+      "/^[^:]*:[/]{2}/", # trim any URL scheme
+    ""),
+  "")
   managed_updates_version = (
     length(data.http.managed_updates) == 1
     ? jsondecode(data.http.managed_updates[0].response_body).auto_update.agent_version
