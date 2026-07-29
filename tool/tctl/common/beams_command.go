@@ -273,6 +273,9 @@ func drainSessionEvents(ctx context.Context, tc *authclient.Client, chunkID stri
 	for {
 		select {
 		case ev, ok := <-evCh:
+			// The events channel closing is the authoritative end of the recording:
+			// StreamSessionEvents closes it on completion and sends to errCh only on
+			// failure.
 			if !ok {
 				return out, nil
 			}
@@ -281,7 +284,25 @@ func drainSessionEvents(ctx context.Context, tc *authclient.Client, chunkID stri
 			if err != nil && !trace.IsEOF(err) {
 				return nil, trace.Wrap(err)
 			}
-			return out, nil
+			// An EOF here means nothing further will be produced, but events sent
+			// before it can still be queued in evCh. Returning at this point raced
+			// them away: select picks uniformly among ready cases, so once errCh was
+			// ready every iteration had an even chance of discarding the rest of the
+			// recording and reporting success. Drain what is buffered before
+			// returning; a non-blocking drain rather than waiting for evCh to close,
+			// so an implementation that signals EOF without closing cannot hang the
+			// export.
+			for {
+				select {
+				case ev, ok := <-evCh:
+					if !ok {
+						return out, nil
+					}
+					out = append(out, ev)
+				default:
+					return out, nil
+				}
+			}
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		}
