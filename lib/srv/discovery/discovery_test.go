@@ -41,6 +41,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -1706,15 +1707,35 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 	t.Parallel()
 
 	const (
-		mainDiscoveryGroup  = "main"
-		otherDiscoveryGroup = "other"
+		mainDiscoveryGroup   = "main"
+		otherDiscoveryGroup  = "other"
+		dynamicAKSConfigName = "dynamic-aks"
 	)
+	dynamicAKSConfig, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: dynamicAKSConfigName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: mainDiscoveryGroup,
+			Azure: []types.AzureMatcher{
+				{
+					Types:          []string{types.AzureMatcherKubernetes},
+					ResourceTags:   map[string]utils.Strings{"env": {"prod"}},
+					Regions:        []string{types.Wildcard},
+					ResourceGroups: []string{types.Wildcard},
+					Subscriptions:  []string{"sub1"},
+					Integration:    "dummy-azure-integration",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
 	tcs := []struct {
 		name                          string
 		existingKubeClusters          []types.KubeCluster
 		awsMatchers                   []types.AWSMatcher
 		azureMatchers                 []types.AzureMatcher
 		gcpMatchers                   []types.GCPMatcher
+		discoveryConfig               *discoveryconfig.DiscoveryConfig
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
 		expectedAssumedRoles          []string
@@ -1896,6 +1917,23 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			wantEvents:         2,
 		},
 		{
+			name:            "AKS clusters configured by DiscoveryConfig",
+			discoveryConfig: dynamicAKSConfig,
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], rewriteDiscoveryLabelsParams{
+					discoveryGroup:      mainDiscoveryGroup,
+					integration:         "dummy-azure-integration",
+					discoveryConfigName: dynamicAKSConfigName,
+				}),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], rewriteDiscoveryLabelsParams{
+					discoveryGroup:      mainDiscoveryGroup,
+					integration:         "dummy-azure-integration",
+					discoveryConfigName: dynamicAKSConfigName,
+				}),
+			},
+			wantEvents: 2,
+		},
+		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
 			existingKubeClusters: []types.KubeCluster{},
 			gcpMatchers: []types.GCPMatcher{
@@ -2039,18 +2077,33 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			require.NoError(t, discServer.Start())
 			t.Cleanup(discServer.Stop)
 
-			select {
-			case <-waitForReconcile:
-				kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
-				require.NoError(t, err)
-
-				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
-				c2 := types.KubeClusters(kubeClusters).ToMap()
-				for k := range c1 {
-					require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
+			waitForKubeReconcile := func() {
+				t.Helper()
+				select {
+				case <-waitForReconcile:
+				case <-time.After(10 * time.Second):
+					require.FailNow(t, "Didn't receive reconcile event after 10s")
 				}
-			case <-time.After(10 * time.Second):
-				require.FailNow(t, "Didn't receive reconcile event after 10s")
+			}
+
+			if tc.discoveryConfig != nil {
+				// Wait for the initial empty reconciliation before creating the DiscoveryConfig.
+				// This verifies that the config change wakes the Kubernetes watcher instead of waiting for its poll interval.
+				waitForKubeReconcile()
+
+				_, err = tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
+			waitForKubeReconcile()
+
+			kubeClusters, err := tlsServer.Auth().GetKubernetesClusters(ctx)
+			require.NoError(t, err)
+
+			c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
+			c2 := types.KubeClusters(kubeClusters).ToMap()
+			for k := range c1 {
+				require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
 			}
 
 			require.ElementsMatch(t, tc.expectedAssumedRoles, mockedClients.STSClient.GetAssumedRoleARNs(), "roles incorrectly assumed")
@@ -2066,6 +2119,107 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 			}
 
 			require.Equal(t, tc.wantEvents, reporter.ResourceCreateEventCount())
+		})
+	}
+}
+
+func TestServerKubeFetchersFromDynamicAKSMatchers(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dynamic-aks"
+		integrationName     = "azure-integration"
+	)
+
+	for _, tt := range []struct {
+		name                  string
+		subscriptions         []string
+		subscriptionListAPI   *azure.ARMSubscriptionsMock
+		expectedSubscriptions []string
+	}{
+		{
+			name:          "explicit subscriptions",
+			subscriptions: []string{"sub-1", "sub-2"},
+			// Explicit subscriptions must not require permission to list all subscriptions.
+			subscriptionListAPI:   &azure.ARMSubscriptionsMock{NoAuth: true},
+			expectedSubscriptions: []string{"sub-1", "sub-2"},
+		},
+		{
+			name:          "wildcard subscription",
+			subscriptions: []string{types.Wildcard},
+			subscriptionListAPI: &azure.ARMSubscriptionsMock{
+				Subscriptions: []*armsubscription.Subscription{
+					{
+						SubscriptionID: new("sub-1"),
+						State:          new(armsubscription.SubscriptionStateEnabled),
+					},
+					{
+						SubscriptionID: new("sub-2"),
+						State:          new(armsubscription.SubscriptionStateWarned),
+					},
+					{
+						SubscriptionID: new("sub-deleted"),
+						State:          new(armsubscription.SubscriptionStateDeleted),
+					},
+				},
+			},
+			expectedSubscriptions: []string{"sub-1", "sub-2"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			aksClients := make(map[string]azure.AKSClient, len(tt.expectedSubscriptions))
+			for _, subscription := range tt.expectedSubscriptions {
+				aksClients[subscription] = newPopulatedAKSMock()
+			}
+			azureClients := &azuretest.Clients{
+				AzureAKSClientPerSub: aksClients,
+				AzureSubscriptionClient: azure.NewSubscriptionClient(
+					tt.subscriptionListAPI,
+				),
+			}
+
+			s := &Server{
+				ctx: t.Context(),
+				Config: &Config{
+					Log: logtest.NewLogger(),
+					initAzureClients: func(...azure.ClientsOption) (azure.Clients, error) {
+						return azureClients, nil
+					},
+				},
+			}
+
+			kubeFetchers, err := s.kubeFetchersFromMatchers(Matchers{
+				Azure: []types.AzureMatcher{
+					{
+						Types:          []string{types.AzureMatcherVM},
+						Subscriptions:  []string{"ignored"},
+						ResourceGroups: []string{types.Wildcard},
+						Regions:        []string{types.Wildcard},
+						ResourceTags:   types.Labels{types.Wildcard: {types.Wildcard}},
+					},
+					{
+						// Mixed matchers are supported by DiscoveryConfig and
+						// must still produce an AKS fetcher.
+						Types:          []string{types.AzureMatcherVM, types.AzureMatcherKubernetes},
+						Subscriptions:  tt.subscriptions,
+						ResourceGroups: []string{types.Wildcard},
+						Regions:        []string{types.Wildcard},
+						ResourceTags:   types.Labels{types.Wildcard: {types.Wildcard}},
+						Integration:    integrationName,
+					},
+				},
+			}, discoveryConfigName)
+			require.NoError(t, err)
+			require.Len(t, kubeFetchers, len(tt.expectedSubscriptions))
+
+			for _, fetcher := range kubeFetchers {
+				require.Equal(t, discoveryConfigName, fetcher.GetDiscoveryConfigName())
+				require.Equal(t, integrationName, fetcher.IntegrationName())
+
+				resources, err := fetcher.Get(t.Context())
+				require.NoError(t, err)
+				require.NotEmpty(t, resources)
+			}
 		})
 	}
 }

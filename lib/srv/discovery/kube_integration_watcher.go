@@ -52,7 +52,7 @@ import (
 // EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
 // discovered clusters, instead of just proxying them.
 func (s *Server) startKubeIntegrationWatchers() error {
-	if len(s.getKubeIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
+	if len(s.getKubeFetchersUsingRemoteAgentDeployment()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -97,9 +97,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn: func() []common.Fetcher {
-			kubeIntegrationFetchers := s.getKubeIntegrationFetchers()
-			s.submitFetchersEvent(kubeIntegrationFetchers)
-			return kubeIntegrationFetchers
+			fetchersUsingRemoteAgentDeployment := s.getKubeFetchersUsingRemoteAgentDeployment()
+			s.submitFetchersEvent(fetchersUsingRemoteAgentDeployment)
+			return fetchersUsingRemoteAgentDeployment
 		},
 		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
@@ -234,7 +234,7 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 	discoveryConfigs := s.awsEKSResourcesStatus.iterationDiscoveryConfigs()
 	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 
-	allFetchers := s.getKubeIntegrationFetchers()
+	allFetchers := s.getKubeFetchersUsingRemoteAgentDeployment()
 
 	awsResultGroups := libslices.FilterMapUnique(
 		allFetchers,
@@ -347,35 +347,20 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-type IntegrationFetcher interface {
-	// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
-	GetIntegration() string
-}
-
-func (s *Server) getKubeFetchers(integration bool) []common.Fetcher {
+func (s *Server) getKubeFetchers(remoteAgentDeployment bool) []common.Fetcher {
 	var kubeFetchers []common.Fetcher
 
-	filterIntegrationFetchers := func(fetcher common.Fetcher) bool {
-		f, ok := fetcher.(IntegrationFetcher)
-		if !ok {
-			return false
-		}
-
-		return f.GetIntegration() != ""
+	fetchersUsingRemoteAgentDeployment := func(fetcher common.Fetcher) bool {
+		return fetcher.FetcherType() == types.AWSMatcherEKS && fetcher.IntegrationName() != ""
 	}
 
-	filterNonIntegrationFetchers := func(fetcher common.Fetcher) bool {
-		f, ok := fetcher.(IntegrationFetcher)
-		if !ok {
-			return true
-		}
-
-		return f.GetIntegration() == ""
+	fetchersUsingKubernetesServiceAsProxy := func(fetcher common.Fetcher) bool {
+		return !fetchersUsingRemoteAgentDeployment(fetcher)
 	}
 
-	filter := filterIntegrationFetchers
-	if !integration {
-		filter = filterNonIntegrationFetchers
+	filter := fetchersUsingRemoteAgentDeployment
+	if !remoteAgentDeployment {
+		filter = fetchersUsingKubernetesServiceAsProxy
 	}
 
 	s.muDynamicKubeFetchers.RLock()
@@ -397,11 +382,11 @@ func (s *Server) getKubeFetchers(integration bool) []common.Fetcher {
 	return kubeFetchers
 }
 
-func (s *Server) getKubeIntegrationFetchers() []common.Fetcher {
+func (s *Server) getKubeFetchersUsingRemoteAgentDeployment() []common.Fetcher {
 	return s.getKubeFetchers(true)
 }
 
-func (s *Server) getKubeNonIntegrationFetchers() []common.Fetcher {
+func (s *Server) getKubeFetchersUsingKubernetesServiceAsProxy() []common.Fetcher {
 	return s.getKubeFetchers(false)
 }
 

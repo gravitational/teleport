@@ -112,14 +112,14 @@ func TestAKSFetcher(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := AKSFetcherConfig{
+			cfg := aksFetcherConfig{
 				Client:         newPopulatedAKSMock(),
 				FilterLabels:   tt.args.filterLabels,
 				Regions:        tt.args.regions,
 				ResourceGroups: tt.args.resourceGroups,
 				Logger:         logtest.NewLogger(),
 			}
-			fetcher, err := NewAKSFetcher(cfg)
+			fetcher, err := newAKSFetcher(cfg)
 			require.NoError(t, err)
 			resources, err := fetcher.Get(context.Background())
 			require.NoError(t, err)
