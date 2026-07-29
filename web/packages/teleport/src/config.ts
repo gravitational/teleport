@@ -479,6 +479,7 @@ const cfg = {
 
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
+    logClientErrorPath: '/v1/webapi/log',
 
     webapiPingPath: '/v1/webapi/ping',
 
