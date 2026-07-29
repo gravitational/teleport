@@ -69,9 +69,9 @@ func TestScopedRoleAssignmentCollection_WriteText(t *testing.T) {
 	}
 
 	table := asciitable.MakeTable(
-		[]string{"SubKind", "ID", "Assignee Type", "Assignee", "Assigns"},
-		[]string{"dynamic", "/staging::alice-assignment", "user", "alice", "/staging::role1 -> /staging/west"},
-		[]string{"dynamic", "/staging::mybot-assignment", "bot", "/staging/west::mybot", "/staging::role1 -> /staging/west, /staging::role2 -> /staging/west"},
+		[]string{"SubKind", "ID", "Assignee", "Assigns"},
+		[]string{"dynamic", "/staging::alice-assignment", "user: alice", "/staging::role1 -> /staging/west"},
+		[]string{"dynamic", "/staging::mybot-assignment", "bot: /staging/west::mybot", "/staging::role1 -> /staging/west, /staging::role2 -> /staging/west"},
 	)
 
 	formatted := table.AsBuffer().String()

@@ -563,10 +563,10 @@ Confirm a scoped role assignment has been materialized for each member:
 
 ```code
 $ tctl get scoped_role_assignments --format text
-SubKind      ID                                                          Assignee Type Assignee Assigns
------------- ----------------------------------------------------------- ------------- -------- --------------------------------------------------
-materialized /examples/basic::acl-4ezohtYllrk-gbWjn0hj_npCNwhujMurruDLRg user          charlie  /examples/basic::example-access -> /examples/basic
-materialized /examples/basic::acl-XMyMVGoNZopPQ9WxuZ5RH6GM5FPHVwLSTFUsBg user          bob      /examples/basic::example-access -> /examples/basic
+SubKind      ID                                                          Assignee      Assigns
+------------ ----------------------------------------------------------- ------------- --------------------------------------------------
+materialized /examples/basic::acl-4ezohtYllrk-gbWjn0hj_npCNwhujMurruDLRg user: charlie /examples/basic::example-access -> /examples/basic
+materialized /examples/basic::acl-XMyMVGoNZopPQ9WxuZ5RH6GM5FPHVwLSTFUsBg user: bob     /examples/basic::example-access -> /examples/basic
 ```
 
 Access Lists and members can also be managed via the Web UI under

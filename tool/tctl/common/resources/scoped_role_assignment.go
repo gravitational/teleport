@@ -55,7 +55,7 @@ func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"SubKind", "ID", "Assignee Type", "Assignee", "Assigns"}
+	headers := []string{"SubKind", "ID", "Assignee", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -63,12 +63,10 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		for j, subAssignment := range item.GetSpec().GetAssignments() {
 			assigns[j] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
 		}
-		assigneeKind, assignee := scopedRoleAssignmentAssignee(item)
 		rows[i] = []string{
 			item.GetSubKind(),
 			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
-			assigneeKind,
-			assignee,
+			scopedRoleAssignmentAssignee(item),
 			strings.Join(assigns, ", "),
 		}
 	}
@@ -79,17 +77,18 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 	return trace.Wrap(err)
 }
 
-// scopedRoleAssignmentAssignee returns the kind and name of the identity that an
-// assignment applies to. Assignments apply to either a user (by name) or a bot (by
-// scope-qualified name), and the two are mutually exclusive.
-func scopedRoleAssignmentAssignee(assignment *scopedaccessv1.ScopedRoleAssignment) (kind, name string) {
+// scopedRoleAssignmentAssignee describes the identity that an assignment applies to,
+// kind-prefixed to disambiguate the two forms (e.g. "user: alice", "bot: /staging::mybot").
+// Assignments apply to either a user (by name) or a bot (by scope-qualified name), and the
+// two are mutually exclusive.
+func scopedRoleAssignmentAssignee(assignment *scopedaccessv1.ScopedRoleAssignment) string {
 	if bot := assignment.GetSpec().GetBot(); bot != "" {
-		return types.KindBot, bot
+		return fmt.Sprintf("%s: %s", types.KindBot, bot)
 	}
 	if user := assignment.GetSpec().GetUser(); user != "" {
-		return types.KindUser, user
+		return fmt.Sprintf("%s: %s", types.KindUser, user)
 	}
-	return "", ""
+	return ""
 }
 
 func scopedRoleAssignmentScopedHandler() ScopedHandler {
