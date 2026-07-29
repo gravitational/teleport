@@ -142,16 +142,15 @@ func createAccessList(ctx context.Context, client *authclient.Client, raw servic
 	exists := (err == nil)
 
 	if exists && !opts.Force {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
+		return trace.AlreadyExists("Access list %q already exists", accesslists.ScopeQualifiedName(accessList).String())
 	}
 
 	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), upsertVerb(exists, opts.Force))
+	fmt.Printf("Access list %q has been %s\n", accesslists.ScopeQualifiedName(accessList).String(), upsertVerb(exists, opts.Force))
 
 	return nil
-
 }
 
 // deleteAccessList implements `tctl rm accesslist /scope::my-list` command.
