@@ -177,6 +177,12 @@ type CLIConf struct {
 	NoWait bool
 	// RequestedResourceIDs is a list of resources to request access to.
 	RequestedResourceIDs []string
+	// RequestedResourcesJSON is a list of JSON ResourceAccessIDs to request
+	// access to, from repeated --resource-json flags.
+	RequestedResourcesJSON []string
+	// RequestedResourcesFile is a path (or "-" for stdin) to a JSON
+	// ResourceAccessIDList used to request access to resources with constraints.
+	RequestedResourcesFile string
 	// RequestID is an access request ID
 	RequestID string
 	// RequestIDs is a list of access request IDs
@@ -1459,7 +1465,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("reason", "Reason for requesting.").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers.").StringVar(&cf.SuggestedReviewers)
 	reqCreate.Flag("nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
-	reqCreate.Flag("resource", "Resource ID to be requested.").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource", "Resource to be requested, as a resource ID (\"/cluster/node/web-1\"), optionally with inline constraints (\"/cluster/node/web-1?logins=root,admin\", quoted). Repeatable.").StringsVar(&cf.RequestedResourceIDs)
+	reqCreate.Flag("resource-json", "Resource to be requested, as a JSON ResourceAccessID with optional constraints. The canonical form for automation; repeatable, combines with --resource.").StringsVar(&cf.RequestedResourcesJSON)
+	reqCreate.Flag("resource-file", "Path to a JSON ResourceAccessID list (\"-\" for stdin), an alternative to repeated flags for large or generated requests.").StringVar(&cf.RequestedResourcesFile)
 	reqCreate.Flag("request-ttl", "Expiration time for the Access Request.").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate.").DurationVar(&cf.SessionTTL)
 	reqCreate.Flag("max-duration", "How long the access should be granted for.").DurationVar(&cf.MaxDuration)
@@ -3306,12 +3314,25 @@ func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID,
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	roles := utils.SplitIdentifiers(cf.DesiredRoles)
 	reviewers := utils.SplitIdentifiers(cf.SuggestedReviewers)
-	requestedResourceIDs, err := types.ResourceIDsFromStrings(cf.RequestedResourceIDs)
+
+	resourceAccessIDs, err := common.ParseResourceValues(cf.RequestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	fromJSON, err := common.ParseResourceJSONValues(cf.RequestedResourcesJSON)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resourceAccessIDs = append(resourceAccessIDs, fromJSON...)
+	if cf.RequestedResourcesFile != "" {
+		fromFile, err := common.ParseResourceAccessIDListFile(cf.RequestedResourcesFile, cf.Stdin())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resourceAccessIDs = append(resourceAccessIDs, fromFile...)
+	}
 
-	req, err := services.NewAccessRequestWithResources(cf.Username, roles, types.ResourceIDsToResourceAccessIDs(requestedResourceIDs))
+	req, err := services.NewAccessRequestWithResources(cf.Username, roles, resourceAccessIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3345,7 +3366,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 }
 
 func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
-	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
+	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 && len(cf.RequestedResourcesJSON) == 0 && cf.RequestedResourcesFile == "" {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
 	if cf.RequestTTL < 0 {
