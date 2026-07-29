@@ -126,6 +126,44 @@ func setDisabled(caOverride *subcapb.CertAuthorityOverride, disabled bool) {
 	}
 }
 
+func TestService_crlsCreatedOnStartup(t *testing.T) {
+	t.Parallel()
+
+	// synctest is used so watcher initialization delays use synthetic time.
+	synctest.Test(t, func(t *testing.T) {
+		const caType = types.DatabaseClientCA
+		storageEnv := subcaenv.New(t, subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{caType},
+		})
+
+		// Prepare an override for caType. It doesn't have CRLs, as it's being
+		// directly created at the storage layer, bypassing service/gRPC.
+		created, err := storageEnv.SubCA.CreateCertAuthorityOverride(t.Context(), storageEnv.NewOverrideForCAType(t, caType))
+		require.NoError(t, err)
+		// Sanity check.
+		require.Empty(t, created.GetStatus().GetPublicKeyHashToCrl())
+
+		// Start a new service. CRLs are created during watcher initialization.
+		env := subcav1.NewEnv(t, subcav1.EnvParams{
+			StorageEnv: storageEnv,
+		})
+
+		// Wait for watchers to initialize and become quiescent.
+		time.Sleep(subcav1.WatcherFirstDuration)
+		synctest.Wait()
+
+		// Verify.
+		got, err := env.SubCAClient.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
+				CaType: string(caType),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+		require.NotEmpty(t, got.GetCaOverride().GetStatus().GetPublicKeyHashToCrl(), "CAOverride lacks CRLs")
+		assertCRLs(t, got.GetCaOverride(), env.Clock.Now())
+	})
+}
+
 func TestService_CreateCSR_HA(t *testing.T) {
 	t.Parallel()
 
