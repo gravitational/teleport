@@ -153,7 +153,11 @@ func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[s
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
 		keyRing, err := issuer.tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
-		if err != nil && !trace.IsNotFound(err) {
+		if trace.IsNotFound(err) {
+			// No keys stored for this cluster: its certs are issued fresh.
+			continue
+		}
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		kubeKeys[teleportCluster] = keyRing
