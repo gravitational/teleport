@@ -21,6 +21,7 @@ package services
 import (
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -31,9 +32,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -1035,6 +1038,182 @@ func TestAddRoleDefaults(t *testing.T) {
 					!role.GetAccessRequestConditions(types.Allow).IsEmpty(),
 					"Expected populated Access Request Conditions (%t)",
 					test.accessRequestsNotEmpty)
+			}
+		})
+	}
+}
+
+// TestBeamPresetRolesAllowBeamSessionEndRead verifies the effective RBAC for
+// the beam-user and beam-admin preset roles on session recording events:
+//
+//   - Only [events.BeamSessionEndEvent] is readable; other session-end event
+//     types (SSH, Windows, Database) are denied.
+//   - beam-user can only read beam sessions they own (owner == their username).
+//   - beam-admin can read any beam session regardless of owner.
+//
+// The test exercises the same two RBAC paths that
+// [ServerWithRoles.SearchSessionEvents] uses: the where-clause pushed to the
+// backend as a query filter (via ExtractConditionForIdentifier), and the
+// per-event CanView check (via CheckAccess on the resource rebuilt from the
+// audit event).
+func TestBeamPresetRolesAllowBeamSessionEndRead(t *testing.T) {
+	require.Nil(t, NewPresetBeamUserRole(modules.BuildOSS), "beam-user must be enterprise-only")
+	require.Nil(t, NewPresetBeamAdminRole(modules.BuildOSS), "beam-admin must be enterprise-only")
+
+	const beamOwner = "alice"
+	const otherOwner = "bob"
+	ownerUser, err := types.NewUser(beamOwner)
+	require.NoError(t, err)
+
+	beamOwned := &apievents.BeamSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: "beam.session.end",
+		},
+		UserMetadata: apievents.UserMetadata{User: beamOwner},
+		BeamId:       "beam-owned",
+	}
+	beamOther := &apievents.BeamSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: "beam.session.end",
+		},
+		UserMetadata: apievents.UserMetadata{User: otherOwner},
+		BeamId:       "beam-other",
+	}
+	sshEnd := &apievents.SessionEnd{
+		Metadata: apievents.Metadata{
+			Type: "session.end",
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{Protocol: apievents.EventProtocolSSH},
+		ServerMetadata:     apievents.ServerMetadata{ServerID: "node-1"},
+	}
+	dbEnd := &apievents.DatabaseSessionEnd{
+		Metadata:         apievents.Metadata{Type: "db.session.end"},
+		DatabaseMetadata: apievents.DatabaseMetadata{DatabaseService: "db-1"},
+	}
+	winEnd := &apievents.WindowsDesktopSessionEnd{
+		Metadata:    apievents.Metadata{Type: "windows.desktop.session.end"},
+		DesktopName: "desktop-1",
+	}
+
+	tests := []struct {
+		name         string
+		role         types.Role
+		wantWhere    string
+		canView      []apievents.AuditEvent
+		cannotView   []apievents.AuditEvent
+		filterEvents map[apievents.AuditEvent]bool // expected result of the where-clause filter
+	}{
+		{
+			name:       "beam-user",
+			role:       NewPresetBeamUserRole(modules.BuildEnterprise),
+			wantWhere:  `equals(session.event, "beam.session.end") && equals(session.user, user.metadata.name)`,
+			canView:    []apievents.AuditEvent{beamOwned},
+			cannotView: []apievents.AuditEvent{beamOther, sshEnd, dbEnd, winEnd},
+			filterEvents: map[apievents.AuditEvent]bool{
+				beamOwned: true,
+				beamOther: false,
+				sshEnd:    false,
+				dbEnd:     false,
+				winEnd:    false,
+			},
+		},
+		{
+			name:       "beam-admin",
+			role:       NewPresetBeamAdminRole(modules.BuildEnterprise),
+			wantWhere:  `equals(session.event, "beam.session.end")`,
+			canView:    []apievents.AuditEvent{beamOwned, beamOther},
+			cannotView: []apievents.AuditEvent{sshEnd, dbEnd, winEnd},
+			filterEvents: map[apievents.AuditEvent]bool{
+				beamOwned: true,
+				beamOther: true,
+				sshEnd:    false,
+				dbEnd:     false,
+				winEnd:    false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NotNil(t, tt.role)
+			// Namespaces and other defaults are populated at storage time; do
+			// the same here so RBAC evaluation matches production behavior.
+			require.NoError(t, CheckAndSetDefaults(tt.role))
+			// Substitute {{user.metadata.name}} in the role's templated fields
+			// (BeamLabels, NodeLabels, etc.) — this mirrors what FetchRolesForUser
+			// does at login.
+			resolvedRole, err := ApplyTraitsWithContext(tt.role, RoleTemplateContext{Username: beamOwner})
+			require.NoError(t, err)
+
+			// Sanity-check the raw rule shape.
+			var sessionRule *types.Rule
+			for i, r := range resolvedRole.GetRules(types.Allow) {
+				if slices.Contains(r.Resources, types.KindSession) {
+					sessionRule = &resolvedRole.GetRules(types.Allow)[i]
+					break
+				}
+			}
+			require.NotNil(t, sessionRule, "role must have a KindSession rule")
+			require.ElementsMatch(t, []string{types.VerbList, types.VerbRead}, sessionRule.Verbs)
+			require.Equal(t, tt.wantWhere, sessionRule.Where)
+
+			// Build an access checker that carries only this role.
+			checker := NewAccessCheckerWithRoleSet(
+				&AccessInfo{Username: beamOwner, Roles: []string{resolvedRole.GetName()}},
+				"cluster",
+				NewRoleSet(resolvedRole),
+			)
+
+			// 1. Backend-filter path: the where clause is compiled into a
+			//    ToFieldsConditionConfig that the audit backend evaluates
+			//    against each stored event's JSON fields.
+			cond, err := checker.ExtractConditionForIdentifier(
+				&Context{User: ownerUser},
+				apidefaults.Namespace,
+				types.KindSession,
+				types.VerbList,
+				SessionIdentifier,
+			)
+			require.NoError(t, err)
+			require.NotNil(t, cond)
+
+			condFn, err := utils.ToFieldsCondition(utils.ToFieldsConditionConfig{Expr: cond})
+			require.NoError(t, err)
+
+			for event, wantAllowed := range tt.filterEvents {
+				// Emulate how audit backends store events: JSON-encode, then
+				// evaluate the condition against the decoded field map. Kept
+				// inline instead of using events.ToEventFields to avoid a
+				// lib/services → lib/events import cycle.
+				data, err := json.Marshal(event)
+				require.NoError(t, err)
+				var fields utils.Fields
+				require.NoError(t, json.Unmarshal(data, &fields))
+				got := condFn(fields)
+				require.Equalf(t, wantAllowed, got,
+					"backend filter for event %q: want %v, got %v",
+					event.GetType(), wantAllowed, got)
+			}
+
+			// 2. Per-event CanView path: for each returned event, the auth
+			//    server rebuilds the resource and re-checks access. beam-user
+			//    is further scoped by BeamLabels; beam-admin allows any owner;
+			//    both deny non-beam session types because neither role grants
+			//    label matchers for KindNode, KindDatabase, or
+			//    KindWindowsDesktop that would match the reconstructed
+			//    resources.
+			canView := func(ev apievents.AuditEvent) bool {
+				sctx := &Context{User: ownerUser}
+				sctx.ExtendWithSessionEnd(ev, checker)
+				return CanViewResourceFunc(sctx)()()
+			}
+			for _, ev := range tt.canView {
+				require.Truef(t, canView(ev),
+					"expected access to event type %q", ev.GetType())
+			}
+			for _, ev := range tt.cannotView {
+				require.Falsef(t, canView(ev),
+					"did not expect access to event type %q", ev.GetType())
 			}
 		})
 	}

@@ -7265,6 +7265,16 @@ func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.Se
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
+	if len(req.EventTypes) == 0 {
+		req.EventTypes = events.SessionRecordingEvents
+	} else {
+		for _, t := range req.EventTypes {
+			if !slices.Contains(events.SessionRecordingEvents, t) {
+				return nil, "", trace.BadParameter("event type %q is not a session recording event. valid event types are: %v", t, events.SessionRecordingEvents)
+			}
+		}
+	}
+
 	cond, err := a.actionForListWithCondition(ctx, types.KindSession, services.SessionIdentifier)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

@@ -4776,20 +4776,33 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	"limit"   : optional maximum number of events to return on each fetch
 //	"startKey": resume events search from the last event received,
 //	            empty string means start search from beginning
+//	"include" : optional comma-separated subset of the session recording event
+//	            types to return (e.g. include=session.end,beam.session.end).
+//	            If empty, all session recording event types are returned.
+//	            Values outside events.SessionRecordingEvents are rejected by the
+//	            auth server.
 //	"order":    optional ordering of events. Can be either "asc" or "desc"
 //	            for ascending and descending respectively.
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	values := r.URL.Query()
+
+	var eventTypes []string
+	if include := values.Get("include"); include != "" {
+		eventTypes = strings.Split(include, ",")
+	}
+
 	searchSessionEvents := func(clt authclient.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-			From:     from,
-			To:       to,
-			Limit:    limit,
-			Order:    order,
-			StartKey: startKey,
+			From:       from,
+			To:         to,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+			EventTypes: eventTypes,
 		})
 	}
-	return clusterEventsList(r.Context(), sctx, cluster, r.URL.Query(), searchSessionEvents)
+	return clusterEventsList(r.Context(), sctx, cluster, values, searchSessionEvents)
 }
 
 // clusterEventsList returns a list of audit events obtained using the provided

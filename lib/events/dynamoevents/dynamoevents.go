@@ -1089,7 +1089,7 @@ func getExprFilter(filter searchEventsFilter) *string {
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
+	filter := searchEventsFilter{eventTypes: req.EffectiveEventTypes()}
 	if req.Cond != nil && req.Cond.Expr != nil {
 		params := condFilterParams{attrValues: make(map[string]any), attrNames: make(map[string]string)}
 		expr, err := fromWhereExpr(req.Cond.Expr, &params)

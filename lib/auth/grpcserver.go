@@ -4135,11 +4135,12 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *authpb.GetSessio
 	}
 
 	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:     req.StartDate,
-		To:       req.EndDate,
-		Limit:    int(req.Limit),
-		Order:    types.EventOrder(req.Order),
-		StartKey: req.StartKey,
+		From:       req.StartDate,
+		To:         req.EndDate,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+		EventTypes: req.EventTypes,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

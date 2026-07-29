@@ -54,6 +54,11 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 			want:  nil,
 		},
 		{
+			name:  "nil with type set beam.session.end",
+			event: (*apievents.BeamSessionEnd)(nil),
+			want:  nil,
+		},
+		{
 			name: "non session.end event",
 			event: &apievents.UserLogin{
 				Metadata: apievents.Metadata{
@@ -186,6 +191,26 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 					},
 				},
 				Spec: types.DatabaseSpecV3{},
+			},
+		},
+		{
+			name: "beam session end",
+			event: &apievents.BeamSessionEnd{
+				BeamId: "beam-id-123",
+				UserMetadata: apievents.UserMetadata{
+					User: "alice",
+				},
+			},
+			want: &types.ResourceHeader{
+				Kind:    types.KindBeam,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name:      "beam-id-123",
+					Namespace: "default",
+					Labels: map[string]string{
+						types.BeamOwnerLabel: "alice",
+					},
+				},
 			},
 		},
 	}
