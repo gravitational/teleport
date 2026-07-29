@@ -17,7 +17,6 @@
  */
 
 import {
-  Box,
   ButtonLink,
   Card,
   Flex,
@@ -76,133 +75,134 @@ export const Support = ({
   const docs = getDocUrls(authVersion, isEnterprise);
 
   return (
-    <Flex
-      direction="column"
+    <SimpleGrid
+      columns={{ base: 1, sm: 2 }}
+      gap={{ base: 2, sm: 4 }}
       width="100%"
       maxWidth="2000px"
       minHeight="100%"
-      shrink={0}
+      flexShrink={0}
       p={{ base: 2, sm: 7 }}
       pb={{ base: 6, sm: 10 }}
     >
-      <Flex align="center" shrink={0} height="56px" mb={5}>
-        <H1 whiteSpace="nowrap">Help & Support</H1>
-      </Flex>
-      <SimpleGrid columns={{ base: 1, sm: 2 }} gap={{ base: 2, sm: 4 }}>
-        <SupportSectionCard gridColumn={{ base: 'auto', sm: 'span 2' }}>
-          <Flex
-            align={{ base: 'flex-start', sm: 'center' }}
-            justify="space-between"
-            direction={{ base: 'column', sm: 'row' }}
-            mb={4}
-            gap={2}
-          >
-            <Flex align="center">
-              <IconBox>
-                <QuestionIcon boxSize={4} />
-              </IconBox>
-              <H2>Support and Resource Pages</H2>
-            </Flex>
-            <Box width={{ base: '100%', sm: 'auto' }}>
-              {showPremiumSupportCta && (
-                <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
-                  Unlock Premium Support with&nbsp;Enterprise
-                </ButtonLockedFeature>
-              )}
-            </Box>
-          </Flex>
-          <Flex
-            justify="space-between"
-            wrap="wrap"
-            maxWidth={{ base: '100%', md: '70%' }}
-            direction={{ base: 'column', sm: 'row' }}
-            gap={{ base: 4, sm: 0 }}
-            mb={{ base: 4, sm: 0 }}
-          >
-            <Stack gap={1}>
-              <H3 ml={2} mb={1}>
-                Contact Support
-              </H3>
-              {isEnterprise && !showPremiumSupportCta && (
-                <ExternalSupportLink
-                  title="Create a Support Ticket"
-                  url="https://support.goteleport.com"
-                />
-              )}
-              <ExternalSupportLink
-                title="Ask the Community Questions"
-                url="https://github.com/gravitational/teleport/discussions"
-              />
-              <ExternalSupportLink
-                title="Request a New Feature"
-                url="https://github.com/gravitational/teleport/issues/new/choose"
-              />
-              <ExternalSupportLink
-                title="Send Product Feedback"
-                url="mailto:support@goteleport.com"
-              />
-            </Stack>
-            <Stack gap={1}>
-              <H3 ml={2} mb={1}>
-                Resources
-              </H3>
-              <ExternalSupportLink
-                title="Get Started Guide"
-                url={docs.getStarted}
-              />
-              <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
-              <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
-              <ExternalSupportLink
-                title="Troubleshooting Guide"
-                url={docs.troubleshooting}
-              />
-              <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
-              <ExternalSupportLink title="FAQ" url={docs.faq} />
-            </Stack>
-            <Stack gap={1}>
-              <H3 ml={2} mb={1}>
-                Updates
-              </H3>
-              <ExternalSupportLink
-                title="Product Changelog"
-                url={docs.changeLog}
-              />
-              <ExternalSupportLink
-                title="Upcoming Releases"
-                url={docs.upcomingReleases}
-              />
-              <ExternalSupportLink
-                title="Teleport Blog"
-                url="https://goteleport.com/blog/"
-              />
-            </Stack>
-          </Flex>
-        </SupportSectionCard>
-        <SupportSectionCard
-          gridColumn={isCloud ? undefined : { base: 'auto', sm: 'span 2' }}
+      <H1
+        gridColumn="1 / -1"
+        whiteSpace="nowrap"
+        py={3}
+        mb={{ base: 3, sm: 1 }}
+      >
+        Help & Support
+      </H1>
+      <SupportSectionCard display="block" gridColumn="1 / -1">
+        <Flex
+          align={{ base: 'flex-start', sm: 'center' }}
+          justify="space-between"
+          direction={{ base: 'column', sm: 'row' }}
+          gap={2}
+          mb={4}
         >
-          <Flex align="center" mb={4}>
+          <H2 display="flex" alignItems="center">
             <IconBox>
-              <GraphIcon boxSize={4} />
+              <QuestionIcon boxSize={4} />
             </IconBox>
-            <H2>Cluster Information</H2>
-          </Flex>
-          <Stack gap={4}>
-            <Subtitle2>Cluster Name: {clusterId}</Subtitle2>
-            <Subtitle2>Teleport Version: {authVersion}</Subtitle2>
-            <Subtitle2>Public Address: {publicURL}</Subtitle2>
-            {tunnelPublicAddress && (
-              <Subtitle2>Public SSH Tunnel: {tunnelPublicAddress}</Subtitle2>
+            Support and Resource Pages
+          </H2>
+          {showPremiumSupportCta && (
+            <ButtonLockedFeature
+              event={CtaEvent.CTA_PREMIUM_SUPPORT}
+              width={{ _: '100%', small: 'auto' }}
+            >
+              Unlock Premium Support with&nbsp;Enterprise
+            </ButtonLockedFeature>
+          )}
+        </Flex>
+        <Flex
+          justify="space-between"
+          wrap="wrap"
+          direction={{ base: 'column', sm: 'row' }}
+          maxWidth={{ md: '70%' }}
+          gap={{ base: 4, sm: 0 }}
+          mb={{ base: 4, sm: 0 }}
+        >
+          <Stack gap={1}>
+            <H3 ml={2} mb={1}>
+              Contact Support
+            </H3>
+            {isEnterprise && !showPremiumSupportCta && (
+              <ExternalSupportLink
+                title="Create a Support Ticket"
+                url="https://support.goteleport.com"
+              />
             )}
-            {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
-              <Subtitle2>License Expiry: {licenseExpiryDateText}</Subtitle2>
-            )}
+            <ExternalSupportLink
+              title="Ask the Community Questions"
+              url="https://github.com/gravitational/teleport/discussions"
+            />
+            <ExternalSupportLink
+              title="Request a New Feature"
+              url="https://github.com/gravitational/teleport/issues/new/choose"
+            />
+            <ExternalSupportLink
+              title="Send Product Feedback"
+              url="mailto:support@goteleport.com"
+            />
           </Stack>
-        </SupportSectionCard>
+          <Stack gap={1}>
+            <H3 ml={2} mb={1}>
+              Resources
+            </H3>
+            <ExternalSupportLink
+              title="Get Started Guide"
+              url={docs.getStarted}
+            />
+            <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
+            <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
+            <ExternalSupportLink
+              title="Troubleshooting Guide"
+              url={docs.troubleshooting}
+            />
+            <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
+            <ExternalSupportLink title="FAQ" url={docs.faq} />
+          </Stack>
+          <Stack gap={1}>
+            <H3 ml={2} mb={1}>
+              Updates
+            </H3>
+            <ExternalSupportLink
+              title="Product Changelog"
+              url={docs.changeLog}
+            />
+            <ExternalSupportLink
+              title="Upcoming Releases"
+              url={docs.upcomingReleases}
+            />
+            <ExternalSupportLink
+              title="Teleport Blog"
+              url="https://goteleport.com/blog/"
+            />
+          </Stack>
+        </Flex>
+      </SupportSectionCard>
+      <SupportSectionCard gridColumn={isCloud ? undefined : '1 / -1'} gap={4}>
+        <H2 display="flex" alignItems="center">
+          <IconBox>
+            <GraphIcon boxSize={4} />
+          </IconBox>
+          Cluster Information
+        </H2>
+        <Subtitle2>Cluster Name: {clusterId}</Subtitle2>
+        <Subtitle2>Teleport Version: {authVersion}</Subtitle2>
+        <Subtitle2>Public Address: {publicURL}</Subtitle2>
+        {tunnelPublicAddress && (
+          <Subtitle2>Public SSH Tunnel: {tunnelPublicAddress}</Subtitle2>
+        )}
+        {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
+          <Subtitle2>License Expiry: {licenseExpiryDateText}</Subtitle2>
+        )}
+      </SupportSectionCard>
 
-        {children}
-      </SimpleGrid>
-    </Flex>
+      {children}
+    </SimpleGrid>
   );
 };
 
@@ -210,7 +210,7 @@ export const SupportSectionCard = (props: Omit<Card.RootProps, 'css'>) => (
   <Card.Root boxShadow="xs" p={{ base: 4, sm: 5 }} {...props} />
 );
 
-export const IconBox = styled('div', {
+export const IconBox = styled('span', {
   base: {
     lineHeight: 0,
     padding: 2,
