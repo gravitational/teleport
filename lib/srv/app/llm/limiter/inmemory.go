@@ -150,10 +150,14 @@ func settleTokens(consumed, reserved, reported uint) uint {
 }
 
 type appKey struct {
-	name string
-	uri  string
+	name        string
+	llmFormat   string
+	llmProvider string
 }
 
 func newAppKey(app types.Application) appKey {
-	return appKey{name: app.GetName(), uri: app.GetURI()}
+	// Safe to assume LLM will always be present on this app since this is
+	// specific for LLM access.
+	llm := app.GetLLM()
+	return appKey{name: app.GetName(), llmFormat: llm.Format, llmProvider: llm.Provider}
 }

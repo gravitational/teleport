@@ -293,5 +293,8 @@ const (
 	//
 	// Note: This can cause older models to reject the requests. This is an
 	// acceptable risk.
+	//
+	// TODO(gabrielcorado): take this information from the LLM configuration so
+	// users can configure it on a per-model basis.
 	maxOutputTokens = 128_000 // 128k tokens.
 )
