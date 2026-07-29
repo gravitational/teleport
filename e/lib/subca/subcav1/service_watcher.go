@@ -42,7 +42,7 @@ func (s *Service) runSubCAWatcher(ctx context.Context) {
 				{Kind: types.KindPendingCSRRequest},
 			},
 		},
-		func(e *types.Event) {
+		func(*types.Event) {
 			// Have the entire batch run against a consistent timestamp and CA view.
 			now := s.clock.Now()
 			caGetter := s.newMemoizedCAGetter()
@@ -68,6 +68,39 @@ func (s *Service) runSubCAWatcher(ctx context.Context) {
 		return
 	}
 	w.run()
+}
+
+func (s *Service) runPendingCSRWatcher(
+	ctx context.Context,
+	requestID string,
+	onInit func(e *types.Event),
+	onEvent func(op types.OpType, pendingReq *subcav1.PendingCSRRequest),
+) error {
+	w, err := s.newResourceWatcher(
+		ctx,
+		types.Watch{
+			Name: "subca-csr-" + requestID,
+			Kinds: []types.WatchKind{
+				{Kind: types.KindPendingCSRRequest},
+			},
+		},
+		onInit,
+		func(op types.OpType, e *types.Event) {
+			if e.Resource == nil || e.Resource.GetName() != requestID {
+				return
+			}
+			pendingReq, ok := s.pendingCSRRequestFromEvent(ctx, e)
+			if !ok {
+				return
+			}
+			onEvent(op, pendingReq)
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	w.run()
+	return nil
 }
 
 func (s *Service) handleCAOverrideEvent(ctx context.Context, e *types.Event, now time.Time) {
@@ -210,18 +243,24 @@ func (s *Service) updatePendingCSR(
 		"cluster_name", initial.GetSpec().GetClusterName(),
 	)
 
-	if _, err := s.condUpdatePendingCSRRequest(
+	generatedCSRCache := make(map[string]*subcav1.PendingCSR)
+
+	switch _, err := s.condUpdatePendingCSRRequest(
 		ctx,
 		initial.GetMetadata().GetName(),
 		initial,
 		func(pendingReq *subcav1.PendingCSRRequest) (done bool, _ error) {
-			changed, err := s.fulfillPendingCSRRequest(ctx, getParsedCA, pendingReq)
+			changed, err := s.fulfillPendingCSRRequest(ctx, getParsedCA, pendingReq, generatedCSRCache)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
 			return !changed, nil
 		},
-	); err != nil {
+	); {
+	case trace.IsNotFound(err):
+		// OK, pending CSRs are deleted quickly after all requests are fulfilled,
+		// which can cause watchers to see a NotFound error. No need to log it.
+	case err != nil:
 		logger.WarnContext(ctx, "Async PendingCSRRequest update failed",
 			"error", err,
 		)

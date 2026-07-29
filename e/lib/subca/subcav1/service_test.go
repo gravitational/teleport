@@ -96,14 +96,13 @@ func TestService_authz(t *testing.T) {
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.CreateCSR(
 					t.Context(), subcapb.CreateCSRRequest_builder{
-						CaType: caType,
+						CaType:    caType,
+						LocalOnly: true,
 					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
-				// Order is deterministic.
-				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbRead},
-				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbList},
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbCreate},
 			},
 			adminActionNotRequired: true,
 		},
@@ -610,6 +609,9 @@ func TestService_CreateCSR(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			// See TestHACAOverrides for non-local tests.
+			test.req.SetLocalOnly(true)
+
 			resp, err := subCA.CreateCSR(t.Context(), test.req)
 			require.NoError(t, err, "CreateCSR errored")
 
@@ -893,6 +895,7 @@ func TestService_CreateCSR_errors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			test.req.SetLocalOnly(true)
 			_, err := subCA.CreateCSR(t.Context(), test.req)
 			assert.ErrorContains(t, err, test.wantErr)
 		})
@@ -1014,7 +1017,8 @@ func TestService_Create_fromCSR(t *testing.T) {
 
 	// Request CSR.
 	csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
-		CaType: string(caType),
+		CaType:    string(caType),
+		LocalOnly: true,
 	}.Build())
 	require.NoError(t, err, "CreateCSR errored")
 	require.Len(t, csrResp.GetCsrs(), 1, "CreateCSR returned an unexpected number of CSRs")

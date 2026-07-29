@@ -17,20 +17,17 @@
 package subcav1_test
 
 import (
-	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
-	"errors"
-	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -68,10 +65,48 @@ func TestHACAOverrides(t *testing.T) {
 		time.Sleep(subcav1.WatcherFirstDuration)
 		synctest.Wait()
 
-		caOverride := env.NewOverrideForCAType(t, caType)
-		// Sanity check.
-		require.Len(t, caOverride.GetSpec().GetCertificateOverrides(), numServices,
-			"Unexpected number of caOverride.Spec.CertificateOverrides")
+		// Create CSRs for all keys/certificates.
+		csrResp, err := env.SubCAClient.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+			CaType: string(caType),
+		}.Build())
+		require.NoError(t, err)
+		require.Len(t, csrResp.GetCsrs(), numServices, "Unexpected number of CSRs")
+		assert.Empty(t, csrResp.GetWarnings(), "CreateCSR returned unexpected warnings")
+
+		// Verify PendingCSRRequest cleanup.
+		{
+			const pageSize = 0
+			const pageToken = ""
+			pendingReqs, nextPageToken, err := env.SubCA.ListPendingCSRRequests(t.Context(), pageSize, pageToken)
+			require.NoError(t, err)
+			assert.Empty(t, pendingReqs, "Expected no PendingCSRRequest instances, cleanup didn't happen.")
+			assert.Empty(t, nextPageToken, "Unexpected non-empty nextPageToken")
+		}
+
+		// Prepare the CAOverride.
+		var caOverride *subcapb.CertAuthorityOverride
+		{
+			now := env.Clock.Now()
+			var certificateOverrides []*subcapb.CertificateOverride
+			for _, csr := range csrResp.GetCsrs() {
+				co := signCSRUsingExternalRoot(t, env.ExternalRoot, now, csr)
+				certificateOverrides = append(certificateOverrides, co)
+			}
+
+			caOverride = subcapb.CertAuthorityOverride_builder{
+				Kind:    types.KindCertAuthorityOverride,
+				SubKind: string(caType),
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: env.ClusterName,
+				}.Build(),
+				Spec: subcapb.CertAuthorityOverrideSpec_builder{
+					CertificateOverrides: certificateOverrides,
+				}.Build(),
+			}.Build()
+			// Sanity check.
+			require.Len(t, caOverride.GetSpec().GetCertificateOverrides(), numServices)
+		}
 
 		// Attempt to enable without all CRLs fails
 		{
@@ -178,96 +213,55 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			},
 			NumServices: numServices,
 		})
-		env0 := haEnv.Envs[0]
-		env1 := haEnv.Envs[1]
+		subCA := haEnv.Envs[0].SubCAClient
 
+		env1 := haEnv.Envs[1]
 		env1Credential := haEnv.CATypeToCredentials[caType][1]
 		env1PublicKey := env1Credential.PublicKeyHash
-
-		// TODO(codingllama): Replace createCSR by its namesake RPC once the
-		//  CSR-watcher logic is introduced.
-		createCSR := func(ctx context.Context, req *subcapb.CreateCSRRequest) (*subcapb.CreateCSRResponse, error) {
-			// Simulate CreateCSR by creating the PendingCSRRequest entity directly.
-
-			var pkhs []*subcapb.PublicKeyHash
-			if req.HasPublicKeyHash() {
-				pkhs = append(pkhs, req.GetPublicKeyHash())
-			} else {
-				for _, cred := range haEnv.CATypeToCredentials[caType] {
-					pkhs = append(pkhs, subcapb.PublicKeyHash_builder{
-						Value: cred.PublicKeyHash,
-					}.Build())
-				}
-			}
-
-			created, err := env0.SubCA.CreatePendingCSRRequest(ctx, subcapb.PendingCSRRequest_builder{
-				Kind:    types.KindPendingCSRRequest,
-				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
-					Name: uuid.NewString(),
-				}.Build(),
-				Spec: subcapb.PendingCSRRequestSpec_builder{
-					ClusterName:     env0.ClusterName,
-					CaType:          req.GetCaType(),
-					CustomSubject:   req.GetCustomSubject(),
-					PublicKeyHashes: pkhs,
-				}.Build(),
-			}.Build())
-			if err != nil {
-				return nil, fmt.Errorf("create csr req: %w", err)
-			}
-
-			// Wait for the PendingCSRRequest to be fulfilled.
-			var csrReq *subcapb.PendingCSRRequest
-			var csrReqDone bool
-			const maxAttempts = numServices * 2 // Arbitrary. Make sure it stops at some point.
-			for range maxAttempts {
-				synctest.Wait()
-				time.Sleep(subcav1.ConditionalUpdateMaxStep)
-
-				var err error
-				csrReq, err = env0.SubCA.GetPendingCSRRequest(ctx, created.GetMetadata().GetName())
-				if err != nil {
-					return nil, fmt.Errorf("read csr req: %w", err)
-				}
-				csrReqDone = len(csrReq.GetSpec().GetPublicKeyHashes()) == len(csrReq.GetStatus().GetPublicKeyHashToPendingCsr())
-				if csrReqDone {
-					break
-				}
-			}
-			if !csrReqDone {
-				return nil, errors.New("pending CSR request not fulfilled after max iterations")
-			}
-
-			// Mimic the CreateCSRResponse.
-			var respBuilder subcapb.CreateCSRResponse_builder
-			csrMap := csrReq.GetStatus().GetPublicKeyHashToPendingCsr()
-			for k, v := range csrMap {
-				st := v.GetStatus()
-				if codes.Code(st.GetCode()) == codes.OK {
-					respBuilder.Csrs = append(respBuilder.Csrs, v.GetCsr())
-					continue
-				}
-				respBuilder.Warnings = append(respBuilder.Warnings, subcapb.CreateCSRWarning_builder{
-					UserMessage:   st.GetMessage(),
-					PublicKeyHash: k,
-				}.Build())
-			}
-			return respBuilder.Build(), nil
-		}
 
 		// Wait for watchers to be ready.
 		synctest.Wait()
 		time.Sleep(subcav1.WatcherFirstDuration)
 
+		const noKeyAccessMessage = "lacks access to private keys"
+		{
+			t.Log("test/fails if local can't access keys")
+			_, err := haEnv.Envs[0].SubCAClient.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+				CaType: string(caType),
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
+					Value: env1PublicKey,
+				}.Build(),
+				LocalOnly: true,
+			}.Build())
+			assert.ErrorContains(t, err, noKeyAccessMessage)
+		}
+
+		{
+			t.Log("test/fails if remote returns no keys")
+
+			// Swap env1's KeystoreManager for a failing one.
+			subcav1.SetFailingSigner(t, env1, true)
+			synctest.Wait()
+
+			_, err := haEnv.Envs[0].SubCAClient.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+				CaType: string(caType),
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
+					Value: env1PublicKey,
+				}.Build(),
+			}.Build())
+			subcav1.SetFailingSigner(t, env1, false)
+			assert.ErrorContains(t, err, noKeyAccessMessage)
+		}
+
 		{
 			t.Log("test/all keys")
 
-			csrResp, err := createCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+			csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
 				CaType: string(caType),
 			}.Build())
 			require.NoError(t, err)
 			require.Len(t, csrResp.GetCsrs(), numServices, "CreateCSR returned an unexpected number of CSRs")
+			assert.Empty(t, csrResp.GetWarnings(), "CreateCSR returned unexpected warnings")
 
 			// Verify that CSRs are valid.
 			creds := haEnv.CATypeToCredentials[caType]
@@ -295,7 +289,7 @@ func TestService_CreateCSR_HA(t *testing.T) {
 		{
 			t.Log("test/targeted key")
 
-			csrResp, err := createCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+			csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
 				CaType: string(caType),
 				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: env1PublicKey,
@@ -303,6 +297,7 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			}.Build())
 			require.NoError(t, err)
 			require.Len(t, csrResp.GetCsrs(), 1, "CreateCSR returned an unexpected number of CSRs")
+			assert.Empty(t, csrResp.GetWarnings(), "CreateCSR returned unexpected warnings")
 
 			validateCSR(t, env1Credential, csrResp.GetCsrs()[0])
 		}
@@ -311,7 +306,7 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			t.Log("test/custom subject")
 
 			llamaCA := "Llama CA"
-			csrResp, err := createCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+			csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
 				CaType: string(caType),
 				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: env1PublicKey,
@@ -327,9 +322,16 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			}.Build())
 			require.NoError(t, err)
 			require.Len(t, csrResp.GetCsrs(), 1, "CreateCSR returned an unexpected number of CSRs")
+			assert.Empty(t, csrResp.GetWarnings(), "CreateCSR returned unexpected warnings")
 
 			csr := validateCSR(t, env1Credential, csrResp.GetCsrs()[0])
-			assert.Equal(t, llamaCA, csr.Subject.CommonName, "csr.Subject.CommonName mismatch")
+			want := pkix.RDNSequence{
+				{{Type: asn1.ObjectIdentifier{2, 5, 4, 10}, Value: env1.ClusterName}}, // O
+				{{Type: asn1.ObjectIdentifier{2, 5, 4, 3}, Value: llamaCA}},           // CN
+			}
+			if diff := cmp.Diff(want, csr.Subject.ToRDNSequence()); diff != "" {
+				t.Errorf("CSR Subject mismatch (-want +got)\n%s", diff)
+			}
 		}
 
 		{
@@ -339,7 +341,7 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			subcav1.SetFailingSigner(t, env1, true)
 			synctest.Wait()
 
-			csrResp, err := createCSR(t.Context(), subcapb.CreateCSRRequest_builder{
+			csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
 				CaType: string(caType),
 			}.Build())
 			subcav1.SetFailingSigner(t, env1, false) // Restore signer
@@ -363,6 +365,58 @@ func TestService_CreateCSR_HA(t *testing.T) {
 			if diff := cmp.Diff(want, warn, protocmp.Transform()); diff != "" {
 				t.Errorf("CreateCSRResponse.warnings[0] mismatch (-want +got)\n%s", diff)
 			}
+		}
+
+		{
+			t.Log("test/timeout and startup requests")
+
+			env1.Stop()
+			synctest.Wait()
+
+			req := subcapb.CreateCSRRequest_builder{
+				CaType: string(caType),
+			}.Build()
+
+			// 1. A missing Auth times out the request and returns a warning.
+			csrResp, err := subCA.CreateCSR(t.Context(), req)
+			require.NoError(t, err)
+			assert.Len(t, csrResp.GetCsrs(), numServices-1, "CreateCSR returned an unexpected number of CSRs")
+			require.Len(t, csrResp.GetWarnings(), 1, "CreateCSR returned an unexpected number of warnings")
+
+			// Verify warning.
+			warn := csrResp.GetWarnings()[0]
+			assert.Contains(t, warn.GetUserMessage(), "not fulfilled before timeout")
+			want := subcapb.CreateCSRWarning_builder{
+				UserMessage:   warn.GetUserMessage(),
+				PublicKeyHash: env1PublicKey,
+			}.Build()
+			if diff := cmp.Diff(warn, want, protocmp.Transform()); diff != "" {
+				t.Errorf("CreateCSRResponse.warnings[0] mismatch (-want +got)\n%s", diff)
+			}
+
+			// 2. A pending request is fulfilled by a starting server.
+			csrRespC := make(chan *subcapb.CreateCSRResponse, 1)
+			go func() {
+				csrResp, err := subCA.CreateCSR(t.Context(), req)
+				csrRespC <- csrResp
+				assert.NoError(t, err)
+			}()
+
+			// Wait for the request above to block.
+			synctest.Wait()
+
+			// "Restart" the missing Auth.
+			env1 = subcav1.NewEnv(t, subcav1.EnvParams{
+				StorageEnv:      env1.Env,
+				KeystoreManager: env1.KeystoreManager,
+			})
+			haEnv.Envs[1] = env1
+
+			// The request is fulfilled by the started Auth.
+			csrResp = <-csrRespC
+			require.NotNil(t, csrResp, "async CreateCSR RPC failed")
+			require.Len(t, csrResp.GetCsrs(), numServices, "CreateCSR returned an unexpected number of CSRs")
+			assert.Empty(t, csrResp.GetWarnings(), "CreateCSR returned unexpected warnings")
 		}
 	})
 }

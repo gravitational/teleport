@@ -51,6 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log"
 )
 
+var errNoCSRs = &trace.BadParameterError{
+	Message: "cannot create CSRs for certificate authority, Auth lacks access to private keys",
+}
+
 // CachedSubCAStorage is a subset of SubCAService containing read methods that
 // may use cached results.
 //
@@ -107,10 +111,15 @@ type PendingCSRStorage interface {
 		pageSize int,
 		pageToken string,
 	) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error)
+	CreatePendingCSRRequest(
+		ctx context.Context,
+		resource *subcav1.PendingCSRRequest,
+	) (*subcav1.PendingCSRRequest, error)
 	UpdatePendingCSRRequest(
 		ctx context.Context,
 		resource *subcav1.PendingCSRRequest,
 	) (*subcav1.PendingCSRRequest, error)
+	DeletePendingCSRRequest(ctx context.Context, name string) error
 }
 
 // KeystoreManager is a subset of keystore.Manager methods used in CRL and CSR
@@ -243,8 +252,7 @@ func (s *Service) CreateCSR(
 	if req.HasPublicKeyHash() && req.GetPublicKeyHash().GetValue() == "" {
 		return nil, trace.BadParameter("public_key_hash invalid: %q", req.GetPublicKeyHash())
 	}
-	if err := s.authorizeCAOverride(
-		ctx, adminActionNotNeeded, types.VerbList, types.VerbRead); err != nil {
+	if err := s.authorizeCAOverride(ctx, adminActionNotNeeded, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -255,18 +263,16 @@ func (s *Service) CreateCSR(
 	}
 
 	// Parse custom Subject.
-	var customSubject *pkix.Name
+	var customSubject []pkix.AttributeTypeAndValue
 	if req.HasCustomSubject() {
 		rdns, err := subca.DistinguishedNameProtoToRDNSequence(req.GetCustomSubject())
 		if err != nil {
 			return nil, trace.Wrap(err, "custom subject")
 		}
-
-		customSubject = &pkix.Name{}
-		customSubject.FillFromRDNSequence(&rdns) // fills in Names
+		customSubject = flattenRDNSequence(rdns)
 
 		// Assign ClusterName to custom Subject.
-		customSubject.Names, err = assignClusterNameToATVs(customSubject.Names, cn.GetClusterName())
+		customSubject, err = assignClusterNameToATVs(customSubject, cn.GetClusterName())
 		if err != nil {
 			return nil, trace.Wrap(err, "assign cluster name to custom subject")
 		}
@@ -286,28 +292,63 @@ func (s *Service) CreateCSR(
 	if err != nil {
 		return nil, trace.Wrap(err, "prepare signers")
 	}
-	if len(candidateResp.Signers) == 0 {
-		return nil, trace.BadParameter(
-			"cannot create CSRs for certificate authority, Auth lacks access to private keys")
+	// Early abort local requests if we can't sign anything.
+	if req.GetLocalOnly() && len(candidateResp.Signers) == 0 {
+		return nil, trace.Wrap(errNoCSRs)
 	}
 	totalCSRs := len(candidateResp.Signers) + len(candidateResp.MissingPublicKeys)
-	if customSubject != nil && totalCSRs > 1 {
+	if len(customSubject) > 0 && totalCSRs > 1 {
 		return nil, trace.BadParameter("" +
 			"requests with a custom subject cannot match more than one certificate, " +
 			"use public key hash to match a single certificate")
 	}
 
-	// TODO(codingllama): Surface missing keys as response warnings.
+	var respBuilder subcav1.CreateCSRResponse_builder
 
 	// Sign as many CSRs as we can with the current Auth.
-	csrs, err := createCSRs(candidateResp.Signers, customSubject)
+	respBuilder.Csrs, err = createCSRs(candidateResp.Signers, customSubject)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return subcav1.CreateCSRResponse_builder{
-		Csrs: csrs,
-	}.Build(), nil
+	if len(candidateResp.MissingPublicKeys) > 0 {
+		if req.GetLocalOnly() {
+			respBuilder.Warnings = appendMissingKeyWarnings(
+				respBuilder.Warnings,
+				candidateResp.MissingPublicKeys,
+				"private key inaccessible for this Auth server instance",
+			)
+		} else {
+			// Request async signing of missing keys.
+			id := types.CertAuthorityOverrideID{
+				ClusterName: cn.GetClusterName(),
+				CAType:      req.GetCaType(),
+			}
+			remoteCSRs, warnings, err := s.requestAsyncCSRs(ctx, id, customSubject, candidateResp.MissingPublicKeys)
+			if err != nil {
+				s.logger.WarnContext(ctx, "Async CSR request attempt failed. Only local CSRs will be returned",
+					"error", err,
+					"ca_type", id.CAType,
+					"cluster_name", id.ClusterName,
+				)
+				respBuilder.Warnings = appendMissingKeyWarnings(
+					respBuilder.Warnings,
+					candidateResp.MissingPublicKeys,
+					"remote signing request errored or timed out",
+				)
+			} else {
+				respBuilder.Csrs = append(respBuilder.Csrs, remoteCSRs...)
+				respBuilder.Warnings = append(respBuilder.Warnings, warnings...)
+			}
+		}
+	}
+
+	// Don't reply with zero CSRs.
+	if len(respBuilder.Csrs) == 0 {
+		return nil, trace.Wrap(errNoCSRs)
+	}
+
+	return respBuilder.Build(), nil
 }
 
 func validateCATypeForCSR(caType string) error {
@@ -321,9 +362,21 @@ func validateCATypeForCSR(caType string) error {
 	return nil
 }
 
+func flattenRDNSequence(rdns pkix.RDNSequence) []pkix.AttributeTypeAndValue {
+	// Pre-allocate. This is a guess, actual size could be larger.
+	atvs := make([]pkix.AttributeTypeAndValue, 0, len(rdns))
+	// Flatten.
+	for _, set := range rdns {
+		for _, atv := range set {
+			atvs = append(atvs, atv)
+		}
+	}
+	return atvs
+}
+
 func createCSRs(
 	candidateSigners []*candidateCSRSigner,
-	customSubject *pkix.Name,
+	customSubject []pkix.AttributeTypeAndValue,
 ) ([]*subcav1.CertificateSigningRequest, error) {
 	csrs := make([]*subcav1.CertificateSigningRequest, 0, len(candidateSigners))
 	for _, candidateSigner := range candidateSigners {
@@ -338,15 +391,15 @@ func createCSRs(
 
 func createCSR(
 	candidateSigner *candidateCSRSigner,
-	customSubject *pkix.Name,
+	customSubject []pkix.AttributeTypeAndValue,
 ) (*subcav1.CertificateSigningRequest, error) {
 	signer := candidateSigner.Signer
 	cert := candidateSigner.Cert
 
 	// Subject.
 	var subj pkix.Name
-	if customSubject != nil {
-		subj.ExtraNames = customSubject.Names
+	if len(customSubject) > 0 {
+		subj.ExtraNames = customSubject
 	} else {
 		subj.ExtraNames = cert.Subject.Names
 		// Remove serial number (OID 2.5.4.5).
@@ -370,6 +423,21 @@ func createCSR(
 	return subcav1.CertificateSigningRequest_builder{
 		Pem: string(csrPEM),
 	}.Build(), nil
+}
+
+func appendMissingKeyWarnings(
+	warns []*subcav1.CreateCSRWarning,
+	publicKeys []string,
+	userMessage string,
+) []*subcav1.CreateCSRWarning {
+	warns = slices.Grow(warns, len(publicKeys))
+	for _, pkh := range publicKeys {
+		warns = append(warns, subcav1.CreateCSRWarning_builder{
+			UserMessage:   userMessage,
+			PublicKeyHash: pkh,
+		}.Build())
+	}
+	return warns
 }
 
 type candidateCSRSignerResponse struct {

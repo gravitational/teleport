@@ -19,6 +19,7 @@ package subcav1
 import (
 	"context"
 	"net"
+	"slices"
 	"sync"
 	"testing"
 
@@ -57,6 +58,21 @@ type Env struct {
 	KeystoreManager KeystoreManager
 	MockEmitter     *eventstest.MockRecorderEmitter
 	SubCAClient     subcav1.SubCAServiceClient
+
+	processCancel context.CancelFunc
+	stoppers      []func()
+}
+
+// Stop stops the Env service watchers, gRPC server and client.
+// Useful to simulate a premature stop. It's not necessary to routinely call
+// Stop.
+func (e *Env) Stop() {
+	if e.processCancel != nil {
+		e.processCancel()
+	}
+	for _, stopper := range slices.Backward(e.stoppers) {
+		stopper()
+	}
 }
 
 // NewEnv creates a new gRPC test environment.
@@ -71,6 +87,9 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 	env := &Env{
 		Env: storageEnv,
 	}
+	var processCtx context.Context
+	processCtx, env.processCancel = context.WithCancel(t.Context())
+	t.Cleanup(env.processCancel)
 
 	// ClusterConfigurationService and cluster name.
 	ccs, err := local.NewClusterConfigurationService(env.Backend)
@@ -116,7 +135,7 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		SubCA:                   env.SubCA,
 		PendingCSR:              env.SubCA,
 		Trust:                   env.Trust,
-		WatcherContext:          t.Context(), // Stop watchers on test end.
+		WatcherContext:          processCtx,
 		WatcherSource:           local.NewEventsService(env.Backend),
 		KeystoreManager:         env.KeystoreManager,
 		Authorizer:              authorizer,
@@ -139,6 +158,8 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 			interceptors.GRPCServerUnaryErrorInterceptor,
 		),
 	)
+	env.stoppers = append(env.stoppers, s.Stop)
+	env.stoppers = append(env.stoppers, s.GracefulStop)
 
 	subcav1.RegisterSubCAServiceServer(s, service)
 
@@ -163,9 +184,8 @@ func NewEnv(t *testing.T, p EnvParams) *Env {
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 	)
 	require.NoError(t, err, "grpc.NewClient()")
-	t.Cleanup(func() {
-		assert.NoError(t, cc.Close(), "grpc.ClientConn.Close()")
-	})
+	t.Cleanup(func() { _ = cc.Close() })
+	env.stoppers = append(env.stoppers, func() { _ = cc.Close() })
 
 	env.SubCAClient = subcav1.NewSubCAServiceClient(cc)
 
