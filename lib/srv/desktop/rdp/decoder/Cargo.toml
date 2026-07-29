@@ -14,6 +14,9 @@ ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
 ironrdp-pdu.workspace = true
 ironrdp-session.workspace = true
+# Linux desktop sessions are encoded with the QOIZ codec,
+# so the decoder must be able to decode them.
+ironrdp-session.features = ["qoiz"]
 
 [features]
 image-resize = ["dep:fast_image_resize"]

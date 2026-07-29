@@ -88,33 +88,12 @@ You may customize the certificate subject:
 $ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
 ```
 
-### Multi-Auth Service clusters with per-instance HSM keys
-
+<Admonition type="tip">
 In clusters with multiple Auth Service instances and a separate HSM key per
-instance, run `tctl` locally against each Auth Service instance. Each Auth
-Service instance generates CSRs for the keys it can access.
-
-For example:
-
-```code
-# Access the first Auth instance.
-# Modify the command below as appropriate.
-$ tsh ssh user@Auth1
-
-# Generate the CSRs.
-# Modify as desired.
-$ tctl auth create-override-csr --type=windows
-
-# Second Auth instance.
-$ tsh ssh user@Auth2
-$ tctl auth create-override-csr --type=windows
-
-# Repeat for each remaining Auth Service instance.
-```
-
-When writing the override resource, make sure the final
-`spec.certificate_overrides` contains one entry for each certificate issued from
-those CSRs. See Step 4.
+instance, make sure all Auth Service instances are online and healthy before
+issuing the `create-override-csr` command. Teleport will automatically collect
+CSRs from all online Auth Service instances.
+</Admonition>
 
 ## Step 2/5. Issue override certificates using your external CA
 
