@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -663,6 +664,337 @@ func TestService_ListAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
 	accessLists = listAccessListsV2(c.userWhereCtx, t, c.svc, 0)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
+}
+
+func TestService_ListAccessListsV2OwnerDisplaySearch(t *testing.T) {
+	c := initSvc(t)
+
+	owner, err := c.testEnv.identity.GetUser(t.Context(), ownerUser, false)
+	require.NoError(t, err)
+	owner.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+		"okta/email":       {"jane@example.com"},
+	})
+	_, err = c.testEnv.identity.UpdateUser(t.Context(), owner)
+	require.NoError(t, err)
+
+	janeList := newAccessList(t, "primary-prod", c.clock)
+	janeList.Spec.Title = "prod database"
+	janeList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUser},
+	}
+	legacyJaneList := newAccessList(t, "legacy-prod", c.clock)
+	legacyJaneList.Spec.Title = "prod database"
+	legacyJaneList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUnspecified},
+	}
+	otherList := newAccessList(t, "other-prod", c.clock)
+	otherList.Spec.Title = "prod database"
+	otherList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser2, MembershipKind: accesslist.MembershipKindUser},
+	}
+	// create a nested owner list to ensure that the search resolver can handle nested ownership.
+	nestedOwner := newAccessList(t, ownerUser, c.clock)
+	nestedOwner.Spec.Title = "owner list"
+	nestedOwner.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser2, MembershipKind: accesslist.MembershipKindUser},
+	}
+	nestedOwnerList := newAccessList(t, "nested-owner-prod", c.clock)
+	nestedOwnerList.Spec.Title = "prod database"
+	nestedOwnerList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindList},
+	}
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{janeList, legacyJaneList, otherList, nestedOwner, nestedOwnerList}, nil)
+
+	testCases := []struct {
+		name   string
+		search string
+	}{
+		{
+			name:   "display primary",
+			search: "Jane",
+		},
+		{
+			name:   "display secondary",
+			search: "jane@example.com",
+		},
+		{
+			name:   "mixed field and display terms",
+			search: "prod Garcia",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+				PageSize: 100,
+				Filter: accesslistv1.AccessListsFilter_builder{
+					Search: tc.search,
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+			// Only the lists owned by the specified user should be returned.
+			// The other lists owned by either other users or nested lists should not be returned.
+			gotNames := make([]string, 0, len(resp.GetAccessLists()))
+			for _, accessList := range resp.GetAccessLists() {
+				gotNames = append(gotNames, accessList.GetHeader().GetMetadata().GetName())
+			}
+			require.ElementsMatch(t, []string{janeList.GetName(), legacyJaneList.GetName()}, gotNames)
+		})
+	}
+}
+
+func TestService_ListAccessListsV2StoredFieldSearchDoesNotResolveOwners(t *testing.T) {
+	var cache *observingAccessListCache
+	c := initSvc(t, withCacheWrap(func(inner Cache) Cache {
+		cache = &observingAccessListCache{Cache: inner}
+		return cache
+	}))
+
+	first := newAccessList(t, "first-prod", c.clock)
+	first.Spec.Title = "prod database"
+	first.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUser},
+	}
+	first.Spec.Grants.Roles = []string{"db-access"}
+	first.SetOrigin(types.OriginOkta)
+	second := newAccessList(t, "second-prod", c.clock)
+	second.Spec.Title = "prod database"
+	second.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUser},
+	}
+	second.Spec.Grants.Roles = []string{"db-access"}
+	second.SetOrigin(types.OriginOkta)
+	_, err := c.testEnv.accessLists.UpsertAccessList(c.userCtx, first)
+	require.NoError(t, err)
+	_, err = c.testEnv.accessLists.UpsertAccessList(c.userCtx, second)
+	require.NoError(t, err)
+
+	req := accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 1,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "prod",
+			Owners: []string{ownerUser},
+			Roles:  []string{"db"},
+			Origin: types.OriginOkta,
+		}.Build(),
+	}.Build()
+	_, err = c.svc.ListAccessListsV2(c.userCtx, req)
+	require.NoError(t, err)
+
+	require.Zero(t, cache.listUsersCalls)
+	require.NotEmpty(t, cache.listAccessListsRequests)
+	for _, observed := range cache.listAccessListsRequests {
+		require.Empty(t, observed.search)
+		require.Equal(t, []string{ownerUser}, observed.owners)
+		require.Equal(t, []string{"db"}, observed.roles)
+		require.Equal(t, types.OriginOkta, observed.origin)
+	}
+	require.Equal(t, int32(1), req.GetPageSize())
+	require.Empty(t, req.GetPageToken())
+	require.Equal(t, "prod", req.GetFilter().GetSearch())
+}
+
+func TestService_ListAccessListsV2OwnerDisplaySearchResolvesOnlyConsultedTerms(t *testing.T) {
+	var cache *observingAccessListCache
+	c := initSvc(t, withCacheWrap(func(inner Cache) Cache {
+		cache = &observingAccessListCache{Cache: inner}
+		return cache
+	}))
+
+	accessList := newAccessList(t, "production", c.clock)
+	accessList.Spec.Title = "prod database"
+	accessList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUser},
+	}
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{accessList}, nil)
+
+	resp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 100,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "missing-one missing-two missing-three",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, resp.GetAccessLists())
+	require.Equal(t, 1, cache.listUsersCalls)
+	require.Len(t, cache.listAccessListsRequests, 1)
+	require.Empty(t, cache.listAccessListsRequests[0].search)
+}
+
+func TestService_ListAccessListsV2OwnerDisplaySearchMemoizesAcrossCachePages(t *testing.T) {
+	var cache *observingAccessListCache
+	c := initSvc(t, withCacheWrap(func(inner Cache) Cache {
+		cache = &observingAccessListCache{Cache: inner}
+		return cache
+	}))
+
+	owner, err := c.testEnv.identity.GetUser(t.Context(), ownerUser, false)
+	require.NoError(t, err)
+	owner.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+	_, err = c.testEnv.identity.UpdateUser(t.Context(), owner)
+	require.NoError(t, err)
+
+	var accessLists []*accesslist.AccessList
+	for i, ownerName := range []string{ownerUser2, ownerUser2, ownerUser, ownerUser2, ownerUser} {
+		accessList := newAccessList(t, fmt.Sprintf("%02d-prod", i), c.clock)
+		accessList.Spec.Title = "prod database"
+		accessList.Spec.Owners = []accesslist.Owner{
+			{Name: ownerName, MembershipKind: accesslist.MembershipKindUser},
+		}
+		accessLists = append(accessLists, accessList)
+	}
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, nil)
+
+	resp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 1,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "prod Garcia Garcia",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetAccessLists(), 1)
+	require.NotEmpty(t, resp.GetNextPageToken())
+	require.Equal(t, ownerUser, resp.GetAccessLists()[0].GetSpec().GetOwners()[0].GetName())
+
+	require.Equal(t, 1, cache.listUsersCalls)
+	require.Greater(t, len(cache.listAccessListsRequests), 1)
+	for _, observed := range cache.listAccessListsRequests {
+		require.Empty(t, observed.search)
+	}
+}
+
+func TestService_ListAccessListsV2OwnerDisplaySearchPagination(t *testing.T) {
+	c := initSvc(t)
+
+	owner, err := c.testEnv.identity.GetUser(t.Context(), ownerUser, false)
+	require.NoError(t, err)
+	owner.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+	_, err = c.testEnv.identity.UpdateUser(t.Context(), owner)
+	require.NoError(t, err)
+
+	var accessLists []*accesslist.AccessList
+	for name, ownerName := range map[string]string{
+		"00-jane":  ownerUser,
+		"01-other": ownerUser2,
+		"02-jane":  ownerUser,
+		"03-other": ownerUser2,
+	} {
+		accessList := newAccessList(t, name, c.clock)
+		accessList.Spec.Owners = []accesslist.Owner{
+			{Name: ownerName, MembershipKind: accesslist.MembershipKindUser},
+		}
+		accessLists = append(accessLists, accessList)
+	}
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, accessLists, nil)
+
+	firstPage, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 1,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "Garcia",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, firstPage.GetAccessLists(), 1)
+	require.Equal(t, "00-jane", firstPage.GetAccessLists()[0].GetHeader().GetMetadata().GetName())
+	require.NotEmpty(t, firstPage.GetNextPageToken())
+
+	secondPage, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize:  1,
+		PageToken: firstPage.GetNextPageToken(),
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "Garcia",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, secondPage.GetAccessLists(), 1)
+	require.Equal(t, "02-jane", secondPage.GetAccessLists()[0].GetHeader().GetMetadata().GetName())
+	require.Empty(t, secondPage.GetNextPageToken())
+}
+
+func TestService_ListAccessListsV2OwnerDisplaySearchLookupFailure(t *testing.T) {
+	cacheErr := errors.New("backend unavailable")
+	c := initSvc(t, withCacheWrap(func(inner Cache) Cache {
+		return &listUsersErrCache{Cache: inner, err: cacheErr}
+	}))
+
+	owner, err := c.testEnv.identity.GetUser(t.Context(), ownerUser, false)
+	require.NoError(t, err)
+	owner.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+	_, err = c.testEnv.identity.UpdateUser(t.Context(), owner)
+	require.NoError(t, err)
+
+	accessList := newAccessList(t, "primary-prod", c.clock)
+	accessList.Spec.Title = "prod database"
+	accessList.Spec.Owners = []accesslist.Owner{
+		{Name: ownerUser, MembershipKind: accesslist.MembershipKindUser},
+	}
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{accessList}, nil)
+
+	resp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 100,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "Garcia",
+		}.Build(),
+	}.Build())
+	// Expect that the search resolver will fail gracefully and return an empty list of access lists.
+	require.NoError(t, err)
+	require.Empty(t, resp.GetAccessLists())
+
+	resp, err = c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		PageSize: 100,
+		Filter: accesslistv1.AccessListsFilter_builder{
+			Search: "prod",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetAccessLists(), 1)
+}
+
+type listUsersErrCache struct {
+	Cache
+	err error
+}
+
+func (c *listUsersErrCache) ListUsers(context.Context, *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	return nil, c.err
+}
+
+type observedListAccessListsRequest struct {
+	search string
+	owners []string
+	roles  []string
+	origin string
+}
+
+type observingAccessListCache struct {
+	Cache
+	listUsersCalls          int
+	listAccessListsRequests []observedListAccessListsRequest
+}
+
+func (c *observingAccessListCache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	c.listUsersCalls++
+	return c.Cache.ListUsers(ctx, req)
+}
+
+func (c *observingAccessListCache) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	c.listAccessListsRequests = append(c.listAccessListsRequests, observedListAccessListsRequest{
+		search: req.GetFilter().GetSearch(),
+		owners: append([]string(nil), req.GetFilter().GetOwners()...),
+		roles:  append([]string(nil), req.GetFilter().GetRoles()...),
+		origin: req.GetFilter().GetOrigin(),
+	})
+	return c.Cache.ListAccessListsV2(ctx, req)
 }
 
 func TestService_ListAccessLists_CurrentUserAssignments(t *testing.T) {

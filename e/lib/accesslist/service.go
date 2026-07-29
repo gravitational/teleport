@@ -13,6 +13,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -324,12 +325,35 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 	// We don't authorize right away because this endpoint can still return results based on the calling user's
 	// ownership/membership to particular access lists.
 
+	resolveToUsernames := services.NewSearchKeywordUsernameResolver(s.cache)
+	matchOwnerDisplay := func(al *accesslist.AccessList, term string) bool {
+		return accessListHasUserOwnerInSet(al, resolveToUsernames(ctx, term))
+	}
+
+	cacheReq := gproto.Clone(req).(*accesslistv1.ListAccessListsV2Request)
+	if cacheFilter := cacheReq.GetFilter(); cacheFilter != nil {
+		// Cache can't apply the search filter without false negatives because search
+		// terms can contain user display values that are not stored in the backend.
+		// MatchAccessList below applies the full search instead.
+		cacheFilter.SetSearch("")
+	}
+
 	var results []*accesslist.AccessList
 	var nextToken string
 	for {
 		var page []*accesslist.AccessList
 		var getErr error
-		page, nextToken, getErr = s.cache.ListAccessListsV2(ctx, req)
+		page, nextToken, getErr = s.cache.ListAccessListsV2(ctx, cacheReq)
+
+		if getErr == nil {
+			matched := page[:0]
+			for _, accessList := range page {
+				if services.MatchAccessList(accessList, req.GetFilter(), matchOwnerDisplay) {
+					matched = append(matched, accessList)
+				}
+			}
+			page = matched
+		}
 
 		var err error
 		page, err = s.filterResults(ctx, authCtx, page, true, getErr)
@@ -341,7 +365,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		if len(results) >= (pageSize+1) || nextToken == "" {
 			break
 		}
-		req.SetPageToken(nextToken)
+		cacheReq.SetPageToken(nextToken)
 	}
 
 	if len(results) == 0 {
@@ -375,6 +399,18 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		AccessLists:   accessLists,
 		NextPageToken: nextToken,
 	}.Build(), nil
+}
+
+func accessListHasUserOwnerInSet(al *accesslist.AccessList, usernames set.Set[string]) bool {
+	for _, owner := range al.Spec.Owners {
+		if !owner.IsMembershipKindUser() {
+			continue
+		}
+		if usernames.Contains(owner.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 // ListAccessLists returns a paginated list of all access lists.
