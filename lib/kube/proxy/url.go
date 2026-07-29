@@ -165,13 +165,15 @@ func parseResourcePath(p string) apiResource {
 	// Special verb endpoints carry the verb in a segment ahead of the resource path.
 	// The API server consumes that segment and parses the rest as a normal resource path, so we do the same.
 	// See specialVerbs in https://github.com/kubernetes/apiserver/blob/master/pkg/endpoints/request/requestinfo.go
-	switch {
-	case len(parts) > 0 && parts[0] == "watch":
-		r.isWatch = true
-		parts = parts[1:]
-	case len(parts) > 1 && parts[0] == "proxy":
-		r.isProxyVerb = true
-		parts = parts[1:]
+	if len(parts) > 1 {
+		switch parts[0] {
+		case "watch":
+			r.isWatch = true
+			parts = parts[1:]
+		case "proxy":
+			r.isProxyVerb = true
+			parts = parts[1:]
+		}
 	}
 
 	switch len(parts) {
