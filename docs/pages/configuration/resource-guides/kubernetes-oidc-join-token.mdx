@@ -141,10 +141,15 @@ require two additional steps:
    `system:service-account-issuer-discovery` ClusterRole.
 
 2. **Trust the API server's CA.** Teleport's Auth Service must trust the TLS
-   certificate of the OIDC endpoint. Copy the Kubernetes API server CA
-   certificate to the system trust store (e.g.,
-   `/usr/local/share/ca-certificates/`) and run `update-ca-certificates`, then
-   restart Teleport.
+   certificate of the OIDC endpoint.
+
+   - **Self-hosted Teleport:** Copy the Kubernetes API server CA certificate to
+     the system trust store (e.g., `/usr/local/share/ca-certificates/`) and run
+     `update-ca-certificates`, then restart Teleport.
+   - **Teleport Cloud:** You cannot modify the managed Auth Service's trust
+     store. Instead, configure your self-managed Kubernetes cluster's OIDC
+     endpoint to use a publicly trusted TLS certificate (e.g., via Let's
+     Encrypt or a commercial CA).
 </Admonition>
 
 ## Step 2/3. Create the Join Token
