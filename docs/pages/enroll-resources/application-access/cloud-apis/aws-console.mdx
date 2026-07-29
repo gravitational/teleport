@@ -756,6 +756,28 @@ regarding `sts.amazonaws.com:443`. The Teleport Application Service must be able
 connect to `https://sts.amazonaws.com` and `https://signin.aws.amazon.com/federation`
 to create an authorized AWS console session.
 
+If the Teleport Application Service runs behind an HTTP CONNECT proxy, the
+`HTTPS_PROXY` and `HTTP_PROXY` variables in its environment also apply to these
+AWS calls. Add both endpoints to `NO_PROXY`, keeping any entries that are
+already there. If the service reads its AWS credentials from an EC2 instance
+profile, add the instance metadata address as well, because a proxied request
+for those credentials fails before the call to STS is made:
+
+```text
+NO_PROXY=169.254.169.254,*.amazonaws.com,signin.aws.amazon.com
+```
+
+The example covers standard AWS regions. AWS GovCloud (US) regions and AWS
+China regions use different sign-in endpoints, and AWS China regions also use a
+different STS endpoint, so bypass those domains instead. If the proxy is the
+only route out of the network, allow `CONNECT` to these hosts on the proxy
+rather than bypassing it.
+
+Set these variables in `/etc/default/teleport` on EC2, or in the `extraEnv`
+value of the `teleport-kube-agent` chart on EKS. For more on how Teleport uses
+them, see
+[HTTP CONNECT proxies](../../../reference/deployment/networking.mdx#http-connect-proxies).
+
 ### The Application Service is not authorized to assume a role
 
 If the Teleport Application Service fails to assume the `ExampleReadOnlyAccess`
