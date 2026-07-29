@@ -2,7 +2,6 @@ locals {
   bot_name_scoped = "test-scoped-bot"
   scope_path      = "/different-scope"
 }
-
 resource "teleport_scoped_role" "scoped_operator" {
   version = "v1"
   metadata = {
@@ -47,7 +46,7 @@ resource "teleport_scoped_role_assignment" "bot_assignment" {
   spec = {
     bot = "${teleport_bot.test_scoped.scope}::${teleport_bot.test_scoped.metadata.name}"
     assignments = [{
-      role  = teleport_scoped_role.scoped_operator.metadata.name
+      role  = "${teleport_scoped_role.scoped_operator.scope}::${teleport_scoped_role.scoped_operator.metadata.name}"
       scope = local.scope_path
     }]
   }
