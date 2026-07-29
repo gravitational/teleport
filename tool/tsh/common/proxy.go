@@ -669,7 +669,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appName := cf.AppSQN.Name
+	appName := cf.AppSQN.String()
 	if portMapping.TargetPort != 0 {
 		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
