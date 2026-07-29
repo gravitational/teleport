@@ -24,6 +24,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
@@ -127,7 +128,8 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *machineidv
 // If an non-empty bot name is provided, only instances for that bot will be fetched. The bot scope must be
 // provided alongside the name for a scoped bot's instances, and only ever qualifies the name - providing a
 // scope without a name is an error rather than a request for every instance in that scope. With no bot filter,
-// instances for all bots are listed, unscoped bots' instances first.
+// instances for all bots are listed, unscoped bots' instances first, narrowed by the options' scope filter if
+// one is set.
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
 // Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
@@ -143,6 +145,15 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	// filter with explicit exact/descendant control.
 	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
 		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
+	scopeFilter := options.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	// The range routing below already constrains the scope for a bot filter, so the
+	// two are mutually exclusive rather than one silently winning.
+	if scopeFilter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED && options.GetFilterBotName() != "" {
+		return nil, "", trace.BadParameter("scope filter cannot be combined with a bot name filter")
 	}
 
 	// Satisfied by both the scope-aware wrapper (unified listing across the
@@ -179,12 +190,15 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	}
 
 	filterFn := options.GetFilterFn()
-	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil {
+	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil && scopes.IsMatchAll(scopeFilter) {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
+		if !scopes.MatchScope(scopeFilter, item.GetScope()) {
+			return false
+		}
 		if !services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp) {
 			return false
 		}

@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
@@ -50,6 +51,13 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter upstream (BotInstance)")
 	}
+	// The seed must select the same set as the event stream, which is filtered
+	// per-event by services.WatchKindMatchesScope; an unfiltered seed would leave
+	// permanently stale out-of-scope entries in the store.
+	scopeFilter := w.ScopeFilter.ToProto()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &collection[*machineidv1.BotInstance, botInstanceIndex]{
 		store: newStore(
@@ -68,7 +76,9 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, limit, start, nil)
+					return upstream.ListBotInstances(ctx, limit, start, &services.ListBotInstancesRequestOptions{
+						ScopeFilter: scopeFilter,
+					})
 				},
 			))
 			return out, trace.Wrap(err)
@@ -109,6 +119,15 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	// filter with explicit exact/descendant control.
 	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
 		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
+	scopeFilter := options.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	// The bot check in the filter closure below already constrains the scope, so
+	// the two are mutually exclusive rather than one silently winning.
+	if scopeFilter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED && options.GetFilterBotName() != "" {
+		return nil, "", trace.BadParameter("scope filter cannot be combined with a bot name filter")
 	}
 
 	index := botInstanceNameIndex
@@ -161,6 +180,9 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			// the backend's range routing in
 			// local.BotInstanceService.ListBotInstances.
 			if options.GetFilterBotName() != "" && b.GetScope() != options.GetFilterBotScope() {
+				return false
+			}
+			if !scopes.MatchScope(scopeFilter, b.GetScope()) {
 				return false
 			}
 			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {

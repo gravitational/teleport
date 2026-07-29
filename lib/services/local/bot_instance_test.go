@@ -20,6 +20,8 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -518,6 +521,110 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 	require.NoError(t, service.DeleteAllBotInstances(ctx))
 	remaining := listInstances(t, ctx, service, nil)
 	require.Empty(t, remaining)
+}
+
+// TestBotInstanceListWithScopeFilter verifies that the scope filter selects
+// instances by their owning bot's scope across both key ranges, and is rejected
+// alongside a bot filter.
+func TestBotInstanceListWithScopeFilter(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	unscoped := newBotInstance("u")
+	foo := newBotInstance("f", withBotInstanceScope("/foo"))
+	fooSub := newBotInstance("fs", withBotInstanceScope("/foo/sub"))
+	bar := newBotInstance("b", withBotInstanceScope("/bar"))
+	for _, bi := range []*machineidv1.BotInstance{unscoped, foo, fooSub, bar} {
+		_, err := service.CreateBotInstance(ctx, bi)
+		require.NoError(t, err)
+	}
+
+	scopesOf := func(instances []*machineidv1.BotInstance) []string {
+		out := make([]string, 0, len(instances))
+		for _, bi := range instances {
+			out = append(out, bi.GetScope())
+		}
+		slices.Sort(out)
+		return out
+	}
+
+	tests := []struct {
+		name       string
+		options    *services.ListBotInstancesRequestOptions
+		wantScopes []string
+	}{
+		{
+			name:       "nil filter matches every scope",
+			options:    nil,
+			wantScopes: []string{"", "/bar", "/foo", "/foo/sub"},
+		},
+		{
+			name:       "mode ALL matches every scope",
+			options:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()},
+			wantScopes: []string{"", "/bar", "/foo", "/foo/sub"},
+		},
+		{
+			// Unscoped is orthogonal to every scoped value, not the root.
+			name:       "mode UNSCOPED matches only unscoped instances",
+			options:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build()},
+			wantScopes: []string{""},
+		},
+		{
+			name:       "mode EXACT matches one scope",
+			options:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build()},
+			wantScopes: []string{"/foo"},
+		},
+		{
+			name:       "mode DESCENDANTS includes the scope and below",
+			options:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build()},
+			wantScopes: []string{"/foo", "/foo/sub"},
+		},
+		{
+			name:       "mode ANCESTORS includes the scope and above",
+			options:    &services.ListBotInstancesRequestOptions{ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ANCESTORS, Scope: "/foo/sub"}.Build()},
+			wantScopes: []string{"/foo", "/foo/sub"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := listInstances(t, ctx, service, tc.options)
+			require.Equal(t, tc.wantScopes, scopesOf(got))
+		})
+	}
+
+	t.Run("malformed filter is rejected", func(t *testing.T) {
+		_, _, err := service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+			// EXACT requires a scope.
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+		})
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+	})
+
+	// Even mode ALL is rejected, so the rule is one a caller can state without
+	// knowing the modes.
+	for _, mode := range []scopesv1.Mode{scopesv1.Mode_MODE_UNSCOPED, scopesv1.Mode_MODE_ALL} {
+		t.Run(fmt.Sprintf("scope filter mode %v with a bot filter is rejected", mode), func(t *testing.T) {
+			_, _, err := service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+				FilterBotName:  "f",
+				FilterBotScope: "/foo",
+				ScopeFilter:    scopesv1.Filter_builder{Mode: mode}.Build(),
+			})
+			require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			require.ErrorContains(t, err, "scope filter cannot be combined with a bot name filter")
+		})
+	}
 }
 
 // TestBotInstanceListWithSearchFilter verifies list and filtering with search

@@ -19,6 +19,7 @@ package teleport.machineid.v1;
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
@@ -89,8 +90,18 @@ message ListBotInstancesV2Request {
     // (a scoped bot is identified by the pair (scope, name)); setting bot_scope
     // without bot_name is an error. An empty bot_scope with a non-empty bot_name
     // selects the unscoped bot with that name. This is not a standalone scope
-    // filter for listing all of a scope's instances.
+    // filter for listing all of a scope's instances - use scope_filter for that.
     string bot_scope = 4;
+    // scope_filter selects BotInstances by the scope of their owning bot.
+    // Defaults to one of EXACT or UNSCOPED depending on whether the caller is a
+    // scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`)
+    // should specify mode ALL.
+    //
+    // Mutually exclusive with bot_name, which already constrains the result to a
+    // single bot in a single scope; setting both is an error. Nested here, unlike
+    // other scope-aware list RPCs, because it is meaningless in isolation from
+    // bot_name and bot_scope.
+    teleport.scopes.v1.Filter scope_filter = 5;
   }
 }
 

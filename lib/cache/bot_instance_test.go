@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -30,6 +31,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -97,6 +99,93 @@ func TestBotInstanceCache(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestBotInstanceCollectionSeedHonorsWatchScopeFilter verifies that the cache's
+// initial fetch selects the same set as its scope-filtered event stream, which an
+// unfiltered seed would not, leaving permanently stale out-of-scope entries.
+func TestBotInstanceCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	for i, scope := range []string{"", "/foo", "/foo/sub", "/bar"} {
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
+			Kind:     types.KindBotInstance,
+			Version:  types.V1,
+			Scope:    scope,
+			Metadata: &headerv1.Metadata{},
+			Spec: machineidv1.BotInstanceSpec_builder{
+				BotName:    fmt.Sprintf("bot-%d", i),
+				InstanceId: uuid.New().String(),
+			}.Build(),
+			Status: &machineidv1.BotInstanceStatus{},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name        string
+		scopeFilter *scopesv1.Filter
+		wantScopes  []string
+	}{
+		{
+			name:        "nil filter seeds every scope",
+			scopeFilter: nil,
+			wantScopes:  []string{"", "/bar", "/foo", "/foo/sub"},
+		},
+		{
+			name:        "mode ALL seeds every scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			wantScopes:  []string{"", "/bar", "/foo", "/foo/sub"},
+		},
+		{
+			name:        "mode UNSCOPED seeds only unscoped",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			wantScopes:  []string{""},
+		},
+		{
+			name:        "mode EXACT seeds one scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build(),
+			wantScopes:  []string{"/foo"},
+		},
+		{
+			name:        "mode DESCENDANTS seeds the scope and below",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+			wantScopes:  []string{"/foo", "/foo/sub"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			collection, err := newBotInstanceCollection(p.botInstanceService, types.WatchKind{
+				Kind:        types.KindBotInstance,
+				ScopeFilter: types.ScopeFilterFromProto(tc.scopeFilter),
+			})
+			require.NoError(t, err)
+
+			seeded, err := collection.fetcher(ctx, false)
+			require.NoError(t, err)
+
+			gotScopes := make([]string, 0, len(seeded))
+			for _, bi := range seeded {
+				gotScopes = append(gotScopes, bi.GetScope())
+			}
+			slices.Sort(gotScopes)
+			require.Equal(t, tc.wantScopes, gotScopes)
+		})
+	}
+
+	t.Run("malformed watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newBotInstanceCollection(p.botInstanceService, types.WatchKind{
+			Kind: types.KindBotInstance,
+			// EXACT requires a scope.
+			ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build()),
+		})
+		require.ErrorContains(t, err, "requires a non-empty scope")
+	})
 }
 
 // TestBotInstanceCacheBackendTokenParity verifies that the cache lister and
@@ -233,6 +322,14 @@ func TestBotInstanceCacheList(t *testing.T) {
 		return (id[len(id)-1]-'0')%2 == 0
 	}
 
+	// Instance IDs name their scope, so expectations read as selected scopes.
+	scopeFilterInstances := []botInstanceSpec{
+		{botName: "u", id: "u"},
+		{scope: "/foo", botName: "f", id: "foo"},
+		{scope: "/foo/sub", botName: "fs", id: "foo-sub"},
+		{scope: "/bar", botName: "b", id: "bar"},
+	}
+
 	filterFnInstances := []botInstanceSpec{
 		{botName: "bot", id: "i-0"},
 		{botName: "bot", id: "i-1"},
@@ -281,15 +378,79 @@ func TestBotInstanceCacheList(t *testing.T) {
 			want: []string{"web-p1", "web-p2"},
 		},
 		{
-			// A scope filter only qualifies a bot name, so it is rejected on its
-			// own rather than listing every instance in the scope.
-			name: "scope filter without a bot name filter is rejected",
+			// A bot scope only qualifies a bot name, so it is rejected on its own
+			// rather than listing every instance in the scope. Standalone scope
+			// selection is ScopeFilter, covered below.
+			name: "bot scope without a bot name filter is rejected",
 			instances: []botInstanceSpec{
 				{botName: "web", id: "web-u"},
 				{scope: "/prod", botName: "web", id: "web-p1"},
 			},
 			opts:    &services.ListBotInstancesRequestOptions{FilterBotScope: "/prod"},
 			wantErr: "bot scope filter requires a bot name filter",
+		},
+		{
+			name:      "scope filter mode ALL spans all scopes",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			},
+			want: []string{"u", "bar", "foo", "foo-sub"},
+		},
+		{
+			// Unscoped is orthogonal to every scoped value, not the root.
+			name:      "scope filter mode UNSCOPED matches only unscoped instances",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			},
+			want: []string{"u"},
+		},
+		{
+			name:      "scope filter mode EXACT matches one scope",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build(),
+			},
+			want: []string{"foo"},
+		},
+		{
+			name:      "scope filter mode DESCENDANTS includes the scope and below",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+			},
+			want: []string{"foo", "foo-sub"},
+		},
+		{
+			name:      "scope filter with a bot filter is rejected",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				FilterBotName:  "f",
+				FilterBotScope: "/foo",
+				ScopeFilter:    scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			},
+			wantErr: "scope filter cannot be combined with a bot name filter",
+		},
+		{
+			// Rejected even though it would be harmless as a predicate.
+			name:      "scope filter mode ALL with a bot filter is rejected",
+			instances: scopeFilterInstances,
+			opts: &services.ListBotInstancesRequestOptions{
+				FilterBotName:  "f",
+				FilterBotScope: "/foo",
+				ScopeFilter:    scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			},
+			wantErr: "scope filter cannot be combined with a bot name filter",
+		},
+		{
+			name:      "malformed scope filter is rejected",
+			instances: scopeFilterInstances,
+			// EXACT requires a scope.
+			opts: &services.ListBotInstancesRequestOptions{
+				ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+			},
+			wantErr: "requires a non-empty scope",
 		},
 		{
 			name: "search term matches across scopes",
