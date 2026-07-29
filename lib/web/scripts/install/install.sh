@@ -334,10 +334,14 @@ install_teleport() {
     install_via_apt_get
     ;;
   # if ID is amazon Linux 2/RHEL/etc, run yum
-  centos | rhel | rocky | almalinux | amzn)
+  centos | rhel | amzn)
     install_via_yum "$ID"
     ;;
-  sles)
+  # if rocky or alma, run yum with literal rhel
+  rocky | almalinux)
+    install_via_yum "rhel"
+    ;;
+sles)
     install_via_zypper
     ;;
   *)
