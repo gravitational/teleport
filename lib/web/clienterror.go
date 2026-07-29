@@ -33,15 +33,23 @@ type reportClientErrorRequest struct {
 	Component string `json:"component"`
 	// Message is a short, non-identifying description of what failed.
 	Message string `json:"message"`
+	// Metadata holds any additional caller-supplied context.
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// reportClientErrorHandle logs client-side web UI errors so they show up alongside this proxy's other logs
+// reportClientErrorHandle logs client-side web UI errors so they show up alongside this proxy's other logs.
 func (h *Handler) reportClientErrorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	var req reportClientErrorRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	h.logger.WarnContext(r.Context(), "Web UI client error", "component", req.Component, "message", req.Message, "user", sctx.GetUser())
+	h.logger.WarnContext(r.Context(), "Web UI client error",
+		"source", "client",
+		"component", req.Component,
+		"message", req.Message,
+		"user_agent", r.UserAgent(),
+		"metadata", req.Metadata,
+	)
 	return nil, nil
 }
