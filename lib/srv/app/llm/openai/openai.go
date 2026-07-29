@@ -215,8 +215,8 @@ const (
 	// maxOutputTokens is the max value that can be used on the provider to
 	// avoid using the entire limit all at once.
 	//
-	// OpenAI supports different models, here we pick the model with most max
-	// output tokens: gpt-5.6-sol. This might change in the future.
+	// OpenAI supports different models, here we picked the latest "model class"
+	// from them: `gpt-5`+, using as reference `gpt-5.6-sol`.
 	//
 	// Reference: https://developers.openai.com/api/docs/models/gpt-5.6-sol
 	//

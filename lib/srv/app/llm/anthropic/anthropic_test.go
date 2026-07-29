@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -35,7 +36,6 @@ import (
 	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 	llmtesting "github.com/gravitational/teleport/lib/srv/app/llm/testing"
-	"github.com/gravitational/trace"
 )
 
 func TestNewRequest(t *testing.T) {
