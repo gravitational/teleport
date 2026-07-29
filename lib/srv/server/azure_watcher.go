@@ -419,18 +419,19 @@ func (f *azureInstanceFetcher) primaryPrivateIPByVM(
 	}
 
 	// Find scale set names of uniform VMSS VMs in the matched instances.
-	var scaleSetNames []string
-	for _, vms := range instanceGroups {
+	scaleSetNamesByRG := make(map[string][]string)
+	for batchGroup, vms := range instanceGroups {
+		rg := strings.ToLower(batchGroup.resourceGroup)
 		for _, vm := range vms {
 			if vm.UniformScaleSetName != "" {
-				scaleSetNames = append(scaleSetNames, vm.UniformScaleSetName)
+				scaleSetNamesByRG[rg] = append(scaleSetNamesByRG[rg], vm.UniformScaleSetName)
 			}
 		}
 	}
 
 	var privateIPByVM = make(map[string]string)
 	for resourceGroup := range resourceGroups {
-		nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetNames)
+		nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetNamesByRG[resourceGroup])
 		if err != nil {
 			return nil, trace.Wrap(err, "listing network interfaces for resource group %q", resourceGroup)
 		}
