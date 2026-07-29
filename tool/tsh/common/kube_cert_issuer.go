@@ -111,6 +111,8 @@ func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kub
 // IssueCert issues one cert for the given cluster.
 // If the cluster has per-session MFA, it replays the shared reusable MFA response if one is held.
 // If no reusable response is held, it takes the single-flight ceremony path, which may prompt the user.
+// A nil mfaCheck means the MFA requirement is unknown: the issuance takes the MFA-gated path,
+// which degrades to a plain issuance when the server reports MFA as not required.
 func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
 	// Hold one connection across the issuance. Every attempt below shares it.
 	cc, release, err := issuer.conn.Acquire(ctx)
