@@ -96,7 +96,7 @@ enum DeviceTrustCredentialError: Error, Equatable {
 	/// Keychain contained a record that could not be decoded or restored by this Secure Enclave.
 	case invalidStoredCredential
 
-	/// Teleport supplied no bytes to sign.
+	/// Caller of `signChallenge` supplied no bytes to sign.
 	case emptyChallenge
 
 	/// The Secure Enclave could not create a new signing key.
