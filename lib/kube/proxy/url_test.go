@@ -79,8 +79,9 @@ func TestExtractResourceNameFromPostRequest_Replayable(t *testing.T) {
 
 func TestParseResourcePath(t *testing.T) {
 	tests := []struct {
-		path string
-		want apiResource
+		path    string
+		want    apiResource
+		wantErr bool
 	}{
 		{path: "", want: apiResource{}},
 		{path: "/", want: apiResource{}},
@@ -138,11 +139,26 @@ func TestParseResourcePath(t *testing.T) {
 		// A bare verb segment carries no resource path.
 		// The API server rejects it, so keep it as a kind the cluster doesn't serve rather than a resource-less request.
 		{path: "/apis/resources.teleport.dev/v6/proxy", want: apiResource{apiGroup: "resources.teleport.dev", apiGroupVersion: "v6", resourceKind: "proxy"}},
+		// Cleaning resolves dot segments, but the raw path is what gets forwarded.
+		// Under the proxy verb the API server resolves "denied" while the cleaned path names "allowed",
+		// so reject rather than authorize a name it never resolves.
+		{wantErr: true, path: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/./allowed"},
+		{wantErr: true, path: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/../allowed"},
+		{wantErr: true, path: "/api/v1/namespaces/default/pods/denied/../allowed"},
+		{wantErr: true, path: "/api/v1/namespaces/default/pods/./foo"},
+		// Trailing and doubled slashes are normalized too,
+		// but they name the same resource either way, so they stay allowed.
+		{path: "/api/v1/pods/", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
+		{path: "/api/v1//pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "pods"}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			got, err := parseResourcePath(tt.path)
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+				return
+			}
 			require.NoError(t, err)
 			diff := cmp.Diff(got, tt.want, cmp.AllowUnexported(apiResource{}))
 			require.Empty(t, diff, "parsing path %q", tt.path)
@@ -438,39 +454,6 @@ func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 			require.False(t, got.isList)
 			require.Equal(t, types.KubeVerbProxy, got.verb)
 			require.Equal(t, "deployments", got.requestedResource.resourceKind)
-		})
-	}
-}
-
-// TestGetResourceFromRequest_RejectsDotSegments verifies that a dot segment is rejected rather than authorized.
-func TestGetResourceFromRequest_RejectsDotSegments(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		urlPath string
-		reject  bool
-	}{
-		// Under the proxy verb, the API server hands every segment after the name to the backend,
-		// so it resolves "denied" while the cleaned path names "allowed".
-		{reject: true, urlPath: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/../allowed"},
-		{reject: true, urlPath: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/%2e%2e/allowed"},
-		{reject: true, urlPath: "/api/v1/namespaces/default/pods/denied/../allowed"},
-		{reject: true, urlPath: "/api/v1/namespaces/default/pods/./foo"},
-		// Trailing and doubled slashes are also normalized by path.Clean,
-		// but they name the same resource either way, so they stay allowed.
-		{urlPath: "/api/v1/pods/"},
-		{urlPath: "/api/v1//pods"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.urlPath, func(t *testing.T) {
-			u, err := url.Parse(tt.urlPath)
-			require.NoError(t, err)
-			_, err = getResourceFromRequest(&http.Request{Method: http.MethodGet, URL: u}, nil)
-			if tt.reject {
-				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
-			} else {
-				require.NoError(t, err)
-			}
 		})
 	}
 }
