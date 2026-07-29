@@ -659,17 +659,6 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
 func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
-	ctx, span := f.cfg.tracer.Start(
-		ctx,
-		"kube.Forwarder/acquireConnectionLockWithIdentity",
-		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCSystemKey.String("kube"),
-		),
-	)
-	defer span.End()
-
 	unscopedContext, isUnscoped := identity.UnscopedContext()
 	if !isUnscoped {
 		// scoped roles don't have max_kubernetes_connections
@@ -1687,6 +1676,17 @@ func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, w
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
 func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, maxConnections int64) error {
+	ctx, span := f.cfg.tracer.Start(
+		ctx,
+		"kube.Forwarder/acquireConnectionLock",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+
 	if maxConnections == 0 {
 		return nil
 	}
