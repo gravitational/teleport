@@ -44,6 +44,7 @@ which supports IAM authentication.
 
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
+
   <Admonition type="warning" title="IAM authentication">
   Your RDS and Aurora databases must have password and IAM authentication
   enabled.
@@ -52,9 +53,11 @@ which supports IAM authentication.
   the Database Service will attempt to enable IAM authentication by modifying
   them using respective APIs.
   </Admonition>
+
 - A Linux host or Amazon Elastic Kubernetes Service cluster where you will run
   the Teleport Database Service, which proxies connections to your RDS
   databases. 
+
 - (!docs/pages/includes/tctl.mdx!)
 
 If you plan to run the Teleport Database Service on Kubernetes, you will need
