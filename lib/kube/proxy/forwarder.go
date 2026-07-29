@@ -659,23 +659,19 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
 func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
-	ctx, span := f.cfg.tracer.Start(
-		ctx,
-		"kube.Forwarder/acquireConnectionLockWithIdentity",
-		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCSystemKey.String("kube"),
-		),
-	)
-	defer span.End()
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
+	unscopedContext, isUnscoped := identity.UnscopedContext()
+	if !isUnscoped {
+		// TODO(espadolini) TODO(eriktate): scoped identities don't currently
+		// support max_kubernetes_connections, this should be updated when they
+		// do
+		return nil
 	}
-
-	if err := f.acquireConnectionLock(ctx, user, roles); err != nil {
+	maxConnections := unscopedContext.Checker.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
+	}
+	user := unscopedContext.Identity.GetIdentity().Username
+	if err := f.acquireConnectionLock(ctx, user, maxConnections); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1690,8 +1686,18 @@ func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, w
 // acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
-	maxConnections := roles.MaxKubernetesConnections()
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, maxConnections int64) error {
+	ctx, span := f.cfg.tracer.Start(
+		ctx,
+		"kube.Forwarder/acquireConnectionLock",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+
 	if maxConnections == 0 {
 		return nil
 	}
