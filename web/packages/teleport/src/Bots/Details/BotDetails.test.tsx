@@ -624,19 +624,21 @@ describe('BotDetails', () => {
       await user.click(screen.getByText('Delete Bot'));
 
       // The operation is delayed to account for backend cache lag
-      await waitFor(
-        () => {
-          expect(
-            screen.queryByText('Delete test-bot-name?')
-          ).not.toBeInTheDocument();
-        },
-        { timeout: 5000 }
+      await waitForElementToBeRemoved(
+        () => screen.queryByText('Delete test-bot-name?'),
+        { timeout: 5_000 }
       );
 
-      expect(screen.getByTestId('current-pathname')).toHaveTextContent(
-        '/web/bots'
+      await waitFor(
+        () =>
+          expect(screen.getByTestId('current-pathname')).toHaveTextContent(
+            '/web/bots'
+          ),
+        {
+          timeout: 1_000,
+        }
       );
-    });
+    }, 6_000);
 
     it('should disable the delete action if no permissions', async () => {
       withFetchSuccess();
