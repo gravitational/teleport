@@ -288,6 +288,15 @@ func (r rbacSupportedResources) getTeleportResourceKindFromAPIResource(api apiRe
 // getResourceFromRequest returns a KubernetesResource if the user tried to access
 // a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
 func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaResource, error) {
+	// A "." or ".." segment splits our view of the path from the API server's.
+	// We parse the cleaned path but forward the raw one, so a name we authorize
+	// is not necessarily the one the cluster resolves. Reject instead of guessing.
+	for segment := range strings.SplitSeq(req.URL.Path, "/") {
+		if segment == "." || segment == ".." {
+			return metaResource{}, trace.BadParameter("kubernetes request path must not contain %q segments", segment)
+		}
+	}
+
 	apiResource := parseResourcePath(req.URL.Path)
 
 	out := metaResource{
