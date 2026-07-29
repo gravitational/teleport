@@ -183,4 +183,5 @@ const stepProps: AddAuthDeviceWizardStepProps = {
 
   // Save props
   credential: { id: 'cred-id', type: 'public-key' },
+  existingDeviceNames: [],
 };

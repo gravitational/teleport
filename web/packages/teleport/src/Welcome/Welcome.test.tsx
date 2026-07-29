@@ -297,7 +297,7 @@ describe('teleport/components/Welcome', () => {
         req: {
           tokenId: '5182',
           password: '',
-          deviceName: 'passwordless-device',
+          deviceName: 'Passkey',
         },
       })
     );

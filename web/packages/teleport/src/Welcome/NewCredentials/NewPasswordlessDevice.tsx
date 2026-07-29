@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Box, ButtonPrimary, ButtonText, H2 } from 'design';
 import { Danger } from 'design/Alert';
@@ -27,6 +27,7 @@ import { useRefAutoFocus } from 'shared/hooks';
 
 import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyBlurb } from 'teleport/components/Passkeys/PasskeyBlurb';
+import { composePasskeyName } from 'teleport/services/mfa/passkeyName';
 
 import { SliderProps, UseTokenState } from './types';
 
@@ -44,11 +45,19 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     clearSubmitAttempt,
     resetToken,
   } = props;
-  const [deviceName, setDeviceName] = useState('passwordless-device');
+  const [deviceName, setDeviceName] = useState('');
 
   const deviceNameInputRef = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded,
   });
+
+  // Pre-fill the editable nickname with a friendly default derived client-side
+  // from the freshly created credential (e.g. "1Password on Chrome").
+  useEffect(() => {
+    if (credential) {
+      setDeviceName(composePasskeyName(credential));
+    }
+  }, [credential]);
 
   function handleOnSubmit(
     e: React.MouseEvent<HTMLButtonElement>,
