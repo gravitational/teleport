@@ -55,7 +55,7 @@ func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"SubKind", "ID", "User", "Assigns"}
+	headers := []string{"SubKind", "ID", "Target Type", "Target", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -63,10 +63,12 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		for j, subAssignment := range item.GetSpec().GetAssignments() {
 			assigns[j] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
 		}
+		targetType, target := scopedRoleAssignmentTarget(item)
 		rows[i] = []string{
 			item.GetSubKind(),
 			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
-			item.GetSpec().GetUser(),
+			targetType,
+			target,
 			strings.Join(assigns, ", "),
 		}
 	}
@@ -75,6 +77,19 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+// scopedRoleAssignmentTarget returns the kind and name of the principal that an
+// assignment applies to. Assignments target either a user (by name) or a bot (by
+// scope-qualified name), and the two are mutually exclusive.
+func scopedRoleAssignmentTarget(assignment *scopedaccessv1.ScopedRoleAssignment) (targetType, target string) {
+	if bot := assignment.GetSpec().GetBot(); bot != "" {
+		return types.KindBot, bot
+	}
+	if user := assignment.GetSpec().GetUser(); user != "" {
+		return types.KindUser, user
+	}
+	return "", ""
 }
 
 func scopedRoleAssignmentScopedHandler() ScopedHandler {
