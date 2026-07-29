@@ -536,8 +536,25 @@ export type PluginEntraIdSpec = {
    * "enabled" state.
    */
   accessGraphEnabled: boolean;
+  /**
+   * syncIntervals is the Entra ID service sync intervals.
+   */
+  syncIntervals: PluginEntraIdSyncIntervals;
 };
 
+/**
+ * PluginEntraIdSyncIntervals defines Entra ID service sync intervals.
+ */
+export type PluginEntraIdSyncIntervals = {
+  /**
+   * delta sync interval.
+   */
+  delta: string;
+  /**
+   * full sync interval.
+   */
+  full: string;
+};
 /**
  * Filters defines plugin resource import filter input
  * param. Fields must be in sync with the [Inputs]
