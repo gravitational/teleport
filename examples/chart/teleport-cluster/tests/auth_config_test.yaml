@@ -1,6 +1,10 @@
 suite: ConfigMap
 templates:
   - auth/config.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: matches snapshot for acme-off.yaml
     values:

@@ -1,6 +1,10 @@
 suite: Test Role
 templates:
   - role.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: should match the snapshot (simple)
     values:

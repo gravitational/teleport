@@ -1,6 +1,10 @@
 suite: AdminClusterRoleBinding
 templates:
   - admin_clusterrolebinding.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: don't generate a admin cluster role binding when adminClusterRoleBinding.create is false
     asserts:

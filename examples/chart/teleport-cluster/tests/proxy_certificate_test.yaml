@@ -1,6 +1,10 @@
 suite: Proxy Certificate
 templates:
   - proxy.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml)
     values:

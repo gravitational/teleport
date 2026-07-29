@@ -1,6 +1,10 @@
 suite: PodDisruptionBudget
 templates:
   - pdb.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: should create a PDB when enabled in values (pdb.yaml)
     values:

@@ -1,6 +1,10 @@
 suite: Proxy Ingress
 templates:
   - ingress.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: does not create an Ingress by default
     set:

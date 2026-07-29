@@ -1,6 +1,10 @@
 suite: Resource Quantity
 templates:
   - templates/resource_quantity.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: parses numeric input without a suffix
     set:

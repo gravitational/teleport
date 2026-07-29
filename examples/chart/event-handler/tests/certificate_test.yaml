@@ -1,6 +1,10 @@
 suite: Test cert-manager certificate
 templates:
   - certificate.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "18.0.0"
+  appVersion: "18.0.0"
 tests:
   - it: should request certificates when certManager enabled
     values:
