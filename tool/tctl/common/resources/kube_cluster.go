@@ -244,7 +244,7 @@ func createScopedKubeCluster(ctx context.Context, client *authclient.Client, raw
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", sqn.String())
 			return nil
 		}
 		return trace.Wrap(err)
