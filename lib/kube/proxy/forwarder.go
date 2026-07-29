@@ -661,7 +661,9 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
 	unscopedContext, isUnscoped := identity.UnscopedContext()
 	if !isUnscoped {
-		// scoped roles don't have max_kubernetes_connections
+		// TODO(espadolini) TODO(eriktate): scoped identities don't currently
+		// support max_kubernetes_connections, this should be updated when they
+		// do
 		return nil
 	}
 	maxConnections := unscopedContext.Checker.MaxKubernetesConnections()
