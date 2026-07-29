@@ -622,18 +622,16 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}
 	}
 
-	certClient := c
-	var mfaRequired bool
-	if params.MFACheck == nil {
-		var err error
-		authClient := params.AuthClient
-		if authClient == nil {
-			authClient, err = c.ConnectToCluster(ctx, params.RouteToCluster)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
+	// If the caller provided an auth client, use it.
+	// Otherwise, dial an auth client to the route's cluster if the MFA requirement check must be performed.
+	authClient, closeAuthClient, err := c.reissueAuthClient(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer closeAuthClient()
 
+	mfaRequired := params.MFACheck.GetRequired()
+	if params.MFACheck == nil {
 		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
 		mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 		if err != nil {
@@ -644,39 +642,6 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			return nil, trace.Wrap(err)
 		}
 		mfaRequired = resp.Required
-
-		// If connected to the root cluster, store the client so that it
-		// can be reused below.
-		if params.RouteToCluster == c.root {
-			certClient = &ClusterClient{
-				tc:          c.tc,
-				ProxyClient: c.ProxyClient,
-				AuthClient:  authClient,
-				Tracer:      c.Tracer,
-				cluster:     c.root,
-				root:        c.root,
-			}
-		}
-
-		// only close the new auth client and not the copied cluster client.
-		if params.AuthClient == nil {
-			defer authClient.Close()
-		}
-	} else {
-		mfaRequired = params.MFACheck.Required
-
-		// Mirror the reuse above:
-		// If the caller supplied an auth client for the root cluster, store it for reuse.
-		if params.RouteToCluster == c.root && params.AuthClient != nil {
-			certClient = &ClusterClient{
-				tc:          c.tc,
-				ProxyClient: c.ProxyClient,
-				AuthClient:  params.AuthClient,
-				Tracer:      c.Tracer,
-				cluster:     c.root,
-				root:        c.root,
-			}
-		}
 	}
 
 	// SSH certs can be used without embedding the node name.
@@ -687,27 +652,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		}, nil
 	}
 
-	// At this point, a connection to the root cluster is required to generate
-	// an MFA verified certificate OR to issue certificates with the target
-	// embedded in them for routing.
-	// Connect unless certClient is already backed by the root cluster.
-	if certClient.cluster != certClient.root {
-		authClient, err := c.ConnectToRootCluster(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certClient = &ClusterClient{
-			tc:          c.tc,
-			ProxyClient: c.ProxyClient,
-			AuthClient:  authClient,
-			Tracer:      c.Tracer,
-			cluster:     c.root,
-			root:        c.root,
-		}
-		// only close the new auth client and not the copied cluster client.
-		defer authClient.Close()
+	certClient, closeCertClient, err := c.reissueCertClient(ctx, params, authClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	defer closeCertClient()
 
 	// MFA is not required, but the user requires a new certificate with the
 	// target included in it for routing.
@@ -981,4 +930,47 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		NewCerts:            newCerts,
 		ReusableMFAResponse: reusableMFAResponse,
 	}, nil
+}
+
+// reissueAuthClient returns the auth client that should be used to check the MFA requirement.
+func (c *ClusterClient) reissueAuthClient(ctx context.Context, params ReissueParams) (authclient.ClientI, func(), error) {
+	if params.MFACheck == nil && params.AuthClient == nil {
+		authClient, err := c.ConnectToCluster(ctx, params.RouteToCluster)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return authClient, func() { authClient.Close() }, nil
+	}
+	// Never close the caller's client.
+	return params.AuthClient, func() {}, nil
+}
+
+// reissueCertClient returns the cluster client that issues the certs.
+// Certs must be issued by the root cluster's auth server, to generate an MFA verified certificate.
+func (c *ClusterClient) reissueCertClient(ctx context.Context, params ReissueParams, authClient authclient.ClientI) (*ClusterClient, func(), error) {
+	switch {
+	case params.RouteToCluster == c.root && authClient != nil:
+		// If we're connected to the root cluster and the caller provided an auth client, use it.
+		return c.withRootAuthClient(authClient), func() {}, nil
+	case c.cluster != c.root:
+		// If we're connected to a leaf cluster, we need to connect to the root cluster to issue the certs.
+		rootAuthClient, err := c.ConnectToRootCluster(ctx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return c.withRootAuthClient(rootAuthClient), func() { rootAuthClient.Close() }, nil
+	default:
+		return c, func() {}, nil
+	}
+}
+
+func (c *ClusterClient) withRootAuthClient(authClient authclient.ClientI) *ClusterClient {
+	return &ClusterClient{
+		tc:          c.tc,
+		ProxyClient: c.ProxyClient,
+		AuthClient:  authClient,
+		Tracer:      c.Tracer,
+		cluster:     c.root,
+		root:        c.root,
+	}
 }
