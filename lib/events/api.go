@@ -1373,6 +1373,21 @@ type SearchSessionEventsRequest struct {
 	Cond *utils.ToFieldsConditionConfig
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
+	// EventTypes optionally restricts results to a subset of
+	// [SessionRecordingEvents]. If empty, callers default to the full
+	// SessionRecordingEvents list. Values outside SessionRecordingEvents
+	// are rejected by the auth server.
+	EventTypes []string
+}
+
+// EffectiveEventTypes returns [SearchSessionEventsRequest.EventTypes] when
+// non-empty, or [SessionRecordingEvents] otherwise. Backends use this to
+// default the event-type filter when the caller did not narrow it.
+func (r *SearchSessionEventsRequest) EffectiveEventTypes() []string {
+	if len(r.EventTypes) > 0 {
+		return r.EventTypes
+	}
+	return SessionRecordingEvents
 }
 
 // AuditLogger defines which methods need to implemented by audit loggers.

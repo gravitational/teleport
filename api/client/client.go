@@ -3053,13 +3053,17 @@ func (c *Client) StreamUnstructuredSessionEvents(ctx context.Context, sessionID 
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
-func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+// eventTypes optionally restricts results to a subset of the session recording
+// event types (see events.SessionRecordingEvents). An empty slice defaults to
+// all session recording event types.
+func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toUTC time.Time, limit int, order types.EventOrder, startKey string, eventTypes []string) ([]events.AuditEvent, string, error) {
 	request := &proto.GetSessionEventsRequest{
-		StartDate: fromUTC,
-		EndDate:   toUTC,
-		Limit:     int32(limit),
-		StartKey:  startKey,
-		Order:     proto.Order(order),
+		StartDate:  fromUTC,
+		EndDate:    toUTC,
+		Limit:      int32(limit),
+		StartKey:   startKey,
+		Order:      proto.Order(order),
+		EventTypes: eventTypes,
 	}
 
 	response, err := c.grpc.GetSessionEvents(ctx, request)

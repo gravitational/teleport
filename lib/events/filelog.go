@@ -489,7 +489,7 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 		whereExp = *req.Cond.Expr
 	}
 	l.logger.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "order", req.Order, "limit", req.Limit, "cond", logutils.StringerAttr(whereExp))
-	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
+	filter := searchEventsFilter{eventTypes: req.EffectiveEventTypes()}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(*req.Cond)
 		if err != nil {

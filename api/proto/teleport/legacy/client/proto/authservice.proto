@@ -1701,6 +1701,11 @@ message GetSessionEventsRequest {
   // Order specifies an ascending or descending order of events.
   // A value of 0 means a descending order and a value of 1 means an ascending order.
   Order Order = 5;
+  // EventTypes optionally restricts results to a subset of session recording
+  // event types (see events.SessionRecordingEvents). If empty, all session
+  // recording event types are returned. Values outside SessionRecordingEvents
+  // are rejected by the auth server.
+  repeated string EventTypes = 6;
 }
 
 message Events {

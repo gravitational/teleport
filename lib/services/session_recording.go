@@ -107,6 +107,25 @@ func rebuildResourceFromSessionEndEvent(event apievents.AuditEvent) types.Resour
 				URI:      sEnd.DatabaseURI,
 			},
 		}
+	case *apievents.BeamSessionEnd:
+		if sEnd == nil {
+			return nil
+		}
+		// Synthetic KindBeam resource carrying the beam's owner label so that
+		// BeamLabels on roles (e.g. beam-user restricted to
+		// {beams.internal/owner: {{user.metadata.name}}}, beam-admin allowing
+		// any owner) match through the standard label-based access check.
+		return &types.ResourceHeader{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      sEnd.BeamId,
+				Namespace: apidefaults.Namespace,
+				Labels: map[string]string{
+					types.BeamOwnerLabel: sEnd.User,
+				},
+			},
+		}
 	}
 	return nil
 }
