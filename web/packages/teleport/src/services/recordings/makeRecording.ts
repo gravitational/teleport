@@ -41,20 +41,37 @@ export function makeRecording(event: any): Recording {
 // makeBeamRecording builds a Recording from a BeamSessionEnd event. A beam is
 // recorded as a single session, played back via the beam replay viewer. The
 // recording is keyed by the beam id so the viewer can open its replay artifact.
+//
+// A beam's span comes from start_time/end_time on the event rather than a
+// duration field: the beam was alive between the two, and the event is emitted
+// at teardown, so `time` is the end of the beam and not its start.
 function makeBeamRecording(event: {
   time: string;
   user: string;
   beam_id: string;
   beam_alias: string;
+  start_time?: string;
+  end_time?: string;
 }): Recording {
-  const { time, user, beam_id, beam_alias } = event;
+  const { time, user, beam_id, beam_alias, start_time, end_time } = event;
   const name = beam_alias || beam_id;
 
+  const start = start_time ? new Date(start_time) : null;
+  const end = end_time ? new Date(end_time) : new Date(time);
+
+  // An older beam, recorded before the summarizer stamped its window, has no
+  // start_time. Reporting no duration is right there: guessing one from the
+  // event time would always read as zero.
+  const duration =
+    start && end ? Math.max(0, differenceInMilliseconds(end, start)) : 0;
+
   return {
-    duration: 0,
-    durationText: '-',
+    duration,
+    durationText: duration
+      ? formatDistanceStrict(0, duration, { unit: 'minute' })
+      : '-',
     sid: beam_id,
-    createdDate: new Date(time),
+    createdDate: start ?? new Date(time),
     users: user,
     hostname: name,
     description: `Beam session ${name}`,

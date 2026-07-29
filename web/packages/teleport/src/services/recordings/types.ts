@@ -30,7 +30,22 @@ export type RecordingsQuery = {
   to: Date;
   limit?: number;
   startKey?: string;
+  /**
+   * Restricts the response to these session recording event types, e.g.
+   * `[BEAM_SESSION_END_EVENT]`. Omit to return every recording type.
+   */
+  include?: string[];
 };
+
+/**
+ * BEAM_SESSION_END_EVENT is the audit event type emitted when a beam is torn
+ * down, and the only recording type a beam produces. It is the event *type*
+ * rather than its code (`eventCodes.BEAM_SESSION_END`), because that is what
+ * the recordings endpoint's `include` filter matches on.
+ *
+ * Keep in sync with `BeamSessionEndEvent` in `lib/events/api.go`.
+ */
+export const BEAM_SESSION_END_EVENT = 'beam.session.end';
 
 export type RecordingsResponse = {
   recordings: Recording[];

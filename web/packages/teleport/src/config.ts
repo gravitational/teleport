@@ -712,6 +712,10 @@ const cfg = {
       searchParams.append('startKey', params.startKey);
     }
 
+    if (params.include?.length) {
+      searchParams.append('include', params.include.join(','));
+    }
+
     const paramsString = searchParams.toString();
     const queryString = paramsString ? `?${paramsString}` : '';
 
@@ -2116,6 +2120,11 @@ export interface UrlSessionRecordingsParams {
   end: string;
   limit?: number;
   startKey?: string;
+  /**
+   * Restricts the response to these session recording event types, e.g.
+   * `['beam.session.end']`. Omit to return every recording type.
+   */
+  include?: string[];
 }
 
 export interface UrlClusterEventsParams {

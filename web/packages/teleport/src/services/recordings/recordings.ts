@@ -95,6 +95,7 @@ export async function fetchRecordings(
     end,
     limit: maxFetchLimit,
     startKey: params.startKey || undefined,
+    include: params.include,
   });
 
   const json = await api.get(url, signal);

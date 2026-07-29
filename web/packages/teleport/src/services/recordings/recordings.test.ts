@@ -18,7 +18,8 @@
 
 import api from 'teleport/services/api';
 
-import RecordingsService from './recordings';
+import RecordingsService, { fetchRecordings } from './recordings';
+import { BEAM_SESSION_END_EVENT } from './types';
 
 test('fetch session recordings, response formatting', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(recordingsJSON);
@@ -59,6 +60,113 @@ test('fetch session recordings, response formatting', async () => {
     startKey: '',
   });
 });
+
+describe('include filter', () => {
+  it('narrows the request to the given event types', async () => {
+    const get = jest.spyOn(api, 'get').mockResolvedValue({ events: [] });
+
+    await fetchRecordings({
+      clusterId: 'im-a-cluster',
+      params: {
+        from: new Date('2026-07-27T00:00:00Z'),
+        to: new Date('2026-07-29T00:00:00Z'),
+        include: [BEAM_SESSION_END_EVENT],
+      },
+    });
+
+    expect(get).toHaveBeenCalledWith(
+      expect.stringContaining('include=beam.session.end'),
+      undefined
+    );
+  });
+
+  it('is omitted when no event types are given', async () => {
+    const get = jest.spyOn(api, 'get').mockResolvedValue({ events: [] });
+
+    await fetchRecordings({
+      clusterId: 'im-a-cluster',
+      params: {
+        from: new Date('2026-07-27T00:00:00Z'),
+        to: new Date('2026-07-29T00:00:00Z'),
+      },
+    });
+
+    expect(get).toHaveBeenCalledWith(
+      expect.not.stringContaining('include='),
+      undefined
+    );
+  });
+});
+
+test('beam recordings take their span from start_time/end_time', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue(beamRecordingsJSON);
+
+  const response = await fetchRecordings({
+    clusterId: 'im-a-cluster',
+    params: {
+      from: new Date('2026-07-27T00:00:00Z'),
+      to: new Date('2026-07-29T00:00:00Z'),
+    },
+  });
+
+  expect(response.recordings).toEqual([
+    {
+      // createdDate is the beam's start, not the teardown event's time.
+      createdDate: new Date('2026-07-29T12:00:00.000Z'),
+      description: 'Beam session warm-orbit',
+      duration: 6_420_000,
+      durationText: '107 minutes',
+      hostname: 'warm-orbit',
+      playable: true,
+      recordingType: 'beam',
+      sid: 'beam-4f1c8a2e',
+      user: 'tiago.silva',
+      users: 'tiago.silva',
+    },
+    {
+      // An older beam with no recorded window reports no duration rather than
+      // a guessed one, and falls back to the event time.
+      createdDate: new Date('2026-07-28T09:00:00.000Z'),
+      description: 'Beam session beam-91b73d05',
+      duration: 0,
+      durationText: '-',
+      hostname: 'beam-91b73d05',
+      playable: true,
+      recordingType: 'beam',
+      sid: 'beam-91b73d05',
+      user: 'alexh',
+      users: 'alexh',
+    },
+  ]);
+});
+
+const beamRecordingsJSON = {
+  events: [
+    {
+      cluster_name: 'im-a-cluster',
+      code: 'T2019I',
+      event: 'beam.session.end',
+      uid: '1f3f1a1e-0000-4000-8000-000000000001',
+      beam_id: 'beam-4f1c8a2e',
+      beam_alias: 'warm-orbit',
+      start_time: '2026-07-29T12:00:00Z',
+      end_time: '2026-07-29T13:47:00Z',
+      time: '2026-07-29T13:47:00Z',
+      user: 'tiago.silva',
+    },
+    {
+      cluster_name: 'im-a-cluster',
+      code: 'T2019I',
+      event: 'beam.session.end',
+      uid: '1f3f1a1e-0000-4000-8000-000000000002',
+      beam_id: 'beam-91b73d05',
+      beam_alias: '',
+      time: '2026-07-28T09:00:00Z',
+      user: 'alexh',
+    },
+  ],
+  startKey: '',
+};
 
 const recordingsJSON = {
   events: [

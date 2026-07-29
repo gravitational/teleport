@@ -25,15 +25,17 @@ import {
   fetchSessionRecordingDuration,
 } from './recordings';
 
-export const { useSuspenseInfiniteQuery: useSuspenseInfiniteListRecordings } =
-  createQueryHook(
-    ['recordings', 'list'],
-    fetchRecordings,
-    (startKey, variables) => ({
-      ...variables,
-      params: { ...variables.params, startKey },
-    })
-  );
+export const {
+  useSuspenseInfiniteQuery: useSuspenseInfiniteListRecordings,
+  useInfiniteQuery: useInfiniteListRecordings,
+} = createQueryHook(
+  ['recordings', 'list'],
+  fetchRecordings,
+  (startKey, variables) => ({
+    ...variables,
+    params: { ...variables.params, startKey },
+  })
+);
 
 export const { useSuspenseQuery: useSuspenseGetRecordingMetadata } =
   createQueryHook(['recording', 'metadata'], fetchSessionRecordingMetadata);
