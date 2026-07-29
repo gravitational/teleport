@@ -1115,6 +1115,10 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
+
+	// DeleteApplicationServer removes specified application server.
 	// DeleteApplicationServer removes an unscoped application server.
 	//
 	// Deprecated: use DeleteAppServer instead. Kept temporarily so
@@ -1981,6 +1985,11 @@ func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
+}
+
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
 }
 
 // DeleteAppServer removes a scoped or unscoped application server.
