@@ -168,6 +168,8 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		return &proto.Certs{SSH: sshCert, TLS: tlsCert}, nil
 	}
 
+	var rootCertRequests int
+
 	tests := []struct {
 		name                    string
 		mfaRequired             proto.MFARequired
@@ -573,6 +575,28 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
+			},
+		},
+		{
+			// Certs must still be requested from the root cluster, not from the leaf the client is connected to.
+			name:          "prefetched MFA check issues certs from the root cluster",
+			mfaRequired:   proto.MFARequired_MFA_REQUIRED_YES,
+			clientCluster: "leaf",
+			params: ReissueParams{
+				NodeName:       "test",
+				RouteToCluster: "test",
+				MFACheck:       &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true},
+				AuthClient: fakeAuthClient{
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						rootCertRequests++
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, 1, rootCertRequests, "certs must be issued by the root cluster's auth server")
 			},
 		},
 	}
