@@ -299,6 +299,45 @@ func TestRegistrationFlow_Begin_errors(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err)) // user required
 }
 
+func TestRegistrationFlow_Begin_requestsDirectAttestation(t *testing.T) {
+	const user = "llama"
+	ctx := t.Context()
+
+	// Direct attestation is requested regardless of attestation policy: browsers scrub the AAGUID from
+	// the response unless attestation is requested, and the web UI names devices from it.
+	tests := []struct {
+		name string
+		cfg  *types.Webauthn
+	}{
+		{
+			name: "no attestation CAs",
+			cfg:  &types.Webauthn{RPID: "localhost"},
+		},
+		{
+			name: "attestation CAs configured",
+			cfg: &types.Webauthn{
+				RPID:                  "localhost",
+				AttestationAllowedCAs: []string{microsoftTPMRootCA2014},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			webRegistration := &wanlib.RegistrationFlow{
+				Webauthn: test.cfg,
+				Identity: newFakeIdentity(user),
+			}
+
+			for _, passwordless := range []bool{false, true} {
+				cc, err := webRegistration.Begin(ctx, user, passwordless)
+				require.NoError(t, err, "Begin failed")
+				require.Equal(t, protocol.PreferDirectAttestation, cc.Response.Attestation,
+					"passwordless=%v", passwordless)
+			}
+		})
+	}
+}
+
 func TestRegistrationFlow_Finish_errors(t *testing.T) {
 	const user = "llama"
 	const webOrigin = "https://localhost"

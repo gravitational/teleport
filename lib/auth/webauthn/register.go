@@ -185,6 +185,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		rpID:                    f.Webauthn.RPID,
 		requireResidentKey:      passwordless,
 		requireUserVerification: passwordless,
+		preferDirectAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,6 +320,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 		origin:                  origin,
 		requireResidentKey:      passwordless,
 		requireUserVerification: passwordless,
+		preferDirectAttestation: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
