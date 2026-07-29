@@ -22,16 +22,41 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 )
+
+// clientApplicationServiceKeepaliveParams configures gRPC keepalive for the
+// client side of the loopback IPC connection between the VNet admin process
+// and the client application.
+var clientApplicationServiceKeepaliveParams = keepalive.ClientParameters{
+	Time:                30 * time.Second,
+	Timeout:             10 * time.Second,
+	PermitWithoutStream: true,
+}
+
+// clientApplicationServiceServerKeepaliveParams is the server-side
+// counterpart of [clientApplicationServiceKeepaliveParams].
+var clientApplicationServiceServerKeepaliveParams = keepalive.ServerParameters{
+	Time:    30 * time.Second,
+	Timeout: 10 * time.Second,
+}
+
+// clientApplicationServiceEnforcementPolicy is the server-side keepalive
+// enforcement policy for the loopback IPC connection.
+var clientApplicationServiceEnforcementPolicy = keepalive.EnforcementPolicy{
+	MinTime:             10 * time.Second,
+	PermitWithoutStream: true,
+}
 
 // clientApplicationServiceClient is a gRPC client for the client application
 // service. This client is used in the VNet admin process to make requests to
@@ -52,6 +77,7 @@ func newClientApplicationServiceClient(ctx context.Context, creds *credentials, 
 		grpc.WithTransportCredentials(grpccredentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+		grpc.WithKeepaliveParams(clientApplicationServiceKeepaliveParams),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating user process gRPC client")

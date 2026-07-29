@@ -17,8 +17,11 @@
 package vnet
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
@@ -105,4 +108,96 @@ func TestResolveAAAADiagProbeCaseInsensitive(t *testing.T) {
 		require.Equal(t, testProbeIPv6, result.AAAA, fqdn)
 	}
 	require.Empty(t, ns.state.assignedIPs)
+}
+
+// TestConnSetupTimerFiresOnHungSetup verifies that connSetupTimer's onTimeout
+// callback fires once the configured timeout elapses if setupDone is never
+// called, mirroring a hung TCP connection setup. In [networkStack.handleTCP]
+// this is what cancels the connection's context and releases its in-flight
+// connection attempt slot.
+func TestConnSetupTimerFiresOnHungSetup(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	var timedOut atomic.Bool
+	timer := newConnSetupTimer(clock, tcpConnectionSetupTimeout, func() {
+		timedOut.Store(true)
+	})
+	defer timer.setupDone()
+
+	clock.BlockUntilContext(ctx, 1)
+	clock.Advance(tcpConnectionSetupTimeout)
+
+	require.Eventually(t, timedOut.Load, 5*time.Second, time.Millisecond,
+		"onTimeout must fire once tcpConnectionSetupTimeout elapses on a hung setup")
+}
+
+// TestConnSetupTimerDoesNotFireAfterSetupDone verifies that connSetupTimer
+// never invokes onTimeout for a connection that already finished setup, even
+// once the original timeout duration has elapsed, so that in
+// [networkStack.handleTCP] an already-established connection is never
+// bounded by the setup timer.
+func TestConnSetupTimerDoesNotFireAfterSetupDone(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	var timedOut atomic.Bool
+	timer := newConnSetupTimer(clock, tcpConnectionSetupTimeout, func() {
+		timedOut.Store(true)
+	})
+
+	clock.BlockUntilContext(ctx, 1)
+	// Setup completes before the timeout elapses.
+	timer.setupDone()
+
+	clock.Advance(tcpConnectionSetupTimeout)
+
+	require.Never(t, timedOut.Load, 100*time.Millisecond, time.Millisecond,
+		"onTimeout must not fire for a connection that already completed setup")
+}
+
+// noopTUNDevice is a minimal no-op [TUNDevice], for tests that only need to
+// construct a [networkStack] but never push any packets through it.
+type noopTUNDevice struct{}
+
+func (noopTUNDevice) Name() (string, error) { return "noop0", nil }
+
+func (noopTUNDevice) Write(bufs [][]byte, offset int) (int, error) { return len(bufs), nil }
+
+func (noopTUNDevice) Read(bufs [][]byte, sizes []int, offset int) (int, error) { return 0, nil }
+
+func (noopTUNDevice) BatchSize() int { return 1 }
+
+func (noopTUNDevice) Close() error { return nil }
+
+// TestNewNetworkStackClock verifies that a clock passed via
+// [networkStackConfig] is wired through to the resulting [networkStack], and
+// that a real clock is used by default when none is given, matching how the
+// rest of the package injects [clockwork.Clock] for testable time.
+func TestNewNetworkStackClock(t *testing.T) {
+	t.Parallel()
+
+	fakeClock := clockwork.NewFakeClock()
+	ns, err := newNetworkStack(&networkStackConfig{
+		tunDevice:                noopTUNDevice{},
+		ipv6Prefix:               testIPv6Prefix,
+		tcpHandlerResolver:       &tcpHandlerResolver{},
+		upstreamNameserverSource: noUpstreamNameservers{},
+		clock:                    fakeClock,
+	})
+	require.NoError(t, err)
+	require.Equal(t, fakeClock, ns.clock, "networkStackConfig.clock must be wired through to networkStack")
+
+	ns, err = newNetworkStack(&networkStackConfig{
+		tunDevice:                noopTUNDevice{},
+		ipv6Prefix:               testIPv6Prefix,
+		tcpHandlerResolver:       &tcpHandlerResolver{},
+		upstreamNameserverSource: noUpstreamNameservers{},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ns.clock, "networkStack must default to a real clock when none is configured")
+	_, isFake := ns.clock.(*clockwork.FakeClock)
+	require.False(t, isFake, "default clock must not be a fake clock")
 }
