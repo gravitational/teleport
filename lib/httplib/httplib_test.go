@@ -273,12 +273,12 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		urlPath         string
-		expectedCspVals map[string]string
+		expectedCSPVals map[string]string
 	}{
 		{
 			name:    "default (no wasm)",
 			urlPath: "/web/index.js",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -294,7 +294,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for cloud based usage, EUB product (no wasm)",
 			urlPath: "/web/index.js",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -309,7 +309,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for desktop session (with wasm)",
 			urlPath: "/web/cluster/:clusterId/desktops/:desktopName/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -325,7 +325,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for web ssh session (with wasm)",
 			urlPath: "/web/cluster/:clusterId/console/node/:sessionId/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -341,7 +341,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for cloud based usage & desktop session, with wasm",
 			urlPath: "/web/cluster/:clusterId/desktops/:desktopName/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -358,10 +358,10 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := make(http.Header)
 			SetIndexContentSecurityPolicy(h, tt.urlPath)
-			actualCsp := h.Get("Content-Security-Policy")
-			for k, v := range tt.expectedCspVals {
-				expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-				require.Contains(t, actualCsp, expectedCspSubString)
+			actualCSP := h.Get("Content-Security-Policy")
+			for k, v := range tt.expectedCSPVals {
+				expectedCSPSubstring := fmt.Sprintf("%s %s;", k, v)
+				require.Contains(t, actualCSP, expectedCSPSubstring)
 			}
 		})
 	}
@@ -372,7 +372,7 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 
 	scriptSrc := "nonce-123456789abcdefg"
 
-	expectedCspVals := map[string]string{
+	expectedCSPVals := map[string]string{
 		"default-src":     "'self'",
 		"base-uri":        "'self'",
 		"form-action":     "'self'",
@@ -385,10 +385,11 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 
 	h := make(http.Header)
 	SetRedirectPageContentSecurityPolicy(h, scriptSrc)
-	actualCsp := h.Get("Content-Security-Policy")
-	for k, v := range expectedCspVals {
-		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Contains(t, actualCsp, expectedCspSubString)
+
+	actualCSP := h.Get("Content-Security-Policy")
+	for k, v := range expectedCSPVals {
+		expectedCSPSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCSP, expectedCSPSubString)
 	}
 }
 
