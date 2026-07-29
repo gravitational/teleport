@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { authenticatorSpecs } from 'design/AuthenticatorIcon/authenticatorSpecs';
-
+import aaguidNames from '../../../../../../lib/auth/webauthn/aaguid/aaguids.json';
 import { MAX_DEVICE_NAME_BYTES } from './passkeyName';
 
 // The generator clips vendor names to its own copy of the server's limit (MAX_NAME_BYTES
@@ -28,11 +27,11 @@ import { MAX_DEVICE_NAME_BYTES } from './passkeyName';
 test('every generated authenticator name fits the server device name limit', () => {
   const encoder = new TextEncoder();
 
-  const tooLong = Object.entries(authenticatorSpecs)
-    .map(([aaguid, spec]) => ({
+  const tooLong = Object.entries(aaguidNames as Record<string, string>)
+    .map(([aaguid, name]) => ({
       aaguid,
-      name: spec.name,
-      bytes: encoder.encode(spec.name).length,
+      name,
+      bytes: encoder.encode(name).length,
     }))
     .filter(entry => entry.bytes > MAX_DEVICE_NAME_BYTES);
 

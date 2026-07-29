@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Box, ButtonPrimary, Flex, Image, Text } from 'design';
 import { Danger } from 'design/Alert';
@@ -33,6 +33,7 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 
 import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
+import { composePasskeyName } from 'teleport/services/mfa/passkeyName';
 
 export interface NewMfaDeviceFormProps {
   title: string;
@@ -85,6 +86,16 @@ export function NewMfaDeviceForm({
   const [deviceName, setDeviceName] = useState(() =>
     getDefaultDeviceName(mfaType.value)
   );
+
+  // Pre-fill the editable nickname with a friendly default derived client-side from the freshly
+  // created credential. The field is only shown once the credential exists, so the name it suggests is
+  // the authenticator the user just used.
+  useEffect(() => {
+    if (credential) {
+      setDeviceName(composePasskeyName(credential));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credential]);
 
   const deviceNameInputRef = useRefAutoFocus<HTMLInputElement>({
     shouldFocus,

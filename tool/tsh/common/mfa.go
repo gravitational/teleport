@@ -211,7 +211,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c := &mfaAddCommand{
 		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
-	c.Flag("name", "Name of the new MFA device.").StringVar(&c.devName)
+	c.Flag("name", "Name of the new MFA device. WebAuthn devices are named after the authenticator that registers them when this is omitted.").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s).", strings.Join(defaultDeviceTypes, ", "))).
 		EnumVar(&c.devType, defaultDeviceTypes...)
 	if wancli.IsFIDO2Available() {
@@ -254,17 +254,20 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	if c.devName == "" {
+	// A WebAuthn device left unnamed is named by the server after the authenticator that registered it,
+	// which it can only do once the ceremony has run. TOTP has nothing to name itself after.
+	if c.devName == "" && c.devType == totpDeviceType {
 		var err error
 		c.devName, err = prompt.Input(ctx, os.Stdout, prompt.Stdin(), "Enter device name")
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		if strings.TrimSpace(c.devName) == "" {
+			return trace.BadParameter("device name cannot be empty")
+		}
 	}
 	c.devName = strings.TrimSpace(c.devName)
-	if c.devName == "" {
-		return trace.BadParameter("device name cannot be empty")
-	}
 
 	switch c.devType {
 	case webauthnDeviceType:

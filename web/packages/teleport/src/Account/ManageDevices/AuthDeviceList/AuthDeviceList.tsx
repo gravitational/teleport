@@ -20,7 +20,7 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator, Text } from 'design';
-import { AuthenticatorIcon, authenticatorSpec } from 'design/AuthenticatorIcon';
+import { AuthenticatorIcon, authenticatorName } from 'design/AuthenticatorIcon';
 import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
@@ -160,11 +160,10 @@ export function AuthDeviceList({
 // The authenticator model when the AAGUID identifies one ("YubiKey 5 Series"), otherwise the coarse
 // kind the server reports ("Authenticator App").
 function deviceTypeLabel(device: MfaDevice): string {
-  const spec =
-    device.type === 'webauthn' && device.aaguid
-      ? authenticatorSpec(device.aaguid)
-      : undefined;
-  return spec?.name ?? device.description;
+  const name =
+    device.type === 'webauthn' ? authenticatorName(device.aaguid) : undefined;
+
+  return name ?? device.description;
 }
 
 // Both lines of the column are user-facing labels that can end in a model number, so they collate the

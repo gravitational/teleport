@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Generates the AuthenticatorIcon assets, icons.ts and authenticatorSpecs.ts from the community passkey-authenticator-aaguids dataset.
+// Generates the AuthenticatorIcon assets, icons.ts, authenticatorIcons.ts and the AAGUID name table
+// from the community passkey-authenticator-aaguids dataset.
+//
+// Run it through build.assets/generate-aaguids.sh (make generate-aaguids), which fetches the dataset
+// and formats what this emits.
 
 import { createHash } from 'node:crypto';
 import {
@@ -38,6 +42,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const assetsDir = join(root, 'assets');
 const overridesDir = join(here, 'overrides');
+// The Go server embeds the name table, and go:embed cannot reach outside its own package, so the
+// canonical copy lives in that package and the web imports it from there.
+const namesPath = join(
+  here,
+  '../../../../../..',
+  'lib/auth/webauthn/aaguid/aaguids.json'
+);
 
 // Maps a data-URI MIME type to the file extension we write. Anything not listed is skipped so we
 // never emit an asset we can't name correctly.
@@ -128,13 +139,19 @@ function decode(uri) {
   return { ext, buf: Buffer.from(m[2], 'base64') };
 }
 
-const raw = await (await fetch(UPSTREAM_URL)).json();
+// build.assets/generate-aaguids.sh passes the dataset it fetched; fetch it directly when run by hand.
+const src = process.argv[2];
+const raw = src
+  ? JSON.parse(readFileSync(src, 'utf8'))
+  : await (await fetch(UPSTREAM_URL)).json();
 
 rmSync(assetsDir, { recursive: true, force: true });
 mkdirSync(assetsDir, { recursive: true });
 
 const importLines = [];
-const specEntries = [];
+const iconEntries = [];
+// AAGUID -> vendor name. Emitted as JSON so the Go server can embed the same table the web UI uses.
+const names = {};
 
 // Assets are content-addressed: identical bytes are written once and shared by every AAGUID that
 // resolves to them. The dataset repeats a handful of vendor marks across dozens of records (all 160
@@ -211,9 +228,7 @@ for (const o of iconOverrides) {
 
 // Sorted so that neither asset filenames nor export names depend on the dataset's key order: the first record to claim
 // a shared image is the one that names it.
-const entries = Object.entries(raw).toSorted(([a], [b]) =>
-  a.localeCompare(b)
-);
+const entries = Object.entries(raw).toSorted(([a], [b]) => a.localeCompare(b));
 
 for (const [aaguid, entry] of entries) {
   const name = normalizeName(entry.name || '');
@@ -245,11 +260,13 @@ for (const [aaguid, entry] of entries) {
   const light = variants.light || variants.dark;
   const dark = variants.dark || variants.light;
 
-  specEntries.push(
-    `  '${aaguid}': { name: ${JSON.stringify(name)}${
-      light ? `, light: i.${light}` : ''
-    }${dark ? `, dark: i.${dark}` : ''} },`
-  );
+  names[aaguid] = name;
+
+  if (light || dark) {
+    iconEntries.push(
+      `  '${aaguid}': {${light ? ` light: i.${light},` : ''}${dark ? ` dark: i.${dark},` : ''} },`
+    );
+  }
 }
 
 const stale = iconOverrides.filter(o => !overrideHits.has(o.id));
@@ -260,7 +277,7 @@ if (stale.length) {
 }
 
 const iconsPath = join(root, 'icons.ts');
-const specsPath = join(root, 'authenticatorSpecs.ts');
+const specsPath = join(root, 'authenticatorIcons.ts');
 
 writeFileSync(
   iconsPath,
@@ -273,13 +290,22 @@ writeFileSync(
     '\n' +
     GENERATED +
     `import * as i from './icons';\n\n` +
-    `export type AuthenticatorSpec = { name: string; light?: string; dark?: string };\n\n` +
-    `export const authenticatorSpecs: Record<string, AuthenticatorSpec> = {\n` +
-    specEntries.sort().join('\n') +
+    `export type AuthenticatorIcons = { light?: string; dark?: string };\n\n` +
+    `export const authenticatorIcons: Record<string, AuthenticatorIcons> = {\n` +
+    iconEntries.sort().join('\n') +
     `\n};\n`
 );
 
-console.log(`generated ${specEntries.length} specs, ${byContent.size} assets`);
+// Sorted keys and a single line: the table is data, not source, and a stable key order keeps
+// regeneration diffs to the entries that actually changed.
+const sortedNames = Object.fromEntries(
+  Object.entries(names).toSorted(([a], [b]) => a.localeCompare(b))
+);
+writeFileSync(namesPath, `${JSON.stringify(sortedNames)}\n`);
+
+console.log(
+  `generated ${Object.keys(names).length} names, ${iconEntries.length} icon entries, ${byContent.size} assets`
+);
 
 for (const [id, n] of overrideHits) {
   console.log(`icon override ${id}: ${n} specs`);
