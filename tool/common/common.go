@@ -226,10 +226,20 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 }
 
 // FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present.
+// appending constraints when present. Values are escaped with the same
+// escaping the inline constraint grammar accepts, so a value containing ","
+// or "&" reads unambiguously and round-trips through the parser.
 func FormatResourceAccessID(rid types.ResourceAccessID) string {
 	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
 	constraintsString := ""
+
+	escapeAll := func(vals []string) []string {
+		out := make([]string, 0, len(vals))
+		for _, v := range vals {
+			out = append(out, EscapeConstraintValue(v))
+		}
+		return out
+	}
 
 	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
 		switch d := c.GetDetails().(type) {
@@ -237,7 +247,12 @@ func FormatResourceAccessID(rid types.ResourceAccessID) string {
 			if d.AwsConsole == nil {
 				break
 			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
+			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(escapeAll(d.AwsConsole.RoleArns), ","))
+		case *types.ResourceConstraints_Ssh:
+			if d.Ssh == nil {
+				break
+			}
+			constraintsString = fmt.Sprintf("logins=%s", strings.Join(escapeAll(d.Ssh.Logins), ","))
 		}
 	}
 

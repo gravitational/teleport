@@ -210,6 +210,71 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.Equal(t, "[\"/cluster/app/aws_console (role_arns=)\"]", out)
 	})
 
+	t.Run("with ssh constraints", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{"root", "admin"},
+					},
+				},
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/node/ssh_server (logins=root,admin)\"]", out)
+	})
+
+	t.Run("values containing grammar characters are escaped and round-trip", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{`user,one`, `a&b`, `back\slash`},
+					},
+				},
+			},
+		}
+
+		out := FormatResourceAccessID(rid)
+		require.Equal(t, `/cluster/node/ssh_server (logins=user\,one,a\&b,back\\slash)`, out)
+
+		// The escaped form round-trips through the inline constraint parser.
+		parsed, err := ParseResourceValues([]string{`/cluster/node/ssh_server?logins=user\,one,a\&b,back\\slash`})
+		require.NoError(t, err)
+		require.Len(t, parsed, 1)
+		require.Equal(t, []string{`user,one`, `a&b`, `back\slash`}, parsed[0].Constraints.GetSsh().Logins)
+	})
+
+	t.Run("with empty ssh constraints", func(t *testing.T) {
+		t.Parallel()
+
+		rid := types.ResourceAccessID{
+			Id: rids[1].Id,
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_Ssh{
+					Ssh: &types.SSHResourceConstraints{
+						Logins: []string{},
+					},
+				},
+			},
+		}
+
+		out, err := FormatResourceAccessIDs([]types.ResourceAccessID{rid})
+		require.NoError(t, err)
+		require.Equal(t, "[\"/cluster/node/ssh_server (logins=)\"]", out)
+	})
+
 	t.Run("with empty or nil list", func(t *testing.T) {
 		t.Parallel()
 
