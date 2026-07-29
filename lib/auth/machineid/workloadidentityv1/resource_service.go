@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -161,9 +162,12 @@ func (s *ResourceService) GetWorkloadIdentity(
 func (s *ResourceService) ListWorkloadIdentities(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
+	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting
+	// it inherit the identity-based default and silently hide scoped resources.
 	return s.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
-		PageSize:  req.GetPageSize(),
-		PageToken: req.GetPageToken(),
+		PageSize:    req.GetPageSize(),
+		PageToken:   req.GetPageToken(),
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 	}.Build())
 }
 
@@ -190,6 +194,12 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	scopeFilter := authCtx.CheckerContext.ResolveScopeFilter(req.GetScopeFilter())
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sortField := services.WorkloadIdentitySortField(req.GetSortField())
 	keyFn, err := services.WorkloadIdentityKey(sortField)
 	if err != nil {
@@ -199,6 +209,9 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 	// Iterate the cache in sorted order, applying any filtering here at the gRPC
 	// layer rather than pushing it down, then collect a single page.
 	items := s.cache.RangeWorkloadIdentities(ctx, req.GetPageToken(), "", sortField, req.GetSortDesc())
+	items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+		return wi, scopes.MatchScope(scopeFilter, wi.GetScope())
+	})
 	if searchTerm := req.GetFilterSearchTerm(); searchTerm != "" {
 		items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
 			values := []string{

@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -126,6 +127,104 @@ func TestWorkloadIdentity(t *testing.T) {
 		cacheGet: func(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{Name: name}.Build())
 		},
+	})
+}
+
+// TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter verifies the seed
+// selects the same set as the event stream. The stream is filtered per-event by
+// services.WatchKindMatchesScope, so an unfiltered seed would leave permanently
+// stale out-of-scope entries in the store.
+func TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p, err := newPack(t, ForAuth)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	// Fixture names say which scope they live in.
+	_, err = p.workloadIdentity.CreateWorkloadIdentity(ctx, newWorkloadIdentity("unscoped"))
+	require.NoError(t, err)
+	for name, scope := range map[string]string{
+		"foo":     "/foo",
+		"foo-sub": "/foo/sub",
+		"bar":     "/bar",
+	} {
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+			Scope:    scope,
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: scope + "/_/" + name}.Build(),
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		scopeFilter *scopesv1.Filter
+		want        []string
+	}{
+		{
+			name:        "nil filter matches every scope",
+			scopeFilter: nil,
+			want:        []string{"bar", "foo", "foo-sub", "unscoped"},
+		},
+		{
+			name:        "mode ALL matches every scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+			want:        []string{"bar", "foo", "foo-sub", "unscoped"},
+		},
+		{
+			name:        "mode UNSCOPED matches only unscoped",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+			want:        []string{"unscoped"},
+		},
+		{
+			name:        "mode EXACT matches one scope",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: "/foo"}.Build(),
+			want:        []string{"foo"},
+		},
+		{
+			name:        "mode DESCENDANTS matches the scope and below",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+			want:        []string{"foo", "foo-sub"},
+		},
+		{
+			name:        "mode ANCESTORS matches the scope and above",
+			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ANCESTORS, Scope: "/foo/sub"}.Build(),
+			want:        []string{"foo", "foo-sub"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collection, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+				Kind:        types.KindWorkloadIdentity,
+				ScopeFilter: types.ScopeFilterFromProto(tc.scopeFilter),
+			})
+			require.NoError(t, err)
+
+			seeded, err := collection.fetcher(ctx, false)
+			require.NoError(t, err)
+
+			var names []string
+			for _, wi := range seeded {
+				names = append(names, wi.GetMetadata().GetName())
+			}
+			slices.Sort(names)
+			require.Equal(t, tc.want, names)
+		})
+	}
+
+	t.Run("malformed watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+			Kind: types.KindWorkloadIdentity,
+			ScopeFilter: types.ScopeFilterFromProto(
+				scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+			),
+		})
+		require.ErrorContains(t, err, "requires a non-empty scope")
 	})
 }
 

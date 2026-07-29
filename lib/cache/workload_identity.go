@@ -54,6 +54,14 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 		return nil, trace.Wrap(err)
 	}
 
+	// The seed must select the same set as the event stream, which is filtered
+	// per-event by services.WatchKindMatchesScope; an unfiltered seed would leave
+	// permanently stale out-of-scope entries in the store.
+	scopeFilter := w.ScopeFilter.ToProto()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		store: newStore(
 			types.KindWorkloadIdentity,
@@ -63,7 +71,12 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 				workloadIdentitySpiffeIDIndex: spiffeIDKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			out, err := stream.Collect(upstream.RangeWorkloadIdentities(ctx, "", "", "", false))
+			out, err := stream.Collect(stream.FilterMap(
+				upstream.RangeWorkloadIdentities(ctx, "", "", "", false),
+				func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+					return wi, scopes.MatchScope(scopeFilter, wi.GetScope())
+				},
+			))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
