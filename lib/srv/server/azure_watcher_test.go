@@ -36,7 +36,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/cloud/azure/network"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -44,7 +43,8 @@ import (
 type mockClients struct {
 	azure.Clients
 
-	vmClients map[string]azure.VirtualMachinesClient
+	vmClients  map[string]azure.VirtualMachinesClient
+	nicClients map[string]azure.NetworkInterfacesClient
 }
 
 func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
@@ -53,6 +53,14 @@ func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription
 		return nil, trace.NotFound("subscription %s not found", subscription)
 	}
 	return vmClient, nil
+}
+
+func (c *mockClients) GetNetworkInterfacesClient(ctx context.Context, subscription string) (azure.NetworkInterfacesClient, error) {
+	nicClient, ok := c.nicClients[subscription]
+	if !ok {
+		return nil, trace.NotFound("subscription %s not found", subscription)
+	}
+	return nicClient, nil
 }
 
 func TestAzureWatcher(t *testing.T) {
@@ -770,43 +778,71 @@ func TestPrimaryPrivateIP(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		nics []*network.Interface
+		nics []*azure.NetworkInterface
 		want string
 	}{
 		{name: "no NICs", nics: nil, want: ""},
 		{
-			name: "single primary NIC",
-			nics: []*network.Interface{{PrivateIP: "10.0.0.1", Primary: true}},
+			name: "single primary NIC with primary IP config",
+			nics: []*azure.NetworkInterface{{
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
+			}},
 			want: "10.0.0.1",
 		},
 		{
 			name: "prefers the primary NIC over the first one",
-			nics: []*network.Interface{
-				{PrivateIP: "10.0.0.9"},
-				{PrivateIP: "10.0.0.1", Primary: true},
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9", Primary: true}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}}},
 			},
 			want: "10.0.0.1",
 		},
 		{
-			name: "falls back to the first usable IP when none is primary",
-			nics: []*network.Interface{
-				{PrivateIP: ""},
-				{PrivateIP: "10.0.0.5"},
-				{PrivateIP: "10.0.0.6"},
+			name: "prefers the primary IP config on the primary NIC",
+			nics: []*azure.NetworkInterface{{
+				Primary: true,
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.0.9"},
+					{PrivateIP: "10.0.0.1", Primary: true},
+				},
+			}},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers a non-primary IP config on the primary NIC over other NICs",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9"}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1"}}},
+			},
+			want: "10.0.0.1",
+		},
+		{
+			name: "falls back to the first usable IP when no NIC is primary",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: ""}}},
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.5"}}},
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.6"}}},
 			},
 			want: "10.0.0.5",
 		},
 		{
-			name: "skips NICs without an IP before the primary",
-			nics: []*network.Interface{
-				{PrivateIP: ""},
-				{PrivateIP: "10.0.0.7", Primary: true},
-			},
-			want: "10.0.0.7",
+			name: "skips CIDR-notation IPs",
+			nics: []*azure.NetworkInterface{{
+				Primary: true,
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.1.4/24"},
+					{PrivateIP: "10.0.0.4"},
+				},
+			}},
+			want: "10.0.0.4",
 		},
 		{
-			name: "returns empty when no NIC has an IP",
-			nics: []*network.Interface{{PrivateIP: ""}, {PrivateIP: ""}},
+			name: "returns empty when no NIC has a usable IP",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: ""}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.7/16", Primary: true}}},
+			},
 			want: "",
 		},
 	} {
@@ -816,25 +852,25 @@ func TestPrimaryPrivateIP(t *testing.T) {
 	}
 }
 
-// fakeInterfacesClient is a network.InterfacesClient that returns canned NICs,
-// used to drive the Windows VM discovery path without real Azure API calls.
-type fakeInterfacesClient struct {
-	nicsByVM map[string][]*network.Interface
+// fakeNetworkInterfacesClient is an azure.NetworkInterfacesClient that returns
+// canned NICs per resource group, used to drive the Windows VM discovery path
+// without real Azure API calls.
+type fakeNetworkInterfacesClient struct {
+	nicsByRG map[string][]*azure.NetworkInterface
 	listErr  error
 }
 
-func (f *fakeInterfacesClient) Get(context.Context, string) (*network.Interface, error) {
-	return nil, trace.NotImplemented("Get not implemented in fake")
-}
-
-func (f *fakeInterfacesClient) List(context.Context, string, string) (map[string][]*network.Interface, error) {
+func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, _ []string) ([]*azure.NetworkInterface, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	return f.nicsByVM, nil
+	if resourceGroup == types.Wildcard {
+		return nil, trace.BadParameter("wildcard resource group names are not supported")
+	}
+	return f.nicsByRG[resourceGroup], nil
 }
 
-func windowsVMFetcher(t *testing.T, clients azure.Clients, nicGetter networkInterfacesClientGetter, regions []string) *azureInstanceFetcher {
+func windowsVMFetcher(t *testing.T, clients azure.Clients, regions []string) *azureInstanceFetcher {
 	t.Helper()
 	const (
 		sub = "00000000-0000-0000-0000-000000000000"
@@ -852,8 +888,7 @@ func windowsVMFetcher(t *testing.T, clients azure.Clients, nicGetter networkInte
 		AzureClientGetter: func(context.Context, string) (azure.Clients, error) {
 			return clients, nil
 		},
-		NetworkInterfacesClientGetter: nicGetter,
-		Logger:                        logtest.NewLogger(),
+		Logger: logtest.NewLogger(),
 	})
 }
 
@@ -915,25 +950,47 @@ func windowsVMClients(t *testing.T) (*mockClients, map[string]string) {
 func TestAzureFetcherGetInstancesWindows(t *testing.T) {
 	t.Parallel()
 
+	const sub = "00000000-0000-0000-0000-000000000000"
+
 	clients, ids := windowsVMClients(t)
 
-	// NICs are keyed by the lower-cased VM resource ID, as the real network
-	// interfaces client returns them.
-	nicsByVM := map[string][]*network.Interface{
-		strings.ToLower(ids["winvm1"]): {{PrivateIP: "10.0.0.1", Primary: true}},
-		strings.ToLower(ids["winvm2"]): {
-			{PrivateIP: "10.0.0.99"},
-			{PrivateIP: "10.0.0.2", Primary: true},
+	// NICs reference their VM via AttachedVMID. winvm1 uses an upper-cased ID to
+	// verify the case-insensitive join between compute and network resource IDs.
+	clients.nicClients = map[string]azure.NetworkInterfacesClient{
+		sub: &fakeNetworkInterfacesClient{
+			nicsByRG: map[string][]*azure.NetworkInterface{
+				"rg1": {
+					{
+						AttachedVMID:     strings.ToUpper(ids["winvm1"]),
+						Primary:          true,
+						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
+					},
+					// winvm2 has two NICs; the non-primary one comes first to
+					// verify the primary NIC's IP is preferred.
+					{
+						AttachedVMID:     ids["winvm2"],
+						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.99"}},
+					},
+					{
+						AttachedVMID:     ids["winvm2"],
+						Primary:          true,
+						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.2", Primary: true}},
+					},
+					{
+						AttachedVMID:     ids["unknownvm"],
+						Primary:          true,
+						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.3", Primary: true}},
+					},
+					// A NIC not attached to any VM must not affect the results.
+					{
+						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.50", Primary: true}},
+					},
+				},
+			},
 		},
-		strings.ToLower(ids["unknownvm"]): {{PrivateIP: "10.0.0.3", Primary: true}},
 	}
 
-	fetcher := windowsVMFetcher(t, clients,
-		func(context.Context, azure.Clients) (network.InterfacesClient, error) {
-			return &fakeInterfacesClient{nicsByVM: nicsByVM}, nil
-		},
-		[]string{"eastus"},
-	)
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
 
 	instances, err := fetcher.GetInstances(t.Context(), false)
 	require.NoError(t, err)
@@ -955,6 +1012,24 @@ func TestAzureFetcherGetInstancesWindows(t *testing.T) {
 		"winvm2":    "10.0.0.2",
 		"unknownvm": "10.0.0.3",
 	}, gotIPByName)
+}
+
+func TestAzureFetcherGetInstancesWindowsNICListError(t *testing.T) {
+	t.Parallel()
+
+	const sub = "00000000-0000-0000-0000-000000000000"
+
+	clients, _ := windowsVMClients(t)
+	clients.nicClients = map[string]azure.NetworkInterfacesClient{
+		sub: &fakeNetworkInterfacesClient{listErr: trace.AccessDenied("no network access")},
+	}
+
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
+
+	// A NIC listing failure must fail the whole fetch rather than silently
+	// discovering Windows VMs without private IPs.
+	_, err := fetcher.GetInstances(t.Context(), false)
+	require.ErrorContains(t, err, "no network access")
 }
 
 func TestMatchersToAzureInstanceFetchersMatcherTypes(t *testing.T) {
