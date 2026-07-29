@@ -53,10 +53,13 @@ ironrdp-graphics.workspace = true
 ironrdp-session.workspace = true
 ironrdp-session.features = ["qoiz"]
 base64 = "0.22.1"
+rstest = "0.26"
+pretty_assertions = "1.4"
 
 [build-dependencies]
 cbindgen = "0.29.3"
 tempfile = "3.27.0"
+
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
