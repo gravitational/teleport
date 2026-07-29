@@ -21,11 +21,13 @@ package services
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -75,6 +77,13 @@ type GenericReconcilerConfig[K comparable, T any] struct {
 	// disallowed to enforce segregation between of resources from different
 	// sources.
 	AllowOriginChanges bool
+	// Concurrency sets the number of goroutines used to process resources
+	// during reconciliation. When set to 0 or 1, resources are processed
+	// sequentially. When set to a value greater than 1, resources are
+	// processed concurrently using up to that many goroutines.
+	// The OnCreate, OnUpdate, OnDelete, Matcher, and CompareResources
+	// callbacks must be safe for concurrent use when Concurrency > 1.
+	Concurrency int
 }
 
 // CheckAndSetDefaults validates the reconciler configuration and sets defaults.
@@ -102,6 +111,9 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 	}
 	if c.Logger == nil {
 		c.Logger = slog.With(teleport.ComponentKey, "reconciler")
+	}
+	if c.Concurrency < 1 {
+		c.Concurrency = 1
 	}
 	if c.Metrics == nil {
 		var err error
@@ -290,27 +302,19 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 	r.logger.DebugContext(ctx, "Reconciling current resources with new resources",
 		"current_resource_count", len(currentResources), "new_resource_count", len(newResources))
 
-	var errs []error
-
 	start := time.Now()
-	// Process already registered resources to see if any of them were removed.
-	for key, current := range currentResources {
-		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
-			errs = append(errs, trace.Wrap(err))
-		}
-	}
 
-	// Add new resources if there are any or refresh those that were updated.
-	for key, newResource := range newResources {
-		if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
-			errs = append(errs, trace.Wrap(err))
-		}
+	var errs []error
+	if r.cfg.Concurrency > 1 {
+		errs = r.reconcileConcurrent(ctx, currentResources, newResources)
+	} else {
+		errs = r.reconcileSequential(ctx, currentResources, newResources)
 	}
 
 	if r.stats.hasChanges() {
 		r.logger.InfoContext(ctx, "Reconciliation completed",
 			"kind", r.resourceKind(currentResources, newResources),
-			"took", time.Since(start),
+			"took", time.Since(start).String(),
 			"stats", r.stats,
 		)
 	}
@@ -318,6 +322,62 @@ func (r *GenericReconciler[K, T]) Reconcile(ctx context.Context) error {
 	// TODO(zmb3): with a large number of resources, this can return a lengthy
 	// error message that is difficult to parse
 	return trace.NewAggregate(errs...)
+}
+
+// reconcileSequential processes resources inline without goroutines.
+// This is used when Concurrency == 1 (the default) to avoid unnecessary
+// goroutine creation overhead.
+func (r *GenericReconciler[K, T]) reconcileSequential(ctx context.Context, currentResources, newResources map[K]T) []error {
+	var errs []error
+	// Process already registered resources to see if any of them were removed.
+	for key, current := range currentResources {
+		if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+	// Add new resources if there are any or refresh those that were updated.
+	for key, newResource := range newResources {
+		if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
+	}
+	return errs
+}
+
+// reconcileConcurrent processes resources using an errgroup with the configured
+// concurrency limit. This is used when Concurrency > 1.
+func (r *GenericReconciler[K, T]) reconcileConcurrent(ctx context.Context, currentResources, newResources map[K]T) []error {
+	var g errgroup.Group
+	g.SetLimit(r.cfg.Concurrency)
+	var (
+		mu   sync.Mutex
+		errs []error
+	)
+	// Process already registered resources to see if any of them were removed.
+	for key, current := range currentResources {
+		g.Go(func() error {
+			if err := r.processRegisteredResource(ctx, newResources, key, current); err != nil {
+				mu.Lock()
+				errs = append(errs, trace.Wrap(err))
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+	// Add new resources if there are any or refresh those that were updated.
+	for key, newResource := range newResources {
+		g.Go(func() error {
+			if err := r.processNewResource(ctx, currentResources, key, newResource); err != nil {
+				mu.Lock()
+				errs = append(errs, trace.Wrap(err))
+				mu.Unlock()
+			}
+			return nil
+		})
+	}
+	// Errors are collected separately.
+	_ = g.Wait()
+	return errs
 }
 
 // resourceKind extracts the resource kind from the first available resource.

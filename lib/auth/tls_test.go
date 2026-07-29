@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -1796,7 +1797,11 @@ func TestAppServerCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff([]types.AppServer{server}, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Remove the application.
-	err = clt.DeleteApplicationServer(ctx, server.Metadata.Namespace, server.GetHostID(), server.GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server.GetHostID(),
+		Name:   server.GetName(),
+		Scope:  server.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Now expect no applications to be returned.
@@ -6064,6 +6069,7 @@ type testTLSServerOptions struct {
 	clock           clockwork.Clock
 	bufconnListener bool
 	scopesFeatures  scopes.Features
+	emitter         eventtypes.Emitter
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6098,6 +6104,14 @@ func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
 	}
 }
 
+// withEmitter replaces the audit event emitter before the server starts
+// serving, which is the only time it is safe to do so.
+func withEmitter(emitter eventtypes.Emitter) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.emitter = emitter
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
@@ -6119,6 +6133,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	if options.emitter != nil {
+		as.AuthServer.SetEmitter(options.emitter)
+	}
 
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {

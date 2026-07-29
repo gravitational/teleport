@@ -20,9 +20,14 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"maps"
+	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -373,6 +378,90 @@ func TestGenericReconciler(t *testing.T) {
 	require.ElementsMatch(t, expectedDeleteCalls, onDeleteCalls)
 }
 
+// TestGenericReconcilerConcurrent verifies that the concurrent reconciliation
+// when the Parallel option is set.
+func TestGenericReconcilerConcurrent(t *testing.T) {
+	t.Parallel()
+
+	const n = 100
+	labels := map[string]string{"env": "prod"}
+
+	currentResources := make(map[int]testResource, n)
+	for i := 0; i < n; i++ {
+		currentResources[i] = makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels))
+	}
+
+	newResources := make(map[int]testResource, 2*n)
+	for i := 0; i < n/2; i++ {
+		newResources[i] = makeDynamicResource(fmt.Sprintf("res%d", i), map[string]string{"env": "stage"})
+	}
+	for i := n; i < 2*n; i++ {
+		newResources[i] = makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels))
+	}
+
+	var (
+		mu            sync.Mutex
+		onCreateCalls []testResource
+		onUpdateCalls []updateCall
+		onDeleteCalls []testResource
+	)
+
+	r, err := NewGenericReconciler(GenericReconcilerConfig[int, testResource]{
+		Matcher: func(tr testResource) bool { return true },
+		CompareResources: func(tr1, tr2 testResource) int {
+			return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
+		},
+		GetCurrentResources: func() map[int]testResource { return currentResources },
+		GetNewResources:     func() map[int]testResource { return newResources },
+		OnCreate: func(ctx context.Context, tr testResource) error {
+			mu.Lock()
+			defer mu.Unlock()
+			onCreateCalls = append(onCreateCalls, tr)
+			return nil
+		},
+		OnUpdate: func(ctx context.Context, tr, old testResource) error {
+			mu.Lock()
+			defer mu.Unlock()
+			onUpdateCalls = append(onUpdateCalls, updateCall{new: tr, old: old})
+			return nil
+		},
+		OnDelete: func(ctx context.Context, tr testResource) error {
+			mu.Lock()
+			defer mu.Unlock()
+			onDeleteCalls = append(onDeleteCalls, tr)
+			return nil
+		},
+		Concurrency: 10,
+	})
+	require.NoError(t, err)
+	require.NoError(t, r.Reconcile(context.Background()))
+
+	// 100 new resources (IDs 100–199) should be created.
+	var expectedCreates []testResource
+	for i := n; i < 2*n; i++ {
+		expectedCreates = append(expectedCreates, makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels)))
+	}
+	require.ElementsMatch(t, expectedCreates, onCreateCalls)
+
+	// 50 resources (IDs 0–49) should be updated.
+	var expectedUpdates []updateCall
+	for i := 0; i < n/2; i++ {
+		name := fmt.Sprintf("res%d", i)
+		expectedUpdates = append(expectedUpdates, updateCall{
+			new: makeDynamicResource(name, map[string]string{"env": "stage"}),
+			old: makeDynamicResource(name, maps.Clone(labels)),
+		})
+	}
+	require.ElementsMatch(t, expectedUpdates, onUpdateCalls)
+
+	// 50 resources (IDs 50–99) absent from new set should be deleted.
+	var expectedDeletes []testResource
+	for i := n / 2; i < n; i++ {
+		expectedDeletes = append(expectedDeletes, makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels)))
+	}
+	require.ElementsMatch(t, expectedDeletes, onDeleteCalls)
+}
+
 func makeStaticResource(name string, labels map[string]string) testResource {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginConfigFile,
@@ -416,4 +505,47 @@ func (r testResource) GetName() string {
 
 func (r testResource) GetKind() string {
 	return "testResource"
+}
+
+// BenchmarkReconciler benchmarks reconciliation with varying resource counts
+// and concurrency levels to measure overhead differences between sequential
+// and concurrent modes.
+func BenchmarkReconciler(b *testing.B) {
+	for _, resourceCount := range []int{100, 1000, 100000} {
+		b.Run(fmt.Sprintf("%d", resourceCount), func(b *testing.B) {
+			benchmarkReconciler(b, resourceCount, 1)
+		})
+	}
+}
+
+func benchmarkReconciler(b *testing.B, resourceCount, concurrency int) {
+	b.Helper()
+	b.ReportAllocs()
+
+	labels := map[string]string{"env": "prod"}
+	currentResources := make(map[int]testResource, resourceCount)
+	for i := range resourceCount {
+		currentResources[i] = makeDynamicResource(fmt.Sprintf("res%d", i), maps.Clone(labels))
+	}
+	r, err := NewGenericReconciler(GenericReconcilerConfig[int, testResource]{
+		Logger:              slog.New(slog.DiscardHandler),
+		Matcher:             func(tr testResource) bool { return true },
+		CompareResources:    func(tr1, tr2 testResource) int { return 0 },
+		GetCurrentResources: func() map[int]testResource { return currentResources },
+		GetNewResources:     func() map[int]testResource { return currentResources },
+		OnCreate:            func(ctx context.Context, tr testResource) error { return nil },
+		OnUpdate:            func(ctx context.Context, tr, old testResource) error { return nil },
+		OnDelete:            func(ctx context.Context, tr testResource) error { return nil },
+		Concurrency:         concurrency,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	ctx := context.Background()
+	b.ResetTimer()
+	for range b.N {
+		if err := r.Reconcile(ctx); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

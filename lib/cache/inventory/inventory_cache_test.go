@@ -123,10 +123,14 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	dynamicAccessS := local.NewDynamicAccessService(bkWrapper)
 	restrictions := local.NewRestrictionsService(bkWrapper)
 	apps := local.NewAppService(bkWrapper)
-	kubernetes := local.NewKubernetesService(bkWrapper)
+	kubernetes, err := local.NewKubernetesService(bkWrapper)
+	require.NoError(t, err)
 	databases := local.NewDatabasesService(bkWrapper)
 	databaseServices := local.NewDatabaseServicesService(bkWrapper)
 	windowsDesktops := local.NewWindowsDesktopService(bkWrapper)
+
+	linuxDesktops, err := local.NewLinuxDesktopService(bkWrapper)
+	require.NoError(t, err)
 
 	samlIDPServiceProviders, err := local.NewSAMLIdPServiceProviderService(bkWrapper)
 	require.NoError(t, err)
@@ -249,6 +253,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Databases:               databases,
 		WindowsDesktops:         windowsDesktops,
 		DynamicWindowsDesktops:  dynamicWindowsDesktopService,
+		LinuxDesktops:           linuxDesktops,
 		SAMLIdPServiceProviders: samlIDPServiceProviders,
 		UserGroups:              userGroups,
 		Okta:                    oktaSvc,

@@ -72,6 +72,7 @@ import (
 	inventorypb "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	issuancev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1"
 	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -119,6 +120,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
+	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
@@ -301,6 +303,7 @@ var connectedResourceGauges = map[string]prometheus.Gauge{
 	constants.KeepAliveDatabase:              connectedResources.WithLabelValues(constants.KeepAliveDatabase),
 	constants.KeepAliveDatabaseService:       connectedResources.WithLabelValues(constants.KeepAliveDatabaseService),
 	constants.KeepAliveWindowsDesktopService: connectedResources.WithLabelValues(constants.KeepAliveWindowsDesktopService),
+	constants.KeepAliveLinuxDesktop:          connectedResources.WithLabelValues(constants.KeepAliveLinuxDesktop),
 	teleport.ComponentRelay:                  connectedResources.WithLabelValues(teleport.ComponentRelay),
 }
 
@@ -554,7 +557,7 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 		componentName = auth.scopedContext.User.GetName()
 	} else {
 		var isBuiltinServer bool
-		componentName, isBuiltinServer = getBuiltinServerID(auth.scopedContext.Identity)
+		componentName, isBuiltinServer = getLocalServerID(auth.scopedContext.Identity)
 		if !isBuiltinServer {
 			return trace.BadParameter("could not derive component name from auth context")
 		}
@@ -776,6 +779,10 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
 		}
+	case authpb.UserCertsRequest_LinuxDesktop:
+		if req.RouteToLinuxDesktop.LinuxDesktop == "" {
+			return trace.BadParameter("missing LinuxDesktop field in a linux-desktop-only UserCertsRequest")
+		}
 	case authpb.UserCertsRequest_AccessGraphAPI:
 		if err := validateAccessGraphcertificateReq(req); err != nil {
 			return trace.Wrap(err)
@@ -882,10 +889,11 @@ func (g *GRPCServer) AssertSystemRole(ctx context.Context, req *authpb.SystemRol
 // icsServicesToMetricName is a helper for translating service names to keepalive names for control-stream
 // purposes. When new services switch to using control-stream based heartbeats, they should be added here.
 var icsServiceToMetricName = map[types.SystemRole]string{
-	types.RoleApp:      constants.KeepAliveApp,
-	types.RoleDatabase: constants.KeepAliveDatabase,
-	types.RoleKube:     constants.KeepAliveKube,
-	types.RoleNode:     constants.KeepAliveNode,
+	types.RoleApp:          constants.KeepAliveApp,
+	types.RoleDatabase:     constants.KeepAliveDatabase,
+	types.RoleKube:         constants.KeepAliveKube,
+	types.RoleNode:         constants.KeepAliveNode,
+	types.RoleLinuxDesktop: constants.KeepAliveLinuxDesktop,
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
@@ -1675,13 +1683,15 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 }
 
 // DeleteApplicationServer deletes an application server.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
-	if err != nil {
+	if err := auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -1896,7 +1906,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *authpb.DeleteAppSessionRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1981,7 +1991,7 @@ func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSC
 
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1997,6 +2007,7 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateA
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: types.CertAuthType(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2225,12 +2236,15 @@ func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *authpb.Ups
 }
 
 // DeleteKubernetesServer deletes a kubernetes server.
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
 func (g *GRPCServer) DeleteKubernetesServer(ctx context.Context, req *authpb.DeleteKubernetesServerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteKubernetesServer(ctx, req.GetHostID(), req.GetName())
+	err = auth.DeleteKubernetesServer(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2946,7 +2960,7 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ScopedServerWithRoles,
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
 		resp.SSH = certs.SSH
-	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
+	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_LinuxDesktop, authpb.UserCertsRequest_App, authpb.UserCertsRequest_AccessGraphAPI:
 		resp.TLS = certs.TLS
 	default:
 		return nil, trace.BadParameter("unknown certificate usage %q", req.Usage)
@@ -4282,9 +4296,6 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4300,9 +4311,7 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5054,7 +5063,7 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.CreateSessionTrackerRequest) (*types.SessionTrackerV1, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5064,7 +5073,7 @@ func (g *GRPCServer) CreateSessionTracker(ctx context.Context, req *authpb.Creat
 		return nil, trace.BadParameter("missing SessionTracker from CreateSessionTrackerRequest")
 	}
 
-	tracker, err := auth.ServerWithRoles.CreateSessionTracker(ctx, req.SessionTracker)
+	tracker, err := auth.CreateSessionTracker(ctx, req.SessionTracker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5165,11 +5174,11 @@ func (g *GRPCServer) RemoveSessionTracker(ctx context.Context, req *authpb.Remov
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *authpb.UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.ServerWithRoles.UpdateSessionTracker(ctx, req)
+	err = auth.UpdateSessionTracker(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5509,8 +5518,11 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *authpb.Appen
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
+//
+// Deprecated: Use GetKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5527,7 +5539,7 @@ func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.Resour
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5543,7 +5555,7 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5559,7 +5571,7 @@ func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5582,8 +5594,11 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5610,8 +5625,11 @@ func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.Lis
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
+//
+// Deprecated: Use DeleteKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5621,9 +5639,9 @@ func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.Res
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster.
+// DeleteAllKubernetesClusters removes all accessible kubernetes cluster.
 func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6368,6 +6386,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	dynamicwindowsv1pb.RegisterDynamicWindowsServiceServer(server, dynamicWindows)
+
+	linuxDesktop, err := linuxdesktopv1.NewService(linuxdesktopv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	linuxdesktopv1pb.RegisterLinuxDesktopServiceServer(server, linuxDesktop)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer:       cfg.Authorizer,

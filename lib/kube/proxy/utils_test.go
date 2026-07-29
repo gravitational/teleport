@@ -47,6 +47,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -69,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -112,7 +116,9 @@ type TestConfig struct {
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
 	WrapAuthClient       func(authclient.ClientI) authclient.ClientI
+	WrapProxyAccessPoint func(authclient.ClientI) authclient.ClientI
 	ScopesFeatures       scopes.Features
+	Scope                string
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -141,11 +147,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Create and start test auth server.
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Clock:         clockwork.NewFakeClockAt(time.Now()),
-		ClusterName:   testCtx.ClusterName,
-		Streamer:      streamer,
-		UploadHandler: testCtx.UploadHandler,
-		Dir:           t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now()),
+		ClusterName:    testCtx.ClusterName,
+		Streamer:       streamer,
+		UploadHandler:  testCtx.UploadHandler,
+		Dir:            t.TempDir(),
+		ScopesFeatures: cfg.ScopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -179,7 +186,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
-	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestServerID(types.RoleKube, testCtx.HostID))
+	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(authtest.TestScopedServerID(types.RoleKube, testCtx.HostID, cfg.Scope))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testCtx.AuthClient.Close()) })
 
@@ -208,7 +215,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
+	serverIdentity, err := authtest.NewScopedServerIdentity(authServer.AuthServer, testCtx.HostID, cfg.Scope, types.RoleKube)
 	require.NoError(t, err)
 	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -250,12 +257,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+			return proto.UpstreamInventoryHello_builder{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
-			}, nil
+				Scope:    cfg.Scope,
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -269,9 +277,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 	)
 	require.NoError(t, err)
-	err = healthCheckManager.Start(testCtx.Context)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	if cfg.Scope == "" {
+		err = healthCheckManager.Start(testCtx.Context)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
+	}
 
 	var authClient authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
@@ -281,6 +291,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	var accessPoint authclient.ClientI = client
 	if cfg.WrapAuthClient != nil {
 		accessPoint = cfg.WrapAuthClient(client)
+	}
+	// The kube service must use its scoped identity to watch kube_cluster
+	// resources. The proxy, however, watches kube_servers in every scope.
+	proxyAccessPoint := accessPoint
+	if cfg.Scope != "" {
+		proxyAccessPoint = proxyAuthClient
+	}
+	if cfg.WrapProxyAccessPoint != nil {
+		proxyAccessPoint = cfg.WrapProxyAccessPoint(proxyAccessPoint)
 	}
 
 	// Create kubernetes service server.
@@ -314,6 +333,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			},
 			Clock:           clockwork.NewRealClock(),
 			ClusterFeatures: features,
+			Scope:           cfg.Scope,
 		},
 		DynamicLabels: nil,
 		TLS:           kubeServiceTLSConfig.Clone(),
@@ -339,7 +359,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		testCtx.Context,
 		kubewatcher.ProxyKubeServerWatcherConfig{
 			Logger:           logtest.NewLogger(),
-			AccessPoint:      accessPoint,
+			AccessPoint:      proxyAccessPoint,
 			FallbackGetter:   proxyAuthClient,
 			PrimaryTimeout:   time.Second,
 			FallbackInterval: time.Second,
@@ -402,7 +422,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
-		AccessPoint:              accessPoint,
+		AccessPoint:              proxyAccessPoint,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
@@ -534,6 +554,54 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 // CreateUserAndRoleVersion creates Teleport user and role with specified names and role version.
 func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T, username, roleVersion string, roleSpec RoleSpec) (types.User, types.Role) {
 	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
+}
+
+// CreateUserScopedRole creates a Teleport user and a scoped role assigned
+// to them.
+func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope string, roleSpec *accessv1.ScopedRoleSpec) (types.User, *accessv1.CreateScopedRoleAssignmentResponse) {
+	user, err := authtest.CreateUser(t.Context(), c.TLSServer.Auth(), username)
+	require.NoError(t, err)
+
+	scopedAccess := c.TLSServer.Auth().ScopedAccess()
+	role, err := scopedAccess.CreateScopedRole(t.Context(), &accessv1.CreateScopedRoleRequest{
+		Role: &accessv1.ScopedRole{
+			Kind:    access.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: username,
+			},
+			Scope: scope,
+			Spec:  roleSpec,
+		},
+	})
+	require.NoError(t, err)
+
+	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), &accessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &accessv1.ScopedRoleAssignment{
+			Kind:    access.KindScopedRoleAssignment,
+			Version: types.V1,
+			SubKind: access.SubKindDynamic,
+			Scope:   scope,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.New().String(),
+			},
+			Spec: &accessv1.ScopedRoleAssignmentSpec{
+				User: username,
+				Assignments: []*accessv1.Assignment{
+					{
+						Role: scopes.QualifiedName{
+							Name:  role.GetRole().GetMetadata().GetName(),
+							Scope: role.GetRole().GetScope(),
+						}.String(),
+						Scope: scope,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	return user, assignment
 }
 
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
@@ -747,4 +815,15 @@ func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, 
 		panic(err)
 	}
 	return conn, nil
+}
+
+func (c *TestContext) GetScopePinForUser(t *testing.T, username, scope string) *scopesv1.Pin {
+	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: scope,
+	}
+	err := c.AuthServer.ScopedAccessCache.PopulatePinnedAssignmentsForUser(t.Context(), username, pin)
+	require.NoError(t, err)
+
+	return pin
 }

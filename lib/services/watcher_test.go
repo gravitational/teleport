@@ -44,6 +44,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/healthcheckconfig"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1278,7 +1279,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
-	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
+	require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  kubeServers[0].GetScope(),
+		HostId: kubeServers[0].GetHostID(),
+		Name:   kubeServers[0].GetName(),
+	}.Build()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
 		assert.NoError(t, err)
@@ -1309,7 +1314,11 @@ func TestKubeServerWatcher(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	for _, server := range filtered {
-		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
+		require.NoError(t, presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  server.GetScope(),
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+		}.Build()))
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1929,7 +1938,11 @@ func syncTestAppServerWatcher(t *testing.T) {
 	require.Empty(t, diffAppServers(appServers, current))
 
 	// Delete the first app server, ensure watcher correctly removes the entry
-	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: appServers[0].GetHostID(),
+		Name:   appServers[0].GetName(),
+		Scope:  appServers[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	synctest.Wait()

@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.10.1 (07/17/27)
+## 18.10.1 (07/17/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
 

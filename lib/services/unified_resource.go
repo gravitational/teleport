@@ -35,9 +35,12 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -396,6 +399,7 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 	switch r.GetKind() {
 	case types.KindNode,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindGitServer,
 		types.KindDatabase,
 		types.KindKubernetesCluster:
@@ -527,6 +531,7 @@ type ResourceGetter interface {
 	DatabaseServersGetter
 	AppServersGetter
 	WindowsDesktopGetter
+	LinuxDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
 	IdentityCenterAccountGetter
@@ -547,7 +552,13 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 
 // resourceName is a unique name to be used as a key in the resources map
 func resourceKey(resource types.Resource) string {
-	return resource.GetName() + "/" + resource.GetKind()
+	key := resource.GetName() + "/" + resource.GetKind()
+	if r, ok := resource.(interface{ GetScope() string }); ok {
+		if scope := r.GetScope(); scope != "" {
+			key = scopes.QualifiedName{Name: key, Scope: scope}.String()
+		}
+	}
+	return key
 }
 
 type resourceSortKey struct {
@@ -579,6 +590,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 				name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
 				name = app.GetName()
+			}
+			if scope := r.GetScope(); scope != "" {
+				name = scopes.QualifiedName{Name: name, Scope: scope}.String()
 			}
 			kind = types.KindApp
 		}
@@ -641,6 +655,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newLinuxDesktops, err := c.getLinuxDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	newICAccounts, err := c.getIdentityCenterAccounts(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -666,6 +685,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources(c, newKubes)
 	putResources(c, newSAMLApps)
 	putResources(c, newDesktops)
+	putResources(c, newLinuxDesktops)
 	putResources(c, newICAccounts)
 	putResources(c, newGitServers)
 	c.stale = false
@@ -718,6 +738,18 @@ func (c *UnifiedResourceCache) getDesktops(ctx context.Context) ([]types.Windows
 	}
 
 	return newDesktops, nil
+}
+
+// getLinuxDesktops will get all Linux desktops
+func (c *UnifiedResourceCache) getLinuxDesktops(ctx context.Context) ([]resource, error) {
+	var linuxDesktops []resource
+	for linuxDesktop, err := range clientutils.Resources(ctx, c.ListLinuxDesktops) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		linuxDesktops = append(linuxDesktops, types.ProtoResource153ToLegacy(linuxDesktop))
+	}
+	return linuxDesktops, nil
 }
 
 // getSAMLApps will get all SAML Idp Service Providers
@@ -905,6 +937,7 @@ func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindGitServer},
@@ -1234,6 +1267,13 @@ func MakePaginatedResource(requestType string, r types.ResourceWithLabels, requi
 		}
 
 		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}, RequiresRequest: requiresRequest}
+	case types.KindLinuxDesktop:
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		protoResource = &proto.PaginatedResource{Resource: proto.PackLinuxDesktop(unwrapper.UnwrapT()), Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindWindowsDesktop:
 		desktop, ok := resource.(*types.WindowsDesktopV3)
 		if !ok {

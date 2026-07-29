@@ -953,6 +953,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindLinuxDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
@@ -1061,8 +1062,10 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
+					Namespaces:       []string{types.Wildcard},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindClusterName, services.RO()),
@@ -1085,6 +1088,8 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 				},
 			},
 		)
+	case types.RoleApp:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleApp)
 	}
 
 	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
@@ -1170,6 +1175,11 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of apps only being able to read scoped roles that may affect
+						// access decisions for the given app specifically. This verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
@@ -1286,6 +1296,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 					GitHubPermissions: []types.GitHubPermission{{
 						Organizations: []string{types.Wildcard},
 					}},
@@ -1345,6 +1356,29 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
 						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
+					},
+				},
+			})
+	case types.RoleLinuxDesktop:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:         []string{types.Wildcard},
+					LinuxDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.WO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLinuxDesktop, services.RO()),
 					},
 				},
 			})

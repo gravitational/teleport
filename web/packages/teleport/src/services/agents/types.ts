@@ -93,6 +93,7 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop'
+  | 'linux_desktop'
   | 'saml_idp_service_provider'
   | 'aws_ic_account_assignment'
   | 'git_server';

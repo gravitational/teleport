@@ -48,6 +48,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -78,6 +79,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
+	types.NewRule(types.KindLinuxDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
@@ -371,7 +373,7 @@ func validateRoleExpressions(r types.Role) error {
 				}
 			}
 			if len(labelMatchers.Expression) > 0 {
-				if _, err := parseLabelExpression(labelMatchers.Expression); err != nil {
+				if _, err := label.ParseExpression(labelMatchers.Expression); err != nil {
 					errs = append(errs, trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err))
 				}
 			}
@@ -675,6 +677,11 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
+		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
+		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
+		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
+		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
+
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		outRoleARNs := applyValueTraitsSlice(inRoleARNs, ctx, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
@@ -760,6 +767,7 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindDatabase,
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
@@ -901,7 +909,7 @@ func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string,
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
 			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins,
+			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
@@ -1400,26 +1408,7 @@ func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
-	return MatchLabelGetter(selector, mapLabelGetter(target))
-}
-
-// LabelGetter allows retrieving a particular label by name or retreiving all
-// labels at once. Prefer to use GetLabel when possible to avoid unnecessary
-// copies.
-type LabelGetter interface {
-	GetLabel(key string) (value string, ok bool)
-	GetAllLabels() map[string]string
-}
-
-type mapLabelGetter map[string]string
-
-func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
-	v, ok := m[key]
-	return v, ok
-}
-
-func (m mapLabelGetter) GetAllLabels() map[string]string {
-	return map[string]string(m)
+	return MatchLabelGetter(selector, label.MapLabelGetter(target))
 }
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
@@ -1427,7 +1416,7 @@ func (m mapLabelGetter) GetAllLabels() map[string]string {
 //
 // Keep in sync with front-end implementation;
 //   - web/packages/teleport/src/Bots/Add/Shared/kubernetes.ts:34
-func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
+func MatchLabelGetter(selector types.Labels, labelGetter label.LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
 		return false, "no match, empty selector", nil
@@ -2745,6 +2734,22 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 	return false, nil
 }
 
+type linuxDesktopLoginMatcher struct {
+	login string
+}
+
+// NewLinuxDesktopLoginMatcher creates a RoleMatcher that checks whether the role's
+// Linux desktop logins match the specified condition.
+func NewLinuxDesktopLoginMatcher(login string) RoleMatcher {
+	return &linuxDesktopLoginMatcher{login: login}
+}
+
+// Match matches a Linux Desktop login against a role.
+func (l *linuxDesktopLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLinuxDesktopLogins(typ)
+	return slices.Contains(logins, l.login), nil
+}
+
 type awsAppLoginMatcher struct {
 	awsRole string
 }
@@ -2881,7 +2886,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.username, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.username, l.userTraits, label.MapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -3169,7 +3174,7 @@ func CheckLabelsMatch(
 	labelMatchers types.LabelMatchers,
 	username string,
 	userTraits wrappers.Traits,
-	resource LabelGetter,
+	resource label.LabelGetter,
 	debug bool,
 ) (bool, string, error) {
 	if labelMatchers.Empty() {
@@ -3218,15 +3223,15 @@ func CheckLabelsMatch(
 	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
 }
 
-func matchLabelExpression(labelExpression string, resource LabelGetter, username string, userTraits wrappers.Traits) (bool, string, error) {
-	parsedExpr, err := parseLabelExpression(labelExpression)
+func matchLabelExpression(labelExpression string, resource label.LabelGetter, username string, userTraits wrappers.Traits) (bool, string, error) {
+	parsedExpr, err := label.ParseExpression(labelExpression)
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	match, err := parsedExpr.Evaluate(labelExpressionEnv{
-		resourceLabelGetter: resource,
-		username:            username,
-		userTraits:          userTraits,
+	match, err := parsedExpr.Evaluate(label.ExpressionEnv{
+		ResourceLabelGetter: resource,
+		Username:            username,
+		UserTraits:          userTraits,
 	})
 	if err != nil {
 		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)

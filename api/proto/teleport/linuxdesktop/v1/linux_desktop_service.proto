@@ -1,0 +1,91 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.linuxdesktop.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/linuxdesktop/v1/linux_desktop.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1";
+
+// LinuxDesktopService is a service to fetch information about Linux desktops.
+service LinuxDesktopService {
+  // Creates a new LinuxDesktop resource in the backend.
+  rpc CreateLinuxDesktop(CreateLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Updates an existing LinuxDesktop in the backend.
+  rpc UpdateLinuxDesktop(UpdateLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Updates an existing LinuxDesktop in the backend or creates one if needed.
+  rpc UpsertLinuxDesktop(UpsertLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Returns a single LinuxDesktop matching the request
+  rpc GetLinuxDesktop(GetLinuxDesktopRequest) returns (LinuxDesktop);
+
+  // Returns a page of LinuxDesktop and the token to find the next page of items.
+  rpc ListLinuxDesktops(ListLinuxDesktopsRequest) returns (ListLinuxDesktopsResponse);
+
+  // Remove a matching LinuxDesktop resource
+  rpc DeleteLinuxDesktop(DeleteLinuxDesktopRequest) returns (google.protobuf.Empty);
+}
+
+// CreateLinuxDesktopRequest is request for CreateLinuxDesktop method
+message CreateLinuxDesktopRequest {
+  // The desired LinuxDesktop to be created.
+  LinuxDesktop linux_desktop = 1;
+}
+
+// UpdateLinuxDesktopRequest is request for UpdateLinuxDesktop method
+message UpdateLinuxDesktopRequest {
+  // The full LinuxDesktop resource to update in the backend.
+  LinuxDesktop linux_desktop = 1;
+}
+
+// UpsertLinuxDesktopRequest is request for UpsertLinuxDesktop method
+message UpsertLinuxDesktopRequest {
+  // The full LinuxDesktop resource to create or update in the backend.
+  LinuxDesktop linux_desktop = 1;
+}
+
+// GetLinuxDesktopRequest is request for GetLinuxDesktop method
+message GetLinuxDesktopRequest {
+  // Name of the LinuxDesktop to retrieve
+  string name = 1;
+}
+
+// ListLinuxDesktopRequest is request for ListLinuxDesktops method
+message ListLinuxDesktopsRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListLinuxDesktopsResponse is response of ListLinuxDesktop method
+message ListLinuxDesktopsResponse {
+  // The page of LinuxDesktop that matched the request.
+  repeated LinuxDesktop linux_desktops = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// DeleteLinuxDesktopRequest is request for DeleteLinuxDesktop method
+message DeleteLinuxDesktopRequest {
+  // Name of the LinuxDesktop to remove.
+  string name = 1;
+}
