@@ -102,6 +102,7 @@ type ClientInit struct {
 	xxx_hidden_SystemRole              string                          `protobuf:"bytes,3,opt,name=system_role,json=systemRole,proto3"`
 	xxx_hidden_ForwardedByProxy        bool                            `protobuf:"varint,4,opt,name=forwarded_by_proxy,json=forwardedByProxy,proto3"`
 	xxx_hidden_ProxySuppliedParameters *ClientInit_ProxySuppliedParams `protobuf:"bytes,5,opt,name=proxy_supplied_parameters,json=proxySuppliedParameters,proto3,oneof"`
+	xxx_hidden_HostName                string                          `protobuf:"bytes,6,opt,name=host_name,json=hostName,proto3"`
 	XXX_raceDetectHookData             protoimpl.RaceDetectHookData
 	XXX_presence                       [1]uint32
 	unknownFields                      protoimpl.UnknownFields
@@ -171,9 +172,16 @@ func (x *ClientInit) GetProxySuppliedParameters() *ClientInit_ProxySuppliedParam
 	return nil
 }
 
+func (x *ClientInit) GetHostName() string {
+	if x != nil {
+		return x.xxx_hidden_HostName
+	}
+	return ""
+}
+
 func (x *ClientInit) SetJoinMethod(v string) {
 	x.xxx_hidden_JoinMethod = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 6)
 }
 
 func (x *ClientInit) SetTokenName(v string) {
@@ -190,6 +198,10 @@ func (x *ClientInit) SetForwardedByProxy(v bool) {
 
 func (x *ClientInit) SetProxySuppliedParameters(v *ClientInit_ProxySuppliedParams) {
 	x.xxx_hidden_ProxySuppliedParameters = v
+}
+
+func (x *ClientInit) SetHostName(v string) {
+	x.xxx_hidden_HostName = v
 }
 
 func (x *ClientInit) HasJoinMethod() bool {
@@ -235,6 +247,11 @@ type ClientInit_builder struct {
 	// accepting ProxySuppliedParams.
 	ForwardedByProxy        bool
 	ProxySuppliedParameters *ClientInit_ProxySuppliedParams
+	// HostName is the user-friendly node name of a joining host, sent early so it
+	// can be recorded on the join audit event even when the join is rejected
+	// before the host params are received. It is advisory; the host name used for
+	// issued certificates is carried in HostParams.
+	HostName string
 }
 
 func (b0 ClientInit_builder) Build() *ClientInit {
@@ -242,13 +259,14 @@ func (b0 ClientInit_builder) Build() *ClientInit {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.JoinMethod != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 6)
 		x.xxx_hidden_JoinMethod = b.JoinMethod
 	}
 	x.xxx_hidden_TokenName = b.TokenName
 	x.xxx_hidden_SystemRole = b.SystemRole
 	x.xxx_hidden_ForwardedByProxy = b.ForwardedByProxy
 	x.xxx_hidden_ProxySuppliedParameters = b.ProxySuppliedParameters
+	x.xxx_hidden_HostName = b.HostName
 	return m0
 }
 
@@ -4877,7 +4895,7 @@ var File_teleport_join_v1_joinservice_proto protoreflect.FileDescriptor
 
 const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xa0\x03\n" +
+	"\"teleport/join/v1/joinservice.proto\x12\x10teleport.join.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&teleport/scopes/joining/v1/token.proto\"\xbd\x03\n" +
 	"\n" +
 	"ClientInit\x12$\n" +
 	"\vjoin_method\x18\x01 \x01(\tH\x00R\n" +
@@ -4887,7 +4905,8 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\vsystem_role\x18\x03 \x01(\tR\n" +
 	"systemRole\x12,\n" +
 	"\x12forwarded_by_proxy\x18\x04 \x01(\bR\x10forwardedByProxy\x12q\n" +
-	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x1a]\n" +
+	"\x19proxy_supplied_parameters\x18\x05 \x01(\v20.teleport.join.v1.ClientInit.ProxySuppliedParamsH\x01R\x17proxySuppliedParameters\x88\x01\x01\x12\x1b\n" +
+	"\thost_name\x18\x06 \x01(\tR\bhostName\x1a]\n" +
 	"\x13ProxySuppliedParams\x12\x1f\n" +
 	"\vremote_addr\x18\x01 \x01(\tR\n" +
 	"remoteAddr\x12%\n" +
