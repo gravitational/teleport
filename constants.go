@@ -1076,3 +1076,17 @@ const (
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )
+
+const (
+	// EnvVarUnstableDisableSAMLRedirectDowngradeCheck allows disabling saml_connector
+	// entity_descriptor_url check preventing following redirects via HTTP originating from
+	// HTTPS route.
+	EnvVarUnstableDisableSAMLRedirectDowngradeCheck = "TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK"
+
+	// EnvVarUnstableForceInBandMFA is the environment variable that, when set to "yes", disables the legacy out-of-band
+	// MFA flow and forces all connections to use in-band MFA. When unset or empty, both flows are supported during the
+	// transition period.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed and in-band MFA is the default.
+	EnvVarUnstableForceInBandMFA = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
+)

@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/testhelpers/mtls"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -105,4 +106,44 @@ func TestMFAPerRPCCredentials(t *testing.T) {
 
 	_, err = client.Ping(context.Background(), &proto.PingRequest{}, mfa.WithCredentials(mfaTestResp))
 	assert.NoError(t, err)
+}
+
+func TestValidateChallengeScope(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		scope     mfav1.ChallengeScope
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "unspecified is known",
+			scope:     mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED,
+			assertErr: require.NoError,
+		},
+		{
+			name:      "defined scope",
+			scope:     mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			assertErr: require.NoError,
+		},
+		{
+			name:  "out of range scope",
+			scope: mfav1.ChallengeScope(99),
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.ErrorIs(t, err, &mfa.ErrUnknownChallengeScope)
+			},
+		},
+		{
+			name:  "negative scope",
+			scope: mfav1.ChallengeScope(-1),
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.ErrorIs(t, err, &mfa.ErrUnknownChallengeScope)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.assertErr(t, mfa.ValidateChallengeScope(tt.scope))
+		})
+	}
 }
