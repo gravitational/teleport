@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -697,7 +698,11 @@ func combineMatchedClusters(matchMap map[string]types.KubeClusters) types.KubeCl
 func matchClustersByNames(clusters types.KubeClusters, names ...string) map[string]types.KubeClusters {
 	matchesForNames := make(map[string]types.KubeClusters)
 	for _, name := range names {
-		matchesForNames[name] = matchClustersByNameOrDiscoveredName(name, clusters)
+		sqn, err := scopes.ParseQualifiedName(name)
+		if err != nil {
+			sqn = scopes.QualifiedName{Name: name}
+		}
+		matchesForNames[name] = matchClustersByNameOrDiscoveredName(sqn, clusters)
 	}
 	return matchesForNames
 }

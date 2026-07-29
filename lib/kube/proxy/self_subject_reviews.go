@@ -127,7 +127,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 	if !ok {
 		// Mirror the data path so `kubectl auth can-i` matches a real request:
 		// discover the kind's group-version and, if it's still unknown, report denied.
-		details, derr := f.findKubeDetailsByClusterName(sess.kubeClusterName)
+		details, derr := f.findKubeDetailsByClusterName(sess.kubeClusterSQN)
 		if derr != nil {
 			return nil
 		}

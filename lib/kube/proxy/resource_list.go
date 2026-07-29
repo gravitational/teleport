@@ -274,7 +274,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *respon
 		wcs, err := f.getUserEphemeralContainersForPod(
 			ctx,
 			sess.User.GetName(),
-			sess.kubeClusterName,
+			sess.kubeClusterSQN.String(),
 			sess.metaResource.requestedResource.namespace,
 			podName,
 		)

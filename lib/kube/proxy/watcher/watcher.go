@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/scopes"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -548,7 +550,7 @@ func (w *ProxyKubeServerWatcher) WaitInitialization() error {
 }
 
 // GetKubeServersForClusterName returns a copy of the resources known to the watcher that match the given cluster name.
-func (w *ProxyKubeServerWatcher) GetKubeServersForClusterName(ctx context.Context, clusterName string) ([]types.KubeServer, error) {
+func (w *ProxyKubeServerWatcher) GetKubeServersForClusterName(ctx context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
 	if err := w.maybeFetchFromUpstream(ctx); err != nil {
 		// This is an indication things are in a very bad state, it means the primary acccess point is not responsive
 		// and the fallback getter is failing. Log this as a warning.
@@ -561,7 +563,7 @@ func (w *ProxyKubeServerWatcher) GetKubeServersForClusterName(ctx context.Contex
 
 	var out []types.KubeServer
 	for _, resource := range w.current {
-		if resource.GetCluster().GetName() == clusterName {
+		if utils.KubeClusterMatchesSQN(resource.GetCluster(), sqn) {
 			out = append(out, types.KubeServer.Copy(resource))
 		}
 	}

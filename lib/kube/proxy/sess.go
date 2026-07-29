@@ -1164,7 +1164,7 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 		s.forwarder.ctx,
 		kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest_builder{
 			Username:      username,
-			Cluster:       s.ctx.kubeClusterName,
+			Cluster:       s.ctx.kubeClusterSQN.String(),
 			Namespace:     namespace,
 			PodName:       podName,
 			ContainerName: container,
@@ -1180,7 +1180,7 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 		s.forwarder.ctx,
 		kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest_builder{
 			Username:      username,
-			Cluster:       s.ctx.kubeClusterName,
+			Cluster:       s.ctx.kubeClusterSQN.String(),
 			Namespace:     namespace,
 			PodName:       podName,
 			ContainerName: container,
@@ -1212,7 +1212,7 @@ func (s *session) emitSessionJoinEvent(p *party) {
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
-			KubernetesCluster: s.ctx.kubeClusterName,
+			KubernetesCluster: s.ctx.kubeClusterSQN.String(),
 			// joining moderators, obervers and peers don't have any
 			// kubernetes metadata configured.
 			KubernetesUsers:  []string{},
@@ -1463,7 +1463,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		State:             types.SessionState_SessionStatePending,
 		Hostname:          path.Join(s.podNamespace, s.podName),
 		ClusterName:       s.ctx.teleportCluster.name,
-		KubernetesCluster: s.ctx.kubeClusterName,
+		KubernetesCluster: s.ctx.kubeClusterSQN.String(),
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
@@ -1616,7 +1616,7 @@ func (s *session) retrieveAlreadyStoppedPodLogs(namespace, podName, container st
 // retrieveEphemeralContainerCommand retrieves the command of an ephemeral container
 // if it exists.
 func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, username, containerName string) []string {
-	containers, err := s.forwarder.getUserEphemeralContainersForPod(ctx, username, s.ctx.kubeClusterName, s.podNamespace, s.podName)
+	containers, err := s.forwarder.getUserEphemeralContainersForPod(ctx, username, s.ctx.kubeClusterSQN.String(), s.podNamespace, s.podName)
 	if err != nil {
 		s.log.WarnContext(ctx, "Failed to retrieve ephemeral containers", "error", err)
 		return nil

@@ -34,6 +34,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -46,6 +47,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -144,6 +146,10 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			continue
 		}
 
+		sqn := scopes.QualifiedName{
+			Name:  kubeCluster.GetName(),
+			Scope: kubeCluster.GetScope(),
+		}
 		details, err := newClusterDetails(ctx,
 			clusterDetailsConfig{
 				cluster:   kubeCluster,
@@ -160,7 +166,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			)
 			return trace.Wrap(err)
 		}
-		f.clusterDetails[cluster] = details
+		f.clusterDetails[sqn] = details
 	}
 	return nil
 }

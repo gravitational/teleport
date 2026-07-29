@@ -266,7 +266,7 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 		ephemeralContName,
 		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 			Username:         authCtx.User.GetName(),
-			Cluster:          authCtx.kubeClusterName,
+			Cluster:          authCtx.kubeClusterSQN.String(),
 			Namespace:        authCtx.metaResource.requestedResource.namespace,
 			PodName:          authCtx.metaResource.requestedResource.resourceName,
 			ContainerName:    ephemeralContName,
@@ -286,9 +286,9 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 // impersonatedKubeClient returns a Kubernetes client that is impersonating
 // the identity in the provided authCtx.
 func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.Header) (*kubernetes.Clientset, *kubeDetails, error) {
-	details, err := f.findKubeDetailsByClusterName(authCtx.kubeClusterName)
+	details, err := f.findKubeDetailsByClusterName(authCtx.kubeClusterSQN)
 	if err != nil {
-		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
+		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterSQN)
 	}
 	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
 	if err != nil {
