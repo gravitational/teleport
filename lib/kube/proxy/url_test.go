@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -436,6 +437,39 @@ func TestGetResourceFromRequest_SpecialVerbProxyPath(t *testing.T) {
 			require.False(t, got.isList)
 			require.Equal(t, types.KubeVerbProxy, got.verb)
 			require.Equal(t, "deployments", got.requestedResource.resourceKind)
+		})
+	}
+}
+
+// TestGetResourceFromRequest_RejectsDotSegments verifies that a dot segment is rejected rather than authorized.
+func TestGetResourceFromRequest_RejectsDotSegments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		urlPath string
+		reject  bool
+	}{
+		// Under the proxy verb, the API server hands every segment after the name to the backend,
+		// so it resolves "denied" while the cleaned path names "allowed".
+		{reject: true, urlPath: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/../allowed"},
+		{reject: true, urlPath: "/apis/apps/v1/proxy/namespaces/default/deployments/denied/%2e%2e/allowed"},
+		{reject: true, urlPath: "/api/v1/namespaces/default/pods/denied/../allowed"},
+		{reject: true, urlPath: "/api/v1/namespaces/default/pods/./foo"},
+		// Trailing and doubled slashes are also normalized by path.Clean,
+		// but they name the same resource either way, so they stay allowed.
+		{urlPath: "/api/v1/pods/"},
+		{urlPath: "/api/v1//pods"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.urlPath, func(t *testing.T) {
+			u, err := url.Parse(tt.urlPath)
+			require.NoError(t, err)
+			_, err = getResourceFromRequest(&http.Request{Method: http.MethodGet, URL: u}, nil)
+			if tt.reject {
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }
