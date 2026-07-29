@@ -33,9 +33,11 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/slices"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
@@ -288,6 +290,7 @@ func (r resourceTeleportBot) Read(ctx context.Context, req tfsdk.ReadResourceReq
 
 	bot, err := r.p.Client().BotServiceClient().GetBot(ctx, &machineidv1.GetBotRequest{
 		BotName: state.GetName(),
+		Scope:   state.GetScope(),
 	})
 	switch {
 	case trace.IsNotFound(err):
@@ -350,6 +353,8 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		return !ok || attr.IsNull()
 	}
 
+	sqn := scopes.QualifiedName{Name: bot.GetMetadata().GetName(), Scope: bot.GetScope()}
+
 	result := Bot{
 		// User-provided attributes. Will be marked as null based on whether the
 		// user provided legacy or RFD 153-style attributes.
@@ -361,7 +366,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		Name: types.String{},
 
 		// Computed attributes.
-		ID:      stringValue(bot.GetMetadata().GetName()),
+		ID:      stringValue(sqn.String()),
 		Kind:    stringValue(bot.GetKind()),
 		SubKind: stringValue(bot.GetSubKind()),
 		Version: stringValue(bot.GetVersion()),
@@ -523,7 +528,10 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 		return
 	}
 	_, err := r.p.Client().BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: state.GetName()})
+		DeleteBot(ctx, &machineidv1.DeleteBotRequest{
+			BotName: state.GetName(),
+			Scope:   state.GetScope(),
+		})
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error deleting Bot", trace.Wrap(err), "bot"))
 		return
@@ -533,8 +541,17 @@ func (r resourceTeleportBot) Delete(ctx context.Context, req tfsdk.DeleteResourc
 }
 
 func (r resourceTeleportBot) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, rsp *tfsdk.ImportResourceStateResponse) {
+	sqn, err := tfdriver.NewPossiblyUnscopedScopeQualifiedNameIdentifier(req.ID)
+	if err != nil {
+		rsp.Diagnostics.AddError("Error parsing bot ID", err.Error())
+		return
+	}
+
 	bot, err := r.p.Client().BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: req.ID})
+		GetBot(ctx, &machineidv1.GetBotRequest{
+			BotName: sqn.Name,
+			Scope:   sqn.Scope,
+		})
 	if err != nil {
 		rsp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Bot", trace.Wrap(err), "bot"))
 		return

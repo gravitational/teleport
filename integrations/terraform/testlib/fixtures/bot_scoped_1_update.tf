@@ -48,7 +48,7 @@ resource "teleport_scoped_role_assignment" "bot_assignment" {
     bot_name  = teleport_bot.test_scoped.metadata.name
     bot_scope = teleport_bot.test_scoped.scope
     assignments = [{
-      role  = teleport_scoped_role.scoped_operator.metadata.name
+      role  = "${teleport_scoped_role.scoped_operator.scope}::${teleport_scoped_role.scoped_operator.metadata.name}"
       scope = local.scope_path
     }]
   }
