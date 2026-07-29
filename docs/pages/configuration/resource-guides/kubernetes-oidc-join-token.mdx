@@ -140,7 +140,7 @@ require two additional steps:
    ClusterRoleBinding granting `system:unauthenticated` the
    `system:service-account-issuer-discovery` ClusterRole.
 
-1. **Trust the API server's CA.** Teleport's Auth Service must trust the TLS
+2. **Trust the API server's CA.** Teleport's Auth Service must trust the TLS
    certificate of the OIDC endpoint. Copy the Kubernetes API server CA
    certificate to the system trust store (e.g.,
    `/usr/local/share/ca-certificates/`) and run `update-ca-certificates`, then

@@ -33,13 +33,4 @@ For more ACL examples refer to the [Redis documentation](https://redis.io/docs/l
   to the database can log in as the `default` user, which by default has
   administrator privileges. You can either disable it (`user default off`) or
   protect it with a strong password.
-
-  Note: Some versions of Teleport require the `default` user to remain enabled
-  for initial connection negotiation. If you see "Server closed the connection"
-  errors after disabling the default user, re-enable it with restricted
-  permissions instead:
-
-  ```text
-  user default on ~* -@all +ping +info +auth
-  ```
 </Admonition>
