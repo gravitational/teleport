@@ -848,6 +848,14 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
+	var scope mfav1.ChallengeScope
+	switch params.CertsReq.GetRequesterName() {
+	case proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI:
+		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI
+	default:
+		scope = mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION
+	}
+
 	params.MFACeremony.CreateAuthenticateChallenge = func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 		chal, err := rootClient.CreateAuthenticateChallenge(ctx, req)
 		if err != nil {
@@ -868,7 +876,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		},
 		MFARequiredCheck: mfaRequiredReq,
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			Scope:      scope,
 			AllowReuse: allowReuse,
 		},
 	}, promptOpts...)

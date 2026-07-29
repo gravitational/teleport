@@ -104,7 +104,8 @@ func TestKubeCertIssuer_OldServerFallback(t *testing.T) {
 		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
 			if params.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
 				multiAttempts.Add(1)
-				return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
+				// An old auth server rejects the unknown reusable scope at challenge creation.
+				return nil, trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse")
 			}
 			legacyCeremonies.Add(1)
 			return &client.IssueUserCertsWithMFAResult{
@@ -156,9 +157,9 @@ func TestKubeCertIssuer_ReplayRejectedFallback(t *testing.T) {
 					ReusableMFAResponse: &ceremonyResp,
 				}, nil
 			}
-			// The replays land on an old auth server that rejects reuse.
+			// The replays land on an old auth server that does not know the response's scope.
 			rejectedReplays.Add(1)
-			return nil, trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context")
+			return nil, trace.AccessDenied(`required scope "CHALLENGE_SCOPE_USER_SESSION" is not satisfied by the given webauthn session with scope "CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI"`)
 		}
 
 		start := time.Now()
@@ -395,6 +396,54 @@ func TestKubeCertIssuer_DistinctTeleportClusters(t *testing.T) {
 		// One single-flighted ceremony plus one concurrent replay wave.
 		require.Equal(t, 2*time.Second, time.Since(start))
 	})
+}
+
+// TestIsMFAReuseRejected verifies that every rejection shape produced by auth servers
+// that predate the reusable kube MFA flow is recognized.
+func TestIsMFAReuseRejected(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name     string
+		err      error
+		rejected bool
+	}{
+		{
+			name:     "typed error, the server validates challenge scopes",
+			err:      trace.Wrap(&mfa.ErrUnknownChallengeScope),
+			rejected: true,
+		},
+		{
+			name:     "challenge scope unknown to the server, rejected at challenge creation",
+			err:      trace.BadParameter("mfa challenges with scope CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI cannot allow reuse"),
+			rejected: true,
+		},
+		{
+			name:     "response scope unknown to the server, rejected at validation",
+			err:      trace.AccessDenied(`required scope "CHALLENGE_SCOPE_USER_SESSION" is not satisfied by the given webauthn session with scope "CHALLENGE_SCOPE_KUBE_LOCAL_PROXY_MULTI"`),
+			rejected: true,
+		},
+		{
+			name:     "server knows the scope but forbids reuse for the requester",
+			err:      trace.AccessDenied("the given webauthn session allows reuse, but reuse is not permitted in this context"),
+			rejected: true,
+		},
+		{
+			name:     "unrelated access denied",
+			err:      trace.AccessDenied("access to kube cluster denied"),
+			rejected: false,
+		},
+		{
+			name:     "matching message but wrong error type",
+			err:      trace.ConnectionProblem(nil, "reuse is not permitted"),
+			rejected: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.rejected, isMFAReuseRejected(tt.err))
+		})
+	}
 }
 
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {

@@ -393,6 +393,18 @@ func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
 	return cluster.TeleportCluster + "/" + cluster.KubeCluster
 }
 
+// isMFAReuseRejected reports whether an auth server rejected the reusable MFA flow.
 func isMFAReuseRejected(err error) bool {
-	return trace.IsAccessDenied(err) && strings.Contains(err.Error(), "reuse is not permitted")
+	// Auth servers that validate challenge scopes reject the unknown kube scope with a typed error at challenge creation.
+	if errors.Is(err, &mfa.ErrUnknownChallengeScope) {
+		return true
+	}
+	// Servers that predate scope validation reject the flow without a typed error, recognized by message below.
+	if trace.IsAccessDenied(err) || trace.IsBadParameter(err) {
+		msg := err.Error()
+		return strings.Contains(msg, "cannot allow reuse") || // challenge scope unknown to the server, rejected at challenge creation
+			strings.Contains(msg, "is not satisfied by the given") || // response scope unknown to the server, rejected at validation
+			strings.Contains(msg, "reuse is not permitted") // server knows the scope but does not allow reuse for the requester
+	}
+	return false
 }
