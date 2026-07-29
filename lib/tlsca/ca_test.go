@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"strings"
 	"testing"
 	"time"
 
@@ -604,6 +605,66 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 			assert.ElementsMatch(t, decoded.AllowedResourceIDs, roundtripped.AllowedResourceIDs)
 		})
 	}
+}
+
+// TestAllowedResources_UnknownConstraintKindDecodes verifies that a cert
+// minted by a newer Auth with a constraint kind this build does not know
+// still decodes, keeping the unknown content as an unenforceable entry.
+func TestAllowedResources_UnknownConstraintKindDecodes(t *testing.T) {
+	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
+	constrainedApp := types.ResourceAccessID{
+		Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws-console"},
+		Constraints: &types.ResourceConstraints{
+			Version: types.V1,
+			Details: &types.ResourceConstraints_AwsConsole{
+				AwsConsole: &types.AWSConsoleResourceConstraints{
+					RoleArns: []string{"arn:aws:iam::123456789012:role/DevOps"},
+				},
+			},
+		},
+	}
+
+	identity := &Identity{
+		Username:                 "test-user",
+		Groups:                   []string{"access"},
+		AllowedResourceAccessIDs: append(types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}), constrainedApp),
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	// Simulate the same cert minted by a newer Auth.
+	tampered := false
+	for i, name := range subj.ExtraNames {
+		if !name.Type.Equal(AllowedResourceAccessIDsASN1ExtensionOID) {
+			continue
+		}
+		val, ok := name.Value.(string)
+		require.True(t, ok)
+		require.Contains(t, val, `"aws_console"`)
+		subj.ExtraNames[i].Value = strings.Replace(val, `"aws_console"`, `"some_future_kind"`, 1)
+		tampered = true
+	}
+	require.True(t, tampered, "AllowedResourceAccessIDs extension not found")
+
+	subj.Names = append(subj.Names, subj.ExtraNames...)
+	subj.ExtraNames = nil
+
+	decoded, err := FromSubject(subj, time.Time{})
+	require.NoError(t, err)
+
+	byName := map[string]types.ResourceAccessID{}
+	for _, r := range decoded.AllowedResourceAccessIDs {
+		byName[r.GetResourceID().Name] = r
+	}
+	require.Len(t, byName, 2)
+	require.Contains(t, byName, "prod-node")
+	require.Nil(t, byName["prod-node"].Constraints)
+
+	rc := byName["aws-console"].Constraints
+	require.NotNil(t, rc, "constraints must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, types.V1, rc.Version)
 }
 
 // legacyExtensionIDs extracts ResourceIDs from the legacy AllowedResources
