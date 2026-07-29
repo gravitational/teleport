@@ -46,7 +46,7 @@ var (
 	// ErrInternal returned when there is a Teleport processing error (nothing to do with the inference provider).
 	ErrInternal = errors.New("unable to serve the request due to an internal error. Contact your Teleport administrator")
 	// ErrLimitExceeded returned when Teleport rejects the request due to limit exceeded.
-	ErrLimitExceeded = errors.New("tokens quota exceeded. Contact you Teleport administrator")
+	ErrLimitExceeded = errors.New("tokens quota exceeded. Contact your Teleport administrator")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )

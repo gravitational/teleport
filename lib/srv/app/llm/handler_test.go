@@ -252,7 +252,7 @@ func TestHandleRequest(t *testing.T) {
 			})
 
 			const maxOutputTokens = 128
-			limiter := newLimiter(llmlimiter.ReserveInfo{OutputTokens: maxOutputTokens})
+			limiter := newMockLimiter(llmlimiter.ReserveInfo{OutputTokens: maxOutputTokens})
 			h := newTestHandler(t, tc.transport, limiter)
 			app := newTestApp(t, &types.LLM{Format: types.LLMFormatAnthropic, Provider: types.LLMProviderAnthropic})
 			sessionCtx := &common.SessionContext{App: app, Audit: audit}
@@ -439,7 +439,7 @@ type streamRecorder struct {
 
 func (s *streamRecorder) Write(p []byte) (int, error) { return len(p), nil }
 
-func newLimiter(info llmlimiter.ReserveInfo) *mockLimiter {
+func newMockLimiter(info llmlimiter.ReserveInfo) *mockLimiter {
 	return &mockLimiter{reserveInfo: info}
 }
 
