@@ -415,7 +415,7 @@ function renderComponent(opts?: {
   const { props, customAcl, disableTracking } = opts ?? {};
   const { selected = [], onChange = () => {} } = props ?? {};
 
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   return {
     ...render(
