@@ -30,25 +30,34 @@ import (
 
 // S3Client mocks AWS S3 API.
 type S3Client struct {
-	Buckets             []s3types.Bucket
-	BucketPolicy        map[string]string
-	BucketPolicyStatus  map[string]s3types.PolicyStatus
-	BucketACL           map[string][]s3types.Grant
-	BucketTags          map[string][]s3types.Tag
-	BucketLocations     map[string]s3types.BucketLocationConstraint
-	ListBucketsPageSize int
-	RequireMaxBuckets   bool
+	Buckets            []s3types.Bucket
+	BucketPolicy       map[string]string
+	BucketPolicyStatus map[string]s3types.PolicyStatus
+	BucketACL          map[string][]s3types.Grant
+	BucketTags         map[string][]s3types.Tag
+	BucketLocations    map[string]s3types.BucketLocationConstraint
+	// RequireMaxBuckets rejects unpaginated ListBuckets requests, as AWS does
+	// for accounts with a bucket quota above maxListBuckets.
+	RequireMaxBuckets bool
 }
 
+// maxListBuckets is the largest page size ListBuckets accepts for max-buckets.
+const maxListBuckets = 10000
+
+// ListBuckets pages through Buckets using max-buckets as the page size. The
+// continuation token is the index of the first bucket of the next page.
 func (m *S3Client) ListBuckets(_ context.Context, input *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
-	if m.RequireMaxBuckets && input.MaxBuckets == nil {
-		return nil, trace.BadParameter("unpaginated ListBuckets requests are rejected for accounts with a bucket quota greater than 10,000")
-	}
-	// When <=0, all buckets are returned in a single page.
-	if m.ListBucketsPageSize <= 0 {
+	if input.MaxBuckets == nil {
+		if m.RequireMaxBuckets {
+			return nil, trace.BadParameter("unpaginated ListBuckets requests are rejected for accounts with a bucket quota greater than %d", maxListBuckets)
+		}
 		return &s3.ListBucketsOutput{
 			Buckets: m.Buckets,
 		}, nil
+	}
+	pageSize := int(aws.ToInt32(input.MaxBuckets))
+	if pageSize < 1 || pageSize > maxListBuckets {
+		return nil, trace.BadParameter("max-buckets must be between 1 and %d, got %d", maxListBuckets, pageSize)
 	}
 
 	start := 0
@@ -59,7 +68,7 @@ func (m *S3Client) ListBuckets(_ context.Context, input *s3.ListBucketsInput, _ 
 			return nil, trace.BadParameter("invalid continuation token %q", token)
 		}
 	}
-	end := min(start+m.ListBucketsPageSize, len(m.Buckets))
+	end := min(start+pageSize, len(m.Buckets))
 	out := &s3.ListBucketsOutput{
 		Buckets: m.Buckets[start:end],
 	}
