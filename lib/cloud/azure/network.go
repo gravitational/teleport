@@ -124,6 +124,8 @@ func NewNetworkInterfacesClientByAPI(config NetworkInterfacesClientConfig) Netwo
 //
 // scaleSetIDs is a list of resource IDs for the virtual machine scale sets.
 // e.g. "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachineScaleSets/<vmss>"
+// If a scale set ID is not in the same subscription or resource group, it is
+// skipped with a warning.
 func (c *networkInterfacesClient) ListNetworkInterfaces(ctx context.Context, resourceGroup string, scaleSetIDs ...string) ([]*NetworkInterface, error) {
 	standardAndFlexibleNICs, err := c.listStandardAndFlexibleNICs(ctx, resourceGroup)
 	if err != nil {
@@ -133,7 +135,7 @@ func (c *networkInterfacesClient) ListNetworkInterfaces(ctx context.Context, res
 	// Currently, we're more concerned with listing standard and flexible VMSS
 	// NICs, so if a uniform VMSS NIC listing fails, it is logged and the process
 	// continues.
-	uniformNICs := c.listUniformNICs(ctx, scaleSetIDs)
+	uniformNICs := c.listUniformNICs(ctx, resourceGroup, scaleSetIDs)
 
 	return append(standardAndFlexibleNICs, uniformNICs...), nil
 }
@@ -158,7 +160,7 @@ func (c *networkInterfacesClient) listStandardAndFlexibleNICs(ctx context.Contex
 	return c.collectNICs(ctx, pager)
 }
 
-func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, scaleSetIDs []string) []*NetworkInterface {
+func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, resourceGroup string, scaleSetIDs []string) []*NetworkInterface {
 	var allNICs []*NetworkInterface
 	for _, scaleSetID := range slices.DeduplicateKey(scaleSetIDs, strings.ToLower) {
 		id, err := arm.ParseResourceID(scaleSetID)
@@ -167,7 +169,7 @@ func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, scaleSetI
 			continue
 		}
 
-		// Check the resource ID is for a uniform VMSS in the same subscription.
+		// Check the resource ID is for a uniform VMSS in the same subscription and resource group.
 		isComputeNamespace := strings.EqualFold(id.ResourceType.Namespace, "Microsoft.Compute")
 		isVMSSResourceType := strings.EqualFold(id.ResourceType.Type, "virtualMachineScaleSets")
 		if !isComputeNamespace || !isVMSSResourceType {
@@ -176,6 +178,10 @@ func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, scaleSetI
 		}
 		if id.SubscriptionID != c.subscriptionID {
 			c.logger.WarnContext(ctx, "Skipping scale set ID in a different subscription", "scale_set_id", scaleSetID, "subscription_id", id.SubscriptionID)
+			continue
+		}
+		if resourceGroup != types.Wildcard && !strings.EqualFold(id.ResourceGroupName, resourceGroup) {
+			c.logger.WarnContext(ctx, "Skipping scale set ID in a different resource group", "scale_set_id", scaleSetID, "resource_group", resourceGroup)
 			continue
 		}
 
