@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -671,11 +672,11 @@ func TestNodeCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateNode", func(t *testing.T) {
-		node1, err = presence.GetNode(ctx, apidefaults.Namespace, node1.GetName())
+		node1, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: node1.GetName()}.Build())
 		require.NoError(t, err)
 		node1.SetAddr("1.2.3.4:8080")
 
-		node2, err = presence.GetNode(ctx, apidefaults.Namespace, node2.GetName())
+		node2, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: node2.GetName()}.Build())
 		require.NoError(t, err)
 
 		node1, err = presence.UpdateNode(ctx, node1)
@@ -705,36 +706,28 @@ func TestNodeCRUD(t *testing.T) {
 			require.Len(t, nodes, 2)
 			require.Empty(t, cmp.Diff([]types.Server{node1, node2}, nodes,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-			// GetNodes should fail if namespace isn't provided
-			_, err = presence.GetNodes(ctx, "")
-			require.True(t, trace.IsBadParameter(err))
 		})
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
 			// Get Node
-			node, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+			node, err := presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNode should fail if node name isn't provided
-			_, err = presence.GetNode(ctx, apidefaults.Namespace, "")
-			require.True(t, trace.IsBadParameter(err))
-
-			// GetNode should fail if namespace isn't provided
-			_, err = presence.GetNode(ctx, "", "node1")
+			_, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{}.Build())
 			require.True(t, trace.IsBadParameter(err))
 		})
 	})
 
 	t.Run("DeleteNode", func(t *testing.T) {
 		// Delete node.
-		err = presence.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		err = presence.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node1.GetName()}.Build())
 		require.NoError(t, err)
 
 		// Expect node not found
-		_, err := presence.GetNode(ctx, apidefaults.Namespace, "node1")
+		_, err := presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
@@ -1205,11 +1198,13 @@ func TestListResources_Helpers(t *testing.T) {
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
-		name  string
-		fetch func(proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+		name       string
+		scopeAware bool
+		fetch      func(proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	}{
 		{
-			name: "listResources",
+			name:       "listResources",
+			scopeAware: true,
 			fetch: func(req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
 				return presence.listResources(ctx, req)
 			},
@@ -1295,7 +1290,21 @@ func TestListResources_Helpers(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
 				require.NoError(t, err)
-				require.Empty(t, resp.NextKey)
+				if !tc.scopeAware {
+					require.Empty(t, resp.NextKey)
+				} else {
+					require.Equal(t, scopes.ResourceCursorScopedStart(), resp.NextKey)
+
+					next, err := tc.fetch(proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						StartKey:     resp.NextKey,
+						Limit:        10,
+					})
+					require.NoError(t, err)
+					require.Empty(t, next.Resources)
+					require.Empty(t, next.NextKey)
+				}
 
 				fetchedNodes, err := types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
@@ -1351,7 +1360,22 @@ func TestListResources_Helpers(t *testing.T) {
 				fetchedNodes, err = types.ResourcesWithLabels(resp.Resources).AsServers()
 				require.NoError(t, err)
 				require.Equal(t, nodes[15:20], fetchedNodes)
-				require.Empty(t, resp.NextKey)
+
+				if !tc.scopeAware {
+					require.Empty(t, resp.NextKey)
+				} else {
+					require.Equal(t, scopes.ResourceCursorScopedStart(), resp.NextKey)
+
+					next, err := tc.fetch(proto.ListResourcesRequest{
+						ResourceType: types.KindNode,
+						Namespace:    apidefaults.Namespace,
+						StartKey:     resp.NextKey,
+						Limit:        10,
+					})
+					require.NoError(t, err)
+					require.Empty(t, next.Resources)
+					require.Empty(t, next.NextKey)
+				}
 			})
 		}
 	})
@@ -1570,6 +1594,63 @@ func TestFakePaginateWithScopes(t *testing.T) {
 			}
 		}
 		require.Equal(t, clusterCount, count)
+	}
+}
+
+// TestFakePaginateNodesWithScopes verifies that fake pagination over nodes that
+// share a name across scopes visits each node exactly once. Node names are only
+// unique within a scope, so the pagination key must incorporate the scope.
+func TestFakePaginateNodesWithScopes(t *testing.T) {
+	t.Parallel()
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+	newNode := func(i int) *types.ServerV2 {
+		return &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "node",
+				// we use the revision to easily tell the resources apart
+				Revision: strconv.Itoa(i),
+			},
+			Scope: makeScope(i),
+		}
+	}
+
+	nodeCount := 100
+	// all nodes have the same name, so the only way to correctly paginate them
+	// is by scope
+	resources := make([]types.ResourceWithLabels, nodeCount)
+	for i := range nodeCount {
+		resources[i] = newNode(i)
+	}
+
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
+		startKey := ""
+		count := 0
+		for range nodeCount/pageSize + 1 {
+			res, err := FakePaginate(resources, FakePaginateParams{
+				ResourceType: types.KindNode,
+				Limit:        int32(pageSize),
+				Kinds:        []string{types.KindNode},
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+			for _, r := range res.Resources {
+				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
+				count++
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+		require.Equal(t, nodeCount, count, "page size %d", pageSize)
 	}
 }
 
@@ -2374,5 +2455,184 @@ func TestScopedLease(t *testing.T) {
 		lease, err = presence.UpsertApplicationServer(ctx, scopedServer)
 		require.NoError(t, err)
 		require.Equal(t, scope, lease.Scope)
+	})
+}
+
+func mustCreateNode(t *testing.T, name, scope string) *types.ServerV2 {
+	t.Helper()
+
+	node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	server, ok := node.(*types.ServerV2)
+	require.True(t, ok, "expected types.ServerV2")
+	server.Scope = scope
+	server.SetExpiry(time.Now().Add(24 * time.Hour))
+	return server
+}
+
+func nodeCursors(nodes []types.Server) []string {
+	out := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, services.GetCursorForNode(node))
+	}
+	slices.Sort(out)
+	return out
+}
+
+func TestNodesCRUD(t *testing.T) {
+	t.Parallel()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(backend.NewSanitizer(bk))
+
+	const (
+		prodScope    = "/prod/test"
+		stagingScope = "/staging/test"
+	)
+
+	unscopedTest := mustCreateNode(t, "test", "")
+	prodTest := mustCreateNode(t, "test", prodScope)
+	stagingTest := mustCreateNode(t, "test", stagingScope)
+	prodTest2 := mustCreateNode(t, "test2", prodScope)
+
+	allNodes := []types.Server{unscopedTest, prodTest, stagingTest, prodTest2}
+	nodes, err := presence.GetNodes(t.Context(), apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, nodes)
+
+	for _, node := range allNodes {
+		lease, err := presence.UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+		require.Equal(t, node.GetScope(), lease.Scope)
+	}
+
+	t.Run("get same named nodes across scopes", func(t *testing.T) {
+		for _, tt := range []struct {
+			name  string
+			scope string
+		}{
+			{name: "unscoped", scope: ""},
+			{name: "prod", scope: prodScope},
+			{name: "staging", scope: stagingScope},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				node, err := presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{
+					Name:  "test",
+					Scope: tt.scope,
+				}.Build())
+				require.NoError(t, err)
+				require.Equal(t, tt.scope, node.GetScope())
+				// require.Equal(t, tt.addr, node.GetAddr())
+			})
+		}
+
+		// A name that exists in only one scope is not reachable from another.
+		_, err := presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{
+			Name:  "test2",
+			Scope: stagingScope,
+		}.Build())
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		_, err = presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: "db"}.Build())
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+	})
+
+	t.Run("GetNodes", func(t *testing.T) {
+		nodes, err := presence.GetNodes(t.Context(), apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, nodeCursors(allNodes), nodeCursors(nodes))
+	})
+
+	t.Run("list nodes with filters", func(t *testing.T) {
+		for _, tt := range []struct {
+			name   string
+			filter *scopesv1.Filter
+			expect []types.Server
+		}{
+			{
+				name:   "unspecified matches every scope",
+				filter: nil,
+				expect: allNodes,
+			},
+			{
+				name:   "all",
+				filter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+				expect: allNodes,
+			},
+			{
+				name:   "unscoped only",
+				filter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(),
+				expect: []types.Server{unscopedTest},
+			},
+			{
+				name:   "exact",
+				filter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT, Scope: prodScope}.Build(),
+				expect: []types.Server{prodTest, prodTest2},
+			},
+			{
+				name:   "descendants",
+				filter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/prod"}.Build(),
+				expect: []types.Server{prodTest, prodTest2},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				req := presencev1.ListSSHServersRequest_builder{ScopeFilter: tt.filter}.Build()
+
+				listed, next, err := presence.ListSSHServers(t.Context(), req)
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Equal(t, nodeCursors(tt.expect), nodeCursors(listed))
+
+				ranged, err := iterstream.Collect(presence.RangeSSHServers(t.Context(), req))
+				require.NoError(t, err)
+				require.Equal(t, nodeCursors(tt.expect), nodeCursors(ranged))
+			})
+		}
+	})
+
+	t.Run("delete scoped", func(t *testing.T) {
+		require.NoError(t, presence.DeleteSSHServer(t.Context(), presencev1.DeleteSSHServerRequest_builder{
+			Name:  "test",
+			Scope: prodScope,
+		}.Build()))
+
+		_, err := presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{
+			Name:  "test",
+			Scope: prodScope,
+		}.Build())
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		nodes, err := presence.GetNodes(t.Context(), apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Equal(t, nodeCursors([]types.Server{unscopedTest, stagingTest, prodTest2}), nodeCursors(nodes))
+	})
+
+	t.Run("delete unscoped", func(t *testing.T) {
+		require.NoError(t, presence.DeleteSSHServer(t.Context(), presencev1.DeleteSSHServerRequest_builder{
+			Name: "test",
+		}.Build()))
+
+		_, err := presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{Name: "web"}.Build())
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		staging, err := presence.GetSSHServer(t.Context(), presencev1.GetSSHServerRequest_builder{
+			Name:  "test",
+			Scope: stagingScope,
+		}.Build())
+		require.NoError(t, err)
+		require.Equal(t, stagingScope, staging.GetScope())
+	})
+
+	t.Run("DeleteAllNodes", func(t *testing.T) {
+		require.NoError(t, presence.DeleteAllNodes(t.Context(), apidefaults.Namespace))
+
+		nodes, err := presence.GetNodes(t.Context(), apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, nodes)
 	})
 }

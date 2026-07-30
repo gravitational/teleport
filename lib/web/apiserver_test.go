@@ -90,6 +90,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -7302,7 +7305,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 	// Wait for node to show up
 	require.Eventually(t, func() bool {
-		_, err := env.server.Auth().GetNode(ctx, apidefaults.Namespace, nodeName)
+		_, err := env.server.Auth().GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodeName}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}

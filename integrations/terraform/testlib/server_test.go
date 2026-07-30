@@ -34,6 +34,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHServer() {
 	s.T().Cleanup(cancel)
 
 	checkServerDestroyed := func(state *terraform.State) error {
+		//nolint:staticcheck // TODO(williamo): remove when we update IAC
 		_, err := s.client.GetNode(ctx, defaults.Namespace, "test")
 		if trace.IsNotFound(err) {
 			return nil
@@ -86,6 +87,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHServerNameless() {
 
 	checkServerDestroyed := func(state *terraform.State) error {
 		// The name is a UUID but we can lookup by hostname as well.
+		//nolint:staticcheck // TODO(williamo): remove when we update IAC
 		_, err := s.client.GetNode(ctx, defaults.Namespace, "test.local")
 		if trace.IsNotFound(err) {
 			return nil
@@ -159,6 +161,7 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
+		//nolint:staticcheck // TODO(williamo): remove when we update IAC
 		_, err = s.client.GetNode(ctx, defaults.Namespace, server.GetName())
 		if trace.IsNotFound(err) {
 			return false
@@ -193,6 +196,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHEICEServer() {
 	s.T().Cleanup(cancel)
 
 	checkServerDestroyed := func(state *terraform.State) error {
+		//nolint:staticcheck // TODO(williamo): remove when we update IAC
 		_, err := s.client.GetNode(ctx, defaults.Namespace, "test")
 		if trace.IsNotFound(err) {
 			return nil
@@ -288,6 +292,7 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHEICEServer() {
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
+		//nolint:staticcheck // TODO(williamo): remove when we update IAC
 		_, err = s.client.GetNode(ctx, defaults.Namespace, server.GetName())
 		if trace.IsNotFound(err) {
 			return false

@@ -40,7 +40,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -1245,7 +1245,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be added
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
+		_, err := authServer.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
 		return err == nil
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 
@@ -1261,7 +1261,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be deleted
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
+		_, err := authServer.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodeID}.Build())
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }

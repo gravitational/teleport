@@ -479,6 +479,26 @@ func TestJoinEC2(t *testing.T) {
 				clock = clockwork.NewRealClock()
 			}
 			testServer.Auth().SetClock(clock)
+			_, err = testServer.Auth().UpsertNode(t.Context(), node)
+			require.NoError(t, err)
+
+			// Introduction of ssh server namespacing means that
+			// 2 identical names ins different scopes is valid.
+			// We should only collide when the duplicate's scope also matches.
+			scopedNode := &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      instance2.account + "-" + instance2.instanceID,
+					Namespace: defaults.Namespace,
+				},
+				Scope: "/test/one",
+			}
+			_, err = testServer.Auth().UpsertNode(t.Context(), scopedNode)
+			require.NoError(t, err)
+
+			nopClient, err := testServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
 
 			token, err := types.NewProvisionTokenFromSpec(
 				"test_token",
@@ -634,7 +654,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteNode(t.Context(), defaults.Namespace, hostID))
+				require.NoError(t, a.DeleteSSHServer(t.Context(), presencev1.DeleteSSHServerRequest_builder{Name: hostID}.Build()))
 			},
 		},
 		{

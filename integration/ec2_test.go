@@ -38,6 +38,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -420,8 +421,8 @@ func TestEC2Labels(t *testing.T) {
 
 	// Check that EC2 labels were applied.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		assert.NoError(t, err)
+		node, err := authServer.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: nodes[0].GetName()}.Build())
+		require.NoError(t, err)
 
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
 		assert.True(t, nodeHasLabel)
