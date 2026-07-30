@@ -1071,6 +1071,29 @@ a Kubernetes PodDisruptionBudget for the agent pods.
 `highAvailability.podDisruptionBudget.minAvailable` is the minimum
 available pod specified on the PodDisruptionBudget.
 
+#### `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy`
+
+| Type | Default |
+|------|---------|
+| `string` | `"AlwaysAllow"` |
+
+`highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` Allow
+eviction of unhealthy pods even if it falls below minAvailable. When all
+pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
+server due to firewall/networking), the default policy (IfHealthyBudget)
+prevents draining a node.
+
+#### `highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy` enabled unhealthyPodEvictionPolicy for kubernetes clusters < v1.31. The
+feature became [stable in that version](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy)
+but is available in k8s 1.26-1.30 if explicitly enabled, and may require
+the PDBUnhealthyPodEvictionPolicy feature gate.
+
 ## `podMonitor`
 
 `podMonitor` controls the PodMonitor CR (from monitoring.coreos.com/v1)
