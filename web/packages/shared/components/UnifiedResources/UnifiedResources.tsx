@@ -65,6 +65,7 @@ import { ListView } from './ListView/ListView';
 import { ResourceTab } from './ResourceTab';
 import { getResourceId } from './shared/StatusInfo';
 import { mapResourceToViewItem } from './shared/viewItemsFactory';
+import './unifiedStyles.css';
 import {
   IncludedResourceMode,
   PinningSupport,
@@ -912,8 +913,12 @@ const ListFooter = styled.div`
  */
 export function getResourceAvailabilityFilter(
   availableResourceMode: AvailableResourceMode,
-  canRequestAllResources: boolean
+  canRequestAllResources: boolean,
+  scopedSession: boolean = false
 ): ResourceAvailabilityFilter {
+  if (scopedSession) {
+    return { mode: 'accessible', canRequestAll: false };
+  }
   switch (availableResourceMode) {
     case AvailableResourceMode.NONE:
       if (!canRequestAllResources) {

@@ -23,6 +23,12 @@ import cfg from 'teleport/config';
 
 let _inst: History = null;
 
+export type LoginOptions = {
+  rememberLocation?: boolean;
+  withAccessChangedMessage?: boolean;
+  scope?: string;
+};
+
 const history = {
   original() {
     return _inst;
@@ -53,29 +59,33 @@ const history = {
   goToLogin({
     rememberLocation = false,
     withAccessChangedMessage = false,
-  } = {}) {
-    const params: string[] = [];
+    scope = '',
+  }: LoginOptions = {}) {
+    const params = new URLSearchParams();
 
     // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that
     // they were logged out due to their roles having changed.
     if (withAccessChangedMessage) {
-      params.push('access_changed');
+      params.set('access_changed', '');
     }
 
     if (rememberLocation) {
       const { search, pathname } = _inst.location;
       const knownRoute = this.ensureKnownRoute(pathname);
       const knownRedirect = this.ensureBaseUrl(knownRoute);
-      const query = search ? encodeURIComponent(search) : '';
-      params.push(`redirect_uri=${knownRedirect}${query}`);
+      params.set('redirect_uri', knownRedirect + search);
     }
 
-    const queryString = params.join('&');
+    if (scope) {
+      params.set('scope', scope);
+    }
+
+    const queryString = params.toString();
     const url = queryString
       ? `${cfg.routes.login}?${queryString}`
       : cfg.routes.login;
 
-    this._pageRefresh(url);
+    this._pageRefresh(url.toString());
   },
 
   /**
@@ -83,15 +93,14 @@ const history = {
    * the scope has been picked.
    */
   getScopePickerUrl() {
-    const params: string[] = [];
+    const params = new URLSearchParams();
 
     const { search, pathname } = this.getLocation();
     const knownRoute = this.ensureKnownRoute(pathname);
     const knownRedirect = this.ensureBaseUrl(knownRoute);
-    const query = search ? encodeURIComponent(search) : '';
-    params.push(`redirect_uri=${knownRedirect}${query}`);
+    params.set(`redirect_uri`, knownRedirect + search);
 
-    const queryString = params.join('&');
+    const queryString = params.toString();
     const url = queryString
       ? `${cfg.routes.scopePicker}?${queryString}`
       : cfg.routes.scopePicker;
@@ -153,6 +162,22 @@ const history = {
 
   _pageRefresh(route: string) {
     window.location.href = this.ensureBaseUrl(route);
+  },
+
+  /**
+   * getEntryRoute returns a base ensured redirect URL value that is safe
+   * for redirect.
+   * @returns base ensured URL string.
+   */
+  getEntryRoute() {
+    let entryUrl = this.getRedirectParam();
+    if (entryUrl) {
+      entryUrl = this.ensureKnownRoute(entryUrl);
+    } else {
+      entryUrl = cfg.routes.root;
+    }
+
+    return this.ensureBaseUrl(entryUrl);
   },
 };
 

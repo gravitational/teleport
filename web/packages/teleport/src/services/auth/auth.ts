@@ -115,17 +115,18 @@ const auth = {
       .then(parseMfaChallengeJson);
   },
 
-  login(userId: string, password: string, otpCode: string) {
+  login(userId: string, password: string, otpCode: string, scope: string) {
     const data = {
       user: userId,
       pass: password,
       second_factor_token: otpCode,
+      scope,
     };
 
     return api.post(cfg.api.webSessionPath, data);
   },
 
-  loginWithWebauthn(creds?: UserCredentials) {
+  loginWithWebauthn(creds?: UserCredentials, scope: string = '') {
     return auth
       .checkWebauthnSupport()
       .then(() => auth.mfaLoginBegin(creds))
@@ -138,6 +139,7 @@ const auth = {
         const request = {
           user: creds?.username,
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          scope,
         };
 
         return api.post(cfg.api.mfaLoginFinish, request);
