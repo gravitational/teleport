@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -78,8 +79,12 @@ func TestBotInstanceCache(t *testing.T) {
 					return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
 				},
 				update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
-					_, err := p.botInstanceService.PatchBotInstance(ctx, botScope, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-						return bi, nil
+					_, err := p.botInstanceService.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+						Bot:        scopes.QualifiedName{Scope: botScope, Name: "bot-1"},
+						InstanceID: bi.GetMetadata().GetName(),
+						UpdateFn: func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+							return bi, nil
+						},
 					})
 					return err
 				},
@@ -274,6 +279,17 @@ func TestBotInstanceCacheList(t *testing.T) {
 			},
 			opts: &services.ListBotInstancesRequestOptions{FilterBotName: "web", FilterBotScope: "/prod"},
 			want: []string{"web-p1", "web-p2"},
+		},
+		{
+			// A scope filter only qualifies a bot name, so it is rejected on its
+			// own rather than listing every instance in the scope.
+			name: "scope filter without a bot name filter is rejected",
+			instances: []botInstanceSpec{
+				{botName: "web", id: "web-u"},
+				{scope: "/prod", botName: "web", id: "web-p1"},
+			},
+			opts:    &services.ListBotInstancesRequestOptions{FilterBotScope: "/prod"},
+			wantErr: "bot scope filter requires a bot name filter",
 		},
 		{
 			name: "search term matches across scopes",

@@ -1759,7 +1759,7 @@ func (m *mockBotInstanceCache) DeleteBotInstance(ctx context.Context, req *machi
 	return nil
 }
 
-func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, botScope, botName, instanceID string, update func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)) (*machineidv1.BotInstance, error) {
+func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, opts services.PatchBotInstanceOpts) (*machineidv1.BotInstance, error) {
 	return nil, nil
 }
 

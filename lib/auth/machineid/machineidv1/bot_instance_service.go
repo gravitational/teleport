@@ -144,7 +144,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	ruleCtx.Resource153 = instance
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		req.GetBotScope(),
+		instance.GetScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -362,29 +362,33 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"bot_instance", botInstanceID,
 		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
-	_, err = b.backend.PatchBotInstance(ctx, botScope, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
-		if !instance.HasStatus() {
-			instance.SetStatus(&pb.BotInstanceStatus{})
-		}
-		// Set initial heartbeat if not set.
-		if !instance.GetStatus().HasInitialHeartbeat() {
-			instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
-		}
-		// If we're at or above the limit, remove enough of the front
-		// elements to make room for the new one at the end.
-		if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
-			toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
-			instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
-		}
-		// Append the new heartbeat to the end.
-		instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
+	_, err = b.backend.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: botScope, Name: botName},
+		InstanceID: botInstanceID,
+		UpdateFn: func(instance *pb.BotInstance) (*pb.BotInstance, error) {
+			if !instance.HasStatus() {
+				instance.SetStatus(&pb.BotInstanceStatus{})
+			}
+			// Set initial heartbeat if not set.
+			if !instance.GetStatus().HasInitialHeartbeat() {
+				instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
+			}
+			// If we're at or above the limit, remove enough of the front
+			// elements to make room for the new one at the end.
+			if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
+				toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
+				instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
+			}
+			// Append the new heartbeat to the end.
+			instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
 
-		if storeHeartbeatExtras() {
-			// Overwrite the service health.
-			instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
-		}
+			if storeHeartbeatExtras() {
+				// Overwrite the service health.
+				instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
+			}
 
-		return instance, nil
+			return instance, nil
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "patching bot instance")

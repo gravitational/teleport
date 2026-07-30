@@ -104,6 +104,13 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
+	// A bot is identified by the pair (scope, name), so the scope filter only
+	// ever qualifies the name filter. Listing a whole scope will be a separate
+	// filter with explicit exact/descendant control.
+	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
+		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
+
 	index := botInstanceNameIndex
 	keyFn := keyForBotInstanceNameIndex
 	isDesc := options.GetSortDesc()
@@ -148,15 +155,13 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
-			// A bot is identified by (scope, name), so any by-bot or by-scope
-			// filter constrains the scope: name without scope means the
-			// unscoped bot. Only the unfiltered listing spans all scopes.
-			// This mirrors the backend's range routing in
+			// A bot is identified by (scope, name), so a by-bot filter also
+			// constrains the scope: a name without a scope means the unscoped
+			// bot. Only the unfiltered listing spans all scopes. This mirrors
+			// the backend's range routing in
 			// local.BotInstanceService.ListBotInstances.
-			if options.GetFilterBotName() != "" || options.GetFilterBotScope() != "" {
-				if b.GetScope() != options.GetFilterBotScope() {
-					return false
-				}
+			if options.GetFilterBotName() != "" && b.GetScope() != options.GetFilterBotScope() {
+				return false
 			}
 			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {
 				return false

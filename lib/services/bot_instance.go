@@ -26,6 +26,7 @@ import (
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -58,14 +59,23 @@ type BotInstance interface {
 	// by the request's (bot_scope, bot_name) with the given instance ID.
 	DeleteBotInstance(ctx context.Context, req *machineidv1.DeleteBotInstanceRequest) error
 
-	// PatchBotInstance fetches an existing bot instance by bot scope, bot name
-	// and instance ID, then calls `updateFn` to apply any changes before
-	// persisting the resource.
-	PatchBotInstance(
-		ctx context.Context,
-		botScope, botName, instanceID string,
-		updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
-	) (*machineidv1.BotInstance, error)
+	// PatchBotInstance fetches the existing bot instance identified by the
+	// given options, then calls the options' UpdateFn to apply any changes
+	// before persisting the resource.
+	PatchBotInstance(ctx context.Context, opts PatchBotInstanceOpts) (*machineidv1.BotInstance, error)
+}
+
+// PatchBotInstanceOpts identifies the bot instance to be patched by
+// [BotInstance.PatchBotInstance] and holds the patch to apply to it.
+type PatchBotInstanceOpts struct {
+	// Bot is the scope-qualified name of the bot that owns the instance. The
+	// scope must be empty if the bot is unscoped.
+	Bot scopes.QualifiedName
+	// InstanceID is the ID of the instance to patch.
+	InstanceID string
+	// UpdateFn is applied to the fetched instance to produce the instance to
+	// persist. It may be called more than once if the write is retried.
+	UpdateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)
 }
 
 // ValidateBotInstance verifies that required fields for a new BotInstance are present
@@ -168,10 +178,12 @@ type ListBotInstancesRequestOptions struct {
 	// The name of the Bot to list BotInstances for. If empty, all BotInstances
 	// will be listed.
 	FilterBotName string
-	// The scope of the Bot to list BotInstances for. Combined with
-	// FilterBotName to identify a scoped bot; leave empty if the bot is
-	// unscoped. If set without FilterBotName, all BotInstances in the scope
-	// will be listed.
+	// The scope of the Bot to list BotInstances for. A bot is identified by the
+	// pair (scope, name), so this only ever qualifies FilterBotName and must be
+	// set alongside it; setting it without FilterBotName is an error. Leave
+	// empty if the bot is unscoped. This is deliberately not a scope filter for
+	// listing every BotInstance in a scope - that will be a separate field with
+	// explicit exact/descendant control.
 	FilterBotScope string
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.

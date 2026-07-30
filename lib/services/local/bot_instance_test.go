@@ -328,9 +328,13 @@ func TestBotInstanceCRUD(t *testing.T) {
 		Hostname: "foo",
 	}.Build()
 
-	patched, err = service.PatchBotInstance(ctx, "", bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId(), func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-		bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
-		return bi, nil
+	patched, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
+		InstanceID: bi.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
+			return bi, nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -395,15 +399,12 @@ func TestBotInstanceList(t *testing.T) {
 		require.Contains(t, scopedAIds, ins.GetSpec().GetInstanceId())
 	}
 
-	// listing scope /foo without a bot name should return all instances in the
-	// scope
-	fooInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+	// a scope filter only qualifies a bot name, so listing scope /foo without a
+	// bot name is rejected rather than listing the whole scope
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
 		FilterBotScope: "/foo",
 	})
-	require.Len(t, fooInstances, 2)
-	for _, ins := range fooInstances {
-		require.Contains(t, scopedAIds, ins.GetSpec().GetInstanceId())
-	}
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 
 	allIds := map[string]struct{}{}
 	for i := range aIds {
@@ -477,18 +478,26 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 
 	// Patching routes by scope, and the scope itself cannot be patched.
-	patched, err := service.PatchBotInstance(ctx, "/foo", "x", foo.GetSpec().GetInstanceId(), func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-		bi.GetStatus().SetLatestHeartbeats([]*machineidv1.BotInstanceStatusHeartbeat{
-			machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "scoped-host"}.Build(),
-		})
-		return bi, nil
+	patched, err := service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		InstanceID: foo.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.GetStatus().SetLatestHeartbeats([]*machineidv1.BotInstanceStatusHeartbeat{
+				machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "scoped-host"}.Build(),
+			})
+			return bi, nil
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, "/foo", patched.GetScope())
 
-	_, err = service.PatchBotInstance(ctx, "/foo", "x", foo.GetSpec().GetInstanceId(), func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-		bi.SetScope("/other")
-		return bi, nil
+	_, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		InstanceID: foo.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.SetScope("/other")
+			return bi, nil
+		},
 	})
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	require.ErrorContains(t, err, "scope: cannot be patched")

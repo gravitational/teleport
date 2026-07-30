@@ -125,8 +125,9 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *machineidv
 
 // ListBotInstances lists all matching bot instances. A bot (scope, name) and/or search terms can be optionally provided.
 // If an non-empty bot name is provided, only instances for that bot will be fetched. The bot scope must be
-// provided alongside the name for a scoped bot's instances; with no bot filter, instances for all bots are
-// listed, unscoped bots' instances first.
+// provided alongside the name for a scoped bot's instances, and only ever qualifies the name - providing a
+// scope without a name is an error rather than a request for every instance in that scope. With no bot filter,
+// instances for all bots are listed, unscoped bots' instances first.
 // If an non-empty search term is provided, only instances with a value containing the term in supported fields are fetched.
 // Supported search fields include; bot name, instance id, hostname (latest), tbot version (latest), join method (latest).
 // Sorting by bot name in ascending order is supported - an error is returned for any other sort type.
@@ -137,6 +138,12 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	if options.GetSortDesc() {
 		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
+	// A bot is identified by the pair (scope, name), so the scope filter only
+	// ever qualifies the name filter. Listing a whole scope will be a separate
+	// filter with explicit exact/descendant control.
+	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
+		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
 
 	// Satisfied by both the scope-aware wrapper (unified listing across the
 	// unscoped and scoped key ranges) and a single-range service routed by the
@@ -145,17 +152,16 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 		ListResources(ctx context.Context, pageSize int, nextToken string) ([]*machineidv1.BotInstance, string, error)
 		ListResourcesWithFilter(ctx context.Context, pageSize int, nextToken string, matcher func(*machineidv1.BotInstance) bool) ([]*machineidv1.BotInstance, string, error)
 	}
-	if options.GetFilterBotName() == "" && options.GetFilterBotScope() == "" {
+	if options.GetFilterBotName() == "" {
 		// If no bot filter is set, return instances for all bots across both
 		// the unscoped and scoped key ranges.
 		service = b.service
 	} else {
-		routed, err := b.service.WithScopePrefix(options.GetFilterBotScope())
+		// The filter identifies exactly one bot, so read only that bot's
+		// sub-range.
+		routed, err := b.serviceForBot(options.GetFilterBotScope(), options.GetFilterBotName())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
-		}
-		if options.GetFilterBotName() != "" {
-			routed = routed.WithPrefix(options.GetFilterBotName())
 		}
 		service = routed
 	}
@@ -207,28 +213,31 @@ func (b *BotInstanceService) DeleteAllBotInstances(ctx context.Context) error {
 	return trace.Wrap(b.service.DeleteAllResources(ctx))
 }
 
-// PatchBotInstance uses the supplied function to patch the bot instance
-// matching the given (botScope, botName, instanceID) key and persists the
-// patched resource. It will make multiple attempts if a `CompareFailed` error
-// is raised, automatically re-applying `updateFn()`.
+// PatchBotInstance uses the options' UpdateFn to patch the bot instance
+// identified by those same options and persists the patched resource. It will
+// make multiple attempts if a `CompareFailed` error is raised, automatically
+// re-applying UpdateFn.
 func (b *BotInstanceService) PatchBotInstance(
 	ctx context.Context,
-	botScope, botName, instanceID string,
-	updateFn func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error),
+	opts services.PatchBotInstanceOpts,
 ) (*machineidv1.BotInstance, error) {
+	if opts.UpdateFn == nil {
+		return nil, trace.BadParameter("opts.UpdateFn is required")
+	}
+
 	const iterLimit = 3
 
 	for range iterLimit {
 		existing, err := b.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
-			BotScope:   botScope,
-			BotName:    botName,
-			InstanceId: instanceID,
+			BotScope:   opts.Bot.Scope,
+			BotName:    opts.Bot.Name,
+			InstanceId: opts.InstanceID,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		updated, err := updateFn(utils.CloneProtoMsg(existing))
+		updated, err := opts.UpdateFn(utils.CloneProtoMsg(existing))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -246,7 +255,7 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.BadParameter("scope: cannot be patched")
 		}
 
-		serviceWithPrefix, err := b.serviceForBot(botScope, botName)
+		serviceWithPrefix, err := b.serviceForBot(opts.Bot.Scope, opts.Bot.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
