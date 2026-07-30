@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { MemoryRouter } from 'react-router';
+
+import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth/auth';
@@ -6,6 +8,15 @@ import history from 'teleport/services/history';
 import session from 'teleport/services/websession';
 
 import { LoginContainer as Login } from './Login';
+
+function LoginTest({ initialURL }: { initialURL?: string }) {
+  const initialEntries = initialURL ? [initialURL] : undefined;
+  return (
+    <MemoryRouter initialEntries={initialEntries}>
+      <Login />
+    </MemoryRouter>
+  );
+}
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -16,7 +27,7 @@ beforeEach(() => {
 });
 
 test('basic rendering', () => {
-  render(<Login />);
+  render(<LoginTest />);
 
   // test rendering of logo and title
   expect(screen.getByRole('img')).toBeInTheDocument();
@@ -26,57 +37,76 @@ test('basic rendering', () => {
 test('renders Beams branding when beamsUi is enabled', () => {
   jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
 
-  render(<Login />);
+  render(<LoginTest />);
 
   expect(screen.getByText('Sign in to Beams')).toBeInTheDocument();
   expect(screen.queryByText('Sign in to Teleport')).not.toBeInTheDocument();
 });
 
-test('login with redirect', async () => {
-  jest.spyOn(auth, 'login').mockResolvedValue({});
+describe.each([
+  {
+    name: 'unscoped',
+    url: '/web/login',
+    scope: '',
+    ssoURL:
+      'http://localhost/v1/webapi/github/login/web?connector_id=github&redirect_url=http%3A%2F%2Flocalhost%2Fweb',
+  },
+  {
+    name: 'scoped',
+    url: '/web/login?scope=%2Fdev',
+    scope: '/dev',
+    ssoURL:
+      'http://localhost/v1/webapi/github/login/web?connector_id=github&scope=%2Fdev&redirect_url=http%3A%2F%2Flocalhost%2Fweb',
+  },
+])('$name', ({ url, scope, ssoURL }) => {
+  test('login with redirect', async () => {
+    jest.spyOn(auth, 'login').mockResolvedValue({});
 
-  render(<Login />);
+    render(<LoginTest initialURL={url} />);
 
-  // fill form
-  const username = screen.getByPlaceholderText(/username/i);
-  const password = screen.getByPlaceholderText(/password/i);
-  fireEvent.change(username, { target: { value: 'username' } });
-  fireEvent.change(password, { target: { value: '123' } });
+    // fill form
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(/username/i), 'username');
+    await user.type(screen.getByPlaceholderText(/password/i), '123');
 
-  // test login and redirect
-  fireEvent.click(screen.getByText('Sign In'));
-  await waitFor(() => {
-    expect(auth.login).toHaveBeenCalledWith('username', '123', '');
+    // test login and redirect
+    await user.click(screen.getByText('Sign In'));
+    await waitFor(() => {
+      expect(auth.login).toHaveBeenCalledWith(
+        'username',
+        '123',
+        '', // otp
+        scope
+      );
+    });
+    expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
   });
-  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
-});
 
-test('login with SSO', () => {
-  jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
-  jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
-  jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
-    {
-      displayName: 'With GitHub',
-      type: 'github',
-      name: 'github',
-      url: '/github/login/web?connector_id=:providerName&redirect_url=:redirect?',
-    },
-  ]);
+  test('login with SSO', async () => {
+    jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
+    jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
+    jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
+      {
+        displayName: 'With GitHub',
+        type: 'github',
+        name: 'github',
+        url: '/v1/webapi/github/login/web?connector_id=:providerName&scope=:scope?&redirect_url=:redirect',
+      },
+    ]);
 
-  render(<Login />);
+    render(<LoginTest initialURL={url} />);
 
-  // test login pathways
-  fireEvent.click(screen.getByText('With GitHub'));
-  expect(history.push).toHaveBeenCalledWith(
-    'http://localhost/github/login/web?connector_id=github&redirect_url=http%3A%2F%2Flocalhost%2Fweb',
-    true
-  );
+    // test login pathways
+    const user = userEvent.setup();
+    await user.click(screen.getByText('With GitHub'));
+    expect(history.push).toHaveBeenCalledWith(ssoURL, true);
+  });
 });
 
 describe('test MOTD', () => {
   test('show motd only if motd is set', async () => {
     // default login form
-    const { unmount } = render(<Login />);
+    const { unmount } = render(<LoginTest />);
     expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
     expect(
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
@@ -90,7 +120,7 @@ describe('test MOTD', () => {
         () => 'Welcome to cluster, your activity will be recorded.'
       );
 
-    render(<Login />);
+    render(<LoginTest />);
 
     expect(
       screen.getByText('Welcome to cluster, your activity will be recorded.')
@@ -104,12 +134,13 @@ describe('test MOTD', () => {
       .mockImplementation(
         () => 'Welcome to cluster, your activity will be recorded.'
       );
-    render(<Login />);
+    render(<LoginTest />);
     expect(
       screen.getByText('Welcome to cluster, your activity will be recorded.')
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Acknowledge'));
+    const user = userEvent.setup();
+    await user.click(screen.getByText('Acknowledge'));
     expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
   });
 
@@ -125,7 +156,7 @@ describe('test MOTD', () => {
         'https://teleport.example.com/web/headless/5c5c1f73-ac5c-52ee-bc9e-0353094dcb4a'
       );
 
-    render(<Login />);
+    render(<LoginTest />);
 
     expect(
       screen.queryByText('Welcome to cluster, your activity will be recorded.')
@@ -140,7 +171,7 @@ test('redirect to root if session is valid and path is not "/enterprise/saml-idp
     .mockReturnValue(
       'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
     );
-  render(<Login />);
+  render(<LoginTest />);
 
   expect(history.replace).toHaveBeenCalledWith('/web');
 });
@@ -151,6 +182,6 @@ test('redirect to SAML path if session is valid and path matches "/enterprise/sa
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdPPath.toString());
-  render(<Login />);
+  render(<LoginTest />);
   expect(history.push).toHaveBeenCalledWith(samlIdPPath.toString(), true);
 });

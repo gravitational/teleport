@@ -44,6 +44,7 @@ export function Login({
   motd,
   showMotd,
   acknowledgeMotd,
+  scope,
 }: State) {
   const theme = useTheme();
 
@@ -101,6 +102,7 @@ export function Login({
             onRecover={onRecover}
             isPasswordlessEnabled={isPasswordlessEnabled}
             primaryAuthType={primaryAuthType}
+            scope={scope}
           />
           {isCustomForm && (
             <Flex alignItems="center" justifyContent="center">

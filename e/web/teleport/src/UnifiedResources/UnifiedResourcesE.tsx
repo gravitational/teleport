@@ -14,6 +14,7 @@ import {
   IncludedResourceMode,
   SharedUnifiedResource,
 } from 'shared/components/UnifiedResources';
+import { useStore } from 'shared/libs/stores';
 import { AppSubKind } from 'shared/services';
 import { pluralize } from 'shared/utils/text';
 
@@ -203,9 +204,13 @@ export function UnifiedResourcesE() {
 
   const { preferences } = useUser();
 
+  const storeUser = useStore(ctx.storeUser);
+  const scope = storeUser.getScope();
+
   const availabilityFilterFromPreferences = getResourceAvailabilityFilter(
     preferences?.unifiedResourcePreferences?.availableResourceMode,
-    cfg.ui.showResources === 'requestable'
+    cfg.ui.showResources === 'requestable',
+    !!scope
   );
 
   return (

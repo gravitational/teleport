@@ -28,6 +28,7 @@ const sample: State = {
   acknowledgeMotd: () => null,
   licenseAcknowledged: true,
   setLicenseAcknowledged: () => {},
+  scope: '',
 };
 
 const ssoProviders = [

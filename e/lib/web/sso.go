@@ -68,6 +68,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		ProxyAddress:      r.Host,
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
+		Scope:             req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
@@ -263,6 +264,7 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
 		ClientVersion:     teleport.Version,
+		Scope:             req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)

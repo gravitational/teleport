@@ -33,6 +33,7 @@ jest.mock('teleport/services/storageService', () => ({
     getBearerToken: jest.fn(),
     getRecentHistory: () => [],
     getUseLoginScopePicker: () => false,
+    getScopeSelected: () => false,
   },
 }));
 
