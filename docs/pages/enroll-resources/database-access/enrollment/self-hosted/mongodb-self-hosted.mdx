@@ -220,13 +220,6 @@ the cluster without providing a valid client certificate. You can use the
 `net.tls.allowConnectionsWithoutCertificates` setting to allow connections
 from clients that do not present a certificate.
 
-<Admonition type="tip" title="Step ordering">
-Create your X.509 database users (e.g., `db.getSiblingDB("$external").runCommand(...)`)
-before setting `net.tls.mode: requireTLS`. Once strict TLS mode is enabled, you
-need a valid client certificate to connect. If you need to create users after
-enabling mutual TLS, temporarily set `net.tls.allowConnectionsWithoutCertificates: true`.
-</Admonition>
-
 See [Configure TLS/SSL](https://docs.mongodb.com/manual/tutorial/configure-ssl/)
 in the MongoDB documentation for more details.
 
