@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -74,6 +75,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -2440,6 +2442,12 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
 
+	gcpCloudSQLResource, gcpCloudSQLDB := makeGCPCloudSQLInstance(t, "gcp-sqldb", "p1", "us-central1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
+	_, gcpCloudSQLDBWithDiscoveryConfig := makeGCPCloudSQLInstance(t, "gcp-sqldb", "p1", "us-central1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
+	gcpSQLAdminMock := &mocks.GCPSQLAdminClientMock{
+		DatabaseInstances: []*sqladmin.DatabaseInstance{gcpCloudSQLResource},
+	}
+
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: discoveryConfigName},
@@ -2472,6 +2480,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 		integrationsOnlyCredentials            bool
 		awsMatchers                            []types.AWSMatcher
 		azureMatchers                          []types.AzureMatcher
+		gcpMatchers                            []types.GCPMatcher
+		gcpClients                             gcp.Clients
 		expectDatabases                        []types.Database
 		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
 		discoveryConfigStatusCheck             func(*testing.T, discoveryconfig.Status)
@@ -2525,6 +2535,51 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases:             []types.Database{azRedisDBWithIntegration},
 			wantEvents:                  1,
 			integrationsOnlyCredentials: true,
+		},
+		{
+			name: "discover GCP database",
+			gcpMatchers: []types.GCPMatcher{{
+				Types:      []string{types.GCPMatcherCloudSQL},
+				Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Locations:  []string{types.Wildcard},
+				ProjectIDs: []string{"p1"},
+			}},
+			gcpClients:      &gcptest.Clients{GCPSQL: gcpSQLAdminMock},
+			expectDatabases: []types.Database{gcpCloudSQLDB},
+			wantEvents:      1,
+		},
+		{
+			name: "discover GCP database with matcher mixing gke and cloudsql types",
+			gcpMatchers: []types.GCPMatcher{{
+				Types:      []string{types.GCPMatcherKubernetes, types.GCPMatcherCloudSQL},
+				Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Locations:  []string{types.Wildcard},
+				ProjectIDs: []string{"p1"},
+			}},
+			gcpClients: &gcptest.Clients{
+				GCPSQL:      gcpSQLAdminMock,
+				GCPGKE:      &mockGKEAPI{},
+				GCPProjects: newPopulatedGCPProjectsMock(),
+			},
+			expectDatabases: []types.Database{gcpCloudSQLDB},
+			wantEvents:      1,
+		},
+		{
+			name:            "discover GCP database using dynamic matchers",
+			gcpClients:      &gcptest.Clients{GCPSQL: gcpSQLAdminMock},
+			expectDatabases: []types.Database{gcpCloudSQLDBWithDiscoveryConfig},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					GCP: []types.GCPMatcher{{
+						Types:      []string{types.GCPMatcherCloudSQL},
+						Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Locations:  []string{types.Wildcard},
+						ProjectIDs: []string{"p1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
 		},
 		{
 			name: "update existing database",
@@ -2893,6 +2948,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						initAzureClients: func(opts ...azure.ClientsOption) (azure.Clients, error) {
 							return azureClients, nil
 						},
+						gcpClients:                tc.gcpClients,
 						ClusterFeatures:           func() proto.Features { return proto.Features{} },
 						kubeAgentVersionGetter:    staticKubeAgentVersionGetter(t),
 						KubernetesClient:          fake.NewClientset(),
@@ -2902,6 +2958,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						Matchers: Matchers{
 							AWS:   tc.awsMatchers,
 							Azure: tc.azureMatchers,
+							GCP:   tc.gcpMatchers,
 						},
 						Emitter:        authClient,
 						DiscoveryGroup: mainDiscoveryGroup,
@@ -3198,6 +3255,26 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	discoveryParams.matcherType = types.AzureMatcherRedis
 	rewriteCloudResource(t, database, discoveryParams)
 	return resourceInfo, database
+}
+
+func makeGCPCloudSQLInstance(t *testing.T, name, projectID, region string, discoveryParams rewriteDiscoveryLabelsParams) (*sqladmin.DatabaseInstance, types.Database) {
+	t.Helper()
+	instance := &sqladmin.DatabaseInstance{
+		Name:            name,
+		Project:         projectID,
+		Region:          region,
+		State:           "RUNNABLE",
+		DatabaseVersion: "POSTGRES_14",
+		InstanceType:    "CLOUD_SQL_INSTANCE",
+		IpAddresses:     []*sqladmin.IpMapping{{Type: "PRIMARY", IpAddress: "1.2.3.4"}},
+	}
+
+	databases := common.DiscoverCloudSQLDatabases(t.Context(), logtest.NewLogger(), []*sqladmin.DatabaseInstance{instance})
+	require.Len(t, databases, 1)
+	database := databases[0]
+	discoveryParams.matcherType = types.GCPMatcherCloudSQL
+	rewriteCloudResource(t, database, discoveryParams)
+	return instance, database
 }
 
 func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV3) types.Database {
@@ -4330,7 +4407,7 @@ func (f *fakeAccessPoint) EnrollEKSClusters(ctx context.Context, req *integratio
 	return &integrationpb.EnrollEKSClustersResponse{}, trace.NotImplemented("not implemented")
 }
 
-func (f *fakeAccessPoint) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
+func (f *fakeAccessPoint) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	return f.kube, nil
 }
 
@@ -4452,7 +4529,7 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryPar
 		case types.CloudAzure:
 			common.ApplyAzureDatabaseNameSuffix(r, discoveryParams.matcherType)
 		case types.CloudGCP:
-			require.FailNow(t, "GCP database discovery is not supported", cloudLabel)
+			common.ApplyGCPDatabaseNameSuffix(r, discoveryParams.matcherType)
 		default:
 			require.FailNow(t, "unknown cloud label %q", cloudLabel)
 		}

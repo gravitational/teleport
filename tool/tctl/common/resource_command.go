@@ -51,9 +51,11 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
@@ -81,6 +83,7 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -153,7 +156,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindApp:                                rc.createApp,
 		types.KindAppServer:                          rc.createAppServer,
 		types.KindDatabase:                           rc.createDatabase,
-		types.KindKubernetesCluster:                  rc.createKubeCluster,
 		types.KindToken:                              rc.createToken,
 		types.KindInstaller:                          rc.createInstaller,
 		types.KindOIDCConnector:                      rc.createOIDCConnector,
@@ -165,6 +167,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                        rc.createIntegration,
 		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
+		types.KindLinuxDesktop:                       rc.createLinuxDesktop,
 		types.KindDiscoveryConfig:                    rc.createDiscoveryConfig,
 		types.KindAuditQuery:                         rc.createAuditQuery,
 		types.KindSecurityReport:                     rc.createSecurityReport,
@@ -215,6 +218,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindAutoUpdateConfig:                   rc.updateAutoUpdateConfig,
 		types.KindAutoUpdateVersion:                  rc.updateAutoUpdateVersion,
 		types.KindDynamicWindowsDesktop:              rc.updateDynamicWindowsDesktop,
+		types.KindLinuxDesktop:                       rc.updateLinuxDesktop,
 		types.KindGitServer:                          rc.updateGitServer,
 		types.KindAutoUpdateAgentRollout:             rc.updateAutoUpdateAgentRollout,
 		types.KindAutoUpdateAgentReport:              rc.upsertAutoUpdateAgentReport,
@@ -1074,6 +1078,35 @@ func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client *aut
 	return nil
 }
 
+func (rc *ResourceCommand) createLinuxDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	ld, err := linuxdesktop.UnmarshalJSON(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.LinuxDesktopClient().CreateLinuxDesktop(ctx, ld); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("linux desktop %q has been updated\n", ld.GetMetadata().GetName())
+	return nil
+}
+
+func (rc *ResourceCommand) updateLinuxDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	ld, err := linuxdesktop.UnmarshalJSON(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	linuxDesktopClient := client.LinuxDesktopClient()
+	if _, err := linuxDesktopClient.UpdateLinuxDesktop(ctx, ld); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("linux desktop %q has been updated\n", ld.GetMetadata().GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	wd, err := services.UnmarshalDynamicWindowsDesktop(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -1147,28 +1180,6 @@ func (rc *ResourceCommand) createApp(ctx context.Context, client *authclient.Cli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("application %q has been created\n", app.GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
-			}
-			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -1511,6 +1522,9 @@ func (rc *ResourceCommand) createSAMLConnector(ctx context.Context, client *auth
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
+		if errors.Is(err, services.ErrFailedToFetchOrParseEntityDescriptor) {
+			return trace.BadParameter("%s (re-run with --debug for more details)", err)
+		}
 		return trace.Wrap(err)
 	}
 
@@ -1543,6 +1557,9 @@ func (rc *ResourceCommand) updateSAMLConnector(ctx context.Context, client *auth
 	// Create services.SAMLConnector from raw YAML to extract the connector name.
 	conn, err := services.UnmarshalSAMLConnector(raw.Raw, services.DisallowUnknown())
 	if err != nil {
+		if errors.Is(err, services.ErrFailedToFetchOrParseEntityDescriptor) {
+			return trace.BadParameter("%s (re-run with --debug for more details)", err)
+		}
 		return trace.Wrap(err)
 	}
 
@@ -2045,22 +2062,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes cluster"
-		clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
-		name, err := getOneResourceNameToDelete(clusters, ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
 		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2076,6 +2077,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("dynamic windows desktop %q has been deleted\n", ref.Name)
+	case types.KindLinuxDesktop:
+		if err = client.LinuxDesktopClient().DeleteLinuxDesktop(ctx, ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("linux desktop %q has been deleted\n", ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: ref.Name})
@@ -2122,24 +2128,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("%s '%s/%s' has been deleted\n", types.KindCertAuthority, ref.SubKind, ref.Name)
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes server"
-		servers = filterByNameOrDiscoveredName(servers, ref.Name)
-		name, err := getOneResourceNameToDelete(servers, ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindUIConfig:
 		err := client.DeleteUIConfig(ctx)
 		if err != nil {
@@ -2211,7 +2199,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		deleted := false
 		for _, server := range appServers {
 			if server.GetName() == ref.Name {
-				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+				if err := client.DeleteAppServer(ctx, &presencev1.DeleteAppServerRequest{
+					Name:   server.GetName(),
+					HostId: server.GetHostID(),
+					Scope:  server.GetScope(),
+				}); err != nil {
 					return trace.Wrap(err)
 				}
 				deleted = true
@@ -2873,22 +2865,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.NotFound("database server %q not found", ref.Name)
 		}
 		return &databaseServerCollection{servers: servers}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-		altNameFn := func(r types.KubeServer) string {
-			return r.GetHostname()
-		}
-		servers = filterByNameOrDiscoveredName(servers, ref.Name, altNameFn)
-		if len(servers) == 0 {
-			return nil, trace.NotFound("Kubernetes server %q not found", ref.Name)
-		}
-		return &kubeServerCollection{servers: servers}, nil
 
 	case types.KindAppServer:
 		servers, err := client.GetApplicationServers(ctx, rc.namespace)
@@ -2946,20 +2922,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.NotFound("database %q not found", ref.Name)
 		}
 		return &databaseCollection{databases: databases}, nil
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if ref.Name == "" {
-			return &kubeClusterCollection{clusters: clusters}, nil
-		}
-		clusters = filterByNameOrDiscoveredName(clusters, ref.Name)
-		if len(clusters) == 0 {
-			return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
-		}
-		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
 		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
@@ -3042,6 +3004,21 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		}
 
 		return &dynamicWindowsDesktopCollection{desktops}, nil
+	case types.KindLinuxDesktop:
+		linuxDesktopClient := client.LinuxDesktopClient()
+		if ref.Name != "" {
+			desktop, err := linuxDesktopClient.GetLinuxDesktop(ctx, ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &linuxDesktopCollection{desktops: []*linuxdesktopv1.LinuxDesktop{desktop}}, nil
+		}
+		desktops, err := stream.Collect(clientutils.Resources(ctx, linuxDesktopClient.ListLinuxDesktops))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &linuxDesktopCollection{desktops: desktops}, nil
 	case types.KindToken:
 		if ref.Name == "" {
 			tokens, err := getAllTokens(ctx, client)

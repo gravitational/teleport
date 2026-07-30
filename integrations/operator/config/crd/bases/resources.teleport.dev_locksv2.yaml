@@ -69,6 +69,9 @@ spec:
                       this identity originally joined. This is only valid for bot
                       identities, and cannot be used to target `token`-joined bots.
                     type: string
+                  linux_desktop:
+                    description: LinuxDesktop specifies the name of a Linux desktop.
+                    type: string
                   login:
                     description: Login specifies the name of a local UNIX user.
                     type: string

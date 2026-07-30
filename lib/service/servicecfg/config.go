@@ -127,6 +127,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// LinuxDesktop defines the Linux desktop service configuration.
+	LinuxDesktop LinuxDesktopConfig
+
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
@@ -319,9 +322,6 @@ type ConfigTesting struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
-
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.
@@ -440,6 +440,7 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
 	cfg.WindowsDesktop.Enabled = false
+	cfg.LinuxDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
 }
@@ -581,6 +582,8 @@ func (cfg *Config) CheckServicesForSELinux() bool {
 		fallthrough
 	case cfg.Proxy.Enabled:
 		fallthrough
+	case cfg.LinuxDesktop.Enabled:
+		fallthrough
 	case cfg.WindowsDesktop.Enabled:
 		return false
 
@@ -615,6 +618,22 @@ func (cfg *Config) SetAuthServerAddresses(addrs []utils.NetAddr) error {
 // SetAuthServerAddress sets the value of authServers to a single value
 func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
+}
+
+// ProxyWebAddr returns the address used to reach the cluster's web API: the
+// configured proxy for v3 configs, otherwise the first address in auth_servers
+// (in v1/v2 configs, this could be either a proxy or an auth server).
+//
+// Config validation guarantees one of the two is set. Returns an empty NetAddr
+// if no addresses are configured, which is unreachable for a validated config.
+func (cfg *Config) ProxyWebAddr() utils.NetAddr {
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		return cfg.ProxyServer
+	}
+	if authServers := cfg.AuthServerAddresses(); len(authServers) > 0 {
+		return authServers[0]
+	}
+	return utils.NetAddr{}
 }
 
 // Token returns token needed to join the auth server
@@ -804,6 +823,10 @@ func ApplyDefaults(cfg *Config) {
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
+	// Linux desktop service is disabled by default.
+	cfg.LinuxDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.LinuxDesktop.ConnLimiter)
+
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
@@ -990,6 +1013,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
+		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
@@ -1003,7 +1027,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, linux_desktop_service, discovery_service, okta_service or jamf_service",
 	)
 }
 

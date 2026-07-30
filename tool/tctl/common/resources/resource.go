@@ -40,6 +40,8 @@ func Handlers() map[string]Handler {
 		types.KindAccessList:          accessListHandler(),
 		types.KindClientIPRestriction: clientIPRestrictionHandler(),
 		types.KindNode:                serverHandler(),
+		types.KindKubeServer:          kubeServerHandler(),
+		types.KindKubernetesCluster:   kubeClusterHandler(),
 	}
 }
 

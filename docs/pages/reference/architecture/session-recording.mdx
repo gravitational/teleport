@@ -298,7 +298,7 @@ is licensed for Identity Security.
 After each recording is uploaded, Teleport Auth Service matches session metadata
 against all `inference_policy` resources. If a match is found, it will then use
 configuration from a corresponding `inference_model` resource to generate
-session recording. The inference model specifies, among other options, which
+a session summary. The inference model specifies, among other options, which
 inference provider and provider-specific model is used to generate a summary.
 
 No more than 150 concurrent summary jobs will be executed per Auth Service. If

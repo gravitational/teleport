@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -1248,9 +1249,21 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 					if r.GetName() == constants.DefaultImplicitRole {
 						continue
 					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					// ensure required resource kinds are present
+					requiredKinds := []string{types.KindKubernetesCluster}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+
+					// ensure resource kinds not yet supporting scopes are not present
 					for _, rule := range r.GetRules(types.Allow) {
 						assert.NotContains(t, rule.Resources, types.KindKubeServer)
-						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
 						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
 					}
 				}
@@ -1266,6 +1279,29 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
 					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
 				}
+			},
+		},
+		{
+			name:        "Scoped RoleApp is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleApp},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				allowedResourceKinds := make(map[string]bool)
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+				}
+				assert.True(t, allowedResourceKinds[types.KindApp], "expected scoped RoleApp to allow reading apps")
+				assert.True(t, allowedResourceKinds[scopedaccess.KindScopedRole], "expected scoped RoleApp to allow reading scoped roles")
 			},
 		},
 		{

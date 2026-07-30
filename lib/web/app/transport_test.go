@@ -615,10 +615,12 @@ func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclien
 
 type mockCluster struct {
 	reversetunnelclient.Cluster
-	dialErr error
+	dialErr            error
+	dialParamsReceived reversetunnelclient.DialParams
 }
 
-func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
+func (r *mockCluster) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	r.dialParamsReceived = params
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}
@@ -636,4 +638,47 @@ type mockDialConn struct {
 
 func (c *mockDialConn) Close() error {
 	return nil
+}
+
+func Test_dialAppServer_setsTargetScope(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "https://app.localhost"},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{
+			name:      "scope threaded into dial params",
+			scope:     "/staging/test",
+			wantScope: "/staging/test",
+		},
+		{
+			name:      "empty scope by default",
+			scope:     "",
+			wantScope: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appServer, err := types.NewAppServerV3(
+				types.Metadata{Name: "test-app"},
+				types.AppServerSpecV3{HostID: "host-1", App: app},
+				tt.scope,
+			)
+			require.NoError(t, err)
+
+			cluster := &mockCluster{}
+			_, err = dialAppServer(t.Context(), cluster, appServer)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantScope, cluster.dialParamsReceived.TargetScope)
+		})
+	}
 }

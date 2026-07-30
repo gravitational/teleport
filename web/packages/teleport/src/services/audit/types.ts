@@ -119,6 +119,9 @@ export const eventCodes = {
   DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
   DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
   DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
+  LINUX_DESKTOP_SESSION_STARTED: 'TDP07I',
+  LINUX_DESKTOP_SESSION_STARTED_FAILED: 'TDP07W',
+  LINUX_DESKTOP_SESSION_ENDED: 'TDP08I',
   DEVICE_CREATE: 'TV001I',
   DEVICE_DELETE: 'TV002I',
   DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
@@ -1257,6 +1260,33 @@ export type RawEvents = {
       windows_domain: string;
     }
   >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_ENDED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: RawEvent<
     typeof eventCodes.DESKTOP_CLIPBOARD_RECEIVE,
     {
@@ -1396,6 +1426,7 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
+      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1464,7 +1495,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
+    typeof eventCodes.BOT_JOIN_FAILURE,
     {
       bot_name: string;
       method: string;
@@ -1490,7 +1521,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
+    typeof eventCodes.INSTANCE_JOIN_FAILURE,
     {
       node_name: string;
       method: string;
@@ -1654,7 +1685,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
     {
       name: string;
       source: string;

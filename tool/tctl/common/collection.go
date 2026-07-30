@@ -40,6 +40,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
@@ -61,6 +62,7 @@ import (
 	clusterconfigrec "github.com/gravitational/teleport/tool/tctl/common/clusterconfig"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
+	"github.com/gravitational/teleport/tool/tctl/common/linuxdesktop"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -873,6 +875,35 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 	return trace.Wrap(err)
 }
 
+type linuxDesktopCollection struct {
+	desktops []*linuxdesktopv1.LinuxDesktop
+}
+
+func (c *linuxDesktopCollection) Resources() (r []types.Resource) {
+	r = make([]types.Resource, 0, len(c.desktops))
+	for _, resource := range c.desktops {
+		r = append(r, linuxdesktop.ProtoToResource(resource))
+	}
+	return r
+}
+
+func (c *linuxDesktopCollection) WriteText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := common.FormatLabels(d.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{d.GetMetadata().GetName(), d.GetSpec().GetHostname(), labels})
+	}
+	headers := []string{"Name", "Host Name", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
@@ -892,54 +923,6 @@ func (c *tokenCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 	}
 	return nil
-}
-
-type kubeServerCollection struct {
-	servers []types.KubeServer
-}
-
-func (c *kubeServerCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, server := range c.servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(kube, verbose),
-			labels,
-			server.GetTeleportVersion(),
-		})
-
-	}
-	headers := []string{"Cluster", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by cluster name.
-	t.SortRowsBy([]int{0}, true)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) WriteYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) WriteJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
 }
 
 type crownJewelCollection struct {
@@ -963,47 +946,6 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type kubeClusterCollection struct {
-	clusters []types.KubeCluster
-}
-
-func (c *kubeClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.clusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-// writeText formats the dynamic kube clusters into a table and writes them into w.
-// Name          Labels
-// ------------- ----------------------------------------------------------------------------------------------------------
-// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
-// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
-// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
-// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, cluster := range c.clusters {
-		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)

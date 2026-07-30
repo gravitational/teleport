@@ -269,6 +269,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentLinuxDesktop is a Linux desktop access server.
+	ComponentLinuxDesktop = "linux_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
@@ -923,6 +926,10 @@ const (
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
 
+	// UsageLinuxDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Linux desktop access
+	UsageLinuxDesktopOnly = "usage:linux_desktop"
+
 	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Access Graph API access.
 	UsageAccessGraphAPIOnly = "usage:access_graph_api"
@@ -1057,4 +1064,11 @@ const (
 	OktaAccessRoleContext = "access-okta-acl-role"
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
+)
+
+const (
+	// EnvVarUnstableDisableSAMLRedirectDowngradeCheck allows disabling saml_connector
+	// entity_descriptor_url check preventing following redirects via HTTP originating from
+	// HTTPS route.
+	EnvVarUnstableDisableSAMLRedirectDowngradeCheck = "TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK"
 )

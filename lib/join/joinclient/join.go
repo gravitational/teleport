@@ -282,11 +282,12 @@ func joinWithClient(ctx context.Context, params JoinParams, client *joinv1.Clien
 	defer stream.CloseSend()
 
 	// Send the ClientInit message with the intended join method, token name,
-	// and system role.
+	// system role, and host name.
 	if err := stream.Send(&messages.ClientInit{
 		JoinMethod: joinMethodPtr,
 		TokenName:  params.Token,
 		SystemRole: params.ID.Role.String(),
+		HostName:   params.ID.NodeName,
 	}); err != nil {
 		// Failing to send the first message on the stream is always a connection error.
 		return nil, &connectionError{trace.Wrap(err, "sending ClientInit message")}
@@ -465,7 +466,7 @@ func joinWithMethod(
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodKubernetes:
 		if joinParams.IDToken == "" {
-			joinParams.IDToken, err = kubetoken.GetIDToken(os.Getenv, joinParams.KubernetesReadFileFunc)
+			joinParams.IDToken, err = kubetoken.GetIDToken(joinParams.KubernetesTokenPath, os.Getenv, joinParams.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

@@ -3007,7 +3007,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 		DisableWebService:      true,
 		DisableALPNSNIListener: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.KubeAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyKube, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, teleport.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)

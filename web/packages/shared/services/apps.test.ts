@@ -23,11 +23,15 @@ describe('getAppProtocol', () => {
   test.each<[string, AppProtocol]>([
     // TCP
     ['tcp://localhost:8080', 'TCP'],
+    ['tls://localhost:8080', 'TCP'],
 
     // MCP
     ['mcp+stdio://', 'MCP'],
     ['mcp+http://example.com/mcp', 'MCP'],
     ['mcp+sse+https://example.com/sse', 'MCP'],
+
+    // LLM
+    ['llm://', 'LLM'],
 
     // HTTP (fallback/default)
     ['http://localhost:8080', 'HTTP'],

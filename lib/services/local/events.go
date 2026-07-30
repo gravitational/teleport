@@ -189,6 +189,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopsParser()
 		case types.KindDynamicWindowsDesktop:
 			parser = newDynamicWindowsDesktopsParser()
+		case types.KindLinuxDesktop:
+			parser = newLinuxDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -1505,7 +1507,10 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(appServersPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, appServersPrefix),
+		),
 	}
 }
 
@@ -1516,6 +1521,34 @@ type appServerV3Parser struct {
 func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Scoped app servers live under
+		// /scoped/appServers/<encoded-scope>/<host-id>/<name>.
+		scopedAppServersKey := backend.NewKey(scopedPrefix, appServersPrefix)
+		if event.Item.Key.HasPrefix(scopedAppServersKey) {
+			components := event.Item.Key.TrimPrefix(scopedAppServersKey).Components()
+			if len(components) != 3 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from app server key %q", event.Item.Key.String())
+			}
+			return &types.AppServerV3{
+				Kind:    types.KindAppServer,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name: components[2],
+					// The host ID is stored in the description for compatibility
+					// with resource header stubs; some caches rely on it
+					Description: components[1],
+				},
+				Scope: scope,
+				Spec: types.AppServerSpecV3{
+					HostID: components[1],
+				},
+			}, nil
+		}
+
 		components := event.Item.Key.TrimPrefix(backend.NewKey(appServersPrefix, apidefaults.Namespace)).Components()
 		if len(components) != 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -1658,7 +1691,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
+		baseParser: newBaseParser(kubeServersUnscopedPrefix(), kubeServersScopedPrefix()),
 	}
 }
 
@@ -1669,18 +1702,24 @@ type kubeServerParser struct {
 func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		components := event.Item.Key.Components()
-		if len(components) != 3 {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		// Scoped kube servers live under
+		// /scoped/kubeServers/<encoded-scope>/<host-id>/<name>.
+		sqn, hostID, err := kubeServerNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return &types.ResourceHeader{
+		return &types.KubernetesServerV3{
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        components[2],
+				Name:        sqn.Name,
 				Namespace:   apidefaults.Namespace,
-				Description: components[1],
+				Description: hostID,
+			},
+			Scope: sqn.Scope,
+			Spec: types.KubernetesServerSpecV3{
+				HostID: hostID,
 			},
 		}, nil
 	case types.OpPut:
@@ -1770,7 +1809,10 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 
 func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
+		baseParser: newBaseParser(
+			kubeUnscopedPrefix(),
+			kubeScopedPrefix(),
+		),
 	}
 }
 
@@ -1781,17 +1823,19 @@ type kubeClusterParser struct {
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(kubernetesPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		sqn, err := kubeNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return &types.ResourceHeader{
+
+		return &types.KubernetesClusterV3{
 			Kind:    types.KindKubernetesCluster,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      sqn.Name,
 				Namespace: apidefaults.Namespace,
 			},
+			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalKubeCluster(event.Item.Value,
@@ -1800,6 +1844,64 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func kubeNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(kubeScopedPrefix()):
+		components := key.TrimPrefix(kubeScopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(kubeUnscopedPrefix()):
+		components := key.TrimPrefix(kubeUnscopedPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+	}
+}
+
+func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+	switch {
+	case key.HasPrefix(kubeServersScopedPrefix()):
+		components := key.TrimPrefix(kubeServersScopedPrefix()).Components()
+		if len(components) != 3 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, hostID, name := components[0], components[1], components[2]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, "", trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, hostID, nil
+	case key.HasPrefix(kubeServersUnscopedPrefix()):
+		components := key.TrimPrefix(kubeServersUnscopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[1],
+		}, components[0], nil
+	default:
+		return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 	}
 }
 
@@ -2192,6 +2294,46 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newLinuxDesktopsParser() *linuxDesktopParser {
+	return &linuxDesktopParser{
+		baseParser: newBaseParser(backend.NewKey(linuxDesktopKey)),
+	}
+}
+
+type linuxDesktopParser struct {
+	baseParser
+}
+
+func (p *linuxDesktopParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(linuxDesktopKey)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindLinuxDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalLinuxDesktop(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

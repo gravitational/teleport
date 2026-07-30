@@ -74,6 +74,8 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // The scope the resource being kept alive belongs to.
+  string scope = 11;
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -1085,6 +1087,8 @@ message AppV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The App's scope.
+  string scope = 6;
 }
 
 // CORSPolicy defines the CORS policy for AppSpecV3
@@ -4333,6 +4337,20 @@ message RoleConditions {
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
 
+  // LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
+  repeated string LinuxDesktopLogins = 47 [(gogoproto.jsontag) = "linux_desktop_logins,omitempty"];
+
+  // LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
+  wrappers.LabelValues LinuxDesktopLabels = 48 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "linux_desktop_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
+  // access to Linux desktops.
+  string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
+
   // BeamLabels are used in the RBAC system to allow/deny access to beams.
   wrappers.LabelValues BeamLabels = 50 [
     (gogoproto.nullable) = false,
@@ -6650,6 +6668,9 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
+
+  // LinuxDesktop specifies the name of a Linux desktop.
+  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources
@@ -9619,9 +9640,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

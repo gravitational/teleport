@@ -587,11 +587,11 @@ labels: # [...]
 |---|---|---|
 |install_params|Sets the join method when installing on discovered GCP nodes.|[Installer Params](#installer-params)|
 |labels|GCP labels to match.|[Labels](#labels)|
-|locations|GKE locations to search resources for.|[]string|
+|locations|GCP locations to search resources for.|[]string|
 |project_ids|The GCP project ID where the resources are deployed.|[]string|
 |service_accounts|The emails of service accounts attached to VMs.|[]string|
 |tags|Obsolete and only exists for backwards compatibility. Use Labels instead.|[Labels](#labels)|
-|types|GKE resource types to match: "gke", "vm".|[]string|
+|types|GCP resource types to match: "gke", "gce", "cloudsql".|[]string|
 
 ## HTTP Proxy Settings
 

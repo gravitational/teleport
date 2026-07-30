@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -46,6 +47,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -96,8 +99,25 @@ type ApplicationsInternal interface {
 	) ([]backend.ConditionalAction, error)
 }
 
-// ValidateApp validates the Application resource.
+// TODO(williamo/scopes): remove once dynamic scoped app registration is
+// supported.
+func EnsureNotScopedApp(app types.Application) error {
+	if app == nil {
+		return trace.BadParameter("nil application")
+	}
+	if scope := app.GetScope(); scope != "" {
+		return trace.BadParameter("application %q cannot be created with scope %q: dynamic registration of scoped applications is not supported, remove the scope attribute", app.GetName(), scope)
+	}
+	return nil
+}
+
+// ValidateApp checks an Application's name, public_addr, and
+// required_apps.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
+	if app == nil {
+		return trace.BadParameter("nil application")
+	}
+
 	if app.GetTLS() != nil {
 		if err := validateAppTLS(app); err != nil {
 			return trace.Wrap(err)
@@ -113,6 +133,13 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 			)
 		}
 	}
+
+	if scope := app.GetScope(); scope != "" {
+		if !scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), app.GetPublicAddr()) {
+			return trace.BadParameter("scoped app %q public address %q does not match its derived address for scope %q", app.GetName(), app.GetPublicAddr(), scope)
+		}
+	}
+	// If no public address is set, there's nothing to validate.
 
 	if app.GetPublicAddr() == "" {
 		return nil
@@ -272,6 +299,122 @@ func validateAppTLS(a types.Application) error {
 	}
 
 	return nil
+}
+
+// ValidateAppServer checks the outer AppServer name (the backend
+// storage key) and delegates to ValidateApp for the inner app. The
+// outer name can differ from the inner name when an admin creates
+// an app_server resource directly (for example, via `tctl create`),
+// so it needs its own DNS-1123 check.
+func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
+	if server == nil {
+		return trace.BadParameter("nil app server")
+	}
+	if errs := validation.IsDNS1123SubdomainWithUnderscore(server.GetName()); len(errs) > 0 {
+		return trace.BadParameter("app server name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): %s", server.GetName(), strings.Join(errs, ", "))
+	}
+
+	app := server.GetApp()
+
+	if app != nil && !AppServerScopesEqual(server.GetScope(), app.GetScope()) {
+		return trace.BadParameter("app server %q scope %q does not match its embedded app scope %q", server.GetName(), server.GetScope(), app.GetScope())
+	}
+
+	return trace.Wrap(ValidateApp(app, proxyGetter))
+}
+
+// AppServerScopesEqual reports whether an app server's scope and its embedded
+// app's scope are equivalent.
+func AppServerScopesEqual(serverScope, appScope string) bool {
+	// Empty string comparison is treated as orthogonal in scopes.Compare.
+	// If server scope is empty (unscoped), we should make sure the app's scope is also empty, and vice versa.
+	if serverScope == "" || appScope == "" {
+		return serverScope == appScope
+	}
+	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
+}
+
+// GetCursorForAppServer returns the resource cursor identifying an app server
+// in the logical resource stream: "<host-id>/<name>" for unscoped app servers
+// and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
+func GetCursorForAppServer(server types.AppServer) string {
+	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
+
+// GetCursorForResource returns the pagination cursor for a
+// resource used in ListResources.
+func GetCursorForResource(r types.ResourceWithLabels) string {
+	switch res := r.(type) {
+	case types.AppServer:
+		return GetCursorForAppServer(res)
+	case types.KubeServer:
+		return GetCursorForKubeServer(res)
+	}
+	return backend.GetPaginationKey(r)
+}
+
+// ValidatePublicAddr requires a lowercase DNS-1123 hostname. An
+// empty addr is treated as unset.
+func ValidatePublicAddr(appName, addr string) error {
+	if addr == "" {
+		return nil
+	}
+	// IPv4 literals satisfy IsDNS1123Subdomain (digits + dots);
+	// reject explicitly so routing-by-hostname holds.
+	if net.ParseIP(addr) != nil {
+		return trace.BadParameter("application %q public_addr %q must not be an IP address, Teleport Application Access uses DNS names for routing", appName, addr)
+	}
+	if errs := validation.IsDNS1123Subdomain(addr); len(errs) > 0 {
+		return trace.BadParameter("application %q public_addr %q must be a valid DNS name (lowercase alphanumeric, '-', or '.', no trailing dot, no IDN Unicode -- use punycode): %s", appName, addr, strings.Join(errs, ", "))
+	}
+	return nil
+}
+
+// NormalizeAppServerForHeartbeat case-folds a legacy agent's name and
+// strips a scheme/port from its public_addr. Heartbeat-only; admin
+// paths must not call it.
+func NormalizeAppServerForHeartbeat(server types.AppServer) {
+	app := server.GetApp()
+	if app == nil {
+		return
+	}
+	appName := strings.ToLower(app.GetName())
+	if appName != app.GetName() {
+		app.SetName(appName)
+	}
+	serverName := server.GetName()
+	if strings.EqualFold(serverName, appName) && serverName != appName {
+		server.SetName(appName)
+	}
+	normalizedPublicAddr := normalizeHeartbeatPublicAddr(app.GetPublicAddr())
+	if normalizedPublicAddr != app.GetPublicAddr() {
+		app.SetPublicAddr(normalizedPublicAddr)
+	}
+	// required_apps go through the same DNS-1123 check in ValidateApp;
+	// lowercase legacy mixed-case entries so older agents keep working.
+	if appV3, ok := app.(*types.AppV3); ok {
+		for i, required := range appV3.Spec.RequiredAppNames {
+			appV3.Spec.RequiredAppNames[i] = strings.ToLower(required)
+		}
+	}
+}
+
+// normalizeHeartbeatPublicAddr strips a URL scheme, path, or port
+// from a legacy public_addr and lowercases the result.
+func normalizeHeartbeatPublicAddr(addr string) string {
+	if addr == "" {
+		return addr
+	}
+	if strings.Contains(addr, "://") {
+		if u, err := url.Parse(addr); err == nil && u.Hostname() != "" {
+			return strings.ToLower(u.Hostname())
+		}
+		return addr
+	}
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return strings.ToLower(host)
+	}
+	return strings.ToLower(addr)
 }
 
 // MarshalApp marshals Application resource to JSON.
