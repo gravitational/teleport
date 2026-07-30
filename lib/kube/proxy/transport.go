@@ -381,6 +381,10 @@ func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transpor
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}
 	}
+	// teleport-kube-1.1 is negotiated only at user-facing kube TLS terminations
+	// (proxy/agent kube servers) as the RFD 0325 in-band-MFA capability marker.
+	// Internal forwarder hops stay on h2 so a proxy dialing an agent is not
+	// misdetected as a modern client.
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS, teleport.HTTPNextProtoTLS}
 	h2HTTPTransport := newTransport(dial, tlsConfig)
 	// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY

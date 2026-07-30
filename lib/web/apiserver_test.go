@@ -109,6 +109,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	tlsutils "github.com/gravitational/teleport/lib/auth/keygen"
@@ -136,6 +137,7 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -10570,6 +10572,15 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 					},
 				}
 			},
+			InbandVerifier: func() *mfa.Verifier {
+				ca, err := authcatest.NewCA(types.InBandCA, cfg.authServer.ClusterName())
+				require.NoError(t, err)
+
+				v, err := mfa.NewVerifier(ca, clockwork.NewFakeClock())
+				require.NoError(t, err)
+
+				return v
+			}(),
 		},
 		TLS:           tlsConfig.Clone(),
 		AccessPoint:   client,

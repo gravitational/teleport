@@ -78,7 +78,8 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 		types.AWSRACA,
 		types.BoundKeypairCA,
 		types.WindowsCA,
-		types.AppClientCA:
+		types.AppClientCA,
+		types.InBandCA:
 		// OK, known CA type.
 	default:
 		return nil, trace.BadParameter("cannot generate new key set for unknown CA type %q", config.Type)
@@ -184,7 +185,7 @@ func NewCAWithConfig(config CAConfig) (*types.CertAuthorityV2, error) {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA, types.InBandCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			return nil, trace.Wrap(err)

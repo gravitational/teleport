@@ -77,3 +77,19 @@ func TestGenerateKeyWithAlgorithm(t *testing.T) {
 	_, ok = key.(ed25519.PrivateKey)
 	require.True(t, ok)
 }
+
+func TestInBandCAJWT_Algorithm(t *testing.T) {
+	t.Parallel()
+
+	for s := range types.SignatureAlgorithmSuite_name {
+		suite := types.SignatureAlgorithmSuite(s)
+
+		t.Run(suite.String(), func(t *testing.T) {
+			authPrefGetter := &fakeAuthPrefGetter{suite}
+
+			alg, err := AlgorithmForKey(t.Context(), GetCurrentSuiteFromAuthPreference(authPrefGetter), InBandCAJWT)
+			require.NoError(t, err)
+			assert.Equal(t, ECDSAP256, alg)
+		})
+	}
+}

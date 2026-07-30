@@ -44,9 +44,12 @@ import (
 )
 
 const (
-	chalName      = "test-challenge"
-	sourceCluster = "test-cluster"
-	targetCluster = "test-cluster"
+	chalName           = "test-challenge"
+	sourceCluster      = "test-cluster"
+	targetCluster      = "test-cluster"
+	nonExistentCluster = "non-existent-cluster"
+	differentCluster   = "different-cluster"
+	emptyCluster       = ""
 )
 
 var payload = mfav2.SessionIdentifyingPayload_builder{
@@ -132,6 +135,7 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 	)
 	require.NoError(t, err)
 	require.NotNil(t, validateResp)
+	require.NotEmpty(t, validateResp.GetToken())
 
 	// Verify emitted event.
 	event = emitter.LastEvent()
@@ -244,6 +248,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, validateResp)
+	require.NotEmpty(t, validateResp.GetToken())
 
 	// Verify emitted event.
 	event = emitter.LastEvent()
@@ -319,11 +324,6 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		expectedError error
 	}{
 		{
-			name:          "missing payload",
-			req:           mfav2.CreateSessionChallengeRequest_builder{Payload: nil}.Build(),
-			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
-		},
-		{
 			name: "empty ssh_session_id",
 			req: mfav2.CreateSessionChallengeRequest_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
@@ -379,7 +379,7 @@ func TestCreateSessionChallenge_TargetClusterDoesNotExist(t *testing.T) {
 		ctx,
 		mfav2.CreateSessionChallengeRequest_builder{
 			Payload:       payload,
-			TargetCluster: "non-existent-cluster",
+			TargetCluster: new(nonExistentCluster),
 		}.Build(),
 	)
 	require.True(t, trace.IsNotFound(err))
@@ -616,12 +616,15 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	mfaService := &mockMFAService{createValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
 
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -730,12 +733,15 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		listValidatedMFAChallenges: challenges,
 	}
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -840,12 +846,15 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 		listValidatedMFAChallenges: challenges,
 	}
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -951,11 +960,14 @@ func TestReplicateValidatedMFAChallenge_RemoteBuiltinWrongRoleDenied(t *testing.
 				Checker:          mockAccessChecker{},
 			}, nil
 		}),
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    &mockMFAService{},
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            &mockMFAService{},
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -1014,7 +1026,7 @@ func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
 		Name:          chalName,
 		Payload:       payload,
 		SourceCluster: sourceCluster,
-		TargetCluster: "different-cluster",
+		TargetCluster: differentCluster,
 		Username:      "test-user",
 	}.Build())
 	require.Error(t, err)
@@ -1073,7 +1085,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Name:          chalName,
 				Payload:       payload,
 				SourceCluster: sourceCluster,
-				TargetCluster: "",
+				TargetCluster: emptyCluster,
 				Username:      "test-user",
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
@@ -1432,12 +1444,15 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	require.NoError(t, err)
 
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    authServer.Auth(),
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            authServer.Auth(),
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 

@@ -8865,7 +8865,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.AWSRACA,
 		types.BoundKeypairCA,
 		types.WindowsCA,
-		types.AppClientCA:
+		types.AppClientCA,
+		types.InBandCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8904,7 +8905,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA, types.InBandCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8968,6 +8969,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.OktaCAJWT
 	case types.BoundKeypairCA:
 		return cryptosuites.BoundKeypairCAJWT
+	case types.InBandCA:
+		return cryptosuites.InBandCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

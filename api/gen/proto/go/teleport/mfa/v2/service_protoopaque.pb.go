@@ -39,11 +39,13 @@ const (
 // CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
 type CreateSessionChallengeRequest struct {
 	state                               protoimpl.MessageState     `protogen:"opaque.v1"`
-	xxx_hidden_Payload                  *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3"`
-	xxx_hidden_TargetCluster            string                     `protobuf:"bytes,2,opt,name=target_cluster,json=targetCluster,proto3"`
+	xxx_hidden_Payload                  *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3,oneof"`
+	xxx_hidden_TargetCluster            *string                    `protobuf:"bytes,2,opt,name=target_cluster,json=targetCluster,proto3,oneof"`
 	xxx_hidden_SsoClientRedirectUrl     string                     `protobuf:"bytes,3,opt,name=sso_client_redirect_url,json=ssoClientRedirectUrl,proto3"`
 	xxx_hidden_ProxyAddressForSso       string                     `protobuf:"bytes,4,opt,name=proxy_address_for_sso,json=proxyAddressForSso,proto3"`
 	xxx_hidden_BrowserMfaTshRedirectUrl string                     `protobuf:"bytes,5,opt,name=browser_mfa_tsh_redirect_url,json=browserMfaTshRedirectUrl,proto3"`
+	XXX_raceDetectHookData              protoimpl.RaceDetectHookData
+	XXX_presence                        [1]uint32
 	unknownFields                       protoimpl.UnknownFields
 	sizeCache                           protoimpl.SizeCache
 }
@@ -82,7 +84,10 @@ func (x *CreateSessionChallengeRequest) GetPayload() *SessionIdentifyingPayload 
 
 func (x *CreateSessionChallengeRequest) GetTargetCluster() string {
 	if x != nil {
-		return x.xxx_hidden_TargetCluster
+		if x.xxx_hidden_TargetCluster != nil {
+			return *x.xxx_hidden_TargetCluster
+		}
+		return ""
 	}
 	return ""
 }
@@ -113,7 +118,8 @@ func (x *CreateSessionChallengeRequest) SetPayload(v *SessionIdentifyingPayload)
 }
 
 func (x *CreateSessionChallengeRequest) SetTargetCluster(v string) {
-	x.xxx_hidden_TargetCluster = v
+	x.xxx_hidden_TargetCluster = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 5)
 }
 
 func (x *CreateSessionChallengeRequest) SetSsoClientRedirectUrl(v string) {
@@ -135,20 +141,31 @@ func (x *CreateSessionChallengeRequest) HasPayload() bool {
 	return x.xxx_hidden_Payload != nil
 }
 
+func (x *CreateSessionChallengeRequest) HasTargetCluster() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
 func (x *CreateSessionChallengeRequest) ClearPayload() {
 	x.xxx_hidden_Payload = nil
+}
+
+func (x *CreateSessionChallengeRequest) ClearTargetCluster() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_TargetCluster = nil
 }
 
 type CreateSessionChallengeRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
-	// verify it matches the payload supplied to CreateSessionChallengeRequest.
+	// Value that uniquely identifies the user's session. If unset, the payload will not be included in the response token
+	// and will not be required to be verified.
 	Payload *SessionIdentifyingPayload
-	// Name of the target cluster where the SSH session is being established. If unset, the server assumes the challenge
-	// is for the local cluster. Used to determine where the validated challenge should be replicated for leaf clusters.
-	// Required when the SSH session is being established in a leaf cluster.
-	TargetCluster string
+	// Name of the target cluster where the session is being established. If unset, the target cluster will not be
+	// included in the response token and will not be required to be verified.
+	TargetCluster *string
 	// Used to construct the IdP redirect URL in SSO MFA challenges. If the client does not support SSO MFA, this field
 	// may be left unset and no SSO challenge will be included in the response. If set, the server will include SSO
 	// challenges in the response.
@@ -167,7 +184,10 @@ func (b0 CreateSessionChallengeRequest_builder) Build() *CreateSessionChallengeR
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Payload = b.Payload
-	x.xxx_hidden_TargetCluster = b.TargetCluster
+	if b.TargetCluster != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 5)
+		x.xxx_hidden_TargetCluster = b.TargetCluster
+	}
 	x.xxx_hidden_SsoClientRedirectUrl = b.SsoClientRedirectUrl
 	x.xxx_hidden_ProxyAddressForSso = b.ProxyAddressForSso
 	x.xxx_hidden_BrowserMfaTshRedirectUrl = b.BrowserMfaTshRedirectUrl
@@ -316,9 +336,10 @@ func (b0 ValidateSessionChallengeRequest_builder) Build() *ValidateSessionChalle
 
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
 type ValidateSessionChallengeResponse struct {
-	state         protoimpl.MessageState `protogen:"opaque.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Token string                 `protobuf:"bytes,1,opt,name=token,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ValidateSessionChallengeResponse) Reset() {
@@ -346,15 +367,29 @@ func (x *ValidateSessionChallengeResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+func (x *ValidateSessionChallengeResponse) GetToken() string {
+	if x != nil {
+		return x.xxx_hidden_Token
+	}
+	return ""
+}
+
+func (x *ValidateSessionChallengeResponse) SetToken(v string) {
+	x.xxx_hidden_Token = v
+}
+
 type ValidateSessionChallengeResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// Signed by the InBandCA and represents proof of possession of the MFA device at the time of the challenge.
+	Token string
 }
 
 func (b0 ValidateSessionChallengeResponse_builder) Build() *ValidateSessionChallengeResponse {
 	m0 := &ValidateSessionChallengeResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
+	x.xxx_hidden_Token = b.Token
 	return m0
 }
 
@@ -1120,18 +1155,22 @@ var File_teleport_mfa_v2_service_proto protoreflect.FileDescriptor
 
 const file_teleport_mfa_v2_service_proto_rawDesc = "" +
 	"\n" +
-	"\x1dteleport/mfa/v2/service.proto\x12\x0fteleport.mfa.v2\x1a\x1fteleport/mfa/v2/challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\"\xb6\x02\n" +
-	"\x1dCreateSessionChallengeRequest\x12D\n" +
-	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
-	"\x0etarget_cluster\x18\x02 \x01(\tR\rtargetCluster\x125\n" +
+	"\x1dteleport/mfa/v2/service.proto\x12\x0fteleport.mfa.v2\x1a\x1fteleport/mfa/v2/challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\"\xdf\x02\n" +
+	"\x1dCreateSessionChallengeRequest\x12I\n" +
+	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadH\x00R\apayload\x88\x01\x01\x12*\n" +
+	"\x0etarget_cluster\x18\x02 \x01(\tH\x01R\rtargetCluster\x88\x01\x01\x125\n" +
 	"\x17sso_client_redirect_url\x18\x03 \x01(\tR\x14ssoClientRedirectUrl\x121\n" +
 	"\x15proxy_address_for_sso\x18\x04 \x01(\tR\x12proxyAddressForSso\x12>\n" +
-	"\x1cbrowser_mfa_tsh_redirect_url\x18\x05 \x01(\tR\x18browserMfaTshRedirectUrl\"m\n" +
+	"\x1cbrowser_mfa_tsh_redirect_url\x18\x05 \x01(\tR\x18browserMfaTshRedirectUrlB\n" +
+	"\n" +
+	"\b_payloadB\x11\n" +
+	"\x0f_target_cluster\"m\n" +
 	"\x1eCreateSessionChallengeResponse\x12K\n" +
 	"\rmfa_challenge\x18\x01 \x01(\v2&.teleport.mfa.v2.AuthenticateChallengeR\fmfaChallenge\"k\n" +
 	"\x1fValidateSessionChallengeRequest\x12H\n" +
-	"\fmfa_response\x18\x01 \x01(\v2%.teleport.mfa.v2.AuthenticateResponseR\vmfaResponse\"\"\n" +
-	" ValidateSessionChallengeResponse\"a\n" +
+	"\fmfa_response\x18\x01 \x01(\v2%.teleport.mfa.v2.AuthenticateResponseR\vmfaResponse\"8\n" +
+	" ValidateSessionChallengeResponse\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"a\n" +
 	" ListValidatedMFAChallengesFilter\x12*\n" +
 	"\x0etarget_cluster\x18\x01 \x01(\tH\x00R\rtargetCluster\x88\x01\x01B\x11\n" +
 	"\x0f_target_cluster\"\xaa\x01\n" +
@@ -1227,6 +1266,7 @@ func file_teleport_mfa_v2_service_proto_init() {
 	}
 	file_teleport_mfa_v2_challenge_proto_init()
 	file_teleport_mfa_v2_validated_challenge_proto_init()
+	file_teleport_mfa_v2_service_proto_msgTypes[0].OneofWrappers = []any{}
 	file_teleport_mfa_v2_service_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -16,6 +16,8 @@ package types
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TODO(codingllama): DELETE IN 20. This won't matter once the migration doesn't exist.
@@ -34,4 +36,10 @@ func TestCertAuthTypes_WindowsBeforeUser(t *testing.T) {
 				"It's important for WindowsCA to be created before UserCA in new clusters, so it's not incorrectly cloned from UserCA if initial CA creation is only partly successful.")
 		}
 	}
+}
+
+func TestInBandCA_NewlyAdded(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, InBandCA.NewlyAdded(), "InBandCA.NewlyAdded() should return true for cross-version compatibility")
 }
