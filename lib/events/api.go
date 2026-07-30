@@ -443,6 +443,10 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// BeamSessionEndEvent is emitted when a garbage-collected beam has been
+	// summarized. It makes the beam appear as a single session recording,
+	// played back via BeamReplayService.
+	BeamSessionEndEvent = "beam.session.end"
 	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
 	AppSessionHTTPRequestEvent = "http.request"
 	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
@@ -1133,6 +1137,10 @@ var SessionRecordingEvents = []string{
 	// TCP application sessions emit AppSessionEndEvent but produce no
 	// recordings, so it is excluded.
 	AppSessionChunkEvent,
+
+	// A garbage-collected beam is recorded as a single session (played back
+	// via BeamReplayService), marked by BeamSessionEndEvent.
+	BeamSessionEndEvent,
 }
 
 // ServerMetadataGetter represents interface
