@@ -88,7 +88,8 @@ type AccessInternal interface {
 	) ([]backend.ConditionalAction, error)
 
 	// ListRolesForGRPC is like [Access.ListRoles] but it's authorized to return
-	// unpopulated, pre-marshaled roles.
+	// unpopulated or partly unpopulated pre-marshaled roles or a partly
+	// pre-marshaled response altogether.
 	ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 }
 

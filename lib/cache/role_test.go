@@ -22,6 +22,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/protoadapt"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -136,4 +139,17 @@ func TestRoles(t *testing.T) {
 		})
 	})
 
+}
+
+func TestListRolesResponseProtoFormat(t *testing.T) {
+	// ListRolesForGRPC assumes that the field "Roles" of
+	// proto.ListRolesResponse has number 1 and is a repeated message field of
+	// type types.RoleV6, this test asserts that it's still true
+
+	fd := protoadapt.MessageV2Of(new(proto.ListRolesResponse)).ProtoReflect().Descriptor().Fields().ByName("Roles")
+	require.NotNil(t, fd)
+	require.Equal(t, protoreflect.FieldNumber(1), fd.Number())
+	require.Equal(t, protoreflect.Repeated, fd.Cardinality())
+	require.NotNil(t, fd.Message())
+	require.Equal(t, protoreflect.FullName("types.RoleV6"), fd.Message().FullName())
 }

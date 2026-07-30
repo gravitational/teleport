@@ -20,6 +20,7 @@ import (
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protowire"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -200,7 +201,9 @@ func (c *Cache) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesReques
 		return nil, trace.BadParameter("page size of %d is too large", pageSize)
 	}
 
-	var resp proto.ListRolesResponse
+	resp := new(proto.ListRolesResponse)
+	var rolesProtoWire []string
+	var totalRolesWireLen int
 	for cr := range rg.store.resources(roleNameIndex, req.StartKey, "") {
 		if req.Filter != nil && !req.Filter.Match(cr.role) {
 			continue
@@ -211,10 +214,21 @@ func (c *Cache) ListRolesForGRPC(ctx context.Context, req *proto.ListRolesReques
 			break
 		}
 
-		// this is a terrible hack but we live in a terrible world
-		resp.Roles = append(resp.Roles, &types.RoleV6{XXX_unrecognized: []byte(cr.wire)})
+		rolesProtoWire = append(rolesProtoWire, cr.wire)
+		totalRolesWireLen += protowire.SizeBytes(len(cr.wire))
 	}
-	return &resp, nil
+
+	const rolesFieldNumber = protowire.Number(1)
+	totalRolesWireLen += len(rolesProtoWire) * protowire.SizeTag(rolesFieldNumber)
+
+	buf := make([]byte, 0, totalRolesWireLen)
+	for _, roleProtoWire := range rolesProtoWire {
+		buf = protowire.AppendTag(buf, rolesFieldNumber, protowire.BytesType)
+		buf = protowire.AppendString(buf, roleProtoWire)
+	}
+	resp.XXX_unrecognized = buf
+
+	return resp, nil
 }
 
 // GetRole is a part of auth.Cache implementation

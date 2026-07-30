@@ -1242,7 +1242,8 @@ type Cache interface {
 	ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
 	// ListRolesForGRPC is like [Cache.ListRoles] but it's authorized to return
-	// unpopulated, pre-marshaled roles.
+	// unpopulated or partly unpopulated pre-marshaled roles or a partly
+	// pre-marshaled response altogether.
 	ListRolesForGRPC(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error)
 
 	// GetAllTunnelConnections returns all tunnel connections

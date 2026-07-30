@@ -2611,10 +2611,10 @@ func (g *GRPCServer) ListRoles(ctx context.Context, req *authpb.ListRolesRequest
 		return auth.ServerWithRoles.ListRolesForGRPC(ctx, req)
 	}
 
-	// if the client version is such that we might have to downgrade roles,
-	// we have to be able to inspect them later; ListRolesForGRPC is more
-	// efficient but returns pre-marshaled protobuf messages rather than
-	// real role objects
+	// if the client version is such that we might have to downgrade roles, we
+	// have to be able to inspect them later, and ListRolesForGRPC is more
+	// efficient but returns a pre-marshaled protobuf message rather than real
+	// role objects, so we have to use ListRoles
 	rsp, err := auth.ServerWithRoles.ListRoles(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
