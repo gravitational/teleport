@@ -293,10 +293,12 @@ describe('KubernetesLabelsSelect', () => {
       expect(
         within(selectedSection!).queryByText('Alphanumeric or * is required')
       ).not.toBeInTheDocument();
+      expect(nameInput).toHaveValue('');
       // Value field validation message
       expect(
         within(selectedSection!).queryByText('Value is required')
       ).not.toBeInTheDocument();
+      expect(valueInput).toHaveValue('');
     };
 
     const checkForAddedLabel = (label: string) => {
