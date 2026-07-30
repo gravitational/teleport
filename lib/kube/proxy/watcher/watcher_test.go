@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // mockKubeServerWatcherGetter is a testify mock for the [services.KubernetesServerWatcherGetter] interface.
@@ -188,13 +189,13 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 
 	fallback.On("GetKubernetesServers", mock.Anything).
 		Return([]types.KubeServer{newTestKubeServer(t, "foo", "bar")}, nil)
-	srvs, err := w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, srvs, 1)
 	require.Equal(t, "foo", srvs[0].GetName())
 	require.Equal(t, 1, w.ResourceCount())
 
-	srvs, err = w.GetKubeServersForClusterName(ctx, "baz")
+	srvs, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "baz"})
 	require.NoError(t, err)
 	require.Empty(t, srvs)
 
@@ -218,7 +219,7 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	results := make(chan result, 64)
 	for range 64 {
 		wg.Go(func() {
-			srvs, err := w.GetKubeServersForClusterName(ctx, "foo")
+			srvs, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 			results <- result{srvs: srvs, err: err}
 		})
 	}
@@ -282,7 +283,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	synctest.Wait()
 
 	// Single call to backup since watcher is not ready.
-	resources, err := w.GetKubeServersForClusterName(ctx, "foo")
+	resources, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Empty(t, resources, "Watcher should start with empty cache before warm-up")
 
@@ -295,7 +296,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	fw.send(types.Event{Type: types.OpPut, Resource: newTestKubeServer(t, "foo", "host2")})
 	synctest.Wait()
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "foo")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, resources, 2)
 	require.Equal(t, 2, w.ResourceCount())
@@ -311,7 +312,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	fw.send(types.Event{Type: types.OpDelete, Resource: newTestKubeServer(t, "foo", "host2")})
 	synctest.Wait()
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "foo")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 	require.Equal(t, "foo", resources[0].GetName())
@@ -373,24 +374,24 @@ func proxyKubeServerWatcherFetchAndInitializeStateAppliesQueuedEventsSynctest(t 
 	require.True(t, isHealthy(w))
 	require.Empty(t, fw.Events(), "All events should be processed by the time initialization is complete")
 
-	resources, err := w.GetKubeServersForClusterName(ctx, "kept")
+	resources, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "kept"})
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "added")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "added"})
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "updated")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "updated"})
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 	require.Equal(t, "1", resources[0].GetRevision())
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "deleted")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "deleted"})
 	require.NoError(t, err)
 	require.Empty(t, resources)
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "transient")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "transient"})
 	require.NoError(t, err)
 	require.Empty(t, resources)
 
@@ -429,7 +430,7 @@ func testWatcherUnknownEventsHardFaultSynctest(t *testing.T) {
 	synctest.Wait()
 
 	// Single call to backup since watcher is not ready.
-	resources, err := w.GetKubeServersForClusterName(ctx, "initial")
+	resources, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "initial"})
 	require.NoError(t, err)
 	require.Empty(t, resources, "Watcher should start with empty cache before warm-up")
 
@@ -444,7 +445,7 @@ func testWatcherUnknownEventsHardFaultSynctest(t *testing.T) {
 	require.False(t, isHealthy(w), "Watcher should be unhealthy after receiving invalid event")
 	require.False(t, w.shouldFetchFromFallback(time.Now()), "The fallback timeout should not expire yet.")
 
-	resources, err = w.GetKubeServersForClusterName(ctx, "initial")
+	resources, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "initial"})
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 	require.Equal(t, "initial", resources[0].GetName())
@@ -499,7 +500,7 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 	require.False(t, w.shouldFetchFromFallback(time.Now()), "watcher should now be serving from the event stream, not fallback")
 
 	// Verify no calls to the back up are made.
-	srvs, err := w.GetKubeServersForClusterName(ctx, "initial")
+	srvs, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "initial"})
 	require.NoError(t, err)
 	require.Empty(t, srvs)
 
@@ -592,7 +593,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 
 	synctest.Wait()
 
-	srvs, err := w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, srvs, 1)
 	require.Equal(t, "foo", srvs[0].GetName())
@@ -601,7 +602,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	fw.send(types.Event{Type: types.OpDelete, Resource: srvs[0]})
 	synctest.Wait()
 
-	srvs, err = w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Empty(t, srvs)
 
@@ -618,7 +619,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 
 	synctest.Wait()
 
-	srvs, err = w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, srvs, numberOfEvents)
 
@@ -637,14 +638,14 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	require.False(t, isHealthy(w), "Watcher is imminently unhealthy after the primary watcher fails")
 	require.False(t, w.shouldFetchFromFallback(time.Now()), "Watcher should not fetch from fallback immediately after primary watcher fails")
 
-	nonstale, err := w.GetKubeServersForClusterName(ctx, "foo")
+	nonstale, err := w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, nonstale, numberOfEvents)
 
 	time.Sleep(10 * time.Second) // exceed max staleness.
 	require.False(t, isHealthy(w), "Watcher is not hot after max staleness is exceeded")
 
-	srvs, err = w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.Error(t, err)
 	require.Empty(t, srvs, "Expected no servers to be returned when watcher is unhealthy and fallback is failing")
 
@@ -664,7 +665,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	require.True(t, isHealthy(w), "Watcher should be hot after new watcher is created and receives OpInit")
 
 	// Calls should not be routed to fallback.
-	srvs, err = w.GetKubeServersForClusterName(ctx, "foo")
+	srvs, err = w.GetKubeServersForClusterName(ctx, scopes.QualifiedName{Name: "foo"})
 	require.NoError(t, err)
 	require.Len(t, srvs, numberOfEvents)
 
@@ -888,7 +889,7 @@ func testProxyKubeServerWatcher_ParentContextCanceledSynctest(t *testing.T) {
 
 	resultCh := make(chan error, 1)
 	go func() {
-		_, err := w.GetKubeServersForClusterName(parentCtx, "foo")
+		_, err := w.GetKubeServersForClusterName(parentCtx, scopes.QualifiedName{Name: "foo"})
 		resultCh <- err
 	}()
 

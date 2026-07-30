@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // pathRoutedKubeClient uses the given rest.Config to build a Kubernetes client
@@ -210,7 +211,7 @@ func TestSingleCertRouting(t *testing.T) {
 			_, restConfig := testCtx.GenTestKubeClientTLSCert(
 				t,
 				username,
-				"",
+				scopes.QualifiedName{},
 				tt.genKubeCertificateOpts...,
 			)
 

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -132,7 +133,7 @@ func TestSessionEndError(t *testing.T) {
 			_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
 				t,
 				user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 			require.NoError(t, err)
 
@@ -304,7 +305,7 @@ func Test_session_trackSession(t *testing.T) {
 					teleportCluster: teleportClusterClient{
 						name: "name",
 					},
-					kubeClusterName: "kubeClusterName",
+					kubeClusterSQN: scopes.QualifiedName{Name: "kubeClusterName"},
 				},
 				forwarder: &Forwarder{
 					cfg: ForwarderConfig{

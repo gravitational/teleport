@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/healthcheck"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -206,6 +207,7 @@ func TestGetServerInfo(t *testing.T) {
 	listener, err := net.Listen("tcp", "localhost:")
 	require.NoError(t, err)
 
+	clusterSQN := scopes.QualifiedName{Name: "kube-cluster"}
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
 			Log: logtest.NewLogger(),
@@ -222,8 +224,8 @@ func TestGetServerInfo(t *testing.T) {
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
-			clusterDetails: map[string]*kubeDetails{
-				"kube-cluster": {
+			clusterDetails: map[scopes.QualifiedName]*kubeDetails{
+				clusterSQN: {
 					kubeCluster: mustCreateKubernetesClusterV3(t, "kube-cluster"),
 				},
 			},
@@ -232,7 +234,7 @@ func TestGetServerInfo(t *testing.T) {
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		kubeServer, err := srv.GetServerInfo("kube-cluster")
+		kubeServer, err := srv.GetServerInfo(clusterSQN)
 		require.NoError(t, err)
 		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
 	})
@@ -240,7 +242,7 @@ func TestGetServerInfo(t *testing.T) {
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		kubeServer, err := srv.GetServerInfo("kube-cluster")
+		kubeServer, err := srv.GetServerInfo(clusterSQN)
 		require.NoError(t, err)
 		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
 	})

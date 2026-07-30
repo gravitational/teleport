@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -168,7 +169,7 @@ current-context: foo
 		kubeCluster        string
 		serviceType        KubeServiceType
 		impersonationCheck servicecfg.ImpersonationPermissionsChecker
-		want               map[string]*kubeDetails
+		want               map[scopes.QualifiedName]*kubeDetails
 		assertErr          require.ErrorAssertionFunc
 	}{
 		{
@@ -176,26 +177,26 @@ current-context: foo
 			serviceType:        KubeService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.Error,
-			want:               map[string]*kubeDetails{},
+			want:               map[scopes.QualifiedName]*kubeDetails{},
 		}, {
 			desc:               "proxy_service, no kube creds",
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.NoError,
-			want:               map[string]*kubeDetails{},
+			want:               map[scopes.QualifiedName]*kubeDetails{},
 		}, {
 			desc:               "legacy proxy_service, no kube creds",
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
 			assertErr:          require.NoError,
-			want:               map[string]*kubeDetails{},
+			want:               map[scopes.QualifiedName]*kubeDetails{},
 		}, {
 			desc:               "kubernetes_service, with kube creds",
 			serviceType:        KubeService,
 			kubeconfigPath:     kubeconfigPath,
 			impersonationCheck: alwaysSucceeds,
-			want: map[string]*kubeDetails{
-				"foo": {
+			want: map[scopes.QualifiedName]*kubeDetails{
+				scopes.QualifiedName{Name: "foo"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -209,7 +210,7 @@ current-context: foo
 						GitVersion: "1.20.0",
 					},
 				},
-				"bar": {
+				scopes.QualifiedName{Name: "bar"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -223,7 +224,7 @@ current-context: foo
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
-				"baz": {
+				scopes.QualifiedName{Name: "baz"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -244,15 +245,15 @@ current-context: foo
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        ProxyService,
 			impersonationCheck: alwaysSucceeds,
-			want:               map[string]*kubeDetails{},
+			want:               map[scopes.QualifiedName]*kubeDetails{},
 			assertErr:          require.NoError,
 		}, {
 			desc:               "legacy proxy_service, with kube creds",
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        LegacyProxyService,
 			impersonationCheck: alwaysSucceeds,
-			want: map[string]*kubeDetails{
-				teleClusterName: {
+			want: map[scopes.QualifiedName]*kubeDetails{
+				scopes.QualifiedName{Name: teleClusterName}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -273,8 +274,8 @@ current-context: foo
 			kubeconfigPath:     kubeconfigPath,
 			serviceType:        KubeService,
 			impersonationCheck: failsForCluster("bar"),
-			want: map[string]*kubeDetails{
-				"foo": {
+			want: map[scopes.QualifiedName]*kubeDetails{
+				scopes.QualifiedName{Name: "foo"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -288,7 +289,7 @@ current-context: foo
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
-				"bar": {
+				scopes.QualifiedName{Name: "bar"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -302,7 +303,7 @@ current-context: foo
 					},
 					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
-				"baz": {
+				scopes.QualifiedName{Name: "baz"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr:      targetAddr,
 						transportConfig: &transport.Config{},
@@ -324,7 +325,7 @@ current-context: foo
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			fwd := &Forwarder{
-				clusterDetails: map[string]*kubeDetails{},
+				clusterDetails: map[scopes.QualifiedName]*kubeDetails{},
 				cfg: ForwarderConfig{
 					ClusterName:                   teleClusterName,
 					KubeServiceType:               tt.serviceType,

@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestErrorRewriter(t *testing.T) {
@@ -153,7 +154,7 @@ func TestErrorRewriter(t *testing.T) {
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				user.GetName(),
-				tt.args.kubeCluster,
+				scopes.QualifiedName{Name: tt.args.kubeCluster},
 			)
 
 			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).Get(

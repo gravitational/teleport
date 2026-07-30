@@ -36,41 +36,46 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestForwarderClusterDialer(t *testing.T) {
-	t.Parallel()
 	var (
-		hostname          = "localhost:8080"
-		hostId            = "hostId"
-		proxyIds          = []string{"proxyId"}
-		clusterName       = "cluster"
-		health            = types.TargetHealthStatusHealthy
-		scopedClusterName = "scoped-cluster"
-		testScope         = "/test"
-		otherHostname     = "localhost:8081"
-		otherHostID       = "other-hostId"
-		otherScope        = "/other"
+		hostname      = "localhost:8080"
+		hostId        = "hostId"
+		proxyIds      = []string{"proxyId"}
+		health        = types.TargetHealthStatusHealthy
+		testScope     = "/test"
+		otherHostname = "localhost:8081"
+		otherHostID   = "other-hostId"
+		otherScope    = "/other"
+		clusterName   = "cluster"
 	)
+	clusterSQN := scopes.QualifiedName{Name: clusterName}
+	scopedClusterSQN := scopes.QualifiedName{Name: clusterName, Scope: testScope}
+	otherClusterSQN := scopes.QualifiedName{Name: clusterName, Scope: otherScope}
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			tracer:      otel.Tracer("test"),
-			ClusterName: clusterName,
+			ClusterName: clusterSQN.Name,
 		},
-		getKubernetesServersForKubeCluster: func(_ context.Context, kubeClusterName string) ([]types.KubeServer, error) {
-			switch kubeClusterName {
-			case clusterName:
+		getKubernetesServersForKubeCluster: func(_ context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
+			switch {
+			case sqn.Equals(clusterSQN):
 				return []types.KubeServer{
 					newKubeServer(t, hostname, hostId, proxyIds, health),
 				}, nil
-			case scopedClusterName:
+			case sqn.Equals(scopedClusterSQN):
 				return []types.KubeServer{
-					newScopedKubeServer(t, scopedClusterName, hostname, hostId, testScope, proxyIds, health),
-					newScopedKubeServer(t, scopedClusterName, otherHostname, otherHostID, otherScope, proxyIds, health),
+					newScopedKubeServer(t, clusterName, hostname, hostId, testScope, proxyIds, health),
+				}, nil
+			case sqn.Equals(otherClusterSQN):
+				return []types.KubeServer{
+					newScopedKubeServer(t, clusterName, otherHostname, otherHostID, otherScope, proxyIds, health),
 				}, nil
 			}
-			return nil, trace.NotFound("cluster %s is not found", kubeClusterName)
+			return nil, trace.NotFound("cluster %s is not found", sqn)
 		},
 	}
 	tests := []struct {
@@ -81,7 +86,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 	}{
 		{
 			name:       "local site",
-			dialerFunc: f.localClusterDialer(clusterName, ""),
+			dialerFunc: f.localClusterDialer(clusterSQN),
 			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -91,14 +96,14 @@ func TestForwarderClusterDialer(t *testing.T) {
 					Addr:        hostname,
 					AddrNetwork: "tcp",
 				},
-				ServerID: hostId + "." + clusterName,
+				ServerID: hostId + "." + clusterSQN.String(),
 				ConnType: types.KubeTunnel,
 				ProxyIDs: proxyIds,
 			},
 		},
 		{
 			name:       "remote site",
-			dialerFunc: f.remoteClusterDialer(clusterName),
+			dialerFunc: f.remoteClusterDialer(clusterSQN.String()),
 			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -115,7 +120,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 			name: "local site - test scope",
 			// It's important that the test scope and other scope cases resolve to the same cluster name.
 			// This ensures that the dialer checks for both name and scope match before selecting a kube server.
-			dialerFunc: f.localClusterDialer(scopedClusterName, testScope),
+			dialerFunc: f.localClusterDialer(scopedClusterSQN),
 			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -125,7 +130,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 					Addr:        hostname,
 					AddrNetwork: "tcp",
 				},
-				ServerID:    hostId + "." + clusterName,
+				ServerID:    hostId + "." + scopedClusterSQN.Name,
 				ConnType:    types.KubeTunnel,
 				ProxyIDs:    proxyIds,
 				TargetScope: testScope,
@@ -135,7 +140,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 			name: "local site - other scope",
 			// It's important that the test scope and other scope cases resolve to the same cluster name.
 			// This ensures that the dialer checks for both name and scope match before selecting a kube server.
-			dialerFunc: f.localClusterDialer(scopedClusterName, otherScope),
+			dialerFunc: f.localClusterDialer(scopes.QualifiedName{Name: scopedClusterSQN.Name, Scope: otherScope}),
 			want: reversetunnelclient.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -145,7 +150,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 					Addr:        otherHostname,
 					AddrNetwork: "tcp",
 				},
-				ServerID:    otherHostID + "." + clusterName,
+				ServerID:    otherHostID + "." + clusterSQN.Name,
 				ConnType:    types.KubeTunnel,
 				ProxyIDs:    proxyIds,
 				TargetScope: otherScope,
@@ -153,7 +158,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 		},
 		{
 			name:       "local site - unknown scope",
-			dialerFunc: f.localClusterDialer(scopedClusterName, "/unknown"),
+			dialerFunc: f.localClusterDialer(scopes.QualifiedName{Name: scopedClusterSQN.Name, Scope: "/unknown"}),
 			assertErr: func(t require.TestingT, err error, msgAndArgs ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err), "expected not found error")
@@ -246,7 +251,7 @@ func TestDirectTransportNotCached(t *testing.T) {
 	clusterSess := &clusterSession{
 		kubeAPICreds: kubeAPICreds,
 		authContext: authContext{
-			kubeClusterName: "b",
+			kubeClusterSQN: scopes.QualifiedName{Name: "b"},
 			teleportCluster: teleportClusterClient{
 				name: "a",
 			},
@@ -293,38 +298,40 @@ func TestTransportCache(t *testing.T) {
 		},
 		ctx:             ctx,
 		cachedTransport: transportClients,
-		getKubernetesServersForKubeCluster: func(_ context.Context, _ string) ([]types.KubeServer, error) {
-			return []types.KubeServer{
-				unscopedServer,
-				testServer,
-				otherServer,
-			}, nil
+		getKubernetesServersForKubeCluster: func(_ context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
+			for _, server := range []types.KubeServer{unscopedServer, testServer, otherServer} {
+				if sqn.Equals(scopes.QualifiedName{Name: server.GetName(), Scope: server.GetScope()}) {
+					return []types.KubeServer{server}, nil
+				}
+			}
+			return nil, trace.NotFound("no kube server found for %q", sqn)
 		},
 	}
 
-	clusterSess := &clusterSession{
-		authContext: authContext{
-			kubeClusterName: clusterName,
-			kubeCluster:     unscopedServer.GetCluster(),
-			teleportCluster: teleportClusterClient{
-				name: "a",
+	makeSessForServer := func(server types.KubeServer) *clusterSession {
+		return &clusterSession{
+			authContext: authContext{
+				kubeClusterSQN: scopes.QualifiedName{Name: server.GetName(), Scope: server.GetScope()},
+				kubeCluster:    server.GetCluster(),
+				teleportCluster: teleportClusterClient{
+					name: "a",
+				},
 			},
-		},
+		}
 	}
+	clusterSess := makeSessForServer(unscopedServer)
 
 	// generate transport for the unscoped server
 	_, _, err = forwarder.transportForRequestWithImpersonation(clusterSess)
 	require.NoError(t, err)
 
-	// replace the cluster on the clusterSession and ensure we generate a new
-	// transport rather than reusing the cached, unscoped transport
-	clusterSess.kubeCluster = testServer.GetCluster()
+	// generate transport for the /test scoped server
+	clusterSess = makeSessForServer(testServer)
 	_, _, err = forwarder.transportForRequestWithImpersonation(clusterSess)
 	require.NoError(t, err)
 
-	// replace again with a different scope and confirm we get another new
-	// transport
-	clusterSess.kubeCluster = otherServer.GetCluster()
+	// generate transport for the /other scoped server
+	clusterSess = makeSessForServer(otherServer)
 	_, _, err = forwarder.transportForRequestWithImpersonation(clusterSess)
 	require.NoError(t, err)
 
@@ -332,10 +339,10 @@ func TestTransportCache(t *testing.T) {
 	unscopedTransport, ok := forwarder.cachedTransport.GetIfExists(fmt.Sprintf("%x/%x", "a", clusterName))
 	require.True(t, ok, "expected transport to be cached")
 
-	testTransport, ok := forwarder.cachedTransport.GetIfExists(fmt.Sprintf("%x/%x/%x", "a", testScope, clusterName))
+	testTransport, ok := forwarder.cachedTransport.GetIfExists(fmt.Sprintf("%x/%x", "a", scopes.QualifiedName{Scope: testScope, Name: clusterName}.String()))
 	require.True(t, ok, "expected transport to be cached")
 
-	otherTransport, ok := forwarder.cachedTransport.GetIfExists(fmt.Sprintf("%x/%x/%x", "a", otherScope, clusterName))
+	otherTransport, ok := forwarder.cachedTransport.GetIfExists(fmt.Sprintf("%x/%x", "a", scopes.QualifiedName{Scope: otherScope, Name: clusterName}.String()))
 	require.True(t, ok, "expected transport to be cached")
 
 	// all of the cached transports should be unique because none of these clusters should collide
@@ -438,11 +445,11 @@ func TestLocalClusterDialsByHealth(t *testing.T) {
 					ClusterName:      clusterName,
 					ReverseTunnelSrv: healthReverseTunnel{},
 				},
-				getKubernetesServersForKubeCluster: func(context.Context, string) ([]types.KubeServer, error) {
+				getKubernetesServersForKubeCluster: func(context.Context, scopes.QualifiedName) ([]types.KubeServer, error) {
 					return tt.servers, nil
 				},
 			}
-			_, err := f.localClusterDialer(clusterName, "")(ctx, "tcp", "")
+			_, err := f.localClusterDialer(scopes.QualifiedName{Name: clusterName})(ctx, "tcp", "")
 			require.Error(t, err)
 
 			var aggErr trace.Aggregate

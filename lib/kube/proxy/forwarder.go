@@ -622,9 +622,6 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		f.log.WarnContext(ctx, "Unable to setup context", "error", err)
 		if trace.IsAccessDenied(err) {
-			if errors.Is(err, errAmbiguousCluster) {
-				return nil, trace.Wrap(err)
-			}
 			return nil, trace.AccessDenied("%s", accessDeniedMsg)
 		}
 		return nil, trace.Wrap(err)
@@ -845,8 +842,6 @@ func kubeStatusCodeAndReason(respErr error) (int, metav1.StatusReason) {
 	return code, reason
 }
 
-var errAmbiguousCluster = &trace.AccessDeniedError{Message: "could not disambiguate between two or more scoped kube clusters with the same name, please login with credentials for a narrower scope"}
-
 func (f *Forwarder) setupContext(
 	ctx context.Context,
 	scopedCtx *authz.ScopedContext,
@@ -955,21 +950,6 @@ func (f *Forwarder) setupContext(
 		metaResource:             kubeResource,
 		isLocalKubernetesCluster: isLocalKubernetesCluster,
 	}, nil
-}
-
-// checkAmbiguousClusters accepts a list of kube servers that have already been filtered for a given cluster name
-// and determines if there is any ambiguity about which scope we should route to.
-func checkAmbiguousClusters(kubeServers []types.KubeServer) error {
-	var foundScope string
-	for i, ks := range kubeServers {
-		switch {
-		case i == 0:
-			foundScope = ks.GetScope()
-		case ks.GetScope() != foundScope:
-			return trace.Wrap(errAmbiguousCluster)
-		}
-	}
-	return nil
 }
 
 func (f *Forwarder) parseResourceFromRequest(req *http.Request, kubeClusterSQN scopes.QualifiedName) (metaResource, error) {

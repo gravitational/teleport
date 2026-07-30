@@ -64,7 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestListPodRBAC(t *testing.T) {
+func testListPodRBAC(t *testing.T, kubeMock *tkm.KubeMockServer, scope string) {
 	const (
 		usernameWithFullAccess        = "full_user"
 		usernameWithNamespaceAccess   = "default_user"
@@ -73,15 +73,7 @@ func TestListPodRBAC(t *testing.T) {
 		usernameWithoutListVerbAccess = "no_list_user"
 		usernameWithTraits            = "trait_user"
 		testPodName                   = "test"
-		scope                         = "/test"
 	)
-	// kubeMock is a Kubernetes API mock for the session tests.
-	// Once a new session is created, this mock will write to
-	// stdout and stdin (if available) the pod name, followed
-	// by copying the contents of stdin into both streams.
-	kubeMock, err := tkm.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
@@ -157,14 +149,17 @@ func TestListPodRBAC(t *testing.T) {
 		)
 		users[unscopedUser.GetName()] = unscopedUser
 
+		if scope == "" {
+			continue
+		}
 		// create scoped user
 		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
 		for idx, resource := range kubeResources {
 			scopedResources[idx] = toScopedKubeResource(resource)
 		}
-		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+		scopedAssignment := testCtx.CreateAndAssignScopedRole(
 			t,
-			scopedUsername(username),
+			username,
 			scope,
 			accessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -176,7 +171,6 @@ func TestListPodRBAC(t *testing.T) {
 				}.Build(),
 			}.Build())
 		scopedAssignments = append(scopedAssignments, scopedAssignment)
-		users[scopedUser.GetName()] = scopedUser
 	}
 	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
 
@@ -251,32 +245,19 @@ func TestListPodRBAC(t *testing.T) {
 		listPodsResult   []string
 		listPodErr       error
 		getTestPodResult error
+		skipScopedTest   bool
 	}
 	tests := []struct {
-		name string
-		args args
-		want want
+		name       string
+		args       args
+		want       want
+		wantScoped *want
 	}{
 		{
 			name: "list default namespace pods for user with full access",
 			args: args{
 				user:      users[usernameWithFullAccess],
 				namespace: metav1.NamespaceDefault,
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/nginx-1",
-					"default/nginx-2",
-					"default/test",
-				},
-			},
-		},
-		{
-			name: "list default namespace pods for scoped user with full access",
-			args: args{
-				user:      users[scopedUsername(usernameWithFullAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -303,42 +284,10 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "list pods in every namespace for scoped user with full access",
-			args: args{
-				user:      users[scopedUsername(usernameWithFullAccess)],
-				namespace: metav1.NamespaceAll,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/nginx-1",
-					"default/nginx-2",
-					"default/test",
-					"dev/nginx-1",
-					"dev/nginx-2",
-				},
-			},
-		},
-		{
 			name: "list default namespace pods for user with default namespace",
 			args: args{
 				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/nginx-1",
-					"default/nginx-2",
-					"default/test",
-				},
-			},
-		},
-		{
-			name: "list default namespace pods for scoped user with default namespace",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
 			},
 			want: want{
 				listPodsResult: []string{
@@ -363,21 +312,6 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "list pods in every namespace for scoped user with default namespace",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: metav1.NamespaceAll,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/nginx-1",
-					"default/nginx-2",
-					"default/test",
-				},
-			},
-		},
-		{
 			name: "list default namespace pods for user with traits for default namespace",
 			args: args{
 				user:      userWithTraits,
@@ -389,6 +323,11 @@ func TestListPodRBAC(t *testing.T) {
 					"default/nginx-2",
 					"default/test",
 				},
+			},
+			// scoped identities don't support traits, skip this case
+			// TODO (eriktate): restore these cases once scoped traits are supported
+			wantScoped: &want{
+				skipScopedTest: true,
 			},
 		},
 		{
@@ -403,6 +342,11 @@ func TestListPodRBAC(t *testing.T) {
 					"default/nginx-2",
 					"default/test",
 				},
+			},
+			// scoped identities don't support traits, skip this case
+			// TODO (eriktate): restore these cases once scoped traits are supported
+			wantScoped: &want{
+				skipScopedTest: true,
 			},
 		},
 		{
@@ -427,28 +371,6 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "list default namespace pods for scoped user with limited access",
-			args: args{
-				user:      users[scopedUsername(usernameWithLimitedAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
-			},
-			want: want{
-				listPodsResult: []string{
-					"default/nginx-1",
-					"default/nginx-2",
-				},
-				getTestPodResult: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "pods \"test\" is forbidden: User \"scoped-limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
-			},
-		},
-		{
 			name: "list pods in every namespace for user with default namespace deny rule",
 			args: args{
 				user: userWithDenyRule,
@@ -466,6 +388,11 @@ func TestListPodRBAC(t *testing.T) {
 						Reason:  metav1.StatusReasonForbidden,
 					},
 				},
+			},
+			wantScoped: &want{
+				// scoped roles don't have explicit deny rules, so there is no scoped equivalent for
+				// userWithDenyRule. skip that case
+				skipScopedTest: true,
 			},
 		},
 		{
@@ -496,6 +423,26 @@ func TestListPodRBAC(t *testing.T) {
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
 						Message: "pods \"test\" is forbidden: User \"default_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+			// scoped identities don't support access requests, expect failures
+			wantScoped: &want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -539,6 +486,26 @@ func TestListPodRBAC(t *testing.T) {
 					},
 				},
 			},
+			// scoped identities don't support access requests, expect failure
+			wantScoped: &want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
 		},
 		{
 			name: "user with pod access request that no longer fullfills the role requirements",
@@ -577,6 +544,26 @@ func TestListPodRBAC(t *testing.T) {
 					},
 				},
 			},
+			// scoped identities don't support access requests so this test case should fail
+			wantScoped: &want{
+				listPodsResult: []string{},
+				listPodErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
 		},
 		{
 			name: "list default namespace pods for user with limited access",
@@ -596,25 +583,6 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "list default namespace pods for scoped user with limited access",
-			args: args{
-				user:      users[scopedUsername(usernameWithoutListVerbAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithoutListVerbAccess), scope),
-			},
-			want: want{
-				listPodsResult: []string{},
-				listPodErr: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "pods is forbidden: User \"scoped-no_list_user\" cannot list resource \"pods\" in API group \"\" in the namespace \"default\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
-			},
-		},
 	}
 	getPodsFromPodList := func(items []corev1.Pod) []string {
 		pods := make([]string, 0, len(items))
@@ -624,27 +592,38 @@ func TestListPodRBAC(t *testing.T) {
 		return pods
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 			t.Parallel()
+			want := tt.want
+			if scope != "" && tt.wantScoped != nil {
+				want = *tt.wantScoped
+			}
+			if want.skipScopedTest {
+				// skip test
+				return
+			}
 			// generate a kube client with user certs for auth
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
-				tt.args.opts...,
+				scopes.QualifiedName{
+					Name:  kubeCluster,
+					Scope: testCtx.Scope,
+				},
+				slices.Concat(tt.args.opts, makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope))...,
 			)
 
 			rsp, err := client.CoreV1().Pods(tt.args.namespace).List(
 				testCtx.Context,
 				metav1.ListOptions{},
 			)
-			if tt.want.listPodErr != nil {
+			if want.listPodErr != nil {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.listPodErr.Error())
+				require.Contains(t, err.Error(), want.listPodErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.want.listPodsResult, getPodsFromPodList(rsp.Items))
+			require.Equal(t, want.listPodsResult, getPodsFromPodList(rsp.Items))
 
 			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(
 				testCtx.Context,
@@ -652,12 +631,34 @@ func TestListPodRBAC(t *testing.T) {
 				metav1.GetOptions{},
 			)
 
-			if tt.want.getTestPodResult == nil {
+			if want.getTestPodResult == nil {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.getTestPodResult.Error())
+				require.Contains(t, err.Error(), want.getTestPodResult.Error())
 			}
+		})
+	}
+}
+
+func TestListPodRBAC(t *testing.T) {
+	t.Parallel()
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := tkm.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	for _, scope := range []string{"", scopedTestScope} {
+		name := "unscoped"
+		if scope != "" {
+			name = scope
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testListPodRBAC(t, kubeMock, scope)
 		})
 	}
 }
@@ -709,7 +710,7 @@ func TestListResourcesAuditResponseCode(t *testing.T) {
 			},
 		},
 	)
-	client, _ := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), scopes.QualifiedName{Name: kubeCluster})
 
 	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(testCtx.Context, metav1.ListOptions{})
 	require.NoError(t, err)
@@ -1154,21 +1155,12 @@ func (f *fakeResponseWriter) Write(b []byte) (int, error) {
 	return f.writer.Write(b)
 }
 
-func TestDeletePodCollectionRBAC(t *testing.T) {
+func testDeletePodCollectionRBAC(t *testing.T, kubeMock *tkm.KubeMockServer, scope string) {
 	const (
 		usernameWithFullAccess      = "full_user"
 		usernameWithNamespaceAccess = "default_user"
 		usernameWithLimitedAccess   = "limited_user"
-		scope                       = "/test"
 	)
-	// kubeMock is a Kubernetes API mock for the session tests.
-	// Once a new session is created, this mock will write to
-	// stdout and stdin (if available) the pod name, followed
-	// by copying the contents of stdin into both streams.
-	kubeMock, err := tkm.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
-
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
 		context.Background(),
@@ -1233,13 +1225,16 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		)
 		users[unscopedUser.GetName()] = unscopedUser
 
+		if scope == "" {
+			continue
+		}
 		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
 		for idx, resource := range kubeResources {
 			scopedResources[idx] = toScopedKubeResource(resource)
 		}
-		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+		scopedAssignment := testCtx.CreateAndAssignScopedRole(
 			t,
-			scopedUsername(username),
+			username,
 			scope,
 			accessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -1251,7 +1246,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				}.Build(),
 			}.Build())
 		scopedAssignments = append(scopedAssignments, scopedAssignment)
-		users[scopedUser.GetName()] = scopedUser
 	}
 	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
 
@@ -1280,37 +1274,10 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "delete pods in default namespace for scoped user with full access",
-			args: args{
-				user:      users[scopedUsername(usernameWithFullAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
-			},
-
-			deletedPods: []string{
-				"default/nginx-1",
-				"default/nginx-2",
-				"default/test",
-			},
-		},
-		{
 			name: "delete pods for user limited to default namespace",
 			args: args{
 				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
-			},
-			deletedPods: []string{
-				"default/nginx-1",
-				"default/nginx-2",
-				"default/test",
-			},
-		},
-		{
-			name: "delete pods for scoped user limited to default namespace",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
 			},
 			deletedPods: []string{
 				"default/nginx-1",
@@ -1328,16 +1295,6 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 			deletedPods: []string{},
 		},
 		{
-			name: "delete pods in dev namespace for scoped user limited to default",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: "dev",
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
-			},
-			wantErr:     true,
-			deletedPods: []string{},
-		},
-		{
 			name: "delete pods in default namespace for user with limited access",
 			args: args{
 				user:      users[usernameWithLimitedAccess],
@@ -1349,31 +1306,18 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				"default/nginx-2",
 			},
 		},
-		{
-			name: "delete pods in default namespace for scoped user with limited access",
-			args: args{
-				user:      users[scopedUsername(usernameWithLimitedAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
-			},
-
-			deletedPods: []string{
-				"default/nginx-1",
-				"default/nginx-2",
-			},
-		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 			t.Parallel()
 			requestID := kubetypes.UID(uuid.NewString())
 			// generate a kube client with user certs for auth
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
-				tt.args.opts...,
+				scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope},
+				slices.Concat(tt.args.opts, makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope))...,
 			)
 			err := client.CoreV1().Pods(tt.args.namespace).DeleteCollection(
 				testCtx.Context,
@@ -1398,20 +1342,34 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }
 
-func TestDeleteCRDCollectionRBAC(t *testing.T) {
-	const (
-		usernameWithFullAccess      = "full_user"
-		usernameWithNamespaceAccess = "default_user"
-		usernameWithLimitedAccess   = "limited_user"
-		scope                       = "/test"
-	)
+func TestDeletePodCollectionRBAC(t *testing.T) {
+	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := tkm.NewKubeAPIMock(tkm.WithTeleportRoleCRD)
+	kubeMock, err := tkm.NewKubeAPIMock()
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
+
+	for _, scope := range []string{"", scopedTestScope} {
+		name := "unscoped"
+		if scope != "" {
+			name = scope
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testDeletePodCollectionRBAC(t, kubeMock, scope)
+		})
+	}
+}
+
+func testDeleteCRDCollectionRBAC(t *testing.T, kubeMock *tkm.KubeMockServer, scope string) {
+	const (
+		usernameWithFullAccess      = "full_user"
+		usernameWithNamespaceAccess = "default_user"
+		usernameWithLimitedAccess   = "limited_user"
+	)
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
@@ -1477,13 +1435,16 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 		)
 		users[unscopedUser.GetName()] = unscopedUser
 
+		if scope == "" {
+			continue
+		}
 		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
 		for idx, resource := range kubeResources {
 			scopedResources[idx] = toScopedKubeResource(resource)
 		}
-		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+		scopedAssignment := testCtx.CreateAndAssignScopedRole(
 			t,
-			scopedUsername(username),
+			username,
 			scope,
 			accessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -1495,7 +1456,6 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 				}.Build(),
 			}.Build())
 		scopedAssignments = append(scopedAssignments, scopedAssignment)
-		users[scopedUser.GetName()] = scopedUser
 	}
 	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
 
@@ -1525,39 +1485,10 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "delete teleportroles in default namespace for scoped user with full access",
-			args: args{
-				user:      users[scopedUsername(usernameWithFullAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
-			},
-
-			deletedCRDs: []string{
-				"default/telerole-1",
-				"default/telerole-1",
-				"default/telerole-2",
-				"default/telerole-test",
-			},
-		},
-		{
 			name: "delete teleportroles for user limited to default namespace",
 			args: args{
 				user:      users[usernameWithNamespaceAccess],
 				namespace: metav1.NamespaceDefault,
-			},
-			deletedCRDs: []string{
-				"default/telerole-1",
-				"default/telerole-1",
-				"default/telerole-2",
-				"default/telerole-test",
-			},
-		},
-		{
-			name: "delete teleportroles for scoped user limited to default namespace",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
 			},
 			deletedCRDs: []string{
 				"default/telerole-1",
@@ -1576,16 +1507,6 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 			deletedCRDs: []string{},
 		},
 		{
-			name: "delete teleportroles in dev namespace for scoped user limited to default",
-			args: args{
-				user:      users[scopedUsername(usernameWithNamespaceAccess)],
-				namespace: "dev",
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithNamespaceAccess), scope),
-			},
-			wantErr:     true,
-			deletedCRDs: []string{},
-		},
-		{
 			name: "delete teleportroles in default namespace for user with limited access",
 			args: args{
 				user:      users[usernameWithLimitedAccess],
@@ -1596,30 +1517,18 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 				"default/telerole-test",
 			},
 		},
-		{
-			name: "delete teleportroles in default namespace for scoped user with limited access",
-			args: args{
-				user:      users[scopedUsername(usernameWithLimitedAccess)],
-				namespace: metav1.NamespaceDefault,
-				opts:      makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
-			},
-
-			deletedCRDs: []string{
-				"default/telerole-test",
-			},
-		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 			t.Parallel()
 			requestID := kubetypes.UID(uuid.NewString())
 			// generate a kube client with user certs for auth
 			_, client, _ := testCtx.GenTestKubeClientsTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
-				tt.args.opts...,
+				scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope},
+				slices.Concat(tt.args.opts, makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope))...,
 			)
 			err := client.Resource(schema.GroupVersionResource{
 				Group:    "resources.teleport.dev",
@@ -1648,20 +1557,35 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 	require.Empty(t, kubeMock.DeletedCRDs("TeleportRole", ""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
 }
 
-func TestListClusterRoleRBAC(t *testing.T) {
-	const (
-		usernameWithFullAccess    = "full_user"
-		usernameWithLimitedAccess = "limited_user"
-		testClusterRoleName       = "cr-test"
-		scope                     = "/test"
-	)
+func TestDeleteCRDCollectionRBAC(t *testing.T) {
+	t.Parallel()
+
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
 	// stdout and stdin (if available) the pod name, followed
 	// by copying the contents of stdin into both streams.
-	kubeMock, err := tkm.NewKubeAPIMock()
+	kubeMock, err := tkm.NewKubeAPIMock(tkm.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
+	for _, scope := range []string{"", scopedTestScope} {
+		name := "unscoped"
+		if scope != "" {
+			name = "scoped"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testDeleteCRDCollectionRBAC(t, kubeMock, scope)
+		})
+	}
+}
+
+func testListClusterRoleRBAC(t *testing.T, kubeMock *tkm.KubeMockServer, scope string) {
+	const (
+		usernameWithFullAccess    = "full_user"
+		usernameWithLimitedAccess = "limited_user"
+		testClusterRoleName       = "cr-test"
+	)
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
@@ -1716,13 +1640,17 @@ func TestListClusterRoleRBAC(t *testing.T) {
 		)
 		users[unscopedUser.GetName()] = unscopedUser
 
+		if scope == "" {
+			// only apply scoped resources for scoped test cases
+			continue
+		}
 		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
 		for idx, resource := range kubeResources {
 			scopedResources[idx] = toScopedKubeResource(resource)
 		}
-		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+		scopedAssignment := testCtx.CreateAndAssignScopedRole(
 			t,
-			scopedUsername(username),
+			username,
 			scope,
 			accessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -1734,7 +1662,6 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				}.Build(),
 			}.Build())
 		scopedAssignments = append(scopedAssignments, scopedAssignment)
-		users[scopedUser.GetName()] = scopedUser
 	}
 	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
 
@@ -1748,28 +1675,15 @@ func TestListClusterRoleRBAC(t *testing.T) {
 		getTestResult          error
 	}
 	tests := []struct {
-		name string
-		args args
-		want want
+		name       string
+		args       args
+		want       want
+		wantScoped *want
 	}{
 		{
 			name: "list cluster roles for user with full access",
 			args: args{
 				user: users[usernameWithFullAccess],
-			},
-			want: want{
-				listClusterRolesResult: []string{
-					"cr-nginx-1",
-					"cr-nginx-2",
-					"cr-test",
-				},
-			},
-		},
-		{
-			name: "list cluster roles for scoped user with full access",
-			args: args{
-				user: users[scopedUsername(usernameWithFullAccess)],
-				opts: makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
 			},
 			want: want{
 				listClusterRolesResult: []string{
@@ -1793,27 +1707,6 @@ func TestListClusterRoleRBAC(t *testing.T) {
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
 						Message: "clusterroles \"cr-test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
-			},
-		},
-		{
-			name: "list cluster roles for scoped user with limited access",
-			args: args{
-				user: users[scopedUsername(usernameWithLimitedAccess)],
-				opts: makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
-			},
-			want: want{
-				listClusterRolesResult: []string{
-					"cr-nginx-1",
-					"cr-nginx-2",
-				},
-				getTestResult: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "clusterroles \"cr-test\" is forbidden: User \"scoped-limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -1856,6 +1749,25 @@ func TestListClusterRoleRBAC(t *testing.T) {
 					},
 				},
 			},
+			wantScoped: &want{
+				listClusterRolesResult: []string{},
+				listClusterErr: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "access denied",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
 		},
 	}
 
@@ -1870,25 +1782,31 @@ func TestListClusterRoleRBAC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			want := tt.want
+			if scope != "" && tt.wantScoped != nil {
+				// we should override the expected results for scoped tests when wantScoped is defined
+				want = *tt.wantScoped
+			}
 			// Generate a kube client with user certs for auth.
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
-				tt.args.opts...,
+				scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope},
+				// always assign scoped opt since it's a no-op when scope == ""
+				slices.Concat(tt.args.opts, makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope))...,
 			)
 
 			rsp, err := client.RbacV1().ClusterRoles().List(
 				testCtx.Context,
 				metav1.ListOptions{},
 			)
-			if tt.want.listClusterErr != nil {
+			if want.listClusterErr != nil {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.listClusterErr.Error())
+				require.Contains(t, err.Error(), want.listClusterErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.want.listClusterRolesResult, getClusterRolesFromList(rsp.Items))
+			require.Equal(t, want.listClusterRolesResult, getClusterRolesFromList(rsp.Items))
 
 			_, err = client.RbacV1().ClusterRoles().Get(
 				testCtx.Context,
@@ -1896,24 +1814,45 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				metav1.GetOptions{},
 			)
 
-			if tt.want.getTestResult == nil {
+			if want.getTestResult == nil {
 				require.NoError(t, err)
 			} else {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.want.getTestResult.Error())
+				require.Contains(t, err.Error(), want.getTestResult.Error())
 			}
+		})
+	}
+
+}
+func TestListClusterRoleRBAC(t *testing.T) {
+	t.Parallel()
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := tkm.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	for _, scope := range []string{"", scopedTestScope} {
+		name := "unscoped"
+		if scope != "" {
+			name = "scoped"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			testListClusterRoleRBAC(t, kubeMock, scope)
 		})
 	}
 }
 
-func TestGenericCustomResourcesRBAC(t *testing.T) {
+func testGenericCustomResourcesRBAC(t *testing.T, scope string) {
 	const (
 		usernameWithFullAccess     = "full_user"
 		usernameWithLimitedAccess  = "limited_user"
 		usernameWithSpecificAccess = "specific_user"
 		testTeleportRoleName       = "telerole-test"
 		testTeleportRoleNamespace  = "default"
-		scope                      = "/test"
 	)
 
 	kubeScheme, testCtx := newTestKubeCRDMock(t, scope, tkm.WithTeleportRoleCRD)
@@ -1972,13 +1911,17 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 		)
 		users[unscopedUser.GetName()] = unscopedUser
 
+		if scope == "" {
+			continue
+		}
+		// we only create scoped resources against the scoped test context
 		scopedResources := make([]*accessv1.KubeResource, len(kubeResources))
 		for idx, resource := range kubeResources {
 			scopedResources[idx] = toScopedKubeResource(resource)
 		}
-		scopedUser, scopedAssignment := testCtx.CreateUserAndScopedRole(
+		scopedAssignment := testCtx.CreateAndAssignScopedRole(
 			t,
-			scopedUsername(username),
+			username,
 			scope,
 			accessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scope},
@@ -1990,9 +1933,9 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				}.Build(),
 			}.Build())
 		scopedAssignments = append(scopedAssignments, scopedAssignment)
-		users[scopedUser.GetName()] = scopedUser
 	}
 	waitForSRACache(t, testCtx.TLSServer, scopedAssignments...)
+
 	type args struct {
 		user types.User
 		opts []GenTestKubeClientTLSCertOptions
@@ -2007,28 +1950,14 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 		name string
 		args args
 		want want
+		// some test cases have different expected results for scoped versus unscoped identities
+		wantScoped     *want
+		failWhenScoped bool
 	}{
 		{
 			name: "list teleport roles for user with full access",
 			args: args{
 				user: users[usernameWithFullAccess],
-			},
-			want: want{
-				listTeleportRolesResult: []string{
-					"default/telerole-1",
-					"default/telerole-1",
-					"default/telerole-2",
-					"default/telerole-test",
-					"dev/telerole-1",
-					"dev/telerole-2",
-				},
-			},
-		},
-		{
-			name: "list teleport roles for scoped user with full access",
-			args: args{
-				user: users[scopedUsername(usernameWithFullAccess)],
-				opts: makeScopedOpts(t, testCtx, scopedUsername(usernameWithFullAccess), scope),
 			},
 			want: want{
 				listTeleportRolesResult: []string{
@@ -2065,30 +1994,6 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "list teleport roles for scoped user with specific crd access",
-			args: args{
-				user: users[scopedUsername(usernameWithSpecificAccess)],
-				opts: makeScopedOpts(t, testCtx, scopedUsername(usernameWithSpecificAccess), scope),
-			},
-			want: want{
-				listTeleportRolesResult: []string{
-					"dev/telerole-1",
-					"dev/telerole-2",
-				},
-				getTestResult: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status: "Failure",
-						Message: fmt.Sprintf(
-							"teleportroles \"telerole-test\" is forbidden: User %q cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
-							"scoped-"+usernameWithSpecificAccess,
-						),
-						Code:   403,
-						Reason: metav1.StatusReasonForbidden,
-					},
-				},
-			},
-		},
-		{
 			name: "list teleport roles for user with limited access",
 			args: args{
 				user: users[usernameWithLimitedAccess],
@@ -2102,27 +2007,6 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					ErrStatus: metav1.Status{
 						Status:  "Failure",
 						Message: "teleportroles \"telerole-test\" is forbidden: User \"limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
-						Code:    403,
-						Reason:  metav1.StatusReasonForbidden,
-					},
-				},
-			},
-		},
-		{
-			name: "list teleport roles for scoped user with limited access",
-			args: args{
-				user: users[scopedUsername(usernameWithLimitedAccess)],
-				opts: makeScopedOpts(t, testCtx, scopedUsername(usernameWithLimitedAccess), scope),
-			},
-			want: want{
-				listTeleportRolesResult: []string{
-					"dev/telerole-1",
-					"dev/telerole-2",
-				},
-				getTestResult: &kubeerrors.StatusError{
-					ErrStatus: metav1.Status{
-						Status:  "Failure",
-						Message: "teleportroles \"telerole-test\" is forbidden: User \"scoped-limited_user\" cannot get resource \"teleportroles\" in API group \"resources.teleport.dev\"",
 						Code:    403,
 						Reason:  metav1.StatusReasonForbidden,
 					},
@@ -2165,8 +2049,27 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					},
 				},
 			},
+			// scoped identities don't support access requests, so we expect failure to even connect to the cluster
+			wantScoped: &want{
+				wantListErr: true,
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "failed to get server groups",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				deleteAllTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "failed to get server groups",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
 		},
-
 		{
 			name: "user with namespace access request that restricts the role requirements",
 			args: args{
@@ -2198,18 +2101,46 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 					},
 				},
 			},
+			// scoped identities don't support access requests, so we expect failure to even connect to the cluster
+			wantScoped: &want{
+				wantListErr: true,
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "failed to get server groups",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+				deleteAllTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "failed to get server groups",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		want := tt.want
+		if scope != "" && tt.wantScoped != nil {
+			// we should override the expected results for scoped tests when wantScoped is defined
+			want = *tt.wantScoped
+		}
+		t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 			t.Parallel()
+
+			// always add scoped opts since they'll be ignored when scope == ""
+			tt.args.opts = slices.Concat(tt.args.opts, makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope))
 
 			// Generate a kube client with user certs for auth.
 			_, rest := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster, Scope: scope},
 				tt.args.opts...,
 			)
 
@@ -2223,7 +2154,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 				list := tkm.NewTeleportRoleCRD()
 
-				if err := client.List(context.Background(), list); tt.want.wantListErr {
+				if err := client.List(context.Background(), list); want.wantListErr {
 					require.Error(t, err)
 					return
 				} else {
@@ -2244,7 +2175,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 							return nil
 						},
 					))
-				require.ElementsMatch(t, tt.want.listTeleportRolesResult, teleportRolesList)
+				require.ElementsMatch(t, want.listTeleportRolesResult, teleportRolesList)
 			})
 
 			t.Run("get", func(t *testing.T) {
@@ -2258,13 +2189,13 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 						Namespace: testTeleportRoleNamespace,
 					},
 					get,
-				); tt.want.getTestResult == nil {
+				); want.getTestResult == nil {
 					require.NoError(t, err)
 					require.Equal(t, testTeleportRoleName, get.GetName())
 					require.Equal(t, testTeleportRoleNamespace, get.GetNamespace())
 				} else {
 					require.Error(t, err)
-					require.ErrorContains(t, err, tt.want.getTestResult.Error())
+					require.ErrorContains(t, err, want.getTestResult.Error())
 				}
 			})
 
@@ -2275,9 +2206,9 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 				if err := client.DeleteAllOf(context.Background(),
 					dl,
-				); tt.want.deleteAllTestResult != nil {
+				); want.deleteAllTestResult != nil {
 					require.Error(t, err)
-					require.ErrorContains(t, err, tt.want.deleteAllTestResult.Error())
+					require.ErrorContains(t, err, want.deleteAllTestResult.Error())
 					return
 				} else {
 					require.NoError(t, err)
@@ -2287,25 +2218,39 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 	}
 }
 
+func TestGenericCustomResourcesRBAC(t *testing.T) {
+	t.Parallel()
+
+	for _, scope := range []string{"", scopedTestScope} {
+		name := "unscoped"
+		if scope != "" {
+			name = "scoped"
+		}
+
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			testGenericCustomResourcesRBAC(t, scope)
+		})
+	}
+}
+
 func TestV8JailedNamespaceListRBAC(t *testing.T) {
 	t.Parallel()
 
-	const scope = "/test"
-	_, testCtx := newTestKubeCRDMock(t, scope, tkm.WithTeleportRoleCRD)
-
-	newTestUser := newTestUserFactoryWithScope(t, testCtx, "", types.V8, scope)
+	_, unscopedTestCtx := newTestKubeCRDMock(t, "", tkm.WithTeleportRoleCRD)
+	_, scopedTestCtx := newTestKubeCRDMock(t, scopedTestScope, tkm.WithTeleportRoleCRD)
 
 	tests := []struct {
-		name string
-		user types.User
-		ns   string
-		want []string
+		name       string
+		allow      []types.KubernetesResource
+		deny       []types.KubernetesResource
+		ns         string
+		want       []string
+		skipScoped bool
 	}{
 		{
 			name: "full default access",
-			// regnerate a factory without scopes because omitting kube resources
-			// is not allowed for scoped roles and newTestUser will fail
-			user: newTestUserFactory(t, testCtx, "", types.V8)(nil, nil),
 			ns:   "default",
 			want: []string{
 				// teleportroles.
@@ -2327,10 +2272,13 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 				"dev",
 				"prod",
 			},
+			// generating a test context for a scoped identity has to include
+			// at least one allow rule, so we skip this case when scoped
+			skipScoped: true,
 		},
 		{
 			name: "full wildcard access",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2345,7 +2293,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2370,7 +2318,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "namespaced wildcard access",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2378,7 +2326,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2400,7 +2348,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "clusterwide wildcard access",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2408,7 +2356,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2426,7 +2374,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "single wildcard access",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2434,7 +2382,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2454,7 +2402,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "wildcard single namespace access default",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2467,7 +2415,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Name:  "default",
 					Verbs: []string{types.Wildcard},
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2486,7 +2434,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "wildcard single namespace access dev",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
@@ -2499,7 +2447,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Name:  "dev",
 					Verbs: []string{types.Wildcard},
 				},
-			}, nil),
+			},
 			ns: "dev",
 			want: []string{
 				// teleportroles.
@@ -2515,13 +2463,13 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "regular namespace all access by name",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  types.Wildcard,
 					Verbs: []string{types.Wildcard},
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2536,7 +2484,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "regular namespace all access by namespace",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:      "namespaces",
 					Name:      types.Wildcard,
@@ -2544,7 +2492,7 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2559,13 +2507,13 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "regular namespace single access by name default",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  "default",
 					Verbs: []string{types.Wildcard},
 				},
-			}, nil),
+			},
 			ns: "default",
 			want: []string{
 				// teleportroles.
@@ -2577,13 +2525,13 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "regular namespace single access by name dev",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  "dev",
 					Verbs: []string{types.Wildcard},
 				},
-			}, nil),
+			},
 			ns: "dev",
 			want: []string{
 				// teleportroles.
@@ -2594,19 +2542,32 @@ func TestV8JailedNamespaceListRBAC(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
+	for idx, tt := range tests {
 		// loop to run the test case against scoped and unscoped credentials
-		for _, scoped := range []bool{false, true} {
-			var opts []GenTestKubeClientTLSCertOptions
+		for _, scope := range []string{"", scopedTestScope} {
+			kubeClusterSQN := scopes.QualifiedName{Name: kubeCluster, Scope: scope}
 			want := tt.want
-			if scoped {
-				opts = makeScopedOpts(t, testCtx, tt.user.GetName(), scope)
+			testCtx := unscopedTestCtx
+			if scope != "" {
+				if tt.skipScoped {
+					continue
+				}
+				testCtx = scopedTestCtx
 			}
+			user := newScopedUser(t, newScopedUserCfg{
+				testCtx:     testCtx,
+				scope:       scope,
+				roleVersion: types.V8,
+				allow:       tt.allow,
+				deny:        tt.deny,
+				idx:         idx,
+			})
+			opts := makeScopedOpts(t, testCtx, user.GetName(), scope)
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
 				// Generate a kube dynClient with user certs for auth.
-				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster, opts...)
+				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, user.GetName(), kubeClusterSQN, opts...)
 				// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
 				got := []string{}
 				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("resources.teleport.dev/v6/teleportroles")).Namespace(tt.ns))...)
@@ -2828,7 +2789,7 @@ func TestV7JailedNamespaceListRBAC(t *testing.T) {
 			t.Parallel()
 
 			// Generate a kube dynClient with user certs for auth.
-			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), scopes.QualifiedName{Name: kubeCluster})
 
 			// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
 			got := []string{}
@@ -3185,7 +3146,7 @@ func TestV7V8Match(t *testing.T) {
 
 			run := func(t *testing.T, userName string) {
 				// Generate a kube dynClient with user certs for auth.
-				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, userName, kubeCluster)
+				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, userName, scopes.QualifiedName{Name: kubeCluster})
 
 				// List TeleportRoles (namespaced), pods (namespaced), clusterroles (cluster wide) and namespaces (kind of cluster wide).
 				got := []string{}
@@ -3207,10 +3168,8 @@ func TestV7V8Match(t *testing.T) {
 func TestNamespaceListRBAC(t *testing.T) {
 	t.Parallel()
 
-	const scope = "/test"
-	_, testCtx := newTestKubeCRDMock(t, scope, tkm.WithTeleportRoleCRD)
-
-	newTestUser := newTestUserFactoryWithScope(t, testCtx, "nslist", types.V8, scope)
+	_, unscopedTestCtx := newTestKubeCRDMock(t, "", tkm.WithTeleportRoleCRD)
+	_, scopedTestCtx := newTestKubeCRDMock(t, scopedTestScope, tkm.WithTeleportRoleCRD)
 
 	commonResources := []types.KubernetesResource{
 		{
@@ -3237,21 +3196,23 @@ func TestNamespaceListRBAC(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		user       types.User
+		allow      []types.KubernetesResource
+		deny       []types.KubernetesResource
 		want       []string
 		wantScoped []string
 	}{
 		{
-			name: "common resources",
-			user: newTestUser(commonResources, nil),
+			name:  "common resources",
+			allow: commonResources,
 			want: []string{
 				"test",
 				"prod",
 			},
 		},
 		{
-			name: "common resources with deny",
-			user: newTestUser(commonResources, []types.KubernetesResource{
+			name:  "common resources with deny",
+			allow: commonResources,
+			deny: []types.KubernetesResource{
 				{
 					Kind:      "teleportroles",
 					Name:      types.Wildcard,
@@ -3266,7 +3227,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  "",
 				},
-			}),
+			},
 			want: []string{
 				"test",
 				"prod",
@@ -3274,13 +3235,13 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "full wildcard access",
-			user: newTestUser(append(commonResources, types.KubernetesResource{
+			allow: append(commonResources, types.KubernetesResource{
 				Kind:      types.Wildcard,
 				Name:      types.Wildcard,
 				Namespace: types.Wildcard,
 				Verbs:     []string{types.Wildcard},
 				APIGroup:  types.Wildcard,
-			}), nil),
+			}),
 			want: []string{
 				// All namespaces because of the wildcard.
 				"default",
@@ -3291,13 +3252,13 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "single wildcard access",
-			user: newTestUser(append(commonResources, types.KubernetesResource{
+			allow: append(commonResources, types.KubernetesResource{
 				Kind:      types.Wildcard,
 				Name:      types.Wildcard,
 				Namespace: "dev",
 				Verbs:     []string{types.Wildcard},
 				APIGroup:  types.Wildcard,
-			}), nil),
+			}),
 			want: []string{
 				//  test and prod from common resources, dev from main one.
 				"test",
@@ -3307,11 +3268,11 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "reg ns access",
-			user: newTestUser(append(commonResources, types.KubernetesResource{
+			allow: append(commonResources, types.KubernetesResource{
 				Kind:  "namespaces",
 				Name:  "dev",
 				Verbs: []string{types.Wildcard},
-			}), nil),
+			}),
 			want: []string{
 				//  test and prod from common resources, dev from main one.
 				"test",
@@ -3321,13 +3282,13 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "ns wildcard access",
-			user: newTestUser(append(commonResources, types.KubernetesResource{
+			allow: append(commonResources, types.KubernetesResource{
 				Kind:      types.Wildcard,
 				Name:      types.Wildcard,
 				Namespace: types.Wildcard,
 				Verbs:     []string{types.Wildcard},
 				APIGroup:  types.Wildcard,
-			}), nil),
+			}),
 			want: []string{
 				// All namespaces because of the wildcard.
 				"default",
@@ -3338,13 +3299,13 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "wildcard ns single access",
-			user: newTestUser(append(commonResources, types.KubernetesResource{
+			allow: append(commonResources, types.KubernetesResource{
 				Kind:      types.Wildcard,
 				Name:      types.Wildcard,
 				Namespace: "test",
 				Verbs:     []string{types.Wildcard},
 				APIGroup:  types.Wildcard,
-			}), nil),
+			}),
 			want: []string{
 				// test and prod from the common resources, test from main one.
 				"test",
@@ -3353,7 +3314,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "jailed and reg ns single access",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:     "namespaces",
 					Name:     "default",
@@ -3374,7 +3335,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Verbs:     []string{types.Wildcard},
 					APIGroup:  types.Wildcard,
 				},
-			}, nil),
+			},
 			want: []string{
 				"default",
 				"test",
@@ -3383,19 +3344,20 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "deny single ns",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  "*",
 					Verbs: []string{types.Wildcard},
 				},
-			}, []types.KubernetesResource{
+			},
+			deny: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  "dev",
 					Verbs: []string{types.Wildcard},
 				},
-			}),
+			},
 			want: []string{
 				"default",
 				"test",
@@ -3411,13 +3373,14 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "ns resource deny cluster-wide wildcard",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  types.Wildcard,
 					Verbs: []string{types.Wildcard},
 				},
-			}, []types.KubernetesResource{
+			},
+			deny: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
@@ -3425,7 +3388,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Namespace: "",
 					Verbs:     []string{types.Wildcard},
 				},
-			}),
+			},
 			want: []string{},
 			wantScoped: []string{
 				"default",
@@ -3436,7 +3399,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "ns pods deny cluster-wide wildcard",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  types.Wildcard,
@@ -3448,7 +3411,8 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
 				},
-			}, []types.KubernetesResource{
+			},
+			deny: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
@@ -3456,7 +3420,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Namespace: "",
 					Verbs:     []string{types.Wildcard},
 				},
-			}),
+			},
 			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
 			// because of the deny rule.
 			want: []string{},
@@ -3470,7 +3434,7 @@ func TestNamespaceListRBAC(t *testing.T) {
 		},
 		{
 			name: "ns pods deny ns wildcard",
-			user: newTestUser([]types.KubernetesResource{
+			allow: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  types.Wildcard,
@@ -3482,13 +3446,14 @@ func TestNamespaceListRBAC(t *testing.T) {
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
 				},
-			}, []types.KubernetesResource{
+			},
+			deny: []types.KubernetesResource{
 				{
 					Kind:  "namespaces",
 					Name:  types.Wildcard,
 					Verbs: []string{types.Wildcard},
 				},
-			}),
+			},
 			// Even though the user has access to pods and still can get pods in all NSs, the list namespace is empty
 			// because of the deny rule.
 			want: []string{},
@@ -3501,25 +3466,37 @@ func TestNamespaceListRBAC(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range tests {
+	for idx, tt := range tests {
 		// loop to run the test case against scoped and unscoped credentials
-		for _, scoped := range []bool{false, true} {
-			var opts []GenTestKubeClientTLSCertOptions
+		for _, scope := range []string{"", scopedTestScope} {
 			want := tt.want
-			if scoped {
-				opts = makeScopedOpts(t, testCtx, tt.user.GetName(), scope)
-				// we only want to check tt.wantScoped if it was provided, otherwise a nil value means
-				// we should test scoped credentials against the same expectations
+			kubeClusterSQN := scopes.QualifiedName{Name: kubeCluster, Scope: scope}
+
+			testCtx := unscopedTestCtx
+			if scope != "" {
+				testCtx = scopedTestCtx
 				if tt.wantScoped != nil {
+					// we only want to check tt.wantScoped if it was provided, otherwise a nil value means
+					// we should test scoped credentials against the same expectations
 					want = tt.wantScoped
 				}
 			}
+			user := newScopedUser(t, newScopedUserCfg{
+				testCtx:     testCtx,
+				scope:       scope,
+				prefix:      "nslist",
+				roleVersion: types.V8,
+				allow:       tt.allow,
+				deny:        tt.deny,
+				idx:         idx,
+			})
+			opts := makeScopedOpts(t, testCtx, user.GetName(), scope)
 
-			t.Run(fmt.Sprintf("%s scoped=%t", tt.name, scoped), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 				t.Parallel()
 
 				// Generate a kube dynClient with user certs for auth.
-				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster, opts...)
+				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, user.GetName(), kubeClusterSQN, opts...)
 
 				got := []string{}
 				got = append(got, dynList(testCtx.Context, dynClient.Resource(gvr("v1/namespaces")))...)
@@ -3669,7 +3646,7 @@ func TestDenyClusterWideResources(t *testing.T) {
 			t.Parallel()
 
 			// Generate a kube dynClient with user certs for auth.
-			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), scopes.QualifiedName{Name: kubeCluster})
 
 			got := []string{}
 			// Get namespaces in read-only, should work.
@@ -3687,10 +3664,8 @@ func TestDenyClusterWideResources(t *testing.T) {
 func TestDeleteNamespaceDenial(t *testing.T) {
 	t.Parallel()
 
-	const scope = "/test"
-	_, testCtx := newTestKubeCRDMock(t, scope, tkm.WithTeleportRoleCRD)
-
-	newTestUser := newTestUserFactoryWithScope(t, testCtx, "delete-ns", types.V8, scope)
+	_, unscopedTestCtx := newTestKubeCRDMock(t, "", tkm.WithTeleportRoleCRD)
+	_, scopedTestCtx := newTestKubeCRDMock(t, scopedTestScope, tkm.WithTeleportRoleCRD)
 
 	fullAccess := []types.KubernetesResource{
 		{
@@ -3704,13 +3679,13 @@ func TestDeleteNamespaceDenial(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		user    types.User
+		deny    []types.KubernetesResource
 		ns      string
 		wantErr bool
 	}{
 		{
 			name: "full access deny all wildcard ns",
-			user: newTestUser(fullAccess, []types.KubernetesResource{
+			deny: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					APIGroup:  types.Wildcard,
@@ -3718,79 +3693,94 @@ func TestDeleteNamespaceDenial(t *testing.T) {
 					Namespace: "test",
 					Verbs:     []string{types.Wildcard},
 				},
-			}),
+			},
 			ns:      "test",
 			wantErr: true,
 		},
 		{
 			name: "full access deny wildcard ns resource",
-			user: newTestUser(fullAccess, []types.KubernetesResource{
+			deny: []types.KubernetesResource{
 				{
 					Kind:     "namespaces",
 					APIGroup: types.Wildcard,
 					Name:     types.Wildcard,
 					Verbs:    []string{types.Wildcard},
 				},
-			}),
+			},
 			ns:      "test",
 			wantErr: true,
 		},
 		{
 			name: "full access deny specific ns resource - denied",
-			user: newTestUser(fullAccess, []types.KubernetesResource{
+			deny: []types.KubernetesResource{
 				{
 					Kind:     "namespaces",
 					APIGroup: types.Wildcard,
 					Name:     "test",
 					Verbs:    []string{types.Wildcard},
 				},
-			}),
+			},
 			ns:      "test",
 			wantErr: true,
 		},
 		{
 			name: "full access deny specific ns resource - allowed",
-			user: newTestUser(fullAccess, []types.KubernetesResource{
+			deny: []types.KubernetesResource{
 				{
 					Kind:     "namespaces",
 					APIGroup: types.Wildcard,
 					Name:     "test",
 					Verbs:    []string{types.Wildcard},
 				},
-			}),
+			},
 			ns:      "dev",
 			wantErr: false,
 		},
 		{
 			name: "full access deny unrelated resource - allowed",
-			user: newTestUser(fullAccess, []types.KubernetesResource{
+			deny: []types.KubernetesResource{
 				{
 					Kind:      "pods",
 					Name:      types.Wildcard,
 					Namespace: "test",
 					Verbs:     []string{types.Wildcard},
 				},
-			}),
+			},
 			ns: "test",
 			// TODO(@creack): Reconsider this behavior. We may consider denying this. Keeping as is for now
 			//                to maintain v17's / rolev7 behavior.
 			wantErr: false,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	for idx, tt := range tests {
+		for _, scope := range []string{"", scopedTestScope} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-			// Generate a kube dynClient with user certs for auth.
-			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+				testCtx := unscopedTestCtx
+				if scope != "" {
+					testCtx = scopedTestCtx
+				}
+				user := newScopedUser(t, newScopedUserCfg{
+					testCtx:     testCtx,
+					scope:       scope,
+					prefix:      "delete-ns",
+					roleVersion: types.V8,
+					allow:       fullAccess,
+					deny:        tt.deny,
+					idx:         idx,
+				})
+				// Generate a kube dynClient with user certs for auth.
+				_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, user.GetName(), scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope})
 
-			// Attempt to delete a namespace, should fail.
-			if err := dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, tt.ns, metav1.DeleteOptions{}); tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+				// Attempt to delete a namespace, should fail.
+				if err := dynClient.Resource(gvr("v1/namespaces")).Delete(testCtx.Context, tt.ns, metav1.DeleteOptions{}); tt.wantErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
 	}
 }
 
@@ -3894,7 +3884,7 @@ func TestFullNamespaceNoDeleteRBAC(t *testing.T) {
 			t.Parallel()
 
 			// Generate a kube dynClient with user certs for auth.
-			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+			_, dynClient, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), scopes.QualifiedName{Name: kubeCluster})
 
 			require.NoError(t, dynClient.Resource(gvr("v1/pods")).DeleteCollection(testCtx.Context, metav1.DeleteOptions{}, metav1.ListOptions{}))
 			require.NoError(t, dynClient.Resource(gvr("v1/secrets")).DeleteCollection(testCtx.Context, metav1.DeleteOptions{}, metav1.ListOptions{}))
@@ -3938,99 +3928,120 @@ func newTestKubeCRDMock(t *testing.T, scope string, opts ...tkm.Option) (*runtim
 }
 
 func newTestUserFactory(t *testing.T, testCtx *TestContext, prefix, roleVersion string) func(allow, deny []types.KubernetesResource) types.User {
-	return newTestUserFactoryWithScope(t, testCtx, prefix, roleVersion, "")
+	count := 0
+
+	return func(allow, deny []types.KubernetesResource) types.User {
+		user := newScopedUser(t, newScopedUserCfg{
+			testCtx:     testCtx,
+			scope:       "",
+			prefix:      prefix,
+			roleVersion: roleVersion,
+			allow:       allow,
+			deny:        deny,
+			idx:         count,
+		})
+		count++
+		return user
+	}
 }
 
-func newTestUserFactoryWithScope(t *testing.T, testCtx *TestContext, prefix, roleVersion, scope string) func(allow, deny []types.KubernetesResource) types.User {
-	count := 0
+type newScopedUserCfg struct {
+	testCtx     *TestContext
+	prefix      string
+	roleVersion string
+	scope       string
+	allow       []types.KubernetesResource
+	deny        []types.KubernetesResource
+	idx         int
+}
+
+func newScopedUser(t *testing.T, cfg newScopedUserCfg) types.User {
+	t.Helper()
+	prefix := cfg.prefix
 	if prefix == "" {
 		prefix = "test"
 	}
 
-	return func(allow, deny []types.KubernetesResource) types.User {
-		t.Helper()
-		count++
-		name := fmt.Sprintf("%s-user-%s-%d", prefix, roleVersion, count)
-		user, _ := testCtx.CreateUserAndRoleVersion(
-			testCtx.Context,
-			t,
-			name,
-			roleVersion,
-			RoleSpec{
-				Name:       name,
-				KubeUsers:  roleKubeUsers,
-				KubeGroups: roleKubeGroups,
-				SetupRoleFunc: func(r types.Role) {
-					r.SetKubeResources(types.Allow, allow)
-					r.SetKubeResources(types.Deny, deny)
-				},
+	name := fmt.Sprintf("%s-user-%s-%d", prefix, cfg.roleVersion, cfg.idx)
+	user, _ := cfg.testCtx.CreateUserAndRoleVersion(
+		cfg.testCtx.Context,
+		t,
+		name,
+		cfg.roleVersion,
+		RoleSpec{
+			Name:       name,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, cfg.allow)
+				r.SetKubeResources(types.Deny, cfg.deny)
 			},
-		)
+		},
+	)
 
-		// don't generate scoped roles if scope wasn't provided
-		if scope == "" {
-			return user
-		}
-
-		// don't generate scoped roles for legacy role kinds
-		if roleVersion != "" && roleVersion != types.V8 {
-			return user
-		}
-
-		// scoped roles are implicit deny and only provide allow rules
-		scopedResources := make([]*accessv1.KubeResource, len(allow))
-		for idx, res := range allow {
-			scopedResources[idx] = toScopedKubeResource(res)
-		}
-		scopedAccess := testCtx.TLSServer.Auth().ScopedAccess()
-		role, err := scopedAccess.CreateScopedRole(t.Context(), accessv1.CreateScopedRoleRequest_builder{
-			Role: accessv1.ScopedRole_builder{
-				Kind:    access.KindScopedRole,
-				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
-					Name: name,
-				}.Build(),
-				Scope: scope,
-				Spec: accessv1.ScopedRoleSpec_builder{
-					AssignableScopes: []string{scope},
-					Kube: accessv1.ScopedRoleKube_builder{
-						Users:     roleKubeUsers,
-						Groups:    roleKubeGroups,
-						Labels:    wildcardLabel(),
-						Resources: scopedResources,
-					}.Build(),
-				}.Build(),
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-
-		assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), accessv1.CreateScopedRoleAssignmentRequest_builder{
-			Assignment: accessv1.ScopedRoleAssignment_builder{
-				Kind:    access.KindScopedRoleAssignment,
-				Version: types.V1,
-				SubKind: access.SubKindDynamic,
-				Scope:   scope,
-				Metadata: headerv1.Metadata_builder{
-					Name: uuid.New().String(),
-				}.Build(),
-				Spec: accessv1.ScopedRoleAssignmentSpec_builder{
-					User: name,
-					Assignments: []*accessv1.Assignment{
-						accessv1.Assignment_builder{
-							Role: scopes.QualifiedName{
-								Name:  role.GetRole().GetMetadata().GetName(),
-								Scope: role.GetRole().GetScope(),
-							}.String(),
-							Scope: scope,
-						}.Build(),
-					},
-				}.Build(),
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		waitForSRACache(t, testCtx.TLSServer, assignment)
+	// don't generate scoped roles if scope wasn't provided
+	if cfg.scope == "" {
 		return user
 	}
+
+	// don't generate scoped roles for legacy role kinds
+	if cfg.roleVersion != "" && cfg.roleVersion != types.V8 {
+		return user
+	}
+
+	// scoped roles are implicit deny and only provide allow rules
+	scopedResources := make([]*accessv1.KubeResource, len(cfg.allow))
+	for idx, res := range cfg.allow {
+		scopedResources[idx] = toScopedKubeResource(res)
+	}
+	scopedAccess := cfg.testCtx.TLSServer.Auth().ScopedAccess()
+	role, err := scopedAccess.CreateScopedRole(t.Context(), accessv1.CreateScopedRoleRequest_builder{
+		Role: accessv1.ScopedRole_builder{
+			Kind:    access.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+			Scope: cfg.scope,
+			Spec: accessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{cfg.scope},
+				Kube: accessv1.ScopedRoleKube_builder{
+					Users:     roleKubeUsers,
+					Groups:    roleKubeGroups,
+					Labels:    wildcardLabel(),
+					Resources: scopedResources,
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), accessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: accessv1.ScopedRoleAssignment_builder{
+			Kind:    access.KindScopedRoleAssignment,
+			Version: types.V1,
+			SubKind: access.SubKindDynamic,
+			Scope:   cfg.scope,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.New().String(),
+			}.Build(),
+			Spec: accessv1.ScopedRoleAssignmentSpec_builder{
+				User: name,
+				Assignments: []*accessv1.Assignment{
+					accessv1.Assignment_builder{
+						Role: scopes.QualifiedName{
+							Name:  role.GetRole().GetMetadata().GetName(),
+							Scope: role.GetRole().GetScope(),
+						}.String(),
+						Scope: cfg.scope,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	waitForSRACache(t, cfg.testCtx.TLSServer, assignment)
+	return user
 }
 
 func unstructuredListNames(items *unstructured.UnstructuredList) []string {
@@ -4086,13 +4097,13 @@ func dynList(ctx context.Context, r dynamic.ResourceInterface) []string {
 //     name: *, ns dev, { pod name *, pod ns * }
 //     name: *, ns dev, staging
 func TestSpecificCustomResourcesRBAC(t *testing.T) {
+	t.Parallel()
 	telerolev8 := tkm.NewCRD("resources.teleport.dev", "v8", "teleportroles", "TeleportRole", "TeleportRoleList", true)
 	teleswagv1 := tkm.NewCRD("swag.teleport.dev", "v1", "teleswags", "TeleportSwag", "TeleportSwagList", true)
 	clusterswagv0 := tkm.NewCRD("resources.teleport.dev", "v0", "clusterswags", "ClusterSwag", "ClusterSwagList", false)
 
-	const scope = "/test"
-	kubeScheme, testCtx := newTestKubeCRDMock(t,
-		scope,
+	kubeScheme, unscopedTestCtx := newTestKubeCRDMock(t,
+		"",
 		tkm.WithTeleportRoleCRD,
 		tkm.WithCRD(telerolev8,
 			tkm.NewObject("default", "telerole-1"),
@@ -4111,11 +4122,30 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		),
 	)
 
-	newUser := newTestUserFactoryWithScope(t, testCtx, "crd-rbac", types.V8, scope)
+	_, scopedTestCtx := newTestKubeCRDMock(t,
+		scopedTestScope,
+		tkm.WithTeleportRoleCRD,
+		tkm.WithCRD(telerolev8,
+			tkm.NewObject("default", "telerole-1"),
+			tkm.NewObject("default", "telerole-2"),
+			tkm.NewObject("default", "telerole-test"),
+			tkm.NewObject("dev", "telerole-1"),
+			tkm.NewObject("dev", "telerole-2"),
+		),
+		tkm.WithCRD(teleswagv1,
+			tkm.NewObject("default", "teleswag-1"),
+		),
+		tkm.WithCRD(clusterswagv0,
+			tkm.NewObject("", "clusterswag-1"),
+			tkm.NewObject("", "clusterswag-2"),
+			tkm.NewObject("", "my-clusterswag"),
+		),
+	)
 
 	type args struct {
-		user types.User
-		crds []*tkm.CRD
+		allow []types.KubernetesResource
+		deny  []types.KubernetesResource
+		crds  []*tkm.CRD
 	}
 	type want struct {
 		listTeleportRolesResult [][]string // One list per CRDs in args.
@@ -4129,7 +4159,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "list crds on multiple versions",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      tkm.NewTeleportRoleCRD().GetKindPlural(),
 						Name:      types.Wildcard,
@@ -4144,7 +4174,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy()},
 			},
 			want: want{
@@ -4163,7 +4193,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "access to multiple crds listing one without access",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      tkm.NewTeleportRoleCRD().GetKindPlural(),
 						Name:      types.Wildcard,
@@ -4178,7 +4208,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{tkm.NewTeleportRoleCRD(), telerolev8.Copy(), teleswagv1.Copy()},
 			},
 			want: want{
@@ -4199,7 +4229,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "valid kind format",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      "teleportroles",
 						Name:      types.Wildcard,
@@ -4214,7 +4244,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  "resources.teleport.dev",
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{telerolev8},
 			},
 			want: want{
@@ -4230,7 +4260,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "different invalid kind format",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      "TeleportRole",
 						Name:      types.Wildcard,
@@ -4294,7 +4324,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{telerolev8},
 			},
 			want: want{
@@ -4304,7 +4334,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "cluster wide crd",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      clusterswagv0.GetKindPlural(),
 						Name:      "clusterswag-*",
@@ -4312,7 +4342,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{clusterswagv0},
 			},
 			want: want{
@@ -4328,7 +4358,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "cluster wide crd no access",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      telerolev8.GetKindPlural(),
 						Name:      types.Wildcard,
@@ -4336,7 +4366,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{clusterswagv0},
 			},
 			want: want{
@@ -4346,7 +4376,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		{
 			name: "cluster wide crd no acces wildcard",
 			args: args{
-				user: newUser([]types.KubernetesResource{
+				allow: []types.KubernetesResource{
 					{
 						Kind:      telerolev8.GetKindPlural(),
 						Name:      types.Wildcard,
@@ -4354,7 +4384,7 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 						Verbs:     []string{types.Wildcard},
 						APIGroup:  types.Wildcard,
 					},
-				}, nil),
+				},
 				crds: []*tkm.CRD{clusterswagv0},
 			},
 			want: want{
@@ -4363,16 +4393,27 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		for _, scoped := range []bool{false, true} {
+	for idx, tt := range tests {
+		for _, scope := range []string{"", scopedTestScope} {
 			var opts []GenTestKubeClientTLSCertOptions
-			if scoped {
-				opts = makeScopedOpts(t, testCtx, tt.args.user.GetName(), scope)
+			testCtx := unscopedTestCtx
+			if scope != "" {
+				testCtx = scopedTestCtx
 			}
-			t.Run(fmt.Sprintf("%s scoped=%t", tt.name, scoped), func(t *testing.T) {
+			user := newScopedUser(t, newScopedUserCfg{
+				testCtx:     testCtx,
+				prefix:      "crd-rbac",
+				roleVersion: types.V8,
+				scope:       scope,
+				allow:       tt.args.allow,
+				deny:        tt.args.deny,
+				idx:         idx,
+			})
+			opts = makeScopedOpts(t, testCtx, user.GetName(), scope)
+			t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
 				t.Parallel()
 				// Generate a kube client with user certs for auth.
-				_, rest := testCtx.GenTestKubeClientTLSCert(t, tt.args.user.GetName(), kubeCluster, opts...)
+				_, rest := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope}, opts...)
 
 				client, err := controllerclient.New(rest, controllerclient.Options{
 					Scheme: kubeScheme,
@@ -4424,45 +4465,53 @@ func TestProxySubresourceRBAC(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
-	const scope = "/test"
-	testCtx := SetupTestContext(
+	unscopedTestCtx := SetupTestContext(
 		context.Background(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-			Scope:    scope,
+		},
+	)
+
+	scopedTestCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			Scope:    scopedTestScope,
 			ScopesFeatures: scopes.Features{
 				Enabled: true,
 			},
 		},
 	)
-	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+	t.Cleanup(func() {
+		require.NoError(t, unscopedTestCtx.Close())
+		require.NoError(t, scopedTestCtx.Close())
+	})
 
-	newUser := newTestUserFactoryWithScope(t, testCtx, "subresource-rbac", types.V8, scope)
-
-	podGetUser := newUser([]types.KubernetesResource{{
+	allowPodGet := []types.KubernetesResource{{
 		Kind: "pods", Namespace: types.Wildcard, Name: types.Wildcard,
 		Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
-	}}, nil)
+	}}
 
-	serviceGetUser := newUser([]types.KubernetesResource{{
+	allowServiceGet := []types.KubernetesResource{{
 		Kind: "services", Namespace: types.Wildcard, Name: types.Wildcard,
 		Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
-	}}, nil)
+	}}
 
-	nodeGetUser := newUser([]types.KubernetesResource{{
+	allowNodeGet := []types.KubernetesResource{{
 		Kind: "nodes", Name: types.Wildcard,
 		Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
-	}}, nil)
+	}}
 	// Negative control: configmaps allow rule, no pods/services/nodes match.
-	noMatchUser := newUser([]types.KubernetesResource{{
+	noMatch := []types.KubernetesResource{{
 		Kind: "configmaps", Namespace: types.Wildcard, Name: types.Wildcard,
 		Verbs: []string{"get"}, APIGroup: types.Wildcard,
-	}}, nil)
+	}}
 
 	tests := []struct {
 		name         string
-		user         types.User
+		allow        []types.KubernetesResource
 		urlPath      string
 		wantCode     int
 		bodyContains string
@@ -4470,7 +4519,7 @@ func TestProxySubresourceRBAC(t *testing.T) {
 		{
 			// Sanity check that portforward verb denial still works.
 			name:         "portforward_denied_baseline",
-			user:         podGetUser,
+			allow:        allowPodGet,
 			urlPath:      "/api/v1/namespaces/default/pods/teleport/portforward",
 			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot portforward resource",
@@ -4478,45 +4527,52 @@ func TestProxySubresourceRBAC(t *testing.T) {
 		{
 			// podGetUser has get/list on pods but not proxy.
 			name:         "pods_proxy_denied",
-			user:         podGetUser,
+			allow:        allowPodGet,
 			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
 			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			name:         "services_proxy_denied",
-			user:         serviceGetUser,
+			allow:        allowServiceGet,
 			urlPath:      "/api/v1/namespaces/default/services/svc/proxy/path",
 			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			name:         "nodes_proxy_denied",
-			user:         nodeGetUser,
+			allow:        allowNodeGet,
 			urlPath:      "/api/v1/nodes/node-1/proxy/pods",
 			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			// noMatchUser has no allow rule for pods at all - confirms the
-			// resource matcher is in the request path. The body includes
-			// the user name to make this distinct from the podGetUser case
-			// above.
+			// resource matcher is in the request path.
 			name:         "negative_control_denied",
-			user:         noMatchUser,
+			allow:        noMatch,
 			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
 			wantCode:     http.StatusForbidden,
-			bodyContains: fmt.Sprintf("User \\\"%s\\\" cannot proxy resource", noMatchUser.GetName()),
+			bodyContains: "cannot proxy resource",
 		},
 	}
-	for _, tt := range tests {
-		for _, scoped := range []bool{false, true} {
-			var opts []GenTestKubeClientTLSCertOptions
-			if scoped {
-				opts = makeScopedOpts(t, testCtx, tt.user.GetName(), scope)
+	for idx, tt := range tests {
+		for _, scope := range []string{"", scopedTestScope} {
+			testCtx := unscopedTestCtx
+			if scope != "" {
+				testCtx = scopedTestCtx
 			}
-			t.Run(fmt.Sprintf("%s scoped=%t", tt.name, scoped), func(t *testing.T) {
-				code, body := sendKubeGet(t, testCtx, tt.user, tt.urlPath, opts...)
+			user := newScopedUser(t, newScopedUserCfg{
+				testCtx:     testCtx,
+				scope:       scope,
+				prefix:      "subresource-rbac",
+				roleVersion: types.V8,
+				allow:       tt.allow,
+				idx:         idx,
+			})
+			opts := makeScopedOpts(t, testCtx, user.GetName(), scope)
+			t.Run(fmt.Sprintf("%s scope=%s", tt.name, scope), func(t *testing.T) {
+				code, body := sendKubeGet(t, testCtx, user, tt.urlPath, opts...)
 				require.Equal(t, tt.wantCode, code, "body: %s", body)
 				require.Contains(t, body, tt.bodyContains)
 			})
@@ -4528,7 +4584,9 @@ func TestProxySubresourceRBAC(t *testing.T) {
 func makeScopedOpts(t *testing.T, testCtx *TestContext, username, scope string) []GenTestKubeClientTLSCertOptions {
 	return []GenTestKubeClientTLSCertOptions{
 		func(i *tlsca.Identity) {
-			i.ScopePin = testCtx.GetScopePinForUser(t, username, scope)
+			if scope != "" {
+				i.ScopePin = testCtx.GetScopePinForUser(t, username, scope)
+			}
 		},
 	}
 }
@@ -4543,16 +4601,13 @@ func toScopedKubeResource(resource types.KubernetesResource) *accessv1.KubeResou
 	}.Build()
 }
 
-func scopedUsername(username string) string {
-	return "scoped-" + username
-}
-
 // TestProxySpecialVerbPathRBAC verifies that the Kubernetes "special verb" URL form,
 // where a proxy segment precedes the resource path
 // (/apis/{group}/{version}/proxy/namespaces/{ns}/{kind}/{name}),
 // is parsed as the resource it targets and enforced with the KubeVerbProxy verb,
 // instead of being rejected as a resource kind the cluster doesn't serve.
 func TestProxySpecialVerbPathRBAC(t *testing.T) {
+	t.Parallel()
 	const (
 		basePath     = "/apis/resources.teleport.dev/v6"
 		resourceKind = "teleportroles"
@@ -4639,7 +4694,7 @@ func TestProxySpecialVerbPathRBAC(t *testing.T) {
 // Raw HTTP rather than a typed client, so arbitrary URL paths can be exercised.
 func sendKubeGet(t *testing.T, testCtx *TestContext, user types.User, urlPath string, opts ...GenTestKubeClientTLSCertOptions) (int, string) {
 	t.Helper()
-	_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster, opts...)
+	_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), scopes.QualifiedName{Name: kubeCluster, Scope: testCtx.Scope}, opts...)
 	transport, err := rest.TransportFor(cfg)
 	require.NoError(t, err)
 	client := &http.Client{Transport: transport}

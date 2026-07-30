@@ -123,9 +123,6 @@ func transportCacheKey(sess *clusterSession) string {
 	if sess.teleportCluster.isRemote {
 		return fmt.Sprintf("%x", sess.teleportCluster.name)
 	}
-	if scope := sess.kubeClusterSQN.Scope; scope != "" {
-		return fmt.Sprintf("%x/%x/%x", sess.teleportCluster.name, scope, sess.kubeClusterSQN.String())
-	}
 	return fmt.Sprintf("%x/%x", sess.teleportCluster.name, sess.kubeClusterSQN.String())
 }
 

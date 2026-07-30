@@ -45,6 +45,7 @@ import (
 	"k8s.io/streaming/pkg/httpstream"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -134,7 +135,7 @@ func TestPortForwardKubeService(t *testing.T) {
 			_, config := testCtx.GenTestKubeClientTLSCert(
 				t,
 				user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 			require.NoError(t, err)
 
@@ -248,7 +249,7 @@ func TestPortForwardKubeServiceMultiPort(t *testing.T) {
 	_, config := testCtx.GenTestKubeClientTLSCert(
 		t,
 		user.GetName(),
-		kubeCluster,
+		scopes.QualifiedName{Name: kubeCluster},
 	)
 
 	// Create 5 ports.
@@ -632,7 +633,7 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			_, config := testCtx.GenTestKubeClientTLSCert(
 				t,
 				user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 			require.NoError(t, err)
 			// readyCh communicate when the port forward is ready to get traffic

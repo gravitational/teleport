@@ -85,6 +85,7 @@ import (
 type TestContext struct {
 	HostID             string
 	ClusterName        string
+	Scope              string
 	TLSServer          *authtest.TLSServer
 	AuthServer         *auth.Server
 	AuthClient         *authclient.Client
@@ -132,6 +133,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx := &TestContext{
 		ClusterName:     "root.example.com",
 		HostID:          uuid.New().String(),
+		Scope:           cfg.Scope,
 		Context:         ctx,
 		cancel:          cancel,
 		heartbeatCtx:    heartbeatCtx,
@@ -450,7 +452,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	for _, cluster := range cfg.Clusters {
 		select {
 		case sender := <-inventoryHandle.Sender():
-			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
+			server, err := testCtx.KubeServer.GetServerInfo(scopes.QualifiedName{Name: cluster.Name, Scope: cfg.Scope})
 			require.NoError(t, err)
 			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat_builder{
 				KubernetesServer: server,
@@ -569,6 +571,11 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 	user, err := authtest.CreateUser(t.Context(), c.TLSServer.Auth(), username)
 	require.NoError(t, err)
 
+	return user, c.CreateAndAssignScopedRole(t, username, scope, roleSpec)
+}
+
+// CreateAndAssignScopedRole creates a scoped role and assigns it to the given username.
+func (c *TestContext) CreateAndAssignScopedRole(t *testing.T, username, scope string, roleSpec *accessv1.ScopedRoleSpec) *accessv1.CreateScopedRoleAssignmentResponse {
 	scopedAccess := c.TLSServer.Auth().ScopedAccess()
 	role, err := scopedAccess.CreateScopedRole(t.Context(), accessv1.CreateScopedRoleRequest_builder{
 		Role: accessv1.ScopedRole_builder{
@@ -605,7 +612,7 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 	}.Build())
 	require.NoError(t, err)
 
-	return user, assignment
+	return assignment
 }
 
 func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
@@ -659,13 +666,13 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 }
 
 // GenTestKubeClientTLSCert generates a kube client to access kube service
-func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
-	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeCluster, opts...)
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName string, kubeClusterSQN scopes.QualifiedName, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
+	client, _, cfg := c.GenTestKubeClientsTLSCert(t, userName, kubeClusterSQN, opts...)
 	return client, cfg
 }
 
 // GenTestKubeClientsTLSCert generates a "regular" kube client and a dynamic one to access kube service
-func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
+func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName string, kubeClusterSQN scopes.QualifiedName, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *dynamic.DynamicClient, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
@@ -705,7 +712,7 @@ func (c *TestContext) GenTestKubeClientsTLSCert(t *testing.T, userName, kubeClus
 		Groups:            user.GetRoles(),
 		KubernetesUsers:   user.GetKubeUsers(),
 		KubernetesGroups:  user.GetKubeGroups(),
-		KubernetesCluster: kubeCluster,
+		KubernetesCluster: kubeClusterSQN.String(),
 		RouteToCluster:    c.ClusterName,
 		Traits:            user.GetTraits(),
 	}
