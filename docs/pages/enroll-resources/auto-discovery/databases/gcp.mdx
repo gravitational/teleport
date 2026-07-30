@@ -10,8 +10,8 @@ tags:
 page_type: how-to
 ---
 
-After you complete this guide, Teleport automatically discovers and registers
-Cloud SQL for PostgreSQL and MySQL instances and proxies connections to them.
+After you complete this guide, Teleport will automatically discover and register
+Cloud SQL for PostgreSQL and MySQL instances and proxy connections to them.
 Configure Teleport RBAC and database privileges separately.
 
 For manual enrollment guides, including Cloud Spanner and AlloyDB, see
@@ -63,8 +63,8 @@ Service and Teleport Database Service.
 
 ### Create a Teleport config file
 
-The following configuration uses a shared-secret join token. On Compute Engine,
-you can instead use the
+The following configuration uses a shared-secret join token. If you run the
+Discovery Service on a Google Compute Engine VM, you can instead use the
 [GCP join method](../../../installation/agents/gcp.mdx) to join without a
 shared secret.
 
@@ -110,7 +110,7 @@ you configured above:
 kind: discovery_config
 version: v1
 metadata:
-  name: cloudsql-discovery
+  name: discovery-cloudsql
 spec:
   discovery_group: "<Var name="gcp-prod"/>"
   gcp:
@@ -166,15 +166,19 @@ If you do not see the databases you expect, refer to
 <details>
 <summary>Discovered database names</summary>
 
-Each discovered database is named
-`<instance>-cloudsql-<region>-<project>`, for example
-`my-postgres-cloudsql-us-central1-my-project`. The original instance name is
-preserved in the `teleport.internal/discovered-name` label when Teleport adds a
-suffix.
+Discovered databases are named `<instance>-cloudsql-<region>-<project-id>`, for
+example `my-postgres-cloudsql-us-central1-my-project`. Teleport drops any
+suffix part the instance name already contains.
 
-To use a custom name, set the Cloud SQL instance's `teleport-database-name` user
-label. Teleport uses the value without a suffix if it starts with a letter,
-contains only letters, digits, and hyphens, and does not end with a hyphen.
+Both the full name and the instance name work with `tsh` and `tctl` commands.
+`tsh db ls` and `tctl db ls` show the instance name unless you pass `--verbose`;
+if an instance name matches more than one database, use the full name.
+
+Applying the `teleport-database-name` user label to an instance overrides the
+name: Teleport uses the value verbatim, with no suffix, and the instance name no
+longer works as an alias for it. The
+value must be a valid, unique Teleport database name; Teleport skips instances
+with an invalid value.
 
 For the labels applied to discovered databases, see the
 [Google Cloud database labels reference](../reference/labels.mdx#google-cloud).
@@ -200,8 +204,8 @@ the instance's authorized networks.
 
 ### Create a Teleport config file
 
-The following configuration uses a shared-secret join token. On Compute Engine,
-you can instead use the
+The following configuration uses a shared-secret join token. If you run the
+Database Service on a Google Compute Engine VM, you can instead use the
 [GCP join method](../../../installation/agents/gcp.mdx) to join without a
 shared secret.
 
@@ -236,7 +240,9 @@ The Discovery Service adds the label `teleport.dev/origin: cloud` to every
 database it registers. In this example, `db_service.resources` uses that label
 and the other selectors to match auto-discovered Cloud SQL databases in
 <Var name="my-project"/> and <Var name="us-central1"/>. For each matching `db`
-resource, the Database Service publishes a short-lived `db_server` resource.
+resource, the Database Service creates a short-lived `db_server` resource that
+announces to the Teleport cluster that it is ready to proxy connections for
+that `db`.
 
 (!docs/pages/includes/discovery/db-label-warning.mdx!)
 
