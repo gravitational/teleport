@@ -25,6 +25,9 @@ enum ComponentFeatureID {
   COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1 = 1;
   // ResourceConstraintsSSHV1 indicates support for enforcing SSH login constraints on nodes.
   COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_SSH_V1 = 2;
+  // ResourceConstraintsDBV1 indicates support for enforcing database user/name/role
+  // constraints on database services.
+  COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_DB_V1 = 3;
 }
 
 // ComponentFeatures represents a set of features supported by a given Teleport component.
