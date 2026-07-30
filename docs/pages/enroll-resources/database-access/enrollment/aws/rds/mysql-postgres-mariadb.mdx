@@ -312,7 +312,7 @@ https://truststore.pki.rds.amazonaws.com/<region>/<region>-bundle.pem
 ```
 
 For GovCloud regions the host is `truststore.pki.us-gov-west-1.rds.amazonaws.com`,
-and for China regions it is `truststore.pki.rds.cn-north-1.amazonaws.com.cn`.
+and for China regions it is `rds-truststore.s3.cn-north-1.amazonaws.com.cn`.
 
 If databases do not appear in `tctl db ls` within 60 seconds of starting the
 service, ensure this endpoint is reachable and enable DEBUG logging
