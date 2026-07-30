@@ -80,6 +80,51 @@ func TestTokenize(t *testing.T) {
 			want: []string{"files", "caf%C3%A9.md"},
 		},
 		{
+			name: "encoded space %20 stays raw in the token",
+			path: "/job/My%20Job/lastBuild",
+			want: []string{"job", "My%20Job", "lastBuild"},
+		},
+		{
+			name: "encoded space %20 in the first segment",
+			path: "/My%20Jobs/config",
+			want: []string{"My%20Jobs", "config"},
+		},
+		{
+			name: "encoded space %20 in the last segment",
+			path: "/job/last%20build",
+			want: []string{"job", "last%20build"},
+		},
+		{
+			name: "several encoded spaces %20 in one segment",
+			path: "/job/a%20b%20c",
+			want: []string{"job", "a%20b%20c"},
+		},
+		{
+			name: "consecutive encoded spaces %20%20 are allowed",
+			path: "/job/a%20%20b",
+			want: []string{"job", "a%20%20b"},
+		},
+		{
+			name: "encoded spaces %20 in several segments are allowed",
+			path: "/sites/Team%20Site/Shared%20Documents/x",
+			want: []string{"sites", "Team%20Site", "Shared%20Documents", "x"},
+		},
+		{
+			name: "interior encoded space %20 next to the encoded separator %2F",
+			path: "/files/a%20b%2Fc",
+			want: []string{"files", "a%20b%2Fc"},
+		},
+		{
+			name: "encoded space %20 next to a non-ASCII escape",
+			path: "/files/caf%C3%A9%20menu",
+			want: []string{"files", "caf%C3%A9%20menu"},
+		},
+		{
+			name: "dots and an encoded space %20 among other characters are allowed",
+			path: "/a/a.%20.b/c",
+			want: []string{"a", "a.%20.b", "c"},
+		},
+		{
 			name: "combining mark %CC%87 (U+0307) on a base character is allowed",
 			path: "/p/q%CC%87x",
 			want: []string{"p", "q%CC%87x"},
@@ -107,6 +152,157 @@ func TestTokenize(t *testing.T) {
 		{
 			name:    "an encoded hash %23 (#) is rejected",
 			path:    "/files/a%23b",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded percent %25 (%) is rejected",
+			path:    "/files/a%25b",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded question mark %3F (?) is rejected",
+			path:    "/files/a%3Fb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded NUL %00 is rejected",
+			path:    "/files/a%00b",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded double quote %22 (\") is rejected",
+			path:    "/files/a%22b",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded less-than %3C (<) is rejected",
+			path:    "/files/a%3Cb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded greater-than %3E (>) is rejected",
+			path:    "/files/a%3Eb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded opening bracket %5B ([) is rejected",
+			path:    "/files/a%5Bb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded closing bracket %5D (]) is rejected",
+			path:    "/files/a%5Db",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded backslash %5C (\\) is rejected",
+			path:    "/files/a%5Cb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded caret %5E (^) is rejected",
+			path:    "/files/a%5Eb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded backtick %60 (`) is rejected",
+			path:    "/files/a%60b",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded opening brace %7B ({) is rejected",
+			path:    "/files/a%7Bb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded pipe %7C (|) is rejected",
+			path:    "/files/a%7Cb",
+			wantErr: true,
+		},
+		{
+			name:    "an encoded closing brace %7D (}) is rejected",
+			path:    "/files/a%7Db",
+			wantErr: true,
+		},
+		{
+			name:    "a segment of only the encoded space %20 is rejected",
+			path:    "/a/%20/b",
+			wantErr: true,
+		},
+		{
+			name:    "a leading encoded space %20 in a segment is rejected",
+			path:    "/a/%20x",
+			wantErr: true,
+		},
+		{
+			name:    "a trailing encoded space %20 in a segment is rejected",
+			path:    "/a/x%20",
+			wantErr: true,
+		},
+		{
+			// The segment decodes to ".. ", which trims to "..".
+			name:    "a dot-dot with a trailing encoded space %20 is rejected",
+			path:    "/a/..%20/b",
+			wantErr: true,
+		},
+		{
+			// The segment decodes to ". ", which trims to ".".
+			name:    "a dot with a trailing encoded space %20 is rejected",
+			path:    "/a/.%20/b",
+			wantErr: true,
+		},
+		{
+			name:    "a dot-dot with a leading encoded space %20 is rejected",
+			path:    "/a/%20../b",
+			wantErr: true,
+		},
+		{
+			name:    "a leading encoded space %20 after an encoded slash %2F is rejected",
+			path:    "/p/a%2F%20b/c",
+			wantErr: true,
+		},
+		{
+			name:    "a trailing encoded space %20 before an encoded slash %2F is rejected",
+			path:    "/p/b%20%2Fc/d",
+			wantErr: true,
+		},
+		{
+			// The segment starts with a space that carries the mark.
+			name:    "a combining mark %CC%81 (U+0301) on a leading encoded space %20 is rejected",
+			path:    "/p/%20%CC%81x",
+			wantErr: true,
+		},
+		{
+			// The segment decodes to ". .", stripped of spaces "..".
+			name:    "an encoded space %20 between dots is rejected",
+			path:    "/a/.%20./b",
+			wantErr: true,
+		},
+		{
+			// The dot-segment rule fires; the segment also violates
+			// the edge-space rule.
+			name:    "a segment of alternating %20 and dots is rejected",
+			path:    "/a/%20.%20.%20/b",
+			wantErr: true,
+		},
+		{
+			name:    "a dot-dot with %20 and a trailing dot is rejected",
+			path:    "/a/..%20./b",
+			wantErr: true,
+		},
+		{
+			name:    "dots separated by encoded spaces %20 are rejected",
+			path:    "/a/.%20.%20./b",
+			wantErr: true,
+		},
+		{
+			name:    "dots and %20 between encoded slashes %2F are rejected",
+			path:    "/p/a%2F.%20.%2Fb",
+			wantErr: true,
+		},
+		{
+			name:    "a segment of only dots is rejected",
+			path:    "/a/.../b",
 			wantErr: true,
 		},
 		{
@@ -198,7 +394,7 @@ func TestTokenizeByteRules(t *testing.T) {
 	}
 
 	reject := []string{
-		"/api/a b",   // space
+		"/api/a b",   // raw space, allowed only encoded as %20
 		"/api/a\"b",  // double quote
 		"/api/a<b",   // angle bracket
 		"/api/a>b",   // angle bracket
@@ -245,18 +441,22 @@ func TestNonASCIIFold(t *testing.T) {
 		// than one layer would catch. When empty, any error passes.
 		errContains string
 	}{
-		"raw non-ASCII byte":           {path: "/files/caf\xc3\xa9"},
-		"overlong UTF-8 of slash":      {path: "/p/a%C0%AFb"},
-		"lone continuation byte":       {path: "/p/%A9"},
-		"truncated two-byte sequence":  {path: "/p/%C3"},
-		"fullwidth solidus folds to /": {path: "/p/a%EF%BC%8Fb"},
-		"fullwidth A folds to A":       {path: "/p/%EF%BC%A1dmin"},
-		"fullwidth lowercase a":        {path: "/p/%EF%BD%81dmin"},
-		"zero-width space is format":   {path: "/p/a%E2%80%8Bb"},
-		"bidi override is format":      {path: "/p/a%E2%80%AEb"},
-		"decomposed e plus accent":     {path: "/p/cafe%CC%81"},
-		"ligature fi folds to fi":      {path: "/p/o%EF%AC%81ce"},
-		"non-breaking space folds":     {path: "/p/a%C2%A0b", errContains: "not NFKC-normalized"},
+		"raw non-ASCII byte":                                 {path: "/files/caf\xc3\xa9"},
+		"overlong UTF-8 of slash":                            {path: "/p/a%C0%AFb"},
+		"lone continuation byte":                             {path: "/p/%A9"},
+		"truncated two-byte sequence":                        {path: "/p/%C3"},
+		"fullwidth solidus folds to /":                       {path: "/p/a%EF%BC%8Fb"},
+		"fullwidth A folds to A":                             {path: "/p/%EF%BC%A1dmin"},
+		"fullwidth lowercase a":                              {path: "/p/%EF%BD%81dmin"},
+		"zero-width space is format":                         {path: "/p/a%E2%80%8Bb"},
+		"bidi override is format":                            {path: "/p/a%E2%80%AEb"},
+		"decomposed e plus accent":                           {path: "/p/cafe%CC%81"},
+		"ligature fi folds to fi":                            {path: "/p/o%EF%AC%81ce"},
+		"non-breaking space folds":                           {path: "/p/a%C2%A0b", errContains: "not NFKC-normalized"},
+		"en quad %E2%80%80 (U+2000) folds to space":          {path: "/p/a%E2%80%80b", errContains: "not NFKC-normalized"},
+		"ideographic space %E3%80%80 (U+3000) folds":         {path: "/p/a%E3%80%80b", errContains: "not NFKC-normalized"},
+		"ogham space mark %E1%9A%80 (U+1680) is a separator": {path: "/p/a%E1%9A%80b", errContains: "disallowed character"},
+		"line separator %E2%80%A8 (U+2028) is a separator":   {path: "/p/a%E2%80%A8b", errContains: "disallowed character"},
 	}
 	for name, tt := range reject {
 		t.Run("reject "+name, func(t *testing.T) {
@@ -276,6 +476,8 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 	for _, seed := range []string{
 		"/files/caf%C3%A9.md", "/p/a%EF%BC%8Fb", "/p/%EF%BC%A1dmin",
 		"/p/a%C0%AFb", "/p/a%E2%80%8Bb", "/p/cafe%CC%81", "/api/v4/x%2Fy",
+		"/job/My%20Job/lastBuild", "/p/%20%CC%81x", "/p/a%C2%A0b",
+		"/a/..%20/b", "/a/%20/b", "/a/.%20./b", "/a/.../b",
 	} {
 		f.Add(seed)
 	}
@@ -296,6 +498,10 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 				}
 				r, _ := utf8.DecodeRuneInString(part)
 				require.False(t, unicode.IsMark(r), "accepted token %q has a part starting with the combining mark %q", tok, string(r))
+				require.False(t, strings.HasPrefix(part, " "), "accepted token %q has a part starting with a space", tok)
+				require.False(t, strings.HasSuffix(part, " "), "accepted token %q has a part ending with a space", tok)
+				dotSpaces := strings.Trim(part, ". ") == "" && strings.Contains(part, ".")
+				require.False(t, dotSpaces, "accepted token %q has a part of only dots and spaces", tok)
 			}
 		}
 		// An accepted token contains no raw non-ASCII bytes.

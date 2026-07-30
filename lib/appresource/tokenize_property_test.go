@@ -133,9 +133,13 @@ func TestTokenizePropertyRejectsFoldForms(t *testing.T) {
 	forms := map[string]string{
 		"%2E (.)":                          "%2E",
 		"%00 (NUL)":                        "%00",
+		"%3F (?)":                          "%3F",
+		"%5C (backslash)":                  "%5C",
 		"%C0%AF (overlong UTF-8 for /)":    "%C0%AF",
 		"%EF%BC%8F (fullwidth solidus)":    "%EF%BC%8F",
 		"%E2%80%8B (zero-width space)":     "%E2%80%8B",
+		"%C2%A0 (no-break space)":          "%C2%A0",
+		"%E1%9A%80 (ogham space mark)":     "%E1%9A%80",
 		"%CC%81 (combining acute on café)": "cafe%CC%81",
 	}
 	for name, form := range forms {
@@ -154,12 +158,21 @@ func TestTokenizePropertyRejectsFoldForms(t *testing.T) {
 // spliced in after any "/" of an accepted path is rejected.
 func TestTokenizePropertyRejectsBadSegments(t *testing.T) {
 	segments := map[string]string{
-		"dot":                     ".",
-		"dot-dot":                 "..",
-		"empty":                   "",
-		"leading mark %CC%87":     "%CC%87x",
-		"leading mark after %2F":  "x%2F%CC%87y",
-		"encoded dot-dot between": "x%2F..%2Fy",
+		"dot":                           ".",
+		"dot-dot":                       "..",
+		"empty":                         "",
+		"leading mark %CC%87":           "%CC%87x",
+		"leading mark after %2F":        "x%2F%CC%87y",
+		"encoded dot-dot between":       "x%2F..%2Fy",
+		"only a space %20":              "%20",
+		"leading space %20":             "%20x",
+		"trailing space %20":            "x%20",
+		"leading space %20 after %2F":   "x%2F%20y",
+		"trailing space %20 before %2F": "x%20%2Fy",
+		"dot space dot":                 ".%20.",
+		"dot-dot space dot":             "..%20.",
+		"only dots":                     "...",
+		"dots and spaces after %2F":     "x%2F.%20.",
 	}
 	for name, segment := range segments {
 		t.Run(name, func(t *testing.T) {
@@ -179,6 +192,24 @@ func TestTokenizePropertyRejectsBadSegments(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestTokenizePropertyRejectsEdgeSpaces asserts that a %20 spliced at
+// the start or end of any part of an accepted path is rejected. An
+// upstream that trims the part would see a different part.
+func TestTokenizePropertyRejectsEdgeSpaces(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		path := wirePathGen().Draw(t, "path")
+		starts, ends := partBounds(path)
+		bounds := starts
+		if rapid.Bool().Draw(t, "trailing") {
+			bounds = ends
+		}
+		i := rapid.SampledFrom(bounds).Draw(t, "bound")
+		mutated := path[:i] + "%20" + path[i:]
+		_, err := Tokenize(mutated)
+		require.Errorf(t, err, "edge space not rejected: %q", mutated)
+	})
 }
 
 // wirePathGen produces a valid wire path, one or more segments with an
@@ -214,13 +245,15 @@ func segmentGen() *rapid.Generator[string] {
 
 // partGen produces the percent-encoded content between two separators.
 // No part starts with a mark and no rune composes with its neighbor.
-// The filter drops "." and "..".
+// A space, emitted as %20, composes with no neighbor under NFKC, so
+// it needs no neighbor rule. The filter drops parts made of only
+// dots and spaces and parts that start or end with a space.
 func partGen() *rapid.Generator[string] {
 	content := rapid.Custom(func(t *rapid.T) string {
 		var b strings.Builder
 		n := rapid.IntRange(1, 5).Draw(t, "rune-count")
 		for range n {
-			switch rapid.IntRange(0, 3).Draw(t, "rune-kind") {
+			switch rapid.IntRange(0, 4).Draw(t, "rune-kind") {
 			case 0:
 				b.WriteByte(alnum[rapid.IntRange(0, len(alnum)-1).Draw(t, "alnum")])
 			case 1:
@@ -229,6 +262,8 @@ func partGen() *rapid.Generator[string] {
 				b.WriteRune(safeRuneGen().Draw(t, "non-ascii"))
 			case 3:
 				b.WriteString(rapid.SampledFrom(stableMarkPairs).Draw(t, "mark-pair"))
+			case 4:
+				b.WriteByte(' ')
 			}
 			if rapid.Bool().Draw(t, "trailing-mark") {
 				b.WriteRune(freeMarkGen().Draw(t, "mark"))
@@ -236,7 +271,8 @@ func partGen() *rapid.Generator[string] {
 		}
 		return b.String()
 	}).Filter(func(s string) bool {
-		return s != "." && s != ".."
+		return strings.Trim(s, ". ") != "" &&
+			!strings.HasPrefix(s, " ") && !strings.HasSuffix(s, " ")
 	})
 	return rapid.Custom(func(t *rapid.T) string {
 		return encodeNonASCII(t, content.Draw(t, "content"))
@@ -273,7 +309,8 @@ func freeRuneGen() *rapid.Generator[rune] {
 }
 
 // encodeNonASCII percent-encodes the bytes of s at or above 0x80 and
-// leaves its ASCII bytes raw, in the hex case the generator picks.
+// the space, which has no raw form in a path, and leaves the other
+// ASCII bytes raw, in the hex case the generator picks.
 func encodeNonASCII(t *rapid.T, s string) string {
 	format := "%%%02x"
 	if rapid.Bool().Draw(t, "upper-hex") {
@@ -281,13 +318,33 @@ func encodeNonASCII(t *rapid.T, s string) string {
 	}
 	var b strings.Builder
 	for i := range len(s) {
-		if s[i] < 0x80 {
+		if s[i] < 0x80 && s[i] != ' ' {
 			b.WriteByte(s[i])
 			continue
 		}
 		fmt.Fprintf(&b, format, s[i])
 	}
 	return b.String()
+}
+
+// partBounds returns the offsets where a part starts and ends. A part
+// is bounded by a raw slash, an encoded separator, or the end of the
+// path.
+func partBounds(path string) (starts, ends []int) {
+	for i := range len(path) {
+		switch {
+		case path[i] == '/':
+			starts = append(starts, i+1)
+			if i > 0 {
+				ends = append(ends, i)
+			}
+		case path[i] == '%' && i+2 < len(path) && path[i+1] == '2' && (path[i+2] == 'F' || path[i+2] == 'f'):
+			starts = append(starts, i+3)
+			ends = append(ends, i)
+		}
+	}
+	ends = append(ends, len(path))
+	return starts, ends
 }
 
 // insertAt splices s into path at a generated offset after the leading

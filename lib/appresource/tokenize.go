@@ -58,24 +58,34 @@ const legalPathPunct = "-._~!$&'()*+,=:@/%"
 // forwards. On any rule violation Tokenize rejects the path and
 // returns an error.
 //
-// The encoded separator is the only ASCII escape allowed.
-// Non-ASCII content is allowed as percent-encoded UTF-8, under
-// checks that prevent fold-to-different-segment bypasses.
+// The encoded separator and the encoded space are the only ASCII
+// escapes allowed. A space has no raw form in a URL path, so %20 is
+// content, like the non-ASCII escapes. Non-ASCII content is allowed
+// as percent-encoded UTF-8, under checks that prevent
+// fold-to-different-segment bypasses.
 //
 //  1. Reject any raw byte that cannot appear in a URL path,
 //     including bytes at or above 0x80 (raw unicode).
-//  2. Allow only the encoded separator (%2F) and escapes whose
-//     decoded byte is at or above 0x80 (non-ASCII unicode). Reject
-//     every other ASCII percent-encoding.
+//  2. Allow only the encoded separator (%2F), the encoded space
+//     (%20), and escapes whose decoded byte is at or above 0x80
+//     (non-ASCII unicode). Reject every other ASCII
+//     percent-encoding.
 //  3. On a decode-for-validation view (%2F to "/"), reject
-//     consecutive slashes and "." or ".." segments. A ".."
-//     written between encoded slashes ("a%2F..%2Fadmin") is
-//     rejected the same as a raw one.
-//  4. Each segment, once its non-ASCII escapes are decoded, must be
-//     valid, NFKC-stable UTF-8 and contain only graphic runes, and
-//     must not start with a combining mark. The encoded separator
-//     %2F is a segment boundary for this check. "é" is allowed only
-//     as the precomposed "%C3%A9", not as the decomposed "e%CC%81".
+//     consecutive slashes and any segment of only dots and spaces,
+//     because an upstream that strips spaces or extra dots would
+//     resolve such a segment as "." or "..". A ".." written between
+//     encoded slashes ("a%2F..%2Fadmin") is rejected the same as a
+//     raw one.
+//  4. Each segment, once its content escapes are decoded, must be
+//     valid, NFKC-stable UTF-8 and contain only graphic runes, must
+//     not start with a combining mark, and must not start or end
+//     with a space, because an upstream that trims the segment
+//     would see a different segment ("..%20" would trim to "..").
+//     U+0020, arriving as %20, is the only space or separator rune
+//     allowed, and only between other characters. The encoded
+//     separator %2F is a segment boundary for these checks. "é" is
+//     allowed only as the precomposed "%C3%A9", not as the
+//     decomposed "e%CC%81".
 //  5. Split on real "/" only. An encoded slash stays one opaque
 //     token, hex case preserved.
 func Tokenize(path string) ([]string, error) {
@@ -118,11 +128,11 @@ func isLegalPathByte(b byte) bool {
 	return strings.IndexByte(legalPathPunct, b) >= 0
 }
 
-// validatePercentEscapes allows the encoded separator %2F and
-// any escape that decodes to a non-ASCII byte. Every other ASCII
-// escape is rejected, because an upstream could canonicalize it
-// into a structural byte. A "%" without two hex digits is rejected
-// as malformed.
+// validatePercentEscapes allows the encoded separator %2F, the
+// encoded space %20, and any escape that decodes to a non-ASCII
+// byte. Every other ASCII escape is rejected, because an upstream
+// could canonicalize it into a structural byte. A "%" without two
+// hex digits is rejected as malformed.
 func validatePercentEscapes(path string) error {
 	for i := 0; i < len(path); i++ {
 		if path[i] != '%' {
@@ -131,7 +141,7 @@ func validatePercentEscapes(path string) error {
 		if i+2 >= len(path) {
 			return trace.BadParameter("path %q has a truncated percent-escape", path)
 		}
-		if path[i+1] == '2' && (path[i+2] == 'F' || path[i+2] == 'f') {
+		if path[i+1] == '2' && (path[i+2] == 'F' || path[i+2] == 'f' || path[i+2] == '0') {
 			i += 2
 			continue
 		}
@@ -143,7 +153,7 @@ func validatePercentEscapes(path string) error {
 			i += 2
 			continue
 		}
-		const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F and non-ASCII content escapes are allowed"
+		const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F, the encoded space %%20, and non-ASCII content escapes are allowed"
 		return trace.BadParameter(msg, path, path[i:i+3])
 	}
 	return nil
@@ -162,11 +172,13 @@ func validateDecoded(path string) error {
 		return trace.BadParameter("path %q is not valid UTF-8 once decoded", path)
 	}
 	for seg := range strings.SplitSeq(decoded[1:], "/") {
-		if seg == "." || seg == ".." {
-			const msg = `path %q has a "." or ".." segment once the encoded separator %%2F is decoded`
-			return trace.BadParameter(msg, path)
+		if err := rejectDotSegment(seg); err != nil {
+			return trace.Wrap(err)
 		}
 		if err := rejectLeadingMark(seg); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := rejectEdgeSpace(seg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -175,7 +187,7 @@ func validateDecoded(path string) error {
 	}
 	for _, r := range decoded {
 		if !isGraphicRune(r) {
-			const msg = "path %q contains the disallowed character %q; only letters, marks, numbers, punctuation, and symbols are allowed"
+			const msg = "path %q contains the disallowed character %q; only letters, marks, numbers, punctuation, symbols, and the encoded space %%20 are allowed"
 			return trace.BadParameter(msg, path, string(r))
 		}
 	}
@@ -183,10 +195,10 @@ func validateDecoded(path string) error {
 }
 
 // decode returns the validation view of s, resolving every escape that
-// validatePercentEscapes leaves alive: %2F (either case) to "/", and a
-// non-ASCII escape to its byte. Those are the only escapes it can
-// receive, so nothing else needs decoding. The view is used for
-// validation only; the returned tokens keep their raw form.
+// validatePercentEscapes leaves alive: %2F (either case) to "/", %20
+// to a space, and a non-ASCII escape to its byte. Those are the only
+// escapes it can receive, so nothing else needs decoding. The view is
+// used for validation only; the returned tokens keep their raw form.
 func decode(s string) string {
 	if !strings.ContainsRune(s, '%') {
 		return s
@@ -195,7 +207,7 @@ func decode(s string) string {
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		if s[i] == '%' && i+2 < len(s) {
-			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && (v == '/' || v >= 0x80) {
+			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && (v == '/' || v == ' ' || v >= 0x80) {
 				b.WriteByte(byte(v))
 				i += 2
 				continue
@@ -204,6 +216,18 @@ func decode(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+// rejectDotSegment rejects a segment made of only dots and spaces
+// that has at least one dot. "." and ".." are traversal segments,
+// and an upstream that strips spaces or extra dots would resolve
+// forms like ". ." or "..." the same way.
+func rejectDotSegment(seg string) error {
+	if strings.Trim(seg, ". ") != "" || !strings.Contains(seg, ".") {
+		return nil
+	}
+	const msg = `segment %q is only dots and spaces; an upstream could resolve it as "." or ".."`
+	return trace.BadParameter(msg, seg)
 }
 
 // rejectLeadingMark rejects a segment whose first rune is a combining
@@ -223,11 +247,26 @@ func rejectLeadingMark(seg string) error {
 	return nil
 }
 
-// isGraphicRune reports whether r is a letter, mark, number,
-// punctuation, or symbol. Space and separator categories that
-// unicode.IsGraphic allows are excluded, along with control,
-// format, surrogate, private-use, and unassigned runes.
+// rejectEdgeSpace rejects a segment whose first or last rune is a
+// space. An upstream that trims the segment would see a different
+// one, so "..%20" would trim to ".." and "secret%20" to "secret".
+func rejectEdgeSpace(seg string) error {
+	if strings.HasPrefix(seg, " ") || strings.HasSuffix(seg, " ") {
+		const msg = "segment %q starts or ends with a space; a space must be between other characters"
+		return trace.BadParameter(msg, seg)
+	}
+	return nil
+}
+
+// isGraphicRune reports whether r is U+0020, a letter, mark, number,
+// punctuation, or symbol. U+0020 is allowed because it only reaches
+// the decoded view as %20, and [rejectEdgeSpace] keeps it off the
+// segment edges. Every other space and separator rune that
+// unicode.IsGraphic allows is excluded, along with control, format,
+// surrogate, private-use, and unassigned runes. The NFKC-stable ones
+// among them, such as U+1680 ogham space mark, are rejected here and
+// nowhere else.
 func isGraphicRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsMark(r) || unicode.IsNumber(r) ||
-		unicode.IsPunct(r) || unicode.IsSymbol(r)
+	return r == ' ' || unicode.IsLetter(r) || unicode.IsMark(r) ||
+		unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
