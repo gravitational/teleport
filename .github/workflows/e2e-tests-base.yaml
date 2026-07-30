@@ -56,7 +56,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ inputs.oss-repository || github.repository }}
-          ref: ${{ inputs.oss-repository && (github.event.pull_request.base.ref || github.event.merge_group.base_ref) || '' }}
+          ref: ${{ inputs.oss-repository && (github.event.pull_request.base.ref || github.event.merge_group.base_ref || github.ref_name) || '' }}
           fetch-depth: 1
 
       - name: Checkout Enterprise
@@ -174,7 +174,12 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ inputs.oss-repository || github.repository }}
-          ref: ${{ inputs.oss-repository && (github.event.pull_request.base.ref || github.event.merge_group.base_ref) || '' }}
+          # Maps the Enterprise branch onto the matching OSS branch. pull_request
+          # and merge_group supply the branch being merged into; push events
+          # supply neither, so fall back to the pushed branch. Without that
+          # fallback a push to branch/vNN checks out OSS's default branch
+          # (master), building a release branch against the wrong OSS source.
+          ref: ${{ inputs.oss-repository && (github.event.pull_request.base.ref || github.event.merge_group.base_ref || github.ref_name) || '' }}
           fetch-depth: 1
           persist-credentials: false
 
