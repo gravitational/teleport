@@ -104,6 +104,7 @@ export type IntegrationSpecGitHub = {
    * name of github organization
    */
   organization: string;
+  oauthCallbackUrl?: string;
 };
 
 export type IntegrationGitHub = IntegrationTemplate<

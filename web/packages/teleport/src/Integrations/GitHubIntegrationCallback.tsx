@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { ReactNode, useEffect } from 'react';
 import { useLocation } from 'react-router';
 
 import { Alert, Card, H1, Indicator, Box, P1 } from 'design';
@@ -33,39 +34,32 @@ import api from 'teleport/services/api';
  */
 export function GitHubIntegrationCallback() {
   const location = useLocation();
-  const [error, setError] = useState('');
-  const [processing, setProcessing] = useState(true);
+  const params = new URLSearchParams(location.search);
+
+  const { mutate, isPending, error } = useMutation({
+    mutationFn: () =>
+      api.post(cfg.api.githubIntegrationCallbackPath, {
+        code: params.get('code'),
+        state: params.get('state'),
+      }),
+    onSuccess: (resp: { redirectURL?: string }) => {
+      if (resp.redirectURL) {
+        window.location.replace(resp.redirectURL);
+      }
+    },
+  });
 
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const code = params.get('code');
-    const state = params.get('state');
-
-    if (!code || !state) {
-      setError('Missing required parameters from GitHub.');
-      setProcessing(false);
-      return;
-    }
-
-    api
-      .post(cfg.api.githubIntegrationCallbackPath, { code, state })
-      .then((resp: { redirectURL?: string }) => {
-        if (resp.redirectURL) {
-          window.location.replace(resp.redirectURL);
-          return;
-        }
-        setProcessing(false);
-      })
-      .catch(err => {
-        setError(err.message || 'An unknown error occurred.');
-        setProcessing(false);
-      });
-  }, [location.search]);
+    mutate();
+  }, [mutate]);
 
   return (
     <>
       <LogoHero />
-      <GitHubIntegrationCallbackView processing={processing} error={error} />
+      <GitHubIntegrationCallbackView
+        processing={isPending}
+        error={error instanceof Error ? error.message : ''}
+      />
     </>
   );
 }
@@ -79,45 +73,38 @@ export function GitHubIntegrationCallbackView({
 }) {
   if (processing) {
     return (
-      <Card
-        color="text.main"
-        bg="levels.elevated"
-        width="540px"
-        mx="auto"
-        my={6}
-        p={5}
-      >
-        <H1 mb={4} textAlign="center">
-          Authorizing with GitHub
-        </H1>
+      <GitHubIntegrationCallbackCard title="Authorizing with GitHub">
         <Box textAlign="center">
-          <Indicator size="large" />
+          <Indicator size="large" delay="none" />
           <P1 mt={3}>Please wait...</P1>
         </Box>
-      </Card>
+      </GitHubIntegrationCallbackCard>
     );
   }
 
   if (error) {
     return (
-      <Card
-        color="text.main"
-        bg="levels.elevated"
-        width="540px"
-        mx="auto"
-        my={6}
-        p={5}
-      >
-        <H1 mb={4} textAlign="center">
-          GitHub Authorization Failed
-        </H1>
+      <GitHubIntegrationCallbackCard title="GitHub Authorization Failed">
         <Alert mt={2} mb={4}>
           {error}
         </Alert>
-      </Card>
+      </GitHubIntegrationCallbackCard>
     );
   }
 
+  return (
+    <GitHubIntegrationCallbackCard title="Authorization Complete">
+      <P1 textAlign="center">
+        Your GitHub account has been linked. You may close this tab.
+      </P1>
+    </GitHubIntegrationCallbackCard>
+  );
+}
+
+function GitHubIntegrationCallbackCard(props: {
+  title: string;
+  children: ReactNode;
+}) {
   return (
     <Card
       color="text.main"
@@ -128,11 +115,9 @@ export function GitHubIntegrationCallbackView({
       p={5}
     >
       <H1 mb={4} textAlign="center">
-        Authorization Complete
+        {props.title}
       </H1>
-      <P1 textAlign="center">
-        Your GitHub account has been linked. You may close this tab.
-      </P1>
+      {props.children}
     </Card>
   );
 }
