@@ -3,7 +3,7 @@
   Service and Proxy Service.
 
   <details>
-  <summary>Running the Database Service on the same host</summary>
+  <summary>Single-node Teleport clusters</summary>
 
   If you run the Database Service as a separate process on the same host as
   the Proxy Service, the reverse tunnel may fail to connect through the
@@ -15,8 +15,6 @@
   $ echo "127.0.0.1 teleport.example.com" | sudo tee -a /etc/hosts
   ```
 
-  Alternatively, run all Teleport services in a single process (auth, proxy,
-  and Database Service in one `teleport.yaml`) to avoid the reverse tunnel
-  entirely.
-
+  Alternatively, run all Teleport services in a single process (Auth Service, Proxy Service,
+  and Database Service in one `teleport.yaml`) to avoid the reverse tunnel entirely.
   </details>

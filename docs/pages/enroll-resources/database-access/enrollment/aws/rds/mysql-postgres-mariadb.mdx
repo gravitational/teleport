@@ -303,27 +303,6 @@ teleport-kube-agent-0   1/1     Running   0          32s
 </TabItem>
 </Tabs>
 
-<Admonition type="warning" title="Databases not appearing">
-The Database Service downloads the RDS CA certificate bundle on startup from
-the following endpoint (required for mTLS connections to your database):
-
-```
-https://truststore.pki.rds.amazonaws.com/<region>/<region>-bundle.pem
-```
-
-For GovCloud regions the host is `truststore.pki.us-gov-west-1.rds.amazonaws.com`,
-and for China regions it is `rds-truststore.s3.cn-north-1.amazonaws.com.cn`.
-
-If databases do not appear in `tctl db ls` within 60 seconds of starting the
-service, ensure this endpoint is reachable and enable DEBUG logging
-(`teleport.log.severity: DEBUG` in `teleport.yaml`) to check for download
-failures.
-
-Access to the RDS API (`rds.<region>.amazonaws.com`) is used on a best-effort
-basis for fetching additional metadata (tags, engine versions) but is not
-required for database registration.
-</Admonition>
-
 ## Step 5/5. Connect
 
 Once the Database Service has started and joined the cluster, log in as the
@@ -346,6 +325,29 @@ $ tsh db logout rds-example
 ```
 
 ## Troubleshooting
+
+### Databases not appearing
+
+The Database Service downloads the RDS CA certificate bundle on startup from
+the following endpoint (required for mTLS connections to your database):
+
+```text
+https://truststore.pki.rds.amazonaws.com/<region>/<region>-bundle.pem
+```
+
+For GovCloud regions, the host is `truststore.pki.us-gov-west-1.rds.amazonaws.com`.
+For China regions, it is `rds-truststore.s3.cn-north-1.amazonaws.com.cn`.
+
+If databases do not appear in `tctl db ls` within 60 seconds of starting the
+service:
+
+1. Ensure this endpoint is reachable from the host running the Database Service.
+1. Enable DEBUG logging by setting `teleport.log.severity: DEBUG` in
+   `teleport.yaml`, then check the logs for download failures.
+
+Access to the RDS API (`rds.<region>.amazonaws.com`) is used on a best-effort
+basis to fetch additional metadata (tags, engine versions), but it is not
+required for database registration.
 
 (!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
 
