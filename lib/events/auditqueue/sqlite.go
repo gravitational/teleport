@@ -44,7 +44,7 @@ const (
 	auditQueueTable                = "audit_queue"
 	auditDeadLetterTable           = "audit_dead_letter"
 	corruptEventsTable             = "corrupt_events"
-	defaultMaxAttempts             = 10
+	defaultMaxAttempts             = 3
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
 	maxDrainKickBackoff            = 30 * time.Second
