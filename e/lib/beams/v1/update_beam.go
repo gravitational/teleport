@@ -12,6 +12,7 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRequest) (*beamsv1.UpdateBeamResponse, error) {
@@ -117,6 +118,20 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	}
 	newBeam.GetMetadata().SetRevision(revision)
 
+	if publishChanged(oldPublish, newPublish) {
+		beamID := newBeam.GetMetadata().GetName()
+		if newPublish == nil {
+			s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsUnpublishedEvent{
+				BeamId: beamID,
+			})
+		} else {
+			s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsPublishedEvent{
+				BeamId:   beamID,
+				Protocol: protocolString(newPublish.GetProtocol()),
+			})
+		}
+	}
+
 	return beamsv1.UpdateBeamResponse_builder{
 		Beam: newBeam,
 	}.Build(), nil
@@ -133,6 +148,19 @@ func publishChanged(before, after *beamsv1.PublishSpec) bool {
 
 func labelsChanged(before, after *beamsv1.Beam) bool {
 	return !maps.Equal(before.GetMetadata().GetLabels(), after.GetMetadata().GetLabels())
+}
+
+// protocolString renders a Protocol as the product-facing lowercase value
+// (matching the web API's beamProtocolString) for usage reporting.
+func protocolString(p beamsv1.Protocol) string {
+	switch p {
+	case beamsv1.Protocol_PROTOCOL_HTTP:
+		return "http"
+	case beamsv1.Protocol_PROTOCOL_TCP:
+		return "tcp"
+	default:
+		return ""
+	}
 }
 
 func (s *BeamsService) publishBeamApp(beam *beamsv1.Beam) (types.Application, error) {

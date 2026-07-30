@@ -12,6 +12,7 @@ import (
 
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 func TestUpdateBeamPublish(t *testing.T) {
@@ -47,7 +48,8 @@ func TestUpdateBeamPublish(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+			recorder := &recordingUsageReporter{}
+			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{usageReporter: recorder})
 
 			service := pack.service(t, pack.user(t, "alice"))
 			createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
@@ -76,6 +78,17 @@ func TestUpdateBeamPublish(t *testing.T) {
 			require.Equal(t, resp.GetBeam().GetStatus().GetAppName(), app.GetName())
 			requirePublishedBeamApp(t, app, resp.GetBeam(), tt.expectedURI)
 
+			// Verify BeamsPublishedEvent was emitted.
+			var publishedEvents []*usagereporter.BeamsPublishedEvent
+			for _, e := range recorder.recorded() {
+				if ev, ok := e.(*usagereporter.BeamsPublishedEvent); ok {
+					publishedEvents = append(publishedEvents, ev)
+				}
+			}
+			require.Len(t, publishedEvents, 1)
+			require.Equal(t, createResp.GetBeam().GetMetadata().GetName(), publishedEvents[0].BeamId)
+			require.Equal(t, protocolString(tt.protocol), publishedEvents[0].Protocol)
+
 			if tt.updateProtocol == beamsv1pb.Protocol_PROTOCOL_UNSPECIFIED {
 				return
 			}
@@ -97,6 +110,16 @@ func TestUpdateBeamPublish(t *testing.T) {
 			app, err = pack.app.GetApp(t.Context(), updateResp.GetBeam().GetStatus().GetAppName())
 			require.NoError(t, err)
 			requirePublishedBeamApp(t, app, updateResp.GetBeam(), tt.expectedUpdatedURI)
+
+			// Verify a second BeamsPublishedEvent was emitted for the protocol change.
+			publishedEvents = nil
+			for _, e := range recorder.recorded() {
+				if ev, ok := e.(*usagereporter.BeamsPublishedEvent); ok {
+					publishedEvents = append(publishedEvents, ev)
+				}
+			}
+			require.Len(t, publishedEvents, 2)
+			require.Equal(t, protocolString(tt.updateProtocol), publishedEvents[1].Protocol)
 		})
 	}
 }
@@ -119,7 +142,8 @@ func requirePublishedBeamApp(t *testing.T, app types.Application, beam *beamsv1p
 func TestUpdateBeamUnpublish(t *testing.T) {
 	t.Parallel()
 
-	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
+	recorder := &recordingUsageReporter{}
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{usageReporter: recorder})
 
 	service := pack.service(t, pack.user(t, "alice"))
 	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
@@ -156,6 +180,16 @@ func TestUpdateBeamUnpublish(t *testing.T) {
 
 	_, err = pack.app.GetApp(t.Context(), appName)
 	require.True(t, trace.IsNotFound(err))
+
+	// Verify BeamsUnpublishedEvent was emitted.
+	var unpublishedEvents []*usagereporter.BeamsUnpublishedEvent
+	for _, e := range recorder.recorded() {
+		if ev, ok := e.(*usagereporter.BeamsUnpublishedEvent); ok {
+			unpublishedEvents = append(unpublishedEvents, ev)
+		}
+	}
+	require.Len(t, unpublishedEvents, 1)
+	require.Equal(t, createResp.GetBeam().GetMetadata().GetName(), unpublishedEvents[0].BeamId)
 }
 
 func TestUpdateBeamRejectsLabelChange(t *testing.T) {

@@ -38,11 +38,31 @@ type beamServiceTestPack struct {
 	workloadIdentity  *localservices.WorkloadIdentityService
 	delegationSession *localservices.DelegationSessionService
 	presence          *localservices.PresenceService
+	usageReporter     usagereporter.UsageReporter
 }
 
 type beamServiceTestPackConfig struct {
 	aliasGenerator func() (string, error)
 	computeClient  *fakeComputeService
+	usageReporter  usagereporter.UsageReporter
+}
+
+// recordingUsageReporter captures events submitted via AnonymizeAndSubmit.
+type recordingUsageReporter struct {
+	mu     sync.Mutex
+	events []usagereporter.Anonymizable
+}
+
+func (r *recordingUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, events...)
+}
+
+func (r *recordingUsageReporter) recorded() []usagereporter.Anonymizable {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]usagereporter.Anonymizable(nil), r.events...)
 }
 
 func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamServiceTestPack {
@@ -80,6 +100,11 @@ func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamSe
 	delegationSessionService, err := localservices.NewDelegationSessionService(backend)
 	require.NoError(t, err)
 
+	ur := cfg.usageReporter
+	if ur == nil {
+		ur = usagereporter.DiscardUsageReporter{}
+	}
+
 	pack := &beamServiceTestPack{
 		aliasGenerator:    cfg.aliasGenerator,
 		backend:           backend,
@@ -92,6 +117,7 @@ func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamSe
 		workloadIdentity:  workloadIdentityService,
 		delegationSession: delegationSessionService,
 		presence:          localservices.NewPresenceService(backend),
+		usageReporter:     ur,
 	}
 
 	return pack
@@ -174,7 +200,7 @@ func (p *beamServiceTestPack) service(t *testing.T, user types.User) *BeamsServi
 		WorkloadIdentityWriter:  p.workloadIdentity,
 		ComputeServiceClient:    p.compute,
 		Authorizer:              authorizer,
-		UsageReporter:           usagereporter.DiscardUsageReporter{},
+		UsageReporter:           p.usageReporter,
 		AliasGenerator:          p.aliasGenerator,
 		Logger:                  logtest.NewLogger(),
 	})
