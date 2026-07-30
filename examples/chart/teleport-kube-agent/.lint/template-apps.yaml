@@ -1,0 +1,8 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: app
+apps: |
+  {{- range (list "service1" "service2" "service3") }}
+  - name: {{ . }}
+    uri: http://{{ . }}.default.svc.cluster.local:80
+  {{- end }}

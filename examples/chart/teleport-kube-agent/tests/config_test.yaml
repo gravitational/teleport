@@ -120,6 +120,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for template-apps.yaml
+    values:
+      - ../.lint/template-apps.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for dynamic-db.yaml
     values:
       - ../.lint/dynamic-db.yaml
