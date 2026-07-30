@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -1622,13 +1624,20 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*GenericWatcher
 		ResourceKind:          types.KindNode,
 		ScopeFilter:           cfg.ScopeFilter,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
-			// TODO(fspmarshall/scopes): this list does not yet honor scope filters, so it
-			// currently returns nodes in every scope and happens to match a MODE_ALL watch.
-			// Once the list API supports scope filters (and defaults unscoped callers to
-			// unscoped-only, like the watch API), this call must honor cfg.ScopeFilter.
-			return cfg.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+			return iterstream.Collect(cfg.NodesGetter.RangeSSHServers(ctx, presencev1.ListSSHServersRequest_builder{
+				ScopeFilter: cfg.ScopeFilter.ToProto(),
+			}.Build()))
 		},
-		ResourceKey:            types.Server.GetName,
+		ResourceKey: GetCursorForNode,
+		DeleteKey: func(res types.Resource) string {
+			// Delete events for scoped nodes carry a partially populated
+			// server so that the scope can be recovered from the key, while
+			// unscoped nodes only emit a resource header.
+			if node, ok := res.(types.Server); ok {
+				return GetCursorForNode(node)
+			}
+			return scopes.MakeResourceCursor("", res.GetName())
+		},
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.Server.DeepCopy,
 		ReadOnlyFunc: func(resource types.Server) readonly.Server {

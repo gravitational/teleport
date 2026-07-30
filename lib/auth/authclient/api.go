@@ -221,12 +221,6 @@ type ReadProxyAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetNode returns an unscoped node by name and namespace.
-	//
-	// Deprecated: Use GetSSHServer instead, which supports scoped nodes.
-	// TODO(williamo): Remove in v20
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-
 	// GetSSHServer returns a scoped or unscoped node by name.
 	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
@@ -455,12 +449,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetNode returns an unscoped node by name and namespace.
-	//
-	// Deprecated: Use GetSSHServer instead, which supports scoped nodes.
-	// TODO(williamo): Remove in v20
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetSSHServer returns a scoped or unscoped node by name.
 	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
@@ -1206,12 +1194,6 @@ type Cache interface {
 
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	// GetNode returns an unscoped node by name and namespace.
-	//
-	// Deprecated: Use [Cache.GetSSHServer] instead, which supports scoped nodes.
-	// TODO(williamo): Remove in v20
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
 	// GetSSHServer returns a scoped or unscoped node by name.
 	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)

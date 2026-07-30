@@ -672,11 +672,17 @@ func TestNodeCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateNode", func(t *testing.T) {
-		node1, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: node1.GetName()}.Build())
+		node1, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+			Name:  node1.GetName(),
+			Scope: node1.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 		node1.SetAddr("1.2.3.4:8080")
 
-		node2, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: node2.GetName()}.Build())
+		node2, err = presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+			Name:  node2.GetName(),
+			Scope: node2.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 
 		node1, err = presence.UpdateNode(ctx, node1)
@@ -1284,6 +1290,7 @@ func TestListResources_Helpers(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
+				require.NoError(t, err)
 				if !tc.scopeAware {
 					require.Empty(t, resp.NextKey)
 				} else {

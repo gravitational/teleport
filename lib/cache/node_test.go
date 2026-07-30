@@ -32,11 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const (
-	nodeProdScope    = "/aws/prod"
-	nodeStagingScope = "/aws/staging"
-)
-
 func newNodeResource(name string) (types.Server, error) {
 	return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 }
@@ -52,7 +47,7 @@ func listNodesAdapter(fn func(context.Context, *presencev1.ListSSHServersRequest
 	}
 }
 
-// rangeNodesAdapter adapts a RangeNodes method to the range function shape the
+// rangeNodesAdapter adapts a RangeSSHServers method to the range function shape the
 // resource test harness expects.
 func rangeNodesAdapter(fn func(context.Context, *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error]) func(context.Context, string, string) iter.Seq2[types.Server, error] {
 	return func(ctx context.Context, start, _ string) iter.Seq2[types.Server, error] {
@@ -191,7 +186,7 @@ func TestNodes(t *testing.T) {
 		})
 	})
 
-	t.Run("RangeNodes", func(t *testing.T) {
+	t.Run("RangeSSHServers", func(t *testing.T) {
 		t.Parallel()
 
 		p := newTestPack(t, ForProxy, ignoreRangeEndKey())

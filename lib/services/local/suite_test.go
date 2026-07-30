@@ -372,7 +372,10 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	_, err = s.PresenceS.UpsertNode(ctx, srv)
 	require.NoError(t, err)
 
-	node, err := s.PresenceS.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: srv.GetName()}.Build())
+	node, err := s.PresenceS.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name:  srv.GetName(),
+		Scope: srv.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(node, srv, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -381,7 +384,10 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{srv}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: srv.GetName()}.Build())
+	err = s.PresenceS.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  srv.GetName(),
+		Scope: srv.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetNodes(ctx, srv.Metadata.Namespace)

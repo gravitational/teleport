@@ -43,6 +43,8 @@ func isAllowedScopedRule(kind string, verb string) bool {
 		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	case types.KindAppServer:
 		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindNode:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	case types.KindAccessList:
 		// access lists can be read/written, and do not contain a concept of a secret.
 		// permissions for access list members are conferred by permissions for

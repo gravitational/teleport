@@ -20,240 +20,119 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestPresenceServiceKubeClusters(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
 
-	readUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"read-user",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindKubernetesCluster},
-				Verbs:     []string{types.VerbRead},
-			},
-		},
-	)
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+	kube, err := local.NewKubernetesService(bk)
 	require.NoError(t, err)
 
-	listUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"list-user",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindKubernetesCluster},
-				Verbs:     []string{types.VerbRead, types.VerbList},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	deleteUser, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"delete-user",
-		[]string{},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindKubernetesCluster},
-				Verbs:     []string{types.VerbDelete},
-			},
-		},
-	)
-	require.NoError(t, err)
+	roles := fakeScopedRoleReader{roles: map[string]*accessv1.ScopedRole{}}
+	scopedReadRole := roles.createScopedRole("read-role", types.VerbRead)
+	scopedListRole := roles.createScopedRole("list-role", types.VerbRead, types.VerbList)
+	scopedDeleteRole := roles.createScopedRole("delete-role", types.VerbDelete)
 
 	const (
-		parentScope     = "/aa"
-		scope           = "/aa/aa"
-		orthogonalScope = "/aa/bb"
-	)
-	createScopedRole := func(name string, verbs []string) *scopedaccessv1.ScopedRole {
-		scopedRole, err := srv.Auth().ScopedAccess().CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
-			Role: scopedaccessv1.ScopedRole_builder{
-				Kind:    scopedaccess.KindScopedRole,
-				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
-					Name: name,
-				}.Build(),
-				Scope: parentScope,
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
-					AssignableScopes: []string{scope, orthogonalScope},
-					// need kube block because of the CanAccessKubeCluster checks
-					Kube: scopedaccessv1.ScopedRoleKube_builder{
-						Labels: []*labelv1.Label{
-							labelv1.Label_builder{
-								Name:   types.Wildcard,
-								Values: []string{types.Wildcard},
-							}.Build(),
-						},
-						Resources: []*scopedaccessv1.KubeResource{
-							scopedaccessv1.KubeResource_builder{
-								Kind:      types.Wildcard,
-								Name:      types.Wildcard,
-								Namespace: types.Wildcard,
-								ApiGroup:  types.Wildcard,
-								Verbs:     []string{types.Wildcard},
-							}.Build(),
-						},
-					}.Build(),
-					Rules: []*scopedaccessv1.ScopedRule{
-						scopedaccessv1.ScopedRule_builder{
-							Resources: []string{types.KindKubernetesCluster},
-							Verbs:     verbs,
-						}.Build(),
-					},
-				}.Build(),
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		return scopedRole.GetRole()
-	}
-
-	scopedReadRole := createScopedRole("read-role", []string{types.VerbRead})
-	scopedListRole := createScopedRole("list-role", []string{types.VerbRead, types.VerbList})
-	scopedDeleteRole := createScopedRole("delete-role", []string{types.VerbDelete})
-
-	createAssignment := func(role *scopedaccessv1.ScopedRole, username, assignedScope string) *scopedaccessv1.ScopedRoleAssignment {
-		sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
-			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
-				Kind:    scopedaccess.KindScopedRoleAssignment,
-				SubKind: scopedaccess.SubKindDynamic,
-				Version: types.V1,
-				Metadata: headerv1.Metadata_builder{
-					Name: uuid.NewString(),
-				}.Build(),
-				Scope: assignedScope,
-				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					User: username,
-					Assignments: []*scopedaccessv1.Assignment{
-						scopedaccessv1.Assignment_builder{
-							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
-							Scope: assignedScope,
-						}.Build(),
-					},
-				}.Build(),
-			}.Build(),
-		}.Build())
-		require.NoError(t, err)
-		return sra.GetAssignment()
-	}
-
-	waitForSRACache(
-		t,
-		srv,
-		createAssignment(scopedReadRole, readUser.GetName(), scope),
-		createAssignment(scopedListRole, listUser.GetName(), scope),
-		createAssignment(scopedDeleteRole, deleteUser.GetName(), scope),
+		readUser   = "read-user"
+		listUser   = "list-user"
+		deleteUser = "delete-user"
 	)
 
-	scopedCluster := newKubeCluster(t, srv.Auth(), scope, "kube-cluster", map[string]string{
+	scopedCluster := newKubeCluster(t, kube, testScope, "kube-cluster", map[string]string{
 		"env": "test",
 	})
-	orthogonalCluster := newKubeCluster(t, srv.Auth(), orthogonalScope, "kube-cluster", map[string]string{
+	orthogonalCluster := newKubeCluster(t, kube, testOrthogonalScope, "kube-cluster", map[string]string{
 		"env": "test",
 	})
-	// prodCluster := newKubeCluster(t, srv.Auth(), "/aa/aa", "prod-cluster", map[string]string{
-	// 	"env": "prod",
-	// })
-	unscopedCluster := newKubeCluster(t, srv.Auth(), "", "unscoped-cluster", map[string]string{
+	unscopedCluster := newKubeCluster(t, kube, "", "unscoped-cluster", map[string]string{
 		"env": "test",
 	})
-
-	newClient := func(t *testing.T, identity authtest.TestIdentity) *authclient.Client {
-		client, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		t.Cleanup(func() { client.Close() })
-		return client
-	}
 
 	t.Run("GetKubeCluster", func(t *testing.T) {
 		for _, tt := range []struct {
 			name       string
-			client     *authclient.Client
+			authorizer authz.ScopedAuthorizer
 			cluster    types.KubeCluster
 			shouldFail bool
 		}{
 			{
-				name:    "unscoped read-user fetching unscoped kube cluster",
-				client:  newClient(t, authtest.TestUser(readUser.GetName())),
-				cluster: unscopedCluster,
+				name:       "unscoped read-user fetching unscoped kube cluster",
+				authorizer: newFakeAuthorizer(t, readUser, types.KindKubernetesCluster, types.VerbRead),
+				cluster:    unscopedCluster,
 			},
 			{
-				name:    "unscoped read-user fetching scoped kube cluster",
-				client:  newClient(t, authtest.TestUser(readUser.GetName())),
-				cluster: scopedCluster,
+				name:       "unscoped read-user fetching scoped kube cluster",
+				authorizer: newFakeAuthorizer(t, readUser, types.KindKubernetesCluster, types.VerbRead),
+				cluster:    scopedCluster,
 			},
 			{
-				name:    "unscoped delete-user fetching unscoped kube cluster",
-				client:  newClient(t, authtest.TestUser(deleteUser.GetName())),
-				cluster: unscopedCluster,
+				name:       "unscoped delete-user fetching unscoped kube cluster",
+				authorizer: newFakeAuthorizer(t, deleteUser, types.KindKubernetesCluster, types.VerbDelete),
+				cluster:    unscopedCluster,
 				// default implicit role provides read access
 				shouldFail: false,
 			},
 			{
-				name:    "unscoped delete-user fetching scoped kube cluster",
-				client:  newClient(t, authtest.TestUser(deleteUser.GetName())),
-				cluster: scopedCluster,
+				name:       "unscoped delete-user fetching scoped kube cluster",
+				authorizer: newFakeAuthorizer(t, deleteUser, types.KindKubernetesCluster, types.VerbDelete),
+				cluster:    scopedCluster,
 				// default implicit role provides read access
 				shouldFail: false,
 			},
 			{
-				name:    "scoped read-user fetching scoped kube cluster",
-				client:  newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
-				cluster: scopedCluster,
+				name:       "scoped read-user fetching scoped kube cluster",
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
+				cluster:    scopedCluster,
 			},
 			{
 				name:       "scoped read-user fetching orthogonal scoped kube cluster",
-				client:     newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
 				cluster:    orthogonalCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "scoped read-user fetching unscoped kube cluster",
-				client:     newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
-				cluster:    orthogonalCluster,
-				shouldFail: true,
-			},
-			{
-				name:       "scoped delete-user fetching unscoped kube cluster",
-				client:     newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
 				cluster:    unscopedCluster,
 				shouldFail: true,
 			},
 			{
-				name:    "scoped delete-user fetching scoped kube cluster",
-				client:  newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
-				cluster: scopedCluster,
+				name:       "scoped delete-user fetching unscoped kube cluster",
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
+				cluster:    unscopedCluster,
+				shouldFail: true,
+			},
+			{
+				name:       "scoped delete-user fetching scoped kube cluster",
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
+				cluster:    scopedCluster,
 				// default implicit role provides read access
 				shouldFail: false,
 			},
 			{
 				name:       "scoped delete-user fetching orthogonal scoped kube cluster",
-				client:     newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
 				cluster:    orthogonalCluster,
 				shouldFail: true,
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
-				res, err := tt.client.GetKubeCluster(t.Context(), presencev1pb.GetKubeClusterRequest_builder{
+				srv := newPresenceService(t, backend{kube: kube}, tt.authorizer)
+				res, err := srv.GetKubeCluster(t.Context(), presencev1pb.GetKubeClusterRequest_builder{
 					Name:  tt.cluster.GetName(),
 					Scope: tt.cluster.GetScope(),
 				}.Build())
@@ -261,7 +140,7 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 					assert.Error(t, err)
 				} else {
 					assert.NoError(t, err)
-					assert.Empty(t, cmp.Diff(tt.cluster, res))
+					assert.Empty(t, cmp.Diff(tt.cluster, res.GetCluster()))
 				}
 			})
 		}
@@ -269,25 +148,24 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 
 	allClusters := []types.KubeCluster{unscopedCluster, scopedCluster, orthogonalCluster}
 	t.Run("ListKubeClusters", func(t *testing.T) {
-		t.Parallel()
 		for _, tt := range []struct {
 			name             string
-			client           *authclient.Client
+			authorizer       authz.ScopedAuthorizer
 			req              *presencev1pb.ListKubeClustersRequest
 			expectedClusters []types.KubeCluster
 			shouldFail       bool
 		}{
 			{
-				name:   "unscoped list-user listing all clusters without scope filter",
-				client: newClient(t, authtest.TestUser(listUser.GetName())),
+				name:       "unscoped list-user listing all clusters without scope filter",
+				authorizer: newFakeAuthorizer(t, listUser, types.KindKubernetesCluster, types.VerbRead, types.VerbList),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 				}.Build(),
 				expectedClusters: []types.KubeCluster{unscopedCluster},
 			},
 			{
-				name:   "unscoped list-user listing all clusters filtering for all scopes",
-				client: newClient(t, authtest.TestUser(listUser.GetName())),
+				name:       "unscoped list-user listing all clusters filtering for all scopes",
+				authorizer: newFakeAuthorizer(t, listUser, types.KindKubernetesCluster, types.VerbRead, types.VerbList),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 					ScopeFilter: scopesv1.Filter_builder{
@@ -297,56 +175,57 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 				expectedClusters: allClusters,
 			},
 			{
-				name:   "unscoped list-user listing clusters with scope filter",
-				client: newClient(t, authtest.TestUser(listUser.GetName())),
+				name:       "unscoped list-user listing clusters with scope filter",
+				authorizer: newFakeAuthorizer(t, listUser, types.KindKubernetesCluster, types.VerbRead, types.VerbList),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 					ScopeFilter: scopesv1.Filter_builder{
-						Scope: scope,
+						Scope: testScope,
 						Mode:  scopesv1.Mode_MODE_EXACT,
 					}.Build(),
 				}.Build(),
 				expectedClusters: []types.KubeCluster{scopedCluster},
 			},
 			{
-				name:   "scoped list-user listing all clusters",
-				client: newClient(t, authtest.TestScopedUser(listUser.GetName(), scope)),
+				name:       "scoped list-user listing all clusters",
+				authorizer: newFakeScopedAuthorizer(t, listUser, testScope, roles, scopedListRole),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 				}.Build(),
 				expectedClusters: []types.KubeCluster{scopedCluster},
 			},
 			{
-				name:   "scoped list-user listing clusters with scope filter",
-				client: newClient(t, authtest.TestScopedUser(listUser.GetName(), scope)),
+				name:       "scoped list-user listing clusters with scope filter",
+				authorizer: newFakeScopedAuthorizer(t, listUser, testScope, roles, scopedListRole),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 					ScopeFilter: scopesv1.Filter_builder{
-						Scope: scope,
+						Scope: testScope,
 						Mode:  scopesv1.Mode_MODE_EXACT,
 					}.Build(),
 				}.Build(),
 				expectedClusters: []types.KubeCluster{scopedCluster},
 			},
 			{
-				name:   "scoped list-user listing clusters with orthogonal scope filter",
-				client: newClient(t, authtest.TestScopedUser(listUser.GetName(), scope)),
+				name:       "scoped list-user listing clusters with orthogonal scope filter",
+				authorizer: newFakeScopedAuthorizer(t, listUser, testScope, roles, scopedListRole),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
 					ScopeFilter: scopesv1.Filter_builder{
-						Scope: orthogonalScope,
+						Scope: testOrthogonalScope,
 						Mode:  scopesv1.Mode_MODE_EXACT,
 					}.Build(),
 				}.Build(),
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
-				clusters, _, err := tt.client.ListKubeClusters(t.Context(), tt.req)
+				srv := newPresenceService(t, backend{kube: kube}, tt.authorizer)
+				res, err := srv.ListKubeClusters(t.Context(), tt.req)
 				if tt.shouldFail {
 					assert.Error(t, err)
 				} else {
 					assert.NoError(t, err)
-					assert.ElementsMatch(t, tt.expectedClusters, clusters)
+					assert.ElementsMatch(t, tt.expectedClusters, res.GetClusters())
 				}
 			})
 		}
@@ -356,76 +235,77 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 		t.Parallel()
 		for _, tt := range []struct {
 			name       string
-			client     *authclient.Client
+			authorizer authz.ScopedAuthorizer
 			cluster    types.KubeCluster
 			shouldFail bool
 		}{
 			{
 				name:       "unscoped read-user deleting unscoped cluster",
-				client:     newClient(t, authtest.TestUser(readUser.GetName())),
+				authorizer: newFakeAuthorizer(t, readUser, types.KindKubernetesCluster, types.VerbRead),
 				cluster:    unscopedCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "unscoped read-user deleting scoped cluster",
-				client:     newClient(t, authtest.TestUser(readUser.GetName())),
+				authorizer: newFakeAuthorizer(t, readUser, types.KindKubernetesCluster, types.VerbRead),
 				cluster:    scopedCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "unscoped read-user deleting orthogonal cluster",
-				client:     newClient(t, authtest.TestUser(readUser.GetName())),
-				cluster:    scopedCluster,
+				authorizer: newFakeAuthorizer(t, readUser, types.KindKubernetesCluster, types.VerbRead),
+				cluster:    orthogonalCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "scoped read-user deleting unscoped cluster",
-				client:     newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
 				cluster:    unscopedCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "scoped read-user deleting scoped cluster",
-				client:     newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
 				cluster:    scopedCluster,
 				shouldFail: true,
 			},
 			{
-				name:       "scoped read-user deleting scoped cluster",
-				client:     newClient(t, authtest.TestScopedUser(readUser.GetName(), scope)),
+				name:       "scoped read-user deleting orthogonal cluster",
+				authorizer: newFakeScopedAuthorizer(t, readUser, testScope, roles, scopedReadRole),
 				cluster:    orthogonalCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "scoped delete-user deleting unscoped cluster",
-				client:     newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
 				cluster:    unscopedCluster,
 				shouldFail: true,
 			},
 			{
 				name:       "scoped delete-user deleting orthogonal cluster",
-				client:     newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
 				cluster:    orthogonalCluster,
 				shouldFail: true,
 			},
 			{
-				name:    "scoped delete-user deleting scoped cluster",
-				client:  newClient(t, authtest.TestScopedUser(deleteUser.GetName(), scope)),
-				cluster: scopedCluster,
+				name:       "scoped delete-user deleting scoped cluster",
+				authorizer: newFakeScopedAuthorizer(t, deleteUser, testScope, roles, scopedDeleteRole),
+				cluster:    scopedCluster,
 			},
 			{
-				name:    "unscoped delete-user deleting unscoped cluster",
-				client:  newClient(t, authtest.TestUser(deleteUser.GetName())),
-				cluster: unscopedCluster,
+				name:       "unscoped delete-user deleting unscoped cluster",
+				authorizer: newFakeAuthorizer(t, deleteUser, types.KindKubernetesCluster, types.VerbDelete),
+				cluster:    unscopedCluster,
 			},
 			{
-				name:    "unscoped delete-user deleting orthogonal cluster",
-				client:  newClient(t, authtest.TestUser(deleteUser.GetName())),
-				cluster: orthogonalCluster,
+				name:       "unscoped delete-user deleting orthogonal cluster",
+				authorizer: newFakeAuthorizer(t, deleteUser, types.KindKubernetesCluster, types.VerbDelete),
+				cluster:    orthogonalCluster,
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
-				err := tt.client.DeleteKubeCluster(t.Context(), presencev1pb.DeleteKubeClusterRequest_builder{
+				srv := newPresenceService(t, backend{kube: kube}, tt.authorizer)
+				_, err := srv.DeleteKubeCluster(t.Context(), presencev1pb.DeleteKubeClusterRequest_builder{
 					Name:  tt.cluster.GetName(),
 					Scope: tt.cluster.GetScope(),
 				}.Build())
@@ -439,7 +319,7 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 	})
 }
 
-func newKubeCluster(t *testing.T, srv *auth.Server, scope, name string, labels map[string]string) types.KubeCluster {
+func newKubeCluster(t *testing.T, srv *local.KubernetesService, scope, name string, labels map[string]string) types.KubeCluster {
 	t.Helper()
 
 	cluster, err := types.NewKubernetesClusterV3(types.Metadata{

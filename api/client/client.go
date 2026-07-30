@@ -2897,7 +2897,7 @@ func (c *Client) UpsertNode(ctx context.Context, node types.Server) (*types.Keep
 
 // DeleteNode deletes an unscoped node by name and namespace.
 //
-// Deprecated: Use [Client.DeleteNodeV2] instead, which supports scoped nodes.
+// Deprecated: Use [Client.DeleteSSHServer] instead, which supports scoped nodes.
 // TODO(williamo): Remove in v20
 func (c *Client) DeleteNode(ctx context.Context, namespace, name string) error {
 	if namespace == "" {
