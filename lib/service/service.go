@@ -3533,15 +3533,13 @@ type auditQueueStatsGetter interface {
 	Stats(ctx context.Context) (auditqueue.Stats, error)
 }
 
-type auditQueueStatsFn func(ctx context.Context) (auditqueue.Stats, error)
-
 func (process *TeleportProcess) registerAuditQueueStats(emitter auditQueueStatsGetter) {
 	process.auditQueueStatsMu.Lock()
 	defer process.auditQueueStatsMu.Unlock()
 	if process.auditQueueStats == nil {
-		process.auditQueueStats = make(map[any]auditQueueStatsFn)
+		process.auditQueueStats = make(map[auditQueueStatsGetter]struct{})
 	}
-	process.auditQueueStats[emitter] = emitter.Stats
+	process.auditQueueStats[emitter] = struct{}{}
 }
 
 func (process *TeleportProcess) unregisterAuditQueueStats(emitter auditQueueStatsGetter) {
@@ -3550,12 +3548,12 @@ func (process *TeleportProcess) unregisterAuditQueueStats(emitter auditQueueStat
 	delete(process.auditQueueStats, emitter)
 }
 
-func (process *TeleportProcess) auditStatGetters() []auditQueueStatsFn {
+func (process *TeleportProcess) auditStatGetters() []auditQueueStatsGetter {
 	process.auditQueueStatsMu.Lock()
 	defer process.auditQueueStatsMu.Unlock()
 
-	getters := make([]auditQueueStatsFn, 0, len(process.auditQueueStats))
-	for _, g := range process.auditQueueStats {
+	getters := make([]auditQueueStatsGetter, 0, len(process.auditQueueStats))
+	for g := range process.auditQueueStats {
 		getters = append(getters, g)
 	}
 
@@ -3571,7 +3569,7 @@ func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.Aud
 	now := time.Now()
 	var status types.AuditQueueStatus
 	for _, g := range getters {
-		stats, err := g(ctx)
+		stats, err := g.Stats(ctx)
 		if err != nil {
 			process.logger.DebugContext(ctx, "Failed to read audit queue stats for heartbeat.", "error", err)
 			continue
