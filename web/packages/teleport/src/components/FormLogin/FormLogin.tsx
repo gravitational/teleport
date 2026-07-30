@@ -31,6 +31,7 @@ import {
   Text,
 } from 'design';
 import * as Alerts from 'design/Alert';
+import * as Icon from 'design/Icon';
 import { StepComponentProps, StepSlider } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
 import FieldInput from 'shared/components/FieldInput';
@@ -68,6 +69,7 @@ export default function LoginForm(props: Props) {
     primaryAuthType,
     title = 'Sign in to Teleport',
     ssoTitle = 'Sign in to Teleport with SSO',
+    scope,
   } = props;
 
   const [showIdentifierFirstLogin, setShowIdentifierFirstLogin] = useState(
@@ -115,6 +117,12 @@ export default function LoginForm(props: Props) {
       <Text typography="h1" mb={4} textAlign="center">
         {title}
       </Text>
+      {scope && (
+        <Flex gap={2} alignItems="center" justifyContent="center">
+          <Icon.Contract aria-label="scope" />
+          <Text typography="body1">{scope}</Text>
+        </Flex>
+      )}
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
       {showAccessChangedMessage && (
         <Alerts.Warning m={4}>
@@ -511,6 +519,7 @@ export type Props = {
   onLogin(username: string, password: string, token: string): void;
   autoFocus?: boolean;
   setShowIdentifierFirstLogin?: (value: boolean) => void;
+  scope: string;
 };
 
 type AttemptState = ReturnType<typeof useAttempt>[0];
