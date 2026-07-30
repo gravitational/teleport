@@ -58,13 +58,14 @@ sidebar_label: myapp
 tags:
   - reference
   - platform-wide
+page_type: reference
 ---
 {/*GENERATED FILE. DO NOT EDIT.*/}
 {/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
-This guide provides a comprehensive list of commands, arguments, and flags for
-myapp.
+This guide lists the commands, arguments, and flags available in the
+myapp CLI.
 
 This is the main CLI tool.
 
@@ -135,8 +136,8 @@ Arguments:
 			config: generatorConfig{
 				Introduction: "This is the main CLI tool.",
 			},
-			expectSubstring: `This guide provides a comprehensive list of commands, arguments, and flags for
-myapp.
+			expectSubstring: `This guide lists the commands, arguments, and flags available in the
+myapp CLI.
 
 This is the main CLI tool.
 
@@ -458,13 +459,14 @@ sidebar_label: myapp
 tags:
   - reference
   - platform-wide
+page_type: reference
 ---
 {/*GENERATED FILE. DO NOT EDIT.*/}
 {/*To generate, run: make cli-docs-myapp*/}
 {/*vale messaging = NO*/}
 
-This guide provides a comprehensive list of commands, arguments, and flags for
-myapp.
+This guide lists the commands, arguments, and flags available in the
+myapp CLI.
 
 This is the main CLI tool.
 

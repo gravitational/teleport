@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 You can use Teleport's API to automatically register resources in your
@@ -18,9 +19,9 @@ Google Cloud, as well as
 Amazon EC2.  To support other resources and cloud providers, you can use the API
 to write your own workflow.
 
-In this guide, we will demonstrate some libraries you can use to automatically
-register resources with Teleport. We will use an example you can run locally on
-your workstation.
+In this guide, you will use a custom API client program to automatically enroll
+Dockerized applications with your Teleport cluster. This program demonstrates
+some libraries you can use to automatically register resources with Teleport.
 
 ## How it works
 

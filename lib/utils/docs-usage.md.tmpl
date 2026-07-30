@@ -60,13 +60,14 @@ sidebar_label: {{.App.Name}}
 tags:
   - reference
   - {{if eq .App.Name "tbot"}}mwi{{else}}platform-wide{{end}}
+page_type: reference
 ---
 {/*GENERATED FILE. DO NOT EDIT.*/}
 {/*To generate, run: make cli-docs-{{.App.Name}}*/}
 {/*vale messaging = NO*/}
 
-This guide provides a comprehensive list of commands, arguments, and flags for
-{{.App.Name}}.
+This guide lists the commands, arguments, and flags available in the
+{{.App.Name}} CLI.
 
 {{ .App.Help|Wrap 0 }}
 {{template "FormatUsage" .App -}}

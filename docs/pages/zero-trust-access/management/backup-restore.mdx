@@ -4,13 +4,14 @@ description: How to back up and restore your Teleport cluster state.
 tags:
  - conceptual
  - platform-wide
+page_type: conceptual
 ---
 
 Operators must have a plan in place to back up self-hosted Teleport clusters.
 While the Teleport Proxy Service and Teleport Agent services are stateless, you
 should ensure that you can restore their configuration files. The Teleport Auth
 Service manages state for the entire cluster, and it is critical that you can
-back up its data. This guide explains the components of a Teleport Auth Service
+back up its data. This guide describes the components of a Teleport Auth Service
 deployment that must be backed up and lays out our recommended approach for
 performing backups. 
 
