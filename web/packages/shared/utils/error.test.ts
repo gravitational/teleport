@@ -119,23 +119,22 @@ describe('isErrnoException', () => {
   const cases: {
     name: string;
     input: unknown;
-    code?: string;
+    code: string;
     expected: boolean;
   }[] = [
-    {
-      name: 'Error with a code, no expected code',
-      input: Object.assign(new Error('failed'), { code: 'ENOENT' }),
-      expected: true,
-    },
-    {
-      name: 'Error without a code, no expected code',
-      input: new Error('failed'),
-      expected: false,
-    },
     {
       name: 'Error with a matching code',
       input: Object.assign(new Error('failed'), { code: 'ENOENT' }),
       code: 'ENOENT',
+      expected: true,
+    },
+    {
+      name: 'AbortError with a matching code',
+      input: Object.assign(new Error('aborted'), {
+        name: 'AbortError',
+        code: 'ABORT_ERR',
+      }),
+      code: 'ABORT_ERR',
       expected: true,
     },
     {
@@ -163,21 +162,25 @@ describe('isErrnoException', () => {
     {
       name: 'object with a non-string code',
       input: { code: 123 },
+      code: 'ENOENT',
       expected: false,
     },
     {
       name: 'string',
       input: 'ENOENT',
+      code: 'ENOENT',
       expected: false,
     },
     {
       name: 'null',
       input: null,
+      code: 'ENOENT',
       expected: false,
     },
     {
       name: 'undefined',
       input: undefined,
+      code: 'ENOENT',
       expected: false,
     },
   ];
