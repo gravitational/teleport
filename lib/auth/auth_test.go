@@ -3682,6 +3682,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NotEmpty(t, ws.GetTLSCert())
 
 	t.Run("expands user metadata name in logins", func(t *testing.T) {
+		ctx := t.Context()
 		user, _, err := authtest.CreateUserAndRole(p.a, "templated-web-user", nil, nil, authtest.WithRoleMutator(func(role types.Role) {
 			role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
 		}))
@@ -3704,6 +3705,7 @@ func TestNewWebSession(t *testing.T) {
 	})
 
 	t.Run("scoped session", func(t *testing.T) {
+		ctx := t.Context()
 		scopedService := local.NewScopedAccessService(p.bk)
 		_, err := scopedService.CreateScopedRole(ctx, scopedaccessv1pb.CreateScopedRoleRequest_builder{
 			Role: scopedaccessv1pb.ScopedRole_builder{

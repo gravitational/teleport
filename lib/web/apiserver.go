@@ -3088,6 +3088,9 @@ type renewSessionRequest struct {
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
+	// TODO(bl-nero): Fix session renewal for scoped sessions. This endpoint
+	// doesn't work for scoped sessions, but currently, the web UI doesn't even
+	// call it in such scenario.
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

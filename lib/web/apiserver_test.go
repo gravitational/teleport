@@ -3307,6 +3307,7 @@ func TestLogin(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
 			const ua = "test-ua"
 			s.clock.Advance(time.Minute) // Prevent reusing old OTP
 			sessionResp, httpResp := loginWebOTP(t, ctx, loginWebOTPParams{
