@@ -979,15 +979,19 @@ func registerDeviceTrustService(logger *slog.Logger, s *grpc.Server, authGRPC *a
 		Modules:             m,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "setting up Device Trust service")
 	}
 	publicDeviceService, err := devicetrustpublicv1.New(devicetrustpublicv1.ServiceParams{
 		Logger:        logger,
 		EnrollPairing: authServer.Services,
 		Storage:       deviceStorage,
+		Authorizer:    authGRPC.Authorizer,
+		CachedUsers:   authServer.Cache,
+		Emitter:       authGRPC.Emitter,
+		Modules:       m,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "setting up public Device Trust service")
 	}
 
 	devicepb.RegisterDeviceTrustServiceServer(s, deviceService)

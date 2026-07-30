@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
@@ -17,10 +16,12 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	devicetrustpublicv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustpublicv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/entitlements"
@@ -56,9 +57,16 @@ type E struct {
 	DevicesClient devicepb.DeviceTrustServiceClient
 	// DevicesService is the underlying devicetrustv1.Service.
 	// Most callers should test through DevicesClient instead.
-	DevicesService  *devicetrustv1.Service
-	AccessService   *local.AccessService
-	IdentityService *local.IdentityService
+	DevicesService *devicetrustv1.Service
+	// PublicDevicesClient is the client for the public (unauthenticated) Device
+	// Trust service.
+	PublicDevicesClient devicetrustpublicv1pb.DeviceTrustServiceClient
+	// PublicDevicesService is the underlying devicetrustpublicv1.Service.
+	// Most callers should test through PublicDevicesClient instead.
+	PublicDevicesService *devicetrustpublicv1.Service
+	EnrollPairing        services.EnrollPairing
+	AccessService        *local.AccessService
+	IdentityService      *local.IdentityService
 
 	augmentCertsFunc       AugmentContextCertsFunc
 	augmentWebFunc         AugmentWebSessionCertsFunc
@@ -124,6 +132,11 @@ func WithEmitter(em apievents.Emitter) Opt {
 // WithLimiter customizes the [E] rate limiter.
 func WithLimiter(l devicetrustv1.RateLimiter) Opt {
 	return func(e *E) { e.limiter = l }
+}
+
+// WithEnrollPairing customizes the [E] enroll pairing service.
+func WithEnrollPairing(s services.EnrollPairing) Opt {
+	return func(e *E) { e.EnrollPairing = s }
 }
 
 // NewUsingT creates a new [E] using t to report failures or register the
@@ -195,9 +208,11 @@ func New(opts ...Opt) (*E, error) {
 	if err != nil {
 		return nil, err
 	}
-	enrollPairingService, err := local.NewEnrollPairingService(mem)
-	if err != nil {
-		return nil, err
+
+	if e.EnrollPairing == nil {
+		if e.EnrollPairing, err = local.NewEnrollPairingService(mem); err != nil {
+			return nil, err
+		}
 	}
 
 	// Device service.
@@ -215,8 +230,22 @@ func New(opts ...Opt) (*E, error) {
 		Emitter:             e.emitter,
 		Limiter:             e.limiter,
 		Storage:             dtStorage,
-		EnrollPairing:       enrollPairingService,
+		EnrollPairing:       e.EnrollPairing,
 		Modules:             e.modules,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Public (unauthenticated) device service.
+	e.PublicDevicesService, err = devicetrustpublicv1.New(devicetrustpublicv1.ServiceParams{
+		Logger:        logger,
+		EnrollPairing: e.EnrollPairing,
+		Storage:       dtStorage,
+		Authorizer:    e.authorizer,
+		CachedUsers:   e.IdentityService,
+		Emitter:       e.emitter,
+		Modules:       e.modules,
 	})
 	if err != nil {
 		return nil, err
@@ -244,8 +273,9 @@ func New(opts ...Opt) (*E, error) {
 		return nil
 	})
 
-	// Register service.
+	// Register services.
 	devicepb.RegisterDeviceTrustServiceServer(s, e.DevicesService)
+	devicetrustpublicv1pb.RegisterDeviceTrustServiceServer(s, e.PublicDevicesService)
 
 	// Start.
 	go func() {
@@ -256,9 +286,7 @@ func New(opts ...Opt) (*E, error) {
 	}()
 
 	// gRPC client.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cc, err := grpc.DialContext(ctx, "unused",
+	cc, err := grpc.NewClient("passthrough:///bufconn",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 			return lis.DialContext(ctx)
 		}),
@@ -271,6 +299,7 @@ func New(opts ...Opt) (*E, error) {
 	}
 	e.closers = append(e.closers, cc.Close)
 	e.DevicesClient = devicepb.NewDeviceTrustServiceClient(cc)
+	e.PublicDevicesClient = devicetrustpublicv1pb.NewDeviceTrustServiceClient(cc)
 
 	ok = true
 	return e, nil
