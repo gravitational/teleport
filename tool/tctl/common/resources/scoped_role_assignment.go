@@ -106,7 +106,7 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		fmt.Printf(
 			"%v %q has been upserted\n",
 			scopedaccess.KindScopedRoleAssignment,
-			rsp.GetAssignment().GetMetadata().GetName(),
+			scopes.QualifiedName{Name: rsp.GetAssignment().GetMetadata().GetName(), Scope: rsp.GetAssignment().GetScope()}.String(),
 		)
 		return nil
 	}
@@ -142,7 +142,7 @@ func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	fmt.Printf(
 		"%v %q has been updated\n",
 		scopedaccess.KindScopedRoleAssignment,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
@@ -182,10 +182,10 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, sub
 func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
 	if subKind == "" {
 		return trace.BadParameter(
-			"%s requires a sub-kind to delete a resource, try:\n  tctl rm %s/%s %s::%s",
+			"%s requires a sub-kind to delete a resource, try:\n  tctl rm %s/%s %s",
 			scopedaccess.KindScopedRoleAssignment,
 			scopedaccess.KindScopedRoleAssignment, scopedaccess.SubKindDynamic,
-			sqn.Scope, sqn.Name,
+			sqn.String(),
 		)
 	}
 	if subKind == scopedaccess.SubKindMaterialized {
@@ -202,7 +202,7 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRoleAssignment,
-		sqn.Name,
+		sqn.String(),
 	)
 	return nil
 }

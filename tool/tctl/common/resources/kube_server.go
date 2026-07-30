@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -112,7 +113,11 @@ func deleteKubeServer(ctx context.Context, client *authclient.Client, ref servic
 		return trace.Wrap(err)
 	}
 	for _, s := range servers {
-		err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
+		err := client.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  s.GetScope(),
+			HostId: s.GetHostID(),
+			Name:   name,
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}

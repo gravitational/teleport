@@ -17,14 +17,21 @@
 package testing
 
 import (
+	"cmp"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/sse"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
 // DiscardResponseWriter is a minimal [http.ResponseWriter] + [http.Flusher]
@@ -80,4 +87,37 @@ func ReadSSEOneEvent(str string) (sse.Event, error) {
 		return sse.Event{}, trace.BadParameter("must contain exactly one SSE event")
 	}
 	return events[0], nil
+}
+
+// SignAWSRequest mock that signs a request, adding the necessary headers to
+// the request.
+func SignAWSRequest(_ context.Context, _ types.Application, req *http.Request, reqBody []byte) error {
+	hash := sha256.New()
+	hash.Write(reqBody)
+	req.Header.Set("X-Amz-Content-Sha256", hex.EncodeToString(hash.Sum(nil)))
+	req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential=test")
+	return nil
+}
+
+// ReserveFunc implements [llmrequest.ReserveFunc].
+func ReserveFunc(info llmlimiter.ReserveInfo, err error) llmrequest.ReserveFunc {
+	return func(context.Context, llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
+		return info, llmlimiter.EmptySettleFunc, err
+	}
+}
+
+// NoopReserveFunc implements [llmrequest.ReserveFunc] that does not affect
+// the handler. It grants whatever is asked for, mirroring the noop limiter
+// used when no quota is configured.
+func NoopReserveFunc(_ context.Context, req llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
+	usage := cmp.Or(req.Usage, req.MaxUsage)
+	if usage == nil {
+		return llmlimiter.ReserveInfo{}, llmlimiter.EmptySettleFunc, trace.BadParameter("must provide Usage or MaxUsage")
+	}
+	return llmlimiter.ReserveInfo{OutputTokens: usage.OutputTokens}, llmlimiter.EmptySettleFunc, nil
+}
+
+// NotApplicableReserveFunc returns NotApplicable for all limit requests.
+func NotApplicableReserveFunc(context.Context, llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error) {
+	return llmlimiter.ReserveInfo{NotApplicable: true}, llmlimiter.EmptySettleFunc, nil
 }
