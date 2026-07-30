@@ -128,7 +128,13 @@ func TestNewOIDCConnectorClaimsToRoles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("role-mapping-"+tt.name, func(t *testing.T) {
-			_, err := NewOIDCConnector(tt.name, OIDCConnectorSpecV3{ClaimsToRoles: tt.claimsToRoles})
+			spec := OIDCConnectorSpecV3{
+				ClientID:      "client-id",
+				ClientSecret:  "client-secret",
+				RedirectURLs:  []string{"https://example.com"},
+				ClaimsToRoles: tt.claimsToRoles,
+			}
+			_, err := NewOIDCConnector(tt.name, spec)
 			tt.assertErr(t, err)
 		})
 	}

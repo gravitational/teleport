@@ -305,3 +305,39 @@ func TestSAMLEntraIDGroupsProviderValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestNewSAMLConnectorAttributesToRoles(t *testing.T) {
+	tests := []struct {
+		name              string
+		attributesToRoles []types.AttributeMapping
+		assertErr         require.ErrorAssertionFunc
+	}{
+		{
+			name:              "empty",
+			attributesToRoles: []types.AttributeMapping{},
+			assertErr:         require.NoError,
+		},
+		{
+			name:              "invalid",
+			attributesToRoles: []types.AttributeMapping{{Name: "attribute", Value: "value", Roles: []string{}}},
+			assertErr:         require.Error,
+		},
+		{
+			name:              "valid",
+			attributesToRoles: []types.AttributeMapping{{Name: "attribute", Roles: []string{"access"}}},
+			assertErr:         require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("role-mapping-"+tt.name, func(t *testing.T) {
+			spec := types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "stub",
+				EntityDescriptorURL:      "https://example.com",
+				AttributesToRoles:        tt.attributesToRoles,
+			}
+			_, err := types.NewSAMLConnector(tt.name, spec)
+			tt.assertErr(t, err)
+		})
+	}
+}
