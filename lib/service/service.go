@@ -3568,6 +3568,7 @@ func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.Aud
 	if len(getters) == 0 {
 		return nil
 	}
+	now := time.Now()
 	var status types.AuditQueueStatus
 	for _, g := range getters {
 		stats, err := g(ctx)
@@ -3578,6 +3579,16 @@ func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.Aud
 		status.PendingCount += stats.PendingCount
 		status.DeadLetterCount += stats.DeadLetterCount
 		status.CorruptCount += stats.CorruptCount
+		if !stats.OldestPendingTime.IsZero() {
+			if age := int64(now.Sub(stats.OldestPendingTime).Seconds()); age > status.OldestPendingAgeSeconds {
+				status.OldestPendingAgeSeconds = age
+			}
+		}
+		if !stats.OldestDeadLetterTime.IsZero() {
+			if age := int64(now.Sub(stats.OldestDeadLetterTime).Seconds()); age > status.OldestDeadLetterAgeSeconds {
+				status.OldestDeadLetterAgeSeconds = age
+			}
+		}
 	}
 	return &status
 }

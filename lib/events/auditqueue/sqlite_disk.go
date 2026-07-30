@@ -588,8 +588,8 @@ func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name stri
 
 func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
 	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
-		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
-		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
+		"SELECT id, payload, attempts, enqueued_at FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_queue (payload, attempts, enqueued_at) VALUES (?, ?, ?)",
 	)
 }
 

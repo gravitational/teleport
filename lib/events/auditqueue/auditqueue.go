@@ -113,6 +113,12 @@ type Stats struct {
 	// CorruptCount is the number of events quarantined because their payloads
 	// failed to deserialize.
 	CorruptCount int64
+	// OldestPendingTime is when the oldest event in the main queue was
+	// enqueued. Zero when the main queue is empty.
+	OldestPendingTime time.Time
+	// OldestDeadLetterTime is when the oldest event in the dead-letter queue
+	// failed. Zero when the dead-letter queue is empty.
+	OldestDeadLetterTime time.Time
 }
 
 // Handler is the function type that the caller of the auditqueue implements.
