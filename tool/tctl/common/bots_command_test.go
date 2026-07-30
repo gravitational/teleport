@@ -825,15 +825,41 @@ func TestBotInstancesScoped(t *testing.T) {
 	})
 
 	t.Run("show scoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
 		cmd := BotsCommand{
+			stdout:     &buf,
 			instanceID: "/staging::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 
 		require.NoError(t, cmd.ShowBotInstance(ctx, client))
+
+		out := buf.String()
+		require.Contains(t, out, "Scope:  /staging")
+		require.Contains(t, out, "get bot_instance /staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		// The slash form can't carry a scope, so it must not be suggested here.
+		require.NotContains(t, out, "get bot_instance/test-bot-1")
+		require.NotContains(t, out, "bots instances add")
+	})
+
+	t.Run("show unscoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:     &buf,
+			instanceID: "test-bot-1/" + unscopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(ctx, client))
+
+		out := buf.String()
+		require.NotContains(t, out, "Scope:")
+		require.Contains(t, out, "bots instances add test-bot-1")
+		// Same two-argument shape as the scoped case.
+		require.Contains(t, out, "get bot_instance test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
 	})
 
 	t.Run("show scoped instance without scope is not found", func(t *testing.T) {
 		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
 			instanceID: "test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 
@@ -843,6 +869,7 @@ func TestBotInstancesScoped(t *testing.T) {
 
 	t.Run("show scoped instance with wrong scope is not found", func(t *testing.T) {
 		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
 			instanceID: "/prod::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 

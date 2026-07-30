@@ -84,11 +84,20 @@ func getBotInstance(
 	opts GetOpts,
 ) (Collection, error) {
 	c := client.BotInstanceServiceClient()
-	if ref.Name != "" && ref.SubKind != "" {
-		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
+
+	// services.ParseRef splits the bot name into SubKind only for the one-argument
+	// form 'bot_instance/<bot>/<id>'; the two-argument form leaves it in Name.
+	botName, instanceID := ref.SubKind, ref.Name
+	if botName == "" {
+		if bot, id, ok := strings.Cut(ref.Name, "/"); ok {
+			botName, instanceID = bot, id
+		}
+	}
+
+	if botName != "" && instanceID != "" {
 		bi, err := c.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
-			BotName:    ref.SubKind,
-			InstanceId: ref.Name,
+			BotName:    botName,
+			InstanceId: instanceID,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)

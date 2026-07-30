@@ -1251,6 +1251,24 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 		require.Contains(t, buf.String(), classicInstance.GetSpec().GetInstanceId())
 	})
 
+	t.Run("two-arg unscoped get is equivalent to the single-arg form", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance,
+			fmt.Sprintf("classic-bot/%s", classicInstance.GetSpec().GetInstanceId()),
+			"--format=json",
+		})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), classicInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("two-arg unscoped get of a missing instance is not found", func(t *testing.T) {
+		// Not the silently-empty list it would give if Name became a bot filter.
+		_, err := runResourceCommand(t, clt, []string{
+			"get", types.KindBotInstance, "classic-bot/does-not-exist", "--format=json",
+		})
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
 	t.Run("scope-qualified get", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{
 			"get", types.KindBotInstance,
