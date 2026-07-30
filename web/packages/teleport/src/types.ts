@@ -119,8 +119,8 @@ export enum NavTitle {
   // Beams
   BeamsQuickstart = 'Quickstart',
   BeamsFeedback = 'Feedback',
-  BeamsList = 'My Beams',
-  BeamsSummaries = 'Beams summaries',
+  BeamsList = 'Beams',
+  BeamsSummaries = 'History',
 }
 
 export interface TeleportFeatureRoute {
