@@ -25,6 +25,10 @@ option (gogoproto.unmarshaler_all) = true;
 
 // StringValues is a list of strings.
 message StringValues {
+  option (gogoproto.goproto_unrecognized) = false;
+  option (gogoproto.goproto_sizecache) = false;
+  option (gogoproto.goproto_unkeyed) = false;
+
   repeated string Values = 1;
 }
 

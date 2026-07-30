@@ -23,13 +23,17 @@ import (
 	"testing"
 
 	gogoproto "github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	googleproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/protoadapt"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -110,6 +114,39 @@ func BenchmarkCachedRoles(b *testing.B) {
 
 			<-c.FirstInit()
 
+			rolesV6FromGRPC, err := stream.Collect(clientutils.Resources(ctx,
+				func(ctx context.Context, pageSize int, pageToken string) ([]*types.RoleV6, string, error) {
+					resp, err := c.ListRolesForGRPC(ctx, &proto.ListRolesRequest{
+						Limit:    int32(pageSize),
+						StartKey: pageToken,
+					})
+					if err != nil {
+						return nil, "", err
+					}
+					buf, err := gogoproto.Marshal(resp)
+					if err != nil {
+						return nil, "", err
+					}
+					resp.Reset()
+					if err := gogoproto.Unmarshal(buf, resp); err != nil {
+						return nil, "", err
+					}
+					return resp.GetRoles(), resp.GetNextKey(), nil
+				},
+			))
+			require.NoError(b, err)
+			require.Len(b, rolesV6FromGRPC, roleCount)
+			rolesFromGet, err := c.GetRoles(ctx)
+			require.NoError(b, err)
+			require.Len(b, rolesFromGet, roleCount)
+			rolesV6FromGet := make([]*types.RoleV6, 0, len(rolesFromGet))
+			for _, role := range rolesFromGet {
+				require.IsType(b, (*types.RoleV6)(nil), role)
+				rolesV6FromGet = append(rolesV6FromGet, role.(*types.RoleV6))
+			}
+
+			require.Empty(b, cmp.Diff(rolesV6FromGRPC, rolesV6FromGet, protocmp.Transform()))
+
 			b.Run("op=getroles", func(b *testing.B) {
 				ctx := b.Context()
 
@@ -131,46 +168,82 @@ func BenchmarkCachedRoles(b *testing.B) {
 
 				marshalers := []struct {
 					name string
-					fn   func(t testing.TB, resp *proto.ListRolesResponse)
+					fn   func(t testing.TB, resp *proto.ListRolesResponse) []byte
 				}{
-					{"none", func(testing.TB, *proto.ListRolesResponse) {}},
-					{"grpcgo", func(t testing.TB, resp *proto.ListRolesResponse) {
+					{"none", func(testing.TB, *proto.ListRolesResponse) []byte { return nil }},
+					{"grpcgo", func(t testing.TB, resp *proto.ListRolesResponse) []byte {
 						// default grpc-go proto codec
 
 						respv2 := protoadapt.MessageV2Of(resp)
 						_ = googleproto.Size(respv2)
 
-						_, err := googleproto.MarshalOptions{UseCachedSize: true}.Marshal(respv2)
+						buf, err := googleproto.MarshalOptions{UseCachedSize: true}.Marshal(respv2)
 						require.NoError(t, err)
+						return buf
 					}},
-					{"gogo", func(t testing.TB, resp *proto.ListRolesResponse) {
+					{"gogo", func(t testing.TB, resp *proto.ListRolesResponse) []byte {
 						// a hypothetical proto codec that uses gogoproto
 
-						_, err := gogoproto.Marshal(resp)
+						buf, err := gogoproto.Marshal(resp)
 						require.NoError(t, err)
+						return buf
+					}},
+				}
+
+				unmarshalers := []struct {
+					name string
+					fn   func(t testing.TB, buf []byte)
+				}{
+					{"none", func(t testing.TB, buf []byte) {}},
+					{"grpcgo", func(t testing.TB, buf []byte) {
+						// default grpc-go proto codec
+
+						out := new(proto.ListRolesResponse)
+						outv2 := protoadapt.MessageV2Of(out)
+
+						require.NoError(t, googleproto.Unmarshal(buf, outv2))
+						require.NotEmpty(t, out.GetRoles())
+					}},
+					{"gogo", func(t testing.TB, buf []byte) {
+						// a hypothetical proto codec that uses gogoproto
+
+						// default grpc-go proto codec
+
+						out := new(proto.ListRolesResponse)
+
+						require.NoError(t, out.Unmarshal(buf))
+						require.NotEmpty(t, out.GetRoles())
 					}},
 				}
 
 				for _, m := range marshalers {
 					b.Run("marshal="+m.name, func(b *testing.B) {
-						ctx := b.Context()
-
-						for b.Loop() {
-							req := new(proto.ListRolesRequest)
-							for {
-								resp, err := listRolesForGRPC(ctx, req)
-								require.NoError(b, err)
-
-								m.fn(b, resp)
-
-								if resp.GetNextKey() == "" {
-									break
+						for _, um := range unmarshalers {
+							b.Run("unmarshal="+um.name, func(b *testing.B) {
+								if m.name == "none" && um.name != "none" {
+									b.SkipNow()
 								}
+								ctx := b.Context()
 
-								req = &proto.ListRolesRequest{
-									StartKey: resp.GetNextKey(),
+								for b.Loop() {
+									req := new(proto.ListRolesRequest)
+									for {
+										resp, err := listRolesForGRPC(ctx, req)
+										require.NoError(b, err)
+
+										buf := m.fn(b, resp)
+										um.fn(b, buf)
+
+										if resp.GetNextKey() == "" {
+											break
+										}
+
+										req = &proto.ListRolesRequest{
+											StartKey: resp.GetNextKey(),
+										}
+									}
 								}
-							}
+							})
 						}
 					})
 				}
