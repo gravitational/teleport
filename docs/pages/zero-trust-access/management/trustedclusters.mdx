@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 <Admonition type="note">
@@ -34,6 +35,10 @@ instance running on the root cluster.
    leaf Proxy Services to connect to sensitive or unauthorized resources, so be sure to use a
    firewall to ensure leaf Proxy services are only allowed to connect to the appropriate resources.
 </Admonition>
+
+In this guide, you will configure a trust relationship between two Teleport
+clusters, configure RBAC for the trusted cluster, and access a server in the
+leaf cluster via the root cluster.
 
 ## How it works
 

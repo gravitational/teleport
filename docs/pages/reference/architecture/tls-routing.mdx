@@ -4,10 +4,12 @@ description: How Teleport implements a single-port setup with TLS routing
 tags:
  - conceptual
  - platform-wide
+page_type: conceptual
 ---
 
-In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
-connections on a single TLS port.
+In TLS routing mode, the [Teleport Proxy Service](./proxy.mdx) multiplexes all
+client connections on a single TLS port. This page describes the architecture of
+TLS routing in Teleport.
 
 With TLS routing, cluster administrators can simplify network configurations
 since proxy only listens on one port. All connections are authenticated with

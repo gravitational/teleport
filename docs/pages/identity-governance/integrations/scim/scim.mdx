@@ -7,6 +7,7 @@ tags:
 - identity-governance
 - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 The SCIM integration between **SCIM providers** and **Teleport** enables automated
@@ -19,6 +20,10 @@ User permissions in Teleport are defined through Access Lists. While role defini
 live in Teleport, group membership is dynamically managed by SCIM Provider via SCIM group
 membership. This ensures users have up-to-date access aligned with organizational
 policies.
+
+In this guide, you will use Terraform to create an Access List that Teleport
+keeps up to date via a SCIM provider, then configure the Teleport SCIM
+integration.
 
 ## How it works
 
