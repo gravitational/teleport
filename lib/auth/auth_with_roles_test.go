@@ -9627,69 +9627,94 @@ func TestUpsertScopedNode(t *testing.T) {
 	const nodeName = "test1"
 	const otherID = "test2"
 
-	makeNode := func(t *testing.T, name, scope string) types.Server {
+	makeNode := func(t *testing.T, name, scope, subKind string) types.Server {
+		t.Helper()
+		if subKind == "" {
+			subKind = types.SubKindTeleportNode
+		}
 		node := &types.ServerV2{
 			Kind:    types.KindNode,
-			SubKind: types.SubKindOpenSSHNode,
+			SubKind: subKind,
 			Metadata: types.Metadata{
 				Name: name,
 			},
 			Spec: types.ServerSpecV2{
-				Addr:     "someaddr.com:443",
 				Hostname: name,
 			},
 			Scope: scope,
+		}
+		if node.IsOpenSSHNode() {
+			node.Spec.Addr = "someaddr.com:443"
 		}
 		require.NoError(t, node.CheckAndSetDefaults())
 		return node
 	}
 
 	tests := []struct {
-		name      string
-		server    *auth.ScopedServerWithRoles
-		nodeName  string
-		nodeScope string
-		shouldErr bool
+		name        string
+		server      *auth.ScopedServerWithRoles
+		nodeName    string
+		nodeScope   string
+		nodeSubKind string
+		errCheck    func(error) bool
 	}{
 		{
-			name:      "agent scope - matching ID and scope allowed",
+			name:      "agent scope - matching ID and scope denied",
 			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
 			nodeName:  nodeName,
 			nodeScope: "/staging",
+			errCheck:  trace.IsBadParameter,
+		},
+		{
+			name:        "agent scope - agentless node denied",
+			server:      newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
+			nodeName:    nodeName,
+			nodeScope:   "/staging",
+			nodeSubKind: types.SubKindOpenSSHNode,
+			errCheck:    trace.IsBadParameter,
 		},
 		{
 			name:      "agent scope - mismatched scope denied",
 			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
 			nodeName:  nodeName,
 			nodeScope: "/prod",
-			shouldErr: true,
+			errCheck:  trace.IsAccessDenied,
 		},
 		{
 			name:      "agent scope - mismatched ID denied",
 			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
 			nodeName:  otherID,
 			nodeScope: "/staging",
-			shouldErr: true,
+			errCheck:  trace.IsAccessDenied,
 		},
 		{
-			name:      "agent pin - matching ID and scope allowed",
+			name:      "agent pin - matching ID and scope denied",
 			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
 			nodeName:  nodeName,
 			nodeScope: "/staging",
+			errCheck:  trace.IsBadParameter,
+		},
+		{
+			name:        "agent pin - agentless node denied",
+			server:      newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
+			nodeName:    nodeName,
+			nodeScope:   "/staging",
+			nodeSubKind: types.SubKindOpenSSHNode,
+			errCheck:    trace.IsBadParameter,
 		},
 		{
 			name:      "agent pin - node scope orthogonal to pinned scope denied",
 			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
 			nodeName:  nodeName,
 			nodeScope: "/prod",
-			shouldErr: true,
+			errCheck:  trace.IsAccessDenied,
 		},
 		{
 			name:      "agent pin - mismatched ID denied",
 			server:    newScopePinnedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode),
 			nodeName:  otherID,
 			nodeScope: "/staging",
-			shouldErr: true,
+			errCheck:  trace.IsAccessDenied,
 		},
 		{
 			name: "unscoped user with node rules allowed",
@@ -9698,10 +9723,18 @@ func TestUpsertScopedNode(t *testing.T) {
 			nodeName: otherID,
 		},
 		{
-			name:      "unscoped user without node rules denied",
-			server:    newScopedTestServerWithUnscopedUser(t, authsrv, "plain-user", nil),
-			nodeName:  otherID,
-			shouldErr: true,
+			name: "unscoped user with node rules can create scoped agentless node",
+			server: newScopedTestServerWithUnscopedUser(t, authsrv, "scoped-openssh-admin",
+				[]types.Rule{types.NewRule(types.KindNode, []string{types.VerbCreate, types.VerbUpdate})}),
+			nodeName:    "scoped-openssh-node",
+			nodeScope:   "/staging",
+			nodeSubKind: types.SubKindOpenSSHNode,
+		},
+		{
+			name:     "unscoped user without node rules denied",
+			server:   newScopedTestServerWithUnscopedUser(t, authsrv, "plain-user", nil),
+			nodeName: otherID,
+			errCheck: trace.IsAccessDenied,
 		},
 		{
 			// Scoped roles cannot be created with node write permissions, so a scoped
@@ -9715,16 +9748,16 @@ func TestUpsertScopedNode(t *testing.T) {
 				}.Build()),
 			nodeName:  otherID,
 			nodeScope: "/staging",
-			shouldErr: true,
+			errCheck:  trace.IsAccessDenied,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := tt.server.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
-			if tt.shouldErr {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
+			_, err := tt.server.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope, tt.nodeSubKind))
+			if tt.errCheck != nil {
+				assert.Error(t, err)
+				assert.True(t, tt.errCheck(err), "unexpected error: %v", err)
 				return
 			}
 			require.NoError(t, err)
