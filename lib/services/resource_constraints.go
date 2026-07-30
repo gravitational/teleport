@@ -118,22 +118,32 @@ func buildStringConstraintTransform(
 
 // BuildResourceConstraintMatchers returns RoleMatchers derived from any
 // ResourceConstraints requested for the given resource, correlating the
-// resource against resourceAccessIDs by kind and name. Entries without
-// constraints contribute no matchers, so resource kinds that cannot carry
-// constraints are unaffected.
+// resource against resourceAccessIDs by kind, name, and cluster. Entries
+// without constraints contribute no matchers, so resource kinds that cannot
+// carry constraints are unaffected.
 //
 // Correlating by kind and name mirrors how requested resources are looked up
-// from their IDs (see [accessrequest.GetResourcesByResourceIDs]); callers are
-// expected to pass resources and resourceAccessIDs scoped to the same cluster.
+// from their IDs (see [accessrequest.GetResourcesByResourceIDs]). That lookup
+// reads from the local cluster whatever cluster an ID names. An entry scoped
+// to a foreign cluster can therefore correlate to a same-named local
+// resource, and the cluster check keeps its constraints from applying there.
+//
+// An entry with no ClusterName counts as local. An empty localCluster skips
+// the check and keeps every entry. That is looser than enforcement-side
+// correlation, and it means a caller that cannot resolve the local cluster
+// name never silently drops constraints.
 //
 // TODO(kiosion): When constraints extend for Kubernetes support, kube sub-resource
 // IDs need name-only correlation against the kube_cluster resource, like
 // getKubeResourcesFromResourceIDs
-func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource) ([]RoleMatcher, error) {
+func BuildResourceConstraintMatchers(resourceAccessIDs []types.ResourceAccessID, resource types.Resource, localCluster string) ([]RoleMatcher, error) {
 	var matchers []RoleMatcher
 	for _, raid := range resourceAccessIDs {
 		rid := raid.GetResourceID()
 		if rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
+			continue
+		}
+		if localCluster != "" && rid.ClusterName != "" && rid.ClusterName != localCluster {
 			continue
 		}
 		rm, err := MatcherFromConstraints(raid.GetConstraints())
