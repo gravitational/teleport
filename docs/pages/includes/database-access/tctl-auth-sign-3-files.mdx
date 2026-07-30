@@ -4,22 +4,14 @@ databases must be able to verify certificates presented by the Teleport Database
 Service. Self-hosted databases also need a certificate/key pair that Teleport
 can verify.
 
-<Admonition type="note" title="Teleport database certificate authorities">
-Teleport maintains two separate CAs for database access:
-
-- **Database CA (`db`)**: Signs certificates that databases present to the
-  Teleport Database Service. Export with `tctl auth export --type=db`.
-- **Database Client CA (`db_client`)**: Signs certificates that the Teleport
-  Database Service presents to databases. Export with
-  `tctl auth export --type=db-client`.
-
-When using `tctl auth sign`, the output files are:
-- `server.cas`: A CA bundle for your database to trust - contains the Database
-  Client CA certificate, which your database uses to verify connections from
-  the Teleport Database Service.
-- `server.crt`: A server certificate for your database, signed by the Database CA.
-- `server.key`: The private key for the server certificate.
-</Admonition>
+Teleport maintains two separate certificate authorities (CAs) for database
+access: the **Database CA** (`db`), which signs certificates that databases
+present to the Teleport Database Service, and the **Database Client CA**
+(`db_client`), which signs certificates that the Teleport Database Service
+presents to databases. You can export either CA directly with
+`tctl auth export --type=db` or `tctl auth export --type=db-client`, but in
+most cases you won't need to: `tctl auth sign`, described below, retrieves
+the certificates for you and writes them to local files.
 
 By default, the Teleport Database Service trusts certificates issued by a
 certificate authority managed by the Teleport Auth Service. You can either:
@@ -57,7 +49,12 @@ the database, follow these instructions on your workstation:
 
    (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-   The command creates 3 files: `server.cas`, `server.crt` and `server.key`.
+   The command creates 3 files:
+   - `server.cas`: The Database Client CA certificate, which your database
+     uses to verify connections from the Teleport Database Service.
+   - `server.crt`: A certificate for your database server, signed by the
+     Database CA.
+   - `server.key`: The private key for the server certificate.
 
 </TabItem>
 <TabItem label="Use a custom CA" >
