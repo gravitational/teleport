@@ -85,6 +85,10 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 		return trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
 	}
 
+	if err := validateBeamOwnership(tc.Username, beam); err != nil {
+		return trace.Wrap(err)
+	}
+
 	target := fmt.Sprintf("%s:0", beam.GetStatus().GetNodeId())
 	tc.HostLogin = types.BeamsLogin
 	tc.Stdin = cf.Stdin()
@@ -123,4 +127,17 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 		}
 	}
 	return lastErr
+}
+
+// validateBeamOwnership ensures that the current user is the owner of the beam.
+// This prevents users from accessing beams owned by other users.
+func validateBeamOwnership(currentUser string, beam *beamsv1.Beam) error {
+	beamOwner := beam.GetStatus().GetUser()
+	if currentUser != beamOwner {
+		return trace.AccessDenied(
+			"user %q is not authorized to access beam %q (owned by %q)",
+			currentUser, beam.GetStatus().GetAlias(), beamOwner,
+		)
+	}
+	return nil
 }
