@@ -141,7 +141,7 @@ test_metric 1
 	require.NoError(t, err)
 	require.Contains(t, metrics, "test_metric")
 	require.Len(t, metrics["test_metric"].GetMetric(), 1)
-	require.Equal(t, 1.0, metrics["test_metric"].GetMetric()[0].GetGauge().GetValue())
+	require.InDelta(t, 1.0, metrics["test_metric"].GetMetric()[0].GetGauge().GetValue(), 0.0001)
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
