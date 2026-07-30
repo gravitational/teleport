@@ -1,6 +1,6 @@
 name: teleport-relay
 apiVersion: v2
-version: &version "19.0.0-aadc.730.4"
+version: &version "19.0.0-aadc.730.5"
 appVersion: *version
 description: This chart deploys the Teleport Relay service.
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg

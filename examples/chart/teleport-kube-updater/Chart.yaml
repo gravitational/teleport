@@ -1,6 +1,6 @@
 name: teleport-kube-updater
 apiVersion: v2
-version: &version "19.0.0-aadc.730.4"
+version: &version "19.0.0-aadc.730.5"
 appVersion: *version
 type: library
 description: |
