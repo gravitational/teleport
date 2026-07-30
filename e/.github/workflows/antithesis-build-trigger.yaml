@@ -32,10 +32,9 @@ on:
         required: false
         default: 60
 
-# TODO(okraport): enable the schedule once e is merged and updated on target branches
-  # schedule:
-  #   # At 21:00 UTC on every day-of-week from Monday through Friday.
-  #   - cron: '0 21 * * 1-5'
+  schedule:
+    # At 21:00 UTC on every day-of-week from Monday through Friday.
+    - cron: '0 21 * * 1-5'
 
 env:
   ANTITHESIS_TENANT: teleport
@@ -58,9 +57,7 @@ jobs:
               MATRIX=$(jq -cn '
                 {
                   include: [
-                    { "sut": "core", "oss-teleport-ref": "master", "ent-teleport-ref": "" },
-                    { "sut": "core", "oss-teleport-ref": "branch/v18", "ent-teleport-ref": "" },
-                    { "sut": "core", "oss-teleport-ref": "branch/v17", "ent-teleport-ref": "" }
+                    { "sut": "core", "oss-teleport-ref": "master", "ent-teleport-ref": "" }
                   ]
                 }
               ')
