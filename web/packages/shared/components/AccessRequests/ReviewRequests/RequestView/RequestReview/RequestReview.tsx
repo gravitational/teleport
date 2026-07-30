@@ -34,6 +34,7 @@ import {
   RequestKind,
   RequestState,
 } from 'shared/services/accessRequests';
+import { isPermissionDeniedError } from 'shared/utils/error';
 
 import { AccessDurationReview } from '../../../AccessDuration';
 import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
@@ -310,11 +311,7 @@ function makeReviewStateOptions(
       // Connect) means the reviewer can't see the eligible Access Lists, which
       // is distinct from there being none. Detect it by status code rather than
       // message text so it survives across versions; surface other errors as-is.
-      const err = fetchSuggestedAccessListsAttempt.error;
-      const isPermissionError =
-        // @ts-expect-error ApiError lives in teleport and isRpcError lives in teleterm so they can't be imported.
-        err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
-      msg = isPermissionError
+      msg = isPermissionDeniedError(fetchSuggestedAccessListsAttempt.error)
         ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."
         : fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {

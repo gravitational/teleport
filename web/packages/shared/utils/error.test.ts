@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ensureError, isAbortError, isErrnoException } from './error';
+import {
+  ensureError,
+  isAbortError,
+  isErrnoException,
+  isPermissionDeniedError,
+} from './error';
 
 class CustomErrorClass extends Error {
   constructor(message: string) {
@@ -187,6 +192,21 @@ describe('isErrnoException', () => {
 
   test.each(cases)('$name', ({ input, code, expected }) => {
     expect(isErrnoException(input, code)).toBe(expected);
+  });
+});
+
+describe('isPermissionDeniedError', () => {
+  test.each([
+    ['HTTP 403', { response: { status: 403 } }, true],
+    ['gRPC PERMISSION_DENIED', { code: 'PERMISSION_DENIED' }, true],
+    ['other HTTP status', { response: { status: 500 } }, false],
+    ['other gRPC code', { code: 'INTERNAL' }, false],
+    ['malformed response', { response: null }, false],
+    ['Error without a status or code', new Error('failed'), false],
+    ['primitive', 'PERMISSION_DENIED', false],
+    ['null', null, false],
+  ])('%s', (_, error, expected) => {
+    expect(isPermissionDeniedError(error)).toBe(expected);
   });
 });
 
