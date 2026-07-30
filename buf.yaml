@@ -86,6 +86,7 @@ lint:
       - api/proto/teleport/sessionsearch/v1/session_search.proto
       - proto/teleport/web/teleterm/ptyhost/v1/pty_host_service.proto
       - proto/accessgraph/v1/session_search.proto
+      - api/proto/teleport/beams/v1/beam_replay_service.proto
 
 breaking:
   use:

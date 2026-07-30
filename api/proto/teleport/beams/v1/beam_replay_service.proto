@@ -1,0 +1,701 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/summarizer/v1/summarizer.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// BeamReplayService streams a beam's recorded HTTP traffic + attributed audit
+// activity from the S3 replay artifact.
+service BeamReplayService {
+  // Replay is a bidirectional stream: the client sends framed ReplayRequests
+  // and the server interleaves framed ReplayResponses, each tagged with the
+  // originating client request_id.
+  rpc Replay(stream ReplayRequest) returns (stream ReplayResponse);
+}
+
+// ReplayRequest is a single framed request sent by the client on the Replay
+// stream.
+message ReplayRequest {
+  // RequestID identifies this request. Responses carrying data for this
+  // request will echo the same request_id.
+  string request_id = 1;
+
+  oneof kind {
+    OpenRequest open = 2;
+    FetchExchangesRequest fetch_exchanges = 3;
+    FetchEventsRequest fetch_events = 4;
+    FetchPayloadRequest fetch_payload = 5;
+    CancelRequest cancel = 6;
+  }
+}
+
+// OpenRequest opens a replay session for the given beam, returning its
+// manifest.
+message OpenRequest {
+  // BeamID is the UUID name of the beam whose replay artifact should be
+  // opened.
+  string beam_id = 1;
+}
+
+// FetchExchangesRequest requests a page of recorded HTTP exchanges.
+message FetchExchangesRequest {
+  // Cursor is the ordinal to resume listing from.
+  int64 cursor = 1;
+
+  // Limit is the maximum number of exchanges to return.
+  int32 limit = 2;
+
+  // filter, when set, filters the returned exchanges to those whose URL,
+  // request body, or response body contain it (ASCII case-insensitive
+  // substring). An empty filter applies no filtering.
+  string filter = 3;
+}
+
+// FetchEventsRequest requests a page of audit events attributed to a given
+// exchange.
+message FetchEventsRequest {
+  // ExchangeOrdinal identifies the exchange whose events are being fetched.
+  int64 exchange_ordinal = 1;
+
+  // Cursor is the offset to resume listing from.
+  int64 cursor = 2;
+
+  // Limit is the maximum number of events to return.
+  int32 limit = 3;
+}
+
+// FetchPayloadRequest requests a chunk of a request/response/event payload
+// blob.
+message FetchPayloadRequest {
+  // ExchangeOrdinal identifies the exchange the payload belongs to.
+  int64 exchange_ordinal = 1;
+
+  // Ref locates the payload within the replay artifact's blob parts.
+  PayloadRef ref = 2;
+
+  // Offset is the byte offset within the referenced payload to start
+  // reading from.
+  int64 offset = 3;
+
+  // Limit is the maximum number of bytes to return.
+  int64 limit = 4;
+}
+
+// CancelRequest cancels a previously issued, still in-flight request.
+message CancelRequest {
+  // TargetRequestID is the request_id of the request to cancel.
+  string target_request_id = 1;
+}
+
+// ReplayResponse is a single framed response sent by the server on the
+// Replay stream.
+message ReplayResponse {
+  // RequestID echoes the request_id of the ReplayRequest this response
+  // corresponds to.
+  string request_id = 1;
+
+  oneof kind {
+    ReplayManifest manifest = 2;
+    ExchangePage exchange_page = 3;
+    EventPage event_page = 4;
+    PayloadChunk payload_chunk = 5;
+    ReplayError error = 6;
+  }
+}
+
+// ExchangePage is a page of recorded HTTP exchanges.
+message ExchangePage {
+  // Exchanges is the page of exchange entries.
+  repeated ReplayExchangeEntry exchanges = 1;
+
+  // NextCursor is the ordinal to pass as the cursor of the next
+  // FetchExchangesRequest.
+  int64 next_cursor = 2;
+
+  // HasMore indicates whether additional exchanges are available beyond
+  // this page.
+  bool has_more = 3;
+}
+
+// EventPage is a page of audit events attributed to an exchange.
+message EventPage {
+  // Events is the page of audit event entries.
+  repeated ReplayAuditEvent events = 1;
+
+  // NextCursor is the offset to pass as the cursor of the next
+  // FetchEventsRequest.
+  int64 next_cursor = 2;
+
+  // HasMore indicates whether additional events are available beyond this
+  // page.
+  bool has_more = 3;
+}
+
+// PayloadChunk is a chunk of a request/response/event payload blob.
+message PayloadChunk {
+  // Data is the raw bytes of this chunk.
+  bytes data = 1;
+
+  // IsLast indicates whether this is the final chunk for the requested
+  // payload.
+  bool is_last = 2;
+}
+
+// ReplayError describes a failure that occurred while servicing a
+// ReplayRequest.
+message ReplayError {
+  // Message describes the error.
+  string message = 1;
+}
+
+// ReplayManifest describes the top-level layout of a beam's replay
+// artifact.
+message ReplayManifest {
+  // Version is the manifest schema version.
+  int32 version = 1;
+
+  // BeamID is the UUID name of the beam this artifact belongs to.
+  string beam_id = 2;
+
+  // Alias is the human-friendly handle of the beam.
+  string alias = 3;
+
+  // Owner is the user that owned the beam.
+  string owner = 4;
+
+  // CreatedAt is when the beam, and thus this artifact, was created.
+  google.protobuf.Timestamp created_at = 5;
+
+  // ExpiresAt is when this artifact, and the underlying beam's recording,
+  // expires.
+  google.protobuf.Timestamp expires_at = 6;
+
+  // TotalExchanges is the total number of recorded HTTP exchanges.
+  int64 total_exchanges = 7;
+
+  // Incomplete indicates whether the recording was truncated or otherwise
+  // ended before the beam's session concluded normally.
+  bool incomplete = 8;
+
+  // SummaryRef references the part containing the recording's summary, if
+  // any.
+  string summary_ref = 9;
+
+  // IndexPageNames lists the names of the index page parts that make up
+  // this artifact.
+  repeated string index_page_names = 10;
+
+  // PublishedAppName is the name of the Teleport application the beam published,
+  // if any (from the beam's status.app_name at teardown). It's empty when the
+  // beam never published an app. The viewer reconstructs the app's public URL
+  // from it (published_app_name + the cluster's public address), so a beam's
+  // published app remains visible in its history after the beam is gone.
+  string published_app_name = 13;
+
+  // ActivityPageRefs references the pages of the artifact's activity index --
+  // the bounded, human-readable timeline of activities the segmenter grouped
+  // per agent lane. Each activity carries its agent (agent_ordinal) and its
+  // embedded tool/command calls, so the pages are the tool-activity store.
+  // Served through FetchPayload with a negative exchange ordinal.
+  repeated PayloadRef activity_page_refs = 15;
+
+  // ConversationPageRefs references the pages of the artifact's agent index:
+  // every run the recording carried, each holding the agent lanes that belong
+  // to it -- the main loop and every subagent it (transitively) spawned -- with
+  // their parent, kind, name and start/end times. Paged rather than inlined
+  // because a long-lived beam can accumulate many runs, and a run's agents and
+  // findings can carry sizeable prose, so inlining risked a manifest larger
+  // than the gRPC message size limit. Each page is a ReplayConversationIndex
+  // stored as protojson and served through FetchPayload with a negative
+  // exchange ordinal, ordered by conversation_ordinal.
+  // See ReplayConversation.
+  repeated PayloadRef conversation_page_refs = 17;
+}
+
+// ReplayIndexPage is a page of the replay artifact's exchange index.
+message ReplayIndexPage {
+  // Entries is the page's exchange entries.
+  repeated ReplayExchangeEntry entries = 1;
+}
+
+// ReplayCommand describes a single tool/command call the LLM issued in an
+// exchange's response (an OpenAI function_call / Chat Completions tool_call /
+// Anthropic tool_use). It anchors the call back to the exchange and the
+// specific streamed output item it came from, so the viewer can jump straight
+// to it.
+message ReplayCommand {
+  // CommandOrdinal is this command's position across the whole recording.
+  int64 command_ordinal = 1;
+
+  // ExchangeOrdinal is the ordinal of the exchange whose response issued this
+  // command.
+  int64 exchange_ordinal = 2;
+
+  // OutputIndex is the index of the streamed output item that carried this
+  // command within its response, used to expand the exact item in the parsed
+  // stream view. It is the response's output_index for the OpenAI Responses
+  // API, or the item's position for other shapes.
+  int64 output_index = 3;
+
+  // ToolName is the name of the tool/function the LLM called.
+  string tool_name = 4;
+
+  // Phase is the response phase the call was emitted in (e.g. commentary,
+  // final), when the provider reports one.
+  string phase = 5;
+
+  // ArgumentsPreview is a short, single-line preview of the call's arguments,
+  // for the timeline label. The full arguments live in the exchange's recorded
+  // response body.
+  string arguments_preview = 6;
+
+  // At is when the issuing exchange occurred.
+  google.protobuf.Timestamp at = 7;
+
+  // Risk is the LLM-assigned risk level for this command
+  // (none/low/medium/high/critical). Empty for artifacts recorded before
+  // command-risk scoring, or when no beam inference policy is configured.
+  string risk = 8;
+
+  // Title is a short, human-readable name for this tool use, assigned by the
+  // segmenter (e.g. "Install dependencies"). Empty for artifacts recorded
+  // before segmentation existed, or when segmentation was unavailable.
+  string title = 9;
+
+  // Description is a one-line, human-readable summary of what this tool use did
+  // and its result, assigned by the segmenter. Empty when unavailable.
+  string description = 10;
+
+  // CallID is the provider-assigned identifier for this tool call (OpenAI
+  // function_call/custom_tool_call call_id, Anthropic tool_use id), used to
+  // pair the call with its later output. Empty when the provider issued none.
+  string call_id = 11;
+
+  // CommandDisplay is the cleaned, single-line command (or apply_patch file
+  // summary) rendered from the call's arguments for the timeline. Empty when
+  // the arguments carried nothing displayable.
+  string command_display = 12;
+
+  // OutputDisplay is the cleaned, length-capped tool output paired to this call
+  // by call_id (head plus trailing lines). Empty when no output was recorded.
+  string output_display = 13;
+
+  // ExitCode is the process exit code parsed from the tool output, when the
+  // output reported one.
+  int32 exit_code = 14;
+
+  // Escalated reports whether the call requested escalated sandbox permissions.
+  bool escalated = 15;
+
+  // EscalationReason is the justification the agent gave for requesting
+  // escalated permissions, when escalated is true.
+  string escalation_reason = 16;
+
+  // AgentOrdinal is the ordinal of the ReplayAgent lane that issued this command
+  // (the manifest's `agents`). It makes each tool call self-describing: the tool
+  // activity is associated with its agent/subagent without needing to join
+  // through the enclosing activity. 0 is the main loop.
+  int64 agent_ordinal = 17;
+}
+
+// ReplayAgentIndex is one page of the artifact's agent index: the per-agent
+// lanes the segmenter derived from the recording. The full index is split
+// across ReplayManifest.agent_page_refs and fetched page by page, stored as
+// protojson so the browser replay client can decode it directly.
+message ReplayAgentIndex {
+  // Agents is this page's ordered list of agent lanes.
+  repeated ReplayAgent agents = 1;
+}
+
+// ReplayFinding is one thing the analyzer thought worth a reviewer's attention,
+// together with where on the timeline to look. Without the reference a finding is
+// prose that leaves the reader to search a recording of several hundred steps for
+// the thing they have just been told about.
+message ReplayFinding {
+  // Title is a short label for the finding.
+  string title = 1;
+
+  // Detail is a sentence or two on what was seen and why it matters.
+  string detail = 2;
+
+  // Severity is this finding's own seriousness (low/medium/high/critical), which
+  // need not match the run's overall risk level.
+  teleport.summarizer.v1.RiskLevel severity = 3;
+
+  // ActivityOrdinals are the activities evidencing this finding, resolved from the
+  // exchanges the analyzer cited. Empty when none of them fell inside an activity,
+  // which can happen for a lane whose segmentation failed.
+  repeated int64 activity_ordinals = 4;
+}
+
+// ReplayActivityIndex is one page of the artifact's activity index: the
+// bounded, human-readable timeline of activities grouped per agent lane. The
+// full index is split across ReplayManifest.activity_page_refs and fetched page
+// by page, stored as protojson.
+message ReplayActivityIndex {
+  // Activities is this page's ordered list of activities.
+  repeated ReplayActivity activities = 1;
+}
+
+// ReplayConversationIndex is one page of the artifact's agent index: the runs
+// the recording carried, each holding its agent lanes. The full index is split
+// across ReplayManifest.conversation_page_refs and fetched page by page, stored
+// as protojson.
+message ReplayConversationIndex {
+  // Conversations is this page's ordered list of conversations.
+  repeated ReplayConversation conversations = 1;
+}
+
+// ReplayConversation is one agent run recorded in the beam: everything the
+// identity headers attribute to a single root session. A beam is a long-lived
+// sandbox, so one recording can carry several unrelated runs, potentially
+// overlapping in time. Each conversation owns its own agent tree, and lane
+// identifiers (ReplayAgent.agent_id) are only unique within one, so resolving a
+// parent means matching within a conversation.
+message ReplayConversation {
+  // ConversationOrdinal is this conversation's position in the manifest, in
+  // start order. Agents reference it to declare which run they belong to.
+  int64 conversation_ordinal = 1;
+
+  // SessionID is the run's root session identifier from the identity headers
+  // (the Claude Code session id, or the Codex session id). Empty when the
+  // recording carried no identity headers, in which case the whole beam is one
+  // implicit conversation.
+  string session_id = 2;
+
+  // Title is the segmenter's short label for what the run set out to do, taken
+  // from its root lane, falling back to the analyzer's title for the run.
+  string title = 3;
+
+  // Goal is the segmenter's one-sentence statement of the run's objective.
+  string goal = 4;
+
+  // Outcome is the segmenter's short summary of what the run actually did.
+  string outcome = 5;
+
+  // FirstAt is when this conversation's earliest step occurred.
+  google.protobuf.Timestamp first_at = 6;
+
+  // LastAt is when this conversation's latest step occurred.
+  google.protobuf.Timestamp last_at = 7;
+
+  // RiskLevel is the analyzer's assessment of this run alone
+  // (low/medium/high/critical), as opposed to the beam-wide verdict on the
+  // recording's summary. Unspecified when the run wasn't analyzed separately.
+  teleport.summarizer.v1.RiskLevel risk_level = 8;
+
+  // RiskScore is the analyzer's numeric score for this run, 0 to 100.
+  int32 risk_score = 9;
+
+  // ShortDescription is the analyzer's one-line account of what this run did.
+  string short_description = 10;
+
+  // DetailedDescription is the analyzer's fuller account of this run.
+  string detailed_description = 11;
+
+  // Agents are this run's agent lanes, in spawn order, starting with its main
+  // loop. They are nested here rather than listed flat because a lane's
+  // agent_id is only unique within its run -- every run's main loop reports the
+  // empty id -- so a flat list would need each lane to name its run, and a
+  // parent lookup could cross runs. Their agent_ordinal is still unique across
+  // the whole artifact, so a paged activity references its lane with one
+  // ordinal.
+  repeated ReplayAgent agents = 12;
+
+  // Findings are this run's suspicious activities, each pointing at the timeline
+  // steps it was drawn from. The analyzer works over transcript exchanges and
+  // cites those; the sink resolves them to activities here, since an activity
+  // records which exchanges it covers and a viewer positions by activity.
+  //
+  // Empty when the model produced no citable findings, which includes every model
+  // that cannot cite: the prose in short_description still describes them, so an
+  // empty list means "nowhere to jump to", never "nothing found".
+  repeated ReplayFinding findings = 13;
+}
+
+// ReplayAgent is one agent lane the segmenter identified in the recording: the
+// main loop, or a subagent, distinguished by the identity headers the beam
+// proxy recorded. Its goal and outcome are the segmenter's read of what the
+// agent was asked to do versus what it actually did.
+message ReplayAgent {
+  // AgentOrdinal is this agent's position in the agent index.
+  int64 agent_ordinal = 1;
+
+  // AgentID is the lane identifier from the recording's identity headers (the
+  // Claude Code agent id, or the Codex thread id). Empty for the main loop.
+  string agent_id = 2;
+
+  // SessionID is the agent run's root session identifier from the identity
+  // headers, shared across the run's lanes.
+  string session_id = 3;
+
+  // ParentAgentID is the identifier of the agent that spawned this one, when
+  // the recording reports a parent. Empty for the main loop.
+  string parent_agent_id = 4;
+
+  // Kind categorizes the agent (e.g. the Codex subagent_kind), when the
+  // recording reports one.
+  string kind = 5;
+
+  // Title is the segmenter's short label for the agent's objective.
+  string title = 6;
+
+  // Goal is the segmenter's one-sentence statement of what the agent was asked
+  // or set out to do (intent), as opposed to what it did.
+  string goal = 7;
+
+  // Outcome is the segmenter's short summary of what the agent actually did and
+  // whether it succeeded, noting any deviation from the goal.
+  string outcome = 8;
+
+  // FirstAt is when this agent lane's earliest activity occurred (its start).
+  google.protobuf.Timestamp first_at = 9;
+
+  // LastAt is when this agent lane's latest activity occurred (its end).
+  google.protobuf.Timestamp last_at = 10;
+
+  // Name is a short, human-friendly handle for the agent lane -- the subagent's
+  // nickname/kind from the spawning call (Codex spawn_agent nickname/task_name,
+  // Claude Code Task subagent_type) when the recording reports one, else empty
+  // for the main loop.
+  string name = 11;
+
+  // IsSubagent reports whether this lane is a spawned subagent (true) rather
+  // than the run's main loop (false).
+  bool is_subagent = 12;
+
+  // SpawnCommandOrdinal is the command_ordinal of the tool call that spawned
+  // this agent (the parent's spawn_agent/Task call), so the viewer can jump
+  // from a lane to the exact call that launched it. -1 for the main loop, or
+  // when the spawning call could not be identified.
+  int64 spawn_command_ordinal = 13;
+
+  // Model is the LLM this lane called most often, taken from the recorded
+  // exchanges rather than the segmenter. Empty when no exchange reported one.
+  string model = 14;
+
+  // SummaryError says this lane was never summarised, and why, in a few words fit
+  // to show a reviewer ("the model declined this transcript", "segmentation timed
+  // out"). Empty when the lane was summarised normally.
+  //
+  // It is carried rather than inferred because the failure is invisible in the
+  // result: the lane still has an agent, still has every tool call, and simply has
+  // no narration, which is indistinguishable from an agent that ran quietly. A
+  // recording whose riskiest lane is the one the model refused to describe must
+  // not present that as the lane where least happened.
+  string summary_error = 15;
+}
+
+// ReplayActivity is one grouped step in an agent lane's timeline: a small
+// number of consecutive commands/exchanges the segmenter merged into a single
+// meaningful, human-readable action. It references its member commands and
+// exchanges by ordinal rather than duplicating them, so the viewer joins them
+// back to the command/exchange indexes.
+message ReplayActivity {
+  // ActivityOrdinal is this activity's position across the whole activity
+  // index.
+  int64 activity_ordinal = 1;
+
+  // AgentOrdinal is the ordinal of the ReplayAgent lane this activity belongs
+  // to.
+  int64 agent_ordinal = 2;
+
+  // Title is the segmenter's short title for the activity.
+  string title = 3;
+
+  // ShortDescription is a one-to-two-sentence factual summary of the activity
+  // and its outcome.
+  string short_description = 4;
+
+  // DetailedDescription is a longer explanation of the activity, when the
+  // segmenter produced one.
+  string detailed_description = 5;
+
+  // Reasoning is a short paraphrase of the agent's stated intent for this
+  // activity, when available.
+  string reasoning = 6;
+
+  // Flagged marks the activity for reviewer attention (privilege escalation,
+  // destructive actions, or other security risk).
+  bool flagged = 7;
+
+  // Risk is the segmenter's risk level for the activity
+  // (none/low/medium/high/critical).
+  string risk = 8;
+
+  // At is when the activity started.
+  google.protobuf.Timestamp at = 9;
+
+  // EndAt is when the activity ended.
+  google.protobuf.Timestamp end_at = 10;
+
+  // ExchangeOrdinals lists the exchange ordinals (into the exchange index) this
+  // activity spans.
+  repeated int64 exchange_ordinals = 12;
+
+  // Commands is the tool/command calls this activity groups, in issue order,
+  // embedded directly (there is no longer a standalone command index). Each
+  // command carries the same agent_ordinal as this activity.
+  repeated ReplayCommand commands = 13;
+
+  // Kind categorizes the activity so a timeline can distinguish a delegation
+  // from a plan or a tool run: one of milestone, plan, tool, spawn, merge,
+  // return. The segmenter proposes it and the sink overrides the three it can
+  // derive exactly (milestone, spawn, return). Empty for artifacts recorded
+  // before activity kinds existed; consumers fall back to "tool".
+  string kind = 14;
+
+  // Unsummarised marks an activity that exists only because this lane could not
+  // be summarised: it holds every one of the lane's tool calls, with no narration
+  // of any of them, because the segmenting model failed or declined.
+  //
+  // A lane's leftover tool calls are gathered into the same kind of catch-all
+  // activity, so without this the two are indistinguishable, and a viewer showing
+  // "tool calls not grouped into a narrated activity" understates the first case
+  // badly: nothing about that agent's work was described at all. See
+  // ReplayAgent.summary_error for why.
+  bool unsummarised = 11;
+}
+
+// ReplayExchangeEntry describes a single recorded HTTP exchange.
+message ReplayExchangeEntry {
+  // Ordinal is this exchange's position in the recording.
+  int64 ordinal = 1;
+
+  // RequestID is the identifier of the originating HTTP request.
+  string request_id = 2;
+
+  // Method is the HTTP method of the request.
+  string method = 3;
+
+  // URL is the HTTP request URL.
+  string url = 4;
+
+  // StatusCode is the HTTP response status code.
+  uint32 status_code = 5;
+
+  // RequestBodySize is the size, in bytes, of the request body.
+  int64 request_body_size = 6;
+
+  // ResponseBodySize is the size, in bytes, of the response body.
+  int64 response_body_size = 7;
+
+  // SendTimeMs is the number of milliseconds spent sending the request.
+  int64 send_time_ms = 8;
+
+  // WaitTimeMs is the number of milliseconds spent waiting for the first
+  // byte of the response.
+  int64 wait_time_ms = 9;
+
+  // ReceiveTimeMs is the number of milliseconds spent receiving the
+  // response.
+  int64 receive_time_ms = 10;
+
+  // Provider identifies the upstream AI provider, if this exchange was
+  // classified as AI traffic.
+  string provider = 11;
+
+  // Model identifies the upstream AI model, if this exchange was
+  // classified as AI traffic.
+  string model = 12;
+
+  // InputTokens is the number of input/prompt tokens consumed, if known.
+  int64 input_tokens = 13;
+
+  // OutputTokens is the number of output/completion tokens produced, if
+  // known.
+  int64 output_tokens = 14;
+
+  // At is when the exchange occurred.
+  google.protobuf.Timestamp at = 15;
+
+  // RequestBody references the exchange's request body payload.
+  PayloadRef request_body = 16;
+
+  // ResponseBody references the exchange's response body payload.
+  PayloadRef response_body = 17;
+
+  // Attachments lists any attachments associated with the exchange.
+  repeated ReplayAttachment attachments = 18;
+
+  // Events references the batch of audit events attributed to this
+  // exchange.
+  PayloadRef events = 19;
+
+  // EventCount is the number of audit events attributed to this exchange.
+  int64 event_count = 20;
+}
+
+// PayloadRef locates a payload within one of the replay artifact's blob
+// parts.
+message PayloadRef {
+  // PartName is the name of the blob part containing the payload.
+  string part_name = 1;
+
+  // Offset is the byte offset of the payload within the blob part.
+  int64 offset = 2;
+
+  // Length is the length, in bytes, of the payload.
+  int64 length = 3;
+}
+
+// ReplayAttachment describes a non-body attachment associated with an
+// exchange.
+message ReplayAttachment {
+  // Kind categorizes the attachment.
+  string kind = 1;
+
+  // Mime is the MIME type of the attachment.
+  string mime = 2;
+
+  // Name is the attachment's name.
+  string name = 3;
+
+  // Ref locates the attachment's contents.
+  PayloadRef ref = 4;
+}
+
+// ReplayEventBatch is a batch of audit events attributed to a single
+// exchange.
+message ReplayEventBatch {
+  // Events is the batch's audit event entries.
+  repeated ReplayAuditEvent events = 1;
+}
+
+// ReplayAuditEvent describes a single audit event attributed to an
+// exchange.
+message ReplayAuditEvent {
+  // Type is the audit event's type.
+  string type = 1;
+
+  // Code is the audit event's code.
+  string code = 2;
+
+  // At is when the audit event occurred.
+  google.protobuf.Timestamp at = 3;
+
+  // Summary is a human-readable summary of the audit event.
+  string summary = 4;
+
+  // Data is the audit event's full, unstructured payload, so the replay viewer
+  // can show the complete event rather than only its type/summary.
+  google.protobuf.Struct data = 5;
+}
