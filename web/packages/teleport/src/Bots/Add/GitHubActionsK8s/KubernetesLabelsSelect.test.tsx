@@ -29,6 +29,7 @@ import {
   theme,
   userEvent,
   within,
+  waitForElementToBeRemoved,
 } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
@@ -96,6 +97,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByText('Select one or more labels to configure access.')
@@ -121,6 +123,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(within(modal).getByText('No clusters found')).toBeInTheDocument();
   });
@@ -134,6 +137,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByText('kube-lon-dev-01.example.com')
@@ -162,6 +166,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(within(modal).getByText('Selected Labels (0)')).toBeInTheDocument();
   });
@@ -192,6 +197,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (3)' })
@@ -207,6 +213,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (0)' })
@@ -244,6 +251,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (1)' })
@@ -280,6 +288,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const selectedSection = within(modal)
       .getByRole('heading', { name: 'Selected Labels (0)' })
@@ -362,6 +371,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const nameInput = within(modal).getByLabelText('Name');
     const valueInput = within(modal).getByLabelText('Value');
@@ -393,6 +403,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const nameInput = within(modal).getByLabelText('Name');
     const valueInput = within(modal).getByLabelText('Value');
@@ -477,5 +488,11 @@ function withListUnifiedResourcesSuccess(opts?: {
           }
         : undefined,
     })
+  );
+}
+
+async function waitForLoading() {
+  return waitForElementToBeRemoved(() =>
+    screen.queryByTestId('loading-resources')
   );
 }
