@@ -219,6 +219,18 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 		"proposed_state", proposedState,
 	)
 
+	// Validate the request is not long-term.
+	// The plugin must have read/list permissions for `access_request`,
+	// which is bundled by the preset role, ie. `access-plugin-with-review`.
+	reqs, err := a.apiClient.GetAccessRequests(ctx, types.AccessRequestFilter{ID: reqID})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(reqs) > 0 && reqs[0].GetRequestKind().IsLongTerm() {
+		log.DebugContext(ctx, "Request is long-term, cannot apply review from Slack")
+		return trace.AccessDenied("cannot review long-term request")
+	}
+
 	username, err := utils.FnCacheGet(ctx, a.userCache, slackUserID, func(ctx context.Context) (string, error) {
 		return a.resolveTeleportUser(ctx, slackUserID)
 	})
