@@ -48,6 +48,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -2840,7 +2841,7 @@ func TestDeleteBot(t *testing.T) {
 // covered by the individual RPC tests, so everything here runs as admin.
 func TestBotScopeNamespacing(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	srv, emitter := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	client, err := srv.NewClient(authtest.TestAdmin())
@@ -2892,6 +2893,12 @@ func TestBotScopeNamespacing(t *testing.T) {
 		require.NoError(t, err, "creating bot in scope %q", v.scope)
 		require.Equal(t, v.wantUserName, bot.GetStatus().GetUserName(), "backing user for scope %q", v.scope)
 		created[v.scope] = bot
+
+		// The scope is the only thing distinguishing these four events.
+		createEvt, ok := emitter.LastEvent().(*apievents.BotCreate)
+		require.True(t, ok, "expected BotCreate event, got %T", emitter.LastEvent())
+		require.Equal(t, botName, createEvt.ResourceMetadata.Name)
+		require.Equal(t, v.scope, createEvt.ResourceMetadata.Scope, "BotCreate scope for scope %q", v.scope)
 	}
 
 	// A duplicate within the same namespace is still rejected.
@@ -2932,6 +2939,9 @@ func TestBotScopeNamespacing(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "alpha updated", upserted.GetMetadata().GetDescription())
 	require.Equal(t, "bot-++scopes+alpha+shared-name", upserted.GetStatus().GetUserName())
+	upsertEvt, ok := emitter.LastEvent().(*apievents.BotCreate)
+	require.True(t, ok, "expected BotCreate event, got %T", emitter.LastEvent())
+	require.Equal(t, "/scopes/alpha", upsertEvt.ResourceMetadata.Scope)
 	for _, v := range variants {
 		if v.scope == "/scopes/alpha" {
 			continue
@@ -2949,6 +2959,10 @@ func TestBotScopeNamespacing(t *testing.T) {
 		Scope:   "/scopes/alpha",
 	}.Build())
 	require.NoError(t, err)
+	deleteEvt, ok := emitter.LastEvent().(*apievents.BotDelete)
+	require.True(t, ok, "expected BotDelete event, got %T", emitter.LastEvent())
+	require.Equal(t, botName, deleteEvt.ResourceMetadata.Name)
+	require.Equal(t, "/scopes/alpha", deleteEvt.ResourceMetadata.Scope)
 	_, err = srv.Auth().GetUser(ctx, "bot-++scopes+alpha+shared-name", false)
 	require.True(t, trace.IsNotFound(err), "expected backing user to be deleted, got: %v", err)
 	_, err = getBot("/scopes/alpha")
@@ -2963,6 +2977,10 @@ func TestBotScopeNamespacing(t *testing.T) {
 		BotName: botName,
 	}.Build())
 	require.NoError(t, err)
+	unscopedDeleteEvt, ok := emitter.LastEvent().(*apievents.BotDelete)
+	require.True(t, ok, "expected BotDelete event, got %T", emitter.LastEvent())
+	require.Equal(t, botName, unscopedDeleteEvt.ResourceMetadata.Name)
+	require.Empty(t, unscopedDeleteEvt.ResourceMetadata.Scope)
 	_, err = getBot("")
 	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
 	for _, scope := range []string{"/scopes", "/scopes/beta"} {

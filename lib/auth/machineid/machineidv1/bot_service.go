@@ -413,7 +413,8 @@ func (bs *BotService) CreateBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: bot.GetMetadata().GetName(),
+			Name:  bot.GetMetadata().GetName(),
+			Scope: bot.GetScope(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -639,7 +640,8 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: bot.GetMetadata().GetName(),
+			Name:  bot.GetMetadata().GetName(),
+			Scope: bot.GetScope(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -769,7 +771,8 @@ func (bs *BotService) UpdateBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetBot().GetMetadata().GetName(),
+			Name:  req.GetBot().GetMetadata().GetName(),
+			Scope: req.GetBot().GetScope(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -918,7 +921,8 @@ func (bs *BotService) DeleteBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.GetBotName(),
+			Name:  req.GetBotName(),
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
