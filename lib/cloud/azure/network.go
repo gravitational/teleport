@@ -177,7 +177,7 @@ func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, resourceG
 			c.logger.WarnContext(ctx, "Skipping non-uniform scale set ID", "scale_set_id", scaleSetID)
 			continue
 		}
-		if id.SubscriptionID != c.subscriptionID {
+		if !strings.EqualFold(id.SubscriptionID, c.subscriptionID) {
 			c.logger.WarnContext(ctx, "Skipping scale set ID in a different subscription", "scale_set_id", scaleSetID, "subscription_id", id.SubscriptionID)
 			continue
 		}
