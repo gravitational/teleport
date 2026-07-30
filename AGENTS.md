@@ -16,6 +16,15 @@
 - Reliability regressions: crash loops, panics, deadlocks, unbounded retries, nil pointer dereferences
 - Adherence to the guidelines defined in [RFD 153](./rfd/0153-resource-guidelines.md) of Teleport resource definitations, gRPC, backend storage, and cache APIs.
 
+### Guideline RFDs
+
+The following RFDs provide specific guidelines that should be checked against when reviewing relevant changes:
+
+- [RFD 153: Resource Guidelines](./rfd/0153-resource-guidelines.md): Changes that introduce/modify Teleport resources or their CRUD RPCs. 
+- [RFD 154: Logging Guidelines](./rfd/0154-logging-guidelines.md): Changes that introduce or modify log lines.
+
+When generating review comments regarding code that does not meet guidelines, link to the relevant RFD sections.
+
 ### Documentation
 
 When you are looking at a given product area find the relevant documentation in the docs/ directory to ensure you understand the context in which the code is used.
