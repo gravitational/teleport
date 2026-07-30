@@ -10,13 +10,14 @@ _output() {
 
 IMAGES=(
   "${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}"
+  "${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/pki:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/pg:${TAG:-latest}"
   "${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}"
-  "${REGISTRY:+${REGISTRY}/}antithesis/workload-example:${TAG:-latest}"
+  "${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}"
 )
 
-CONFIG_IMAGE="${REGISTRY:+${REGISTRY}/}antithesis/config-example:${TAG:-latest}"
+CONFIG_IMAGE="${REGISTRY:+${REGISTRY}/}antithesis/config-core:${TAG:-latest}"
 
 # Join the IMAGES array into a single semicolon-delimited string
 printf -v IMAGES_STR '%s;' "${IMAGES[@]}"

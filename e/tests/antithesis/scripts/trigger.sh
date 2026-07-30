@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 ANTITHESIS_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-SUT="${SUT:-example}"
+SUT="${SUT:-core}"
 COMMON_ENV_FILE="${COMMON_ENV_FILE:-$ANTITHESIS_DIR/.env}"
 SUT_ENV_FILE="${SUT_ENV_FILE:-}"
 PARAMS_FILE=""
@@ -21,7 +21,7 @@ Usage: trigger.sh [options] [sut]
 Build launch params for the selected SUT and trigger Antithesis.
 
 Options:
-  --sut <name|dir>         SUT name or directory        (env: SUT; default: example)
+  --sut <name|dir>         SUT name or directory        (env: SUT; default: core)
   --common-env <path>      Common env file              (env: COMMON_ENV_FILE; default: e/tests/antithesis/.env)
   --sut-env <path>         Selected SUT env file        (env: SUT_ENV_FILE; default: <sut-dir>/.env)
   --params-file <path>     Base params JSON             (default: <sut-dir>/params.json)

@@ -1,8 +1,0 @@
-# kind: bot does not work in --bootstrap so we use --apply-on-startup instead
-kind: bot
-version: v1
-metadata:
-  name: workload
-spec:
-  roles:
-  - workload-admin

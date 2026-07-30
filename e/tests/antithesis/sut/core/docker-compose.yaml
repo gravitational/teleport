@@ -1,9 +1,3 @@
-x-auth-command: &auth-command
-  - /usr/local/bin/teleport
-  - start
-  - --bootstrap=/etc/teleport/bootstrap.yaml
-  - --apply-on-startup=/etc/teleport/startup.yaml
-
 services:
   pki:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/pki:${TAG:-latest}
@@ -37,10 +31,9 @@ services:
       - pg-data:/var/lib/postgresql
 
   auth1:
-    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
     hostname: auth1
     container_name: auth1
-    command: *auth-command
     depends_on:
       pg:
         condition: service_healthy
@@ -61,10 +54,9 @@ services:
           - auth
 
   auth2:
-    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/auth:${TAG:-latest}
     hostname: auth2
     container_name: auth2
-    command: *auth-command
     depends_on:
       pg:
         condition: service_healthy
@@ -147,7 +139,7 @@ services:
           - antithesis.teleport.local
 
   workload:
-    image: ${REGISTRY:+${REGISTRY}/}antithesis/workload-example:${TAG:-latest}
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}
     hostname: workload
     container_name: workload
     depends_on:

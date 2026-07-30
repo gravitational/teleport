@@ -1,0 +1,31 @@
+version: v2
+debug: true
+proxy_server: antithesis.teleport.local:3080
+diag_addr: 127.0.0.1:3000
+
+onboarding:
+  join_method: token
+  token: workload-token
+
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+
+outputs:
+  - type: identity
+    roles: ["resource-admin"]
+    destination:
+      type: directory
+      path: /creds/admin
+
+  - type: identity
+    roles: ["resource-deny-all"]
+    destination:
+      type: directory
+      path: /creds/denied
+
+  - type: identity
+    roles: ["resource-read-only"]
+    destination:
+      type: directory
+      path: /creds/read-only

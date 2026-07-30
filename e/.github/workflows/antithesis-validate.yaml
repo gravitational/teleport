@@ -35,14 +35,14 @@ jobs:
               - 'tests/antithesis/docker/**'
               - 'tests/antithesis/scripts/**'
               - 'tests/antithesis/workloads/**'
-            example:
-              - 'tests/antithesis/sut/example/**'
+            core:
+              - 'tests/antithesis/sut/core/**'
 
       - name: Resolve SUTs to validate
         id: resolve
         run: |
           if [[ "${{ steps.filter.outputs.common }}" == "true" ]]; then
-            SUTS='["example"]'
+            SUTS='["core"]'
           else
             SUTS=$(echo '${{ steps.filter.outputs.changes }}' \
               | jq -c '[.[] | select(. != "common")]')

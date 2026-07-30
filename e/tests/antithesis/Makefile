@@ -3,8 +3,8 @@ REPO_ROOT := $(abspath $(ANTITHESIS_DIR)/../../..)
 
 -include $(ANTITHESIS_DIR)/.env
 
-SUTS := example
-SUT ?= example
+SUTS := core
+SUT ?= core
 
 TAG ?= $(shell REPO_PATH=$(REPO_ROOT) $(ANTITHESIS_DIR)/scripts/find_tag.sh )
 
@@ -25,6 +25,7 @@ PLATFORM_FLAG = $(if $(DOCKER_PLATFORMS),--platform $(DOCKER_PLATFORMS),)
 build-all: build-teleport build-tbot build-pki build-pg build-nginx build-workload
 
 TELEPORT_IMAGE ?= $(IMAGE_PREFIX)antithesis/teleport:$(TAG)
+AUTH_IMAGE ?= $(IMAGE_PREFIX)antithesis/auth:$(TAG)
 .PHONY:
 build-teleport:
 	docker buildx build \
@@ -32,6 +33,16 @@ build-teleport:
 		$(PLATFORM_FLAG) \
 		--target teleport \
 		--tag $(TELEPORT_IMAGE) \
+		$(DOCKER_OUTPUT) \
+		--file $(ANTITHESIS_DIR)/docker/teleport/Dockerfile \
+		$(REPO_ROOT)
+
+	docker buildx build \
+		$(BUILDER_FLAG) \
+		$(PLATFORM_FLAG) \
+		--cache-from $(TELEPORT_IMAGE) \
+		--target auth \
+		--tag $(AUTH_IMAGE) \
 		$(DOCKER_OUTPUT) \
 		--file $(ANTITHESIS_DIR)/docker/teleport/Dockerfile \
 		$(REPO_ROOT)

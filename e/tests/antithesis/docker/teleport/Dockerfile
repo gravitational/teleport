@@ -90,6 +90,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/eventually_cache_is_healthy ./cmd/eventually_cache_is_healthy
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/eventually_auth_consistent ./cmd/eventually_auth_consistent
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/parallel_driver_crud_fuzzer ./cmd/parallel_driver_crud_fuzzer
+
 FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -126,10 +136,15 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 FROM runtime AS teleport
 # Every teleport cache instance should eventually recover
-COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/example/eventually_cache_is_healthy
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/crud/eventually_cache_is_healthy
 
 CMD ["/usr/local/bin/teleport", "start"]
 
+
+FROM teleport AS auth
+COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/crud/eventually_auth_consistent
+
+CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
 FROM runtime AS tbot
 CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/tbot.yaml"]
@@ -145,7 +160,7 @@ RUN mkdir -p \
 COPY --from=builder /out/workload_entrypoint /usr/local/bin/workload_entrypoint
 CMD ["/usr/local/bin/workload_entrypoint", "--config=/etc/tbot/tbot.yaml"]
 
-FROM workload AS workload-example
 # See https://antithesis.com/docs/test_templates/test_composer_reference/
-COPY e/tests/antithesis/workloads/cmd/anytime_list_ssh_resources.sh \
-     /opt/antithesis/test/v1/example/anytime_list_ssh_resources.sh
+FROM workload AS workload-core
+COPY --from=builder /out/parallel_driver_crud_fuzzer /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
+

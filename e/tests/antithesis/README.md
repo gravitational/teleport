@@ -59,23 +59,23 @@ make local write-env
 Start the stack from this SUT directory:
 
 ```shell
-cd sut/example
+cd sut/core
 docker compose up
 ```
 
 In another terminal, run the workload command:
 
 ```shell
-cd sut/example
-docker compose exec workload /opt/antithesis/test/v1/example/anytime_list_ssh_resources.sh
+cd sut/core
+docker compose exec workload /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
 ```
 
 ## Trigger Antithesis
 
-Build and push the images, then trigger the example run:
+Build and push the images, then trigger the core run:
 
 ```shell
-make build-all trigger SUT=example
+make build-all trigger SUT=core
 ```
 This target runs the `trigger.sh` script, note that by default credentials in `~/.netrc` are used.
 
@@ -83,7 +83,7 @@ This target runs the `trigger.sh` script, note that by default credentials in `~
 
 To add a testsuite to Antithesis either:
 
-1. Create a SUT, you can copy the `example` as a starting point. Or:
+1. Create a SUT, you can copy the `core` as a starting point. Or:
 2. Modify an existing SUT to add a new test template.
 
 Generally unless the test requires a different deployment strategy, configuriation or backend it is instead

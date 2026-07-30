@@ -7,10 +7,10 @@ on:
       sut:
         description: "SUT name"
         required: true
-        default: "example"
+        default: "core"
         type: choice
         options:
-          - example
+          - core
       oss-teleport-ref:
         description: "Teleport OSS git ref to build (SHA, tag, or branch)"
         required: false
@@ -52,16 +52,15 @@ jobs:
       - name: Resolve params
         id: resolve
         # Note that push event is included here, this is handy for debugging when iterating.
-        # TODO(okraport): Once implemented swap from example SUT to core.
         run: |
           case "${{ github.event_name }}" in
             schedule)
               MATRIX=$(jq -cn '
                 {
                   include: [
-                    { "sut": "example", "oss-teleport-ref": "master", "ent-teleport-ref": "" },
-                    { "sut": "example", "oss-teleport-ref": "branch/v18", "ent-teleport-ref": "" },
-                    { "sut": "example", "oss-teleport-ref": "branch/v17", "ent-teleport-ref": "" }
+                    { "sut": "core", "oss-teleport-ref": "master", "ent-teleport-ref": "" },
+                    { "sut": "core", "oss-teleport-ref": "branch/v18", "ent-teleport-ref": "" },
+                    { "sut": "core", "oss-teleport-ref": "branch/v17", "ent-teleport-ref": "" }
                   ]
                 }
               ')
@@ -70,7 +69,7 @@ jobs:
               MATRIX=$(jq -cn \
                 --arg oss_teleport_ref "master" \
                 --arg ent_teleport_ref "${{ github.sha }}" \
-                '{include: [{"sut": "example", "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
+                '{include: [{"sut": "core", "oss-teleport-ref": $oss_teleport_ref, "ent-teleport-ref": $ent_teleport_ref}]}')
               ;;
             workflow_dispatch)
               MATRIX=$(jq -cn \
