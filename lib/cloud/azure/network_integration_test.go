@@ -52,7 +52,7 @@ func TestNetworkInterfacesClientLiveList(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, nil)
+	nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup)
 	require.NoError(t, err)
 
 	logNICs(t, nics)
@@ -61,37 +61,36 @@ func TestNetworkInterfacesClientLiveList(t *testing.T) {
 // TestNetworkInterfacesClientLiveListUniformVMSS exercises the network
 // interfaces client against a real Azure subscription, listing the NICs of
 // uniform scale set VMs alongside the standalone NICs in the resource group.
-// It is skipped unless TELEPORT_TEST_AZURE and
-// TELEPORT_TEST_AZURE_SCALE_SET_NAMES are set.
-//
+// It is skipped unless TELEPORT_TEST_AZURE, TELEPORT_TEST_AZURE_SUBSCRIPTION_ID
+// and TELEPORT_TEST_AZURE_SCALE_SET_IDS are set.
 // Prerequisites are the same as TestNetworkInterfacesClientLiveList, plus:
-//   - Set TELEPORT_TEST_AZURE_SCALE_SET_NAMES to a comma-separated list of
-//     uniform VM scale set names in the resource group, e.g. "vmss1,vmss2".
+//   - Set TELEPORT_TEST_AZURE_SCALE_SET_IDS to a comma-separated list of
+//     uniform VM scale set IDs in the resource group, e.g. "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachineScaleSets/vmss1,/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachineScaleSets/vmss2".
 //
 // Run with:
 //
 //	TELEPORT_TEST_AZURE=1 \
 //	AZURE_SUBSCRIPTION_ID=<sub> \
 //	AZURE_RESOURCE_GROUP=<rg> \
-//	TELEPORT_TEST_AZURE_SCALE_SET_NAMES=<vmss1,vmss2> \
+//	TELEPORT_TEST_AZURE_SCALE_SET_IDS=<vmss1_id,vmss2_id> \
 //	go test ./lib/cloud/azure/ -run TestNetworkInterfacesClientLiveListUniformVMSS -v
 func TestNetworkInterfacesClientLiveListUniformVMSS(t *testing.T) {
 	nicClient, resourceGroup := newLiveNetworkInterfacesClient(t)
 
-	var scaleSetNames []string
-	for name := range strings.SplitSeq(os.Getenv("TELEPORT_TEST_AZURE_SCALE_SET_NAMES"), ",") {
-		if name = strings.TrimSpace(name); name != "" {
-			scaleSetNames = append(scaleSetNames, name)
+	var scaleSetIDs []string
+	for id := range strings.SplitSeq(os.Getenv("TELEPORT_TEST_AZURE_SCALE_SET_IDS"), ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			scaleSetIDs = append(scaleSetIDs, id)
 		}
 	}
-	if len(scaleSetNames) == 0 {
-		t.Skip("Set TELEPORT_TEST_AZURE_SCALE_SET_NAMES to a comma-separated list of uniform VM scale set names.")
+	if len(scaleSetIDs) == 0 {
+		t.Skip("Set TELEPORT_TEST_AZURE_SCALE_SET_IDS to a comma-separated list of uniform VM scale set IDs.")
 	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetNames)
+	nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetIDs...)
 	require.NoError(t, err)
 
 	// Uniform VMSS NICs are attached to a scale set VM instance, so they can
@@ -112,7 +111,7 @@ func TestNetworkInterfacesClientLiveListUniformVMSS(t *testing.T) {
 			"expected NIC %q to be a child of its attached VM %q", nic.ID, nic.AttachedVMID)
 	}
 
-	logNICs(t, nics)
+	logNICs(t, uniformNICs)
 }
 
 // newLiveNetworkInterfacesClient builds a NetworkInterfacesClient backed by a

@@ -26,6 +26,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/trace"
 )
@@ -60,8 +61,10 @@ type NetworkInterface struct {
 
 // networkInterfacesLister is satisfied by *armnetwork.InterfacesClient.
 type networkInterfacesLister interface {
-	// NewListPager list Azure network interfaces in the given resource group.
+	// NewListPager lists Azure network interfaces in the given resource group.
 	NewListPager(resourceGroup string, opts *armnetwork.InterfacesClientListOptions) *runtime.Pager[armnetwork.InterfacesClientListResponse]
+	// NewListAllPager lists all Azure network interfaces in the subscription.
+	NewListAllPager(opts *armnetwork.InterfacesClientListAllOptions) *runtime.Pager[armnetwork.InterfacesClientListAllResponse]
 	// NewListVirtualMachineScaleSetNetworkInterfacesPager lists Azure network interfaces in the given resource group and scale set.
 	NewListVirtualMachineScaleSetNetworkInterfacesPager(resourceGroup, scaleSetName string, opts *armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesOptions) *runtime.Pager[armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse]
 }
@@ -69,13 +72,16 @@ type networkInterfacesLister interface {
 // NetworkInterfacesClient is an interface for listing Azure network interfaces.
 type NetworkInterfacesClient interface {
 	// ListNetworkInterfaces lists all network interfaces in the given resource group.
-	// Wildcard resource group names are not supported.
-	ListNetworkInterfaces(ctx context.Context, resourceGroup string, scaleSetNames []string) ([]*NetworkInterface, error)
+	ListNetworkInterfaces(ctx context.Context, resourceGroup string, scaleSetIDs ...string) ([]*NetworkInterface, error)
 }
 
 type networkInterfacesClient struct {
 	networkInterfacesLister networkInterfacesLister
 	logger                  *slog.Logger
+	// subscriptionID is the Azure subscription ID to list network interfaces from.
+	// This is used to validate that any scale set IDs passed are in the same
+	// subscription.
+	subscriptionID string
 }
 
 func NewNetworkInterfacesClient(subscriptionID string, cred azcore.TokenCredential, options *arm.ClientOptions) (NetworkInterfacesClient, error) {
@@ -86,6 +92,7 @@ func NewNetworkInterfacesClient(subscriptionID string, cred azcore.TokenCredenti
 
 	config := NetworkInterfacesClientConfig{
 		NetworkInterfacesAPI: networkInterfacesClient,
+		SubscriptionID:       subscriptionID,
 	}
 	return NewNetworkInterfacesClientByAPI(config), nil
 }
@@ -95,6 +102,10 @@ func NewNetworkInterfacesClient(subscriptionID string, cred azcore.TokenCredenti
 type NetworkInterfacesClientConfig struct {
 	NetworkInterfacesAPI networkInterfacesLister
 	Logger               *slog.Logger
+	// SubscriptionID is the Azure subscription ID to list network interfaces from.
+	// This is used to validate that any scale set IDs passed are in the same
+	// subscription.
+	SubscriptionID string
 }
 
 func NewNetworkInterfacesClientByAPI(config NetworkInterfacesClientConfig) NetworkInterfacesClient {
@@ -105,20 +116,15 @@ func NewNetworkInterfacesClientByAPI(config NetworkInterfacesClientConfig) Netwo
 	return &networkInterfacesClient{
 		networkInterfacesLister: config.NetworkInterfacesAPI,
 		logger:                  config.Logger,
+		subscriptionID:          config.SubscriptionID,
 	}
 }
 
 // ListNetworkInterfaces lists all network interfaces in the given resource group.
 //
-// Wildcard resource group names are not currently supported. As this call
-// is likely a follow up to a ListVM call, the caller will already be able to
-// parse their required resource group names rather than searching the entire
-// subscription for network interfaces.
-func (c *networkInterfacesClient) ListNetworkInterfaces(ctx context.Context, resourceGroup string, scaleSetNames []string) ([]*NetworkInterface, error) {
-	if resourceGroup == "*" {
-		return nil, trace.BadParameter("wildcard resource group names are not supported")
-	}
-
+// scaleSetIDs is a list of resource IDs for the virtual machine scale sets.
+// e.g. "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Compute/virtualMachineScaleSets/<vmss>"
+func (c *networkInterfacesClient) ListNetworkInterfaces(ctx context.Context, resourceGroup string, scaleSetIDs ...string) ([]*NetworkInterface, error) {
 	standardAndFlexibleNICs, err := c.listStandardAndFlexibleNICs(ctx, resourceGroup)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to list standard and flexible VMSS NICs")
@@ -127,33 +133,61 @@ func (c *networkInterfacesClient) ListNetworkInterfaces(ctx context.Context, res
 	// Currently, we're more concerned with listing standard and flexible VMSS
 	// NICs, so if a uniform VMSS NIC listing fails, it is logged and the process
 	// continues.
-	uniformNICs := c.listUniformNICs(ctx, resourceGroup, scaleSetNames)
+	uniformNICs := c.listUniformNICs(ctx, scaleSetIDs)
 
 	return append(standardAndFlexibleNICs, uniformNICs...), nil
 }
 
 func (c *networkInterfacesClient) listStandardAndFlexibleNICs(ctx context.Context, resourceGroup string) ([]*NetworkInterface, error) {
-	pager := newAPIPager(
-		c.networkInterfacesLister.NewListPager(resourceGroup, nil),
-		func(resp armnetwork.InterfacesClientListResponse) []*armnetwork.Interface {
-			return resp.InterfaceListResult.Value
-		},
-	)
+	var pager apiPager[armnetwork.Interface]
+	if resourceGroup == types.Wildcard {
+		pager = newAPIPager(
+			c.networkInterfacesLister.NewListAllPager(nil),
+			func(resp armnetwork.InterfacesClientListAllResponse) []*armnetwork.Interface {
+				return resp.InterfaceListResult.Value
+			},
+		)
+	} else {
+		pager = newAPIPager(
+			c.networkInterfacesLister.NewListPager(resourceGroup, nil),
+			func(resp armnetwork.InterfacesClientListResponse) []*armnetwork.Interface {
+				return resp.InterfaceListResult.Value
+			},
+		)
+	}
 	return c.collectNICs(ctx, pager)
 }
 
-func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, resourceGroup string, scaleSetNames []string) []*NetworkInterface {
+func (c *networkInterfacesClient) listUniformNICs(ctx context.Context, scaleSetIDs []string) []*NetworkInterface {
 	var allNICs []*NetworkInterface
-	for _, scaleSetName := range slices.DeduplicateKey(scaleSetNames, strings.ToLower) {
+	for _, scaleSetID := range slices.DeduplicateKey(scaleSetIDs, strings.ToLower) {
+		id, err := arm.ParseResourceID(scaleSetID)
+		if err != nil {
+			c.logger.WarnContext(ctx, "Failed to parse scale set ID", "scale_set_id", scaleSetID, "error", err)
+			continue
+		}
+
+		// Check the resource ID is for a uniform VMSS in the same subscription.
+		isComputeNamespace := strings.EqualFold(id.ResourceType.Namespace, "Microsoft.Compute")
+		isVMSSResourceType := strings.EqualFold(id.ResourceType.Type, "virtualMachineScaleSets")
+		if !isComputeNamespace || !isVMSSResourceType {
+			c.logger.WarnContext(ctx, "Skipping non-uniform scale set ID", "scale_set_id", scaleSetID)
+			continue
+		}
+		if id.SubscriptionID != c.subscriptionID {
+			c.logger.WarnContext(ctx, "Skipping scale set ID in a different subscription", "scale_set_id", scaleSetID, "subscription_id", id.SubscriptionID)
+			continue
+		}
+
 		pager := newAPIPager(
-			c.networkInterfacesLister.NewListVirtualMachineScaleSetNetworkInterfacesPager(resourceGroup, scaleSetName, nil),
+			c.networkInterfacesLister.NewListVirtualMachineScaleSetNetworkInterfacesPager(id.ResourceGroupName, id.Name, nil),
 			func(resp armnetwork.InterfacesClientListVirtualMachineScaleSetNetworkInterfacesResponse) []*armnetwork.Interface {
 				return resp.InterfaceListResult.Value
 			},
 		)
 		nics, err := c.collectNICs(ctx, pager)
 		if err != nil {
-			c.logger.WarnContext(ctx, "failed to list NICs from Uniform VMSS", "scale_set_name", scaleSetName, "error", err)
+			c.logger.WarnContext(ctx, "Failed to list NICs from Uniform VMSS", "scale_set_id", scaleSetID, "error", err)
 			continue
 		}
 		allNICs = append(allNICs, nics...)
@@ -174,7 +208,7 @@ func (c *networkInterfacesClient) collectNICs(ctx context.Context, pager apiPage
 			}
 			nic, err := nicFromArmNetworkInterface(rawNIC)
 			if err != nil {
-				c.logger.DebugContext(ctx, "skipping Azure Network Interface",
+				c.logger.DebugContext(ctx, "Skipping Azure Network Interface",
 					"resource_id", StringVal(rawNIC.ID),
 					"error", err,
 				)

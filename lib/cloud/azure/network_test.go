@@ -17,12 +17,15 @@
 package azure
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v7"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestListNetworkInterfaces(t *testing.T) {
@@ -115,6 +118,17 @@ func TestListNetworkInterfaces(t *testing.T) {
 		IPConfigurations: []IPConfiguration{},
 	}
 
+	const otherRG = "rg2"
+	otherRGNIC := &armnetwork.Interface{
+		ID:   to.Ptr(createNICID(otherRG, "nic-rg2")),
+		Name: to.Ptr("nic-rg2"),
+	}
+	wantOtherRGNIC := &NetworkInterface{
+		ID:               createNICID(otherRG, "nic-rg2"),
+		Name:             "nic-rg2",
+		IPConfigurations: []IPConfiguration{},
+	}
+
 	scaleSet1NIC := &armnetwork.Interface{
 		ID:   to.Ptr(createVMSSNICID(rgName, scaleSet1, "0", "vmss1-nic")),
 		Name: to.Ptr("vmss1-nic"),
@@ -174,7 +188,7 @@ func TestListNetworkInterfaces(t *testing.T) {
 	for _, tc := range []struct {
 		desc          string
 		nicAPI        *ARMNetworkMock
-		scaleSetNames []string
+		scaleSetIDs   []string
 		resourceGroup string
 		want          []*NetworkInterface
 		expectErr     require.ErrorAssertionFunc
@@ -219,7 +233,7 @@ func TestListNetworkInterfaces(t *testing.T) {
 				},
 			},
 			resourceGroup: rgName,
-			scaleSetNames: []string{scaleSet1, scaleSet2},
+			scaleSetIDs:   []string{createVMSSID(rgName, scaleSet1), createVMSSID(rgName, scaleSet2)},
 			want:          []*NetworkInterface{wantRegularNIC, wantScaleSet1NIC, wantScaleSet2NIC},
 			expectErr:     require.NoError,
 		},
@@ -252,9 +266,46 @@ func TestListNetworkInterfaces(t *testing.T) {
 				},
 			},
 			resourceGroup: rgName,
-			scaleSetNames: []string{scaleSet1, scaleSet2},
+			scaleSetIDs:   []string{createVMSSID(rgName, scaleSet1), createVMSSID(rgName, scaleSet2)},
 			want:          []*NetworkInterface{wantRegularNIC, wantScaleSet2NIC},
 			expectErr:     require.NoError,
+		},
+		{
+			desc: "duplicate scale set IDs are only listed once",
+			nicAPI: &ARMNetworkMock{
+				VMSSNetworkInterfaces: map[string][]*armnetwork.Interface{
+					rgName + "/" + scaleSet1: {scaleSet1NIC},
+				},
+			},
+			resourceGroup: rgName,
+			scaleSetIDs: []string{
+				createVMSSID(rgName, scaleSet1),
+				createVMSSID(rgName, scaleSet1),
+				strings.ToUpper(createVMSSID(rgName, scaleSet1)),
+			},
+			want:      []*NetworkInterface{wantScaleSet1NIC},
+			expectErr: require.NoError,
+		},
+		{
+			desc: "invalid scale set IDs are skipped",
+			nicAPI: &ARMNetworkMock{
+				NetworkInterfaces: map[string][]*armnetwork.Interface{
+					rgName: {regularNIC},
+				},
+				VMSSNetworkInterfaces: map[string][]*armnetwork.Interface{
+					rgName + "/" + scaleSet1: {scaleSet1NIC},
+				},
+			},
+			resourceGroup: rgName,
+			scaleSetIDs: []string{
+				"not-a-resource-id",
+				createVMID(rgName, "vm1"),
+				createVMSSVMID(rgName, scaleSet1, "0"),
+				strings.ReplaceAll(createVMSSID(rgName, scaleSet1), testSubID, "22222222-2222-2222-2222-222222222222"),
+				createVMSSID(rgName, scaleSet1),
+			},
+			want:      []*NetworkInterface{wantRegularNIC, wantScaleSet1NIC},
+			expectErr: require.NoError,
 		},
 		{
 			desc: "nil NICs in the response are skipped",
@@ -276,12 +327,16 @@ func TestListNetworkInterfaces(t *testing.T) {
 			},
 		},
 		{
-			desc:          "wildcard resource group is rejected",
-			nicAPI:        &ARMNetworkMock{},
-			resourceGroup: "*",
-			expectErr: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+			desc: "wildcard resource group lists NICs from all resource groups",
+			nicAPI: &ARMNetworkMock{
+				NetworkInterfaces: map[string][]*armnetwork.Interface{
+					rgName:  {regularNIC},
+					otherRG: {otherRGNIC},
+				},
 			},
+			resourceGroup: types.Wildcard,
+			want:          []*NetworkInterface{wantRegularNIC, wantOtherRGNIC},
+			expectErr:     require.NoError,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -289,12 +344,13 @@ func TestListNetworkInterfaces(t *testing.T) {
 
 			client := NewNetworkInterfacesClientByAPI(NetworkInterfacesClientConfig{
 				NetworkInterfacesAPI: tc.nicAPI,
+				SubscriptionID:       testSubID,
 			})
 
 			nics, err := client.ListNetworkInterfaces(
 				t.Context(),
 				tc.resourceGroup,
-				tc.scaleSetNames,
+				tc.scaleSetIDs...,
 			)
 			tc.expectErr(t, err)
 			require.ElementsMatch(t, tc.want, nics)
@@ -310,8 +366,12 @@ func createVMID(resourceGroup, vmName string) string {
 	return "/subscriptions/" + testSubID + "/resourceGroups/" + resourceGroup + "/providers/Microsoft.Compute/virtualMachines/" + vmName
 }
 
+func createVMSSID(resourceGroup, scaleSetName string) string {
+	return "/subscriptions/" + testSubID + "/resourceGroups/" + resourceGroup + "/providers/Microsoft.Compute/virtualMachineScaleSets/" + scaleSetName
+}
+
 func createVMSSVMID(resourceGroup, scaleSetName, instanceID string) string {
-	return "/subscriptions/" + testSubID + "/resourceGroups/" + resourceGroup + "/providers/Microsoft.Compute/virtualMachineScaleSets/" + scaleSetName + "/virtualMachines/" + instanceID
+	return createVMSSID(resourceGroup, scaleSetName) + "/virtualMachines/" + instanceID
 }
 
 func createVMSSNICID(resourceGroup, scaleSetName, instanceID, nicName string) string {

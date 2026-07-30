@@ -775,7 +775,9 @@ type ARMNetworkMock struct {
 	// VMSSListErrs maps scale set names to an error returned when listing
 	// that scale set's NICs.
 	VMSSListErrs map[string]error
-	NoAuth       bool
+	// NoAuth indicates that the mock should return an access denied error
+	// for all requests.
+	NoAuth bool
 }
 
 // Fail if ARMNetworkMock does not implement networkInterfacesLister.
@@ -786,6 +788,20 @@ func (m *ARMNetworkMock) NewListPager(resourceGroup string, _ *armnetwork.Interf
 		return armnetwork.InterfacesClientListResponse{
 			InterfaceListResult: armnetwork.InterfaceListResult{
 				Value: m.NetworkInterfaces[resourceGroup],
+			},
+		}, nil
+	})
+}
+
+func (m *ARMNetworkMock) NewListAllPager(_ *armnetwork.InterfacesClientListAllOptions) *runtime.Pager[armnetwork.InterfacesClientListAllResponse] {
+	return newPagerHelper(m.NoAuth, func() (armnetwork.InterfacesClientListAllResponse, error) {
+		var allNics []*armnetwork.Interface
+		for _, nics := range m.NetworkInterfaces {
+			allNics = append(allNics, nics...)
+		}
+		return armnetwork.InterfacesClientListAllResponse{
+			InterfaceListResult: armnetwork.InterfaceListResult{
+				Value: allNics,
 			},
 		}, nil
 	})

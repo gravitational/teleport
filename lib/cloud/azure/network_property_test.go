@@ -161,10 +161,10 @@ func TestProperty_ListNetworkInterfaces_Aggregation(t *testing.T) {
 
 		vmssNICs := make(map[string][]*armnetwork.Interface, len(scaleSets))
 		vmssErrs := make(map[string]error)
-		var names []string
+		var scaleSetIDs []string
 		wantCount := len(standalone)
 		for name, nics := range scaleSets {
-			names = append(names, name)
+			scaleSetIDs = append(scaleSetIDs, createVMSSID(rgName, name))
 			vmssNICs[rgName+"/"+name] = nics
 			if rapid.Bool().Draw(t, "fails_"+name) {
 				vmssErrs[name] = trace.AccessDenied("unauthorized")
@@ -179,9 +179,10 @@ func TestProperty_ListNetworkInterfaces_Aggregation(t *testing.T) {
 				VMSSNetworkInterfaces: vmssNICs,
 				VMSSListErrs:          vmssErrs,
 			},
+			SubscriptionID: testSubID,
 		})
 
-		got, err := client.ListNetworkInterfaces(t.Context(), rgName, names)
+		got, err := client.ListNetworkInterfaces(t.Context(), rgName, scaleSetIDs...)
 		require.NoError(t, err)
 		require.Len(t, got, wantCount)
 	})
