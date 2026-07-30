@@ -173,6 +173,10 @@ func TestTokenizePropertyRejectsBadSegments(t *testing.T) {
 		"dot-dot space dot":             "..%20.",
 		"only dots":                     "...",
 		"dots and spaces after %2F":     "x%2F.%20.",
+		"trailing dot":                  "x.",
+		"trailing dots":                 "x..",
+		"trailing space dot":            "x%20.",
+		"trailing dot before %2F":       "x.%2Fy",
 	}
 	for name, segment := range segments {
 		t.Run(name, func(t *testing.T) {
@@ -247,7 +251,8 @@ func segmentGen() *rapid.Generator[string] {
 // No part starts with a mark and no rune composes with its neighbor.
 // A space, emitted as %20, composes with no neighbor under NFKC, so
 // it needs no neighbor rule. The filter drops parts made of only
-// dots and spaces and parts that start or end with a space.
+// dots and spaces, parts that start or end with a space, and parts
+// whose trailing run of dots and spaces contains a dot.
 func partGen() *rapid.Generator[string] {
 	content := rapid.Custom(func(t *rapid.T) string {
 		var b strings.Builder
@@ -272,7 +277,8 @@ func partGen() *rapid.Generator[string] {
 		return b.String()
 	}).Filter(func(s string) bool {
 		return strings.Trim(s, ". ") != "" &&
-			!strings.HasPrefix(s, " ") && !strings.HasSuffix(s, " ")
+			!strings.HasPrefix(s, " ") && !strings.HasSuffix(s, " ") &&
+			!strings.Contains(s[len(strings.TrimRight(s, ". ")):], ".")
 	})
 	return rapid.Custom(func(t *rapid.T) string {
 		return encodeNonASCII(t, content.Draw(t, "content"))

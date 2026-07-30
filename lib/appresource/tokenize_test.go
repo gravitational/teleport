@@ -130,6 +130,23 @@ func TestTokenize(t *testing.T) {
 			want: []string{"p", "q%CC%87x"},
 		},
 		{
+			name: "interior dots in a segment are allowed",
+			path: "/a/1.2.3/b",
+			want: []string{"a", "1.2.3", "b"},
+		},
+		{
+			name: "a leading dot in a segment is allowed",
+			path: "/.well-known/openid-configuration",
+			want: []string{".well-known", "openid-configuration"},
+		},
+		{
+			// The segment ends with the mark riding the space, not
+			// with a space byte, so no upstream trim fires on it.
+			name: "a combining mark %CC%81 on a trailing interior space %20 is allowed",
+			path: "/p/x%20%CC%81",
+			want: []string{"p", "x%20%CC%81"},
+		},
+		{
 			name:    "path over the length cap is rejected",
 			path:    "/" + strings.Repeat("a", lengthCap),
 			wantErr: true,
@@ -306,6 +323,26 @@ func TestTokenize(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "a trailing dot in a segment is rejected",
+			path:    "/files/secret./x",
+			wantErr: true,
+		},
+		{
+			name:    "trailing dots in a segment are rejected",
+			path:    "/files/secret../x",
+			wantErr: true,
+		},
+		{
+			name:    "a trailing encoded space %20 and dot in a segment are rejected",
+			path:    "/files/secret%20./x",
+			wantErr: true,
+		},
+		{
+			name:    "a trailing dot before an encoded slash %2F is rejected",
+			path:    "/p/a.%2Fb",
+			wantErr: true,
+		},
+		{
 			name:    "a truncated escape is rejected",
 			path:    "/files/a%2",
 			wantErr: true,
@@ -478,6 +515,7 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 		"/p/a%C0%AFb", "/p/a%E2%80%8Bb", "/p/cafe%CC%81", "/api/v4/x%2Fy",
 		"/job/My%20Job/lastBuild", "/p/%20%CC%81x", "/p/a%C2%A0b",
 		"/a/..%20/b", "/a/%20/b", "/a/.%20./b", "/a/.../b",
+		"/files/secret./x", "/files/secret%20./x",
 	} {
 		f.Add(seed)
 	}
@@ -502,6 +540,8 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 				require.False(t, strings.HasSuffix(part, " "), "accepted token %q has a part ending with a space", tok)
 				dotSpaces := strings.Trim(part, ". ") == "" && strings.Contains(part, ".")
 				require.False(t, dotSpaces, "accepted token %q has a part of only dots and spaces", tok)
+				tail := part[len(strings.TrimRight(part, ". ")):]
+				require.NotContains(t, tail, ".", "accepted token %q has a part ending with dots and spaces", tok)
 			}
 		}
 		// An accepted token contains no raw non-ASCII bytes.

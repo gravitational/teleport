@@ -78,9 +78,11 @@ const legalPathPunct = "-._~!$&'()*+,=:@/%"
 //     raw one.
 //  4. Each segment, once its content escapes are decoded, must be
 //     valid, NFKC-stable UTF-8 and contain only graphic runes, must
-//     not start with a combining mark, and must not start or end
-//     with a space, because an upstream that trims the segment
-//     would see a different segment ("..%20" would trim to "..").
+//     not start with a combining mark, must not start or end with a
+//     space, and must not end with dots and spaces, because an
+//     upstream that trims the segment would see a different segment
+//     ("..%20" would trim to ".." and "secret." to "secret"). A
+//     leading dot is allowed, so "/.well-known" stays reachable.
 //     U+0020, arriving as %20, is the only space or separator rune
 //     allowed, and only between other characters. The encoded
 //     separator %2F is a segment boundary for these checks. "é" is
@@ -93,7 +95,7 @@ func Tokenize(path string) ([]string, error) {
 		return nil, trace.BadParameter("path length %d exceeds the %d byte limit", len(path), lengthCap)
 	}
 	if !strings.HasPrefix(path, "/") {
-		return nil, trace.BadParameter("path %q must start with /", path)
+		return nil, trace.BadParameter("path %q must start with /", clip(path))
 	}
 	if err := validatePathBytes(path); err != nil {
 		return nil, trace.Wrap(err)
@@ -112,7 +114,7 @@ func Tokenize(path string) ([]string, error) {
 func validatePathBytes(path string) error {
 	for i := range len(path) {
 		if !isLegalPathByte(path[i]) {
-			return trace.BadParameter("path %q contains an illegal URL byte %q", path, string(path[i]))
+			return trace.BadParameter("path %q contains an illegal URL byte %q", clip(path), string(path[i]))
 		}
 	}
 	return nil
@@ -139,24 +141,28 @@ func validatePercentEscapes(path string) error {
 			continue
 		}
 		if i+2 >= len(path) {
-			return trace.BadParameter("path %q has a truncated percent-escape", path)
-		}
-		if path[i+1] == '2' && (path[i+2] == 'F' || path[i+2] == 'f' || path[i+2] == '0') {
-			i += 2
-			continue
+			return trace.BadParameter("path %q has a truncated percent-escape", clip(path))
 		}
 		v, err := strconv.ParseUint(path[i+1:i+3], 16, 8)
 		if err != nil {
-			return trace.BadParameter("path %q has a malformed percent-escape %q", path, path[i:i+3])
+			return trace.BadParameter("path %q has a malformed percent-escape %q", clip(path), path[i:i+3])
 		}
-		if byte(v) >= 0x80 {
+		if isAllowedEscape(byte(v)) {
 			i += 2
 			continue
 		}
 		const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F, the encoded space %%20, and non-ASCII content escapes are allowed"
-		return trace.BadParameter(msg, path, path[i:i+3])
+		return trace.BadParameter(msg, clip(path), path[i:i+3])
 	}
 	return nil
+}
+
+// isAllowedEscape reports whether a percent-escape decoding to b may
+// appear in a path. [validatePercentEscapes] accepts exactly the
+// escapes [decode] resolves: the separator, the space, and non-ASCII
+// content.
+func isAllowedEscape(b byte) bool {
+	return b == '/' || b == ' ' || b >= 0x80
 }
 
 // validateDecoded checks the decoded validation view of the path. It
@@ -166,10 +172,10 @@ func validateDecoded(path string) error {
 	decoded := decode(path)
 	if strings.Contains(decoded, "//") {
 		const msg = "path %q has consecutive slashes once the encoded separator %%2F is decoded"
-		return trace.BadParameter(msg, path)
+		return trace.BadParameter(msg, clip(path))
 	}
 	if !utf8.ValidString(decoded) {
-		return trace.BadParameter("path %q is not valid UTF-8 once decoded", path)
+		return trace.BadParameter("path %q is not valid UTF-8 once decoded", clip(path))
 	}
 	for seg := range strings.SplitSeq(decoded[1:], "/") {
 		if err := rejectDotSegment(seg); err != nil {
@@ -181,14 +187,17 @@ func validateDecoded(path string) error {
 		if err := rejectEdgeSpace(seg); err != nil {
 			return trace.Wrap(err)
 		}
+		if err := rejectTrailingDot(seg); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if !norm.NFKC.IsNormalString(decoded) {
-		return trace.BadParameter("path %q is not NFKC-normalized", path)
+		return trace.BadParameter("path %q is not NFKC-normalized", clip(path))
 	}
 	for _, r := range decoded {
 		if !isGraphicRune(r) {
 			const msg = "path %q contains the disallowed character %q; only letters, marks, numbers, punctuation, symbols, and the encoded space %%20 are allowed"
-			return trace.BadParameter(msg, path, string(r))
+			return trace.BadParameter(msg, clip(path), string(r))
 		}
 	}
 	return nil
@@ -207,7 +216,7 @@ func decode(s string) string {
 	b.Grow(len(s))
 	for i := 0; i < len(s); i++ {
 		if s[i] == '%' && i+2 < len(s) {
-			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && (v == '/' || v == ' ' || v >= 0x80) {
+			if v, err := strconv.ParseUint(s[i+1:i+3], 16, 8); err == nil && isAllowedEscape(byte(v)) {
 				b.WriteByte(byte(v))
 				i += 2
 				continue
@@ -223,11 +232,11 @@ func decode(s string) string {
 // and an upstream that strips spaces or extra dots would resolve
 // forms like ". ." or "..." the same way.
 func rejectDotSegment(seg string) error {
-	if strings.Trim(seg, ". ") != "" || !strings.Contains(seg, ".") {
-		return nil
+	if strings.Trim(seg, ". ") == "" && strings.Contains(seg, ".") {
+		const msg = `segment %q is only dots and spaces; an upstream could resolve it as "." or ".."`
+		return trace.BadParameter(msg, clip(seg))
 	}
-	const msg = `segment %q is only dots and spaces; an upstream could resolve it as "." or ".."`
-	return trace.BadParameter(msg, seg)
+	return nil
 }
 
 // rejectLeadingMark rejects a segment whose first rune is a combining
@@ -242,7 +251,7 @@ func rejectLeadingMark(seg string) error {
 	r, _ := utf8.DecodeRuneInString(seg)
 	if unicode.IsMark(r) {
 		const msg = "segment %q starts with the combining mark %q; a mark must follow a base character"
-		return trace.BadParameter(msg, seg, string(r))
+		return trace.BadParameter(msg, clip(seg), string(r))
 	}
 	return nil
 }
@@ -253,7 +262,21 @@ func rejectLeadingMark(seg string) error {
 func rejectEdgeSpace(seg string) error {
 	if strings.HasPrefix(seg, " ") || strings.HasSuffix(seg, " ") {
 		const msg = "segment %q starts or ends with a space; a space must be between other characters"
-		return trace.BadParameter(msg, seg)
+		return trace.BadParameter(msg, clip(seg))
+	}
+	return nil
+}
+
+// rejectTrailingDot rejects a segment whose trailing run of dots and
+// spaces contains a dot. IIS and Windows trim trailing dots and
+// spaces, so an upstream would resolve "secret." and "secret%20." as
+// "secret", a segment the matcher never saw. A leading dot stays
+// allowed because paths such as "/.well-known" depend on it.
+func rejectTrailingDot(seg string) error {
+	trimmed := strings.TrimRight(seg, ". ")
+	if strings.Contains(seg[len(trimmed):], ".") {
+		const msg = "segment %q ends with dots and spaces; an upstream could trim it to %q"
+		return trace.BadParameter(msg, clip(seg), clip(trimmed))
 	}
 	return nil
 }
@@ -269,4 +292,14 @@ func rejectEdgeSpace(seg string) error {
 func isGraphicRune(r rune) bool {
 	return r == ' ' || unicode.IsLetter(r) || unicode.IsMark(r) ||
 		unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+// clip shortens s for use in an error message. A rejected path can be
+// kilobytes long, and the message survives into logs and audit events.
+func clip(s string) string {
+	const limit = 256
+	if len(s) <= limit {
+		return s
+	}
+	return s[:limit] + "..."
 }
