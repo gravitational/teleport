@@ -140,9 +140,8 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	if options.GetSortDesc() {
 		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
 	}
-	// A bot is identified by the pair (scope, name), so the scope filter only
-	// ever qualifies the name filter. Listing a whole scope will be a separate
-	// filter with explicit exact/descendant control.
+	// See the field docs on ListBotInstancesRequestOptions for the rules
+	// enforced here.
 	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
 		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
 	}
@@ -150,8 +149,6 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	// The range routing below already constrains the scope for a bot filter, so the
-	// two are mutually exclusive rather than one silently winning.
 	if scopeFilter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED && options.GetFilterBotName() != "" {
 		return nil, "", trace.BadParameter("scope filter cannot be combined with a bot name filter")
 	}

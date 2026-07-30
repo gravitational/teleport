@@ -754,9 +754,7 @@ type ListBotInstancesV2Request_Filters struct {
 	// should specify mode ALL.
 	//
 	// Mutually exclusive with bot_name, which already constrains the result to a
-	// single bot in a single scope; setting both is an error. Nested here, unlike
-	// other scope-aware list RPCs, because it is meaningless in isolation from
-	// bot_name and bot_scope.
+	// single bot in a single scope; setting both is an error.
 	ScopeFilter   *v1.Filter `protobuf:"bytes,5,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -877,9 +875,7 @@ type ListBotInstancesV2Request_Filters_builder struct {
 	// should specify mode ALL.
 	//
 	// Mutually exclusive with bot_name, which already constrains the result to a
-	// single bot in a single scope; setting both is an error. Nested here, unlike
-	// other scope-aware list RPCs, because it is meaningless in isolation from
-	// bot_name and bot_scope.
+	// single bot in a single scope; setting both is an error.
 	ScopeFilter *v1.Filter
 }
 

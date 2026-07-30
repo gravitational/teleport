@@ -270,8 +270,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		}
 	}
 
-	// A bot filter already identifies a single bot in a single scope, so reject a
-	// scope filter alongside it rather than silently dropping one. Checked before
+	// Rejected rather than silently dropping one of the two; checked before
 	// defaulting, which would otherwise populate a filter for callers who set none.
 	byBot := req.GetFilter().GetBotName() != ""
 	explicitScopeFilter := req.GetFilter().GetScopeFilter().GetMode() != scopesv1.Mode_MODE_UNSPECIFIED
