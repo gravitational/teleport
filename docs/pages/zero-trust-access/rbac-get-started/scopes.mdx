@@ -233,9 +233,9 @@ generated token. Once the instance has joined, the scoped admin can list it:
 
 ```code
 $ tsh ls
-Node Name    Address Labels
------------- ------- -----------
-example-node Tunnel  foo=bar
+Scope           Node Name    Address Labels
+--------------- ------------ ------- -----------
+/examples/basic example-node Tunnel  foo=bar
 ```
 
 Finally, SSH into the SSH Service instance using the scoped admin user:
@@ -312,25 +312,25 @@ overridden by the joining instance.
 ```code
 $ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --ssh-labels=foo=bar,baz=qux
 
-The invite token: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+The invite token: /examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756:ZGQ4ZjQ0MTVlNjQ3MmJjZDEzOThhMmU2MzYyNTFjNmY
 This token will expire in 480 minutes.
 
 Run this on the new node to join the cluster:
 
 > teleport start \
    --roles=node \
-   --token=019ce8f7-f0d5-784d-af3f-075aa79c19cb~YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY \
+   --token=/examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756:ZGQ4ZjQ0MTVlNjQ3MmJjZDEzOThhMmU2MzYyNTFjNmY \
    --auth-server=proxy.example.com:443
 ```
 
 Inspect the token to confirm the immutable labels:
 
 ```code
-$ tctl get scoped_token/019ce8f7-f0d5-784d-af3f-075aa79c19cb
+$ tctl get scoped_token /examples/basic::019fb4b9-969d-7f36-b910-84e3e6449756
 kind: scoped_token
 metadata:
   expires: "2026-03-14T04:51:29.109545Z"
-  name: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+  name: 019fb4b9-969d-7f36-b910-84e3e6449756
 scope: /examples/basic
 spec:
   assigned_scope: /examples/basic
@@ -350,7 +350,7 @@ Once the SSH Service instance joins, the immutable labels are merged with
 any labels set on the instance itself and cannot be overridden:
 
 ```code
-$ tctl get node/example
+$ tctl get node /examples/basic::edff1d38-bbcb-4a21-b38d-ac43a2e20f85
 kind: node
 metadata:
   labels:
@@ -369,7 +369,7 @@ version: v2
 
 $ tsh ls
 Scope           Node Name Address Labels
--------------------------------------------------------------------------
+--------------- --------- ------- -----------
 /examples/basic example   Tunnel  baz=qux,foo=bar,fruit=pear,env=test
 ```
 
@@ -381,7 +381,7 @@ single instance. Set `--mode=single_use` when creating the token:
 ```code
 $ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --mode=single_use
 
-The invite token: 019ce90a-3585-75b1-b992-263758a9b843
+The invite token: /examples/basic::019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e:NjNmOTI0YjRmOWI2YTNlMDc1YTU4Y2M4M2Q0ZTgzZWM
 This token will expire in 480 minutes.
 ```
 
@@ -389,11 +389,11 @@ Use the token as normal to join an instance. After joining completes, the
 token's status reflects that it has been consumed:
 
 ```code
-$ tctl get scoped_token/019ce90a-3585-75b1-b992-263758a9b843
+$ tctl get scoped_token /examples/basic::019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e
 kind: scoped_token
 metadata:
   expires: "2026-03-14T05:11:26.341373Z"
-  name: 019ce90a-3585-75b1-b992-263758a9b843
+  name: 019fb4c0-5b15-7c9a-bf91-66f14d8a2b2e
 scope: /examples/basic
 spec:
   assigned_scope: /examples/basic
@@ -465,7 +465,7 @@ scope: /examples/basic
 spec:
   user: bob
   assignments:
-    - role: example-user
+    - role: /examples/basic::example-user
       scope: /examples/basic
 version: v1
 EOF
@@ -477,9 +477,9 @@ it:
 ```code
 $ tsh login --user=bob --scope=/examples/basic --proxy=teleport.example.com
 $ tsh ls
-Node Name    Address Labels
------------- ------- -----------
-example-node Tunnel  foo=bar
+Scope           Node Name    Address Labels
+--------------- ------------ ------- -----------
+/examples/basic example-node Tunnel  foo=bar
 $ tsh ssh ubuntu@example-node
 ```
 
@@ -612,17 +612,24 @@ For an example Access List with scope `/examples/basic`:
 
 ## Infrastructure as Code
 
-Scoped roles, scoped role assignments, and scoped tokens can be managed
-with Teleport's IaC tooling.
+Scoped Roles, Scoped Role Assignments, Scoped Tokens, Kubernetes clusters,
+Access Lists, Access List Members, Bots, and Workload Identities can be
+managed with Teleport's IaC tooling.
 
 The Teleport Terraform provider supports these resources:
 
+- [`teleport_access_list`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list.mdx)
+- [`teleport_access_list_member`](../../reference/infrastructure-as-code/terraform-provider/resources/access_list_member.mdx)
+- [`teleport_bot`](../../reference/infrastructure-as-code/terraform-provider/resources/bot.mdx)
+- [`teleport_kube_cluster`](../../reference/infrastructure-as-code/terraform-provider/resources/kube_cluster.mdx)
 - [`teleport_scoped_role`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role.mdx)
 - [`teleport_scoped_role_assignment`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role_assignment.mdx)
 - [`teleport_scoped_token`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx)
+- [`teleport_workload_identity`](../../reference/infrastructure-as-code/terraform-provider/resources/workload_identity.mdx)
 
 The Kubernetes Operator supports these custom resources:
 
+- [`TeleportBotV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-botsv1.mdx)
 - [`TeleportScopedRoleV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedrolesv1.mdx)
 - [`TeleportScopedRoleAssignmentV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedroleassignmentsv1.mdx)
 - [`TeleportScopedTokenV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedtokensv1.mdx)
@@ -665,7 +672,7 @@ controlled by either the `scoped: true` configuration value or the
 
 The following example shows the scoped resources required to run a Bot in
 scoped mode. It assumes you already have an unscoped administrator who can
-bootstrap the first scoped admin, and a scoped role named `staging-ssh-access`
+bootstrap the first scoped admin, and a scoped role named `/staging::staging-ssh-access`
 that grants the Bot its intended SSH privileges.
 
 Grant a scope administrator the ability to manage scoped Bots and scoped
@@ -770,9 +777,9 @@ version: v2
 proxy_server: example.teleport.sh:443
 onboarding:
   join_method: bound_keypair
-  token: my-scoped-bot
+  token: /staging::my-scoped-bot
   bound_keypair:
-    registration_secret: <secret fetched from "tctl get scoped_token/my-scoped-bot --with-secrets">
+    registration_secret: <secret fetched from "tctl get scoped_token /staging::my-scoped-bot --with-secrets">
 scoped: true
 storage:
   type: directory
@@ -852,7 +859,7 @@ for example `/staging::staging-payments-api`.
 ### Scoped SPIFFE example
 
 The following example builds on the scoped MWI example above, granting the
-scoped Bot `my-scoped-bot` the ability to issue SPIFFE SVIDs. It assumes the
+scoped Bot `/staging::my-scoped-bot` the ability to issue SPIFFE SVIDs. It assumes the
 scope administrator's role also grants write access to the `workload_identity` resource.
 
 As the scope administrator, create a scoped Workload Identity:
