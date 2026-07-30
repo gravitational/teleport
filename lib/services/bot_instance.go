@@ -271,7 +271,7 @@ func ScopedBotResourceName(scope, botName string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err, "encoding scope for bot resource name")
 	}
-	// TODO(strideynet): seperator between encoded scope and bot name ???
+	// TODO(strideynet): separator between encoded scope and bot name ???
 	// Not strictly necessary as we do not need to recover scope from name?
 	// However, probably nice if what we have is recoverable ?
 	return BotResourceName(encodedScope + botName), nil

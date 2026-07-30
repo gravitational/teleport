@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -2941,7 +2942,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 			"bot in scope %q must be untouched by the upsert", v.scope)
 	}
 
-	// Deleting one namespace's bot must leave the same-named neighbours
+	// Deleting one namespace's bot must leave the same-named neighbors
 	// intact.
 	_, err = botSvc.DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: botName,
@@ -3080,9 +3081,22 @@ func TestStrongValidateBot(t *testing.T) {
 			assertError: isBadParam,
 		},
 		{
+			name:        "scoped bot with name ending in a separator character",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("test-bot-") }),
+			assertError: isBadParam,
+		},
+		{
+			// Scoped bot names follow scoped resource name rules, which unlike
+			// scope segments permit a single character and impose no maximum
+			// length.
 			name:        "scoped bot with single-character name",
 			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName("x") }),
-			assertError: isBadParam,
+			assertError: require.NoError,
+		},
+		{
+			name:        "scoped bot with name longer than the max scope segment",
+			bot:         newScopedBot(func(b *machineidv1pb.Bot) { b.GetMetadata().SetName(strings.Repeat("a", 64)) }),
+			assertError: require.NoError,
 		},
 		{
 			name: "scoped bot with roles set",

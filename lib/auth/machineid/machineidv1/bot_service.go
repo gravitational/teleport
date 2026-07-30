@@ -978,9 +978,7 @@ func StrongValidateBot(b *pb.Bot) error {
 			return trace.Wrap(err, "scope:")
 		}
 
-		// TODO(strideynet): Switch to `scopes.StrongValidateResourceName` when
-		// it is merged.
-		if err := scopes.StrongValidateSegment(b.GetMetadata().GetName()); err != nil {
+		if err := scopes.StrongValidateResourceName(b.GetMetadata().GetName()); err != nil {
 			return trace.Wrap(err, "metadata.name:")
 		}
 
