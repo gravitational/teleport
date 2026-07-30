@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -69,6 +70,14 @@ const (
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
+
+// artifactSignaturePublicKeyB64 is injected into the teleport-update
+// binary at build time via ldflags.
+var artifactSignaturePublicKeyB64 string
+
+// artifactSignatureBackupPublicKeyB64 is injected into the teleport-update
+// binary at build time via ldflags.
+var artifactSignatureBackupPublicKeyB64 string
 
 func main() {
 	if code := Run(os.Args[1:]); code != 0 {
@@ -294,6 +303,13 @@ func setupLogger(debug bool, format string) error {
 	return nil
 }
 
+func newArtifactSignatureVerifiers() ([]signature.Verifier, error) {
+	return autoupdate.NewArtifactSignatureVerifiers(
+		artifactSignaturePublicKeyB64,
+		artifactSignatureBackupPublicKeyB64,
+	)
+}
+
 func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updater, lockFile string, err error) {
 	ns, err := autoupdate.NewNamespace(ctx, plog, ccfg.InstallSuffix, ccfg.InstallDir)
 	if err != nil {
@@ -303,12 +319,17 @@ func initConfig(ctx context.Context, ccfg *cliConfig) (updater *autoupdate.Updat
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 	updater, err = autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	return updater, lockFile, trace.Wrap(err)
 }
@@ -318,12 +339,17 @@ func statusConfig(ctx context.Context, ccfg *cliConfig) (*autoupdate.Updater, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	return updater, trace.Wrap(err)
 }
@@ -483,12 +509,17 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	updater, err := autoupdate.NewLocalUpdater(autoupdate.LocalUpdaterConfig{
-		SelfSetup:          ccfg.SelfSetup,
-		Log:                plog,
-		LogFormat:          ccfg.LogFormat,
-		Debug:              ccfg.Debug,
-		InsecureSkipVerify: ccfg.Insecure,
+		SelfSetup:                  ccfg.SelfSetup,
+		Log:                        plog,
+		LogFormat:                  ccfg.LogFormat,
+		Debug:                      ccfg.Debug,
+		InsecureSkipVerify:         ccfg.Insecure,
+		ArtifactSignatureVerifiers: artifactSignatureVerifiers,
 	}, ns)
 	if err != nil {
 		return trace.Wrap(err)

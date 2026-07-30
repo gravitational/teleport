@@ -41,6 +41,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -133,9 +134,8 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 	// be intentional. In the future, we might consider extracting a generic
 	// debug client that can be used in both contexts.
 	tbotDebugClient := debug.NewClient(filepath.Join(ns.dataDir, "bot"))
-	artifactSignatureVerifiers, err := newArtifactSignatureVerifiers()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if len(cfg.ArtifactSignatureVerifiers) == 0 {
+		return nil, trace.BadParameter("teleport-update artifact signature verifier is not configured")
 	}
 
 	return &Updater{
@@ -171,7 +171,7 @@ func NewLocalUpdater(cfg LocalUpdaterConfig, ns *Namespace) (*Updater, error) {
 			ReservedFreeInstallDisk:    reservedFreeDisk,
 			ValidateBinary:             validator.IsBinary,
 			Template:                   autoupdate.DefaultCDNURITemplate,
-			ArtifactSignatureVerifiers: artifactSignatureVerifiers,
+			ArtifactSignatureVerifiers: cfg.ArtifactSignatureVerifiers,
 		},
 		TeleportProcess: &SystemdService{
 			ServiceName: filepath.Base(ns.teleportServiceFile),
@@ -246,6 +246,8 @@ type LocalUpdaterConfig struct {
 	Debug bool
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	LogFormat string
+	// ArtifactSignatureVerifiers contains the trusted verifiers used to validate detached artifact signatures.
+	ArtifactSignatureVerifiers []signature.Verifier
 }
 
 // Updater implements the agent-local logic for Teleport agent auto-updates.

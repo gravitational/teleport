@@ -387,29 +387,16 @@ func TestIsStagingCDN(t *testing.T) {
 }
 
 func TestNewArtifactSignatureVerifiers(t *testing.T) {
-	// Not parallel: mutates package-level embedded public keys.
-
-	previousPrimary := teleportUpdateArtifactSignaturePublicKeyB64
-	previousBackup := teleportUpdateArtifactSignatureBackupPublicKeyB64
-	t.Cleanup(func() {
-		teleportUpdateArtifactSignaturePublicKeyB64 = previousPrimary
-		teleportUpdateArtifactSignatureBackupPublicKeyB64 = previousBackup
-	})
-
-	teleportUpdateArtifactSignaturePublicKeyB64 = ""
-	teleportUpdateArtifactSignatureBackupPublicKeyB64 = ""
-	_, err := newArtifactSignatureVerifiers()
+	_, err := NewArtifactSignatureVerifiers("", "")
 	require.ErrorContains(t, err, "teleport-update artifact signature public key is not configured")
 
 	primaryKey, primaryB64 := testArtifactSignatureKey(t)
-	teleportUpdateArtifactSignaturePublicKeyB64 = primaryB64
-	_, err = newArtifactSignatureVerifiers()
+	_, err = NewArtifactSignatureVerifiers(primaryB64, "")
 	require.ErrorContains(t, err, "teleport-update backup artifact signature public key is not configured")
 
 	backupKey, backupB64 := testArtifactSignatureKey(t)
-	teleportUpdateArtifactSignatureBackupPublicKeyB64 = backupB64
 
-	verifiers, err := newArtifactSignatureVerifiers()
+	verifiers, err := NewArtifactSignatureVerifiers(primaryB64, backupB64)
 	require.NoError(t, err)
 	require.Len(t, verifiers, 2)
 
@@ -423,8 +410,7 @@ func TestNewArtifactSignatureVerifiers(t *testing.T) {
 	require.Error(t, verifiers[0].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
 	require.NoError(t, verifiers[1].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
 
-	teleportUpdateArtifactSignatureBackupPublicKeyB64 = "not-base64"
-	_, err = newArtifactSignatureVerifiers()
+	_, err = NewArtifactSignatureVerifiers(primaryB64, "not-base64")
 	require.ErrorContains(t, err, "failed to decode backup teleport-update artifact signature public key")
 }
 
