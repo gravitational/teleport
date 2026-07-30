@@ -779,18 +779,38 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+  getSsoUrl({
+    providerUrl,
+    providerName,
+    redirect,
+    loginHint,
+    scope,
+  }: {
+    providerUrl: string;
+    providerName: string;
+    redirect: string;
+    loginHint?: string;
+    scope?: string;
+  }) {
     loginHint = loginHint === '' ? undefined : loginHint;
+    scope = scope === '' ? undefined : scope;
     let basePath =
       cfg.baseUrl +
-      generatePath(providerUrl, { redirect, providerName, loginHint });
+      generatePath(providerUrl, {
+        redirect,
+        providerName,
+        loginHint,
+        scope,
+      });
 
+    const url = new URL(basePath);
     if (!loginHint) {
-      const url = new URL(basePath);
       url.searchParams.delete('login_hint', '');
-      basePath = url.toString();
     }
-    return basePath;
+    if (!scope) {
+      url.searchParams.delete('scope', '');
+    }
+    return url.toString();
   },
 
   getAuditRoute(clusterId: string) {

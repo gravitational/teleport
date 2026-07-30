@@ -38,6 +38,7 @@ import {
   getResourceId,
   openStatusInfoPanel,
 } from 'shared/components/UnifiedResources/shared/StatusInfo';
+import { useStore } from 'shared/libs/stores';
 
 import { useTeleport } from 'teleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
@@ -157,6 +158,7 @@ export function ClusterResources({
   availabilityFilter?: ResourceAvailabilityFilter;
 }) {
   const teleCtx = useTeleport();
+  const storeUser = useStore(teleCtx.storeUser);
   const flags = teleCtx.getFeatureFlags();
 
   useNoMinWidth();
@@ -309,11 +311,15 @@ export function ClusterResources({
         availableKinds={getAvailableKindsWithAccess(flags)}
         pinning={pinning}
         ClusterDropdown={
-          <ClusterDropdown
-            clusterLoader={teleCtx.clusterService}
-            clusterId={clusterId}
-            onError={setLoadClusterError}
-          />
+          // TODO(bl-nero): Enable cluster dropdown for scoped sessions once
+          // it's supported on the backend.
+          storeUser.getScope() ? undefined : (
+            <ClusterDropdown
+              clusterLoader={teleCtx.clusterService}
+              clusterId={clusterId}
+              onError={setLoadClusterError}
+            />
+          )
         }
         NoResources={
           <Empty

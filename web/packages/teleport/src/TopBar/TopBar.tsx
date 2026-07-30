@@ -21,8 +21,10 @@ import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, breakpointsPx, Flex, Image, TopNav } from 'design';
+import { Box, breakpointsPx, Flex, Image, Text, TopNav } from 'design';
+import * as Icon from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import { useStore } from 'shared/libs/stores';
 
 import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
@@ -45,6 +47,8 @@ export function TopBar({
   const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
+  const storeUser = useStore(ctx.storeUser);
+  const scope = storeUser.getScope();
 
   // find active feature
   const feature = features.find(
@@ -63,10 +67,24 @@ export function TopBar({
 
   return (
     <TopBarContainer>
-      <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
+      <Flex alignItems="center">
+        <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
+        {scope && !feature?.logoOnlyTopbar && (
+          <HoverTooltip tipContent="Current scope">
+            <Flex alignItems="center" gap={1}>
+              <Icon.Contract aria-label="scope" />
+              <Text typography="body1">{scope}</Text>
+            </Flex>
+          </HoverTooltip>
+        )}
+      </Flex>
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
-          <Notifications iconSize={iconSize} />
+          {
+            // TODO(bl-nero): enable notifications once they're supported by
+            // scopes.
+            !scope && <Notifications iconSize={iconSize} />
+          }
           <UserMenuNav
             username={ctx.storeUser.state.username}
             hideFeatures={feature instanceof FeatureScopes}
@@ -141,12 +159,6 @@ const commonLogoWrapperStyles = css`
   align-items: center;
   height: 100%;
   margin-right: 0px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-    margin-right: 76px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-    margin-right: 67px;
-  }
 `;
 
 const BoxLogoWrapper = styled(Box)`

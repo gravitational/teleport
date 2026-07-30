@@ -54,6 +54,8 @@ export interface UserContext {
    * scoped role assignments.
    */
   availableScopes: string[];
+  /** Scope is the scope of current session. Empty if unscoped. */
+  scope: string;
 }
 
 /**

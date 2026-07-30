@@ -32,23 +32,25 @@ describe('services/auth', () => {
   test('login()', async () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
 
-    await auth.login(email, password, '');
+    await auth.login(email, password, '' /*otp*/, '' /*scope*/);
     expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
       user: email,
       pass: password,
       second_factor_token: '',
+      scope: '',
     });
   });
 
-  test('login() OTP', async () => {
+  test('login() OTP and scope', async () => {
     jest.spyOn(api, 'post').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
       second_factor_token: 'xxx',
+      scope: '/prod/europe',
     };
 
-    await auth.login(email, password, 'xxx');
+    await auth.login(email, password, 'xxx', '/prod/europe');
     expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, data);
   });
 
