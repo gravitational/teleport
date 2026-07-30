@@ -198,12 +198,23 @@ $ tsh db connect --db-user=alice --db-name=mysql example-mysql
   able to connect. `mariadb` is a default command-line client for MySQL and MariaDB.
 </Admonition>
 
-<Admonition type="tip" title="Using identity files">
+<details>
+<summary>Using identity files</summary>
+
 If you are using an identity file (`tsh -i identity.pem`) instead of interactive
-`tsh login`, use `tsh proxy db --tunnel --port=<local-port>` instead of
-`tsh db connect`. The `tsh db connect` command does not work with identity files
-because it references certificate paths that do not exist on disk.
-</Admonition>
+`tsh login`, use `tsh proxy db` instead of `tsh db connect`. The `tsh db connect`
+command does not work with identity files because it references certificate paths
+that do not exist on disk.
+
+You must supply `--proxy`, the database name, and the required `--db-user`/`--db-name`
+flags:
+
+```code
+$ tsh proxy db --tunnel --proxy=<Var name="teleport.example.com:443" /> --db-user=alice --db-name=mysql -p 3307 example-mysql
+```
+
+Then connect your MySQL client to `localhost:3307`.
+</details>
 
 (!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="example-mysql" dbArgs="--db-user=alice --db-name=mysql"!)
 

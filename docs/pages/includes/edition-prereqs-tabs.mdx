@@ -90,11 +90,16 @@
   you're not sure whether this applies to your cluster, check with whoever
   manages it.
 
-  If your cluster uses separate listener ports instead, replace port `443` in
-  the commands below with the port for the Auth Service:
+  If your cluster uses separate listener ports instead, adjust ports as follows:
 
-  ```code
-  $ tctl status --auth-server=<Var name="teleport.example.com" />:3025
-  ```
+  - **`tsh` commands** (e.g., `tsh login --proxy=...`): continue using the
+    Proxy Service web address on port `3080` (or `443` if behind a load
+    balancer). Do not change these to port `3025`.
+  - **Direct `tctl` or Auth Service API commands**: use port `3025` for the
+    Auth Service gRPC listener:
+
+    ```code
+    $ tctl status --auth-server=<Var name="teleport.example.com" />:3025
+    ```
 
   </details>
