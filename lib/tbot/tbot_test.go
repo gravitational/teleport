@@ -377,10 +377,6 @@ func TestBot(t *testing.T) {
 	identityOutput := &identitysvc.OutputConfig{
 		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &identitysvc.OutputConfig{
-		Destination: &destination.Memory{},
-		Roles:       []string{mainRole},
-	}
 	identityOutputWithReissue := &identitysvc.OutputConfig{
 		Destination:  &destination.Memory{},
 		AllowReissue: true,
@@ -422,7 +418,6 @@ func TestBot(t *testing.T) {
 	botConfig := defaultBotConfig(
 		t, process, botParams, config.ServiceConfigs{
 			identityOutput,
-			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
 			dbDiscoveredNameOutput,
@@ -460,13 +455,6 @@ func TestBot(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
 		requireValidOutputTLSIdent(
 			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
-		)
-	})
-
-	t.Run("output: identity with role specified", func(t *testing.T) {
-		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(
-			t, tlsIdent, []string{mainRole}, botResource.GetStatus().GetUserName(), false,
 		)
 	})
 

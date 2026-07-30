@@ -107,7 +107,6 @@ type Generator struct {
 
 type generateOpts struct {
 	delegationSessionID  string
-	roles                []string
 	ttl, renewalInterval time.Duration
 	currentIdentity      *Identity
 	logger               *slog.Logger
@@ -120,23 +119,9 @@ type GenerateOption func(*generateOpts)
 
 // WithDelegation uses the given delegation session ID to generate certificates
 // associated with a *human* user and delegation session.
-//
-// Note: this option is mutually-exclusive with WithRoles.
 func WithDelegation(sessionID string) GenerateOption {
 	return func(opts *generateOpts) {
 		opts.delegationSessionID = sessionID
-	}
-}
-
-// WithRoles sets the roles the generated identity should include.
-//
-// Generally, if the user did not specify any roles, it's best to leave this
-// empty and rely on the default behavior (of fetching all the bot's available
-// roles). If WithCurrentIdentity is provided, we'll default to using the roles
-// in its TLS certificate to avoid re-fetching them.
-func WithRoles(roles []string) GenerateOption {
-	return func(opts *generateOpts) {
-		opts.roles = roles
 	}
 }
 
@@ -256,22 +241,19 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
-	if len(o.roles) != 0 && o.delegationSessionID != "" {
-		return nil, trace.BadParameter("delegation sessions and explicit roles are mutually-exclusive")
-	}
-
-	if len(o.roles) == 0 {
-		if o.currentIdentity != nil {
-			// If the caller provided an impersonated identity, take its roles.
-			o.roles = o.currentIdentity.TLSIdentity.Groups
-		} else {
-			// Otherwise, fetch the bot identity's default roles.
-			var err error
-			if o.roles, err = g.botDefaultRoles(ctx); err != nil {
-				return nil, trace.Wrap(err, "fetching default roles")
-			}
-			log.DebugContext(ctx, "No roles configured, using all roles available.", "roles", o.roles)
+	// Roles are always resolved implicitly - there is no way for a service to
+	// request a narrower set.
+	var roles []string
+	if o.currentIdentity != nil {
+		// If the caller provided an impersonated identity, take its roles.
+		roles = o.currentIdentity.TLSIdentity.Groups
+	} else {
+		// Otherwise, fetch the bot identity's default roles.
+		var err error
+		if roles, err = g.botDefaultRoles(ctx); err != nil {
+			return nil, trace.Wrap(err, "fetching default roles")
 		}
+		log.DebugContext(ctx, "Using all roles available to the bot.", "roles", roles)
 	}
 
 	if o.currentIdentity == nil {
@@ -281,7 +263,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	req := proto.UserCertsRequest{
 		Username:       o.currentIdentity.X509Cert.Subject.CommonName,
 		Expires:        time.Now().Add(o.ttl),
-		RoleRequests:   o.roles,
+		RoleRequests:   roles,
 		RouteToCluster: o.currentIdentity.ClusterName,
 
 		// Make sure to specify this is an impersonated cert request. If unset,
