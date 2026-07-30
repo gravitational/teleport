@@ -600,6 +600,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	sessionCache, err := newSessionCache(h.cfg.Context, sessionCacheOptions{
 		proxyClient:               cfg.ProxyClient,
 		accessPoint:               cfg.AccessPoint,
+		scopedRoleReader:          cfg.AccessPoint.ScopedRoleReader(),
 		servers:                   []utils.NetAddr{cfg.AuthServers},
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
@@ -841,7 +842,7 @@ func (h *Handler) authenticateWebSession(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
-	resp, err := newSessionResponse(ctx)
+	resp, err := newSessionResponse(r.Context(), ctx)
 	if err != nil {
 		return webSession{}, trace.Wrap(err)
 	}
@@ -1496,9 +1497,32 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		})
 
 		userContext.AvailableScopes = assignedScopes
+
+		userContext.Scope, err = scopeFromSessionContext(c)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return userContext, nil
+}
+
+func scopeFromSessionContext(c *SessionContext) (string, error) {
+	id, err := c.GetIdentity()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if id == nil {
+		return "", nil
+	}
+
+	pin := id.ScopePin
+	if pin == nil {
+		return "", nil
+	}
+
+	return pin.GetScope(), nil
 }
 
 // PublicProxyAddr returns the publicly advertised proxy address
@@ -2465,7 +2489,6 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		logger.ErrorContext(r.Context(), "Failed to parse request remote address", "error", err)
 		return client.LoginFailedRedirectURL
 	}
-
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
@@ -2473,6 +2496,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
 		ClientUserAgent:   r.UserAgent(),
+		Scope:             req.Scope,
 	})
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error creating auth request", "error", err)
@@ -2799,6 +2823,9 @@ type CreateSessionReq struct {
 	Pass string `json:"pass"`
 	// SecondFactorToken is the OTP.
 	SecondFactorToken string `json:"second_factor_token"`
+	// Scope is the scope for which this session is created. Empty means
+	// unscoped.
+	Scope string `json:"scope"`
 }
 
 // String returns text description of this response
@@ -2834,14 +2861,26 @@ type CreateSessionResponse struct {
 	TrustedDeviceRequirement int32 `json:"trustedDeviceRequirement,omitempty"`
 }
 
-func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
+func newSessionResponse(ctx context.Context, sctx *SessionContext) (*CreateSessionResponse, error) {
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = accessChecker.CheckLoginDuration(0)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	if accessChecker.AccessInfo().ScopePin == nil {
+		_, err = accessChecker.CheckLoginDuration(0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		checkerContext, err := sctx.GetUserScopedAccessCheckerContext(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_, err = checkerContext.CertParams().GetSSHLoginsForTTL(ctx, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	token, err := sctx.getToken()
@@ -2893,11 +2932,11 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	var webSession types.WebSession
 	switch {
 	case !cap.IsSecondFactorEnforced():
-		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, req.Scope, clientMeta)
 	case req.SecondFactorToken == "" && !cap.IsSecondFactorEnforced():
-		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
+		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, req.Scope, clientMeta)
 	case cap.IsSecondFactorTOTPAllowed():
-		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
+		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, req.Scope, clientMeta)
 	default:
 		return nil, trace.AccessDenied("direct login with password+otp not supported by this cluster")
 	}
@@ -2922,7 +2961,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	res, err := newSessionResponse(ctx)
+	res, err := newSessionResponse(r.Context(), ctx)
 	return res, trace.Wrap(err)
 }
 
@@ -3019,6 +3058,9 @@ type renewSessionRequest struct {
 //   - ReloadUser (opt): similar to default but updates user related data (e.g login traits) by retrieving it from the backend
 //   - default (none set): create new session with currently assigned roles
 func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	// TODO(bl-nero): Fix session renewal for scoped sessions. This endpoint
+	// doesn't work for scoped sessions, but currently, the web UI doesn't even
+	// call it in such scenario.
 	req := renewSessionRequest{}
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -3040,7 +3082,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := newSessionResponse(newContext)
+	res, err := newSessionResponse(r.Context(), newContext)
 	return res, trace.Wrap(err)
 }
 
@@ -3118,7 +3160,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Checks for at least one valid login.
-	if _, err := newSessionResponse(ctx); err != nil {
+	if _, err := newSessionResponse(r.Context(), ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3334,7 +3376,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	return newSessionResponse(r.Context(), ctx)
 }
 
 // getClusters returns a list of cluster and its data.
@@ -3421,7 +3463,7 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesRequest, error) {
+func makeUnifiedResourceRequest(r *http.Request, scopePin *scopesv1.Pin) (*proto.ListUnifiedResourcesRequest, error) {
 	values := r.URL.Query()
 
 	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -3445,16 +3487,23 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 	}
 
 	// set default kinds to be requested if none exist in the request
+	scopedIdentity := scopePin.GetScope() != ""
 	if len(kinds) == 0 {
-		kinds = []string{
-			types.KindApp,
-			types.KindDatabase,
-			types.KindNode,
-			types.KindWindowsDesktop,
-			types.KindLinuxDesktop,
-			types.KindKubernetesCluster,
-			types.KindSAMLIdPServiceProvider,
-			types.KindGitServer,
+		if scopedIdentity {
+			// TODO(bl-nero): Support more resource kinds when they are supported for
+			// scoped sessions.
+			kinds = []string{types.KindNode}
+		} else {
+			kinds = []string{
+				types.KindApp,
+				types.KindDatabase,
+				types.KindNode,
+				types.KindWindowsDesktop,
+				types.KindLinuxDesktop,
+				types.KindKubernetesCluster,
+				types.KindSAMLIdPServiceProvider,
+				types.KindGitServer,
+			}
 		}
 	}
 
@@ -3471,7 +3520,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    useSearchAsRoles,
-		IncludeLogins:       true,
+		IncludeLogins:       !scopedIdentity,
 		IncludeRequestable:  includeRequestable,
 	}, nil
 }
@@ -3537,7 +3586,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := makeUnifiedResourceRequest(request)
+	req, err := makeUnifiedResourceRequest(request, identity.ScopePin)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5729,6 +5778,8 @@ type SSORequestParams struct {
 	CSRFToken string
 	// LoginHint is the user's identifier (email) for identifier-first login.
 	LoginHint string
+	// Scope is the scope that this session will be pinned to.
+	Scope string
 }
 
 // ParseSSORequestParams extracts the SSO request parameters from an http.Request,
@@ -5770,11 +5821,14 @@ func ParseSSORequestParams(r *http.Request) (*SSORequestParams, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	scope := query.Get("scope")
+
 	return &SSORequestParams{
 		ClientRedirectURL: clientRedirectURL,
 		ConnectorID:       connectorID,
 		CSRFToken:         csrfToken,
 		LoginHint:         loginHint,
+		Scope:             scope,
 	}, nil
 }
 
