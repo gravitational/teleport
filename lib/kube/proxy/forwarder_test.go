@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -182,14 +183,14 @@ func TestAuthenticate(t *testing.T) {
 				KubeServiceType:   ProxyService,
 				LockWatcher:       lockWatcher,
 			},
-			getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			getKubernetesServersForKubeCluster: func(ctx context.Context, sqn scopes.QualifiedName) ([]types.KubeServer, error) {
 				servers, err := ap.GetKubernetesServers(ctx)
 				if err != nil {
 					return nil, err
 				}
 				var filtered []types.KubeServer
 				for _, server := range servers {
-					if server.GetCluster().GetName() == name {
+					if kubeutils.KubeClusterMatchesSQN(server.GetCluster(), sqn) {
 						filtered = append(filtered, server)
 					}
 				}
@@ -199,6 +200,9 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	const remoteAddr = "user.example.com"
+	unscopedLocalSQN := scopes.QualifiedName{Name: "local"}
+	unscopedFooSQN := scopes.QualifiedName{Name: "foo"}
+	scopedLocalSQN := scopes.QualifiedName{Name: "local", Scope: scopedTestScope}
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
 	tests := []struct {
 		desc                            string
@@ -207,7 +211,7 @@ func TestAuthenticate(t *testing.T) {
 		roleKubeUsers                   []string
 		roleKubeGroups                  []string
 		routeToCluster                  string
-		kubernetesCluster               string
+		kubeClusterSQN                  scopes.QualifiedName
 		haveKubeCreds                   bool
 		tunnel                          reversetunnelclient.Server
 		kubeServers                     []types.KubeServer
@@ -224,13 +228,13 @@ func TestAuthenticate(t *testing.T) {
 		wantDisconnectExpiredCert *time.Time
 	}{
 		{
-			desc:              "local user and cluster with active access request",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local user and cluster with active access request",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -248,9 +252,9 @@ func TestAuthenticate(t *testing.T) {
 			),
 			activeRequests: activeAccessRequests,
 			wantCtx: &authContext{
-				kubeUsers:       set.New("user-a"),
-				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName: "local",
+				kubeUsers:      set.New("user-a"),
+				kubeGroups:     set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterSQN: scopes.QualifiedName{Name: "local"},
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -278,13 +282,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "local user and cluster",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local user and cluster",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -325,9 +329,9 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       set.New("user-a"),
-				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName: "local",
+				kubeUsers:      set.New("user-a"),
+				kubeGroups:     set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterSQN: scopes.QualifiedName{Name: "local"},
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -361,7 +365,7 @@ func TestAuthenticate(t *testing.T) {
 			roleKubeGroups:     []string{"kube-group-a", "kube-group-b"},
 			scopedKubeLockMode: constants.LockingModeBestEffort,
 			routeToCluster:     "local",
-			kubernetesCluster:  "local",
+			kubeClusterSQN:     scopedLocalSQN,
 			haveKubeCreds:      true,
 			tunnel:             tun,
 			configureForwarder: configureStaleLockWatcher,
@@ -381,7 +385,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    scopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -410,7 +414,7 @@ func TestAuthenticate(t *testing.T) {
 			roleKubeGroups:           []string{"kube-group-a", "kube-group-b"},
 			scopedKubeLockMode:       constants.LockingModeStrict,
 			routeToCluster:           "local",
-			kubernetesCluster:        "local",
+			kubeClusterSQN:           scopedLocalSQN,
 			haveKubeCreds:            true,
 			tunnel:                   tun,
 			configureForwarder:       configureStaleLockWatcher,
@@ -435,7 +439,7 @@ func TestAuthenticate(t *testing.T) {
 			scoped:                    true,
 			roleKubeGroups:            []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:            "local",
-			kubernetesCluster:         "local",
+			kubeClusterSQN:            scopedLocalSQN,
 			haveKubeCreds:             true,
 			tunnel:                    tun,
 			wantDisconnectExpiredCert: &certExpiration,
@@ -455,7 +459,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    scopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -483,7 +487,7 @@ func TestAuthenticate(t *testing.T) {
 			scoped:                          true,
 			roleKubeGroups:                  []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:                  "local",
-			kubernetesCluster:               "local",
+			kubeClusterSQN:                  scopedLocalSQN,
 			scopedKubeDisconnectExpiredCert: ptr(false),
 			wantDisconnectExpiredCert:       &time.Time{},
 			haveKubeCreds:                   true,
@@ -504,7 +508,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    scopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -534,7 +538,7 @@ func TestAuthenticate(t *testing.T) {
 			scopedKubeDisconnectExpiredCert: ptr(true),
 			wantDisconnectExpiredCert:       &certExpiration,
 			routeToCluster:                  "local",
-			kubernetesCluster:               "local",
+			kubeClusterSQN:                  scopedLocalSQN,
 			haveKubeCreds:                   true,
 			tunnel:                          tun,
 			kubeServers: newKubeServersFromKubeClusters(
@@ -553,7 +557,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    scopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -576,13 +580,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "local user and cluster, no kubeconfig",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     false,
-			tunnel:            tun,
+			desc:           "local user and cluster, no kubeconfig",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  false,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -599,7 +603,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    scopes.QualifiedName{Name: "local"},
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -621,13 +625,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "remote user and local cluster",
-			user:              authz.RemoteUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "remote user and local cluster",
+			user:           authz.RemoteUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -643,7 +647,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    unscopedLocalSQN,
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
@@ -666,14 +670,14 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "remote user and local cluster with active request id",
-			user:              authz.RemoteUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
-			activeRequests:    activeAccessRequests,
+			desc:           "remote user and local cluster with active request id",
+			user:           authz.RemoteUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
+			activeRequests: activeAccessRequests,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -689,7 +693,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    unscopedLocalSQN,
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
@@ -773,14 +777,14 @@ func TestAuthenticate(t *testing.T) {
 			wantAuthErr: true,
 		},
 		{
-			desc:              "kube users passed in request",
-			user:              authz.LocalUser{},
-			roleKubeUsers:     []string{"kube-user-a", "kube-user-b"},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "kube users passed in request",
+			user:           authz.LocalUser{},
+			roleKubeUsers:  []string{"kube-user-a", "kube-user-b"},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -793,11 +797,10 @@ func TestAuthenticate(t *testing.T) {
 					},
 				},
 			),
-
 			wantCtx: &authContext{
 				kubeUsers:         set.New("kube-user-a", "kube-user-b"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    unscopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -836,12 +839,12 @@ func TestAuthenticate(t *testing.T) {
 			wantAuthErr: true,
 		},
 		{
-			desc:              "local user and cluster, no tunnel",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
+			desc:           "local user and cluster, no tunnel",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -858,7 +861,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         set.New("user-a"),
 				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName:   "local",
+				kubeClusterSQN:    unscopedLocalSQN,
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -881,24 +884,24 @@ func TestAuthenticate(t *testing.T) {
 		},
 
 		{
-			desc:              "unknown kubernetes cluster in local cluster",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "foo",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "unknown kubernetes cluster in local cluster",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedFooSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 
 			wantErr: true,
 		},
 		{
-			desc:              "custom kubernetes cluster in local cluster",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "foo",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "custom kubernetes cluster in local cluster",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedFooSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -915,10 +918,10 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       set.New("user-a"),
-				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName: "foo",
-				certExpires:     certExpiration,
+				kubeUsers:      set.New("user-a"),
+				kubeGroups:     set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterSQN: unscopedFooSQN,
+				certExpires:    certExpiration,
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -945,17 +948,17 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "custom kubernetes cluster in remote cluster",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "remote",
-			kubernetesCluster: "foo",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "custom kubernetes cluster in remote cluster",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "remote",
+			kubeClusterSQN: unscopedFooSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeClusterName: "foo",
-				certExpires:     certExpiration,
+				kubeClusterSQN: unscopedFooSQN,
+				certExpires:    certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -964,14 +967,14 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "local scoped user and scoped cluster",
-			user:              authz.LocalUser{},
-			scoped:            true,
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local scoped user and scoped cluster",
+			user:           authz.LocalUser{},
+			scoped:         true,
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: scopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -989,9 +992,9 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       set.New("user-a"),
-				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName: "local",
+				kubeUsers:      set.New("user-a"),
+				kubeGroups:     set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterSQN: scopedLocalSQN,
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -1020,13 +1023,13 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "local unscoped user and scoped cluster",
-			user:              authz.LocalUser{},
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local unscoped user and scoped cluster",
+			user:           authz.LocalUser{},
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: scopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -1044,9 +1047,9 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:       set.New("user-a"),
-				kubeGroups:      set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
-				kubeClusterName: "local",
+				kubeUsers:      set.New("user-a"),
+				kubeGroups:     set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterSQN: scopedLocalSQN,
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -1075,14 +1078,14 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:              "local scoped user and scoped cluster - mismatched scope",
-			user:              authz.LocalUser{},
-			scoped:            true,
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local scoped user and scoped cluster - mismatched scope",
+			user:           authz.LocalUser{},
+			scoped:         true,
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: scopes.QualifiedName{Name: "local", Scope: "/other"},
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -1102,14 +1105,14 @@ func TestAuthenticate(t *testing.T) {
 			wantAuthorizeErrContains: "[00] access denied",
 		},
 		{
-			desc:              "local scoped user and unscoped cluster",
-			user:              authz.LocalUser{},
-			scoped:            true,
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:           "local scoped user and unscoped cluster",
+			user:           authz.LocalUser{},
+			scoped:         true,
+			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
+			routeToCluster: "local",
+			kubeClusterSQN: unscopedLocalSQN,
+			haveKubeCreds:  true,
+			tunnel:         tun,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -1153,7 +1156,7 @@ func TestAuthenticate(t *testing.T) {
 					Username:          username,
 					Groups:            roles.RoleNames(),
 					RouteToCluster:    tt.routeToCluster,
-					KubernetesCluster: tt.kubernetesCluster,
+					KubernetesCluster: tt.kubeClusterSQN.String(),
 					ActiveRequests:    tt.activeRequests,
 					Expires:           certExpiration,
 				}),
@@ -1161,7 +1164,7 @@ func TestAuthenticate(t *testing.T) {
 					Username:          username,
 					Groups:            roles.RoleNames(),
 					RouteToCluster:    tt.routeToCluster,
-					KubernetesCluster: tt.kubernetesCluster,
+					KubernetesCluster: tt.kubeClusterSQN.String(),
 					ActiveRequests:    tt.activeRequests,
 					Expires:           certExpiration,
 				}),
@@ -1204,7 +1207,13 @@ func TestAuthenticate(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
-				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}}
+				clusterSQN := scopes.QualifiedName{Name: tt.routeToCluster}
+				if scopes.MaybeSQN(tt.routeToCluster) {
+					var err error
+					clusterSQN, err = scopes.ParseQualifiedName(tt.routeToCluster)
+					require.NoError(t, err)
+				}
+				f.clusterDetails = map[scopes.QualifiedName]*kubeDetails{clusterSQN: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}}
 			} else {
 				f.clusterDetails = nil
 			}
@@ -1241,7 +1250,7 @@ func TestAuthenticate(t *testing.T) {
 				username,
 				tt.wantCtx.kubeUsers,
 				tt.wantCtx.kubeGroups,
-				tt.wantCtx.kubeClusterName,
+				tt.wantCtx.kubeClusterSQN.String(),
 				certExpiration.Unix(),
 				tt.activeRequests,
 			)
@@ -1507,7 +1516,7 @@ func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
-		kubeClusterName: kubeCluster,
+		kubeClusterSQN: scopes.QualifiedName{Name: kubeCluster},
 		// getClientCreds requires sessions to be valid for at least 1 minute
 		sessionTTL: 2 * time.Minute,
 	}
@@ -1591,8 +1600,8 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		},
 	} {
 
-		f.clusterDetails = map[string]*kubeDetails{
-			"local": {
+		f.clusterDetails = map[scopes.QualifiedName]*kubeDetails{
+			scopes.QualifiedName{Name: "local"}: {
 				kubeCreds: &staticKubeCreds{
 					targetAddr: mockKubeAPI.URL,
 					tlsConfig:  mockKubeAPI.TLS,
@@ -1601,7 +1610,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 			},
 		}
 
-		authCtx.kubeClusterName = "local"
+		authCtx.kubeClusterSQN = scopes.QualifiedName{Name: "local"}
 		sess, err := f.newClusterSession(ctx, authCtx)
 		require.NoError(t, err)
 		t.Cleanup(sess.close)
@@ -2138,7 +2147,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				username,
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 
 			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
@@ -2176,7 +2185,7 @@ func TestInvalidImpersonationGroupHeaderInjection(t *testing.T) {
 		},
 	)
 
-	client, _ := testCtx.GenTestKubeClientTLSCert(t, username, kubeCluster)
+	client, _ := testCtx.GenTestKubeClientTLSCert(t, username, scopes.QualifiedName{Name: kubeCluster})
 
 	_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(t.Context(), metav1.ListOptions{})
 	require.Error(t, err)
@@ -2213,7 +2222,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 				},
 				ctx: &authContext{
 					ScopedContext:     baseAuthCtx,
-					kubeClusterName:   "clusterName",
+					kubeClusterSQN:    scopes.QualifiedName{Name: "clusterName"},
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
 					kubeUsers:         map[string]struct{}{"kube-user-a": {}},
@@ -2237,7 +2246,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 				},
 				ctx: &authContext{
 					ScopedContext:     baseAuthCtx,
-					kubeClusterName:   "clusterName",
+					kubeClusterSQN:    scopes.QualifiedName{Name: "clusterName"},
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
 					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
@@ -2258,7 +2267,7 @@ func Test_authContext_eventClusterMeta(t *testing.T) {
 				},
 				ctx: &authContext{
 					ScopedContext:     baseAuthCtx,
-					kubeClusterName:   "clusterName",
+					kubeClusterSQN:    scopes.QualifiedName{Name: "clusterName"},
 					kubeClusterLabels: kubeClusterLabels,
 					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
 					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
@@ -2333,7 +2342,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	require.False(t, getConnTLSRootsCalled)
 
 	// generate tlsConfig for the local cluster
-	_, localTLSConfig, err := f.newLocalClusterTransport(clusterName, "")
+	_, localTLSConfig, err := f.newLocalClusterTransport(scopes.QualifiedName{Name: clusterName})
 	require.NoError(t, err)
 	_ = localTLSConfig.VerifyConnection(tls.ConnectionState{
 		ServerName: "nonempty",
@@ -2394,8 +2403,8 @@ func TestKubeForwarder_GOAWAYErrors(t *testing.T) {
 			// Plug a stub round tripper that returns the GOAWAY-related error
 			// into a fake Kubernetes cluster, so the kube proxy's full
 			// error-handling pipeline runs against it.
-			f.clusterDetails = map[string]*kubeDetails{
-				"kube-cluster": {
+			f.clusterDetails = map[scopes.QualifiedName]*kubeDetails{
+				scopes.QualifiedName{Name: "kube-cluster"}: {
 					kubeCreds: &staticKubeCreds{
 						targetAddr: "kube.invalid:443",
 						tlsConfig:  &tls.Config{InsecureSkipVerify: true},
@@ -2460,8 +2469,8 @@ func TestGOAWAYHandling(t *testing.T) {
 	go func() { require.NoError(t, gs.Serve()) }()
 
 	// Insert a fake Kubernetes cluster that forwards requests to the GOAWAY server above.
-	f.clusterDetails = map[string]*kubeDetails{
-		"kube-cluster": {
+	f.clusterDetails = map[scopes.QualifiedName]*kubeDetails{
+		scopes.QualifiedName{Name: "kube-cluster"}: {
 			kubeCreds: &staticKubeCreds{
 				targetAddr: gs.URL(),
 				tlsConfig:  gs.tlsConfig,
@@ -2546,8 +2555,8 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	prodTransport, err := newH2Transport(tlsCfg, nil)
 	require.NoError(t, err)
 
-	f.clusterDetails = map[string]*kubeDetails{
-		"kube-cluster": {
+	f.clusterDetails = map[scopes.QualifiedName]*kubeDetails{
+		scopes.QualifiedName{Name: "kube-cluster"}: {
 			kubeCreds: &staticKubeCreds{
 				targetAddr: gs.URL(),
 				tlsConfig:  tlsCfg,

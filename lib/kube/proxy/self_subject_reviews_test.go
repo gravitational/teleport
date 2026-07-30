@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
@@ -408,7 +409,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
@@ -573,7 +574,7 @@ func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
 			t.Parallel()
 
 			// Generate a kube dynClient with user certs for auth.
-			client, _, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), kubeCluster)
+			client, _, _ := testCtx.GenTestKubeClientsTLSCert(t, tt.user.GetName(), scopes.QualifiedName{Name: kubeCluster})
 
 			// Create a SelfSubjectAccessReview object.
 			obj := &authv1.SelfSubjectAccessReview{

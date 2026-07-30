@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	sessionpkg "github.com/gravitational/teleport/lib/session"
 )
 
@@ -255,7 +256,7 @@ func TestModeratedSessions(t *testing.T) {
 			_, config := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
-				kubeCluster,
+				scopes.QualifiedName{Name: kubeCluster},
 			)
 
 			// create a user session.
@@ -299,7 +300,7 @@ func TestModeratedSessions(t *testing.T) {
 				_, config := testCtx.GenTestKubeClientTLSCert(
 					t,
 					tt.args.moderator.GetName(),
-					kubeCluster,
+					scopes.QualifiedName{Name: kubeCluster},
 				)
 
 				// Simulate a moderator joining the session.
@@ -611,19 +612,19 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	_, userStrictLockingConfig := testCtx.GenTestKubeClientTLSCert(
 		t,
 		userWithStrictLock.GetName(),
-		kubeCluster,
+		scopes.QualifiedName{Name: kubeCluster},
 	)
 
 	_, moderatorConfig := testCtx.GenTestKubeClientTLSCert(
 		t,
 		adminUser.GetName(),
-		kubeCluster,
+		scopes.QualifiedName{Name: kubeCluster},
 	)
 
 	_, userRequiringModeratorConfig := testCtx.GenTestKubeClientTLSCert(
 		t,
 		userRequiringModerator.GetName(),
-		kubeCluster,
+		scopes.QualifiedName{Name: kubeCluster},
 	)
 
 	// Mark the lock as stale so that the session with strict locking is denied.

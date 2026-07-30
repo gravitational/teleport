@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -48,12 +49,11 @@ import (
 // mapped kubernetes_users / kubernetes_groups rather than the proxy's admin kubeconfig.
 func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	const (
-		clusterName = "test-cluster"
-		ns          = "default"
-		podName     = "test-app"
-		kubeUser    = "alice-k8s"
+		ns       = "default"
+		podName  = "test-app"
+		kubeUser = "alice-k8s"
 	)
-
+	clusterSQN := scopes.QualifiedName{Name: "test-cluster"}
 	var (
 		mu                  sync.Mutex
 		capturedImpersonate string
@@ -92,8 +92,8 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 		cfg: ForwarderConfig{
 			tracer: otel.Tracer("test"),
 		},
-		clusterDetails: map[string]*kubeDetails{
-			clusterName: {
+		clusterDetails: map[scopes.QualifiedName]*kubeDetails{
+			clusterSQN: {
 				kubeCreds: &staticKubeCreds{
 					kubeClient:    adminClient,
 					clientRestCfg: adminRestCfg,
@@ -108,10 +108,10 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	// One kubernetes_users entry so computeAndValidateImpersonatedPrincipals
 	// picks it deterministically without consulting request headers.
 	authCtx := &authContext{
-		ScopedContext:   &authz.ScopedContext{User: teleportUser},
-		kubeClusterName: clusterName,
-		kubeUsers:       set.New(kubeUser),
-		kubeGroups:      set.New[string](),
+		ScopedContext:  &authz.ScopedContext{User: teleportUser},
+		kubeClusterSQN: clusterSQN,
+		kubeUsers:      set.New(kubeUser),
+		kubeGroups:     set.New[string](),
 	}
 
 	_, err = fwd.getPodForEphemeralPatch(
@@ -138,13 +138,13 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 // the synthetic Modified event after moderator approval, rather than hanging.
 func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 	const (
-		clusterName  = "test-cluster"
 		ns           = "default"
 		podName      = "test-app"
 		chosenUser   = "alice-k8s-b"
 		alternateUsr = "alice-k8s-a"
 		chosenGroup  = "system:authenticated"
 	)
+	clusterSQN := scopes.QualifiedName{Name: "test-cluster"}
 
 	var (
 		mu             sync.Mutex
@@ -178,8 +178,8 @@ func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 	fwd := &Forwarder{
 		log: logtest.NewLogger(),
 		cfg: ForwarderConfig{tracer: otel.Tracer("test")},
-		clusterDetails: map[string]*kubeDetails{
-			clusterName: {
+		clusterDetails: map[scopes.QualifiedName]*kubeDetails{
+			clusterSQN: {
 				kubeCreds: &staticKubeCreds{
 					kubeClient:    adminClient,
 					clientRestCfg: adminRestCfg,
@@ -195,10 +195,10 @@ func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 	// computeAndValidateImpersonatedPrincipals would refuse to pick.
 	sess := &clusterSession{
 		authContext: authContext{
-			ScopedContext:   &authz.ScopedContext{User: teleportUser},
-			kubeClusterName: clusterName,
-			kubeUsers:       set.New(chosenUser, alternateUsr),
-			kubeGroups:      set.New(chosenGroup),
+			ScopedContext:  &authz.ScopedContext{User: teleportUser},
+			kubeClusterSQN: clusterSQN,
+			kubeUsers:      set.New(chosenUser, alternateUsr),
+			kubeGroups:     set.New(chosenGroup),
 		},
 		codecFactory: &globalKubeCodecs,
 	}
@@ -208,7 +208,7 @@ func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 		"debug",
 		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 			Username:         "alice",
-			Cluster:          clusterName,
+			Cluster:          clusterSQN.String(),
 			Namespace:        ns,
 			PodName:          podName,
 			ContainerName:    "debug",
