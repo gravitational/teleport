@@ -43,12 +43,6 @@ We will assume your Teleport cluster is accessible at `teleport.example.com`.
 You can substitute the address of your Teleport Proxy Service. (For Teleport
 Cloud customers, this will be similar to `example.teleport.sh`.)
 
-<Admonition type="tip" title="Headless and automated environments">
-This guide uses interactive `tsh login`. For headless environments, CI/CD
-pipelines, or automation, use [Machine ID](../../../machine-workload-identity/getting-started.mdx)
-(`tbot`) to issue short-lived credentials without interactive authentication.
-</Admonition>
-
 ## Step 1/4. Start PostgreSQL container
 
 Skip this step if you already have an application you'd like to connect to.
