@@ -83,7 +83,8 @@ func (c *beamsRMCommand) run(cf *CLIConf) error {
 
 	if _, err := fmt.Fprintf(
 		cf.Stdout(),
-		"Beam %q successfully deleted.\n",
+		"Beam %q successfully deleted.\n"+
+			"An AI-generated summary for the beam will be available in 15-30 minutes in Beams > History in the Web UI.\n",
 		beam.GetStatus().GetAlias(),
 	); err != nil {
 		return trace.Wrap(err)
