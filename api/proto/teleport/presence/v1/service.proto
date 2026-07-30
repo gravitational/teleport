@@ -61,7 +61,7 @@ service PresenceService {
 
   // Fetches a kube cluster resource from the backend.
   rpc GetKubeCluster(GetKubeClusterRequest) returns (GetKubeClusterResponse);
-  // Lists kube cluster resources within the backend.
+  // Lists kube cluster resources from the backend.
   rpc ListKubeClusters(ListKubeClustersRequest) returns (ListKubeClustersResponse);
   // Deletes a kube cluster resource from the backend.
   rpc DeleteKubeCluster(DeleteKubeClusterRequest) returns (DeleteKubeClusterResponse);
@@ -71,6 +71,13 @@ service PresenceService {
 
   // Deletes a specific scoped or unscoped application server.
   rpc DeleteAppServer(DeleteAppServerRequest) returns (DeleteAppServerResponse);
+
+  // Gets a specific ssh server resource from the backend.
+  rpc GetSSHServer(GetSSHServerRequest) returns (GetSSHServerResponse);
+  // Lists ssh servers resources from the backend.
+  rpc ListSSHServers(ListSSHServersRequest) returns (ListSSHServersResponse);
+  // Deletes an ssh server resource from the backend.
+  rpc DeleteSSHServer(DeleteSSHServerRequest) returns (DeleteSSHServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -316,3 +323,47 @@ message DeleteAppServerRequest {
 
 // The response for deleting an application server.
 message DeleteAppServerResponse {}
+
+// The request for fetching for an SSH server.
+message GetSSHServerRequest {
+  // The name of the ssh server.
+  string name = 1;
+  // The scope of the ssh server.
+  string scope = 2;
+}
+
+// The response when fetching for an SSH server.
+message GetSSHServerResponse {
+  types.ServerV2 server = 1;
+}
+
+// The request for listing SSH servers.
+message ListSSHServersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+  // Filters ssh servers by scope.
+  teleport.scopes.v1.Filter scope_filter = 3;
+}
+
+// The response when listing SSH servers.
+message ListSSHServersResponse {
+  // The page of ssh servers that matched the request.
+  repeated types.ServerV2 servers = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// The request for deleting an SSH server.
+message DeleteSSHServerRequest {
+  // The name of the ssh server.
+  string name = 1;
+  // The scoped of the ssh server
+  string scope = 2;
+}
+
+// The response when deleting an SSH server.
+message DeleteSSHServerResponse {}

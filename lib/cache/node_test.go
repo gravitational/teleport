@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"testing"
 	"time"
 
@@ -27,8 +28,37 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 )
+
+const (
+	nodeProdScope    = "/aws/prod"
+	nodeStagingScope = "/aws/staging"
+)
+
+func newNodeResource(name string) (types.Server, error) {
+	return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+}
+
+// listNodesAdapter adapts a ListNodes method to the page function shape the
+// resource test harness expects.
+func listNodesAdapter(fn func(context.Context, *presencev1.ListSSHServersRequest) ([]types.Server, string, error)) func(context.Context, int, string) ([]types.Server, string, error) {
+	return func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+		return fn(ctx, presencev1.ListSSHServersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+		}.Build())
+	}
+}
+
+// rangeNodesAdapter adapts a RangeNodes method to the range function shape the
+// resource test harness expects.
+func rangeNodesAdapter(fn func(context.Context, *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error]) func(context.Context, string, string) iter.Seq2[types.Server, error] {
+	return func(ctx context.Context, start, _ string) iter.Seq2[types.Server, error] {
+		return fn(ctx, presencev1.ListSSHServersRequest_builder{PageToken: start}.Build())
+	}
+}
 
 // TestNodes tests nodes cache
 func TestNodes(t *testing.T) {
@@ -41,10 +71,8 @@ func TestNodes(t *testing.T) {
 		t.Cleanup(p.Close)
 
 		testResources(t, p, testFuncs[types.Server]{
-			newResource: func(name string) (types.Server, error) {
-				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-			},
-			create: withKeepalive(p.presenceS.UpsertNode),
+			newResource: newNodeResource,
+			create:      withKeepalive(p.presenceS.UpsertNode),
 			list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
 				return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
 			}),
@@ -66,10 +94,8 @@ func TestNodes(t *testing.T) {
 		t.Cleanup(p.Close)
 
 		testResources(t, p, testFuncs[types.Server]{
-			newResource: func(name string) (types.Server, error) {
-				return NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
-			},
-			create: withKeepalive(p.presenceS.UpsertNode),
+			newResource: newNodeResource,
+			create:      withKeepalive(p.presenceS.UpsertNode),
 			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
 				req := proto.ListResourcesRequest{
 					ResourceType: types.KindNode,
@@ -112,6 +138,76 @@ func TestNodes(t *testing.T) {
 				return out, resp.NextKey, nil
 			},
 			update: withKeepalive(p.presenceS.UpsertNode),
+			deleteAll: func(ctx context.Context) error {
+				return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		})
+	})
+
+	// GetSSHServer replaces GetNode as the single-node getter.
+	t.Run("GetSSHServer", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestPack(t, ForProxy)
+		t.Cleanup(p.Close)
+
+		testResources(t, p, testFuncs[types.Server]{
+			newResource: newNodeResource,
+			create:      withKeepalive(p.presenceS.UpsertNode),
+			list: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
+				return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
+			}),
+			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+				return p.cache.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
+			},
+			cacheList: getAllAdapter(func(ctx context.Context) ([]types.Server, error) {
+				return p.cache.GetNodes(ctx, apidefaults.Namespace)
+			}),
+			update: withKeepalive(p.presenceS.UpsertNode),
+			deleteAll: func(ctx context.Context) error {
+				return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		}, withSkipPaginationTest())
+	})
+
+	t.Run("ListNodes", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestPack(t, ForProxy)
+		t.Cleanup(p.Close)
+
+		testResources(t, p, testFuncs[types.Server]{
+			newResource: newNodeResource,
+			create:      withKeepalive(p.presenceS.UpsertNode),
+			list:        listNodesAdapter(p.presenceS.ListSSHServers),
+			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+				return p.cache.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
+			},
+			cacheList: listNodesAdapter(p.cache.ListSSHServers),
+			update:    withKeepalive(p.presenceS.UpsertNode),
+			deleteAll: func(ctx context.Context) error {
+				return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+			},
+		})
+	})
+
+	t.Run("RangeNodes", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestPack(t, ForProxy, ignoreRangeEndKey())
+		t.Cleanup(p.Close)
+
+		testResources(t, p, testFuncs[types.Server]{
+			newResource: newNodeResource,
+			create:      withKeepalive(p.presenceS.UpsertNode),
+			list:        listNodesAdapter(p.presenceS.ListSSHServers),
+			Range:       rangeNodesAdapter(p.presenceS.RangeSSHServers),
+			cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+				return p.cache.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
+			},
+			cacheList:  listNodesAdapter(p.cache.ListSSHServers),
+			cacheRange: rangeNodesAdapter(p.cache.RangeSSHServers),
+			update:     withKeepalive(p.presenceS.UpsertNode),
 			deleteAll: func(ctx context.Context) error {
 				return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
 			},

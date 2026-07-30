@@ -59,6 +59,7 @@ type PresenceService struct {
 	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
 	appServers   *generic.ScopeAwareService[types.AppServer]
 	kubeServers  *generic.ScopeAwareService[types.KubeServer]
+	sshServers   *generic.ScopeAwareService[types.Server]
 }
 
 type appServerServiceParams struct {
@@ -154,6 +155,22 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 	if err != nil {
 		panic("impossible: failed to construct kube_server service wrapper")
 	}
+
+	sshServers, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.Server]{
+		Backend:               b,
+		ResourceKind:          types.KindNode,
+		UnscopedBackendPrefix: nodesUnscopedPrefix(),
+		ScopedBackendPrefix:   nodesScopedPrefix(),
+		MarshalFunc:           services.MarshalServer,
+		UnmarshalFunc: func(b []byte, mo ...services.MarshalOption) (types.Server, error) {
+			server, err := services.UnmarshalServer(b, types.KindNode, mo...)
+			return server, trace.Wrap(err)
+		},
+	})
+	if err != nil {
+		panic("impossible: failed to construct node service wrapper")
+	}
+
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
@@ -162,6 +179,7 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 		relayServers: relayServers,
 		appServers:   appServers,
 		kubeServers:  kubeServers,
+		sshServers:   sshServers,
 	}
 }
 
@@ -301,83 +319,89 @@ func (s *PresenceService) upsertServer(ctx context.Context, prefix string, serve
 	return server, nil
 }
 
-// DeleteAllNodes deletes all nodes in a namespace
+// DeleteAllNodes deletes all scoped and unscoped nodes.
 func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) error {
-	startKey := backend.ExactKey(nodesPrefix, namespace)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(s.sshServers.DeleteAllResources(ctx))
 }
 
-// DeleteNode deletes node
+// DeleteNode deletes node in a namespace
+// Deprecated: use DeleteNodeV2 instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
-	key := backend.NewKey(nodesPrefix, namespace, name)
-	return s.Delete(ctx, key)
+	return s.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build())
+}
+
+// DeleteNode removes a specific scoped or unscoped node.
+func (s *PresenceService) DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error {
+	if req.GetName() == "" {
+		return trace.BadParameter("no name specified for ssh server deletion")
+	}
+	return trace.Wrap(s.sshServers.DeleteResource(ctx, scopes.QualifiedName{
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
+	}))
 }
 
 // AppendDeleteNodeActions adds conditional actions to an atomic write to
-// delete a node resource.
+// delete an unscoped node resource.
+//
+// Deprecated: use AppendDeleteScopedNodeActions instead. Kept temporarily so
+// gravitational/teleport.e compiles across the rename; remove once e has
+// migrated.
 func (s *PresenceService) AppendDeleteNodeActions(
 	actions []backend.ConditionalAction,
 	namespace string,
 	name string,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
+	return s.AppendDeleteScopedNodeActions(actions, scopes.QualifiedName{Name: name}, condition)
+}
+
+// AppendDeleteScopedNodeActions adds conditional actions to an atomic write to
+// delete a scoped or unscoped node resource.
+func (s *PresenceService) AppendDeleteScopedNodeActions(
+	actions []backend.ConditionalAction,
+	scopedName scopes.QualifiedName,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if scopedName.Name == "" {
+		return nil, trace.BadParameter("no name specified for node deletion")
+	}
+
+	svc, err := s.sshServers.WithScopePrefix(scopedName.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return append(actions, backend.ConditionalAction{
-		Key:       backend.NewKey(nodesPrefix, namespace, name),
+		Key:       svc.MakeKey(backend.NewKey(scopedName.Name)),
 		Condition: condition,
 		Action:    backend.Delete(),
 	}), nil
 }
 
-// GetNode returns a node by name and namespace.
+// GetNode returns an unscoped node by name.
+//
+// Deprecated: use GetSSHServer instead, which supports scoped nodes.
+// TODO(williamo): Remove in v20
 func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-	if name == "" {
-		return nil, trace.BadParameter("missing parameter name")
-	}
-	item, err := s.Get(ctx, backend.NewKey(nodesPrefix, namespace, name))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalServer(
-		item.Value,
-		types.KindNode,
-		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
-	)
+	return s.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 }
 
-// GetNodes returns a list of registered servers
+// GetSSHServer returns a scoped or unscoped node by name.
+func (s *PresenceService) GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	return s.sshServers.GetResource(ctx, scopes.QualifiedName{
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
+	})
+}
+
+// GetNodes returns all registered scoped and unscoped nodes.
 func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing namespace value")
-	}
-
-	// Get all items in the bucket.
-	startKey := backend.ExactKey(nodesPrefix, namespace)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindNode,
-			[]services.MarshalOption{
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision),
-			}...,
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
-	return servers, nil
+	return stream.Collect(s.sshServers.Resources(ctx, "", ""))
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
@@ -390,22 +414,18 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := itemFromNode(server)
+	upserted, err := s.sshServers.UpsertResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	_, err = s.Put(ctx, *item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if server.Expiry().IsZero() {
+	if upserted.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}
 	return &types.KeepAlive{
-		Type:  types.KeepAlive_NODE,
-		Name:  server.GetName(),
-		Scope: server.GetScope(),
+		Type:    types.KeepAlive_NODE,
+		Name:    server.GetName(),
+		Expires: upserted.Expiry(),
+		Scope:   server.GetScope(),
 	}, nil
 }
 
@@ -423,7 +443,7 @@ func (s *PresenceService) AppendPutNodeActions(
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := itemFromNode(server)
+	item, err := s.sshServers.MakeBackendItem(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -431,21 +451,8 @@ func (s *PresenceService) AppendPutNodeActions(
 	return append(actions, backend.ConditionalAction{
 		Key:       item.Key,
 		Condition: condition,
-		Action:    backend.Put(*item),
+		Action:    backend.Put(item),
 	}), nil
-}
-
-func itemFromNode(server types.Server) (*backend.Item, error) {
-	value, err := services.MarshalServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &backend.Item{
-		Key:      backend.NewKey(nodesPrefix, server.GetNamespace(), server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	}, nil
 }
 
 // UpdateNode conditionally updates the provided server.
@@ -457,18 +464,40 @@ func (s *PresenceService) UpdateNode(ctx context.Context, server types.Server) (
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := itemFromNode(server)
+	updated, err := s.sshServers.ConditionalUpdateResource(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return updated, nil
+}
 
-	lease, err := s.ConditionalUpdate(ctx, *item)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// ListSSHServers returns a page of nodes respecting scope filters, covering both the
+// unscoped and the scoped backend entries.
+func (s *PresenceService) ListSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) ([]types.Server, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	filterFn := func(server types.Server) bool {
+		return scopes.MatchScope(scopeFilter, server.GetScope())
 	}
 
-	server.SetRevision(lease.Revision)
-	return server, nil
+	return s.sshServers.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
+}
+
+// RangeSSHServers returns a sequence of nodes filtered by the given
+// [*presencev1.ListSSHServersRequest], covering both the unscoped and the scoped
+// backend entries.
+func (s *PresenceService) RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.Server](trace.Wrap(err))
+	}
+	filterFn := func(server types.Server) (types.Server, bool) {
+		return server, scopes.MatchScope(scopeFilter, server.GetScope())
+	}
+
+	return stream.FilterMap(s.sshServers.Resources(ctx, req.GetPageToken(), ""), filterFn)
 }
 
 // rangeAuthServers returns auth servers within the range [start, end]
@@ -1357,7 +1386,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	var key backend.Key
 	switch h.GetType() {
 	case constants.KeepAliveNode:
-		key = backend.NewKey(nodesPrefix, h.Namespace, h.Name)
+		if encodedScope == "" {
+			key = nodesUnscopedPrefix().AppendKey(backend.NewKey(h.Name))
+		} else {
+			key = nodesScopedPrefix().AppendKey(backend.NewKey(encodedScope, h.Name))
+		}
 	case constants.KeepAliveApp:
 		if h.HostID != "" {
 			key = backend.NewKey(appServersPrefix, h.Namespace, h.HostID, h.Name)
@@ -1589,8 +1622,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindAppServer:
 		return s.listAppServers(ctx, req)
 	case types.KindNode:
-		keyPrefix = []string{nodesPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToServer(types.KindNode)
+		return s.listSSHServers(ctx, req)
 	case types.KindWindowsDesktopService:
 		keyPrefix = []string{windowsDesktopServicesPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktopService
@@ -1740,6 +1772,47 @@ func (s *PresenceService) listKubeServers(ctx context.Context, req proto.ListRes
 
 	return &types.ListResourcesResponse{
 		Resources: types.KubeServers(servers).AsResources(),
+		NextKey:   nextKey,
+	}, nil
+}
+
+// listSSHServers returns a page of nodes retrieving both the unscoped and the
+// scoped backend entries.
+func (s *PresenceService) listSSHServers(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	var matchErr error
+	servers, nextKey, err := s.sshServers.ListResourcesWithFilter(ctx, int(req.Limit), req.StartKey, func(server types.Server) bool {
+		if matchErr != nil {
+			return false
+		}
+		match, err := services.MatchResourceByFilters(server, filter, nil /* ignore dup matches */)
+		if err != nil {
+			matchErr = err
+			return false
+		}
+		return match
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if matchErr != nil {
+		return nil, trace.Wrap(matchErr)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources: types.Servers(servers).AsResources(),
 		NextKey:   nextKey,
 	}, nil
 }
@@ -2144,11 +2217,26 @@ func (relayServerParser) prefixes() []backend.Key {
 }
 
 func kubeServersUnscopedPrefix() backend.Key {
-	return backend.NewKey("kubeServers")
+	return backend.NewKey(kubeServersPrefix)
 }
 
 func kubeServersScopedPrefix() backend.Key {
-	return backend.NewKey("scoped", "kubeServers")
+	return backend.NewKey(scopedPrefix, kubeServersPrefix)
+}
+
+// nodesUnscopedPrefix returns the backend prefix for unscoped nodes:
+//   - /nodes/default/<name>
+//
+// The legacy default namespace is part of the unscoped backend prefix, as we
+// do not support anything other than default.
+func nodesUnscopedPrefix() backend.Key {
+	return backend.NewKey(nodesPrefix, apidefaults.Namespace)
+}
+
+// nodesScopedPrefix returns the backend prefix for scoped nodes:
+//   - /scoped/nodes/<encoded-scope>/<name>
+func nodesScopedPrefix() backend.Key {
+	return backend.NewKey(scopedPrefix, nodesPrefix)
 }
 
 const (
@@ -2172,4 +2260,5 @@ const (
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
 	relayServersPrefix           = "relay_servers"
+	kubeServersPrefix            = "kubeServers"
 )
