@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -63,24 +62,20 @@ type DevicesCommand struct {
 	Stdout io.Writer
 }
 
-type osType = string
-
-// osTypes (accepted --os values) and osTypeToEnum are derived from
-// devicepb.OSType, minus UNSPECIFIED.
-var osTypes, osTypeToEnum = func() (osTypes []osType, osTypeToEnum map[osType]devicepb.OSType) {
-	osTypeToEnum = make(map[osType]devicepb.OSType, len(devicepb.OSType_value)-1)
-	for name, v := range devicepb.OSType_value {
-		ost := devicepb.OSType(v)
-		if ost == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+// osTypeFlagValues returns the accepted --os values: every [devicepb.OSType]
+// except UNSPECIFIED, spelled the way api spells it.
+func osTypeFlagValues() []string {
+	values := make([]string, 0, len(devicepb.OSType_name)-1)
+	for num := range devicepb.OSType_name {
+		osType := devicepb.OSType(num)
+		if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 			continue
 		}
-		s := strings.ToLower(strings.TrimPrefix(name, "OS_TYPE_"))
-		osTypeToEnum[s] = ost
-		osTypes = append(osTypes, s)
+		values = append(values, types.ResourceOSTypeToString(osType))
 	}
-	sort.Strings(osTypes)
-	return osTypes, osTypeToEnum
-}()
+	sort.Strings(values)
+	return values
+}
 
 func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
@@ -89,7 +84,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")
 	addCmd.Flag("os", "Operating system").
-		EnumVar(&c.add.os, osTypes...)
+		EnumVar(&c.add.os, osTypeFlagValues()...)
 	addCmd.Flag("asset-tag", "Inventory identifier for the device (e.g., Mac serial number)").
 		StringVar(&c.add.assetTag)
 	addCmd.Flag("current-device", "Registers the current device. Overrides --os and --asset-tag.").
@@ -197,10 +192,13 @@ func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Clien
 	}
 
 	if c.os != "" {
-		var ok bool
-		c.osType, ok = osTypeToEnum[c.os]
-		if !ok {
-			return trace.BadParameter("invalid --os: %v", c.os)
+		var err error
+		// kingpin makes sure that c.os is set to one of the values returned from
+		// [osTypeFlagValues], so we don't have to worry about "unspecified" here.
+		if c.osType, err = types.ResourceOSTypeFromString(c.os); err != nil {
+			// No need to re-wrap err into something specific to the --os flag, as at
+			// this point we know that c.os points to a valid OSType.
+			return trace.Wrap(err)
 		}
 	}
 

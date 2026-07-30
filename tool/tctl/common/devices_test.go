@@ -22,12 +22,16 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 func TestDeviceSourceToString(t *testing.T) {
@@ -147,4 +151,42 @@ func TestWriteCreatedLock(t *testing.T) {
 		err := writeCreatedLock("bogus", lock, &bytes.Buffer{})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	})
+}
+
+// TestOSTypeFlagValues covers the --os values offered by `tctl devices add`.
+// They come from devicepb.OSType, so an OSType that ResourceOSTypeToString
+// doesn't know about would reach the CLI as its bare proto name.
+func TestOSTypeFlagValues(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, []string{"ios", "ipados", "linux", "macos", "windows"},
+		osTypeFlagValues(), "osTypeFlagValues mismatch")
+}
+
+// TestDeviceAddOSFlag covers the --os values `tctl devices add` accepts.
+// The flag is the only thing keeping UNSPECIFIED out, as
+// [types.ResourceOSTypeFromString] resolves "unspecified" without an error.
+func TestDeviceAddOSFlag(t *testing.T) {
+	t.Parallel()
+
+	parse := func(t *testing.T, os string) error {
+		t.Helper()
+		c := DevicesCommand{}
+		app := utils.InitCLIParser("tctl", GlobalHelpString)
+		c.Initialize(app, &tctlcfg.GlobalCLIFlags{}, servicecfg.MakeDefaultConfig())
+		_, err := app.Parse([]string{"devices", "add", "--os", os, "--asset-tag", "C00AA0AAAA0A"})
+		return err
+	}
+
+	for _, os := range osTypeFlagValues() {
+		t.Run(os, func(t *testing.T) {
+			assert.NoError(t, parse(t, os), "--os %v rejected", os)
+		})
+	}
+
+	for _, os := range []string{"unspecified", "OS_TYPE_MACOS", "bogus"} {
+		t.Run("rejects "+os, func(t *testing.T) {
+			assert.ErrorContains(t, parse(t, os), "enum value must be one of ios,", "--os %v accepted", os)
+		})
+	}
 }
