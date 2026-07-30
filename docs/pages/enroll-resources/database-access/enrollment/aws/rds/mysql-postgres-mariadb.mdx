@@ -304,11 +304,24 @@ teleport-kube-agent-0   1/1     Running   0          32s
 </Tabs>
 
 <Admonition type="warning" title="Databases not appearing">
-The Database Service requires outbound HTTPS access to
-`rds.<region>.amazonaws.com` to fetch database metadata. If databases do not
-appear in `tctl db ls` within 60 seconds of starting the service, enable DEBUG
-logging (`teleport.log.severity: DEBUG` in `teleport.yaml`) and look for AWS
-API timeout errors in the Teleport logs.
+The Database Service downloads the RDS CA certificate bundle on startup from
+the following endpoint (required for mTLS connections to your database):
+
+```
+https://truststore.pki.rds.amazonaws.com/<region>/<region>-bundle.pem
+```
+
+For GovCloud regions the host is `truststore.pki.us-gov-west-1.rds.amazonaws.com`,
+and for China regions it is `truststore.pki.rds.cn-north-1.amazonaws.com.cn`.
+
+If databases do not appear in `tctl db ls` within 60 seconds of starting the
+service, ensure this endpoint is reachable and enable DEBUG logging
+(`teleport.log.severity: DEBUG` in `teleport.yaml`) to check for download
+failures.
+
+Access to the RDS API (`rds.<region>.amazonaws.com`) is used on a best-effort
+basis for fetching additional metadata (tags, engine versions) but is not
+required for database registration.
 </Admonition>
 
 ## Step 5/5. Connect
