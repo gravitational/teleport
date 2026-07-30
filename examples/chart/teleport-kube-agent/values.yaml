@@ -854,6 +854,20 @@ highAvailability:
     # available pod specified on the PodDisruptionBudget.
     minAvailable: 1
 
+    # highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy(string) -- Allow
+    # eviction of unhealthy pods even if it falls below minAvailable. When all
+    # pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
+    # server due to firewall/networking), the default policy (IfHealthyBudget)
+    # prevents draining a node.
+    unhealthyPodEvictionPolicy: AlwaysAllow
+
+    # highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy(bool) -- 
+    # enabled unhealthyPodEvictionPolicy for kubernetes clusters < v1.31. The
+    # feature became [stable in that version](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy)
+    # but is available in k8s 1.26-1.30 if explicitly enabled, and may require
+    # the PDBUnhealthyPodEvictionPolicy feature gate.
+    forceUnhealthyPodEvictionPolicy: false
+
 # podMonitor -- controls the PodMonitor CR (from monitoring.coreos.com/v1)
 # This CRD is managed by the prometheus-operator and allows workload to
 # get monitored. To use this value, you need to run a `prometheus-operator`
