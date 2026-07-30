@@ -192,37 +192,806 @@ func (b0 CreatePairedDeviceEnrollTokenResponse_builder) Build() *CreatePairedDev
 	return m0
 }
 
+// Request for EnrollDevice.
+type EnrollDeviceRequest struct {
+	state              protoimpl.MessageState        `protogen:"opaque.v1"`
+	xxx_hidden_Payload isEnrollDeviceRequest_Payload `protobuf_oneof:"payload"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *EnrollDeviceRequest) Reset() {
+	*x = EnrollDeviceRequest{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollDeviceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollDeviceRequest) ProtoMessage() {}
+
+func (x *EnrollDeviceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnrollDeviceRequest) GetInit() *EnrollDeviceInit {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_Init); ok {
+			return x.Init
+		}
+	}
+	return nil
+}
+
+func (x *EnrollDeviceRequest) GetIosChallengeResponse() *IOSEnrollChallengeResponse {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_IosChallengeResponse); ok {
+			return x.IosChallengeResponse
+		}
+	}
+	return nil
+}
+
+func (x *EnrollDeviceRequest) SetInit(v *EnrollDeviceInit) {
+	if v == nil {
+		x.xxx_hidden_Payload = nil
+		return
+	}
+	x.xxx_hidden_Payload = &enrollDeviceRequest_Init{v}
+}
+
+func (x *EnrollDeviceRequest) SetIosChallengeResponse(v *IOSEnrollChallengeResponse) {
+	if v == nil {
+		x.xxx_hidden_Payload = nil
+		return
+	}
+	x.xxx_hidden_Payload = &enrollDeviceRequest_IosChallengeResponse{v}
+}
+
+func (x *EnrollDeviceRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Payload != nil
+}
+
+func (x *EnrollDeviceRequest) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_Init)
+	return ok
+}
+
+func (x *EnrollDeviceRequest) HasIosChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_IosChallengeResponse)
+	return ok
+}
+
+func (x *EnrollDeviceRequest) ClearPayload() {
+	x.xxx_hidden_Payload = nil
+}
+
+func (x *EnrollDeviceRequest) ClearInit() {
+	if _, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_Init); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
+func (x *EnrollDeviceRequest) ClearIosChallengeResponse() {
+	if _, ok := x.xxx_hidden_Payload.(*enrollDeviceRequest_IosChallengeResponse); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
+const EnrollDeviceRequest_Payload_not_set_case case_EnrollDeviceRequest_Payload = 0
+const EnrollDeviceRequest_Init_case case_EnrollDeviceRequest_Payload = 1
+const EnrollDeviceRequest_IosChallengeResponse_case case_EnrollDeviceRequest_Payload = 2
+
+func (x *EnrollDeviceRequest) WhichPayload() case_EnrollDeviceRequest_Payload {
+	if x == nil {
+		return EnrollDeviceRequest_Payload_not_set_case
+	}
+	switch x.xxx_hidden_Payload.(type) {
+	case *enrollDeviceRequest_Init:
+		return EnrollDeviceRequest_Init_case
+	case *enrollDeviceRequest_IosChallengeResponse:
+		return EnrollDeviceRequest_IosChallengeResponse_case
+	default:
+		return EnrollDeviceRequest_Payload_not_set_case
+	}
+}
+
+type EnrollDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Payload:
+	Init                 *EnrollDeviceInit
+	IosChallengeResponse *IOSEnrollChallengeResponse
+	// -- end of xxx_hidden_Payload
+}
+
+func (b0 EnrollDeviceRequest_builder) Build() *EnrollDeviceRequest {
+	m0 := &EnrollDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.xxx_hidden_Payload = &enrollDeviceRequest_Init{b.Init}
+	}
+	if b.IosChallengeResponse != nil {
+		x.xxx_hidden_Payload = &enrollDeviceRequest_IosChallengeResponse{b.IosChallengeResponse}
+	}
+	return m0
+}
+
+type case_EnrollDeviceRequest_Payload protoreflect.FieldNumber
+
+func (x case_EnrollDeviceRequest_Payload) String() string {
+	md := file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isEnrollDeviceRequest_Payload interface {
+	isEnrollDeviceRequest_Payload()
+}
+
+type enrollDeviceRequest_Init struct {
+	Init *EnrollDeviceInit `protobuf:"bytes,1,opt,name=init,proto3,oneof"`
+}
+
+type enrollDeviceRequest_IosChallengeResponse struct {
+	IosChallengeResponse *IOSEnrollChallengeResponse `protobuf:"bytes,2,opt,name=ios_challenge_response,json=iosChallengeResponse,proto3,oneof"`
+}
+
+func (*enrollDeviceRequest_Init) isEnrollDeviceRequest_Payload() {}
+
+func (*enrollDeviceRequest_IosChallengeResponse) isEnrollDeviceRequest_Payload() {}
+
+// EnrollDeviceInit initiates the enrollment ceremony.
+type EnrollDeviceInit struct {
+	state                   protoimpl.MessageState  `protogen:"opaque.v1"`
+	xxx_hidden_Token        string                  `protobuf:"bytes,1,opt,name=token,proto3"`
+	xxx_hidden_CredentialId string                  `protobuf:"bytes,2,opt,name=credential_id,json=credentialId,proto3"`
+	xxx_hidden_DeviceData   *v1.DeviceCollectedData `protobuf:"bytes,3,opt,name=device_data,json=deviceData,proto3"`
+	xxx_hidden_Ios          *IOSEnrollPayload       `protobuf:"bytes,4,opt,name=ios,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *EnrollDeviceInit) Reset() {
+	*x = EnrollDeviceInit{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollDeviceInit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollDeviceInit) ProtoMessage() {}
+
+func (x *EnrollDeviceInit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnrollDeviceInit) GetToken() string {
+	if x != nil {
+		return x.xxx_hidden_Token
+	}
+	return ""
+}
+
+func (x *EnrollDeviceInit) GetCredentialId() string {
+	if x != nil {
+		return x.xxx_hidden_CredentialId
+	}
+	return ""
+}
+
+func (x *EnrollDeviceInit) GetDeviceData() *v1.DeviceCollectedData {
+	if x != nil {
+		return x.xxx_hidden_DeviceData
+	}
+	return nil
+}
+
+func (x *EnrollDeviceInit) GetIos() *IOSEnrollPayload {
+	if x != nil {
+		return x.xxx_hidden_Ios
+	}
+	return nil
+}
+
+func (x *EnrollDeviceInit) SetToken(v string) {
+	x.xxx_hidden_Token = v
+}
+
+func (x *EnrollDeviceInit) SetCredentialId(v string) {
+	x.xxx_hidden_CredentialId = v
+}
+
+func (x *EnrollDeviceInit) SetDeviceData(v *v1.DeviceCollectedData) {
+	x.xxx_hidden_DeviceData = v
+}
+
+func (x *EnrollDeviceInit) SetIos(v *IOSEnrollPayload) {
+	x.xxx_hidden_Ios = v
+}
+
+func (x *EnrollDeviceInit) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_DeviceData != nil
+}
+
+func (x *EnrollDeviceInit) HasIos() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Ios != nil
+}
+
+func (x *EnrollDeviceInit) ClearDeviceData() {
+	x.xxx_hidden_DeviceData = nil
+}
+
+func (x *EnrollDeviceInit) ClearIos() {
+	x.xxx_hidden_Ios = nil
+}
+
+type EnrollDeviceInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device enrollment token.
+	// See CreatePairedDeviceEnrollToken.
+	Token string
+	// ID of the device credential.
+	CredentialId string
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *v1.DeviceCollectedData
+	// Payload for data specific to iOS and iPadOS.
+	Ios *IOSEnrollPayload
+}
+
+func (b0 EnrollDeviceInit_builder) Build() *EnrollDeviceInit {
+	m0 := &EnrollDeviceInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Token = b.Token
+	x.xxx_hidden_CredentialId = b.CredentialId
+	x.xxx_hidden_DeviceData = b.DeviceData
+	x.xxx_hidden_Ios = b.Ios
+	return m0
+}
+
+// IOSEnrollPayload is the iOS- and iPadOS-specific enrollment payload.
+type IOSEnrollPayload struct {
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PublicKeyDer []byte                 `protobuf:"bytes,1,opt,name=public_key_der,json=publicKeyDer,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *IOSEnrollPayload) Reset() {
+	*x = IOSEnrollPayload{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IOSEnrollPayload) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IOSEnrollPayload) ProtoMessage() {}
+
+func (x *IOSEnrollPayload) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IOSEnrollPayload) GetPublicKeyDer() []byte {
+	if x != nil {
+		return x.xxx_hidden_PublicKeyDer
+	}
+	return nil
+}
+
+func (x *IOSEnrollPayload) SetPublicKeyDer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_PublicKeyDer = v
+}
+
+type IOSEnrollPayload_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device public key marshaled as a PKIX, ASN.1 DER.
+	PublicKeyDer []byte
+}
+
+func (b0 IOSEnrollPayload_builder) Build() *IOSEnrollPayload {
+	m0 := &IOSEnrollPayload{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PublicKeyDer = b.PublicKeyDer
+	return m0
+}
+
+// IOSEnrollChallengeResponse is an iOS and iPadOS enrollment challenge response.
+type IOSEnrollChallengeResponse struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Signature []byte                 `protobuf:"bytes,1,opt,name=signature,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *IOSEnrollChallengeResponse) Reset() {
+	*x = IOSEnrollChallengeResponse{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IOSEnrollChallengeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IOSEnrollChallengeResponse) ProtoMessage() {}
+
+func (x *IOSEnrollChallengeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IOSEnrollChallengeResponse) GetSignature() []byte {
+	if x != nil {
+		return x.xxx_hidden_Signature
+	}
+	return nil
+}
+
+func (x *IOSEnrollChallengeResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Signature = v
+}
+
+type IOSEnrollChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature over the challenge, using the device key.
+	Signature []byte
+}
+
+func (b0 IOSEnrollChallengeResponse_builder) Build() *IOSEnrollChallengeResponse {
+	m0 := &IOSEnrollChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Signature = b.Signature
+	return m0
+}
+
+// Response for EnrollDevice.
+type EnrollDeviceResponse struct {
+	state              protoimpl.MessageState         `protogen:"opaque.v1"`
+	xxx_hidden_Payload isEnrollDeviceResponse_Payload `protobuf_oneof:"payload"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *EnrollDeviceResponse) Reset() {
+	*x = EnrollDeviceResponse{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollDeviceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollDeviceResponse) ProtoMessage() {}
+
+func (x *EnrollDeviceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnrollDeviceResponse) GetSuccess() *EnrollDeviceSuccess {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_Success); ok {
+			return x.Success
+		}
+	}
+	return nil
+}
+
+func (x *EnrollDeviceResponse) GetIosChallenge() *IOSEnrollChallenge {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_IosChallenge); ok {
+			return x.IosChallenge
+		}
+	}
+	return nil
+}
+
+func (x *EnrollDeviceResponse) SetSuccess(v *EnrollDeviceSuccess) {
+	if v == nil {
+		x.xxx_hidden_Payload = nil
+		return
+	}
+	x.xxx_hidden_Payload = &enrollDeviceResponse_Success{v}
+}
+
+func (x *EnrollDeviceResponse) SetIosChallenge(v *IOSEnrollChallenge) {
+	if v == nil {
+		x.xxx_hidden_Payload = nil
+		return
+	}
+	x.xxx_hidden_Payload = &enrollDeviceResponse_IosChallenge{v}
+}
+
+func (x *EnrollDeviceResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Payload != nil
+}
+
+func (x *EnrollDeviceResponse) HasSuccess() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_Success)
+	return ok
+}
+
+func (x *EnrollDeviceResponse) HasIosChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_IosChallenge)
+	return ok
+}
+
+func (x *EnrollDeviceResponse) ClearPayload() {
+	x.xxx_hidden_Payload = nil
+}
+
+func (x *EnrollDeviceResponse) ClearSuccess() {
+	if _, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_Success); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
+func (x *EnrollDeviceResponse) ClearIosChallenge() {
+	if _, ok := x.xxx_hidden_Payload.(*enrollDeviceResponse_IosChallenge); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
+const EnrollDeviceResponse_Payload_not_set_case case_EnrollDeviceResponse_Payload = 0
+const EnrollDeviceResponse_Success_case case_EnrollDeviceResponse_Payload = 1
+const EnrollDeviceResponse_IosChallenge_case case_EnrollDeviceResponse_Payload = 2
+
+func (x *EnrollDeviceResponse) WhichPayload() case_EnrollDeviceResponse_Payload {
+	if x == nil {
+		return EnrollDeviceResponse_Payload_not_set_case
+	}
+	switch x.xxx_hidden_Payload.(type) {
+	case *enrollDeviceResponse_Success:
+		return EnrollDeviceResponse_Success_case
+	case *enrollDeviceResponse_IosChallenge:
+		return EnrollDeviceResponse_IosChallenge_case
+	default:
+		return EnrollDeviceResponse_Payload_not_set_case
+	}
+}
+
+type EnrollDeviceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Payload:
+	Success      *EnrollDeviceSuccess
+	IosChallenge *IOSEnrollChallenge
+	// -- end of xxx_hidden_Payload
+}
+
+func (b0 EnrollDeviceResponse_builder) Build() *EnrollDeviceResponse {
+	m0 := &EnrollDeviceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Success != nil {
+		x.xxx_hidden_Payload = &enrollDeviceResponse_Success{b.Success}
+	}
+	if b.IosChallenge != nil {
+		x.xxx_hidden_Payload = &enrollDeviceResponse_IosChallenge{b.IosChallenge}
+	}
+	return m0
+}
+
+type case_EnrollDeviceResponse_Payload protoreflect.FieldNumber
+
+func (x case_EnrollDeviceResponse_Payload) String() string {
+	md := file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[6].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isEnrollDeviceResponse_Payload interface {
+	isEnrollDeviceResponse_Payload()
+}
+
+type enrollDeviceResponse_Success struct {
+	Success *EnrollDeviceSuccess `protobuf:"bytes,1,opt,name=success,proto3,oneof"`
+}
+
+type enrollDeviceResponse_IosChallenge struct {
+	IosChallenge *IOSEnrollChallenge `protobuf:"bytes,2,opt,name=ios_challenge,json=iosChallenge,proto3,oneof"`
+}
+
+func (*enrollDeviceResponse_Success) isEnrollDeviceResponse_Payload() {}
+
+func (*enrollDeviceResponse_IosChallenge) isEnrollDeviceResponse_Payload() {}
+
+// EnrollDeviceSuccess marks a successful device enrollment ceremony.
+type EnrollDeviceSuccess struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Device *v1.Device             `protobuf:"bytes,1,opt,name=device,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EnrollDeviceSuccess) Reset() {
+	*x = EnrollDeviceSuccess{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrollDeviceSuccess) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrollDeviceSuccess) ProtoMessage() {}
+
+func (x *EnrollDeviceSuccess) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnrollDeviceSuccess) GetDevice() *v1.Device {
+	if x != nil {
+		return x.xxx_hidden_Device
+	}
+	return nil
+}
+
+func (x *EnrollDeviceSuccess) SetDevice(v *v1.Device) {
+	x.xxx_hidden_Device = v
+}
+
+func (x *EnrollDeviceSuccess) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Device != nil
+}
+
+func (x *EnrollDeviceSuccess) ClearDevice() {
+	x.xxx_hidden_Device = nil
+}
+
+type EnrollDeviceSuccess_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The enrolled device.
+	Device *v1.Device
+}
+
+func (b0 EnrollDeviceSuccess_builder) Build() *EnrollDeviceSuccess {
+	m0 := &EnrollDeviceSuccess{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Device = b.Device
+	return m0
+}
+
+// IOSEnrollChallenge is a iOS and iPadOS enrollment challenge.
+type IOSEnrollChallenge struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Challenge []byte                 `protobuf:"bytes,1,opt,name=challenge,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *IOSEnrollChallenge) Reset() {
+	*x = IOSEnrollChallenge{}
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IOSEnrollChallenge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IOSEnrollChallenge) ProtoMessage() {}
+
+func (x *IOSEnrollChallenge) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *IOSEnrollChallenge) GetChallenge() []byte {
+	if x != nil {
+		return x.xxx_hidden_Challenge
+	}
+	return nil
+}
+
+func (x *IOSEnrollChallenge) SetChallenge(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Challenge = v
+}
+
+type IOSEnrollChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Randomly-generated, opaque challenge to be signed using the device key.
+	Challenge []byte
+}
+
+func (b0 IOSEnrollChallenge_builder) Build() *IOSEnrollChallenge {
+	m0 := &IOSEnrollChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Challenge = b.Challenge
+	return m0
+}
+
 var File_teleport_devicetrust_public_v1_devicetrust_service_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc = "" +
 	"\n" +
-	"8teleport/devicetrust/public/v1/devicetrust_service.proto\x12\x1eteleport.devicetrust.public.v1\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\"\xa7\x01\n" +
+	"8teleport/devicetrust/public/v1/devicetrust_service.proto\x12\x1eteleport.devicetrust.public.v1\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\"\xa7\x01\n" +
 	"$CreatePairedDeviceEnrollTokenRequest\x120\n" +
 	"\x14enroll_pairing_token\x18\x01 \x01(\tR\x12enrollPairingToken\x12M\n" +
 	"\vdevice_data\x18\x02 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
 	"deviceData\"\x83\x01\n" +
 	"%CreatePairedDeviceEnrollTokenResponse\x12Z\n" +
-	"\x13device_enroll_token\x18\x01 \x01(\v2*.teleport.devicetrust.v1.DeviceEnrollTokenR\x11deviceEnrollToken2\xc3\x01\n" +
+	"\x13device_enroll_token\x18\x01 \x01(\v2*.teleport.devicetrust.v1.DeviceEnrollTokenR\x11deviceEnrollToken\"\xdc\x01\n" +
+	"\x13EnrollDeviceRequest\x12F\n" +
+	"\x04init\x18\x01 \x01(\v20.teleport.devicetrust.public.v1.EnrollDeviceInitH\x00R\x04init\x12r\n" +
+	"\x16ios_challenge_response\x18\x02 \x01(\v2:.teleport.devicetrust.public.v1.IOSEnrollChallengeResponseH\x00R\x14iosChallengeResponseB\t\n" +
+	"\apayload\"\xe0\x01\n" +
+	"\x10EnrollDeviceInit\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
+	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12M\n" +
+	"\vdevice_data\x18\x03 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
+	"deviceData\x12B\n" +
+	"\x03ios\x18\x04 \x01(\v20.teleport.devicetrust.public.v1.IOSEnrollPayloadR\x03ios\"8\n" +
+	"\x10IOSEnrollPayload\x12$\n" +
+	"\x0epublic_key_der\x18\x01 \x01(\fR\fpublicKeyDer\":\n" +
+	"\x1aIOSEnrollChallengeResponse\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\fR\tsignature\"\xcd\x01\n" +
+	"\x14EnrollDeviceResponse\x12O\n" +
+	"\asuccess\x18\x01 \x01(\v23.teleport.devicetrust.public.v1.EnrollDeviceSuccessH\x00R\asuccess\x12Y\n" +
+	"\rios_challenge\x18\x02 \x01(\v22.teleport.devicetrust.public.v1.IOSEnrollChallengeH\x00R\fiosChallengeB\t\n" +
+	"\apayload\"N\n" +
+	"\x13EnrollDeviceSuccess\x127\n" +
+	"\x06device\x18\x01 \x01(\v2\x1f.teleport.devicetrust.v1.DeviceR\x06device\"2\n" +
+	"\x12IOSEnrollChallenge\x12\x1c\n" +
+	"\tchallenge\x18\x01 \x01(\fR\tchallenge2\xc2\x02\n" +
 	"\x12DeviceTrustService\x12\xac\x01\n" +
-	"\x1dCreatePairedDeviceEnrollToken\x12D.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest\x1aE.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponseBgZegithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1b\x06proto3"
+	"\x1dCreatePairedDeviceEnrollToken\x12D.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest\x1aE.teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse\x12}\n" +
+	"\fEnrollDevice\x123.teleport.devicetrust.public.v1.EnrollDeviceRequest\x1a4.teleport.devicetrust.public.v1.EnrollDeviceResponse(\x010\x01BgZegithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1b\x06proto3"
 
-var file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_devicetrust_public_v1_devicetrust_service_proto_goTypes = []any{
 	(*CreatePairedDeviceEnrollTokenRequest)(nil),  // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
 	(*CreatePairedDeviceEnrollTokenResponse)(nil), // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
-	(*v1.DeviceCollectedData)(nil),                // 2: teleport.devicetrust.v1.DeviceCollectedData
-	(*v1.DeviceEnrollToken)(nil),                  // 3: teleport.devicetrust.v1.DeviceEnrollToken
+	(*EnrollDeviceRequest)(nil),                   // 2: teleport.devicetrust.public.v1.EnrollDeviceRequest
+	(*EnrollDeviceInit)(nil),                      // 3: teleport.devicetrust.public.v1.EnrollDeviceInit
+	(*IOSEnrollPayload)(nil),                      // 4: teleport.devicetrust.public.v1.IOSEnrollPayload
+	(*IOSEnrollChallengeResponse)(nil),            // 5: teleport.devicetrust.public.v1.IOSEnrollChallengeResponse
+	(*EnrollDeviceResponse)(nil),                  // 6: teleport.devicetrust.public.v1.EnrollDeviceResponse
+	(*EnrollDeviceSuccess)(nil),                   // 7: teleport.devicetrust.public.v1.EnrollDeviceSuccess
+	(*IOSEnrollChallenge)(nil),                    // 8: teleport.devicetrust.public.v1.IOSEnrollChallenge
+	(*v1.DeviceCollectedData)(nil),                // 9: teleport.devicetrust.v1.DeviceCollectedData
+	(*v1.DeviceEnrollToken)(nil),                  // 10: teleport.devicetrust.v1.DeviceEnrollToken
+	(*v1.Device)(nil),                             // 11: teleport.devicetrust.v1.Device
 }
 var file_teleport_devicetrust_public_v1_devicetrust_service_proto_depIdxs = []int32{
-	2, // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
-	3, // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse.device_enroll_token:type_name -> teleport.devicetrust.v1.DeviceEnrollToken
-	0, // 2: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:input_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
-	1, // 3: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:output_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	9,  // 0: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	10, // 1: teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse.device_enroll_token:type_name -> teleport.devicetrust.v1.DeviceEnrollToken
+	3,  // 2: teleport.devicetrust.public.v1.EnrollDeviceRequest.init:type_name -> teleport.devicetrust.public.v1.EnrollDeviceInit
+	5,  // 3: teleport.devicetrust.public.v1.EnrollDeviceRequest.ios_challenge_response:type_name -> teleport.devicetrust.public.v1.IOSEnrollChallengeResponse
+	9,  // 4: teleport.devicetrust.public.v1.EnrollDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	4,  // 5: teleport.devicetrust.public.v1.EnrollDeviceInit.ios:type_name -> teleport.devicetrust.public.v1.IOSEnrollPayload
+	7,  // 6: teleport.devicetrust.public.v1.EnrollDeviceResponse.success:type_name -> teleport.devicetrust.public.v1.EnrollDeviceSuccess
+	8,  // 7: teleport.devicetrust.public.v1.EnrollDeviceResponse.ios_challenge:type_name -> teleport.devicetrust.public.v1.IOSEnrollChallenge
+	11, // 8: teleport.devicetrust.public.v1.EnrollDeviceSuccess.device:type_name -> teleport.devicetrust.v1.Device
+	0,  // 9: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:input_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenRequest
+	2,  // 10: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.public.v1.EnrollDeviceRequest
+	1,  // 11: teleport.devicetrust.public.v1.DeviceTrustService.CreatePairedDeviceEnrollToken:output_type -> teleport.devicetrust.public.v1.CreatePairedDeviceEnrollTokenResponse
+	6,  // 12: teleport.devicetrust.public.v1.DeviceTrustService.EnrollDevice:output_type -> teleport.devicetrust.public.v1.EnrollDeviceResponse
+	11, // [11:13] is the sub-list for method output_type
+	9,  // [9:11] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_devicetrust_public_v1_devicetrust_service_proto_init() }
@@ -230,13 +999,21 @@ func file_teleport_devicetrust_public_v1_devicetrust_service_proto_init() {
 	if File_teleport_devicetrust_public_v1_devicetrust_service_proto != nil {
 		return
 	}
+	file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[2].OneofWrappers = []any{
+		(*enrollDeviceRequest_Init)(nil),
+		(*enrollDeviceRequest_IosChallengeResponse)(nil),
+	}
+	file_teleport_devicetrust_public_v1_devicetrust_service_proto_msgTypes[6].OneofWrappers = []any{
+		(*enrollDeviceResponse_Success)(nil),
+		(*enrollDeviceResponse_IosChallenge)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc), len(file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

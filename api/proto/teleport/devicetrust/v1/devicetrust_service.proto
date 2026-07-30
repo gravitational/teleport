@@ -184,6 +184,27 @@ service DeviceTrustService {
   //
   // Returns NotFound if the caller has no EnrollPairing.
   rpc GetCurrentEnrollPairing(GetCurrentEnrollPairingRequest) returns (GetCurrentEnrollPairingResponse);
+
+  // ApproveEnrollPairing moves the EnrollPairing for the calling user from
+  // ENROLL_PAIRING_STATE_AWAITING_APPROVAL to ENROLL_PAIRING_STATE_APPROVED,
+  // which lets CreatePairedDeviceEnrollToken on the public Device Trust
+  // service issue the enrollment token.
+  //
+  // Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+  // pairing_token, and CompareFailed if the pairing is not awaiting approval.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission.
+  rpc ApproveEnrollPairing(ApproveEnrollPairingRequest) returns (ApproveEnrollPairingResponse);
+
+  // DenyEnrollPairing deletes the EnrollPairing for the calling user. No
+  // denied state is kept, so the mobile app cannot tell a denial apart from a
+  // TTL expiration.
+  //
+  // Returns NotFound if the caller has no EnrollPairing or if it doesn't match
+  // pairing_token.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission.
+  rpc DenyEnrollPairing(DenyEnrollPairingRequest) returns (DenyEnrollPairingResponse);
 }
 
 // Request for CreateDevice.
@@ -718,3 +739,23 @@ message GetCurrentEnrollPairingResponse {
   // Current EnrollPairing for the calling user.
   EnrollPairing enroll_pairing = 1;
 }
+
+// Request for ApproveEnrollPairing.
+message ApproveEnrollPairingRequest {
+  // Pairing token of the EnrollPairing to approve. Used to guard against
+  // approving a pairing other than the one the user saw in the modal.
+  string pairing_token = 1;
+}
+
+// Response for ApproveEnrollPairing.
+message ApproveEnrollPairingResponse {}
+
+// Request for DenyEnrollPairing.
+message DenyEnrollPairingRequest {
+  // Pairing token of the EnrollPairing to deny. Used to guard against denying
+  // a pairing other than the one the user saw in the modal.
+  string pairing_token = 1;
+}
+
+// Response for DenyEnrollPairing.
+message DenyEnrollPairingResponse {}

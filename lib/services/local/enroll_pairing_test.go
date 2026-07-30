@@ -17,6 +17,7 @@
 package local_test
 
 import (
+	"context"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -279,6 +280,128 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 			assert.ErrorContains(t, err, test.errMsg)
 		})
 	}
+}
+
+func TestEnrollPairingService_ApproveEnrollPairing(t *testing.T) {
+	t.Parallel()
+
+	s := newEnrollPairingService(t)
+	device := makeDevice()
+
+	// claimed returns a pairing for user in AWAITING_APPROVAL, the only state
+	// from which it can be approved.
+	claimed := func(t *testing.T, ctx context.Context, user string) *devicepb.EnrollPairing {
+		t.Helper()
+		created, err := s.CreateEnrollPairing(ctx, user)
+		require.NoError(t, err)
+		pairing, err := s.RequestEnrollPairingApproval(ctx, created, device)
+		require.NoError(t, err)
+		return pairing
+	}
+
+	t.Run("transitions to approved", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		pairing := claimed(t, ctx, "approve-ok")
+
+		updated, err := s.ApproveEnrollPairing(ctx, pairing)
+		require.NoError(t, err)
+		assert.Equal(t,
+			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_APPROVED,
+			updated.GetStatus().GetState())
+
+		got, err := s.GetEnrollPairingByToken(ctx, pairing.GetStatus().GetToken())
+		require.NoError(t, err)
+		assert.Empty(t, cmp.Diff(updated, got, protocmp.Transform()))
+	})
+
+	t.Run("rejects a pairing that is not awaiting approval", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "approve-too-early")
+		require.NoError(t, err)
+
+		// Still AWAITING_DEVICE, no device has claimed it yet.
+		_, err = s.ApproveEnrollPairing(ctx, created)
+		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+		assert.ErrorContains(t, err, "enroll pairing is not awaiting approval")
+	})
+
+	t.Run("rejects a stale pairing that lost the compare-and-swap", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		pairing := claimed(t, ctx, "approve-stale")
+
+		fresh, err := s.GetEnrollPairingByToken(ctx, pairing.GetStatus().GetToken())
+		require.NoError(t, err)
+		_, err = s.ApproveEnrollPairing(ctx, fresh)
+		require.NoError(t, err)
+
+		_, err = s.ApproveEnrollPairing(ctx, pairing)
+		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+	})
+
+	t.Run("rejects a nil pairing", func(t *testing.T) {
+		t.Parallel()
+		_, err := s.ApproveEnrollPairing(t.Context(), nil)
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+}
+
+func TestEnrollPairingService_DeleteEnrollPairing(t *testing.T) {
+	t.Parallel()
+
+	s := newEnrollPairingService(t)
+
+	t.Run("removes the pairing and its token index", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "delete-ok")
+		require.NoError(t, err)
+
+		require.NoError(t, s.DeleteEnrollPairing(ctx, created))
+
+		_, err = s.GetCurrentEnrollPairing(ctx, "delete-ok")
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+		_, err = s.GetEnrollPairingByToken(ctx, created.GetStatus().GetToken())
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		// The name is free again, so the user can start a new pairing.
+		_, err = s.CreateEnrollPairing(ctx, "delete-ok")
+		assert.NoError(t, err)
+	})
+
+	t.Run("rejects a stale pairing", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "delete-stale")
+		require.NoError(t, err)
+
+		// Advance the stored revision so that created no longer matches. This is
+		// what keeps the pairing single-use when several callers race to consume
+		// the same approval.
+		fresh, err := s.GetEnrollPairingByToken(ctx, created.GetStatus().GetToken())
+		require.NoError(t, err)
+		_, err = s.RequestEnrollPairingApproval(ctx, fresh, makeDevice())
+		require.NoError(t, err)
+
+		assert.ErrorAs(t, s.DeleteEnrollPairing(ctx, created), new(*trace.CompareFailedError))
+	})
+
+	t.Run("rejects a second delete of the same pairing", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		created, err := s.CreateEnrollPairing(ctx, "delete-twice")
+		require.NoError(t, err)
+
+		require.NoError(t, s.DeleteEnrollPairing(ctx, created))
+		assert.ErrorAs(t, s.DeleteEnrollPairing(ctx, created), new(*trace.CompareFailedError))
+	})
+
+	t.Run("rejects a nil pairing", func(t *testing.T) {
+		t.Parallel()
+		assert.ErrorAs(t, s.DeleteEnrollPairing(t.Context(), nil), new(*trace.BadParameterError))
+	})
 }
 
 func makeDevice() *devicepb.EnrollPairingDevice {
