@@ -24,3 +24,58 @@ tests:
           path: metadata.labels.resource
           value: poddisruptionbudget
       - matchSnapshot: {}
+
+  - it: sets unhealthyPodEvictionPolicy for k8s = 1.31
+    capabilities:
+      majorVersion: 1
+      minorVersion: 31
+    values:
+      - ../.lint/pdb.yaml
+    asserts:
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+      - matchSnapshot: {}
+
+  - it: omits unhealthyPodEvictionPolicy for k8s < 1.31
+    capabilities:
+      majorVersion: 1
+      minorVersion: 30
+    values:
+      - ../.lint/pdb.yaml
+    asserts:
+      - isNull:
+          path: spec.unhealthyPodEvictionPolicy
+      - matchSnapshot: {}
+
+  - it: sets unhealthyPodEvictionPolicy k8s < 1.31 if forced
+    capabilities:
+      majorVersion: 1
+      minorVersion: 30
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          forceUnhealthyPodEvictionPolicy: true
+    asserts:
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+      - matchSnapshot: {}
+
+  - it: honors user-provided unhealthyPodEvictionPolicy
+    capabilities:
+      majorVersion: 1
+      minorVersion: 31
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: IfHealthyBudget
+    asserts:
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: IfHealthyBudget
+      - matchSnapshot: {}

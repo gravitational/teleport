@@ -1,0 +1,27 @@
+suite: Notes
+templates:
+  - NOTES.txt
+tests:
+  - it: warns when unhealthy pod eviction policy is probably unsupported
+    capabilities:
+      majorVersion: 1
+      minorVersion: 25
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          forceUnhealthyPodEvictionPolicy: true
+    asserts:
+      - matchRegexRaw:
+          pattern: WARNING
+
+  - it: warns when unhealthy pod eviction policy requires a feature gate
+    capabilities:
+      majorVersion: 1
+      minorVersion: 30
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          forceUnhealthyPodEvictionPolicy: true
+    asserts:
+      - matchRegexRaw:
+          pattern: WARNING
