@@ -141,10 +141,6 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 		})
 	}
 
-	if len(sc.GetAttributesToRoles()) == 0 {
-		return trace.BadParameter("attributes_to_roles is empty, authorization with connector would never assign any roles")
-	}
-
 	if rg != nil {
 		for _, mapping := range sc.GetAttributesToRoles() {
 			for _, role := range mapping.Roles {
