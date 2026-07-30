@@ -24,13 +24,10 @@ import (
 	"io"
 	"iter"
 	"math"
-	"os"
 	"time"
 
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -1134,25 +1131,16 @@ var SessionRecordingEvents = []string{
 	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
-	// A garbage-collected beam is recorded as a single session (played back
-	// via BeamReplayService), marked by BeamSessionEndEvent.
-	BeamSessionEndEvent,
-}
-
-func init() {
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
 	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
 	//
 	// TCP application sessions emit AppSessionEndEvent but produce no
 	// recordings, so it is excluded.
-	// This is injected at runtime to skip adding AppSessionChunkEvent to SessionRecordingEvents
-	// when running on Beams. This is because app chunk events are not playable on webui.
-	if runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleport.BeamsRuntimeEnvVar)); !runningOnBeams {
-		SessionRecordingEvents = append(
-			SessionRecordingEvents,
-			AppSessionChunkEvent,
-		)
-	}
+	AppSessionChunkEvent,
+
+	// A garbage-collected beam is recorded as a single session (played back
+	// via BeamReplayService), marked by BeamSessionEndEvent.
+	BeamSessionEndEvent,
 }
 
 // ServerMetadataGetter represents interface
