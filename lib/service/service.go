@@ -744,7 +744,7 @@ type TeleportProcess struct {
 	// auditQueueStats holds an audit-queue depth getter per emitter the process
 	// has created, keyed by the emitter pointer. AuditQueueStatus sums across
 	// them so the instance heartbeat reports the process total.
-	auditQueueStats map[any]auditQueueStatsFn
+	auditQueueStats map[auditQueueStatsGetter]struct{}
 
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
