@@ -93,29 +93,22 @@ export const Support = ({
       >
         Help & Support
       </H1>
-      <SupportSectionCard display="block" gridColumn="1 / -1">
-        <Flex
-          align={{ base: 'flex-start', sm: 'center' }}
-          justify="space-between"
-          direction={{ base: 'column', sm: 'row' }}
-          gap={2}
-          mb={4}
-        >
-          <H2 display="flex" alignItems="center">
-            <IconBox>
-              <QuestionIcon boxSize={4} />
-            </IconBox>
-            Support and Resource Pages
-          </H2>
-          {showPremiumSupportCta && (
+      <SupportSectionCard
+        title="Support and Resource Pages"
+        icon={<QuestionIcon boxSize={4} />}
+        titleAction={
+          showPremiumSupportCta && (
             <ButtonLockedFeature
               event={CtaEvent.CTA_PREMIUM_SUPPORT}
               width={{ _: '100%', small: 'auto' }}
             >
               Unlock Premium Support with&nbsp;Enterprise
             </ButtonLockedFeature>
-          )}
-        </Flex>
+          )
+        }
+        display="block"
+        gridColumn="1 / -1"
+      >
         <Flex
           justify="space-between"
           wrap="wrap"
@@ -124,10 +117,7 @@ export const Support = ({
           gap={{ base: 4, sm: 0 }}
           mb={{ base: 4, sm: 0 }}
         >
-          <Stack gap={1}>
-            <H3 ml={2} mb={1}>
-              Contact Support
-            </H3>
+          <SupportLinkCategory title="Contact Support">
             {isEnterprise && !showPremiumSupportCta && (
               <ExternalSupportLink
                 title="Create a Support Ticket"
@@ -146,11 +136,8 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
-          </Stack>
-          <Stack gap={1}>
-            <H3 ml={2} mb={1}>
-              Resources
-            </H3>
+          </SupportLinkCategory>
+          <SupportLinkCategory title="Resources">
             <ExternalSupportLink
               title="Get Started Guide"
               url={docs.getStarted}
@@ -163,11 +150,8 @@ export const Support = ({
             />
             <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
             <ExternalSupportLink title="FAQ" url={docs.faq} />
-          </Stack>
-          <Stack gap={1}>
-            <H3 ml={2} mb={1}>
-              Updates
-            </H3>
+          </SupportLinkCategory>
+          <SupportLinkCategory title="Updates">
             <ExternalSupportLink
               title="Product Changelog"
               url={docs.changeLog}
@@ -180,25 +164,25 @@ export const Support = ({
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
             />
-          </Stack>
+          </SupportLinkCategory>
         </Flex>
       </SupportSectionCard>
-      <SupportSectionCard gridColumn={isCloud ? undefined : '1 / -1'} gap={4}>
-        <H2 display="flex" alignItems="center">
-          <IconBox>
-            <GraphIcon boxSize={4} />
-          </IconBox>
-          Cluster Information
-        </H2>
-        <Subtitle2>Cluster Name: {clusterId}</Subtitle2>
-        <Subtitle2>Teleport Version: {authVersion}</Subtitle2>
-        <Subtitle2>Public Address: {publicURL}</Subtitle2>
-        {tunnelPublicAddress && (
-          <Subtitle2>Public SSH Tunnel: {tunnelPublicAddress}</Subtitle2>
-        )}
-        {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
-          <Subtitle2>License Expiry: {licenseExpiryDateText}</Subtitle2>
-        )}
+      <SupportSectionCard
+        title="Cluster Information"
+        icon={<GraphIcon boxSize={4} />}
+        gridColumn={isCloud ? undefined : '1 / -1'}
+      >
+        <Stack gap={4}>
+          <Subtitle2>Cluster Name: {clusterId}</Subtitle2>
+          <Subtitle2>Teleport Version: {authVersion}</Subtitle2>
+          <Subtitle2>Public Address: {publicURL}</Subtitle2>
+          {tunnelPublicAddress && (
+            <Subtitle2>Public SSH Tunnel: {tunnelPublicAddress}</Subtitle2>
+          )}
+          {isEnterprise && !cfg.isCloud && !!licenseExpiryDateText && (
+            <Subtitle2>License Expiry: {licenseExpiryDateText}</Subtitle2>
+          )}
+        </Stack>
       </SupportSectionCard>
 
       {children}
@@ -206,11 +190,42 @@ export const Support = ({
   );
 };
 
-export const SupportSectionCard = (props: Omit<Card.RootProps, 'css'>) => (
-  <Card.Root boxShadow="xs" p={{ base: 4, sm: 5 }} {...props} />
-);
+type SupportSectionCardProps = Omit<Card.RootProps, 'css' | 'title'> & {
+  title: string;
+  icon: React.ReactNode;
+  titleAction?: React.ReactNode;
+};
 
-export const IconBox = styled('span', {
+export const SupportSectionCard = ({
+  title,
+  icon,
+  titleAction,
+  children,
+  ...cardProps
+}: SupportSectionCardProps) => {
+  const heading = (
+    <H2 display="flex" alignItems="center" mb={titleAction ? 0 : 4}>
+      <IconBox>{icon}</IconBox>
+      {title}
+    </H2>
+  );
+
+  return (
+    <Card.Root boxShadow="xs" p={{ base: 4, sm: 5 }} {...cardProps}>
+      {titleAction ? (
+        <Flex align="center" justify="space-between" wrap="wrap" gap={2} mb={4}>
+          {heading}
+          {titleAction}
+        </Flex>
+      ) : (
+        heading
+      )}
+      {children}
+    </Card.Root>
+  );
+};
+
+const IconBox = styled('span', {
   base: {
     lineHeight: 0,
     padding: 2,
@@ -226,6 +241,21 @@ export const IconBox = styled('span', {
     },
   },
 });
+
+const SupportLinkCategory = ({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <Stack gap={1}>
+    <H3 ml={2} mb={1}>
+      {title}
+    </H3>
+    {children}
+  </Stack>
+);
 
 /**
  * getDocUrls returns an object of URLs appended with
