@@ -167,10 +167,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
-	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
+	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'.").Required().StringVar(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
-	c.botsLock.Arg("name", "Name of an existing bot to lock.").Required().StringVar(&c.botName)
+	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'.").Required().StringVar(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
@@ -283,8 +283,10 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 		}
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range bots {
+			// Same-named bots in different scopes would otherwise be identical rows.
+			name := botRef{scope: u.GetScope(), name: u.GetMetadata().GetName()}.String()
 			t.AddRow([]string{
-				u.GetMetadata().GetName(), u.GetStatus().GetUserName(), strings.Join(u.GetSpec().GetRoles(), ","),
+				name, u.GetStatus().GetUserName(), strings.Join(u.GetSpec().GetRoles(), ","),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
@@ -442,6 +444,14 @@ func (c *BotsCommand) createBoundKeypairBotToken(ctx context.Context, client bot
 
 // AddBot adds a new certificate renewal bot to the cluster.
 func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) error {
+	ref, err := parseBotRef(c.botName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ref.isScoped() {
+		return trace.Wrap(errScopedBotTokenUnsupported(ref, "creating"))
+	}
+
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -502,11 +512,8 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 			return trace.BadParameter("token %q is not valid for role %q",
 				c.tokenID, types.RoleBot)
 		}
-		// TODO(strideynet): When bots become scope namespaced, ensure this
-		// call site reflects scopedness.
-		if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
-			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				c.tokenID, tokenBotName, c.botName)
+		if err := checkTokenBot(c.tokenID, token, ref); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -544,14 +551,21 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
-		BotName: c.botName,
-	}.Build())
+	ref, err := parseBotRef(c.botName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.stdout, "Bot %q deleted successfully.\n", c.botName)
+	// The server derives the key from the scope, so a bare name never reaches a
+	// scoped bot.
+	if _, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: ref.name,
+		Scope:   ref.scope,
+	}.Build()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(c.stdout, "Bot %q deleted successfully.\n", ref)
 
 	return nil
 }
@@ -562,7 +576,21 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.Wrap(err)
 	}
 
-	user, err := client.GetUser(ctx, machineidv1.BotResourceName(c.botName), false)
+	ref, err := parseBotRef(c.botName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The backing User name encodes the scope, so the lookup key differs.
+	resourceName := machineidv1.BotResourceName(ref.name)
+	if ref.isScoped() {
+		resourceName, err = machineidv1.ScopedBotResourceName(ref.scope, ref.name)
+		if err != nil {
+			return trace.Wrap(err, "building scoped bot resource name")
+		}
+	}
+
+	user, err := client.GetUser(ctx, resourceName, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -573,8 +601,10 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.BadParameter("User %q is not a bot user; use `tctl lock` directly to lock this user", user.GetName())
 	}
 
-	if botName != c.botName {
-		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), c.botName, botName)
+	// The name label alone is ambiguous now the same name may exist in many scopes.
+	found := botRef{scope: meta.Labels[types.BotScopeLabel], name: botName}
+	if found != ref {
+		return trace.BadParameter("User %q is not associated with expected bot %q (expected %q); use `tctl lock` directly to lock this user", user.GetName(), ref, found)
 	}
 
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
@@ -582,7 +612,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 			User: user.GetName(),
 		},
 		Expires: lockExpiry,
-		Message: fmt.Sprintf("The bot user %q associated with bot %q has been locked.", user.GetName(), c.botName),
+		Message: fmt.Sprintf("The bot user %q associated with bot %q has been locked.", user.GetName(), ref),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -690,8 +720,21 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClie
 
 // UpdateBot performs various updates to existing bot users and roles.
 func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) error {
+	ref, err := parseBotRef(c.botName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ref.isScoped() {
+		// Nothing this command can set is settable on a scoped bot, so the RPC
+		// would refuse the request anyway.
+		return trace.BadParameter(
+			"cannot update scoped bot %q: scoped bots have no updatable fields "+
+				"(roles are granted with scoped role assignments)", ref,
+		)
+	}
+
 	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
-		BotName: c.botName,
+		BotName: ref.name,
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
@@ -734,7 +777,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 		return trace.Wrap(err)
 	}
 
-	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", c.botName)
+	slog.InfoContext(ctx, "Bot has been updated, roles will take effect on its next renewal", "bot", ref.name)
 
 	return nil
 }
@@ -744,18 +787,11 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	// The bot may be given as a scope-qualified name (<scope>::<bot name>) to
 	// list instances of a scoped bot; a bare name lists instances of an
 	// unscoped bot.
-	botName := c.botName
-	var botScope string
-	if scopes.MaybeSQN(botName) {
-		qn, err := scopes.ParseQualifiedName(botName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := qn.StrongValidate(); err != nil {
-			return trace.Wrap(err)
-		}
-		botScope, botName = qn.Scope, qn.Name
+	ref, err := parseBotRef(c.botName)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	botName, botScope := ref.name, ref.scope
 
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
@@ -835,7 +871,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		if c.botName == "" {
 			fmt.Fprintln(c.stdout, "No bot instances found.")
 		} else {
-			fmt.Fprintf(c.stdout, "No bot instances found with name %q.\n", c.botName)
+			fmt.Fprintf(c.stdout, "No bot instances found with name %q.\n", ref)
 		}
 		return nil
 	}
@@ -910,9 +946,9 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
-	// 'bots instances add' does not support scoped bots yet.
-	if c.botName != "" && botScope == "" {
-		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
+	// 'bots instances add' refuses scoped bots, so don't advertise it for one.
+	if c.botName != "" && !ref.isScoped() {
+		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, ref)
 	}
 
 	return nil
@@ -923,6 +959,14 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 	// A bit of a misnomer but makes the terminology a bit more consistent. This
 	// doesn't directly create a bot instance, but creates token that allows a
 	// bot to join, which creates a new instance.
+	ref, err := parseBotRef(c.botName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ref.isScoped() {
+		return trace.Wrap(errScopedBotTokenUnsupported(ref, "onboarding an instance of"))
+	}
+
 	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 	if err == nil {
@@ -985,14 +1029,41 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.BadParameter("token %q is not valid for role %q",
 			c.tokenID, types.RoleBot)
 	}
-	// TODO(strideynet): When bots become scope namespaced, ensure this call
-	// site reflects scopedness.
-	if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
-		return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-			c.tokenID, tokenBotName, c.botName)
+	if err := checkTokenBot(c.tokenID, token, ref); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(c.outputToken(ctx, client, bot, token))
+}
+
+// checkTokenBot verifies that the join token references the bot the caller
+// named. Classic tokens always report an empty scope, so a scoped ref can never
+// match, which is correct.
+func checkTokenBot(tokenID string, token types.ProvisionToken, ref botRef) error {
+	name, scope := token.GetBot()
+	return trace.Wrap(checkBotRefMatches(tokenID, botRef{scope: scope, name: name}, ref))
+}
+
+func checkBotRefMatches(tokenID string, tokenBot, ref botRef) error {
+	if tokenBot != ref {
+		return trace.BadParameter("token %q is valid for bot %q, not %q",
+			tokenID, tokenBot, ref)
+	}
+	return nil
+}
+
+// errScopedBotTokenUnsupported explains that the token-minting `tctl bots`
+// subcommands cannot serve a scoped bot: classic provision tokens can only
+// reference unscoped bots, and this command does not create scoped_tokens.
+func errScopedBotTokenUnsupported(ref botRef, verb string) error {
+	return trace.BadParameter(
+		"%s a scoped bot is not supported by this command (got %q)\n"+
+			"hint: a scoped bot joins with a scoped token, which this command cannot create.\n"+
+			"  Apply one with 'tctl create -f': a scoped_token in scope %q with spec.bot: %q,\n"+
+			"  spec.usage_mode: bot, spec.roles: [Bot] and spec.join_method: bound_keypair.\n"+
+			"  The bot also needs a scoped role assignment applicable to its scope before it can join.",
+		verb, ref, ref.scope, ref,
+	)
 }
 
 var showMessageTemplate = template.Must(template.New("show").Funcs(template.FuncMap{
@@ -1351,6 +1422,43 @@ func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) s
 		}
 		return "Unknown"
 	}
+}
+
+// botRef is a parsed command-line reference to a bot. A bare name and a
+// scope-qualified name address different bots even for an identical name.
+type botRef struct {
+	// scope is empty for an unscoped bot.
+	scope string
+	name  string
+}
+
+// String returns the scope-qualified name, or the bare name when unscoped.
+func (r botRef) String() string {
+	if r.scope == "" {
+		return r.name
+	}
+	return scopes.QualifiedName{Scope: r.scope, Name: r.name}.String()
+}
+
+func (r botRef) isScoped() bool {
+	return r.scope != ""
+}
+
+// parseBotRef parses a bot reference of the form '[<scope>::]<name>'. An empty
+// input yields an empty unscoped ref, which callers accepting "all bots" rely on.
+func parseBotRef(s string) (botRef, error) {
+	if !scopes.MaybeSQN(s) {
+		return botRef{name: s}, nil
+	}
+
+	qn, err := scopes.ParseQualifiedName(s)
+	if err != nil {
+		return botRef{}, trace.Wrap(err)
+	}
+	if err := qn.StrongValidate(); err != nil {
+		return botRef{}, trace.Wrap(err)
+	}
+	return botRef{scope: qn.Scope, name: qn.Name}, nil
 }
 
 // parseInstanceID converts an instance ID string in the form of
