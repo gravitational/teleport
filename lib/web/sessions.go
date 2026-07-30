@@ -645,6 +645,8 @@ type sessionCacheOptions struct {
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
 	buildType                           string
+	// See [sessionCache.rootClientDialOptions]. Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -687,6 +689,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
 		buildType:                           config.buildType,
+		rootClientDialOptions:               config.rootClientDialOptions,
 	}
 
 	// periodically close expired and unused sessions
@@ -751,6 +754,9 @@ type sessionCache struct {
 	// May be nil.
 	// Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
+	// rootClientDialOptions contains additional gRPC dial options for root clients.
+	// Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -1214,6 +1220,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
+		DialOpts:             s.rootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
