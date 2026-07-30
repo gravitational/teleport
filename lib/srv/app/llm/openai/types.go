@@ -57,6 +57,8 @@ type apiRequest interface {
 	EnableReportUsage()
 	DisableDataRetention()
 	Validate() error
+	GetOutputTokens() *int
+	SetOutputTokens(int)
 }
 
 // responsesAPIRequest contains part of the fields from responses API request
@@ -64,10 +66,11 @@ type apiRequest interface {
 //
 // https://developers.openai.com/api/reference/resources/responses/methods/create
 type responsesAPIRequest struct {
-	Model      string `json:"model"`
-	Stream     bool   `json:"stream"`
-	Background bool   `json:"background"`
-	Store      bool   `json:"store"`
+	Model           string `json:"model"`
+	Stream          bool   `json:"stream"`
+	Background      bool   `json:"background"`
+	Store           bool   `json:"store"`
+	MaxOutputTokens *int   `json:"max_output_tokens"`
 
 	raw map[string]json.RawMessage `json:"-"`
 }
@@ -78,10 +81,12 @@ func (r *responsesAPIRequest) DisableDataRetention() {
 }
 
 // Nothing to do, usage is always reported on responses API.
-func (r *responsesAPIRequest) EnableReportUsage()    {}
-func (r *responsesAPIRequest) GetModel() string      { return r.Model }
-func (r *responsesAPIRequest) GetStream() bool       { return r.Stream }
-func (r *responsesAPIRequest) SetModel(model string) { r.Model = model }
+func (r *responsesAPIRequest) EnableReportUsage()               {}
+func (r *responsesAPIRequest) GetModel() string                 { return r.Model }
+func (r *responsesAPIRequest) GetStream() bool                  { return r.Stream }
+func (r *responsesAPIRequest) SetModel(model string)            { r.Model = model }
+func (r *responsesAPIRequest) SetOutputTokens(outputTokens int) { r.MaxOutputTokens = &outputTokens }
+func (r *responsesAPIRequest) GetOutputTokens() *int            { return r.MaxOutputTokens }
 func (r *responsesAPIRequest) Validate() error {
 	if r.Background {
 		return llmerrors.NewProviderError(llmerrors.ErrUnsupported, "background responses not supported")
@@ -112,7 +117,7 @@ func (r *responsesAPIRequest) UnmarshalJSON(data []byte) error {
 
 	for key := range raw {
 		switch strings.ToLower(key) {
-		case "model", "stream", "store", "background":
+		case "model", "stream", "store", "background", "max_output_tokens":
 			delete(raw, key)
 		default:
 		}
@@ -123,7 +128,7 @@ func (r *responsesAPIRequest) UnmarshalJSON(data []byte) error {
 }
 
 func (r responsesAPIRequest) MarshalJSON() ([]byte, error) {
-	final := make(map[string]json.RawMessage, len(r.raw)+2) // Current len + taken fields.
+	final := make(map[string]json.RawMessage, len(r.raw)+5) // Current len + taken fields.
 	maps.Copy(final, r.raw)
 	if err := marshalField(final, "model", r.Model); err != nil {
 		return nil, trace.Wrap(err)
@@ -138,6 +143,11 @@ func (r responsesAPIRequest) MarshalJSON() ([]byte, error) {
 	}
 	if err := marshalField(final, "store", r.Store); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if r.MaxOutputTokens != nil {
+		if err := marshalField(final, "max_output_tokens", r.MaxOutputTokens); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	res, err := utils.FastMarshal(final)
 	return res, trace.Wrap(err)
@@ -158,10 +168,11 @@ type chatCompletionsAPIRequestStreamOptions struct {
 //
 // https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
 type chatCompletionsAPIRequest struct {
-	Model         string                                 `json:"model"`
-	Stream        bool                                   `json:"stream"`
-	StreamOptions chatCompletionsAPIRequestStreamOptions `json:"stream_options"`
-	Store         bool                                   `json:"store"`
+	Model               string                                 `json:"model"`
+	Stream              bool                                   `json:"stream"`
+	StreamOptions       chatCompletionsAPIRequestStreamOptions `json:"stream_options"`
+	Store               bool                                   `json:"store"`
+	MaxCompletionTokens *int                                   `json:"max_completion_tokens"`
 
 	raw map[string]json.RawMessage `json:"-"`
 }
@@ -176,6 +187,10 @@ func (r *chatCompletionsAPIRequest) EnableReportUsage() {
 func (r *chatCompletionsAPIRequest) GetModel() string      { return r.Model }
 func (r *chatCompletionsAPIRequest) GetStream() bool       { return r.Stream }
 func (r *chatCompletionsAPIRequest) SetModel(model string) { r.Model = model }
+func (r *chatCompletionsAPIRequest) GetOutputTokens() *int { return r.MaxCompletionTokens }
+func (r *chatCompletionsAPIRequest) SetOutputTokens(outputTokens int) {
+	r.MaxCompletionTokens = &outputTokens
+}
 func (r *chatCompletionsAPIRequest) Validate() error {
 	if r.Store {
 		return llmerrors.NewProviderError(llmerrors.ErrUnsupported, "storing chat completions not supported")
@@ -198,7 +213,7 @@ func (r *chatCompletionsAPIRequest) UnmarshalJSON(data []byte) error {
 
 	for key := range raw {
 		switch strings.ToLower(key) {
-		case "model", "stream", "stream_options", "store":
+		case "model", "stream", "stream_options", "store", "max_completion_tokens":
 			delete(raw, key)
 		default:
 		}
@@ -209,7 +224,7 @@ func (r *chatCompletionsAPIRequest) UnmarshalJSON(data []byte) error {
 }
 
 func (r chatCompletionsAPIRequest) MarshalJSON() ([]byte, error) {
-	final := make(map[string]json.RawMessage, len(r.raw)+4) // Current len + taken fields.
+	final := make(map[string]json.RawMessage, len(r.raw)+5) // Current len + taken fields.
 	maps.Copy(final, r.raw)
 	if err := marshalField(final, "model", r.Model); err != nil {
 		return nil, trace.Wrap(err)
@@ -219,6 +234,11 @@ func (r chatCompletionsAPIRequest) MarshalJSON() ([]byte, error) {
 	}
 	if err := marshalField(final, "store", r.Store); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if r.MaxCompletionTokens != nil {
+		if err := marshalField(final, "max_completion_tokens", r.MaxCompletionTokens); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	// We must include `stream_options` only for streaming requests, as some
 	// providers might reject it as bad request.
