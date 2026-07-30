@@ -82,6 +82,7 @@ export const Support = ({
       maxWidth="2000px"
       minHeight="100%"
       flexShrink={0}
+      alignContent="start"
       p={{ base: 2, sm: 7 }}
       pb={{ base: 6, sm: 10 }}
     >
@@ -89,7 +90,7 @@ export const Support = ({
         gridColumn="1 / -1"
         whiteSpace="nowrap"
         py={3}
-        mb={{ base: 3, sm: 1 }}
+        mb={{ base: 4, sm: 2 }}
       >
         Help & Support
       </H1>
