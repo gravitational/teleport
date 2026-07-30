@@ -36,6 +36,14 @@ type cachedRole struct {
 	wire string
 }
 
+func (cr *cachedRole) cloneRole() *types.RoleV6 {
+	role := new(types.RoleV6)
+	if err := role.Unmarshal([]byte(cr.wire)); err != nil {
+		panic(err)
+	}
+	return role
+}
+
 func newRoleCollection(a services.Access, w types.WatchKind) (*collection[*cachedRole, roleIndex], error) {
 	if a == nil {
 		return nil, trace.BadParameter("missing parameter Access")
@@ -45,7 +53,7 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[*cache
 		types.KindRole,
 		func(cr *cachedRole) *cachedRole {
 			return &cachedRole{
-				role: cloneRoleV6(cr.role),
+				role: cr.cloneRole(),
 				wire: cr.wire,
 			}
 		},
@@ -124,7 +132,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 
 	roles := make([]types.Role, 0, rg.store.len())
 	for cr := range rg.store.resources(roleNameIndex, "", "") {
-		roles = append(roles, cloneRoleV6(cr.role))
+		roles = append(roles, cr.cloneRole())
 	}
 
 	return roles, nil
@@ -168,7 +176,7 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 			break
 		}
 
-		resp.Roles = append(resp.Roles, cloneRoleV6(cr.role))
+		resp.Roles = append(resp.Roles, cr.cloneRole())
 
 	}
 	return &resp, nil
@@ -247,7 +255,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return role, trace.Wrap(err)
 	}
 
-	r, err := rg.store.get(roleNameIndex, name)
+	cr, err := rg.store.get(roleNameIndex, name)
 	if err != nil {
 		// release read lock early
 		rg.Release()
@@ -265,14 +273,5 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return cloneRoleV6(r.role), nil
-}
-
-func cloneRoleV6(src *types.RoleV6) *types.RoleV6 {
-	if src == nil {
-		return nil
-	}
-	dst := new(types.RoleV6)
-	gogoproto.Merge(dst, src)
-	return dst
+	return cr.cloneRole(), nil
 }
