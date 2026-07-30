@@ -14,8 +14,9 @@ Teleport maintains two separate CAs for database access:
   `tctl auth export --type=db-client`.
 
 When using `tctl auth sign`, the output files are:
-- `server.cas`: The Database Client CA certificate (for your database to verify
-  connections from Teleport).
+- `server.cas`: A CA bundle for your database to trust - contains the Database
+  Client CA certificate, which your database uses to verify connections from
+  the Teleport Database Service.
 - `server.crt`: A server certificate for your database, signed by the Database CA.
 - `server.key`: The private key for the server certificate.
 </Admonition>
