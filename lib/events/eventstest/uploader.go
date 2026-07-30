@@ -334,8 +334,8 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 
 // UploadReplayObject uploads a named beam-replay artifact object and returns
 // URL with uploaded file in case of success.
-func (m *MemoryUploader) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, readCloser io.Reader) (string, error) {
-	data, err := io.ReadAll(readCloser)
+func (m *MemoryUploader) UploadReplayObject(ctx context.Context, sessionID session.ID, name string, reader io.Reader) (string, error) {
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

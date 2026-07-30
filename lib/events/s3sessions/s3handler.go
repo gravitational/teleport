@@ -493,22 +493,31 @@ func (h *Handler) StreamReplayObjectRange(ctx context.Context, sessionID session
 	}
 
 	contentLength := aws.ToInt64(headOutput.ContentLength)
-
-	end := contentLength - 1
-	if length > 0 {
-		end = offset + length - 1
+	if offset < 0 || offset > contentLength {
+		return nil, trace.BadParameter("offset %d out of range for replay object of length %d", offset, contentLength)
 	}
-	rangeStr := fmt.Sprintf("bytes=%d-%d", offset, end)
 
-	output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.Bucket),
-		Key:    aws.String(path),
-		Range:  aws.String(rangeStr),
-	})
-	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+	rangeLength := contentLength - offset
+	if length > 0 && length < rangeLength {
+		rangeLength = length
 	}
-	return output.Body, nil
+	if rangeLength == 0 {
+		return io.NopCloser(bytes.NewReader(nil)), nil
+	}
+
+	end := offset + rangeLength - 1
+	return downloadretrier.New(ctx, rangeLength, func(ctx context.Context, retryOffset int64) (io.ReadCloser, error) {
+		rangeStr := fmt.Sprintf("bytes=%d-%d", offset+retryOffset, end)
+		output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(h.Bucket),
+			Key:    aws.String(path),
+			Range:  aws.String(rangeStr),
+		})
+		if err != nil {
+			return nil, awsutils.ConvertS3Error(err)
+		}
+		return output.Body, nil
+	}), nil
 }
 
 // StreamSessionMetadata downloads a session's metadata from an S3 bucket and

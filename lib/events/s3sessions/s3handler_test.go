@@ -19,13 +19,18 @@
 package s3sessions
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strings"
 	"testing"
+	"testing/iotest"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
@@ -153,6 +158,94 @@ func TestReplayObjectNameRejectsPathTraversal(t *testing.T) {
 			require.True(t, trace.IsBadParameter(err), "StreamReplayObjectRange(%q): got %v", name, err)
 		})
 	}
+}
+
+func TestStreamReplayObjectRangeRetries(t *testing.T) {
+	data := []byte("0123456789")
+
+	tests := []struct {
+		name       string
+		length     int64
+		firstBody  func() io.ReadCloser
+		want       []byte
+		wantRanges []string
+	}{
+		{
+			name:   "truncated range",
+			length: 6,
+			firstBody: func() io.ReadCloser {
+				return io.NopCloser(bytes.NewReader(data[2:5]))
+			},
+			want:       data[2:8],
+			wantRanges: []string{"bytes=2-7", "bytes=5-7"},
+		},
+		{
+			name:   "connection error",
+			length: 0,
+			firstBody: func() io.ReadCloser {
+				return io.NopCloser(io.MultiReader(
+					bytes.NewReader(data[2:5]),
+					iotest.ErrReader(errors.New("connection reset")),
+				))
+			},
+			want:       data[2:],
+			wantRanges: []string{"bytes=2-9", "bytes=5-9"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &replayRangeS3Client{
+				t:         t,
+				data:      data,
+				firstBody: tt.firstBody(),
+			}
+			h := &Handler{
+				Config: Config{Bucket: "recordings"},
+				client: client,
+			}
+
+			rc, err := h.StreamReplayObjectRange(t.Context(), session.ID("beam-1"), "blob.0", 2, tt.length)
+			require.NoError(t, err)
+			defer rc.Close()
+
+			got, err := io.ReadAll(rc)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantRanges, client.ranges)
+		})
+	}
+}
+
+type replayRangeS3Client struct {
+	s3Client
+	t         *testing.T
+	data      []byte
+	firstBody io.ReadCloser
+	ranges    []string
+}
+
+func (c *replayRangeS3Client) HeadObject(context.Context, *s3.HeadObjectInput, ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return &s3.HeadObjectOutput{ContentLength: aws.Int64(int64(len(c.data)))}, nil
+}
+
+func (c *replayRangeS3Client) GetObject(_ context.Context, input *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	rangeStr := aws.ToString(input.Range)
+	c.ranges = append(c.ranges, rangeStr)
+	if c.firstBody != nil {
+		body := c.firstBody
+		c.firstBody = nil
+		return &s3.GetObjectOutput{Body: body}, nil
+	}
+
+	var start, end int64
+	_, err := fmt.Sscanf(rangeStr, "bytes=%d-%d", &start, &end)
+	require.NoError(c.t, err)
+	require.GreaterOrEqual(c.t, start, int64(0))
+	require.Less(c.t, end, int64(len(c.data)))
+	return &s3.GetObjectOutput{
+		Body: io.NopCloser(bytes.NewReader(c.data[start : end+1])),
+	}, nil
 }
 
 func TestEnsureBucket(t *testing.T) {
