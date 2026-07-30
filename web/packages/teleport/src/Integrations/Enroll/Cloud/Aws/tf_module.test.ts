@@ -245,13 +245,13 @@ describe('buildTerraformConfig', () => {
       expect(result).not.toContain('aws_child_account_iam_role_template');
     });
 
-    test('enabled, includes wildcard by default', () => {
+    test('enabled', () => {
       const result = buildTerraformConfig({
         ...baseConfig,
         orgUnits: { include: [], exclude: [] },
       });
 
-      expect(result).toContain('include = ["*"]');
+      expect(result).toContain('include = []');
       expect(result).not.toContain('exclude');
       expect(result).toContain('output "aws_child_account_iam_role_template"');
     });

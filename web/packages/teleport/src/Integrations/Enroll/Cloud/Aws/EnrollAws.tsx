@@ -24,8 +24,11 @@ import { MarkInverse } from 'design/Mark';
 import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
-import Validation from 'shared/components/Validation';
-import { requiredIntegrationName } from 'shared/components/Validation/rules';
+import Validation, { useRule } from 'shared/components/Validation';
+import {
+  requiredField,
+  requiredIntegrationName,
+} from 'shared/components/Validation/rules';
 
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
@@ -263,6 +266,10 @@ type ScopeSectionProps = {
   onOrgUnitsChange: (config: AwsOrganizationalUnits) => void;
 };
 
+const includeOrgUnitsRule = requiredField(
+  'At least one organizational unit is required.'
+);
+
 export function ScopeSection({
   scope,
   onScopeChange,
@@ -270,6 +277,9 @@ export function ScopeSection({
   onOrgUnitsChange,
 }: ScopeSectionProps) {
   const isOrganization = scope === 'organization';
+  const includeValidationResult = useRule(
+    includeOrgUnitsRule(orgUnits.include)
+  );
 
   return (
     <>
@@ -298,6 +308,7 @@ export function ScopeSection({
           <Box ml={4} mb={3} maxWidth={432}>
             <FieldMultiInput
               label="Include Organizational Units"
+              required
               tooltipContent={
                 <>
                   Use <MarkInverse>*</MarkInverse> or the root organizational
@@ -309,6 +320,15 @@ export function ScopeSection({
               placeholder="r-xy"
               onChange={include => onOrgUnitsChange({ ...orgUnits, include })}
             />
+            {!includeValidationResult.valid && (
+              <Text
+                color="interactive.solid.danger.default"
+                fontSize={1}
+                mt={1}
+              >
+                {includeValidationResult.message}
+              </Text>
+            )}
           </Box>
           <Box ml={4} mb={3} maxWidth={432}>
             <FieldMultiInput
