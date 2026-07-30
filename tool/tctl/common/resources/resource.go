@@ -95,6 +95,7 @@ func Handlers() map[string]Handler {
 		types.KindTrustedCluster:                     trustedClusterHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
+		types.KindUserLoginState:                     userLoginStateHandler(),
 		types.KindUserTask:                           userTasksHandler(),
 		types.KindBeamsConfig:                        beamsConfigHandler(),
 		types.KindVnetConfig:                         vnetConfigHandler(),
