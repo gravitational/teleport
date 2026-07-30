@@ -1191,7 +1191,7 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, filtered, 3)
 
-	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
+	require.NoError(t, presence.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: nodes[0].GetName()}.Build()))
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)

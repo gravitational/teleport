@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	config "github.com/gravitational/teleport/lib/cloud/aws/config"
@@ -172,8 +173,8 @@ func checkPendingTime(iid *imds.InstanceIdentityDocument, provisionToken provisi
 	return nil
 }
 
-func nodeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	_, err := presence.GetNode(ctx, defaults.Namespace, hostID)
+func nodeExists(ctx context.Context, presence services.Presence, hostID, scope string) (bool, error) {
+	_, err := presence.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: hostID, Scope: scope}.Build())
 	switch {
 	case trace.IsNotFound(err):
 		return false, nil
@@ -182,6 +183,7 @@ func nodeExists(ctx context.Context, presence services.Presence, hostID string) 
 	default:
 		return true, nil
 	}
+	return false, nil
 }
 
 func proxyExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {

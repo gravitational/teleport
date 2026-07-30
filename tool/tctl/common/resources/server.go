@@ -20,20 +20,19 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -120,12 +119,12 @@ func getScopedNode(ctx context.Context, client *authclient.Client, subKind strin
 		// harm in falling back to the unscoped handler here.
 		return getServer(ctx, client, services.Ref{Kind: types.KindNode}, opts)
 	}
-	node, err := client.GetNode(ctx, defaults.Namespace, sqn.Name)
+	node, err := client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if node.GetScope() != sqn.Scope {
-		return nil, scopeMismatchNotFound(types.KindNode, *sqn, node.GetScope())
 	}
 	return &ServerCollection{servers: []types.Server{node}}, nil
 }
@@ -134,14 +133,10 @@ func deleteScopedNode(ctx context.Context, client *authclient.Client, subKind st
 	if subKind != "" {
 		return rejectSubKind(types.KindNode, subKind)
 	}
-	node, err := client.GetNode(ctx, defaults.Namespace, sqn.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if node.GetScope() != sqn.Scope {
-		return scopeMismatchNotFound(types.KindNode, sqn, node.GetScope())
-	}
-	if err := client.DeleteNode(ctx, defaults.Namespace, sqn.Name); err != nil {
+	if err := client.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("node %v has been deleted\n", sqn.String())
@@ -155,7 +150,11 @@ func createServer(ctx context.Context, client *authclient.Client, raw services.U
 	}
 
 	name := server.GetName()
-	_, err = client.GetNode(ctx, server.GetNamespace(), name)
+	scope := server.GetScope()
+	_, err = client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Scope: scope,
+		Name:  name,
+	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -172,64 +171,52 @@ func createServer(ctx context.Context, client *authclient.Client, raw services.U
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %q has been %s\n", name, upsertVerb(exists, opts.Force))
+	fmt.Printf("node %q has been %s\n", scopes.QualifiedName{Name: name, Scope: scope}.String(), upsertVerb(exists, opts.Force))
 	return nil
 }
 
 func deleteServer(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteNode(ctx, defaults.Namespace, ref.Name); err != nil {
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{Name: ref.Name}
+	}
+	if err := client.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Scope: sqn.Scope,
+		Name:  sqn.Name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("node %v has been deleted\n", ref.Name)
+	fmt.Printf("node %v has been deleted\n", sqn.String())
 	return nil
 }
 
 func getServer(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	var search []string
-	if ref.Name != "" {
-		search = []string{ref.Name}
+	nodes, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+		return client.ListSSHServers(ctx, presencev1.ListSSHServersRequest_builder{
+			PageSize:    int32(pageSize),
+			PageToken:   pageToken,
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	req := proto.ListUnifiedResourcesRequest{
-		Kinds:          []string{types.KindNode},
-		SearchKeywords: search,
-		SortBy:         types.SortBy{Field: types.ResourceKind},
+	if ref.Name == "" {
+		return NewServerCollection(nodes), nil
 	}
 
-	var collection ServerCollection
-	for {
-		page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, r := range page {
-			srv, ok := r.ResourceWithLabels.(types.Server)
-			if !ok {
-				slog.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
-				continue
-			}
-
-			if ref.Name == "" {
-				collection.servers = append(collection.servers, srv)
-				continue
-			}
-
-			if srv.GetName() == ref.Name || srv.GetHostname() == ref.Name {
-				collection.servers = []types.Server{srv}
-				return &collection, nil
-			}
-		}
-
-		req.StartKey = next
-		if req.StartKey == "" {
-			break
-		}
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{Name: ref.Name}
 	}
 
-	if len(collection.servers) == 0 && ref.Name != "" {
-		return nil, trace.NotFound("node with ID %q not found", ref.Name)
+	// Nodes may be referenced by ID or by hostname, so hostname is supplied as
+	// an alternate name.
+	nodes = FilterBySQNOrDiscoveredName(nodes, sqn, types.Server.GetHostname)
+	if len(nodes) == 0 {
+		return nil, trace.NotFound("node with ID %q not found", sqn.String())
 	}
 
-	return &collection, nil
+	return NewServerCollection(nodes), nil
 }

@@ -3648,37 +3648,29 @@ func TestNodesCRUD(t *testing.T) {
 		t.Run("GetNode", func(t *testing.T) {
 			t.Parallel()
 			// Get Node
-			node, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+			node, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(node1, node,
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 			// GetNode should fail if node name isn't provided
-			_, err = clt.GetNode(ctx, apidefaults.Namespace, "")
-			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
-
-			// GetNode should fail if namespace isn't provided
-			_, err = clt.GetNode(ctx, "", "node1")
+			_, err = clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: ""}.Build())
 			require.True(t, trace.IsBadParameter(err), "trace.IsBadParameter failed: err=%v (%T)", err, trace.Unwrap(err))
 		})
 	})
 
 	t.Run("DeleteNode", func(t *testing.T) {
-		// Make sure can't delete with empty namespace or name.
-		err = clt.DeleteNode(ctx, apidefaults.Namespace, "")
-		require.Error(t, err)
-		require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-		err = clt.DeleteNode(ctx, "", node1.GetName())
+		// Make sure can't delete with empty name.
+		err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: ""}.Build())
 		require.Error(t, err)
 		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		// Delete node.
-		err = clt.DeleteNode(ctx, apidefaults.Namespace, node1.GetName())
+		err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node1.GetName()}.Build())
 		require.NoError(t, err)
 
 		// Expect node not found
-		_, err := clt.GetNode(ctx, apidefaults.Namespace, "node1")
+		_, err := clt.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "node1"}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
@@ -7374,7 +7366,7 @@ func TestScopedWatchEvents(t *testing.T) {
 		{
 			name:          "scoped host watching disallowed kind",
 			client:        scopedClient,
-			kind:          types.KindNode,
+			kind:          types.KindDatabase,
 			expectFailure: true,
 		},
 		{
@@ -7385,7 +7377,7 @@ func TestScopedWatchEvents(t *testing.T) {
 		{
 			name:          "scope pinned host watching disallowed kind",
 			client:        scopePinnedClient,
-			kind:          types.KindNode,
+			kind:          types.KindDatabase,
 			expectFailure: true,
 		},
 	}

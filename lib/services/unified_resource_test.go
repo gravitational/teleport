@@ -1217,7 +1217,7 @@ func TestUnifiedResourceWatcher_DeleteEvent(t *testing.T) {
 	kubeServers = kubeServers[1:]
 
 	// delete everything else
-	err = clt.DeleteNode(ctx, "default", node.GetName())
+	err = clt.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: node.GetName()}.Build())
 	require.NoError(t, err)
 	err = clt.DeleteSAMLIdPServiceProvider(ctx, samlapp.GetName())
 	require.NoError(t, err)

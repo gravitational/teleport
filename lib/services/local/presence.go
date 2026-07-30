@@ -325,7 +325,7 @@ func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) 
 }
 
 // DeleteNode deletes node in a namespace
-// Deprecated: use DeleteNodeV2 instead, which supports scoped nodes.
+// Deprecated: use DeleteSSHServer instead, which supports scoped nodes.
 // TODO(williamo): Remove in v20
 func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
 	return s.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build())

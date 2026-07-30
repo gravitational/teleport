@@ -634,7 +634,7 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteNode(t.Context(), defaults.Namespace, hostID))
+				require.NoError(t, a.DeleteSSHServer(t.Context(), presencev1.DeleteSSHServerRequest_builder{Name: hostID}.Build()))
 			},
 		},
 		{

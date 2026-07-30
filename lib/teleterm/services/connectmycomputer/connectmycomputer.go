@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
@@ -547,7 +548,7 @@ func (n *NodeDelete) Run(ctx context.Context, presence Presence, cluster *cluste
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = presence.DeleteNode(ctx, apidefaults.Namespace, hostUUID)
+	err = presence.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: hostUUID}.Build())
 	if trace.IsNotFound(err) {
 		return nil
 	}
@@ -580,7 +581,7 @@ func (n *NodeDeleteConfig) checkAndSetDefaults() error {
 // During a normal operation, auth.ClientI is passed as this interface.
 type Presence interface {
 	// See services.Presence.GetNode.
-	DeleteNode(ctx context.Context, namespace, name string) error
+	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
 }
 
 type NodeName struct {

@@ -64,6 +64,10 @@ type Backend interface {
 	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
 
 	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
+
+	GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (types.Server, error)
+	RangeSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) iter.Seq2[types.Server, error]
+	DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) error
 }
 
 type Cache interface {
@@ -849,4 +853,133 @@ func (s *Service) DeleteKubeServer(
 		return nil, trace.Wrap(err)
 	}
 	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
+}
+
+// GetNode returns the specified node resource.
+func (s *Service) GetNode(ctx context.Context, req *presencepb.GetSSHServerRequest) (*presencepb.GetSSHServerResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	node, err := s.backend.GetSSHServer(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbRead); err != nil {
+			return err
+		}
+		return checker.SSH().CanAccessSSHServer(node)
+	}); err != nil {
+		if trace.IsAccessDenied(err) {
+			return nil, trace.NotFound("not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	nodeV2, ok := node.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid node")
+	}
+	return presencepb.GetSSHServerResponse_builder{
+		Server: nodeV2,
+	}.Build(), nil
+}
+
+// getCursorForNode wraps [services.GetCursorForNode] with a signature
+// referencing [*types.ServerV2] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForNode(node *types.ServerV2) string {
+	return services.GetCursorForNode(node)
+}
+
+// ListNodes returns a page of registered nodes.
+func (s *Service) ListNodes(ctx context.Context, req *presencepb.ListSSHServersRequest) (*presencepb.ListSSHServersResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	servers, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeSSHServers(ctx, req),
+			func(node types.Server) (*types.ServerV2, bool) {
+				// Filter out nodes the user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.SSH().CanAccessSSHServer(node)
+				}); err == nil {
+					nodeV2, ok := node.(*types.ServerV2)
+					return nodeV2, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForNode,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListSSHServersResponse_builder{
+		Servers:       servers,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteSSHServer removes the specified node resource.
+func (s *Service) DeleteNode(ctx context.Context, req *presencepb.DeleteSSHServerRequest) (*presencepb.DeleteSSHServerResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure the user has access to the node before deleting it.
+	node, err := s.backend.GetSSHServer(ctx, presencepb.GetSSHServerRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbDelete); err != nil {
+			return err
+		}
+		return checker.SSH().CanAccessSSHServer(node)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteSSHServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteSSHServerResponse_builder{}.Build(), nil
 }

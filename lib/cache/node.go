@@ -167,7 +167,7 @@ func (c *Cache) ListSSHServers(ctx context.Context, req *presencev1.ListSSHServe
 // RangeSSHServers returns a sequence of nodes filtered by the given
 // [*presencev1.ListSSHServersRequest].
 func (c *Cache) RangeSSHServers(ctx context.Context, req *presencev1.ListSSHServersRequest) iter.Seq2[types.Server, error] {
-	ctx, span := c.Tracer.Start(ctx, "cache/RangeNodes")
+	ctx, span := c.Tracer.Start(ctx, "cache/RangeSSHServers")
 	defer span.End()
 
 	scopeFilter := req.GetScopeFilter()
