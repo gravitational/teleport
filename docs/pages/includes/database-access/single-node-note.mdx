@@ -1,15 +1,22 @@
-<Admonition type="tip" title="Single-node deployments">
-If you are running the Database Service as a separate process on the same host
-as the Teleport Proxy Service, the reverse tunnel may fail to connect through
-the proxy's public address due to NAT hairpinning limitations in some cloud
-environments (notably GCP and certain on-prem setups). To resolve this, add
-your proxy domain to `/etc/hosts` pointing to `127.0.0.1`:
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport
+  Database Service, separate from the host(s) running the Teleport Auth
+  Service and Proxy Service.
 
-```code
-$ echo "127.0.0.1 teleport.example.com" | sudo tee -a /etc/hosts
-```
-{/* vale off */}
+  <details>
+  <summary>Running the Database Service on the same host</summary>
 
-Alternatively, run all Teleport services in a single process (auth, proxy, and
-database service in one `teleport.yaml`) to avoid the reverse tunnel entirely.
-</Admonition>
+  If you run the Database Service as a separate process on the same host as
+  the Proxy Service, the reverse tunnel may fail to connect through the
+  proxy's public address due to NAT hairpinning limitations in some cloud
+  environments (notably GCP and certain on-prem setups). To resolve this, add
+  your proxy domain to `/etc/hosts` pointing to `127.0.0.1`:
+
+  ```code
+  $ echo "127.0.0.1 teleport.example.com" | sudo tee -a /etc/hosts
+  ```
+
+  Alternatively, run all Teleport services in a single process (auth, proxy,
+  and database service in one `teleport.yaml`) to avoid the reverse tunnel
+  entirely.
+
+  </details>
