@@ -84,8 +84,9 @@ const buildOrgDiscovery = (
   const exclude = orgUnits.exclude.filter(s => s.trim());
 
   const organizationalUnits: TFObject = {
-    include: include.length > 0 ? include : ['*'],
+    include,
   };
+
   if (exclude.length > 0) {
     organizationalUnits.exclude = exclude;
   }
