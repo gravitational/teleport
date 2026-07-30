@@ -30,7 +30,7 @@ export type DeepLinkParseResult =
   // ergonomic. Unfortunately, `if (!result.ok)` doesn't narrow down the type properly with
   // strictNullChecks off. https://github.com/microsoft/TypeScript/issues/10564
   | DeepLinkParseResultSuccess
-  | ParseError<'malformed-url', { error: TypeError }>
+  | ParseError<'malformed-url', { error: unknown }>
   | ParseError<'unknown-protocol', { protocol: string }>
   | ParseError<'unsupported-url'>;
 
@@ -69,12 +69,10 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
   try {
     parsedURL = new URL(rawUrl);
   } catch (error) {
-    // `error instanceof TypeError` doesn't work in tests. The URL constructor shouldn't throw other
-    // errors anyway.
     return {
       status: 'error',
       reason: 'malformed-url',
-      error: error as TypeError,
+      error,
     };
   }
 

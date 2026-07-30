@@ -23,7 +23,11 @@ import path from 'node:path';
 import { app, dialog, nativeTheme } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
-import { ensureError, isErrnoException } from 'shared/utils/error';
+import {
+  ensureError,
+  getErrorMessage,
+  isErrnoException,
+} from 'shared/utils/error';
 
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -366,7 +370,7 @@ function launchDeepLink(
         break;
       }
       case 'malformed-url': {
-        reason = `malformed URL (${result.error.message})`;
+        reason = `malformed URL (${getErrorMessage(result.error)})`;
         break;
       }
       default: {
