@@ -81,9 +81,9 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 }
 
 // validateAccessRequest implements [ValidateAccessRequest]. With
-// allowUnenforceable set, constraints with nil Details (content this
-// build couldn't decode, see [types.ResourceConstraints.UnmarshalJSON])
-// pass validation, keeping requests written by newer Auths readable.
+// allowUnenforceable set, unenforceable constraints (see
+// [types.ResourceConstraints.Unenforceable]) pass validation, keeping
+// requests written by newer Auths readable.
 func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) error {
 	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
@@ -104,18 +104,19 @@ func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) erro
 	}
 
 	for _, r := range ar.GetRequestedResourceAccessIDs() {
-		if r.GetConstraints() == nil {
+		rc := r.GetConstraints()
+		if rc == nil {
 			continue
 		}
-		if allowUnenforceable && r.GetConstraints().Details == nil {
+		if allowUnenforceable && rc.Unenforceable() {
 			// Skip all validation; these may carry a newer version.
 			continue
 		}
-		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
+		if err := rc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		kind := r.GetResourceID().Kind
-		switch c := r.GetConstraints().Details.(type) {
+		switch c := rc.Details.(type) {
 		case *types.ResourceConstraints_AwsConsole:
 			if kind != types.KindApp {
 				return trace.BadParameter("aws_console constraints are not valid for resource kind %q", kind)

@@ -71,30 +71,41 @@ func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
 	strict := &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
-	strictErr := strict.Unmarshal(bytes.NewReader(b), rc)
-	if strictErr == nil {
-		if rc.Version == "" || rc.Version == ResourceConstraintVersionV1 {
-			return nil
-		}
-		// Fields all decoded, but the version is newer than this build
-		// understands. Zero all but the version; enforcement denies
-		// constraints with nil Details instead of the whole identity
-		// failing to decode.
-		*rc = ResourceConstraints{Version: rc.Version}
-		return nil
+	if err := strict.Unmarshal(bytes.NewReader(b), rc); err != nil {
+		// Content that doesn't strictly decode: an unknown kind, or an
+		// unknown field in a known one.
+		return trace.Wrap(rc.unmarshalVersionOnly(b, err))
 	}
-	// Same for content that doesn't strictly decode: an unknown kind, or
-	// an unknown field in a known one.
+	if rc.Version != "" && rc.Version != ResourceConstraintVersionV1 {
+		// Fields all decoded, but the version is newer than this build
+		// understands. Keep only the version; the entry becomes
+		// unenforceable.
+		*rc = ResourceConstraints{Version: rc.Version}
+	}
+	return nil
+}
+
+// unmarshalVersionOnly resets rc to carry only the version found in b,
+// leaving it unenforceable for enforcement to deny. If b yields no version
+// at all, rc is zeroed and strictErr is returned so the caller doesn't use
+// a half-parsed value.
+func (rc *ResourceConstraints) unmarshalVersionOnly(b []byte, strictErr error) error {
 	var v struct {
 		Version string `json:"version"`
 	}
 	if err := json.Unmarshal(b, &v); err != nil {
-		// Don't leave a half-parsed value behind.
 		*rc = ResourceConstraints{}
-		return trace.Wrap(strictErr)
+		return strictErr
 	}
 	*rc = ResourceConstraints{Version: v.Version}
 	return nil
+}
+
+// Unenforceable reports whether the constraints carry content this build
+// cannot decode or validate. Such entries must deny their resource at
+// enforcement rather than being treated as unconstrained.
+func (rc *ResourceConstraints) Unenforceable() bool {
+	return rc != nil && rc.Details == nil
 }
 
 // Validate ensures RoleArns is non-nil and contains Role ARNs.

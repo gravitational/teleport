@@ -508,17 +508,14 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) (allowedResourc
 		if id.ClusterName != a.localCluster || !matchesUCRResource(resourceID, r) {
 			continue
 		}
-		// Constraints this build couldn't decode (see
-		// [types.ResourceConstraints.UnmarshalJSON]). Deny the resource
-		// rather than ignoring them.
-		if rc := resourceID.GetConstraints(); rc != nil && rc.Details == nil {
+		if resourceID.GetConstraints().Unenforceable() {
 			if isLoggingEnabled {
-				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, matched resource ID carries constraints this build cannot enforce",
+				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, matched resource ID carries constraints this component cannot enforce",
 					slog.String("resource_id", types.ResourceIDToString(id)),
 				)
 			}
 			return allowedResourceMatch{}, trace.AccessDenied(
-				"access to %v %+q denied, it carries constraints this component cannot enforce; the constraints may have been created by a newer Teleport version",
+				"access to %v %+q denied because it carries constraints this component cannot enforce; they may have been created by a newer Teleport version",
 				r.GetKind(), r.GetName())
 		}
 		if match == nil {

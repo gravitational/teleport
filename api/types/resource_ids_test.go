@@ -843,6 +843,16 @@ func TestResourceConstraintsDecodeDegradesUnknown(t *testing.T) {
 			input:       `{"version":"v2"}`,
 			wantVersion: "v2",
 		},
+		{
+			name:        "unknown kind without version",
+			input:       `{"some_future_kind":{"names":["a"]}}`,
+			wantVersion: "",
+		},
+		{
+			name:        "empty object",
+			input:       `{}`,
+			wantVersion: "",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
