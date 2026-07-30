@@ -187,6 +187,23 @@ export function DesktopSession({
   }, [anotherDesktopActiveAttempt.status, runCheckIsAnotherDesktopActive]);
 
   const canvasRendererRef = useRef<CanvasRendererRef>(null);
+
+  // Live RDP sessions paint via the wasm WebGL painter (zero-copy, GPU
+  // composite). Flip to `false` to fall back to the legacy 2D bitmap path.
+  const webgl = true;
+
+  // Provide the canvas to the FastPath processor lazily. Registered here (not
+  // on the ref directly) so it's resolved at connection-activation time, when
+  // the canvas is guaranteed mounted.
+  useEffect(() => {
+    if (!webgl) {
+      return;
+    }
+    client.setCanvasProvider(
+      () => canvasRendererRef.current?.getCanvas() ?? undefined
+    );
+  }, [client, webgl]);
+
   const initialTdpConnectionSucceeded = useRef(false);
   const onInitialTdpConnectionSucceeded = useCallback(() => {
     // The first image fragment we see signals a successful TDP connection.
@@ -267,7 +284,17 @@ export function DesktopSession({
       [onInitialTdpConnectionSucceeded]
     )
   );
-  useListener(client.onReset, canvasRendererRef.current?.clear);
+  // With the WebGL painter attached, onBmpFrame never fires (wasm paints
+  // directly), so the first-frame signal comes from onFrameRendered instead.
+  useListener(client.onFrameRendered, onInitialTdpConnectionSucceeded);
+  useListener(
+    client.onReset,
+    useCallback(() => {
+      canvasRendererRef.current?.clear();
+      // Clear the GPU canvas too; CanvasRenderer.clear is a no-op in WebGL mode.
+      client.clearCanvas();
+    }, [client])
+  );
   useListener(client.onScreenSpec, canvasRendererRef.current?.setResolution);
 
   const [latencyStats, setLatencyStats] = useState<Latency | undefined>();
@@ -528,6 +555,7 @@ export function DesktopSession({
         onContextMenu={handleContextMenu}
         onResize={client.resize}
         isHiDpi={isHiDpi}
+        webgl={webgl}
       />
     </Flex>
   );

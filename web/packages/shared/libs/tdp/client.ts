@@ -83,6 +83,11 @@ export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
   TDP_BMP_FRAME = 'tdp bmp frame',
+  // FRAME_RENDERED fires once per FastPath process() call that painted at
+  // least one region. Unlike TDP_BMP_FRAME it carries no pixels and is
+  // emitted regardless of render path, so it works when the WebGL painter
+  // draws directly (and TDP_BMP_FRAME is never emitted).
+  FRAME_RENDERED = 'frame rendered',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
   // Represents either a remote TDP error or a client-side error.
   ERROR = 'error',
@@ -107,6 +112,7 @@ type EventMap = {
   [TdpClientEvent.TDP_CLIENT_SCREEN_SPEC]: [ClientScreenSpec];
   [TdpClientEvent.TDP_PNG_FRAME]: [PngFrame];
   [TdpClientEvent.TDP_BMP_FRAME]: [BitmapFrame];
+  [TdpClientEvent.FRAME_RENDERED]: [void];
   [TdpClientEvent.TDP_CLIPBOARD_DATA]: [ClipboardData];
   [TdpClientEvent.ERROR]: [Error];
   [TdpClientEvent.TDP_WARNING]: [string];
@@ -179,6 +185,11 @@ export class TdpClient extends EventEmitter<EventMap> {
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
+  // Supplies the `<canvas>` the FastPath processor should paint into with the
+  // WebGL painter. When set (and it returns a canvas at connection-activation
+  // time), the processor paints directly on the GPU and TDP_BMP_FRAME is never
+  // emitted. Left unset by legacy 2D consumers (e.g. the recording player).
+  private canvasProvider: (() => HTMLCanvasElement | undefined) | undefined;
   private directoryManager: SharedDirectoryManager;
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
@@ -324,6 +335,11 @@ export class TdpClient extends EventEmitter<EventMap> {
     return () => this.off(TdpClientEvent.TDP_BMP_FRAME, listener);
   };
 
+  onFrameRendered = (listener: () => void) => {
+    this.on(TdpClientEvent.FRAME_RENDERED, listener);
+    return () => this.off(TdpClientEvent.FRAME_RENDERED, listener);
+  };
+
   onPngFrame = (listener: (pngFrame: PngFrame) => void) => {
     this.on(TdpClientEvent.TDP_PNG_FRAME, listener);
     return () => this.off(TdpClientEvent.TDP_PNG_FRAME, listener);
@@ -393,6 +409,22 @@ export class TdpClient extends EventEmitter<EventMap> {
     init_wasm_log(wasmLogLevel);
   }
 
+  /**
+   * Registers a provider for the `<canvas>` the FastPath processor should
+   * paint into via the WebGL painter. The provider is invoked lazily at
+   * connection-activation time (when the canvas is guaranteed mounted), so
+   * callers can register it before the canvas exists without a race.
+   * Consumers that don't call this keep the legacy 2D `TDP_BMP_FRAME` path.
+   */
+  setCanvasProvider(provider: () => HTMLCanvasElement | undefined) {
+    this.canvasProvider = provider;
+  }
+
+  /** Clears the WebGL painter's canvas, if one is attached. No-op otherwise. */
+  clearCanvas() {
+    this.fastPathProcessor?.clearCanvas();
+  }
+
   private initFastPathProcessor(
     ioChannelId: number,
     userChannelId: number,
@@ -410,6 +442,21 @@ export class TdpClient extends EventEmitter<EventMap> {
       userChannelId,
       shareId
     );
+
+    // If a canvas is available, attach it so graphics updates are painted
+    // straight to the GPU (zero-copy) instead of copied out as bitmap frames.
+    const canvas = this.canvasProvider?.();
+    if (canvas) {
+      try {
+        this.fastPathProcessor.attachCanvas(canvas);
+      } catch (err) {
+        this.logger.error(
+          'failed to attach canvas to fast path processor; ' +
+            'falling back to the bitmap-frame path',
+          err
+        );
+      }
+    }
   }
 
   // processMessage should be await-ed when called,
@@ -615,7 +662,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       throw new Error('FastPathProcessor not initialized');
     }
 
-    this.fastPathProcessor.process(
+    const painted = this.fastPathProcessor.process(
       rdpFastPathPdu,
       this,
       (bmpFrame: BitmapFrame) => {
@@ -628,6 +675,13 @@ export class TdpClient extends EventEmitter<EventMap> {
         this.emit(TdpClientEvent.POINTER, { data, hotspot_x, hotspot_y });
       }
     );
+
+    // Signal that a frame was painted (path-agnostic). Consumers use this to
+    // detect the first rendered frame; with the WebGL painter attached the
+    // draw_cb above is never called, so TDP_BMP_FRAME can't serve that role.
+    if (painted) {
+      this.emit(TdpClientEvent.FRAME_RENDERED);
+    }
   }
 
   handleMfaChallenge(mfaJson: MfaJson) {
