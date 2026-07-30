@@ -624,9 +624,13 @@ describe('BotDetails', () => {
       await user.click(screen.getByText('Delete Bot'));
 
       // The operation is delayed to account for backend cache lag
-      await waitForElementToBeRemoved(
-        () => screen.queryByText('Delete test-bot-name?'),
-        { timeout: 5_000 }
+      await waitFor(
+        () => {
+          expect(
+            screen.queryByText('Delete test-bot-name?')
+          ).not.toBeInTheDocument();
+        },
+        { timeout: 5000 }
       );
 
       await waitFor(
