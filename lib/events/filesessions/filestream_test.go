@@ -23,8 +23,10 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
@@ -51,6 +53,63 @@ func TestReserveUploadPart(t *testing.T) {
 	fi, err := os.Stat(handler.reservationPath(*upload, partNumber))
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, fi.Size(), int64(minUploadBytes))
+}
+
+// TestReserveUploadPartPathTraversal verifies that a crafted upload whose
+// session ID contains path separators cannot reserve a part outside the
+// upload directory.
+func TestReserveUploadPartPathTraversal(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	upload, err := handler.CreateUpload(ctx, session.NewID())
+	require.NoError(t, err)
+
+	// reservationPath joins the upload dir with string(upload.SessionID), so
+	// "../outside" would escape the upload directory before any validation.
+	upload.SessionID = session.ID("../outside")
+
+	err = handler.ReserveUploadPart(ctx, *upload, int64(1))
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T: %v", err, err)
+}
+
+// TestListUploadsSkipsInvalidSessionDir verifies that an on-disk upload whose
+// session subdirectory is not a valid UUID is skipped by ListUploads instead
+// of being returned, so a stale or corrupt directory cannot make the upload
+// completer fail on every pass.
+func TestListUploadsSkipsInvalidSessionDir(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	upload, err := handler.CreateUpload(ctx, session.NewID())
+	require.NoError(t, err)
+
+	// Plant an upload directory with a valid upload ID but a non-UUID
+	// session subdirectory.
+	badUpload, err := handler.CreateUpload(ctx, session.NewID())
+	require.NoError(t, err)
+	require.NoError(t, os.Rename(
+		handler.uploadPath(*badUpload),
+		filepath.Join(handler.uploadRootPath(*badUpload), "not-a-uuid"),
+	))
+
+	uploads, err := handler.ListUploads(ctx)
+	require.NoError(t, err)
+	require.Len(t, uploads, 1)
+	require.Equal(t, upload.ID, uploads[0].ID)
 }
 
 func TestUploadPart(t *testing.T) {

@@ -120,6 +120,9 @@ func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
 
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -353,6 +356,11 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 			h.logger.WarnContext(ctx, "Skipping upload, not a directory.", "upload_id", uploadID)
 			continue
 		}
+		sessionID := session.ID(filepath.Base(files[0].Name()))
+		if err := sessionID.Check(); err != nil {
+			h.logger.WarnContext(ctx, "Skipping upload with bad session ID format", "upload_id", uploadID, "error", err)
+			continue
+		}
 
 		info, err := dir.Info()
 		if err != nil {
@@ -361,7 +369,7 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 
 		uploads = append(uploads, events.StreamUpload{
-			SessionID: session.ID(filepath.Base(files[0].Name())),
+			SessionID: sessionID,
 			ID:        uploadID,
 			Initiated: info.ModTime(),
 		})
@@ -384,6 +392,9 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
+	if err := checkUpload(upload); err != nil {
+		return trace.Wrap(err)
+	}
 	reservationPath := h.reservationPath(upload, partNumber)
 	if err := h.fileRecorder.ReservePart(ctx, reservationPath, reservationSize); err != nil {
 		return trace.Wrap(err)
@@ -434,13 +445,16 @@ func partFromFileName(fileName string) (int64, error) {
 }
 
 // checkUpload checks that upload IDs are valid
-// and in addition verifies that upload ID is a valid UUID
-// to avoid file scanning by passing bogus upload ID file paths
+// and in addition verifies that the upload ID and session ID are valid UUIDs
+// to avoid file scanning by passing bogus IDs as file paths
 func checkUpload(upload events.StreamUpload) error {
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := checkUploadID(upload.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := upload.SessionID.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
