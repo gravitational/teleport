@@ -14821,10 +14821,9 @@ func TestGetAccessCapabilitiesScopedRBAC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
 			callerUser, err := types.NewUser(tt.callerUser)
 			require.NoError(t, err)
-			callerUser, err = srv.AuthServer.CreateUser(ctx, callerUser)
+			callerUser, err = srv.AuthServer.CreateUser(t.Context(), callerUser)
 			require.NoError(t, err)
 
 			callerIdentity := authz.LocalUser{
@@ -14844,7 +14843,7 @@ func TestGetAccessCapabilitiesScopedRBAC(t *testing.T) {
 			})
 			t.Cleanup(func() { server.Close() })
 
-			_, err = server.GetAccessCapabilities(authz.ContextWithUser(ctx, callerIdentity), types.AccessCapabilitiesRequest{
+			_, err = server.GetAccessCapabilities(authz.ContextWithUser(t.Context(), callerIdentity), types.AccessCapabilitiesRequest{
 				User: tt.queriedUser,
 			})
 			if tt.wantAccessDenied {
