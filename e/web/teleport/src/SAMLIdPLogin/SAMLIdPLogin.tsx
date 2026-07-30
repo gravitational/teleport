@@ -5,7 +5,7 @@ import { Alert, Flex, H1, Indicator } from 'design';
 import CardError, { AccessDenied } from 'design/CardError';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { bufferToBase64url } from 'shared/utils/base64';
-import { isAbortError } from 'shared/utils/error';
+import { getErrorMessage, isAbortError } from 'shared/utils/error';
 
 import cfg from 'e-teleport/config';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -99,7 +99,7 @@ export function SAMLIdPLogin() {
 
         setAttempt({
           status: 'failed',
-          statusText: err.message,
+          statusText: getErrorMessage(err),
         });
       }
     }

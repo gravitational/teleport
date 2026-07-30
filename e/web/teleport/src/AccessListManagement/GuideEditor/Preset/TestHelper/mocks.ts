@@ -1,6 +1,7 @@
 import { delay, http, HttpHandler, HttpResponse } from 'msw';
 
 import { UnifiedResourceApp } from 'shared/components/UnifiedResources';
+import { getErrorMessage } from 'shared/utils/error';
 
 import cfg from 'e-teleport/config';
 import { apps } from 'teleport/Apps/fixtures';
@@ -498,7 +499,7 @@ export async function withCustomError(
     await processCallback();
   } catch (error) {
     // Provide custom error message.
-    throw new Error(`For field "${field}": ${error.message}`, {
+    throw new Error(`For field "${field}": ${getErrorMessage(error)}`, {
       cause: error,
     });
   }

@@ -72,7 +72,7 @@ export function AttemptStatus<T>({
   if (updateAttempt.status === 'error') {
     return (
       <Status status="error">
-        Failed to overwrite GitHub integration: {updateAttempt.error.message}
+        Failed to overwrite GitHub integration: {updateAttempt.statusText}
       </Status>
     );
   }
@@ -88,7 +88,7 @@ export function AttemptStatus<T>({
         </>
       );
     } else {
-      msg = <>{createAttempt.error.message}</>;
+      msg = <>{createAttempt.statusText}</>;
       preMsg = `Failed to create ${resource}: `;
     }
 

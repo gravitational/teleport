@@ -17,6 +17,7 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredAll } from 'shared/components/Validation/rules';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+import { getErrorMessage } from 'shared/utils/error';
 
 import ecfg from 'e-teleport/config';
 import { Header } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Shared';
@@ -166,7 +167,7 @@ export function AwsIcOidcIntegration() {
       return {
         status: 'error',
         error: e,
-        statusText: e.message,
+        statusText: getErrorMessage(e),
         data: null,
       };
     }

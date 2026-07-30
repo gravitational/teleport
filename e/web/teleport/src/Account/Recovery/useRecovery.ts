@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrorMessage } from 'shared/utils/error';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
 import { isValidEmail } from 'e-teleport/validations/email';
@@ -42,7 +43,7 @@ export default function useRecovery(
         const metadata = await ctx.recoveryService.fetchRecoveryCodesMetadata();
         setCreatedDate(metadata.createdDate);
       } catch (e) {
-        onError?.(e.message);
+        onError?.(getErrorMessage(e));
         throw e;
       }
     });

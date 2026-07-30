@@ -20,10 +20,12 @@ import {
   ResourceIDString,
 } from 'shared/services/accessRequests';
 import { isAbortError } from 'shared/utils/abortError';
+import { getErrorMessage } from 'shared/utils/error';
 
 import Ctx from 'e-teleport/teleportContextE';
 import cfg from 'teleport/config';
 import type { ResourceFilter } from 'teleport/services/agents';
+import { ApiError } from 'teleport/services/api/parseError';
 import { PermissionSet } from 'teleport/services/apps';
 import { KubeResource } from 'teleport/services/kube';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -96,7 +98,7 @@ export function useNewRequest(ctx: Ctx) {
         // Any subsequent attempts to create a request will be handled further along the path,
         // where errors are already managed. This notification is placed at the "start" of
         // an access request to prevent users from building up their cart only to encounter failure later.
-        if (err?.response?.status === 403) {
+        if (err instanceof ApiError && err.response.status === 403) {
           setDryRunAttempt({
             status: 'failed',
             statusText:
@@ -267,7 +269,7 @@ export function useNewRequest(ctx: Ctx) {
         if (!abortController.signal.aborted) {
           setUserGroupFetchAttempt({
             status: 'failed',
-            statusText: err.message,
+            statusText: getErrorMessage(err),
           });
         }
       }
