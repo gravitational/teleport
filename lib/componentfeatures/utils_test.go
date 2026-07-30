@@ -471,3 +471,54 @@ func mustServerWithFeatures(t *testing.T, name string, feats *componentfeaturesv
 	}
 	return srv
 }
+
+// TestAdvertisedFeatureSets details the exact feature sets each component
+// is expected to advertise.
+func TestAdvertisedFeatureSets(t *testing.T) {
+	t.Parallel()
+
+	awsApp, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, "localhost", "host-1")
+	require.NoError(t, err)
+	internalApp, err := types.NewAppV3(types.Metadata{Name: "internal-app"}, types.AppSpecV3{URI: "https://internal.example.com"})
+	require.NoError(t, err)
+	internalAppServer, err := types.NewAppServerV3FromApp(internalApp, "localhost", "host-1")
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		got  *componentfeaturesv1.ComponentFeatures
+		want []FeatureID
+	}{
+		"auth": {
+			got: ForAuthServer(),
+			want: []FeatureID{
+				FeatureResourceConstraintsV1,
+				FeatureResourceConstraintsSSHV1,
+			},
+		},
+		"ssh server": {
+			got: ForSSHServer(),
+			want: []FeatureID{
+				FeatureResourceConstraintsV1,
+				FeatureResourceConstraintsSSHV1,
+			},
+		},
+		"aws console app server": {
+			got:  ForAppServer(awsAppServer),
+			want: []FeatureID{FeatureResourceConstraintsV1},
+		},
+		"internal app server": {
+			got:  ForAppServer(internalAppServer),
+			want: nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var want []componentfeaturesv1.ComponentFeatureID
+			for _, f := range tc.want {
+				want = append(want, f.ToProto())
+			}
+			require.ElementsMatch(t, want, tc.got.GetFeatures())
+		})
+	}
+}

@@ -30,16 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/slices"
 )
-
-// SSHLogin describes an SSH login available on a server.
-type SSHLogin struct {
-	// Login is the SSH login name.
-	Login string `json:"login"`
-	// RequiresRequest indicates whether this login requires an access request to be used.
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
-}
 
 // Server describes a server for webapp
 type Server struct {
@@ -64,9 +55,10 @@ type Server struct {
 	//
 	// TODO(kiosion): DELETE IN 20.0.0
 	SSHLogins []string `json:"sshLogins"`
-	// SSHLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
-	// Only populated when the handler has requestable login info.
-	SSHLoginDetails []SSHLogin `json:"sshLoginDetails,omitempty"`
+	// Principals holds the node's principal dimensions, split into
+	// granted and requestable values. Only populated when handler
+	// has login info.
+	Principals []ResourcePrincipalSet `json:"principals,omitempty"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
@@ -100,14 +92,18 @@ type MakeServerConfig struct {
 
 // MakeServer creates a server object for the web ui.
 // logins contains the full set of visible logins and the granted subset.
-// SSHLoginDetails is populated with per-login requiresRequest metadata derived
-// from the difference between logins.All and logins.Granted.
+// Principals holds the logins dimension with the granted/requestable
+// sets derived from the difference between logins.All and logins.Granted.
 func MakeServer(server types.Server, c MakeServerConfig) Server {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
 	var sshLogins []string
+	var principals []ResourcePrincipalSet
 	if c.Logins != nil {
 		sshLogins = c.Logins.All.Elements()
+		principals = []ResourcePrincipalSet{
+			MakeResourcePrincipalSet(types.PrincipalTypeLogins, c.Logins),
+		}
 	}
 
 	uiServer := Server{
@@ -121,7 +117,7 @@ func MakeServer(server types.Server, c MakeServerConfig) Server {
 		SubKind:         server.GetSubKind(),
 		RequiresRequest: c.RequiresRequest,
 		SSHLogins:       sshLogins,
-		SSHLoginDetails: buildSSHLoginDetails(c.Logins),
+		Principals:      principals,
 	}
 
 	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
@@ -141,18 +137,6 @@ func MakeServer(server types.Server, c MakeServerConfig) Server {
 	}
 
 	return uiServer
-}
-
-func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
-	if logins == nil {
-		return nil
-	}
-	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
-		return SSHLogin{
-			Login:           login,
-			RequiresRequest: !logins.Granted.Contains(login),
-		}
-	})
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
