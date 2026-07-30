@@ -100,26 +100,3 @@ export function isErrnoException(error: unknown, code: string): boolean {
     error.code === code
   );
 }
-
-/**
- * Checks whether an error represents a permission denial from either the Web
- * API or a gRPC service.
- *
- * TODO: Consider passing a permission-error predicate so that Web UI and Connect
- * can identify their own native error type.
- */
-export function isPermissionDeniedError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-  if ('code' in error && error.code === 'PERMISSION_DENIED') {
-    return true;
-  }
-  return (
-    'response' in error &&
-    typeof error.response === 'object' &&
-    error.response !== null &&
-    'status' in error.response &&
-    error.response.status === 403
-  );
-}
