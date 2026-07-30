@@ -19,20 +19,25 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
+/** ClientErrorSource categorizes the kind of failure being reported. */
+export type ClientErrorSource = 'network' | 'render';
+
 /**
  * reportClientError reports a client-side web UI error to this cluster's
  * proxy, so it shows up in the proxy's own logs.
  * - `component` identifies which part of the UI is reporting
+ * - `source` categorizes the kind of failure (e.g. "network" or "render")
  * - `message` is the error text
  * - `metadata` is optional additional context (e.g. retry count, cluster version)
  */
 export function reportClientError(
   component: string,
+  source: ClientErrorSource,
   message: string,
   metadata?: Record<string, string>
 ) {
   void api.fetch(cfg.api.logClientErrorPath, {
     method: 'POST',
-    body: JSON.stringify({ component, message, metadata }),
+    body: JSON.stringify({ component, source, message, metadata }),
   });
 }

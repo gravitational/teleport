@@ -31,6 +31,8 @@ import (
 type reportClientErrorRequest struct {
 	// Component identifies which part of the web UI is reporting the error
 	Component string `json:"component"`
+	// Source categorizes the kind of failure (e.g. "network" or "render")
+	Source string `json:"source"`
 	// Message is a short, non-identifying description of what failed.
 	Message string `json:"message"`
 	// Metadata holds any additional caller-supplied context.
@@ -45,8 +47,9 @@ func (h *Handler) reportClientErrorHandle(w http.ResponseWriter, r *http.Request
 	}
 
 	h.logger.WarnContext(r.Context(), "Web UI client error",
-		"source", "client",
+		"origin", "client",
 		"component", req.Component,
+		"source", req.Source,
 		"message", req.Message,
 		"user_agent", r.UserAgent(),
 		"metadata", req.Metadata,
