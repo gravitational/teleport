@@ -102,3 +102,34 @@ func TestOIDCValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestNewOIDCConnectorClaimsToRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		claimsToRoles []ClaimMapping
+		assertErr     require.ErrorAssertionFunc
+	}{
+		{
+			name:          "empty",
+			claimsToRoles: []ClaimMapping{},
+			assertErr:     require.NoError,
+		},
+		{
+			name:          "invalid",
+			claimsToRoles: []ClaimMapping{{Claim: "claim", Value: "value", Roles: []string{}}},
+			assertErr:     require.Error,
+		},
+		{
+			name:          "valid",
+			claimsToRoles: []ClaimMapping{{Claim: "claim", Value: "value", Roles: []string{"access"}}},
+			assertErr:     require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("role-mapping-"+tt.name, func(t *testing.T) {
+			_, err := NewOIDCConnector(tt.name, OIDCConnectorSpecV3{ClaimsToRoles: tt.claimsToRoles})
+			tt.assertErr(t, err)
+		})
+	}
+}

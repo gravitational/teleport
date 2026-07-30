@@ -82,7 +82,7 @@ func TestGithubAuthRequestCheck(t *testing.T) {
 	}
 }
 
-func TestNewGitHubConnector(t *testing.T) {
+func TestNewGitHubConnectorTeamsToRoles(t *testing.T) {
 	tests := []struct {
 		name         string
 		teamsToRoles []TeamRolesMapping
