@@ -210,7 +210,7 @@ You must supply `--proxy`, the database name, and the required `--db-user`/`--db
 flags:
 
 ```code
-$ tsh proxy db --tunnel --proxy=<Var name="teleport.example.com:443" /> --db-user=alice --db-name=mysql -p 3307 example-mysql
+$ tsh -i identity.pem proxy db --tunnel --proxy=<Var name="teleport.example.com:443" /> --db-user=alice --db-name=mysql -p 3307 example-mysql
 ```
 
 Then connect your MySQL client to `localhost:3307`.
