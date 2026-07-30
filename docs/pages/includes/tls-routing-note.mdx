@@ -7,15 +7,7 @@ proxy web address on port `443`. If you're not sure whether this applies to
 your cluster, check with whoever manages it.
 
 If your cluster uses separate listener ports instead, replace port `443` in
-this guide's commands with the port for the service you're connecting to:
-
-```text
-Auth Service     3025
-Reverse tunnel   3024
-SSH proxy        3023
-```
-
-For example, to reach the Auth Service directly with `tctl`:
+the commands below with the port for the Auth Service:
 
 ```code
 $ tctl status --auth-server=<Var name="teleport.example.com" />:3025
