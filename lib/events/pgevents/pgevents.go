@@ -712,7 +712,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 // SearchSessionEvents implements [events.AuditLogger].
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	const emptySearch = ""
-	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, events.SessionRecordingEvents, req.Cond, req.SessionID, emptySearch, req.Limit, req.Order, req.StartKey)
+	evtsRaw, next, err := l.searchEvents(ctx, req.From, req.To, req.EffectiveEventTypes(), req.Cond, req.SessionID, emptySearch, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, next, trace.Wrap(err)
 	}
