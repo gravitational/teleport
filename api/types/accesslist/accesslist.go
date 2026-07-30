@@ -78,7 +78,7 @@ func parseReviewFrequency(input string) ReviewFrequency {
 // MaxAllowedDepth is the maximum allowed depth for nested access lists.
 const MaxAllowedDepth = 10
 
-// MaxNameLength is the maximum permitted byte length of an access-list name.
+// MaxNameLength is the maximum permitted byte length of an access list name.
 const MaxNameLength = 512
 
 var (

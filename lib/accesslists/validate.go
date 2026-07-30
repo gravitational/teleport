@@ -63,7 +63,7 @@ func ValidateAccessListWithMembers(ctx context.Context, existingAccessList, acce
 	return nil
 }
 
-// validateAccessListCreate enforces validation rules that only apply during creation
+// validateAccessListCreate enforces validation rules that only apply during creation.
 func validateAccessListCreate(a *accesslist.AccessList) error {
 	if len(a.Metadata.Name) > accesslist.MaxNameLength {
 		return trace.BadParameter("name is too long (max %d)", accesslist.MaxNameLength)
