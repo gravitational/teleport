@@ -19,6 +19,7 @@
 package appresource
 
 import (
+	"net/http"
 	"slices"
 	"strings"
 
@@ -79,7 +80,16 @@ func (w *Where) Evaluate(env Env) (bool, error) {
 }
 
 // validMethods are the HTTP methods a where clause evaluation accepts.
-var validMethods = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE"}
+var validMethods = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodOptions,
+	http.MethodTrace,
+}
 
 // validateEnv rejects an environment a where clause must not authorize,
 // such as a request method outside the canonical HTTP method list.
