@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - audit
+page_type: how-to
 ---
 
 Teleport's Event Handler plugin receives audit events from the Teleport Auth
@@ -13,8 +14,9 @@ Service and forwards them to your log management solution, letting you perform
 historical analysis, detect unusual behavior, and form a better understanding of
 how users interact with your Teleport cluster.
 
-Panther is a cloud-native security analytics platform. In this guide, we'll explain
-how to forward Teleport audit events to Panther using Fluentd.
+Panther is a cloud-native security analytics platform. In this guide, you will
+set up Fluentd and the Teleport Event Handler plugin to forward audit events to
+Panther.
 
 ## How it works
 

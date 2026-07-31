@@ -5,6 +5,7 @@ tags:
  - reference
  - mwi
  - infrastructure-identity
+page_type: reference
 ---
 
 The WorkloadIdentity resource is used to define the structure of an identity
@@ -14,6 +15,9 @@ it can be issued to.
 It supports templating using attributes of the workload, such as the name of the
 Kubernetes namespace or service account, which allows the WorkloadIdentity
 resource to be used in a generic way for multiple distinct workloads.
+
+This page lists the fields you can configure in the WorkloadIdentity resource,
+and describes the predicate language you can use in WorkloadIdentity rules.
 
 ## Configuration
 

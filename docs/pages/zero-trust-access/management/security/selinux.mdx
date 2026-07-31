@@ -6,6 +6,7 @@ tags:
  - conceptual
  - zero-trust
  - resiliency
+page_type: conceptual
 ---
 
 <Admonition type="note">
@@ -16,6 +17,10 @@ more Teleport features, and integration with Teleport Managed Updates.
 </Admonition>
 
 The Teleport SSH Service SELinux module allows SELinux to confine the Teleport SSH Service. It ensures that Teleport SSH Service processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
+
+This page describes the SELinux module for the Teleport SSH Service at a high
+level, and includes installation instructions and an overview of basic
+operations.
 
 ## Prerequisites
 

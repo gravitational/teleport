@@ -6,6 +6,7 @@ tags:
  - infrastructure-as-code
  - conceptual
  - zero-trust
+page_type: landing
 ---
 
 The Teleport Kubernetes Operator provides a way for Kubernetes users to manage some Teleport resources through
@@ -14,7 +15,7 @@ Kubernetes, following [the Operator Pattern](https://kubernetes.io/docs/concepts
 The Teleport Kubernetes Operator is deployed alongside its custom resource definitions. Once deployed, users
 can use a Kubernetes client like `kubectl` or their existing CI/CD Kubernetes pipelines to create Teleport
 custom resources. The Teleport Kubernetes Operator watches for those resources and does API calls to Teleport to
-reach the desired state.  
+reach the desired state.
 
 The operator can be deployed both:
 - Alongside self-hosted Teleport clusters deployed with the `teleport-cluster` Helm chart.
