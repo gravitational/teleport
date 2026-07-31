@@ -324,13 +324,6 @@ func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) 
 	return trace.Wrap(s.sshServers.DeleteAllResources(ctx))
 }
 
-// DeleteNode deletes node in a namespace
-// Deprecated: use DeleteSSHServer instead, which supports scoped nodes.
-// TODO(williamo): Remove in v20
-func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
-	return s.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: name}.Build())
-}
-
 // DeleteNode removes a specific scoped or unscoped node.
 func (s *PresenceService) DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error {
 	if req.GetName() == "" {
@@ -383,7 +376,7 @@ func (s *PresenceService) AppendDeleteScopedNodeActions(
 // GetNode returns an unscoped node by name.
 //
 // Deprecated: use GetSSHServer instead, which supports scoped nodes.
-// TODO(williamo): Remove in v20
+// TODO(williamo): Remove when e no longer needs this.
 func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return s.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 }

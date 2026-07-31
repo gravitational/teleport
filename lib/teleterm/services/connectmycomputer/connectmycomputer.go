@@ -34,7 +34,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
@@ -265,8 +264,8 @@ type AccessAndIdentity interface {
 	// See services.Identity.UpdateUser.
 	UpdateUser(context.Context, types.User) (types.User, error)
 
-	// See services.Presence.GetNode.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// See services.Presence.GetSSHServer.
+	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 }
 
 // CertManager enables the usage of only select methods from [client.ProxyClient] so that there
@@ -433,7 +432,9 @@ func (n *NodeJoinWait) waitForNode(ctx context.Context, accessAndIdentity Access
 	//
 	// This means that we might return immediately if the node is still in the cache, even if
 	// technically the agent has not joined the cluster yet. We're fine with this edge case.
-	server, err := accessAndIdentity.GetNode(ctx, apidefaults.Namespace, nodeName)
+	server, err := accessAndIdentity.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name: nodeName,
+	}.Build())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)

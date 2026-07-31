@@ -83,13 +83,6 @@ type Presence interface {
 	// Semaphores is responsible for semaphore handling
 	types.Semaphores
 
-	// GetNode returns an unscoped node by name and namespace.
-	//
-	// Deprecated: Use [Presence.GetSSHServer] instead, which supports scoped
-	// nodes.
-	// TODO(williamo): Remove in v20
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
-
 	// GetSSHServer returns a scoped or unscoped node by name.
 	GetSSHServer(ctx context.Context, req *presencev1.GetSSHServerRequest) (types.Server, error)
 
@@ -98,10 +91,6 @@ type Presence interface {
 
 	// DeleteAllNodes deletes all scoped and unscoped nodes.
 	DeleteAllNodes(ctx context.Context, namespace string) error
-
-	// Deprecated: Use [Presence.DeleteSSHServer] instead, which supports scoped nodes.
-	// TODO(williamo): Remove in v20
-	DeleteNode(ctx context.Context, namespace, name string) error
 
 	// DeleteNode removes a specific scoped or unscoped node.
 	DeleteSSHServer(ctx context.Context, req *presencev1.DeleteSSHServerRequest) error
