@@ -2099,9 +2099,11 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
 		SessionSummarizerEnabled:       sessionSummarizerEnabled,
 		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
-		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
+		Entitlements: getWebCfgEntitlements(&clusterFeatures),
 		IdentitySecurity: webclient.IdentitySecurity{
-			IsClusterLicensed:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
+			IsClusterLicensed: modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph).Enabled ||
+				modules.GetProtoEntitlement(&clusterFeatures, entitlements.ActivityCenter).Enabled ||
+				modules.GetProtoEntitlement(&clusterFeatures, entitlements.SessionSummaries).Enabled,
 			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
@@ -2286,7 +2288,7 @@ func (h *Handler) getUserMatchedAuthConnectors(w http.ResponseWriter, r *http.Re
 func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures proto.Features) {
 	// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
 	// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
-	webCfg.Entitlements = GetWebCfgEntitlements(clusterFeatures.GetEntitlements())
+	webCfg.Entitlements = getWebCfgEntitlements(&clusterFeatures)
 
 	if ent := clusterFeatures.GetEntitlements(); len(ent) > 0 {
 		// webCfg.Entitlements: No update as they are set above
@@ -2352,18 +2354,18 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 	}
 }
 
-// GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set
+// GetWebCfgEntitlements converts a proto entitlement map into the Web UI
+// representation, including the legacy Policy fallback.
 func GetWebCfgEntitlements(protoEntitlements map[string]*proto.EntitlementInfo) map[string]webclient.EntitlementInfo {
+	return getWebCfgEntitlements(&proto.Features{Entitlements: protoEntitlements})
+}
+
+func getWebCfgEntitlements(features *proto.Features) map[string]webclient.EntitlementInfo {
 	all := entitlements.AllEntitlements
 	result := make(map[string]webclient.EntitlementInfo, len(all))
 
 	for _, e := range all {
-		al, ok := protoEntitlements[string(e)]
-		if !ok {
-			result[string(e)] = webclient.EntitlementInfo{}
-			continue
-		}
-
+		al := modules.GetProtoEntitlement(features, e)
 		result[string(e)] = webclient.EntitlementInfo{
 			Enabled: al.Enabled,
 			Limit:   al.Limit,
