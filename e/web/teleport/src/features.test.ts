@@ -1,5 +1,7 @@
 import { getEnterpriseFeatures } from 'e-teleport/features';
-import { getOSSFeatures } from 'teleport/features';
+import cfg from 'teleport/config';
+import { canShowFeature, getOSSFeatures } from 'teleport/features';
+import { disabledFeatureFlags } from 'teleport/teleportContext';
 import { NavTitle } from 'teleport/types';
 
 const enterpriseTitles: string[] = getEnterpriseFeatures()
@@ -20,4 +22,26 @@ test.each(ossTitles)(`oss title %s should exist in Enterprise`, testCase => {
   }
 
   expect(enterpriseTitles).toContain(testCase);
+});
+
+let originalFeatureHiding: boolean;
+
+beforeEach(() => {
+  originalFeatureHiding = cfg.entitlements.FeatureHiding.enabled;
+});
+
+afterEach(() => {
+  cfg.entitlements.FeatureHiding.enabled = originalFeatureHiding;
+});
+
+// A user with no permissions should see no navigation entries other than Resources when feature hiding is on.
+test('a user without any access sees no navigation items', () => {
+  cfg.entitlements.FeatureHiding.enabled = true;
+
+  const visible = getEnterpriseFeatures()
+    .filter(feature => canShowFeature(feature, disabledFeatureFlags))
+    .filter(feature => !!feature.navigationItem)
+    .map(feature => feature.navigationItem.title);
+
+  expect(visible).toEqual(['Resources']);
 });

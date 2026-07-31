@@ -1,0 +1,17 @@
+kind: role
+metadata:
+  name: featurehiding-bots-only
+spec:
+  allow:
+    logins:
+      - root
+    # Grants access to Bots only
+    rules:
+      - resources:
+          - bot
+        verbs:
+          - list
+          - read
+  options:
+    max_session_ttl: 8h0m0s
+version: v3

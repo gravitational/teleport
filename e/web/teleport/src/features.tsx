@@ -93,8 +93,10 @@ class FeatureNewAccessRequest implements TeleportFeature {
     component: NewRequest,
   };
 
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  discoverable = true;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.accessRequests;
   }
 
   navigationItem = {
@@ -115,8 +117,10 @@ class FeatureAccessRequests implements TeleportFeature {
     component: ReviewRequests,
   };
 
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  discoverable = true;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.accessRequests;
   }
 
   navigationItem = {
@@ -138,8 +142,10 @@ class FeatureAccessAutomations implements TeleportFeature {
     component: AccessAutomations,
   };
 
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  discoverable = true;
+
+  hasAccess(flags: FeatureFlags) {
+    return !cfg.oss.isDashboard && flags.accessAutomations;
   }
 
   navigationItem = {
@@ -307,9 +313,11 @@ class FeatureAccessListManagement implements TeleportFeature {
     component: AccessListManagement,
   };
 
+  discoverable = true;
+
   // Hide if this is a self-hosted dashboard tenant
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  hasAccess(flags: FeatureFlags) {
+    return !cfg.oss.isDashboard && flags.accessLists;
   }
 
   navigationItem = {
@@ -332,9 +340,11 @@ class FeatureNewAccessList implements TeleportFeature {
     component: CreateAccessListWithProvider,
   };
 
+  discoverable = true;
+
   // Hide if this is a self-hosted dashboard tenant
-  hasAccess() {
-    return !cfg.oss.isDashboard;
+  hasAccess(flags: FeatureFlags) {
+    return !cfg.oss.isDashboard && flags.addAccessList;
   }
 
   navigationItem = {
@@ -357,11 +367,10 @@ class FeatureDeviceTrust implements TeleportFeature {
     component: DeviceTrust,
   };
 
+  discoverable = true;
+
   hasAccess(flags: FeatureFlags) {
-    if (OSS.shouldHideFromNavigation(cfg.oss)) {
-      return flags.deviceTrust;
-    }
-    return true;
+    return flags.deviceTrust;
   }
 
   navigationItem = {
@@ -380,18 +389,6 @@ class FeatureManagedUpdatesE extends OSS.FeatureManagedUpdates {
     ...super.getRoute(),
     component: ManagedUpdatesE,
   };
-
-  hasAccess(flags: FeatureFlags) {
-    if (OSS.shouldHideFromNavigation(cfg.oss)) {
-      const canViewPage =
-        flags.readAutoUpdateConfig ||
-        flags.readAutoUpdateVersion ||
-        flags.readAutoUpdateAgentRollout;
-
-      return canViewPage;
-    }
-    return true;
-  }
 }
 
 class FeatureIntegrations extends OSS.FeatureIntegrations {
@@ -404,12 +401,7 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
   };
 
   hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (OSS.shouldHideFromNavigation(cfg.oss)) {
-      return flags.plugins || flags.integrations || flags.externalAuditStorage;
-    }
-    return true;
+    return flags.plugins || flags.integrations || flags.externalAuditStorage;
   }
 }
 
@@ -422,10 +414,7 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   };
 
   hasAccess(flags: FeatureFlags) {
-    if (OSS.shouldHideFromNavigation(cfg.oss)) {
-      return flags.enrollIntegrationsOrPlugins;
-    }
-    return true;
+    return flags.enrollIntegrationsOrPlugins;
   }
 }
 
@@ -511,14 +500,14 @@ class FeatureAccessGraph implements TeleportFeature {
     component: AccessGraph,
   };
 
+  // The dashboard doubles as the Identity Security CTA page.
+  // Those subpages extend this class, the route is what we use to tell them apart from the dashboard.
+  get discoverable() {
+    return this.route.path === cfg.routes.accessGraph.dashboard;
+  }
+
   hasAccess(flags: FeatureFlags) {
-    if (
-      OSS.shouldHideFromNavigation(cfg.oss) ||
-      this.route.path !== cfg.routes.accessGraph.dashboard
-    ) {
-      return storageService.getAccessGraphEnabled() && flags.accessGraph;
-    }
-    return true;
+    return storageService.getAccessGraphEnabled() && flags.accessGraph;
   }
 
   navigationItem = {

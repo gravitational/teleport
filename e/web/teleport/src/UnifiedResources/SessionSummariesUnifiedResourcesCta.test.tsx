@@ -16,17 +16,17 @@ beforeEach(() => {
   localStorage.clear();
 
   originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
-  originalHideInaccessibleFeatures = cfg.oss.hideInaccessibleFeatures;
+  originalHideInaccessibleFeatures = cfg.oss.entitlements.FeatureHiding.enabled;
   originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
 
   cfg.oss.identitySecurity.licensed = true;
-  cfg.oss.hideInaccessibleFeatures = false;
+  cfg.oss.entitlements.FeatureHiding.enabled = false;
   cfg.oss.sessionSummarizerEnabled = false;
 });
 
 afterEach(() => {
   cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
-  cfg.oss.hideInaccessibleFeatures = originalHideInaccessibleFeatures;
+  cfg.oss.entitlements.FeatureHiding.enabled = originalHideInaccessibleFeatures;
   cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
 });
 
@@ -69,7 +69,7 @@ test('does not render when identity security is not licensed', () => {
 });
 
 test('does not render when hideInaccessibleFeatures is true', () => {
-  cfg.oss.hideInaccessibleFeatures = true;
+  cfg.oss.entitlements.FeatureHiding.enabled = true;
 
   renderCta();
 
