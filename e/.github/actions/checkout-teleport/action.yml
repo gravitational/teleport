@@ -130,6 +130,14 @@ runs:
         path: ${{ inputs.path }}
         fetch-depth: ${{ inputs.oss-fetch-depth }}
 
+    - id: mark-workspace-safe
+      name: Mark workspace as git safe.directory
+      shell: bash
+      env:
+        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
+      run: |
+        git config --global --add safe.directory "${CHECKOUT_DIR}"
+
     - id: determine-enterprise-ref
       if: inputs.edition == 'enterprise'
       name: Determine Enterprise Teleport ref
@@ -162,11 +170,3 @@ runs:
         ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
         path: ${{ inputs.path || '.' }}/e
         fetch-depth: ${{ inputs.ent-fetch-depth }}
-
-    - id: mark-workspace-safe
-      name: Mark workspace as git safe.directory
-      shell: bash
-      env:
-        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
-      run: |
-        git config --global --add safe.directory "${CHECKOUT_DIR}"
