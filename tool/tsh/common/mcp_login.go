@@ -100,8 +100,6 @@ func (c *mcpLoginCommand) run() error {
 	defer listener.Close()
 	redirectURI := fmt.Sprintf("http://%s/callback", listener.Addr())
 	if c.callbackPort != 0 {
-		// Pre-registered OAuth clients require an exact redirect URI. Use
-		// localhost to match the callback URI advertised by common MCP clients.
 		redirectURI = fmt.Sprintf("http://localhost:%d/callback", c.callbackPort)
 	}
 
