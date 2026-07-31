@@ -5,7 +5,7 @@ tests:
   - it: warns when unhealthy pod eviction policy is probably unsupported
     capabilities:
       majorVersion: 1
-      minorVersion: 25
+      minorVersion: 26
     set:
       highAvailability:
         podDisruptionBudget:
@@ -24,4 +24,28 @@ tests:
           unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - matchRegexRaw:
+          pattern: WARNING
+
+  - it: does not warn when unhealthy pod eviction policy is auto configured on Kubernetes 1.26
+    capabilities:
+      majorVersion: 1
+      minorVersion: 26
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: auto
+    asserts:
+      - notMatchRegexRaw:
+          pattern: WARNING
+
+  - it: does not warn when unhealthy pod eviction policy is omitted on Kubernetes 1.26
+    capabilities:
+      majorVersion: 1
+      minorVersion: 26
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: ""
+    asserts:
+      - notMatchRegexRaw:
           pattern: WARNING

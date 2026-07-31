@@ -18,7 +18,11 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
-{{- if .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
-  unhealthyPodEvictionPolicy: {{ .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+{{- $unhealthyPodEvictionPolicy := .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+{{- if not (has $unhealthyPodEvictionPolicy (list "" "auto" "AlwaysAllow" "IfHealthyBudget")) }}
+{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy must be one of: \"\", \"auto\", \"AlwaysAllow\", \"IfHealthyBudget\"" }}
+{{- end }}
+{{- if or (has $unhealthyPodEvictionPolicy (list "AlwaysAllow" "IfHealthyBudget")) (and (eq $unhealthyPodEvictionPolicy "auto") (semverCompare ">=1.27.0-0" .Capabilities.KubeVersion.Version)) }}
+  unhealthyPodEvictionPolicy: {{ ternary "AlwaysAllow" $unhealthyPodEvictionPolicy (eq $unhealthyPodEvictionPolicy "auto") }}
 {{- end }}
 {{- end }}

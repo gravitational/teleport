@@ -25,7 +25,7 @@ tests:
           value: poddisruptionbudget
       - matchSnapshot: {}
 
-  - it: sets unhealthyPodEvictionPolicy for k8s = 1.27
+  - it: enables unhealthyPodEvictionPolicy automatically for k8s = 1.27
     capabilities:
       majorVersion: 1
       minorVersion: 27
@@ -34,7 +34,7 @@ tests:
     set:
       highAvailability:
         podDisruptionBudget:
-          unhealthyPodEvictionPolicy: AlwaysAllow
+          unhealthyPodEvictionPolicy: auto
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
@@ -56,7 +56,7 @@ tests:
           path: spec.unhealthyPodEvictionPolicy
       - matchSnapshot: {}
 
-  - it: sets unhealthyPodEvictionPolicy k8s < 1.27 when configured
+  - it: renders an explicit unhealthyPodEvictionPolicy on k8s < 1.27
     capabilities:
       majorVersion: 1
       minorVersion: 26
