@@ -238,12 +238,22 @@ test('disables long-term approval and explains why when no Access List is sugges
 
 // A permission failure (the reviewer can't read the eligible Access Lists) is a
 // distinct state from there being none, and gets its own message.
-test('shows a permission-specific message when the reviewer cannot view eligible Access Lists', async () => {
+test.each([
+  [
+    'HTTP 403',
+    Object.assign(
+      new Error('access denied to perform action "read" on access list'),
+      { response: { status: 403 } }
+    ),
+  ],
+  [
+    'gRPC PERMISSION_DENIED',
+    Object.assign(new Error('permission denied'), {
+      code: 'PERMISSION_DENIED',
+    }),
+  ],
+])('shows a permission-specific message for %s', async (_, permissionError) => {
   const user = userEvent.setup();
-  const permissionError = Object.assign(
-    new Error('access denied to perform action "read" on access list'),
-    { response: { status: 403 } }
-  );
   render(
     <RequestView
       {...props}

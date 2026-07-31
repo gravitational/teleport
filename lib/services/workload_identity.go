@@ -151,7 +151,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		// workload identities - however - we should consider rolling out a
 		// write-side restriction to unscoped workload identities in a major
 		// version.
-		if err := scopes.StrongValidateSegment(s.GetMetadata().GetName()); err != nil {
+		if err := scopes.StrongValidateResourceName(s.GetMetadata().GetName()); err != nil {
 			return trace.Wrap(err, "metadata.name:")
 		}
 	}

@@ -42,6 +42,7 @@ import { useFeatures } from 'teleport/FeaturesContext';
 import type { TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 import {
   CustomNavigationSubcategory,
@@ -343,6 +344,7 @@ export function Navigation({
 }: {
   showPoweredByLogo?: boolean;
 }) {
+  const ctx = useTeleport();
   const features = useFeatures();
   const location = useLocation();
   const { clusterId } = useStickyClusterId();
@@ -408,8 +410,9 @@ export function Navigation({
       preferences,
       updatePreferences,
       searchParams,
+      flags: ctx.getFeatureFlags(),
     });
-  }, [clusterId, preferences, updatePreferences]);
+  }, [clusterId, preferences, updatePreferences, ctx]);
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection) => {

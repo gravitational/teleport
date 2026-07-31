@@ -815,6 +815,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--[no-]local-only`|`false`|If true only private keys local to the replying Auth server are used.|
 |`--out`|*no default*|If set writes CSRs to files using --out as the path prefix|
 |`--public-key`|*no default*|Public key hash of CA certificate to be targeted|
 |`--subject`|*no default*|Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"|
@@ -1468,7 +1469,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Registers the current device. Overrides --os and --asset-tag.|
 |`--[no-]enroll`|`false`|If set, creates a device enrollment token|
-|`--os`|*no default* (one of: `linux`, `macos`, `windows`)|Operating system|
+|`--os`|*no default* (one of: `ios`, `ipados`, `linux`, `macos`, `windows`)|Operating system|
 
 ## tctl devices enroll
 

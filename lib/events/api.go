@@ -707,6 +707,11 @@ const (
 	// A confirmed web authentication means the WebSession itself now holds
 	// augmented TLS and SSH certificates.
 	DeviceAuthenticateConfirmEvent = "device.authenticate.confirm"
+	// DeviceEnrollPairingRequestEvent is emitted when a device presents an enroll
+	// pairing token to request enrollment. On success the pairing transitions to
+	// awaiting approval. It is also emitted on failure (e.g. an invalid token),
+	// before any transition, in which case there is no associated user.
+	DeviceEnrollPairingRequestEvent = "device.enroll_pairing.request"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -1341,6 +1346,11 @@ type SearchEventsRequest struct {
 	StartKey string
 	// Search is an optional search query to filter events.
 	Search string
+	// BeamID optionally restricts results to events attributed to the given
+	// beam (matched against the event's user metadata beam_id). This filter is
+	// only supported by the Athena audit backend; other backends return a
+	// trace.NotImplemented error when it is set.
+	BeamID string
 }
 
 type SearchSessionEventsRequest struct {

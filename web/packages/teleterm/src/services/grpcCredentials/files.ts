@@ -20,6 +20,7 @@ import { watch, type Stats } from 'fs';
 import { readFile, rename, stat, writeFile } from 'fs/promises';
 import path from 'path';
 
+import { isErrnoException } from 'shared/utils/error';
 import { wait } from 'shared/utils/wait';
 
 import { makeCert } from './makeCert';
@@ -68,7 +69,7 @@ export async function readGrpcCert(
     try {
       stats = await stat(fullPath);
     } catch (error) {
-      if (error?.code === 'ENOENT') {
+      if (isErrnoException(error, 'ENOENT')) {
         return false;
       }
       throw error;

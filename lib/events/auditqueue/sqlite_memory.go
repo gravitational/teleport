@@ -131,6 +131,12 @@ func (m *sqliteInMemoryQueue) Run(ctx context.Context, handler Handler) error {
 	return m.inner.runPollLoop(ctx, handler)
 }
 
+// Drain makes a best-effort attempt to flush pending events upstream before
+// shutdown. See Queue.Drain.
+func (m *sqliteInMemoryQueue) Drain(ctx context.Context) error {
+	return m.inner.Drain(ctx)
+}
+
 // Close shuts down the in-memory queue.
 func (m *sqliteInMemoryQueue) Close() error {
 	var err error
