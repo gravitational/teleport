@@ -21,8 +21,10 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/peer"
 
 	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
 // AuthClient is a subset of the full Auth API that must be connected.
@@ -62,6 +64,25 @@ type Service struct {
 // CreatePairedDeviceEnrollToken forwards the request to the same RPC in the
 // Auth Service.
 func (s *Service) CreatePairedDeviceEnrollToken(ctx context.Context, req *publicdevicepb.CreatePairedDeviceEnrollTokenRequest) (*publicdevicepb.CreatePairedDeviceEnrollTokenResponse, error) {
+	ctx, err := forwardClientSrcAddr(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	res, err := s.authClient.PublicDevicesClient().CreatePairedDeviceEnrollToken(ctx, req)
 	return res, trace.Wrap(err)
+}
+
+// forwardClientSrcAddr adds the calling device's source address to ctx.
+//
+// This service terminates the device's connection, so the Auth Service only
+// ever sees this Proxy as its peer and cannot observe the address itself.
+// Metadata the device sent does not carry over to the outgoing call, so a
+// device cannot choose the address the Auth Service enforces.
+func forwardClientSrcAddr(ctx context.Context) (context.Context, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trace.Errorf("no peer address for the calling device")
+	}
+	return devicetrust.WithForwardedClientSrcAddr(ctx, p.Addr), nil
 }
