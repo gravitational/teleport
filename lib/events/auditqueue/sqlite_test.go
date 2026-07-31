@@ -142,6 +142,47 @@ func TestStats_CountsPendingDeadLetterAndCorrupt(t *testing.T) {
 	require.Equal(t, int64(1), stats.CorruptCount)
 }
 
+func TestStats_OldestEventTimes(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q := newSqliteTestQueue(t)
+
+	stats, err := q.Stats(ctx)
+	require.NoError(t, err)
+	require.Zero(t, stats.OldestPendingTime, "empty main queue must report a zero oldest time")
+	require.Zero(t, stats.OldestDeadLetterTime, "empty dead-letter queue must report a zero oldest time")
+
+	_, err = q.db.Exec(
+		"INSERT INTO audit_queue (payload, enqueued_at) VALUES (?, 2000), (?, 1000), (?, 3000)",
+		corruptPayload, corruptPayload, corruptPayload)
+	require.NoError(t, err)
+	_, err = q.db.Exec(
+		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, 900), (?, 500)",
+		corruptPayload, corruptPayload)
+	require.NoError(t, err)
+
+	stats, err = q.Stats(ctx)
+	require.NoError(t, err)
+	require.Equal(t, time.Unix(1000, 0).UTC(), stats.OldestPendingTime)
+	require.Equal(t, time.Unix(500, 0).UTC(), stats.OldestDeadLetterTime)
+}
+
+func TestEnqueue_StampsEnqueuedAt(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	before := time.Now().Add(-time.Second)
+	require.NoError(t, q.Enqueue(newTestEvent(0)))
+	after := time.Now().Add(time.Second)
+
+	stats, err := q.Stats(t.Context())
+	require.NoError(t, err)
+	require.False(t, stats.OldestPendingTime.Before(before),
+		"enqueued_at default should stamp the enqueue time")
+	require.False(t, stats.OldestPendingTime.After(after),
+		"enqueued_at default should stamp the enqueue time")
+}
+
 func TestDequeue_RespectsLimit(t *testing.T) {
 	t.Parallel()
 	q := newSqliteTestQueue(t)
@@ -700,6 +741,28 @@ func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
 	var attempts int
 	require.NoError(t, b.db.QueryRow("SELECT attempts FROM audit_queue").Scan(&attempts))
 	require.Equal(t, 2, attempts, "attempt count should carry over during migration")
+}
+
+func TestMigrateOrphanQueue_PreservesEnqueuedAt(t *testing.T) {
+	t.Parallel()
+
+	a, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "a")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = a.Close() })
+	require.NoError(t, a.Enqueue(newTestEvent(42)))
+	_, err = a.db.Exec("UPDATE audit_queue SET enqueued_at = 1234")
+	require.NoError(t, err)
+
+	b, err := newSQLiteQueue(Config{Path: filepath.Join(t.TempDir(), "b")})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	require.NoError(t, b.migrateOrphanQueue(t.Context(), a.db, "a"))
+
+	stats, err := b.Stats(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, time.Unix(1234, 0).UTC(), stats.OldestPendingTime,
+		"enqueued_at should carry over during migration")
 }
 
 func TestMigrateOrphanQueue_WatermarkPreventsDuplicates(t *testing.T) {
