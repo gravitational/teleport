@@ -440,7 +440,6 @@ required_fields:
     # SAML connector
     - "SAMLConnectorV2.Spec"
     - "SAMLConnectorV2.Spec.AssertionConsumerService"
-    - "SAMLConnectorV2.Spec.AttributesToRoles"
     - "SAMLConnectorV2.Metadata.Name"
     - "SAMLConnectorV2.Version"
 

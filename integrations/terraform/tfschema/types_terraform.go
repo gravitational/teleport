@@ -4964,7 +4964,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 						},
 					}),
 					Description: "AttributesToRoles is a list of mappings of attribute statements to roles.",
-					Required:    true,
+					Optional:    true,
 				},
 				"audience": {
 					Computed:      true,
