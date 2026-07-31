@@ -871,27 +871,24 @@ func TestPrimaryPrivateIP(t *testing.T) {
 }
 
 // fakeNetworkInterfacesClient is an azure.NetworkInterfacesClient that returns
-// canned NICs per resource group, used to drive the Windows VM discovery path
-// without real Azure API calls.
+// canned NICs, used to drive the Windows VM discovery path without real Azure
+// API calls.
 type fakeNetworkInterfacesClient struct {
-	nicsByRG map[string][]*azure.NetworkInterface
-	listErr  error
-	// gotScaleSetNamesByRG records the scale-set names passed to
-	// ListNetworkInterfaces, keyed by the resource group argument.
-	gotScaleSetNamesByRG map[string][]string
+	nics    []*azure.NetworkInterface
+	listErr error
+	// gotResourceGroups and gotScaleSetIDs record the arguments of each
+	// ListNetworkInterfaces call.
+	gotResourceGroups []string
+	gotScaleSetIDs    []string
 }
 
-func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, scaleSetNames []string) ([]*azure.NetworkInterface, error) {
+func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, scaleSetIDs ...string) ([]*azure.NetworkInterface, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	if len(scaleSetNames) > 0 {
-		if f.gotScaleSetNamesByRG == nil {
-			f.gotScaleSetNamesByRG = make(map[string][]string)
-		}
-		f.gotScaleSetNamesByRG[resourceGroup] = append(f.gotScaleSetNamesByRG[resourceGroup], scaleSetNames...)
-	}
-	return f.nicsByRG[resourceGroup], nil
+	f.gotResourceGroups = append(f.gotResourceGroups, resourceGroup)
+	f.gotScaleSetIDs = append(f.gotScaleSetIDs, scaleSetIDs...)
+	return f.nics, nil
 }
 
 func windowsVMFetcher(t *testing.T, clients azure.Clients, regions []string) *azureInstanceFetcher {
@@ -980,44 +977,45 @@ func TestAzureFetcherGetInstancesWindows(t *testing.T) {
 
 	// NICs reference their VM via AttachedVMID. winvm1 uses an upper-cased ID to
 	// verify the case-insensitive join between compute and network resource IDs.
-	clients.nicClients = map[string]azure.NetworkInterfacesClient{
-		sub: &fakeNetworkInterfacesClient{
-			nicsByRG: map[string][]*azure.NetworkInterface{
-				"rg1": {
-					{
-						AttachedVMID:     strings.ToUpper(ids["winvm1"]),
-						Primary:          true,
-						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
-					},
-					// winvm2 has two NICs; the non-primary one comes first to
-					// verify the primary NIC's IP is preferred.
-					{
-						AttachedVMID:     ids["winvm2"],
-						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.99"}},
-					},
-					{
-						AttachedVMID:     ids["winvm2"],
-						Primary:          true,
-						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.2", Primary: true}},
-					},
-					{
-						AttachedVMID:     ids["unknownvm"],
-						Primary:          true,
-						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.3", Primary: true}},
-					},
-					// A NIC not attached to any VM must not affect the results.
-					{
-						IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.50", Primary: true}},
-					},
-				},
+	nicClient := &fakeNetworkInterfacesClient{
+		nics: []*azure.NetworkInterface{
+			{
+				AttachedVMID:     strings.ToUpper(ids["winvm1"]),
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1", Primary: true}},
+			},
+			// winvm2 has two NICs; the non-primary one comes first to
+			// verify the primary NIC's IP is preferred.
+			{
+				AttachedVMID:     ids["winvm2"],
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.99"}},
+			},
+			{
+				AttachedVMID:     ids["winvm2"],
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.2", Primary: true}},
+			},
+			{
+				AttachedVMID:     ids["unknownvm"],
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.3", Primary: true}},
+			},
+			// A NIC not attached to any VM must not affect the results.
+			{
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.50", Primary: true}},
 			},
 		},
 	}
+	clients.nicClients = map[string]azure.NetworkInterfacesClient{sub: nicClient}
 
 	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
 
 	instances, err := fetcher.GetInstances(t.Context(), false)
 	require.NoError(t, err)
+
+	// NICs are listed once, subscription-wide, because a NIC can live in a
+	// different resource group than its VM.
+	require.Equal(t, []string{types.Wildcard}, nicClient.gotResourceGroups)
 
 	gotIPByName := map[string]string{}
 	for _, group := range instances {
@@ -1096,13 +1094,11 @@ func TestAzureFetcherGetInstancesWindowsUniformVMSS(t *testing.T) {
 	})
 
 	nicClient := &fakeNetworkInterfacesClient{
-		nicsByRG: map[string][]*azure.NetworkInterface{
-			"rg1": {{
-				AttachedVMID:     vmssVMID,
-				Primary:          true,
-				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.42", Primary: true}},
-			}},
-		},
+		nics: []*azure.NetworkInterface{{
+			AttachedVMID:     vmssVMID,
+			Primary:          true,
+			IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.42", Primary: true}},
+		}},
 	}
 
 	clients := &mockClients{
@@ -1115,9 +1111,11 @@ func TestAzureFetcherGetInstancesWindowsUniformVMSS(t *testing.T) {
 	instances, err := fetcher.GetInstances(t.Context(), false)
 	require.NoError(t, err)
 
-	// The matched VM's scale-set name must be passed to the NIC client under
-	// the lower-cased resource group.
-	require.Equal(t, map[string][]string{"rg1": {scaleSetName}}, nicClient.gotScaleSetNamesByRG)
+	// A single subscription-wide NIC listing, carrying the full resource ID of
+	// the matched VM's scale set so the client can list uniform VMSS NICs,
+	// which are absent from the flat NIC list.
+	require.Equal(t, []string{types.Wildcard}, nicClient.gotResourceGroups)
+	require.Equal(t, []string{scaleSetID}, nicClient.gotScaleSetIDs)
 
 	// The scale-set VM is discovered with the private IP joined from its NIC.
 	require.Len(t, instances, 1)

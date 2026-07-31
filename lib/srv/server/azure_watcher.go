@@ -26,6 +26,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -404,46 +405,55 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	return instances, nil
 }
 
-// primaryPrivateIPByVM gets the primary private IP address for each VM, grouped
-// by the lower-cased resource ID of the VM each NIC is attached to.
+// primaryPrivateIPByVM gets the primary private IP address for each VM.
 func (f *azureInstanceFetcher) primaryPrivateIPByVM(
 	ctx context.Context,
 	azureClients azure.Clients,
 	instanceGroups map[resourceGroupLocation][]*azure.VirtualMachine,
 ) (map[string]string, error) {
+	if len(instanceGroups) == 0 {
+		return nil, nil
+	}
+
 	nicClient, err := azureClients.GetNetworkInterfacesClient(ctx, f.Subscription)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting network interfaces client")
 	}
 
-	// Create a set of resource groups to list NICs for and find scale set names
-	// of uniform VMSS VMs.
-	resourceGroups := make(map[string]struct{})
-	scaleSetNamesByRG := make(map[string][]string)
-	for batchGroup, vms := range instanceGroups {
-		rg := strings.ToLower(batchGroup.resourceGroup)
-		resourceGroups[rg] = struct{}{}
+	// Get a list of scaleSetIDs (this slice is deduped by the NIC client)
+	scaleSetIDs := []string{}
+	for _, vms := range instanceGroups {
 		for _, vm := range vms {
 			if vm.UniformScaleSetName != "" {
-				scaleSetNamesByRG[rg] = append(scaleSetNamesByRG[rg], vm.UniformScaleSetName)
+				id, err := arm.ParseResourceID(vm.ID)
+				if err != nil {
+					f.Logger.WarnContext(ctx, "Skipping uniform scale set with unparsable resource id", "resource_id", vm.ID)
+					continue
+				}
+				if id.Parent == nil {
+					f.Logger.WarnContext(ctx, "Skipping uniform scale set because parent of uniform scale set instance not found", "resource_id", vm.ID)
+					continue
+				}
+				scaleSetIDs = append(scaleSetIDs, id.Parent.String())
 			}
 		}
 	}
 
 	// Gather all NICs for the matched resource groups
 	var nicsByAttachedVM = make(map[string][]*azure.NetworkInterface)
-	for resourceGroup := range resourceGroups {
-		nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetNamesByRG[resourceGroup])
-		if err != nil {
-			return nil, trace.Wrap(err, "listing network interfaces for resource group %q", resourceGroup)
+	// We have to list NICs in the whole subscription because a NIC can be in a
+	// different resource group than the VM it is attached to. There is currently
+	// no way to filter this API call by any other means (e.g. location, tags, etc.)
+	nics, err := nicClient.ListNetworkInterfaces(ctx, types.Wildcard, scaleSetIDs...)
+	if err != nil {
+		return nil, trace.Wrap(err, "listing network interfaces")
+	}
+	for _, nic := range nics {
+		// Skip NICs that aren't attached to a VM
+		if nic.AttachedVMID == "" {
+			continue
 		}
-		for _, nic := range nics {
-			// Skip NICs that aren't attached to a VM
-			if nic.AttachedVMID == "" {
-				continue
-			}
-			nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)] = append(nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)], nic)
-		}
+		nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)] = append(nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)], nic)
 	}
 
 	// For each VM, find the primary private IP
