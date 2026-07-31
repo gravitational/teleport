@@ -38,6 +38,7 @@ var (
 	}
 	identityOnlyPrivateKeyPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyWebSession,
+		keys.PrivateKeyPolicyDeviceTrustPublic,
 	}
 	hardwareKeyPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKey,
@@ -45,20 +46,24 @@ var (
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		keys.PrivateKeyPolicyWebSession,
+		keys.PrivateKeyPolicyDeviceTrustPublic,
 	}
 	hardwareKeyTouchPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		keys.PrivateKeyPolicyWebSession,
+		keys.PrivateKeyPolicyDeviceTrustPublic,
 	}
 	hardwareKeyPINPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		keys.PrivateKeyPolicyWebSession,
+		keys.PrivateKeyPolicyDeviceTrustPublic,
 	}
 	hardwareKeyTouchAndPINPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
 		keys.PrivateKeyPolicyWebSession,
+		keys.PrivateKeyPolicyDeviceTrustPublic,
 	}
 )
 

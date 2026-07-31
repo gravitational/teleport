@@ -53,12 +53,29 @@ const (
 	// Instead, this policy must be accompanied by WebAuthn prompts for important operations
 	// in order to pass hardware key policy requirements.
 	PrivateKeyPolicyWebSession PrivateKeyPolicy = "web_session"
+	// PrivateKeyPolicyDeviceTrustPublic is a special case used for the public
+	// Device Trust Service (teleport.devicetrust.public.v1). Clients of that
+	// service hold no user key at all. Instead, they authenticate using either a
+	// short-lived, single-use token (CreatePairedDeviceEnrollToken, EnrollDevice)
+	// or by solving a challenge using a previously enrolled key stored in a TPM
+	// (AuthenticateDevice). As such, a private key policy cannot be enforced
+	// against those clients.
+	//
+	// This policy does not provide the same hardware key guarantee as the above
+	// policies and it must be used only in Device Trust scenarios.
+	PrivateKeyPolicyDeviceTrustPublic PrivateKeyPolicy = "device_trust_public"
 )
 
 // IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
 func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
 	// Web sessions are treated as a special case that meets all private key policy requirements.
 	if keyPolicy == PrivateKeyPolicyWebSession {
+		return true
+	}
+
+	// Public Device Trust identities have no client key at all and are used only
+	// for specific RPCs.
+	if keyPolicy == PrivateKeyPolicyDeviceTrustPublic {
 		return true
 	}
 
