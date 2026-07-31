@@ -9,7 +9,7 @@ tests:
     set:
       highAvailability:
         podDisruptionBudget:
-          forceUnhealthyPodEvictionPolicy: true
+          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - matchRegexRaw:
           pattern: WARNING
@@ -21,7 +21,7 @@ tests:
     set:
       highAvailability:
         podDisruptionBudget:
-          forceUnhealthyPodEvictionPolicy: true
+          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - matchRegexRaw:
           pattern: WARNING
