@@ -1,0 +1,20 @@
+- A host, e.g., an Amazon EC2 instance, where you will run the Teleport
+  Database Service, separate from the host(s) running the Teleport Auth
+  Service and Proxy Service.
+
+  <details>
+  <summary>Single-node Teleport clusters</summary>
+
+  If you run the Database Service as a separate process on the same host as
+  the Proxy Service, the reverse tunnel may fail to connect through the
+  proxy's public address due to NAT hairpinning limitations in some cloud
+  environments (notably GCP and certain on-prem setups). To resolve this, add
+  your proxy domain to `/etc/hosts` pointing to `127.0.0.1`:
+
+  ```code
+  $ echo "127.0.0.1 teleport.example.com" | sudo tee -a /etc/hosts
+  ```
+
+  Alternatively, run all Teleport services in a single process (Auth Service, Proxy Service,
+  and Database Service in one `teleport.yaml`) to avoid the reverse tunnel entirely.
+  </details>

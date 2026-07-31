@@ -573,6 +573,16 @@ message RiskScoreReason {
   int32 score_impact = 2;
 }
 
+// BeamInstructionConsistency indicates whether a beam agent's actions were
+// consistent with the instructions it received from the LLM. Modeled on
+// AccessRequestConsistency.
+enum BeamInstructionConsistency {
+  BEAM_INSTRUCTION_CONSISTENCY_UNSPECIFIED = 0;
+  BEAM_INSTRUCTION_CONSISTENCY_CONSISTENT = 1;
+  BEAM_INSTRUCTION_CONSISTENCY_PARTIALLY_CONSISTENT = 2;
+  BEAM_INSTRUCTION_CONSISTENCY_INCONSISTENT = 3;
+}
+
 // EnhancedSummary represents an enhanced summary of a session recording,
 // with structured data extracted from the session.
 message EnhancedSummary {
@@ -614,6 +624,12 @@ message EnhancedSummary {
   // SessionEvents contains a list of significant events that occurred during the session, such as command executions or
   // desktop interactions.
   repeated SessionEvent session_events = 16;
+  // InstructionConsistency indicates whether a beam agent's actions followed the
+  // instructions it received from the LLM. Only set for beam activity summaries.
+  BeamInstructionConsistency instruction_consistency = 17;
+  // InstructionAssessment is a free-text explanation of how the agent's actions
+  // related to its LLM instructions. Empty for non-beam summaries.
+  string instruction_assessment = 18;
 }
 
 // RetrievalModel resource specifies the model configuration used to

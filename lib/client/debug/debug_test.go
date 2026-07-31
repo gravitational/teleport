@@ -18,6 +18,7 @@ package debug
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -117,6 +118,36 @@ func TestGetReadiness(t *testing.T) {
 		require.False(t, out.Ready)
 		require.Equal(t, 0, out.PID)
 	})
+}
+
+func TestGetMetrics(t *testing.T) {
+	ctx := t.Context()
+	clt := &Client{
+		clt: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				require.Equal(t, "http://debug/metrics", req.URL.String())
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body: io.NopCloser(strings.NewReader(`# HELP test_metric Test metric.
+# TYPE test_metric gauge
+test_metric 1
+`)),
+				}, nil
+			}),
+		},
+	}
+
+	metrics, err := clt.GetMetrics(ctx)
+	require.NoError(t, err)
+	require.Contains(t, metrics, "test_metric")
+	require.Len(t, metrics["test_metric"].GetMetric(), 1)
+	require.InDelta(t, 1.0, metrics["test_metric"].GetMetric()[0].GetGauge().GetValue(), 0.0001)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestCollectProfile(t *testing.T) {

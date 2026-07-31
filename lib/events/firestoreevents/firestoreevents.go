@@ -453,6 +453,9 @@ func (l *Log) tryInsertEvent(docID uuid.UUID, e event) (inserted, isDuplicate bo
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the firestore audit backend does not support the beam ID filter")
+	}
 	values, next, err := l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
@@ -771,6 +774,9 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the firestore audit backend does not support the beam ID filter")
+	}
 	values, next, err := l.searchEventsWithFilter(
 		ctx,
 		searchEventsWithFilterParams{
