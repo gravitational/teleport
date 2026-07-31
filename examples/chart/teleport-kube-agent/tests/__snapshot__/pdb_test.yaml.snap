@@ -13,7 +13,7 @@ honors user-provided unhealthyPodEvictionPolicy:
         matchLabels:
           app: RELEASE-NAME
       unhealthyPodEvictionPolicy: IfHealthyBudget
-omits unhealthyPodEvictionPolicy for k8s < 1.31:
+omits unhealthyPodEvictionPolicy for k8s < 1.27:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget
@@ -43,7 +43,7 @@ sets PodDisruptionBudget labels when specified:
       selector:
         matchLabels:
           app: RELEASE-NAME
-sets unhealthyPodEvictionPolicy for k8s = 1.31:
+sets unhealthyPodEvictionPolicy for k8s = 1.27:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget
@@ -58,7 +58,7 @@ sets unhealthyPodEvictionPolicy for k8s = 1.31:
         matchLabels:
           app: RELEASE-NAME
       unhealthyPodEvictionPolicy: AlwaysAllow
-sets unhealthyPodEvictionPolicy k8s < 1.31 if forced:
+sets unhealthyPodEvictionPolicy k8s < 1.27 if forced:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget

@@ -28,7 +28,7 @@ support `unhealthyPodEvictionPolicy`. The PodDisruptionBudget may be rejected.
 See https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it
 for compatibility details.
 {{- end }}
-{{- if and .Values.highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy (semverCompare ">=1.26.0-0" .Capabilities.KubeVersion.Version) (semverCompare "<1.31.0-0" .Capabilities.KubeVersion.Version) }}
+{{- if and .Values.highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy (semverCompare ">=1.26.0-0" .Capabilities.KubeVersion.Version) (semverCompare "<1.27.0-0" .Capabilities.KubeVersion.Version) }}
 
 WARNING: `highAvailability.podDisruptionBudget.forceUnhealthyPodEvictionPolicy` is
 enabled for Kubernetes {{ .Capabilities.KubeVersion.Version }}. The
