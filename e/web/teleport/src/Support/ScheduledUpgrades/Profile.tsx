@@ -1,15 +1,23 @@
+import {
+  Button,
+  ButtonText,
+  Flex,
+  Text,
+  Tooltip,
+} from '@gravitational/design-system';
 import { UseMutationResult } from '@tanstack/react-query';
 import { Dispatch, SetStateAction } from 'react';
 
-import { Box, ButtonBorder, ButtonText, Flex, Text } from 'design';
 import { Check, Pencil } from 'design/Icon';
-import { IconTooltip } from 'design/Tooltip';
 import Select, { Option } from 'shared/components/Select';
 
 import { availableEnvironmentProfiles } from 'e-teleport/services/cloud';
 import { EnvironmentProfile } from 'e-teleport/services/cloud/cloud';
 import { GetEnvironmentProfileResponse } from 'e-teleport/services/cloud/v1/tenants_pb';
-import { EditableInput } from 'e-teleport/Support/ScheduledUpgrades/EditableInput';
+import {
+  EditableInput,
+  ErrorTooltipIcon,
+} from 'e-teleport/Support/ScheduledUpgrades/EditableInput';
 
 export function ProfileInput({
   mutation,
@@ -37,7 +45,7 @@ export function ProfileInput({
       title="Environment Profile"
       error={mutation?.error}
       content={
-        <Flex alignItems="center" gap="2">
+        <Flex align="center" gap="2">
           {edit ? (
             <>
               <Select
@@ -60,27 +68,21 @@ export function ProfileInput({
                 isSearchable={false}
                 isDisabled={mutation.isPending}
               />
-              <ButtonBorder
+              <Button
                 title="Save"
                 py="0"
                 px="2"
                 onClick={() => mutation.mutate()}
+                fill="border"
                 intent="primary"
                 disabled={mutation.isPending}
               >
                 <Check size="small" />
-              </ButtonBorder>
+              </Button>
               {mutation.error && (
-                <Box
-                  // use visibility to prevent layout shift when the tooltip appears
-                  style={{
-                    visibility: mutation?.error ? 'visible' : 'hidden',
-                  }}
-                >
-                  <IconTooltip kind="error">
-                    {mutation?.error?.message}
-                  </IconTooltip>
-                </Box>
+                <Tooltip content={mutation?.error?.message}>
+                  <ErrorTooltipIcon />
+                </Tooltip>
               )}
             </>
           ) : (

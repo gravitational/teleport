@@ -1,16 +1,25 @@
+import {
+  Box,
+  Button,
+  ButtonText,
+  Flex,
+  Text,
+  Tooltip,
+} from '@gravitational/design-system';
 import { UseMutationResult } from '@tanstack/react-query';
 import { Dispatch, SetStateAction } from 'react';
 
-import { Box, ButtonBorder, ButtonText, Flex, Text } from 'design';
 import { Check, Pencil } from 'design/Icon';
-import { IconTooltip } from 'design/Tooltip';
 import Select, { Option } from 'shared/components/Select';
 
 import {
   availableUpgradeWindowStartHours,
   UpgradeWindowStartHour,
 } from 'e-teleport/services/cloud';
-import { EditableInput } from 'e-teleport/Support/ScheduledUpgrades/EditableInput';
+import {
+  EditableInput,
+  ErrorTooltipIcon,
+} from 'e-teleport/Support/ScheduledUpgrades/EditableInput';
 
 const makeLabel = (startHour: UpgradeWindowStartHour): string => {
   return `${String(startHour).padStart(2, '0')}:00 (UTC)`;
@@ -37,7 +46,7 @@ export function WindowInput({
       title="Window Start Time"
       error={mutation?.error}
       content={
-        <Flex alignItems="center" gap="2">
+        <Flex align="center" gap="2">
           {edit ? (
             <>
               <Select
@@ -60,27 +69,22 @@ export function WindowInput({
                 isSearchable={false}
                 isDisabled={mutation.isPending}
               />
-              <ButtonBorder
+              <Button
                 title="Save"
                 py="0"
                 px="2"
                 onClick={() => mutation.mutate()}
+                fill="border"
                 intent="primary"
                 disabled={mutation.isPending}
               >
                 <Check size="small" />
-              </ButtonBorder>
+              </Button>
               {mutation.error && (
-                <Box
-                  data-testid={'window-warn-box'}
-                  // use visibility to prevent layout shift when the tooltip appears
-                  style={{
-                    visibility: mutation?.error ? 'visible' : 'hidden',
-                  }}
-                >
-                  <IconTooltip kind="error">
-                    {mutation?.error?.message}
-                  </IconTooltip>
+                <Box data-testid={'window-warn-box'}>
+                  <Tooltip content={mutation?.error?.message}>
+                    <ErrorTooltipIcon />
+                  </Tooltip>
                 </Box>
               )}
             </>

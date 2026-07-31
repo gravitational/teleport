@@ -1,7 +1,10 @@
+import {
+  Box,
+  Flex,
+  Text,
+  WarningCircleIcon,
+} from '@gravitational/design-system';
 import { ReactNode } from 'react';
-import { useTheme } from 'styled-components';
-
-import { Box, Flex, Text } from 'design';
 
 export function EditableInput({
   title,
@@ -11,36 +14,47 @@ export function EditableInput({
 }: {
   title: string;
   content?: ReactNode;
-  error: Error;
+  error?: Error;
   muted?: boolean;
 }) {
-  const theme = useTheme();
   return (
     <Flex
       pl={1}
       ml={-1}
-      alignItems="center"
-      backgroundColor={error && theme.colors.interactive.tonal.danger[0]}
+      align="center"
+      backgroundColor={error && 'interactive.tonal.danger.0'}
     >
       <Text
-        typography="body2"
+        as="div"
+        textStyle="body2"
         color={muted ? 'text.muted' : undefined}
-        bold
-        style={{ width: '200px', height: '38px', alignContent: 'center' }}
+        fontWeight="bold"
+        width="200px"
+        height="38px"
+        alignContent="center"
       >
         {title}:
       </Text>
       <Box
-        style={{
-          whiteSpace: 'pre',
-          textWrap: 'wrap',
-          wordBreak: 'break-all',
-          margin: 0,
-          minWidth: '200px',
-        }}
+        whiteSpace="pre"
+        textWrap="wrap"
+        wordBreak="break-all"
+        margin={0}
+        minWidth="200px"
       >
         {content}
       </Box>
     </Flex>
+  );
+}
+
+export function ErrorTooltipIcon() {
+  return (
+    <WarningCircleIcon
+      role="graphics-symbol"
+      aria-label="Error"
+      boxSize="18px"
+      color="interactive.solid.danger.default"
+    />
   );
 }

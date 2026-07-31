@@ -14,7 +14,6 @@ import { Button } from 'design/Button';
 import Flex from 'design/Flex';
 import { ListAddCheck } from 'design/Icon';
 import { Indicator } from 'design/Indicator';
-import { H2 } from 'design/Text';
 import { TextArea } from 'design/TextArea';
 import { Theme } from 'design/theme';
 import { HoverTooltip } from 'design/Tooltip';
@@ -27,7 +26,7 @@ import {
 import { useAsync } from 'shared/hooks/useAsync';
 
 import useTeleportE from 'e-teleport/useTeleportE';
-import { IconBox, SupportSectionCard } from 'teleport/Support/Support';
+import { SupportSectionCard } from 'teleport/Support/Support';
 
 const EDITOR_PLACEHOLDER = `Enter one CIDR block per line, e.g.:
 100.20.56.0/32
@@ -96,22 +95,12 @@ export const ClientIpRestrictions = ({ clusterId }: { clusterId: string }) => {
 
   return (
     <SupportSectionCard
-      css={`
-        grid-column: auto;
-        @media screen and (min-width: ${props =>
-            props.theme.breakpoints.small}) {
-          grid-column: span 2;
-        }
-        transition: 0.2s;
-      `}
+      title="IP Allowlist"
+      icon={<ListAddCheck />}
+      titleAction={<InfoGuideButton config={{ guide: <InfoGuide /> }} />}
+      gridColumn="1 / -1"
+      transition="0.2s"
     >
-      <Flex alignItems="center" justifyContent="space-between" mb={3}>
-        <Flex alignItems="center" justifyContent="start">
-          <IconBox>{<ListAddCheck />}</IconBox>
-          <H2>IP Allowlist</H2>
-        </Flex>
-        <InfoGuideButton config={{ guide: <InfoGuide /> }} />
-      </Flex>
       <Flex flex="1" data-testid="text-editor-container">
         <TextArea
           disabled={!editing || loading}

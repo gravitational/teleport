@@ -1,14 +1,16 @@
+import {
+  Box,
+  Button,
+  ComposedAlert,
+  Flex,
+  Label,
+  P3,
+  ShimmerBox,
+  Tooltip,
+} from '@gravitational/design-system';
 import React from 'react';
 
-import { Danger } from 'design/Alert';
-import Box from 'design/Box';
-import { Button } from 'design/Button';
-import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import Label from 'design/Label';
-import { ShimmerBox } from 'design/ShimmerBox';
-import { P3 } from 'design/Text';
-import { HoverTooltip } from 'design/Tooltip';
 import FieldInput from 'shared/components/FieldInput';
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -74,22 +76,28 @@ export function ContactEmails({
     createAttempt.status === 'processing';
 
   return (
-    <Flex justifyContent="start" flexDirection="column" width="100%">
+    <Flex direction="column" width="100%">
       {deleteAttempt.status === 'error' && (
-        <Danger mb="1" details={deleteAttempt.statusText}>
-          Could not delete contact
-        </Danger>
+        <ComposedAlert
+          mb="1"
+          kind="danger"
+          title="Could not delete contact"
+          description={deleteAttempt.statusText}
+        />
       )}
       {createAttempt.status === 'error' && (
-        <Danger mb="1" details={createAttempt.statusText}>
-          Could not create contact
-        </Danger>
+        <ComposedAlert
+          mb="1"
+          kind="danger"
+          title="Could not create contact"
+          description={createAttempt.statusText}
+        />
       )}
 
       {listAttempt.status === 'processing' && (
         <LoadingSkeleton
           count={3}
-          Element={<ShimmerBox height="36px" mb="3" />}
+          Element={<ShimmerBox height="36px" mb="4" />}
         />
       )}
       {contacts.map(contact => (
@@ -112,18 +120,18 @@ export function ContactEmails({
         />
       ))}
       {writePermissions && (
-        <HoverTooltip tipContent={maxReached ? MAX_LIMIT_TOOLTIP : ''}>
+        <Tooltip disabled={!maxReached} content={MAX_LIMIT_TOOLTIP}>
           <Button
-            px="3"
+            px="4"
             disabled={isProcessing || contacts.length >= maxContacts}
             onClick={onNewContact}
             fill="border"
-            width={{ _: '100%', small: 'fit-content' }}
+            width={{ base: '100%', sm: 'fit-content' }}
           >
             <Icons.Plus size="small" mr="1" />
             Invite New
           </Button>
-        </HoverTooltip>
+        </Tooltip>
       )}
     </Flex>
   );
@@ -168,10 +176,10 @@ function EmailInput({
       {({ validator }) => (
         <form onSubmit={e => onSubmit(e, validator)}>
           <Flex
-            gap={{ _: 2, small: 3 }}
+            gap={{ base: 2, sm: 4 }}
             width="100%"
-            alignItems="start"
-            flexDirection={{ _: 'column', small: 'row' }}
+            align="start"
+            direction={{ base: 'column', sm: 'row' }}
           >
             <Flex width="100%" gap={1}>
               <InputFieldWithVerificationState
@@ -183,14 +191,13 @@ function EmailInput({
               />
               {writePermissions && (
                 <Box
-                  mb={{ _: 2, small: 3 }}
-                  alignSelf={{ _: 'flex-start', small: 'auto' }}
+                  mb={{ base: 2, sm: 4 }}
+                  alignSelf={{ base: 'flex-start', sm: 'auto' }}
                 >
                   {!contact.draft && (
-                    <HoverTooltip
-                      tipContent={
-                        deleteDisabled ? DISABLED_DELETED_TOOLTIP : ''
-                      }
+                    <Tooltip
+                      disabled={!deleteDisabled}
+                      content={DISABLED_DELETED_TOOLTIP}
                     >
                       <Button
                         data-testid="delete-contact-btn"
@@ -199,12 +206,12 @@ function EmailInput({
                         disabled={disabled || deleteDisabled}
                         type="submit"
                         intent="danger"
-                        width={{ _: 'fit-content', small: '40px' }}
-                        px={{ _: 2, small: 3 }}
+                        width={{ base: 'fit-content', sm: '40px' }}
+                        px={{ base: 2, sm: 4 }}
                       >
                         <Icons.Trash size="small" />
                       </Button>
-                    </HoverTooltip>
+                    </Tooltip>
                   )}
 
                   {contact.draft && (
@@ -214,7 +221,7 @@ function EmailInput({
                       disabled={disabled}
                       type="submit"
                       width="80px"
-                      px={{ _: 2, small: 3 }}
+                      px={{ base: 2, sm: 4 }}
                     >
                       <Icons.PaperPlane size="small" mr={1} />
                       Invite
@@ -244,13 +251,7 @@ function InputFieldWithVerificationState({
   existingEmails: string[];
 }) {
   return (
-    <Box
-      width="100%"
-      mb="1"
-      css={`
-        position: relative;
-      `}
-    >
+    <Box width="100%" mb="1" position="relative">
       <FieldInput
         icon={Icons.EmailSolid}
         width="100%"
@@ -275,36 +276,27 @@ function InputFieldWithVerificationState({
           the same text (the contact email) with `visibility: hidden`
           so the status badge is positioned at the right of the input text.
       */}
-      <Box
-        css={`
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 40px;
-          align-items: center;
-          padding-left: 48px;
-          pointer-events: none;
-          display: flex;
-        `}
+      <Flex
+        position="absolute"
+        top={0}
+        left={0}
+        right={0}
+        height="40px"
+        align="center"
+        paddingLeft="48px"
+        pointerEvents="none"
       >
         {!contact.draft && (
           <>
-            <Box
-              css={`
-                visibility: hidden;
-                overflow: hidden;
-                max-width: 100%;
-              `}
-            >
+            <Box visibility="hidden" overflow="hidden" maxWidth="100%">
               {contact.email}
             </Box>
-            <Box ml="1" mr="3">
+            <Box ml="1" mr="4">
               <VerificationStateBadge verification={contact.verification} />
             </Box>
           </>
         )}
-      </Box>
+      </Flex>
     </Box>
   );
 }

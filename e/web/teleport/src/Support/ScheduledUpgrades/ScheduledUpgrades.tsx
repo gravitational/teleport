@@ -1,19 +1,19 @@
+import {
+  ComposedAlert,
+  ShimmerBox,
+  Subtitle2,
+} from '@gravitational/design-system';
 import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Flex } from 'design';
-import { Danger } from 'design/Alert';
 import { Clock } from 'design/Icon';
-import { ShimmerBox } from 'design/ShimmerBox';
-import { H2 } from 'design/Text';
-import { P } from 'design/Text/Text';
 
 import { UpgradeWindowStartHour } from 'e-teleport/services/cloud';
 import { EnvironmentProfile } from 'e-teleport/services/cloud/cloud';
 import { ProfileInput } from 'e-teleport/Support/ScheduledUpgrades/Profile';
 import { WindowInput } from 'e-teleport/Support/ScheduledUpgrades/WindowInput';
 import useTeleportE from 'e-teleport/useTeleportE';
-import { IconBox, SupportSectionCard } from 'teleport/Support/Support';
+import { SupportSectionCard } from 'teleport/Support/Support';
 
 export function ScheduledUpgrades() {
   const ctx = useTeleportE();
@@ -82,27 +82,21 @@ export function ScheduledUpgrades() {
   });
 
   return (
-    <SupportSectionCard>
-      <Flex alignItems="center" justifyContent="start" mb={3}>
-        <IconBox>
-          <Clock size={16} />
-        </IconBox>
-        <H2>Scheduled Upgrades</H2>
-      </Flex>
-      <P mb={3}>
+    <SupportSectionCard title="Scheduled Upgrades" icon={<Clock size={16} />}>
+      <Subtitle2 mb={4}>
         Window Start Time is the hour in which an upgrade may begin. The
         settings below apply to the entire organization.
-      </P>
+      </Subtitle2>
       {results.some(r => r.status === 'error') ? (
-        <Danger
-          details={
+        <ComposedAlert
+          kind="danger"
+          title="Error loading"
+          description={
             windowResp?.error?.message ||
             envResp?.error?.message ||
             'Unknown error occurred'
           }
-        >
-          Error loading
-        </Danger>
+        />
       ) : results.some(r => r.status === 'pending') ? (
         <ShimmerBox height="24px" width="100%" />
       ) : null}

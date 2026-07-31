@@ -1,17 +1,14 @@
+import {
+  ButtonSecondary,
+  ButtonWarning,
+  ComposedAlert,
+  ComposedDialog,
+  Dialog,
+  Subtitle2,
+} from '@gravitational/design-system';
 import { useCallback, useEffect, useState, type JSX } from 'react';
 
-import { Alert } from 'design/Alert';
-import { ButtonSecondary, ButtonWarning } from 'design/Button';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
-import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import { H2 } from 'design/Text';
-import { P } from 'design/Text/Text';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import {
@@ -20,7 +17,7 @@ import {
   ContactVerification,
 } from 'e-teleport/services/contacts/types';
 import useTeleportE from 'e-teleport/useTeleportE';
-import { IconBox, SupportSectionCard } from 'teleport/Support/Support';
+import { SupportSectionCard } from 'teleport/Support/Support';
 
 import { ContactEmails, FormContact } from './ContactEmails';
 
@@ -276,16 +273,15 @@ function ContactBox({
   createAttempt,
 }: ContactBoxProps) {
   return (
-    <SupportSectionCard>
-      <Flex alignItems="center" justifyContent="start" mb={3}>
-        <IconBox>{icon}</IconBox>
-        <H2>{title}</H2>
-      </Flex>
-      <P mb={3}>{text}</P>
+    <SupportSectionCard title={title} icon={icon}>
+      <Subtitle2 mb={4}>{text}</Subtitle2>
       {listAttempt.status === 'error' && (
-        <Alert my="2" details={listAttempt.statusText}>
-          Could not list contacts
-        </Alert>
+        <ComposedAlert
+          my="2"
+          kind="danger"
+          title="Could not list contacts"
+          description={listAttempt.statusText}
+        />
       )}
       {listAttempt.status !== 'error' && (
         <ContactEmails
@@ -319,17 +315,24 @@ function DeleteDialog({
   onDelete,
 }: DeleteDialogProps) {
   return (
-    <Dialog open={true} onClose={onClose} onEscapeKeyDown={onClose}>
-      <DialogHeader>
-        <DialogTitle>Delete Contact?</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
+    <ComposedDialog
+      open={true}
+      onOpenChange={({ open }) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+    >
+      <Dialog.Header>
+        <Dialog.Title>Delete Contact?</Dialog.Title>
+      </Dialog.Header>
+      <Dialog.Body>
         Are you sure you want to delete this{' '}
         {type === ContactType.Business ? 'business' : 'security'} contact?
-      </DialogContent>
-      <DialogFooter>
+      </Dialog.Body>
+      <Dialog.Footer>
         <ButtonWarning
-          mr="3"
+          mr="4"
           disabled={false}
           onClick={() => onDelete(verifyToken, type)}
         >
@@ -338,7 +341,7 @@ function DeleteDialog({
         <ButtonSecondary disabled={false} onClick={onClose}>
           Cancel
         </ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
+      </Dialog.Footer>
+    </ComposedDialog>
   );
 }
