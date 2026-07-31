@@ -709,7 +709,7 @@ func TestJoinGHA(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Run("scoped joinclient", func(t *testing.T) {
-				scopedToken := jointest.CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
+				scopedToken := CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
 				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 					Token:      scopedToken.GetMetadata().GetName(),
 					JoinMethod: types.JoinMethodGitHub,
@@ -726,7 +726,7 @@ func TestJoinGHA(t *testing.T) {
 				}
 
 				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
-				jointest.RequireScopedHostResult(t, result, scopedToken)
+				RequireScopedHostResult(t, result, scopedToken)
 			})
 
 			token, err := types.NewProvisionTokenFromSpec(
@@ -820,7 +820,7 @@ func TestJoinGHABot(t *testing.T) {
 	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 
 	// Create a scoped bot.
-	qualifiedBotName := jointest.CreateScopedBot(t, authServer.Auth(), "gha-bot")
+	qualifiedBotName := CreateScopedBot(t, authServer.Auth(), "gha-bot")
 
 	// Create the scoped token for bot joining.
 	tokenSpec := types.ProvisionTokenSpecV2{

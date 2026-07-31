@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
-	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1863,7 +1862,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	jointest.CreateScopedBot(t, srv.Auth(), "test-scoped")
+	CreateScopedBot(t, srv.Auth(), "test-scoped")
 
 	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,

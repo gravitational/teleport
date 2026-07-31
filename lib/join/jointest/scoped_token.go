@@ -18,75 +18,15 @@ package jointest
 
 import (
 	"cmp"
-	"context"
 	"encoding/json"
-	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes/joining"
 )
-
-const (
-	testTokenScope         = "/test"
-	testTokenAssignedScope = "/test/one"
-)
-
-var testTokenImmutableLabels = map[string]string{"scoped-join-test": "true"}
-
-// ScopedTokenClient is the subset of the scoped token service used by join
-// integration tests.
-type ScopedTokenClient interface {
-	CreateScopedToken(context.Context, *joiningv1.CreateScopedTokenRequest) (*joiningv1.CreateScopedTokenResponse, error)
-	DeleteScopedToken(context.Context, *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error)
-}
-
-// CreateScopedToken creates a dynamic scoped token equivalent to base and
-// registers cleanup. Provider configuration is intentionally derived from the
-// classic token so the same high-level test matrix can exercise both forms.
-func CreateScopedToken(
-	t testing.TB,
-	client ScopedTokenClient,
-	base types.ProvisionTokenSpecV2,
-	name string,
-) *joiningv1.ScopedToken {
-	t.Helper()
-
-	token, err := ScopedTokenFromProvisionTokenSpec(base, joiningv1.ScopedToken_builder{
-		Scope: testTokenScope,
-		Metadata: headerv1.Metadata_builder{
-			Name: name,
-		}.Build(),
-		Spec: joiningv1.ScopedTokenSpec_builder{
-			AssignedScope: testTokenAssignedScope,
-			UsageMode:     string(joining.TokenUsageModeUnlimited),
-			ImmutableLabels: joiningv1.ImmutableLabels_builder{
-				Ssh: testTokenImmutableLabels,
-			}.Build(),
-		}.Build(),
-	}.Build())
-	require.NoError(t, err)
-
-	_, err = client.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
-		Token: token,
-	}.Build())
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_, err := client.DeleteScopedToken(context.Background(), joiningv1.DeleteScopedTokenRequest_builder{
-			Name: token.GetMetadata().GetName(),
-		}.Build())
-		require.NoError(t, err)
-	})
-
-	return token
-}
 
 // ScopedTokenFromProvisionTokenSpec is a test helper that creates a scoped token using a [types.ProvisionTokenSpecV2]
 // as a base. The override parameter can be used to provide override values that should be used instead of the base token
