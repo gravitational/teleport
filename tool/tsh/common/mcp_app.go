@@ -30,6 +30,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -506,13 +507,15 @@ func (c *mcpConnectCommand) run() error {
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{
-			ClientStdio:              utils.CombinedStdio{},
-			GetApp:                   dialer.GetApp,
-			DialServer:               dialer.DialALPN,
-			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
-			AutoReconnect:            c.autoReconnect,
-			HTTPHeaders:              httpHeaders,
-			GetHTTPAuthHeader:        getAuthHeader,
+			ClientStdio: utils.CombinedStdio{},
+			GetApp:      dialer.GetApp,
+			DialServer:  dialer.DialALPN,
+			MakeReconnectUserMessage: func(err error) string {
+				return makeMCPReconnectUserMessageForApp(c.cf.AppSQN.Name, err)
+			},
+			AutoReconnect:     c.autoReconnect,
+			HTTPHeaders:       httpHeaders,
+			GetHTTPAuthHeader: getAuthHeader,
 		},
 	)
 }
@@ -533,29 +536,76 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 }
 
 func makeMCPReconnectUserMessage(err error) string {
-	var userMessage string
+	return makeMCPReconnectUserMessageForApp("", err)
+}
+
+func makeMCPReconnectUserMessageForApp(appName string, err error) string {
+	server := "the MCP server"
+	loginTarget := "<server-name>"
+	if appName != "" {
+		server = fmt.Sprintf("MCP server %q", appName)
+		loginTarget = appName
+	}
+
 	var loginRequiredErr *mcpOAuthLoginRequiredError
 	switch {
 	case errors.As(err, &loginRequiredErr):
-		userMessage = fmt.Sprintf("Authentication with MCP server %q is required or has expired."+
-			" Run `tsh mcp login %s` in your terminal and complete the authorization in your browser, then retry.",
+		return fmt.Sprintf("[MCP_AUTH_REQUIRED] Authentication with MCP server %q is required or has expired."+
+			" Run `tsh mcp login %s` in a terminal, complete authorization in the browser, then retry the request.",
 			loginRequiredErr.appName, loginRequiredErr.appName)
-	case clientmcp.IsLikelyTemporaryNetworkError(err):
-		userMessage = "A network error occurred while trying to connect to Teleport." +
-			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
-			" Please check your network and try again in a few moments." +
-			" If your network appears to be working, try restarting your MCP client to see if the problem is resolved."
+	case isMCPProtectedResourceMismatch(err):
+		return fmt.Sprintf("[MCP_AUTH_FLOW_MISMATCH] The MCP client tried to authenticate directly through Teleport's local endpoint, but the OAuth server only accepts its public resource URL."+
+			" Run `tsh mcp login %s` in a terminal instead, then retry in the MCP client.", loginTarget)
+	case errors.Is(err, mcpclienttransport.ErrUnauthorized):
+		return fmt.Sprintf("[MCP_AUTH_REQUIRED] %s rejected the request with HTTP 401."+
+			" Run `tsh mcp login %s` in a terminal, then retry. Do not use the MCP client's built-in OAuth login for a Teleport endpoint.",
+			server, loginTarget)
 	case client.IsErrorResolvableWithRelogin(err):
-		userMessage = clientmcp.ReloginRequiredErrorMessage
+		return "[MCP_TELEPORT_LOGIN_REQUIRED] " + clientmcp.ReloginRequiredErrorMessage
+	case errors.Is(err, mcpclienttransport.ErrSessionTerminated):
+		return fmt.Sprintf("[MCP_SESSION_EXPIRED] %s rejected the saved MCP session (HTTP 404)."+
+			" Restart the MCP client to create a new session. If this repeats, the remote server may be losing session state.", server)
+	case errors.Is(err, mcpclienttransport.ErrLegacySSEServer):
+		return fmt.Sprintf("[MCP_TRANSPORT_MISMATCH] %s is configured as Streamable HTTP, but its endpoint responded like a legacy SSE server."+
+			" Ask your Teleport administrator to verify the MCP application URI and transport.", server)
+	case clientmcp.IsNetworkTimeoutError(err) || isMCPHTTPTimeout(err):
+		return fmt.Sprintf("[MCP_CONNECTION_TIMEOUT] The request to %s timed out before a response arrived."+
+			" Retry once. If it times out again, check the remote MCP server's health and the Teleport Application Service logs; restarting the MCP client will not fix a repeatedly slow upstream.", server)
 	case clientmcp.IsServerInfoChangedError(err):
-		userMessage = "The remote MCP server information has changed after the reconnection. " +
-			" Please restart your MCP client to use the new version."
+		return fmt.Sprintf("[MCP_SERVER_CHANGED] %s reported a different name or version after reconnecting."+
+			" Restart the MCP client so it can load the server's current tools and capabilities.", server)
+	case clientmcp.IsLikelyTemporaryNetworkError(err):
+		return fmt.Sprintf("[MCP_NETWORK_UNAVAILABLE] tsh could not reach Teleport or %s."+
+			" Check your network and retry. If other Teleport commands work, check the remote MCP server and the Teleport Application Service logs.", server)
+	case isMCPUpstreamServerError(err):
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s or the Teleport Application Service returned an HTTP 5xx error."+
+			" Retry once, then check the remote server's health and the Application Service logs.", server)
+	case strings.Contains(strings.ToLower(err.Error()), "expected array, received null"):
+		return fmt.Sprintf("[MCP_PROTOCOL_ERROR] %s returned null where the MCP client requires an array."+
+			" Update tsh to a build containing the empty-tools-array fix and reconnect the MCP client.", server)
 	default:
-		userMessage = "An error was encountered while sending the request to Teleport." +
-			" This does not appear to be a transient error." +
-			" Please ensure your tsh session is valid and restart your MCP client to see if the problem is resolved."
+		return fmt.Sprintf("[MCP_REQUEST_FAILED] tsh could not complete the request to %s."+
+			" Check the tsh MCP logs for the underlying error. If `tsh status` shows an expired session, run `tsh login`; otherwise check the remote server and Teleport Application Service logs.", server)
 	}
+}
 
-	userMessage += " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
-	return userMessage
+func isMCPProtectedResourceMismatch(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "protected resource") &&
+		strings.Contains(message, "does not match expected")
+}
+
+func isMCPUpstreamServerError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "internal server error") ||
+		strings.Contains(message, "status 500") ||
+		strings.Contains(message, "status 502") ||
+		strings.Contains(message, "status 503") ||
+		strings.Contains(message, "status 504")
+}
+
+func isMCPHTTPTimeout(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "gateway timeout") ||
+		strings.Contains(message, "status 504")
 }
