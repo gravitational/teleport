@@ -5,11 +5,11 @@ resource "teleport_provision_token" "generic-oidc-token" {
     # name identifies the token. When configuring a bot or node to join using
     # this token, this name should be specified.
     name = "generic-oidc-token"
-  }
 
-  labels = {
-    // This label is added on the Teleport side by default
-    "teleport.dev/origin" = "dynamic"
+    labels = {
+      // This label is added on the Teleport side by default
+      "teleport.dev/origin" = "dynamic"
+    }
   }
 
   spec = {
