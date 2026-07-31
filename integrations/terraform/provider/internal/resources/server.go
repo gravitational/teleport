@@ -17,8 +17,6 @@
 package resources
 
 import (
-	"context"
-
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 
@@ -29,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
-// NewServerDataSourceType returns the SSH server data source type.
-func NewServerDataSourceType() tfdriver.DataSourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
+// NewSSHServerDataSourceType returns the SSH server data source type.
+func NewSSHServerDataSourceType() tfdriver.DataSourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.DataSourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier]{
 		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewServerClient(clientFromProvider(p))
@@ -47,8 +45,8 @@ func NewServerDataSourceType() tfdriver.DataSourceType[apitypes.ServerV2, tfdriv
 	}
 }
 
-// NewServerResourceType returns the SSH server resource type.
-func NewServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
+// NewSSHServerResourceType returns the SSH server resource type.
+func NewSSHServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
 	return tfdriver.ResourceType[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier]{
 		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.ServerV2, tfdriver.ScopeQualifiedNameIdentifier] {
 			return teleport.NewServerClient(clientFromProvider(p))
@@ -60,10 +58,9 @@ func NewServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdriver.S
 			FromPlanFunc: tfschema.CopyServerV2FromTerraform,
 		},
 		Normalizer: tfdriver.ResourceNormalizers[apitypes.ServerV2]{
-			// The schema carries no kind, and ServerV2.CheckAndSetDefaults
-			// rejects an empty one, so it must be set first. ServerV2 has no
-			// SetKind method, so tfdriver.ForceKind cannot be used here.
-			forceNodeKind(),
+			tfdriver.ForceKindFunc(func(server *apitypes.ServerV2) {
+				server.Kind = apitypes.KindNode
+			}),
 			tfdriver.CheckAndSetDefaults[apitypes.ServerV2](),
 		},
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
@@ -75,18 +72,5 @@ func NewServerResourceType() tfdriver.ResourceType[apitypes.ServerV2, tfdriver.S
 		ResourceRevision: func(st *apitypes.ServerV2) string {
 			return st.GetMetadata().Revision
 		},
-	}
-}
-
-// forceNodeKind sets the node kind on create and update.
-func forceNodeKind() tfdriver.ResourceNormalizer[apitypes.ServerV2] {
-	setKind := func(_ context.Context, server *apitypes.ServerV2) error {
-		server.Kind = apitypes.KindNode
-		return nil
-	}
-
-	return tfdriver.ResourceNormalizerFuncs[apitypes.ServerV2]{
-		Create: setKind,
-		Update: setKind,
 	}
 }

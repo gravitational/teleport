@@ -40,7 +40,10 @@ type openSSHEICEServerClient struct {
 
 // Get gets the Teleport OpenSSHEICE server of a given name.
 func (r openSSHEICEServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
-	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: key.Name}.Build())
+	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build())
 	if err != nil {
 		return server, trace.Wrap(err)
 	}
@@ -68,7 +71,10 @@ func (r openSSHEICEServerClient) Update(ctx context.Context, server types.Server
 
 // Delete deletes a Teleport OpenSSHEICE server.
 func (r openSSHEICEServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: key.Name}.Build()))
+	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build()))
 }
 
 // NewOpenSSHEICEServerV2Reconciler instantiates a new Kubernetes controller
@@ -78,7 +84,7 @@ func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Cli
 		teleportClient: tClient,
 	}
 
-	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
+	resourceReconciler, err := reconcilers.NewTeleportScopedResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
 		client,
 		serverClient,
 		reconcilers.Config{Scoped: true},

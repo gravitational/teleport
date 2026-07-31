@@ -26,6 +26,18 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 )
 
+type ScopedResourceWithLabelsAdapter[T types.ResourceWithLabels] struct {
+	ResourceWithLabelsAdapter[T]
+}
+
+func (a ScopedResourceWithLabelsAdapter[T]) GetResourceScope(res T) string {
+	if s, ok := any(res).(interface{ GetScope() string }); ok {
+		return s.GetScope()
+	}
+
+	return ""
+}
+
 // ResourceWithLabelsAdapter implements the Adapter interface for any resource
 // implementing types.ResourceWithLabels.
 type ResourceWithLabelsAdapter[T types.ResourceWithLabels] struct {
@@ -85,6 +97,40 @@ func NewTeleportResourceWithLabelsReconciler[T types.ResourceWithLabels, K Kuber
 		gvk:            gvk,
 		adapter:        ResourceWithLabelsAdapter[T]{},
 		scoped:         config.Scoped,
+		teleportKind:   teleportKind,
+		checkFeatures:  checkFeatures,
+	}
+	return reconciler, nil
+}
+
+// NewTeleportScopedResourceWithLabelsReconciler instantiates a resourceReconciler for a
+// types.ResourceWithLabels resource.
+func NewTeleportScopedResourceWithLabelsReconciler[T types.ResourceWithLabels, K KubernetesCR[T]](
+	client kclient.Client,
+	resourceClient resourceClient[T],
+	config Config,
+) (controllers.Reconciler, error) {
+	checkFeatures := controllers.AlwaysEnabled
+	if config.CheckFeatures != nil {
+		checkFeatures = config.CheckFeatures
+	}
+
+	gvk, err := gvkFromScheme[K](controllers.Scheme)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	teleportKind := newKubeResource[K]().ToTeleport().GetKind()
+	if teleportKind == "" {
+		return nil, trace.BadParameter("teleport kind is required, this is a bug")
+	}
+
+	reconciler := &resourceReconciler[T, K]{
+		kubeClient:     client,
+		resourceClient: resourceClient,
+		gvk:            gvk,
+		adapter:        ScopedResourceWithLabelsAdapter[T]{},
+		scoped:         true,
 		teleportKind:   teleportKind,
 		checkFeatures:  checkFeatures,
 	}
