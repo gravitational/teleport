@@ -599,13 +599,13 @@ func main() {
 			if len(f.OnlyInStruct) > 0 {
 				fmt.Printf("  missing from the example at %s:\n", f.Path)
 				for _, k := range f.OnlyInStruct {
-					fmt.Printf("    - %s\n", k)
+					fmt.Printf("    - %s.%s\n", f.Path, k)
 				}
 			}
 			if len(f.OnlyInDoc) > 0 {
 				fmt.Printf("  extra in the example (not in struct) at %s:\n", f.Path)
 				for _, k := range f.OnlyInDoc {
-					fmt.Printf("    - %s\n", k)
+					fmt.Printf("    - %s.%s\n", f.Path, k)
 				}
 			}
 		}
