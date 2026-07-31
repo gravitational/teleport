@@ -16,7 +16,7 @@ resource "teleport_provision_token" "generic-oidc-token" {
     // For Machine & Workload Identity joining, roles will always be "Bot". For
     // standard Teleport agents, roles may include "Node", "Kube", "App", "db",
     // or similar, depending on the desired services.
-    roles       = ["Node"]
+    roles = ["Node"]
 
     // This field is always "generic_oidc" for Generic OIDC joining.
     join_method = "generic_oidc"
@@ -24,7 +24,7 @@ resource "teleport_provision_token" "generic-oidc-token" {
     // bot_name specifies the name of the bot that this token will grant access
     // to when it is used. If joining a standard Teleport agent, this field
     // should be omitted. This field is required for bots
-    // bot_name    = "generic-oidc-demo"
+    // bot_name = "generic-oidc-demo"
 
     generic_oidc = {
       // The OIDC issuer. Must exactly match the `iss` value in incoming OIDC
