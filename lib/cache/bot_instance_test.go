@@ -22,9 +22,9 @@ import (
 	"slices"
 	"testing"
 	"testing/synctest"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -132,11 +132,6 @@ func TestBotInstanceCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 		wantScopes  []string
 	}{
 		{
-			name:        "nil filter seeds every scope",
-			scopeFilter: nil,
-			wantScopes:  []string{"", "/bar", "/foo", "/foo/sub"},
-		},
-		{
 			name:        "mode ALL seeds every scope",
 			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 			wantScopes:  []string{"", "/bar", "/foo", "/foo/sub"},
@@ -185,6 +180,13 @@ func TestBotInstanceCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 			ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build()),
 		})
 		require.ErrorContains(t, err, "requires a non-empty scope")
+	})
+
+	t.Run("unspecified watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newBotInstanceCollection(p.botInstanceService, types.WatchKind{
+			Kind: types.KindBotInstance,
+		})
+		require.ErrorContains(t, err, "explicit scope filter mode")
 	})
 }
 
@@ -583,59 +585,97 @@ func TestBotInstanceCacheList(t *testing.T) {
 }
 
 // TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
+// TestBotInstanceCacheFallback compares reads served by the unhealthy-cache
+// fallback against the healthy cache: both apply the collection's scope filter
+// to lists and gets, while sort support legitimately differs (the upstream
+// backend only supports bot_name-ascending iteration).
 func TestBotInstanceCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	for _, tt := range []struct {
+		name    string
+		neverOK bool
+	}{
+		{name: "HealthyCache", neverOK: false},
+		{name: "Fallback", neverOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
 
-	p := newTestPack(t, func(cfg Config) Config {
-		cfg.neverOK = true // Force the cache into an unhealthy state
-		return ForAuth(cfg)
-	})
-	t.Cleanup(p.Close)
+				p := newTestPack(t, func(cfg Config) Config {
+					cfg = ForAuth(cfg)
+					cfg.neverOK = tt.neverOK
+					for i, w := range cfg.Watches {
+						if w.Kind == types.KindBotInstance {
+							cfg.Watches[i].ScopeFilter = types.ScopeFilterFromProto(
+								scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+							)
+						}
+					}
+					return cfg
+				})
+				t.Cleanup(p.Close)
 
-	_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
-		Kind:     types.KindBotInstance,
-		Version:  types.V1,
-		Metadata: &headerv1.Metadata{},
-		Spec: machineidv1.BotInstanceSpec_builder{
-			BotName:    "bot-1",
-			InstanceId: "instance-1",
-		}.Build(),
-		Status: &machineidv1.BotInstanceStatus{},
-	}.Build())
-	require.NoError(t, err)
+				for i, scope := range []string{"", "/foo", "/foo/sub", "/bar"} {
+					_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
+						Kind:     types.KindBotInstance,
+						Version:  types.V1,
+						Scope:    scope,
+						Metadata: &headerv1.Metadata{},
+						Spec: machineidv1.BotInstanceSpec_builder{
+							BotName:    fmt.Sprintf("bot-%d", i),
+							InstanceId: fmt.Sprintf("instance-%d", i),
+						}.Build(),
+						Status: &machineidv1.BotInstanceStatus{},
+					}.Build())
+					require.NoError(t, err)
+				}
 
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
-		require.NoError(t, err)
-		require.Len(t, results, 1)
-	}, 10*time.Second, 100*time.Millisecond)
+				synctest.Wait()
 
-	// sort ascending by bot_name
-	results, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		SortField: "bot_name",
-		SortDesc:  false,
-	})
-	require.NoError(t, err) // asc by bot_name is the only sort supported by the upstream
-	require.Len(t, results, 1)
+				// Lists apply the collection's scope filter regardless of health.
+				results, _, err := p.cache.ListBotInstances(ctx, 0, "", nil)
+				require.NoError(t, err)
+				gotScopes := make([]string, 0, len(results))
+				for _, bi := range results {
+					gotScopes = append(gotScopes, bi.GetScope())
+				}
+				slices.Sort(gotScopes)
+				require.Equal(t, []string{"/foo", "/foo/sub"}, gotScopes)
 
-	// sort descending by bot_name
-	_, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		SortField: "bot_name",
-		SortDesc:  true,
-	})
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
+				// So do gets: in-filter is retrievable, out-of-filter reads as absent.
+				gotFoo, err := p.cache.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
+					BotName: "bot-1", InstanceId: "instance-1", BotScope: "/foo",
+				}.Build())
+				require.NoError(t, err)
+				require.Equal(t, "/foo", gotFoo.GetScope())
 
-	// sort ascending by active_at_latest
-	_, _, err = p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
-		SortField: "active_at_latest",
-		SortDesc:  false,
-	})
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "unsupported sort, only bot_name field is supported, but got \"active_at_latest\"")
+				_, err = p.cache.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
+					BotName: "bot-3", InstanceId: "instance-3", BotScope: "/bar",
+				}.Build())
+				require.True(t, trace.IsNotFound(err), "expected NotFound for out-of-filter instance, got %v", err)
+
+				// The healthy cache serves every sort from its indexes; the fallback
+				// surfaces the backend's ordering limits.
+				listErr := func(sortField string, desc bool) error {
+					_, _, err := p.cache.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+						SortField: sortField,
+						SortDesc:  desc,
+					})
+					return err
+				}
+				require.NoError(t, listErr("bot_name", false))
+				if tt.neverOK {
+					require.ErrorContains(t, listErr("bot_name", true), "unsupported sort, only ascending order is supported")
+					require.ErrorContains(t, listErr("active_at_latest", false), `unsupported sort, only bot_name field is supported, but got "active_at_latest"`)
+				} else {
+					require.NoError(t, listErr("bot_name", true))
+					require.NoError(t, listErr("active_at_latest", false))
+				}
+			})
+		})
+	}
 }
 
 func TestKeyForVersionIndex(t *testing.T) {

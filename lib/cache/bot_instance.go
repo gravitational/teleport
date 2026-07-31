@@ -58,6 +58,11 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// An omitted filter means match-all here but identity-based defaults at the
+	// authz layer, so require the config to say which is meant.
+	if scopeFilter.GetMode() == scopesv1.Mode_MODE_UNSPECIFIED {
+		return nil, trace.BadParameter("bot instance cache requires an explicit scope filter mode")
+	}
 
 	return &collection[*machineidv1.BotInstance, botInstanceIndex]{
 		store: newStore(
@@ -99,8 +104,17 @@ func (c *Cache) GetBotInstance(ctx context.Context, req *machineidv1.GetBotInsta
 		cache:      c,
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
-		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
-			return c.Config.BotInstanceService.GetBotInstance(ctx, req)
+		upstreamGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
+			bi, err := c.Config.BotInstanceService.GetBotInstance(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Mirror the healthy path: an instance outside the collection's
+			// scope filter is never in the store.
+			if !scopes.MatchScope(c.collections.botInstances.watch.ScopeFilter.ToProto(), bi.GetScope()) {
+				return nil, trace.NotFound("%q %q does not exist", types.KindBotInstance, key)
+			}
+			return bi, nil
 		},
 	}
 
@@ -168,7 +182,19 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
+			// The backend enforces the request options but not the collection's
+			// scope filter; graft it onto the options' iteration filter so cache
+			// health doesn't change the visible set and pages still fill.
+			collectionFilter := c.collections.botInstances.watch.ScopeFilter.ToProto()
+			var opts services.ListBotInstancesRequestOptions
+			if options != nil {
+				opts = *options
+			}
+			inner := opts.FilterFn
+			opts.FilterFn = func(b *machineidv1.BotInstance) bool {
+				return scopes.MatchScope(collectionFilter, b.GetScope()) && (inner == nil || inner(b))
+			}
+			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, &opts)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			// A bot is identified by (scope, name), so a by-bot filter also
