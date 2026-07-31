@@ -921,7 +921,7 @@ func (s *Service) ListNodes(ctx context.Context, req *presencepb.ListSSHServersR
 			func(node types.Server) (*types.ServerV2, bool) {
 				// Filter out nodes the user doesn't have access to.
 				if err := authContext.CheckerContext.Decision(ctx, node.GetScope(), func(checker *services.ScopedAccessChecker) error {
-					if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbRead, types.VerbList); err != nil {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbList); err != nil {
 						return err
 					}
 					return checker.SSH().CanAccessSSHServer(node)
