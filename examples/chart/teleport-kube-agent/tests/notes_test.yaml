@@ -17,7 +17,7 @@ tests:
   - it: warns when unhealthy pod eviction policy requires a feature gate
     capabilities:
       majorVersion: 1
-      minorVersion: 30
+      minorVersion: 26 
     set:
       highAvailability:
         podDisruptionBudget:
