@@ -106,6 +106,25 @@ spec:
       - resources: ['*']
         verbs: ['create', 'update', 'delete']
 ---
+kind: role
+version: v8
+metadata:
+  name: node-admin
+spec:
+  allow:
+    logins: ['root']
+    node_labels:
+      '*': ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: node-deny
+spec:
+  deny:
+    node_labels:
+      '*': ['*']
+---
 kind: token
 version: v2
 metadata:

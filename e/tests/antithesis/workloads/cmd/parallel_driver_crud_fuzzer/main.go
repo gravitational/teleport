@@ -26,9 +26,6 @@ const (
 )
 
 const (
-	defaultCredsDir         = "/creds"
-	defaultProxyAddr        = "antithesis.teleport.local:3080"
-	identityFile            = "identity"
 	fuzzerPrefix            = "antithesis"
 	valueLabel              = "antithesis/value"
 	writeReplicationTimeout = 5 * time.Minute

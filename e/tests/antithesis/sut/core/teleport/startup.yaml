@@ -10,3 +10,5 @@ spec:
     - resource-admin
     - resource-deny-all
     - resource-read-only
+    - node-admin
+    - node-deny

@@ -1,0 +1,21 @@
+version: v3
+teleport:
+  nodename: agent
+  data_dir: /var/lib/teleport
+  auth_token: agent-token
+  proxy_server: antithesis.teleport.local:3080
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: false
+
+proxy_service:
+  enabled: false
+
+ssh_service:
+  enabled: true
+  public_addr: agent:3022
+  labels:
+    test_template: ssh

@@ -138,12 +138,30 @@ services:
         aliases:
           - antithesis.teleport.local
 
+  agent:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
+    hostname: agent
+    container_name: agent
+    depends_on:
+      - proxy-lb
+    healthcheck:
+      test: ["CMD", "teleport", "debug", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - certs:/certs:ro
+      - ./teleport/agent.yaml:/etc/teleport.yaml:ro
+
   workload:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/workload-core:${TAG:-latest}
     hostname: workload
     container_name: workload
     depends_on:
       proxy-lb:
+        condition: service_healthy
+      agent:
         condition: service_healthy
     volumes:
       - ./tbot/tbot.yaml:/etc/tbot/tbot.yaml:ro

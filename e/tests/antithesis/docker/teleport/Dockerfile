@@ -100,6 +100,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/parallel_driver_crud_fuzzer ./cmd/parallel_driver_crud_fuzzer
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/parallel_driver_single_ssh_command ./cmd/parallel_driver_single_ssh_command
+
 FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -135,14 +140,22 @@ COPY e/tests/antithesis/docker/teleport/entrypoint.sh /usr/local/bin/entrypoint.
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 FROM runtime AS teleport
-# Every teleport cache instance should eventually recover
+# Every teleport cache instance should eventually recover. Note that this command is placed in every test template,
+# this allows the fuzzer a possiblity to find a series of faults and/or commands that could trip the cache into an
+# unhealthy state. This verifies the liveness property of Teleport cache to recover from failure.
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/crud/eventually_cache_is_healthy
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/ssh/eventually_cache_is_healthy
 
 CMD ["/usr/local/bin/teleport", "start"]
 
 
 FROM teleport AS auth
+# Every teleport auth instance should be eventually consistent with the backend. Note that this command is placed in every test template,
+# this allows the fuzzer a possiblity to find a series of faults and/or commands that could trip the cache into an
+# inconsistent view of the backend. This verifies the liveness property of Teleport auth to be eventually consistent with the
+# backend.
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/crud/eventually_auth_consistent
+COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/ssh/eventually_auth_consistent
 
 CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
@@ -163,4 +176,5 @@ CMD ["/usr/local/bin/workload_entrypoint", "--config=/etc/tbot/tbot.yaml"]
 # See https://antithesis.com/docs/test_templates/test_composer_reference/
 FROM workload AS workload-core
 COPY --from=builder /out/parallel_driver_crud_fuzzer /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
+COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test/v1/ssh/parallel_driver_single_ssh_command
 

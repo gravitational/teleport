@@ -8,6 +8,9 @@ teleport:
     type: postgresql
     conn_string: "postgresql://teleport@pg:5432/teleport_backend?sslcert=/certs/client.crt&sslkey=/certs/client.key&sslrootcert=/certs/ca.crt&sslmode=verify-full&pool_max_conns=10"
     change_feed_conn_string: "postgresql://teleport@pg:5432/teleport_backend?sslcert=/certs/client.crt&sslkey=/certs/client.key&sslrootcert=/certs/ca.crt&sslmode=verify-full"
+    audit_events_uri:
+      - "postgresql://teleport@pg:5432/teleport_audit?sslcert=/certs/client.crt&sslkey=/certs/client.key&sslrootcert=/certs/ca.crt&sslmode=verify-full&pool_max_conns=10"
+    audit_sessions_uri: file:///var/lib/teleport/log/records
 
 auth_service:
   enabled: true
@@ -19,6 +22,7 @@ auth_service:
   cluster_name: antithesis.teleport.local
   tokens:
     - "proxy:proxy-token"
+    - "node:agent-token"
 
 proxy_service:
   enabled: false

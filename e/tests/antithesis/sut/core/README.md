@@ -9,9 +9,10 @@ This SUT runs:
 - Two Teleport Auth Service containers backed by PostgreSQL.
 - Two Teleport Proxy Service containers.
 - An nginx TCP load balancer.
+- Agent node configured with SSH service
 
 
 ### Test Templates
 
 * `crud`, tests focusing on properties of CRUD operations. 
-<!-- TODO: implement other test template -->
+* `ssh`, tests running commands against a Teleport SSH service agent.

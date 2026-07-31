@@ -13,13 +13,13 @@ storage:
 
 outputs:
   - type: identity
-    roles: ["resource-admin"]
+    roles: ["resource-admin", "node-admin"]
     destination:
       type: directory
       path: /creds/admin
 
   - type: identity
-    roles: ["resource-deny-all"]
+    roles: ["resource-deny-all", "node-deny"]
     destination:
       type: directory
       path: /creds/denied

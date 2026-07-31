@@ -1,12 +1,9 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
 	"maps"
-	"os"
-	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -14,24 +11,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/crud"
 	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/testenv"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	tctlclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-func credsDir() string {
-	return cmp.Or(os.Getenv("TELEPORT_CREDS_DIR"), defaultCredsDir)
-}
-
-func proxyAddr() string {
-	return cmp.Or(os.Getenv("TELEPORT_PROXY_ADDR"), defaultProxyAddr)
-}
-
 func newClient(ctx context.Context, identity string) (authclient.ClientI, error) {
 	ccf := tctlcfg.GlobalCLIFlags{
-		AuthServerAddr:   []string{proxyAddr()},
-		IdentityFilePath: filepath.Join(credsDir(), identity, identityFile),
+		AuthServerAddr:   []string{testenv.ProxyAddr()},
+		IdentityFilePath: testenv.IdentityPath(identity),
 	}
 	cfg := servicecfg.MakeDefaultConfig()
 
