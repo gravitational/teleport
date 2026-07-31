@@ -1316,6 +1316,20 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 		require.ErrorContains(t, err, "<scope>::<bot_name>/<instance_id>")
 	})
+
+	t.Run("SQN in the single-arg form is rejected with a hint", func(t *testing.T) {
+		for _, ref := range []string{
+			types.KindBotInstance + "//staging::staging-bot",
+			types.KindBotInstance + "//staging::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
+		} {
+			t.Run(ref, func(t *testing.T) {
+				_, err := runResourceCommand(t, clt, []string{"get", ref, "--format=json"})
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+				require.ErrorContains(t, err, "single-arg")
+				require.ErrorContains(t, err, "<scope>::<name>")
+			})
+		}
+	})
 }
 
 // TestIntegrationResource tests tctl integration commands.
