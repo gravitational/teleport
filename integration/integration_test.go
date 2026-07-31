@@ -3943,7 +3943,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 			Name:              name,
 			DisableWebService: true,
 		}
-		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &newConfig.FileDescriptors)
+		newConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &newConfig.FileDescriptors)
 		newConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &newConfig.FileDescriptors)
 		newConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &newConfig.FileDescriptors)
 		reverseTunnelAddr = newConfig.ReverseTunnelAddr
@@ -4074,7 +4074,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 		Name:              "cluster-main-proxy",
 		DisableWebService: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
@@ -4206,7 +4206,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 		DisableWebInterface:    true,
 		DisableALPNSNIListener: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListener(t, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListener(t, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListener(t, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 
@@ -4355,7 +4355,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 		Name:              "cluster-main-proxy",
 		DisableWebService: true,
 	}
-	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerNodeSSH, &proxyConfig.FileDescriptors)
+	proxyConfig.SSHAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxySSH, &proxyConfig.FileDescriptors)
 	proxyConfig.WebAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyWeb, &proxyConfig.FileDescriptors)
 	proxyConfig.ReverseTunnelAddr = helpers.NewListenerOn(t, main.Hostname, service.ListenerProxyTunnel, &proxyConfig.FileDescriptors)
 

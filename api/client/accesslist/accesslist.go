@@ -299,10 +299,16 @@ func (c *Client) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.Ge
 // GetStaticAccessListMember returns the specified access_list_member resource. If returns error if
 // the target access_list is not of type static.
 func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, &accesslistv1.GetStaticAccessListMemberRequest{
+	return c.GetStaticAccessListMemberV2(ctx, accesslistv1.GetStaticAccessListMemberRequest_builder{
 		AccessList: accessList,
 		MemberName: memberName,
-	})
+	}.Build())
+}
+
+// GetStaticAccessListMemberV2 returns the specified access_list_member resource. If returns error if
+// the target access_list is not of type static.
+func (c *Client) GetStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.GetStaticAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetStaticAccessListMember(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -378,10 +384,16 @@ func (c *Client) UpdateAccessListMember(ctx context.Context, member *accesslist.
 // DeleteStaticAccessListMember hard deletes the specified access_list_member. It returns error and
 // does nothing if the target access_list is not of static type.
 func (c *Client) DeleteStaticAccessListMember(ctx context.Context, accessList, memberName string) error {
-	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, &accesslistv1.DeleteStaticAccessListMemberRequest{
+	return c.DeleteStaticAccessListMemberV2(ctx, accesslistv1.DeleteStaticAccessListMemberRequest_builder{
 		AccessList: accessList,
 		MemberName: memberName,
-	})
+	}.Build())
+}
+
+// DeleteStaticAccessListMemberV2 hard deletes the specified access_list_member. It returns error and
+// does nothing if the target access_list is not of static type.
+func (c *Client) DeleteStaticAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteStaticAccessListMemberRequest) error {
+	_, err := c.grpcClient.DeleteStaticAccessListMember(ctx, req)
 	return trace.Wrap(err)
 }
 

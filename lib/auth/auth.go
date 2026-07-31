@@ -4541,6 +4541,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
+	if err := mfa.ValidateChallengeScope(challengeExtensions.Scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
@@ -6052,7 +6056,9 @@ func (a *Server) ListAccessRequests(ctx context.Context, req *proto.ListAccessRe
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListAccessRequests(ctx, req)
+	return a.listMatchingAccessRequests(ctx, req, func(_ *types.AccessRequestV3) bool {
+		return true
+	})
 }
 
 // ListMatchingAccessRequests is equivalent to ListAccessRequests except that it adds the ability to provide an arbitrary matcher function. This method
@@ -6062,7 +6068,40 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 	// immediately after writing, but listing requires support for custom sort orders so we route it to
 	// a special cache. note that the access request cache will still end up forwarding single-request
 	// reads to the real backend due to the read after write issue.
-	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, req, match)
+	return a.listMatchingAccessRequests(ctx, req, match)
+}
+
+func (a *Server) listMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
+	cacheReq, searchKeywords := splitAccessRequestSearchKeywords(req)
+	searchMatcher := services.NewAccessRequestSearchMatcher(searchKeywords, a)
+
+	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, cacheReq, func(accessRequest *types.AccessRequestV3) bool {
+		// searchMatcher decides whether the request matches the query. match
+		// preserves the caller-specific visibility filter, such as RBAC.
+		return searchMatcher(ctx, accessRequest) && match(accessRequest)
+	})
+}
+
+func splitAccessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsRequest, []string) {
+	if req.Filter == nil || len(req.Filter.SearchKeywords) == 0 {
+		return req, nil
+	}
+
+	searchKeywords := make([]string, 0, len(req.Filter.SearchKeywords))
+	for _, keyword := range req.Filter.SearchKeywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword != "" {
+			searchKeywords = append(searchKeywords, keyword)
+		}
+	}
+
+	reqCopy := *req
+	filterCopy := *req.Filter
+	// Search keywords can contain user display values that are not stored in the
+	// backend to result in false negatives, so the custom matcher handles all keyword filtering instead.
+	filterCopy.SearchKeywords = nil
+	reqCopy.Filter = &filterCopy
+	return &reqCopy, searchKeywords
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {
@@ -7601,6 +7640,9 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := services.ValidateApp(app, a); err != nil {
 		return trace.Wrap(err)
 	}
@@ -7630,6 +7672,12 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := services.ValidateApp(app, a); err != nil {
 		return trace.Wrap(err)
 	}

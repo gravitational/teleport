@@ -191,6 +191,100 @@ func TestScopeQualifiedNameIdentifierFromPath(t *testing.T) {
 	}
 }
 
+func TestPossiblyUnscopedScopeQualifiedNameIdentifierFromPath(t *testing.T) {
+	cases := []struct {
+		name               string
+		attributer         attributeReaderFunc
+		expectedIdentifier tfdriver.ScopeQualifiedNameIdentifier
+		expectError        bool
+	}{
+		{
+			name: "unscoped empty scope",
+			attributer: func(p path.Path, v any) diag.Diagnostics {
+				s, ok := v.(*types.String)
+				if !ok {
+					return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("expected type string, but got %T", v))}
+				}
+
+				switch {
+				case p.Equal(path.Root("name")):
+					s.Value = "testing"
+				case p.Equal(path.Root("scope")):
+					s.Value = ""
+				}
+
+				return nil
+			},
+			expectedIdentifier: tfdriver.ScopeQualifiedNameIdentifier{Name: "testing"},
+		},
+		{
+			name: "unscoped null scope",
+			attributer: func(p path.Path, v any) diag.Diagnostics {
+				s, ok := v.(*types.String)
+				if !ok {
+					return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("expected type string, but got %T", v))}
+				}
+
+				switch {
+				case p.Equal(path.Root("name")):
+					s.Value = "testing"
+				case p.Equal(path.Root("scope")):
+					s.Null = true
+				}
+
+				return nil
+			},
+			expectedIdentifier: tfdriver.ScopeQualifiedNameIdentifier{Name: "testing"},
+		},
+		{
+			name: "scoped",
+			attributer: func(p path.Path, v any) diag.Diagnostics {
+				s, ok := v.(*types.String)
+				if !ok {
+					return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("expected type string, but got %T", v))}
+				}
+
+				switch {
+				case p.Equal(path.Root("name")):
+					s.Value = "testing"
+				case p.Equal(path.Root("scope")):
+					s.Value = "/foo/bar"
+				}
+
+				return nil
+			},
+			expectedIdentifier: tfdriver.ScopeQualifiedNameIdentifier{Name: "testing", Scope: "/foo/bar"},
+		},
+		{
+			name: "invalid scoped",
+			attributer: func(p path.Path, v any) diag.Diagnostics {
+				s, ok := v.(*types.String)
+				if !ok {
+					return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("expected type string, but got %T", v))}
+				}
+
+				switch {
+				case p.Equal(path.Root("name")):
+					s.Value = "testing"
+				case p.Equal(path.Root("scope")):
+					s.Value = "/foo/bar&[]/"
+				}
+
+				return nil
+			},
+			expectError: true,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			identifier, d := tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierFromPath(path.Root("name"), path.Root("scope"))(t.Context(), test.attributer)
+			assert.Equal(t, test.expectError, d.HasError())
+			assert.Equal(t, test.expectedIdentifier, identifier)
+		})
+	}
+}
+
 func TestNewScopeQualifiedNameIdentifier(t *testing.T) {
 	cases := []struct {
 		name               string
@@ -224,6 +318,73 @@ func TestNewScopeQualifiedNameIdentifier(t *testing.T) {
 		})
 	}
 
+}
+
+func TestNewPossiblyUnscopedScopeQualifiedNameIdentifier(t *testing.T) {
+	cases := []struct {
+		name               string
+		input              string
+		errorAssertion     require.ErrorAssertionFunc
+		expectedIdentifier tfdriver.ScopeQualifiedNameIdentifier
+	}{
+		{
+			name:               "unscoped",
+			input:              "testing",
+			errorAssertion:     require.NoError,
+			expectedIdentifier: tfdriver.ScopeQualifiedNameIdentifier{Name: "testing"},
+		},
+		{
+			name:               "scoped",
+			input:              "/animals/llama::testing",
+			errorAssertion:     require.NoError,
+			expectedIdentifier: tfdriver.ScopeQualifiedNameIdentifier{Name: "testing", Scope: "/animals/llama"},
+		},
+		{
+			name:           "invalid scoped",
+			input:          "/animals/llama::testing&[]/",
+			errorAssertion: require.Error,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			identifier, err := tfdriver.NewPossiblyUnscopedScopeQualifiedNameIdentifier(test.input)
+			test.errorAssertion(t, err)
+			require.Equal(t, test.expectedIdentifier, identifier)
+		})
+	}
+}
+
+func TestPossiblyUnscopedScopeQualifiedNameIdentifierPolicy(t *testing.T) {
+	type testResource struct {
+		Name  string
+		Scope string
+	}
+
+	policy := tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
+		path.Root("name"),
+		path.Root("scope"),
+		func(resource *testResource) (string, string) {
+			return resource.Name, resource.Scope
+		},
+	)
+
+	require.Equal(t,
+		tfdriver.ScopeQualifiedNameIdentifier{Name: "unscoped"},
+		policy.FromResource(&testResource{Name: "unscoped"}),
+	)
+	require.Equal(t,
+		tfdriver.ScopeQualifiedNameIdentifier{Name: "scoped", Scope: "/foo/bar"},
+		policy.FromResource(&testResource{Name: "scoped", Scope: "/foo/bar"}),
+	)
+
+	identifier, err := policy.FromImportID("unscoped")
+	require.NoError(t, err)
+	require.Equal(t, tfdriver.ScopeQualifiedNameIdentifier{Name: "unscoped"}, identifier)
+
+	identifier, err = policy.FromImportID("/foo/bar::scoped")
+	require.NoError(t, err)
+	require.Equal(t, tfdriver.ScopeQualifiedNameIdentifier{Name: "scoped", Scope: "/foo/bar"}, identifier)
 }
 
 func TestCompositeIdentifierFromPath(t *testing.T) {
@@ -422,6 +583,64 @@ func TestCompositeIdentifierPolicy(t *testing.T) {
 	fromImport, err := policy.FromImportID("import-prefix/import-name")
 	require.NoError(t, err)
 	require.Equal(t, tfdriver.CompositeIdentifier{Prefix: "import-prefix", Name: "import-name"}, fromImport)
+}
+
+func TestScopeQualifiedCompositeIdentifierPolicy(t *testing.T) {
+	type resource struct {
+		prefix string
+		name   string
+	}
+	policy := tfdriver.ScopeQualifiedCompositeIdentifierPolicy(
+		path.Root("prefix"),
+		path.Root("name"),
+		func(r *resource) (prefix, name string) {
+			return r.prefix, r.name
+		},
+	)
+
+	fromState, diags := policy.FromState(t.Context(), attributeReaderFunc(func(p path.Path, v any) diag.Diagnostics {
+		s, ok := v.(*types.String)
+		if !ok {
+			return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("expected type string, but got %T", v))}
+		}
+		switch {
+		case p.Equal(path.Root("prefix")):
+			s.Value = "/state/scope::state-prefix"
+		case p.Equal(path.Root("name")):
+			s.Value = "/state/scope::state-name"
+		default:
+			return diag.Diagnostics{diag.NewErrorDiagnostic("fail", fmt.Sprintf("unexpected path %s", p.String()))}
+		}
+		return nil
+	}))
+	require.False(t, diags.HasError(), diags)
+	require.Equal(t, tfdriver.ScopeQualifiedCompositeIdentifier{
+		Prefix: tfdriver.ScopeQualifiedNameIdentifier{Name: "state-prefix", Scope: "/state/scope"},
+		Name:   tfdriver.ScopeQualifiedNameIdentifier{Name: "state-name", Scope: "/state/scope"},
+	}, fromState)
+	require.Equal(t, "/state/scope::state-prefix//state/scope::state-name", fromState.String())
+
+	fromResource := policy.FromResource(&resource{prefix: "/resource/scope::resource-prefix", name: "resource-name"})
+	require.Equal(t, tfdriver.ScopeQualifiedCompositeIdentifier{
+		Prefix: tfdriver.ScopeQualifiedNameIdentifier{Name: "resource-prefix", Scope: "/resource/scope"},
+		Name:   tfdriver.ScopeQualifiedNameIdentifier{Name: "resource-name"},
+	}, fromResource)
+	require.Equal(t, "/resource/scope::resource-prefix/resource-name", fromResource.String())
+
+	fromImport, err := policy.FromImportID("/import/scope::import-prefix//import/scope::import-name")
+	require.NoError(t, err)
+	require.Equal(t, tfdriver.ScopeQualifiedCompositeIdentifier{
+		Prefix: tfdriver.ScopeQualifiedNameIdentifier{Name: "import-prefix", Scope: "/import/scope"},
+		Name:   tfdriver.ScopeQualifiedNameIdentifier{Name: "import-name", Scope: "/import/scope"},
+	}, fromImport)
+
+	legacyImport, err := policy.FromImportID("import-prefix/import-name")
+	require.NoError(t, err)
+	require.Equal(t, tfdriver.ScopeQualifiedCompositeIdentifier{
+		Prefix: tfdriver.ScopeQualifiedNameIdentifier{Name: "import-prefix"},
+		Name:   tfdriver.ScopeQualifiedNameIdentifier{Name: "import-name"},
+	}, legacyImport)
+	require.Equal(t, "import-prefix/import-name", legacyImport.String())
 }
 
 func TestScopeQualifiedNameIdentifierPolicy(t *testing.T) {

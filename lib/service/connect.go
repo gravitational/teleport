@@ -58,6 +58,7 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -757,9 +758,22 @@ func (process *TeleportProcess) makeJoinParams(
 	}
 
 	tokenName, tokenSecret := token, ""
-	if name, secret, ok := joining.DecodeScopedToken(token); ok {
-		tokenName = name
-		tokenSecret = secret
+	if scopes.MaybeSQN(token) {
+		qn, err := scopes.ParseQualifiedName(token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if name, secret, ok := joining.DecodeScopedToken(qn.Name); ok {
+			qn.Name = name
+			tokenName = qn.String()
+			tokenSecret = secret
+		}
+	} else {
+		if name, secret, ok := joining.DecodeScopedToken(token); ok {
+			tokenName = name
+			tokenSecret = secret
+		}
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
