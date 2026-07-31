@@ -25,7 +25,7 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
@@ -40,8 +40,7 @@ type openSSHServerClient struct {
 
 // Get gets the Teleport OpenSSH server of a given name.
 func (r openSSHServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
-	//nolint:staticcheck // TODO(williamo): remove when we update IAC
-	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, key.Name)
+	server, err := r.teleportClient.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: key.Name}.Build())
 	if err != nil {
 		return server, trace.Wrap(err)
 	}
@@ -69,8 +68,7 @@ func (r openSSHServerClient) Update(ctx context.Context, server types.Server) er
 
 // Delete deletes a Teleport OpenSSH server.
 func (r openSSHServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	//nolint:staticcheck // TODO(williamo): remove when we update IAC
-	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, key.Name))
+	return trace.Wrap(r.teleportClient.DeleteSSHServer(ctx, presencev1.DeleteSSHServerRequest_builder{Name: key.Name}.Build()))
 }
 
 // NewOpenSSHServerV2Reconciler instantiates a new Kubernetes controller
@@ -83,7 +81,7 @@ func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client)
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
 		client,
 		serverClient,
-		reconcilers.Config{},
+		reconcilers.Config{Scoped: true},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

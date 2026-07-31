@@ -42,6 +42,7 @@ type TeleportOpenSSHEICEServerV2 struct {
 
 	Spec   TeleportOpenSSHEICEServerV2Spec `json:"spec"`
 	Status teleportcr.Status               `json:"status"`
+	Scope  string                          `json:"scope"`
 }
 
 //+kubebuilder:object:root=true

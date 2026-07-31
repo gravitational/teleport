@@ -25,7 +25,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/defaults"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -34,7 +34,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHServer() {
 	s.T().Cleanup(cancel)
 
 	checkServerDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetNode(ctx, defaults.Namespace, "test")
+		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -86,7 +86,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHServerNameless() {
 
 	checkServerDestroyed := func(state *terraform.State) error {
 		// The name is a UUID but we can lookup by hostname as well.
-		_, err := s.client.GetNode(ctx, defaults.Namespace, "test.local")
+		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test.local"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -159,7 +159,7 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHServer() {
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err = s.client.GetNode(ctx, defaults.Namespace, server.GetName())
+		_, err = s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: name}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}
@@ -193,7 +193,7 @@ func (s *TerraformSuiteOSS) TestOpenSSHEICEServer() {
 	s.T().Cleanup(cancel)
 
 	checkServerDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetNode(ctx, defaults.Namespace, "test")
+		_, err := s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: "test"}.Build())
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -288,7 +288,7 @@ func (s *TerraformSuiteOSS) TestImportOpenSSHEICEServer() {
 	require.NoError(s.T(), err)
 
 	require.Eventually(s.T(), func() bool {
-		_, err = s.client.GetNode(ctx, defaults.Namespace, server.GetName())
+		_, err = s.client.GetSSHServer(ctx, presencev1.GetSSHServerRequest_builder{Name: server.GetName()}.Build())
 		if trace.IsNotFound(err) {
 			return false
 		}

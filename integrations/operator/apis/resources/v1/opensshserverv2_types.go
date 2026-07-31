@@ -42,6 +42,7 @@ type TeleportOpenSSHServerV2 struct {
 
 	Spec   TeleportOpenSSHServerV2Spec `json:"spec"`
 	Status teleportcr.Status           `json:"status"`
+	Scope  string                      `json:"scope"`
 }
 
 //+kubebuilder:object:root=true
