@@ -201,6 +201,7 @@ Broadly, we recommend the following minimum rules:
 
   In the example JWT shown above, `namespace_id` and `namespace_path` might be
   good global rules to configure for all joining clients.
+
 - Define one or more `allow_any` rules to allow individual workloads or other
   compute units that should be granted access, using either `expression` or
   `conditions`.
@@ -208,6 +209,7 @@ Broadly, we recommend the following minimum rules:
   With the example JWT in mind, `project_id` and `project_path` might be useful
   fields to perform an equality check on, to ensure join attempts are coming
   from an authorized project.
+
   - The `conditions` rule allows you to specify a list of simple conditions
     (`eq`, `not_eq`, `in`, `not_in`) that claim attributes must match.
   - The `expression` rule type uses Teleport's [predicate
@@ -252,7 +254,7 @@ Proxy, Kubernetes, Application, Database, or Desktop Service.
          # followed by arguments, one per list entry. This example calls
          # `example-provider issue-token ...` with a client-specified audience
          # request. Your provider will differ.
-         command: ["example-ci", "issue-token", "--audience=<Var name="teleport.example.com"/>/example-agent"]
+         command: ["example-ci", "issue-token", "--audience=teleport.example.com/example-agent"]
 
          # By default, commands timeout after 1 minute. If your OIDC provider
          # needs a different value, specify it in `timeout`
