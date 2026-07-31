@@ -1059,13 +1059,14 @@ available pod specified on the PodDisruptionBudget.
 
 | Type | Default |
 |------|---------|
-| `string` | `"AlwaysAllow"` |
+| `string` | `"auto"` |
 
 `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` allows
 eviction of unhealthy pods even if it falls below minAvailable. When all
 pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
 server due to firewall/networking), the default policy (IfHealthyBudget)
-prevents draining a node. Set to an empty string to disable this option.
+prevents draining a node. Set to "" to disable this option, or set an
+explicit policy to force rendering it on Kubernetes versions before 1.27.
 See: [unhealthyPodEvictionPolicy in Kube
 docs](https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it)
 
