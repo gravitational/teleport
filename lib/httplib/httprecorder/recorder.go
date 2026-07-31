@@ -78,6 +78,17 @@ type Config struct {
 	// UserMetadata identifies the user who initiated the session.
 	UserMetadata apievents.UserMetadata
 
+	// Format is the LLM API wire format the request uses (e.g. "anthropic",
+	// "openai"), recorded on the request event when the app is an LLM proxy so
+	// consumers don't infer it from the endpoint. Optional; empty for non-LLM
+	// recordings.
+	Format string
+
+	// Provider is the LLM inference provider serving the request, recorded on
+	// the request event alongside Format. Optional; empty for non-LLM
+	// recordings.
+	Provider string
+
 	// Logger reports recording failures. It is required so callers choose the
 	// logging policy for this exchange.
 	Logger *slog.Logger
@@ -571,5 +582,7 @@ func newRequestEvent(cfg Config, requestID string) *apievents.AppSessionHTTPRequ
 		HttpVersion: req.Proto,
 		Headers:     filterHeaders(req.Header),
 		RawQuery:    req.URL.RawQuery,
+		Format:      cfg.Format,
+		Provider:    cfg.Provider,
 	}
 }

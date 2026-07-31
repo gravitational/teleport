@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
@@ -57,7 +58,7 @@ func VNetServiceBuilder(cfg *VNetServiceConfig, opts ...VNetServiceOpt) bot.Serv
 		}
 
 		// Prevent accidental misuse.
-		if os.Getenv("TELEPORT_BEAMS_RUNTIME") != "yes" {
+		if os.Getenv(teleport.BeamsRuntimeEnvVar) != "yes" {
 			return nil, trace.Errorf("service type %q is not intended for use outside of Teleport Beams, see: https://beams.run for more information", VNetServiceType)
 		}
 
