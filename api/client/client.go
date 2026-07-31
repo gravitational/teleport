@@ -1538,11 +1538,29 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 }
 
 // DeleteKubernetesServer deletes a named kubernetes server.
+//
+// TODO (eriktate): remove in v20
 func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	_, err := c.grpc.DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
-		HostID: hostID,
+	return c.DeleteKubeServer(ctx, presencepb.DeleteKubeServerRequest_builder{
+		HostId: hostID,
 		Name:   name,
-	})
+	}.Build())
+}
+
+// DeleteKubeServer deletes a named kubernetes server with respect to scopes.
+func (c *Client) DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteKubeServer(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of scoped kube server from an outdated Teleport control plane that does not support it")
+		}
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		_, err := c.grpc.DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
+			HostID: req.GetHostId(),
+			Name:   req.GetName(),
+		})
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -6321,19 +6339,18 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
-func (c *Client) GetScopedToken(ctx context.Context, name string, withSecret bool) (*joiningv1.ScopedToken, error) {
-	res, err := c.grpc.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
-		Name:       name,
-		WithSecret: withSecret,
-	})
-	return res.GetToken(), trace.Wrap(err)
+func (c *Client) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.ScopedToken, error) {
+	res, err := c.grpc.GetScopedToken(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.GetToken(), nil
 }
 
 // DeleteScopedToken deletes an existing scoped token.
-func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-		Name: name,
-	})
+func (c *Client) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) error {
+	_, err := c.grpc.DeleteScopedToken(ctx, req)
 	return trace.Wrap(err)
 }
 

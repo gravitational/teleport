@@ -79,6 +79,9 @@ type UserContext struct {
 	// AvailableScopes is a list of scopes available to the user through their
 	// scoped role assignments.
 	AvailableScopes []string `json:"availableScopes"`
+	// Scope contains the scope pinned to the current session. An empty string
+	// indicates an unscoped session.
+	Scope string `json:"scope"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
