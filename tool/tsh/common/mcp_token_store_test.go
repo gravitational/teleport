@@ -38,7 +38,8 @@ import (
 
 func newTestCreds(accessToken string, expiresAt time.Time) *mcpOAuthCredentials {
 	return &mcpOAuthCredentials{
-		ClientID: "test-client-id",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
 		Token: mcpclienttransport.Token{
 			AccessToken:  accessToken,
 			TokenType:    "bearer",
@@ -57,6 +58,7 @@ func TestMCPOAuthCredentialsRoundTrip(t *testing.T) {
 	loaded, err := loadMCPOAuthCredentials(path)
 	require.NoError(t, err)
 	require.Equal(t, creds.ClientID, loaded.ClientID)
+	require.Equal(t, creds.ClientSecret, loaded.ClientSecret)
 	require.Equal(t, creds.Token.AccessToken, loaded.Token.AccessToken)
 	require.Equal(t, creds.Token.RefreshToken, loaded.Token.RefreshToken)
 
@@ -75,7 +77,11 @@ func TestLoadMCPOAuthCredentialsNotFound(t *testing.T) {
 func TestFileTokenStore(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "app.json")
-	store := &fileTokenStore{path: path, clientID: "test-client-id"}
+	store := &fileTokenStore{
+		path:         path,
+		clientID:     "test-client-id",
+		clientSecret: "test-client-secret",
+	}
 
 	// No file yet: must map to mcp-go's sentinel.
 	_, err := store.GetToken(ctx)
@@ -88,10 +94,11 @@ func TestFileTokenStore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "tok", got.AccessToken)
 
-	// SaveToken must preserve the client ID alongside the token.
+	// SaveToken must preserve the client credentials alongside the token.
 	creds, err := loadMCPOAuthCredentials(path)
 	require.NoError(t, err)
 	require.Equal(t, "test-client-id", creds.ClientID)
+	require.Equal(t, "test-client-secret", creds.ClientSecret)
 }
 
 func TestMCPOAuthHeaderSourceFastPath(t *testing.T) {
@@ -167,7 +174,11 @@ func TestMCPOAuthHeaderSourceSingleFlight(t *testing.T) {
 					RefreshToken: "refresh-fresh-token",
 					ExpiresAt:    time.Now().Add(time.Hour),
 				}
-				store := &fileTokenStore{path: path, clientID: "test-client-id"}
+				store := &fileTokenStore{
+					path:         path,
+					clientID:     "test-client-id",
+					clientSecret: "test-client-secret",
+				}
 				require.NoError(t, store.SaveToken(ctx, token))
 				return token, nil
 			},
@@ -196,6 +207,7 @@ func TestMCPOAuthHeaderSourceSingleFlight(t *testing.T) {
 	creds, err := loadMCPOAuthCredentials(path)
 	require.NoError(t, err)
 	require.Equal(t, "refresh-fresh-token", creds.Token.RefreshToken)
+	require.Equal(t, "test-client-secret", creds.ClientSecret)
 }
 
 func TestBearerAuthHeader(t *testing.T) {

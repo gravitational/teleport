@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -30,6 +32,7 @@ import (
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -37,7 +40,11 @@ import (
 
 type mcpLoginCommand struct {
 	*kingpin.CmdClause
-	cf *CLIConf
+	cf               *CLIConf
+	clientID         string
+	promptSecret     bool
+	clientSecretFile string
+	callbackPort     uint16
 }
 
 func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand {
@@ -46,6 +53,15 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		cf:        cf,
 	}
 	cmd.Arg("name", "Name of the MCP server.").Required().SetValue(&cf.AppSQN)
+	cmd.Flag("client-id", "OAuth client ID for a pre-registered client. When set, dynamic client registration is skipped.").
+		StringVar(&cmd.clientID)
+	cmd.Flag("client-secret", "Prompt for the OAuth client secret of a pre-registered confidential client.").
+		BoolVar(&cmd.promptSecret)
+	cmd.Flag("client-secret-file", "Read the OAuth client secret from a file.").
+		PlaceHolder("PATH").
+		StringVar(&cmd.clientSecretFile)
+	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
+		Uint16Var(&cmd.callbackPort)
 	return cmd
 }
 
@@ -65,6 +81,11 @@ func (c *mcpLoginCommand) run() error {
 		return trace.BadParameter("MCP server %q does not use HTTP transport; OAuth login only applies to HTTP MCP servers", c.cf.AppSQN.Name)
 	}
 
+	clientID, clientSecret, err := c.getOAuthClientCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	httpClient, err := newMCPOAuthHTTPClient(dialer)
 	if err != nil {
 		return trace.Wrap(err)
@@ -73,25 +94,40 @@ func (c *mcpLoginCommand) run() error {
 	// The loopback listener that catches the browser redirect. It must exist
 	// before dynamic client registration, since the exact redirect URI (port
 	// included) is part of what gets registered.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listenAddr := "127.0.0.1:0"
+	if c.callbackPort != 0 {
+		listenAddr = fmt.Sprintf("localhost:%d", c.callbackPort)
+	}
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer listener.Close()
 	redirectURI := fmt.Sprintf("http://%s/callback", listener.Addr())
+	if c.callbackPort != 0 {
+		// Pre-registered OAuth clients require an exact redirect URI. Use
+		// localhost to match the callback URI advertised by common MCP clients.
+		redirectURI = fmt.Sprintf("http://localhost:%d/callback", c.callbackPort)
+	}
 
 	tokenStore := mcpclienttransport.NewMemoryTokenStore()
 	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
-		RedirectURI: redirectURI,
-		PKCEEnabled: true,
-		HTTPClient:  httpClient,
-		TokenStore:  tokenStore,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURI:  redirectURI,
+		PKCEEnabled:  true,
+		HTTPClient:   httpClient,
+		TokenStore:   tokenStore,
 	})
 	oauthHandler.SetBaseURL("http://localhost")
 
-	fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
-	if err := oauthHandler.RegisterClient(ctx, "Teleport tsh"); err != nil {
-		return trace.Wrap(err)
+	if clientID == "" {
+		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
+		if err := oauthHandler.RegisterClient(ctx, "Teleport tsh"); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		fmt.Fprintf(c.cf.Stdout(), "Using pre-registered OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
 	}
 
 	codeVerifier, err := mcpclienttransport.GenerateCodeVerifier()
@@ -147,14 +183,47 @@ func (c *mcpLoginCommand) run() error {
 	}
 	credsPath := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
 	if err := saveMCPOAuthCredentials(credsPath, &mcpOAuthCredentials{
-		ClientID: oauthHandler.GetClientID(),
-		Token:    *token,
+		ClientID:     oauthHandler.GetClientID(),
+		ClientSecret: oauthHandler.GetClientSecret(),
+		Token:        *token,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintf(c.cf.Stdout(), "Authorization complete. Tokens stored in %v.\n", credsPath)
 	fmt.Fprintf(c.cf.Stdout(), "MCP server %q is ready — restart your MCP clients if already running.\n", c.cf.AppSQN.Name)
 	return nil
+}
+
+func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
+	clientID := strings.TrimSpace(c.clientID)
+	hasSecret := c.promptSecret || c.clientSecretFile != ""
+	switch {
+	case c.promptSecret && c.clientSecretFile != "":
+		return "", "", trace.BadParameter("--client-secret and --client-secret-file are mutually exclusive")
+	case clientID == "" && hasSecret:
+		return "", "", trace.BadParameter("--client-secret and --client-secret-file require --client-id")
+	case !hasSecret:
+		return clientID, "", nil
+	}
+
+	var clientSecret string
+	if c.promptSecret {
+		var err error
+		clientSecret, err = prompt.Password(c.cf.Context, c.cf.Stderr(), prompt.Stdin(), "Enter OAuth client secret")
+		if err != nil {
+			return "", "", trace.Wrap(err)
+		}
+	} else {
+		data, err := os.ReadFile(c.clientSecretFile)
+		if err != nil {
+			return "", "", trace.Wrap(trace.ConvertSystemError(err), "reading OAuth client secret file")
+		}
+		clientSecret = strings.TrimSpace(string(data))
+	}
+	if clientSecret == "" {
+		return "", "", trace.BadParameter("OAuth client secret is empty")
+	}
+	return clientID, clientSecret, nil
 }
 
 // newMCPOAuthHTTPClient returns the HTTP client for talking OAuth. The
