@@ -120,6 +120,11 @@ func TestScopePinning(t *testing.T) {
 
 	ctx := t.Context()
 
+	// node names are only unique within a scope, so an id-like target can match
+	// more than one node.
+	unscopedCollisionID := uuid.NewString()
+	scopedCollisionID := uuid.NewString()
+
 	// set up servers across varioous scopes with various hostname collision
 	// scenarios (parent/child, same-scope, orthogonal scopes, etc).
 	servers := createServers([]server{
@@ -127,6 +132,34 @@ func TestScopePinning(t *testing.T) {
 			scope:    "",
 			name:     uuid.NewString(),
 			hostname: "unscoped.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			// An unscoped node whose id collides with a scoped one.
+			// Dial reaches unscoped
+			scope:    "",
+			name:     unscopedCollisionID,
+			hostname: "id-collision-unscoped.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/staging",
+			name:     unscopedCollisionID,
+			hostname: "id-collision-scoped.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			// Two scoped nodes colliding on id with nothing unscoped to
+			// disambiguate, so the dial must stay ambiguous.
+			scope:    "/staging",
+			name:     scopedCollisionID,
+			hostname: "id-collision-staging.example.com",
+			addr:     "1.2.3.4:0",
+		},
+		{
+			scope:    "/prod",
+			name:     scopedCollisionID,
+			hostname: "id-collision-prod.example.com",
 			addr:     "1.2.3.4:0",
 		},
 		{
@@ -225,6 +258,22 @@ func TestScopePinning(t *testing.T) {
 		{
 			name:      "parent/child conflict when unpinned",
 			host:      "parent-child.example.com",
+			pin:       nil,
+			ambiguous: true,
+		},
+		{
+			name: "unscoped node wins an id collision with a scoped node",
+			host: unscopedCollisionID,
+			pin:  nil,
+		},
+		{
+			name: "only scoped node reachable by colliding id when pinned",
+			host: unscopedCollisionID,
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
+		},
+		{
+			name:      "colliding ids across scopes are ambiguous",
+			host:      scopedCollisionID,
 			pin:       nil,
 			ambiguous: true,
 		},

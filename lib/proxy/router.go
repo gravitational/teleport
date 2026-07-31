@@ -25,6 +25,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"os"
+	"slices"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -544,15 +545,32 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 		// if a dial request for an id-like target creates multiple matches,
 		// give precedence to the exact match if one exists. If not, handle
 		// multiple matchers per-usual below.
+		//
+		// With the introduction of scope namespacing, it is now technically possible
+		// to create ssh servers with matching id-like names in multiple scopes.
+		// TODO (williamo/scopes): Replace this with SQN based routing
+		var nameMatches []types.Server
 		for _, m := range matches {
 			if m.GetName() == host {
-				matches = []types.Server{m}
-				break
+				nameMatches = append(nameMatches, m)
+			}
+		}
+
+		if len(nameMatches) > 0 {
+			// Narrow to the name matches rather than to a single one. A lone
+			// name match still collapses to it as before, but colliding names
+			// across scopes are left ambiguous for the handling below.
+			// If there is an unscoped server, take it over scoped servers
+			// that collide with its name.
+			matches = nameMatches
+
+			if slices.ContainsFunc(matches, func(m types.Server) bool { return m.GetScope() == "" }) {
+				matches = slices.DeleteFunc(matches, func(m types.Server) bool { return m.GetScope() != "" })
 			}
 		}
 	}
 
-	// NOTE: there is an open question here about wether or not we should be doing scope-aware
+	// NOTE: there is an open question here about whether or not we should be doing scope-aware
 	// disambiguation when multiple matches are found. In some cases, this seems like the obviously
 	// right thing to do.  For example, when there is a match in `/foo` and a match in `/foo/bar`,
 	// it would seem obvious that the match in `/foo` should be preferred per scope hierarchy rules.
