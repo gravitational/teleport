@@ -50,7 +50,10 @@ import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { defaultEntitlements } from './entitlement';
+import {
+  applyLegacyPolicyEntitlementFallback,
+  defaultEntitlements,
+} from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
@@ -283,8 +286,8 @@ const cfg = {
   oidc: false,
   /** @deprecated Use entitlements instead; remove in v20 */
   saml: false,
-  // isPolicyEnabled refers to the Teleport Policy product
-  /** @deprecated Use entitlements.Policy.enabled instead;*/
+  // isPolicyEnabled refers to the legacy Teleport Policy product.
+  /** @deprecated Use the feature-specific identity security entitlements instead. */
   isPolicyEnabled: false,
 
   ui: {
@@ -2078,7 +2081,7 @@ const cfg = {
   },
 
   init(backendConfig = {}) {
-    mergeDeep(this, backendConfig);
+    mergeDeep(this, applyLegacyPolicyEntitlementFallback(backendConfig));
   },
 };
 

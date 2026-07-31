@@ -31,9 +31,31 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestRequireSessionSummaries(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, controllers.RequireSessionSummaries(&proto.Features{
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.Policy): {Enabled: true},
+		},
+	}))
+	require.False(t, controllers.RequireSessionSummaries(&proto.Features{
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.Policy):           {Enabled: true},
+			string(entitlements.SessionSummaries): {Enabled: false},
+		},
+	}))
+	require.True(t, controllers.RequireSessionSummaries(&proto.Features{
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.SessionSummaries): {Enabled: true},
+		},
+	}))
+}
 
 type fakeReconciler struct {
 	reconcile.Reconciler
