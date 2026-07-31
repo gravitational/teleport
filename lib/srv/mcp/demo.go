@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,7 +38,20 @@ import (
 const (
 	// DemoServerName is the name of the "Teleport Demo" MCP server.
 	DemoServerName = "teleport-mcp-demo"
+
+	// demoInfoCardResourceURI is the ui:// resource URI for the MCP Apps
+	demoInfoCardResourceURI = "ui://teleport-demo/info-card"
+
+	// demoTeleportInfoResourceURI is the ui:// resource URI for the animated
+	// Teleport company info card.
+	demoTeleportInfoResourceURI = "ui://teleport-demo/teleport-info"
 )
+
+//go:embed demo_info_card.html
+var demoInfoCardHTML string
+
+//go:embed demo_teleport_info.html
+var demoTeleportInfoHTML string
 
 // NewDemoServerApp returns the app definition for the "Teleport Demo" MCP
 // server.
@@ -73,19 +87,78 @@ func newDemoServer(_ context.Context, session *sessionHandler) *mcpserver.MCPSer
 		teleport.Version,
 	)
 
+	demoServer.AddResource(
+		mcp.NewResource(demoInfoCardResourceURI, "Teleport Info Card",
+			mcp.WithMIMEType("text/html;profile=mcp-app"),
+		),
+		func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			return []mcp.ResourceContents{
+				mcp.TextResourceContents{
+					URI:      demoInfoCardResourceURI,
+					MIMEType: "text/html;profile=mcp-app",
+					Text:     demoInfoCardHTML,
+				},
+			}, nil
+		},
+	)
+	demoServer.AddResource(
+		mcp.NewResource(demoTeleportInfoResourceURI, "Teleport Company Info",
+			mcp.WithMIMEType("text/html;profile=mcp-app"),
+		),
+		func(_ context.Context, _ mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			return []mcp.ResourceContents{
+				mcp.TextResourceContents{
+					URI:      demoTeleportInfoResourceURI,
+					MIMEType: "text/html;profile=mcp-app",
+					Text:     demoTeleportInfoHTML,
+				},
+			}, nil
+		},
+	)
+
+	// uiMeta links a tool to the info-card UI resource. Clients that support
+	// the io.modelcontextprotocol/ui extension pre-fetch the resource and
+	// render it as an interactive iframe when the tool is called.
+	uiMeta := &mcp.Meta{
+		AdditionalFields: map[string]any{
+			"ui": map[string]any{
+				"resourceUri": demoInfoCardResourceURI,
+			},
+		},
+	}
+	teleportInfoUiMeta := &mcp.Meta{
+		AdditionalFields: map[string]any{
+			"ui": map[string]any{
+				"resourceUri": demoTeleportInfoResourceURI,
+			},
+		},
+	}
+
+	userInfoTool := mcp.NewTool(
+		"teleport_user_info",
+		mcp.WithDescription("Shows basic information about your Teleport user."),
+	)
+	userInfoTool.Meta = uiMeta
+
+	sessionInfoTool := mcp.NewTool(
+		"teleport_session_info",
+		mcp.WithDescription("Shows information about this MCP session."),
+	)
+	sessionInfoTool.Meta = uiMeta
+
+	teleportInfoTool := mcp.NewTool(
+		"teleport_info",
+		mcp.WithDescription("Shows information about Teleport, the Infrastructure Access Platform."),
+	)
+	teleportInfoTool.Meta = teleportInfoUiMeta
+
 	tools := []mcpserver.ServerTool{
 		{
-			Tool: mcp.NewTool(
-				"teleport_user_info",
-				mcp.WithDescription("Shows basic information about your Teleport user."),
-			),
+			Tool:    userInfoTool,
 			Handler: makeUserInfoToolHandler(session),
 		},
 		{
-			Tool: mcp.NewTool(
-				"teleport_session_info",
-				mcp.WithDescription("Shows information about this MCP session."),
-			),
+			Tool:    sessionInfoTool,
 			Handler: makeSessionInfoToolHandler(session),
 		},
 		{
@@ -94,6 +167,10 @@ func newDemoServer(_ context.Context, session *sessionHandler) *mcpserver.MCPSer
 				mcp.WithDescription("Shows information about this Teleport Demo MCP server."),
 			),
 			Handler: makeDemoInfoToolHandler(),
+		},
+		{
+			Tool:    teleportInfoTool,
+			Handler: makeTeleportInfoToolHandler(),
 		},
 	}
 
@@ -160,6 +237,27 @@ https://goteleport.com/docs/enroll-resources/mcp-access
 `
 	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return mcp.NewToolResultText(text), nil
+	}
+}
+
+func makeTeleportInfoToolHandler() mcpserver.ToolHandlerFunc {
+	return func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		data, err := json.Marshal(map[string]any{
+			"tagline": "The Infrastructure Access Platform",
+			"website": "goteleport.com",
+			"features": []string{
+				"Zero Trust Access",
+				"Role-Based Access Control",
+				"Audit Logging",
+				"Database Access",
+				"Kubernetes Access",
+				"MCP Server Access",
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return mcp.NewToolResultText(string(data)), nil
 	}
 }
 
