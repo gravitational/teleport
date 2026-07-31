@@ -21,11 +21,13 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -50,9 +52,41 @@ func TestForwardedClientSrcAddr(t *testing.T) {
 		assert.Equal(t, want, got)
 	})
 
-	t.Run("returns NotFound when nothing was forwarded", func(t *testing.T) {
+	t.Run("reports that nothing was forwarded", func(t *testing.T) {
 		_, err := devicetrust.ForwardedClientSrcAddrFromContext(t.Context())
-		assert.ErrorAs(t, err, new(*trace.NotFoundError))
+		assert.ErrorIs(t, err, devicetrust.ErrClientSrcAddrNotForwarded)
+	})
+
+	// A device cannot keep the Proxy from forwarding its address, so none of
+	// these may reach it as an error about its own request. NotFound especially:
+	// the enroll pairing RPC uses it for a pairing that is gone, which would
+	// have a device stop polling over what is really a Proxy fault.
+	t.Run("blames no error on the calling device", func(t *testing.T) {
+		for _, test := range []struct {
+			name string
+			ctx  context.Context
+		}{
+			{name: "nothing forwarded", ctx: t.Context()},
+			{
+				name: "forwarded twice",
+				ctx: asIncoming(t, devicetrust.WithForwardedClientSrcAddr(
+					devicetrust.WithForwardedClientSrcAddr(t.Context(),
+						&net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 4242}),
+					&net.TCPAddr{IP: net.ParseIP("192.0.2.11"), Port: 4242})),
+			},
+			{
+				name: "malformed",
+				ctx: metadata.NewIncomingContext(t.Context(),
+					metadata.Pairs("devicetrust-client-src-addr", "not-an-address")),
+			},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				_, err := devicetrust.ForwardedClientSrcAddrFromContext(test.ctx)
+				require.Error(t, err)
+				assert.Equal(t, codes.Unknown, status.Code(trail.ToGRPC(err)),
+					"error reaches the device as %v", status.Code(trail.ToGRPC(err)))
+			})
+		}
 	})
 
 	// A second value would otherwise let whoever supplied it pick the address
@@ -64,7 +98,6 @@ func TestForwardedClientSrcAddr(t *testing.T) {
 			&net.TCPAddr{IP: net.ParseIP("192.0.2.11"), Port: 4242})
 
 		_, err := devicetrust.ForwardedClientSrcAddrFromContext(asIncoming(t, ctx))
-		assert.ErrorAs(t, err, new(*trace.BadParameterError))
 		assert.ErrorContains(t, err, "more than once")
 	})
 

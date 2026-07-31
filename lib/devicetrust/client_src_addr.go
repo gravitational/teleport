@@ -18,6 +18,7 @@ package devicetrust
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 
@@ -43,22 +44,31 @@ func WithForwardedClientSrcAddr(ctx context.Context, addr net.Addr) context.Cont
 	return metadata.AppendToOutgoingContext(ctx, clientSrcAddrKey, addr.String())
 }
 
+// ErrClientSrcAddrNotForwarded means that the Proxy Service did not forward the
+// calling device's source address.
+var ErrClientSrcAddrNotForwarded = errors.New("the Proxy Service did not forward the client source address")
+
 // ForwardedClientSrcAddrFromContext returns the device source address that the
 // Proxy Service forwarded with an incoming public Device Trust RPC.
 //
 // Any client can attach metadata to a request, so a caller must establish that
 // the peer holds the Proxy builtin role before it trusts the result.
+//
+// Every error here describes a Proxy that sent nothing usable, which a device
+// has no way to bring about. None of them carry a [trace] kind, so they reach a
+// device as an unclassified server-side failure instead of something it might
+// act on, and callers pass them through rather than reinterpreting them.
 func ForwardedClientSrcAddrFromContext(ctx context.Context) (*net.TCPAddr, error) {
 	vals := metadata.ValueFromIncomingContext(ctx, clientSrcAddrKey)
 	switch len(vals) {
 	case 1:
 	case 0:
-		return nil, trace.NotFound("client source address not forwarded")
+		return nil, trace.Wrap(ErrClientSrcAddrNotForwarded)
 	default:
 		// A single Proxy hop sets the key exactly once. Picking one of several
 		// values would let whoever supplied the extra one choose the address
 		// that gets enforced.
-		return nil, trace.BadParameter("client source address forwarded more than once")
+		return nil, trace.Errorf("client source address forwarded more than once")
 	}
 
 	host, port, err := net.SplitHostPort(vals[0])
@@ -70,11 +80,11 @@ func ForwardedClientSrcAddrFromContext(ctx context.Context) (*net.TCPAddr, error
 	// the Proxy observed, and IP pinning compares numeric addresses.
 	ip := net.ParseIP(host)
 	if ip == nil {
-		return nil, trace.BadParameter("forwarded client source address %q is not an IP address", host)
+		return nil, trace.Errorf("forwarded client source address %q is not an IP address", host)
 	}
 	portNum, err := strconv.Atoi(port)
 	if err != nil {
-		return nil, trace.BadParameter("forwarded client source port %q is not a number", port)
+		return nil, trace.Errorf("forwarded client source port %q is not a number", port)
 	}
 
 	return &net.TCPAddr{IP: ip, Port: portNum}, nil
