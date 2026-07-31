@@ -149,9 +149,14 @@ func (p PrivateKeyPolicy) validateRequireablePolicy() error {
 }
 
 // PolicyThatSatisfiesSet returns least restrictive policy necessary to satisfy the given set of policies.
+// Only policies that can be required are accepted.
 func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	setPolicy := PrivateKeyPolicyNone
 	for _, policy := range policies {
+		if err := policy.validateRequireablePolicy(); err != nil {
+			return PrivateKeyPolicyNone, trace.Wrap(err)
+		}
+
 		if policy.IsSatisfiedBy(setPolicy) {
 			continue
 		}

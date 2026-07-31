@@ -190,6 +190,26 @@ func TestGetPolicyFromSet(t *testing.T) {
 	}
 }
 
+func TestGetPolicyFromSetRejectsNonRequireablePolicies(t *testing.T) {
+	rejectedPolicies := append(slices.Clone(identityOnlyPrivateKeyPolicies),
+		keys.PrivateKeyPolicy("unknown_key_policy"))
+
+	for _, policy := range rejectedPolicies {
+		t.Run(string(policy), func(t *testing.T) {
+			for _, policySet := range [][]keys.PrivateKeyPolicy{
+				{policy},
+				{keys.PrivateKeyPolicyHardwareKeyTouch, policy},
+				{policy, keys.PrivateKeyPolicyHardwareKeyTouch},
+			} {
+				returnedPolicy, err := keys.PolicyThatSatisfiesSet(policySet)
+				assert.ErrorAs(t, err, new(*trace.BadParameterError), "policy set %v", policySet)
+				// This is just to a get better failure message if the test fails.
+				assert.Equal(t, keys.PrivateKeyPolicyNone, returnedPolicy, "policy set %v", policySet)
+			}
+		})
+	}
+}
+
 // TestParsePrivateKeyPolicyError tests private key policy error parsing and checking.
 func TestParsePrivateKeyPolicyError(t *testing.T) {
 	type testCase struct {
