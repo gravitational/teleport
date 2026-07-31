@@ -115,6 +115,10 @@ should match the snapshot (full):
                   name: join-sa-token
                 - mountPath: /test/path
                   name: test-volume
+          dnsConfig:
+            options:
+              - name: ndots
+                value: "2"
           imagePullSecrets:
             - name: test-pull-secret
           nodeSelector:

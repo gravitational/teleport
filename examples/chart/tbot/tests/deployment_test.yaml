@@ -15,3 +15,26 @@ tests:
       - ../.lint/full.yaml
     asserts:
       - matchSnapshot: {}
+  - it: should not contain dnsConfig when not set
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.dnsConfig
+  - it: should contain dnsConfig when set
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    set:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsConfig
+          value:
+            options:
+              - name: ndots
+                value: "2"
