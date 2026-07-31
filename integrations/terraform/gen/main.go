@@ -576,24 +576,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	server = payload{
-		Name:                   "Server",
-		TypeName:               "ServerV2",
-		VarName:                "server",
-		GetMethod:              "GetNode",
-		CreateMethod:           "UpsertNode",
-		UpdateMethod:           "UpsertNode",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteNode",
-		ID:                     "server.Metadata.Name",
-		Kind:                   "node",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_server",
-		HasCheckAndSetDefaults: true,
-		Namespaced:             true,
-		ForceSetKind:           "apitypes.KindNode",
-	}
-
 	installer = payload{
 		Name:                   "Installer",
 		TypeName:               "InstallerV1",
@@ -1164,8 +1146,6 @@ func genTFSchema() {
 	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
 	generateDataSource(oktaImportRule, pluralDataSource)
-	generateResource(server, pluralResource)
-	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
 	generateDataSource(installer, pluralDataSource)
 	generateResource(accessMonitoringRule, pluralResource)
