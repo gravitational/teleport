@@ -38,11 +38,12 @@ import (
 )
 
 // mcpOAuthCredentials is everything tsh needs to authorize requests to an
-// OAuth-protected MCP server: the token itself plus the client ID it was
-// issued to, which is required to refresh the token later.
+// OAuth-protected MCP server: the token itself plus the client credentials
+// required to refresh it. ClientSecret is empty for public clients.
 type mcpOAuthCredentials struct {
-	ClientID string                   `json:"client_id"`
-	Token    mcpclienttransport.Token `json:"token"`
+	ClientID     string                   `json:"client_id"`
+	ClientSecret string                   `json:"client_secret,omitempty"`
+	Token        mcpclienttransport.Token `json:"token"`
 }
 
 // mcpOAuthTokenPath returns where the OAuth credentials for the
@@ -97,8 +98,9 @@ func loadMCPOAuthCredentials(path string) (*mcpOAuthCredentials, error) {
 // interface, so that its OAuthHandler reads the current token on every
 // request and writes refreshed tokens back to the same file.
 type fileTokenStore struct {
-	path     string
-	clientID string
+	path         string
+	clientID     string
+	clientSecret string
 }
 
 func (s *fileTokenStore) GetToken(ctx context.Context) (*mcpclienttransport.Token, error) {
@@ -120,8 +122,9 @@ func (s *fileTokenStore) SaveToken(ctx context.Context, token *mcpclienttranspor
 		return err
 	}
 	return trace.Wrap(saveMCPOAuthCredentials(s.path, &mcpOAuthCredentials{
-		ClientID: s.clientID,
-		Token:    *token,
+		ClientID:     s.clientID,
+		ClientSecret: s.clientSecret,
+		Token:        *token,
 	}))
 }
 
@@ -142,10 +145,15 @@ func newMCPOAuthGetAuthHeader(dialer *client.MCPServerDialer, homePath, proxyHos
 		return nil, trace.Wrap(err)
 	}
 	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
-		ClientID:    creds.ClientID,
-		PKCEEnabled: true,
-		HTTPClient:  httpClient,
-		TokenStore:  &fileTokenStore{path: credsPath, clientID: creds.ClientID},
+		ClientID:     creds.ClientID,
+		ClientSecret: creds.ClientSecret,
+		PKCEEnabled:  true,
+		HTTPClient:   httpClient,
+		TokenStore: &fileTokenStore{
+			path:         credsPath,
+			clientID:     creds.ClientID,
+			clientSecret: creds.ClientSecret,
+		},
 	})
 	oauthHandler.SetBaseURL("http://localhost")
 	source := &mcpOAuthHeaderSource{
