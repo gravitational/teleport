@@ -2228,6 +2228,7 @@ export type RawEvents = {
       app_name: string;
       message: {
         method: string;
+        tools_call_name?: string;
         params?: {
           name?: string;
         };
@@ -2240,6 +2241,7 @@ export type RawEvents = {
       app_name: string;
       message: {
         method: string;
+        tools_call_name?: string;
         params?: {
           name?: string;
         };

@@ -134,7 +134,7 @@ func Test_sessionHandler(t *testing.T) {
 					require.True(t, ok)
 					require.True(t, requestEvent.Success)
 					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
-					checkParamsHaveNameField(t, requestEvent.Message.Params, allowedTool)
+					require.Equal(t, allowedTool, requestEvent.Message.ToolsCallName)
 
 					// Server receives the client's request.
 					require.Equal(t, []mcp.JSONRPCMessage{clientReq}, serverCapture.messages())
@@ -155,7 +155,7 @@ func Test_sessionHandler(t *testing.T) {
 					require.True(t, ok)
 					require.False(t, requestEvent.Success)
 					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
-					checkParamsHaveNameField(t, requestEvent.Message.Params, deniedTool)
+					require.Equal(t, deniedTool, requestEvent.Message.ToolsCallName)
 
 					// Server does not receive the client's request. An error is
 					// sent to client.
@@ -170,9 +170,9 @@ func Test_sessionHandler(t *testing.T) {
 				for _, deniedTool := range tt.deniedTools {
 					t.Run(fmt.Sprintf("deny %q tool while allowed tool %q is passed with a non-canonical name param", deniedTool, allowedTool), func(t *testing.T) {
 						clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
-						clientReq.Params["Name"] = allowedTool
-						clientReq.Params["NaMe"] = allowedTool
-						clientReq.Params["NAME"] = allowedTool
+						clientReq.Params["Name"] = requireMarshalJSON(t, allowedTool)
+						clientReq.Params["NaMe"] = requireMarshalJSON(t, allowedTool)
+						clientReq.Params["NAME"] = requireMarshalJSON(t, allowedTool)
 						clientCapture := &captureMessageWriter{}
 						serverCapture := &captureMessageWriter{}
 						require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
@@ -183,11 +183,7 @@ func Test_sessionHandler(t *testing.T) {
 						require.True(t, ok)
 						require.False(t, requestEvent.Success)
 						require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
-						// Verify there is only 1 param and it's "name" and
-						// all other non-lower-case name params are removed
-						// from the request.
-						require.Len(t, requestEvent.Message.Params.Fields, 1)
-						require.Equal(t, deniedTool, requestEvent.Message.Params.Fields["name"].GetStringValue(), 1)
+						require.Equal(t, deniedTool, requestEvent.Message.ToolsCallName)
 
 						// Server does not receive the client's request. An error is
 						// sent to client.
