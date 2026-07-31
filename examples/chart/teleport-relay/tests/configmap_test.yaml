@@ -4,8 +4,8 @@ templates:
 
 # Override chart version so snapshots are stable across releases.
 chart:
-  version: "18.0.0"
-  appVersion: "18.0.0"
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates a config map
     values:
