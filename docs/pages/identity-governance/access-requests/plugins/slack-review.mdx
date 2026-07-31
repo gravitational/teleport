@@ -135,6 +135,16 @@ to receive user interactions from Slack.
 
 Copy the generated app-level token for use in a later step.
 
+<Admonition type="info" title="App-level Token vs. Bot Token">
+
+The Slack app-level token is different from the Slack bot token and must be set up separately.
+
+The bot token `xoxb-...` provides the plugin permissions to read Slack user info and write to channels.
+The app-level token `xapp-...` provides the plugin permissions to receive user interactions from Slack,
+which is necessary for the native Access Request reviews feature.
+
+</Admonition>
+
 ### Enable Socket Mode setting
 
 Head to the **Socket Mode** tab and enable Socket Mode. This will allow the Teleport Slack plugin

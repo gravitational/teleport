@@ -30,7 +30,7 @@ refresh_identity = true
 #
 # You can also use an absolute path to a token file, e.g.,
 # "/var/lib/teleport/plugins/slack/token"
-token = ""
+token = "xoxb-your-bot-token"
 
 [review]
 # Toggles native review feature. Default is false.
@@ -45,7 +45,7 @@ enabled = true
 #
 # You can also use an absolute path to a token file, e.g.,
 # "/var/lib/teleport/plugins/slack/app-token"
-app_token = ""
+app_token = "xapp-your-app-token"
 
 # Allows binding between Teleport username and Slack email.
 #
@@ -100,7 +100,7 @@ slack:
   # Provides the plugin permissions to read Slack user info and write to channels.
   # Set this up under "OAuth & Permissions" in your Slack app settings:
   # https://api.slack.com/apps
-  token: ""
+  token: "xoxb-your-bot-token"
 
 review:
   # Toggles native review feature. Default is false.
@@ -111,7 +111,7 @@ review:
   # This is different from the Bot OAuth token, and must be set up separately.
   # Set this up under "Basic Information" in your Slack app settings:
   # https://api.slack.com/apps
-  appToken: ""
+  appToken: "xapp-your-app-token"
   # Allows binding between Teleport username and Slack email.
   #
   # This should only be set to true if `review.slackUserIdTrait` is not configured in Teleport.
