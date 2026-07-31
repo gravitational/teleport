@@ -168,11 +168,6 @@ func TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 		want        []string
 	}{
 		{
-			name:        "nil filter matches every scope",
-			scopeFilter: nil,
-			want:        []string{"bar", "foo", "foo-sub", "unscoped"},
-		},
-		{
 			name:        "mode ALL matches every scope",
 			scopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 			want:        []string{"bar", "foo", "foo-sub", "unscoped"},
@@ -225,6 +220,13 @@ func TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 			),
 		})
 		require.ErrorContains(t, err, "requires a non-empty scope")
+	})
+
+	t.Run("unspecified watch filter is rejected at construction", func(t *testing.T) {
+		_, err := newWorkloadIdentityCollection(p.workloadIdentity, types.WatchKind{
+			Kind: types.KindWorkloadIdentity,
+		})
+		require.ErrorContains(t, err, "explicit scope filter mode")
 	})
 }
 
@@ -486,44 +488,98 @@ func TestWorkloadIdentityCacheRangePagination(t *testing.T) {
 	}
 }
 
-// TestWorkloadIdentityCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
+// TestWorkloadIdentityCacheFallback compares reads served by the unhealthy-cache
+// fallback against the healthy cache: both apply the collection's scope filter
+// to ranges and gets, while sort support legitimately differs (the upstream
+// backend only supports name-ascending iteration).
 func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	for _, tt := range []struct {
+		name    string
+		neverOK bool
+	}{
+		{name: "HealthyCache", neverOK: false},
+		{name: "Fallback", neverOK: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
 
-	p := newTestPack(t, func(cfg Config) Config {
-		cfg.neverOK = true // Force the cache into an unhealthy state
-		return ForAuth(cfg)
-	})
-	t.Cleanup(p.Close)
+				p := newTestPack(t, func(cfg Config) Config {
+					cfg = ForAuth(cfg)
+					cfg.neverOK = tt.neverOK
+					for i, w := range cfg.Watches {
+						if w.Kind == types.KindWorkloadIdentity {
+							cfg.Watches[i].ScopeFilter = types.ScopeFilterFromProto(
+								scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_DESCENDANTS, Scope: "/foo"}.Build(),
+							)
+						}
+					}
+					return cfg
+				})
+				t.Cleanup(p.Close)
 
-	createWorkloadIdentities(t, ctx, p, map[string]string{
-		"test-workload-identity-1": "/test/spiffe/1",
-	})
+				for name, scope := range map[string]string{
+					"unscoped": "",
+					"foo":      "/foo",
+					"foo-sub":  "/foo/sub",
+					"bar":      "/bar",
+				} {
+					_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+						Kind:     types.KindWorkloadIdentity,
+						Version:  types.V1,
+						Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+						Scope:    scope,
+						Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+							Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: scope + "/_/" + name}.Build(),
+						}.Build(),
+					}.Build())
+					require.NoError(t, err)
+				}
 
-	// The upstream backend only supports name-ascending iteration, so a range
-	// served from the unhealthy cache is constrained to that ordering.
-	t.Run("supported sort", func(t *testing.T) {
-		got := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", false))
-		require.Len(t, got, 1)
-	})
+				synctest.Wait()
 
-	t.Run("unsupported sort field", func(t *testing.T) {
-		var err error
-		for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", false) {
-			err = iterErr
-		}
-		require.ErrorContains(t, err, `unsupported sort, only name field is supported, but got "spiffe_id"`)
-	})
+				// Ranges apply the collection's scope filter regardless of health.
+				got := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
+				var names []string
+				for _, wi := range got {
+					names = append(names, wi.GetMetadata().GetName())
+				}
+				slices.Sort(names)
+				require.Equal(t, []string{"foo", "foo-sub"}, names)
 
-	t.Run("unsupported sort dir", func(t *testing.T) {
-		var err error
-		for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true) {
-			err = iterErr
-		}
-		require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
-	})
+				// So do gets: in-filter is retrievable, out-of-filter reads as absent.
+				gotFoo, err := p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: "/foo", Name: "foo",
+				}.Build())
+				require.NoError(t, err)
+				require.Equal(t, "/foo", gotFoo.GetScope())
+
+				_, err = p.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: "/bar", Name: "bar",
+				}.Build())
+				require.True(t, trace.IsNotFound(err), "expected NotFound for out-of-filter identity, got %v", err)
+
+				// The healthy cache serves spiffe_id and descending sorts from its
+				// indexes; the fallback surfaces the backend's ordering limits.
+				rangeErr := func(sortField services.WorkloadIdentitySortField, desc bool) error {
+					var err error
+					for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", sortField, desc) {
+						err = iterErr
+					}
+					return err
+				}
+				if tt.neverOK {
+					require.ErrorContains(t, rangeErr("spiffe_id", false), `unsupported sort, only name field is supported, but got "spiffe_id"`)
+					require.ErrorContains(t, rangeErr("name", true), "unsupported sort, only ascending order is supported")
+				} else {
+					require.NoError(t, rangeErr("spiffe_id", false))
+					require.NoError(t, rangeErr("name", true))
+				}
+			})
+		})
+	}
 }
 
 // TestWorkloadIdentityCaseSensitiveName tests that workload identity name index keys remain case sensitive.
