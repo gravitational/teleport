@@ -1,10 +1,11 @@
 # Checkout Teleport action
 
-This `checkout-teleport` action is used to checkout the Teleport OSS
-repository and optionally a Teleport Enterprise repository. It has
-flexibility in specifying which Teleport OSS repository is to be checked
-out (usually the main Teleport repo, but sometimes teleport-private) as
-well as which branch of each OSS and Enterprise to be checked out.
+This `checkout-teleport` action is used to checkout Teleport. For Enterprise
+builds, it supports both repository layouts: older revisions where `e` is a
+submodule referencing the Teleport Enterprise repository, and newer revisions
+where `e` is an ordinary directory embedded in the checked-out repository. It
+has flexibility in specifying which Teleport repository is to be checked out
+as well as which revision to use.
 
 It currently is only called from workflows in this teleport.e
 repository, so that is the only repository that can be used for checking
@@ -46,8 +47,10 @@ merging.
         oss-teleport-ref: master
         edition: enterprise
 
-As the parameter `ent-teleport-ref` is not specified, the ref of the `e`
-submodule in the teleport repo at `master` will be used.
+If `e` is a submodule, the submodule ref in the Teleport repository at
+`master` will be used because `ent-teleport-ref` is not specified. If `e` is
+an ordinary directory, its contents from the Teleport checkout will be used
+directly.
 
 ### Checkout Teleport OSS only, master branch
 

@@ -1,7 +1,7 @@
 # This is a GitHub Action to checkout Teleport. It can checkout just
 # the OSS repository (either the public repo or any private repo such
-# as teleport-private), or it can also checkout the teleport.e
-# Enterprise repo too.
+# as teleport-private), and supports Enterprise code either embedded in
+# that repository or referenced by the e submodule.
 
 # Maintainers: this must be compatible with Linux, MacOS, and Windows.
 
@@ -29,8 +29,10 @@ inputs:
   ent-teleport-ref:
     description: |
       Git SHA, tag or branch of the revision of Enterprise Teleport to build.
-      If no value is supplied, the submodule reference in the OSS Teleport
-      repository checked-out will be used.
+      If the checked-out Teleport repository references Enterprise Teleport
+      as a submodule and no value is supplied, the submodule reference will
+      be used. This input is ignored when Enterprise Teleport is embedded in
+      the checked-out repository.
 
       This should not be used for release or other security-critical workflows.
 
@@ -133,12 +135,26 @@ runs:
       name: Determine Enterprise Teleport ref
       shell: bash
       env:
-        e_ref: ${{ inputs.ent-teleport-ref }}
+        CHECKOUT_DIR: ${{ inputs.path || github.workspace }}
+        ENTERPRISE_REF: ${{ inputs.ent-teleport-ref }}
       run: |
-        echo ref=${e_ref:-$(git rev-parse @:e)} >> $GITHUB_OUTPUT
+        read -r mode type ref entry_path <<< "$(git -C "${CHECKOUT_DIR}" ls-tree HEAD -- e)"
+        case "${mode} ${type}" in
+          "160000 commit")
+            echo "is_submodule=true" >> "${GITHUB_OUTPUT}"
+            echo "ref=${ENTERPRISE_REF:-${ref}}" >> "${GITHUB_OUTPUT}"
+            ;;
+          "040000 tree")
+            echo "is_submodule=false" >> "${GITHUB_OUTPUT}"
+            ;;
+          *)
+            echo "::error::Expected e to be either a Git submodule or directory, got '${mode} ${type}'"
+            exit 1
+            ;;
+        esac
 
     - id: checkout-enterprise
-      if: inputs.edition == 'enterprise'
+      if: inputs.edition == 'enterprise' && steps.determine-enterprise-ref.outputs.is_submodule == 'true'
       name: Checkout Enterprise Teleport
       uses: actions/checkout@v6.0.2
       with:
