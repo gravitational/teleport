@@ -23,6 +23,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -39,23 +40,38 @@ func (f *fakeStatsEmitter) Stats(context.Context) (auditqueue.Stats, error) {
 }
 
 func TestAuditQueueStatusAggregation(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	process := &TeleportProcess{logger: slog.Default()}
 
 	// No emitters registered -> nil status (audit queue disabled / not present).
 	require.Nil(t, process.AuditQueueStatus(ctx))
 
-	a := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 3, DeadLetterCount: 1, CorruptCount: 4}}
-	b := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 5, DeadLetterCount: 2, CorruptCount: 6}}
+	now := time.Now()
+	a := &fakeStatsEmitter{stats: auditqueue.Stats{
+		PendingCount:      3,
+		DeadLetterCount:   1,
+		CorruptCount:      4,
+		OldestPendingTime: now.Add(-10 * time.Minute),
+	}}
+	b := &fakeStatsEmitter{stats: auditqueue.Stats{
+		PendingCount:         5,
+		DeadLetterCount:      2,
+		CorruptCount:         6,
+		OldestPendingTime:    now.Add(-20 * time.Minute),
+		OldestDeadLetterTime: now.Add(-time.Hour),
+	}}
 	process.registerAuditQueueStats(a)
 	process.registerAuditQueueStats(b)
 
-	// Depth is summed across all registered emitters.
+	// Depth is summed across all registered emitters; the oldest ages take
+	// the largest non-zero value, ignoring emitters with empty queues.
 	status := process.AuditQueueStatus(ctx)
 	require.NotNil(t, status)
 	require.Equal(t, int64(8), status.PendingCount)
 	require.Equal(t, int64(3), status.DeadLetterCount)
 	require.Equal(t, int64(10), status.CorruptCount)
+	require.InDelta(t, 20*60, status.OldestPendingAgeSeconds, 5)
+	require.InDelta(t, 60*60, status.OldestDeadLetterAgeSeconds, 5)
 
 	// An erroring getter is skipped, not fatal.
 	c := &fakeStatsEmitter{err: errors.New("queue closed")}

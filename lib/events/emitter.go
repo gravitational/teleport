@@ -98,13 +98,19 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		slog.InfoContext(context.TODO(), "Audit queue is enabled.")
 	}
 
+	deliveryTimeout := cfg.AuditQueueCfg.DeliveryTimeout
+	if deliveryTimeout <= 0 {
+		deliveryTimeout = auditqueue.DefaultDeliveryTimeout
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &AsyncEmitter{
-		cancel:   cancel,
-		ctx:      ctx,
-		eventsCh: make(chan apievents.AuditEvent, cfg.BufferSize),
-		cfg:      cfg,
-		queue:    queue,
+		cancel:          cancel,
+		ctx:             ctx,
+		eventsCh:        make(chan apievents.AuditEvent, cfg.BufferSize),
+		cfg:             cfg,
+		queue:           queue,
+		deliveryTimeout: deliveryTimeout,
 	}
 	if queue != nil {
 		a.wg.Go(func() {
@@ -151,12 +157,13 @@ func makeQueue(dataDir string, queueCfg auditqueue.Config, backends []auditqueue
 // AsyncEmitter accepts events to a buffered channel and emits
 // events in a separate goroutine without blocking the caller.
 type AsyncEmitter struct {
-	cfg      AsyncEmitterConfig
-	eventsCh chan apievents.AuditEvent
-	cancel   context.CancelFunc
-	ctx      context.Context
-	queue    auditqueue.Queue
-	wg       sync.WaitGroup
+	cfg             AsyncEmitterConfig
+	eventsCh        chan apievents.AuditEvent
+	cancel          context.CancelFunc
+	ctx             context.Context
+	queue           auditqueue.Queue
+	deliveryTimeout time.Duration
+	wg              sync.WaitGroup
 }
 
 // Close closes emitter and cancels all in flight events.
@@ -216,6 +223,9 @@ func (a *AsyncEmitter) forward() {
 // event.
 func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
 	var successfullyDelivered []auditqueue.Item
+
+	ctx, cancel := context.WithTimeout(ctx, a.deliveryTimeout)
+	defer cancel()
 
 	// TODO(kkloberdanz): We plan to update the Emitter interface such that
 	// EmitAuditEvent will take a slice of events rather than a single event at
