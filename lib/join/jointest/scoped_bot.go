@@ -17,17 +17,17 @@
 package jointest
 
 import (
-	"testing"
+	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -38,10 +38,7 @@ import (
 // scoped role and role assignment, then waits for cache propagation. Returns
 // the qualified bot name (e.g., "/test::botName") for use in scoped token
 // spec.bot.
-func CreateScopedBot(t testing.TB, authServer *auth.Server, botName string) string {
-	t.Helper()
-
-	ctx := t.Context()
+func CreateScopedBot(ctx context.Context, authServer *auth.Server, botName string) (string, error) {
 	scope := testTokenScope // "/test"
 	roleName := "jointest-role-" + botName
 
@@ -59,7 +56,9 @@ func CreateScopedBot(t testing.TB, authServer *auth.Server, botName string) stri
 			}.Build(),
 		}.Build(),
 	}.Build())
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err, "creating scoped role")
+	}
 
 	// Create the scoped bot.
 	_, err = machineidv1.UpsertBot(ctx, authServer, machineidv1pb.Bot_builder{
@@ -71,7 +70,9 @@ func CreateScopedBot(t testing.TB, authServer *auth.Server, botName string) stri
 		}.Build(),
 		Spec: &machineidv1pb.BotSpec{},
 	}.Build(), authServer.GetClock().Now(), "", scopes.Features{Enabled: true})
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err, "creating scoped bot")
+	}
 
 	// Create a scoped role assignment for the bot.
 	qualifiedBotName := scopes.QualifiedName{Scope: scope, Name: botName}.String()
@@ -95,17 +96,27 @@ func CreateScopedBot(t testing.TB, authServer *auth.Server, botName string) stri
 			}.Build(),
 		}.Build(),
 	}.Build())
-	require.NoError(t, err)
+	if err != nil {
+		return "", trace.Wrap(err, "creating scoped role assignment")
+	}
 
 	// Wait for the cache to propagate the assignment.
-	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+	retry, err := retryutils.NewConstant(100 * time.Millisecond)
+	if err != nil {
+		return "", trace.Wrap(err, "creating cache retry")
+	}
+	cacheCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := retry.For(cacheCtx, func() error {
+		_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(cacheCtx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
 			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
-		assert.NoError(ct, err)
-	}, time.Second*10, 100*time.Millisecond)
+		return err
+	}); err != nil {
+		return "", trace.Wrap(err, "waiting for scoped role assignment cache")
+	}
 
-	return qualifiedBotName
+	return qualifiedBotName, nil
 }

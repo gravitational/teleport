@@ -1863,7 +1863,8 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	jointest.CreateScopedBot(t, srv.Auth(), "test-scoped")
+	qualifiedBotName, err := jointest.CreateScopedBot(ctx, srv.Auth(), "test-scoped")
+	require.NoError(t, err)
 
 	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
@@ -1876,7 +1877,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
+			Bot:        qualifiedBotName,
 			BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 				Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 					InitialPublicKey: correctPublicKey,
