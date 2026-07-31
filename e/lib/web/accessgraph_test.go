@@ -124,7 +124,6 @@ func TestGetAccessGraph(t *testing.T) {
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 							entitlements.Identity:    {Enabled: true},
-							entitlements.Policy:      {Enabled: true},
 							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
@@ -419,7 +418,6 @@ func TestAccessGraphSettings(t *testing.T) {
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 						entitlements.Identity:    {Enabled: true},
-						entitlements.Policy:      {Enabled: true},
 						entitlements.AccessGraph: {Enabled: true},
 					},
 				},
@@ -546,7 +544,6 @@ func TestAccessGraphCertAuth(t *testing.T) {
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy:      {Enabled: true},
 							entitlements.App:         {Enabled: true},
 							entitlements.AccessGraph: {Enabled: true},
 						},
@@ -729,7 +726,6 @@ func TestAccessGraphEndpoints(t *testing.T) {
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 							entitlements.Identity:    {Enabled: true},
-							entitlements.Policy:      {Enabled: true},
 							entitlements.AccessGraph: {Enabled: true},
 						},
 					},

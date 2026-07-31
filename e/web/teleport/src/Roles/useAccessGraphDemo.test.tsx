@@ -18,7 +18,7 @@ const defaultAccessGraphDemoEntitlement = {
 };
 
 const defaultIsCloud = cfg.isCloud;
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 const defaultIsPolicyRoleVisualizerEnabled = cfg.isPolicyRoleVisualizerEnabled;
 
 jest.mock('teleport/services/storageService', () => ({
@@ -37,13 +37,13 @@ beforeEach(() => {
     limit: 0,
   };
   cfg.isCloud = true;
-  cfg.isPolicyEnabled = false;
+  cfg.entitlements.AccessGraph = { enabled: false, limit: 0 };
   cfg.isPolicyRoleVisualizerEnabled = true;
 });
 
 afterEach(() => {
   jest.resetAllMocks();
-  cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+  cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
   cfg.isPolicyRoleVisualizerEnabled = defaultIsPolicyRoleVisualizerEnabled;
   cfg.isCloud = defaultIsCloud;
   cfg.entitlements.AccessGraphDemoMode = defaultAccessGraphDemoEntitlement;
@@ -78,7 +78,7 @@ test('should return DISABLED state when demo feature is not enabled', () => {
 });
 
 test('should return POLICY_ENABLED state when role tester is enabled', async () => {
-  cfg.isPolicyEnabled = true;
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   jest
     .spyOn(storageService, 'getAccessGraphRoleTesterEnabled')
     .mockReturnValue(true);

@@ -53,7 +53,6 @@ func TestGetRecordingSummary(t *testing.T) {
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy:           {Enabled: true},
 					entitlements.SessionSummaries: {Enabled: true},
 					entitlements.AccessGraph:      {Enabled: true},
 				},
@@ -176,7 +175,6 @@ func TestBatchGetSessionSummaryMetadata(t *testing.T) {
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy:           {Enabled: true},
 					entitlements.SessionSummaries: {Enabled: true},
 				},
 			},

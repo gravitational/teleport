@@ -72,6 +72,7 @@ func applyLegacyPolicyEntitlementsFallback[T any](
 		entitlements.ActivityCenter,
 		entitlements.SessionSummaries,
 	}
+
 	for _, e := range newAccessGraphEntitlements {
 		if hasEntitlement(incomingEntitlements, e) {
 			return

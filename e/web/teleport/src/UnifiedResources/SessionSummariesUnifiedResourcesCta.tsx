@@ -67,7 +67,7 @@ export function SessionSummariesUnifiedResourcesCta({
   const isClusterEmpty = resourceCount === 0 && !isFilterApplied;
 
   if (
-    !cfg.oss.identitySecurity.licensed ||
+    !cfg.oss.entitlements.SessionSummaries.enabled ||
     cfg.oss.hideInaccessibleFeatures ||
     !flags.sessionSummaries ||
     isClusterEmpty ||

@@ -52,6 +52,47 @@ func TestSetModules_RecoveryCodes(t *testing.T) {
 	require.False(t, m.Features().RecoveryCodes)
 }
 
+func TestNewEnterpriseModulesAccessGraphEntitlement(t *testing.T) {
+	t.Parallel()
+
+	t.Run("legacy Policy fallback enables AccessGraph signal", func(t *testing.T) {
+		t.Parallel()
+		m := NewEnterpriseModules(EnterpriseModulesConfig{
+			Features: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy: {Enabled: true},
+				},
+			},
+		})
+		require.True(t, m.Features().AccessGraph)
+	})
+
+	t.Run("explicitly disabled AccessGraph overrides legacy Policy fallback", func(t *testing.T) {
+		t.Parallel()
+		m := NewEnterpriseModules(EnterpriseModulesConfig{
+			Features: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy:      {Enabled: true},
+					entitlements.AccessGraph: {Enabled: false},
+				},
+			},
+		})
+		require.False(t, m.Features().AccessGraph)
+	})
+
+	t.Run("AccessGraph entitlement enables AccessGraph signal", func(t *testing.T) {
+		t.Parallel()
+		m := NewEnterpriseModules(EnterpriseModulesConfig{
+			Features: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.AccessGraph: {Enabled: true},
+				},
+			},
+		})
+		require.True(t, m.Features().AccessGraph)
+	})
+}
+
 func TestGetSelfHostedLicenseFeatures_LegacyLicenseFields(t *testing.T) {
 	t.Parallel()
 
@@ -370,7 +411,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 					AccessMonitoringConfigured: true,
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 						entitlements.AccessMonitoring: {Enabled: true},
-						entitlements.Policy:           {Enabled: true},
+						entitlements.AccessGraph:      {Enabled: true},
 					},
 				},
 			},
@@ -382,7 +423,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 				AutomaticUpgrades:          false, // should NOT overwrite
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: false}, // should NOT overwrite
-					entitlements.Policy:           {Enabled: false}, // should NOT overwrite
+					entitlements.AccessGraph:      {Enabled: false}, // should NOT overwrite
 				},
 				Cloud:       true,   // should overwrite
 				CustomTheme: "dark", // should overwrite
@@ -397,7 +438,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 				CustomTheme:                "dark",
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: false},
-					entitlements.Policy:           {Enabled: false},
+					entitlements.AccessGraph:      {Enabled: false},
 				},
 			},
 		},
@@ -430,7 +471,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 					AccessMonitoringConfigured: true,
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 						entitlements.AccessMonitoring: {Enabled: true},
-						entitlements.Policy:           {Enabled: true},
+						entitlements.AccessGraph:      {Enabled: true},
 					},
 				},
 				License: &licensefile.LicenseFile{
@@ -452,7 +493,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 				AutomaticUpgrades:          false, // should NOT overwrite
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: false}, // should NOT overwrite
-					entitlements.Policy:           {Enabled: false}, // should NOT overwrite
+					entitlements.AccessGraph:      {Enabled: false}, // should NOT overwrite
 				},
 				Cloud:       true,   // should overwrite
 				CustomTheme: "dark", // should overwrite
@@ -477,7 +518,7 @@ func TestEnterpriseModules_SetFeatures(t *testing.T) {
 				CustomTheme:                "dark",
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.AccessMonitoring: {Enabled: false},
-					entitlements.Policy:           {Enabled: false},
+					entitlements.AccessGraph:      {Enabled: false},
 				},
 			},
 		},

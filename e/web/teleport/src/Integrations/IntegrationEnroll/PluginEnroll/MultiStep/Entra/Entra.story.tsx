@@ -11,7 +11,7 @@ import cfg from 'teleport/config';
 import { renderPluginEnroll } from '../../StorybookHelper';
 
 const defaultIsEnterprise = cfg.isEnterprise;
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 
 const render = (ctx: TeleportEContext) => (
   <>
@@ -28,7 +28,7 @@ export default {
         // Clean up
         return () => {
           cfg.isEnterprise = defaultIsEnterprise;
-          cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+          cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
         };
       }, []);
       return <Story />;
@@ -57,12 +57,12 @@ export default {
 
 export const Enroll = () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = false;
+  cfg.entitlements.AccessGraph = { enabled: false, limit: 0 };
   return render(createTeleportContextE());
 };
 
-export const EnrollWithPolicy = () => {
+export const EnrollWithAccessGraph = () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = true;
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   return render(createTeleportContextE());
 };

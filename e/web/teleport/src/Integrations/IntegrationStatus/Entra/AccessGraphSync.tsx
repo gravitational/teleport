@@ -20,8 +20,8 @@ export function AccessGraphSyncDetails({
   syncEnabled: boolean;
 }) {
   const navigate = useNavigate();
-  const policyEnabled = cfg.oss.isPolicyEnabled;
-  const syncAndPolicyEnabled = syncEnabled && policyEnabled;
+  const accessGraphLicensed = cfg.oss.entitlements.AccessGraph.enabled;
+  const syncAndAccessGraphLicensed = syncEnabled && accessGraphLicensed;
 
   return (
     <CardTile
@@ -36,13 +36,13 @@ export function AccessGraphSyncDetails({
     >
       <Flex alignItems="center" justifyContent="space-between" gap={2}>
         <H2>Access Graph Sync</H2>
-        <StatusAndOptions enabled={syncAndPolicyEnabled} />
+        <StatusAndOptions enabled={syncAndAccessGraphLicensed} />
       </Flex>
       <Flex flexDirection="column" gap={3} px={1} pt={1}>
         <Text color="text.slightlyMuted" mb={3}>
           Analyze access paths with Teleport Access Graph.
         </Text>
-        {syncAndPolicyEnabled ? (
+        {syncAndAccessGraphLicensed ? (
           <ButtonBorder
             onClick={() => navigate(cfg.routes.accessGraph.dashboard)}
           >
@@ -52,7 +52,7 @@ export function AccessGraphSyncDetails({
         ) : (
           <DisabledState
             syncEnabled={syncEnabled}
-            policyEnabled={policyEnabled}
+            accessGraphLicensed={accessGraphLicensed}
           />
         )}
       </Flex>
@@ -62,12 +62,12 @@ export function AccessGraphSyncDetails({
 
 function DisabledState({
   syncEnabled,
-  policyEnabled,
+  accessGraphLicensed,
 }: {
   syncEnabled: boolean;
-  policyEnabled: boolean;
+  accessGraphLicensed: boolean;
 }) {
-  if (!syncEnabled && policyEnabled) {
+  if (!syncEnabled && accessGraphLicensed) {
     return (
       <Text color="text.slightlyMuted">
         Re-install the plugin to configure Access Graph sync.
@@ -75,7 +75,7 @@ function DisabledState({
     );
   }
 
-  if (syncEnabled && !policyEnabled) {
+  if (syncEnabled && !accessGraphLicensed) {
     return (
       <>
         <Text color="text.slightlyMuted">

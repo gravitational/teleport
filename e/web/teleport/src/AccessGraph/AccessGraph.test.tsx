@@ -25,18 +25,18 @@ jest.mock('e-teleport/AccessGraph/loader', () => ({
   ACCESS_GRAPH_JS_FILE: 'access-graph-react-19.umd.js',
 }));
 
-let originalLicensed: boolean;
+let originalAccessGraphEntitlement: (typeof cfg.oss.entitlements)['AccessGraph'];
 let originalAccessGraphConfigSet: boolean;
 
 beforeEach(() => {
-  originalLicensed = cfg.oss.identitySecurity.licensed;
+  originalAccessGraphEntitlement = cfg.oss.entitlements.AccessGraph;
   originalAccessGraphConfigSet = cfg.oss.identitySecurity.accessGraphConfigSet;
 
   jest.mocked(storageService.getAccessGraphEnabled).mockReturnValue(false);
 });
 
 afterEach(() => {
-  cfg.oss.identitySecurity.licensed = originalLicensed;
+  cfg.oss.entitlements.AccessGraph = originalAccessGraphEntitlement;
   cfg.oss.identitySecurity.accessGraphConfigSet = originalAccessGraphConfigSet;
 });
 
@@ -64,7 +64,7 @@ test('renders the empty state if user has no permissions', () => {
 });
 
 test('renders setup error when licensed but not configured', () => {
-  cfg.oss.identitySecurity.licensed = true;
+  cfg.oss.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.oss.identitySecurity.accessGraphConfigSet = false;
 
   renderAccessGraph();
@@ -73,7 +73,7 @@ test('renders setup error when licensed but not configured', () => {
 });
 
 test('renders setup error when licensed and configured but service unreachable', () => {
-  cfg.oss.identitySecurity.licensed = true;
+  cfg.oss.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.oss.identitySecurity.accessGraphConfigSet = true;
 
   renderAccessGraph();

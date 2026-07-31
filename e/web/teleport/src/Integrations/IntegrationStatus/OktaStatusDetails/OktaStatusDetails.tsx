@@ -32,12 +32,10 @@ import {
   PluginUpdateRequest,
 } from 'e-teleport/services/plugins';
 import { createFetchPluginQueryKey } from 'e-teleport/services/plugins/hooks';
-import { useTeleport } from 'teleport';
 import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Plugin, PluginOktaSpec } from 'teleport/services/integrations';
 import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
-import { storageService } from 'teleport/services/storageService';
 import { withUnsupportedOktaPluginUpdateErrorConversion } from 'teleport/services/version/unsupported';
 
 import { AppGroupSyncDetails } from './AppGroupSyncDetails';
@@ -203,13 +201,11 @@ export function OktaStatusDetails({
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
   deletePlugin(): void;
 }) {
-  const ctx = useTeleport();
-  const accessGraphEnabled =
-    storageService.getAccessGraphEnabled() && ctx.getFeatureFlags().accessGraph;
+  const activityCenterEnabled = cfg.entitlements.ActivityCenter.enabled;
 
   return (
     <Switch>
-      {accessGraphEnabled && !cfg.isCloud && (
+      {activityCenterEnabled && !cfg.isCloud && (
         <Route exact path={OktaIntegrationStepType.IdentitySecuritySync}>
           <SetupIdentitySecuritySyncForm plugin={plugin} isEditing />
         </Route>
@@ -241,7 +237,7 @@ export function OktaStatusDetails({
         : []}
       <Route path="*">
         <StatusDetails
-          accessGraphEnabled={accessGraphEnabled}
+          activityCenterEnabled={activityCenterEnabled}
           plugin={plugin}
           deletePlugin={deletePlugin}
         />
@@ -251,11 +247,11 @@ export function OktaStatusDetails({
 }
 
 const StatusDetails = ({
-  accessGraphEnabled,
+  activityCenterEnabled,
   plugin,
   deletePlugin,
 }: {
-  accessGraphEnabled: boolean;
+  activityCenterEnabled: boolean;
   plugin: Plugin<PluginOktaSpec, PluginStatusOkta>;
   deletePlugin: () => void;
 }) => {
@@ -468,7 +464,7 @@ const StatusDetails = ({
         {!cfg.isCloud && (
           <IdentitySecuritySyncDetails
             syncEnabled={plugin.spec?.enableSystemLogExport}
-            accessGraphEnabled={accessGraphEnabled}
+            activityCenterEnabled={activityCenterEnabled}
             onToggle={() =>
               handleToggleFeature(
                 localSettings.enableSystemLogExport ? 'disable' : 'enable',

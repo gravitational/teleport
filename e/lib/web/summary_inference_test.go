@@ -28,7 +28,6 @@ func TestListInferenceResources(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 				entitlements.AccessGraph:      {Enabled: true},
 			},
@@ -212,7 +211,6 @@ func TestInferenceModelCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 				entitlements.AccessGraph:      {Enabled: true},
 			},
@@ -314,7 +312,6 @@ func TestRetrievalModelCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
@@ -403,7 +400,6 @@ func TestInferenceSecretCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 				entitlements.AccessGraph:      {Enabled: true},
 			},
@@ -490,7 +486,6 @@ func TestInferencePolicyCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 				entitlements.AccessGraph:      {Enabled: true},
 			},
@@ -685,7 +680,6 @@ func TestTestInferenceModel(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 				entitlements.AccessGraph:      {Enabled: true},
 			},
@@ -789,7 +783,6 @@ func TestTestRetrievalModel(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},

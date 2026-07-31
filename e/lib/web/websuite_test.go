@@ -334,8 +334,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		Cloud:         true,
 		RecoveryCodes: true,
 		Entitlements: map[string]*proto.EntitlementInfo{
-			string(entitlements.Policy):      {Enabled: true},
-			string(entitlements.AccessGraph): {Enabled: true},
+			string(entitlements.AccessGraph):      {Enabled: true},
+			string(entitlements.ActivityCenter):   {Enabled: true},
+			string(entitlements.SessionSummaries): {Enabled: true},
 		},
 	}
 	maps.Copy(clusterFeatures.Entitlements, options.clusterEntitlements)

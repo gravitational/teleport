@@ -124,7 +124,7 @@ var demoModePaths = map[string]struct{}{
 
 // canUseAccessGraph is used to check and set values if policy and/or demo mode is enabled for requests
 // that access resources in tag. It takes a path which is checked to exist in the valid demo mode paths
-// If Policy is enabled, proceed as usual. Otherwise, check if Demo Mode is enabled and update
+// If Access Graph is enabled, proceed as usual. Otherwise, check if Demo Mode is enabled and update
 // the Demo Mode state on subsequent requests to skip redundant checks.
 func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (bool, error) {
 	features := p.h.GetClusterFeatures()

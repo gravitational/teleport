@@ -1537,7 +1537,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             directory and SSO applications using Teleport Access Graph.
           </li>
         </StyledUl>
-        {(!cfg.oss.entitlements.Policy.enabled || !cfg.oss.isPolicyEnabled) && (
+        {!cfg.oss.entitlements.AccessGraph.enabled && (
           <ButtonLockedFeature
             event={CtaEvent.CTA_ENTRA_ID}
             width={'auto'}

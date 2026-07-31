@@ -201,8 +201,8 @@ func (s *Service) Run(ctx context.Context) error {
 // automatically try to reconnect.
 func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	clusterFeatures := s.clusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	activityCenter := modules.GetProtoEntitlement(&clusterFeatures, entitlements.ActivityCenter)
+	if !activityCenter.Enabled {
 		return trace.Wrap(ErrTAGFeatureNotEnabled)
 	}
 

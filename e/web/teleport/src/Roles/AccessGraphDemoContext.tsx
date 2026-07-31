@@ -74,7 +74,7 @@ export const AccessGraphDemoProvider: FC<PropsWithChildren> = ({
     osCfg.entitlements.AccessGraphDemoMode.enabled;
 
   const roleTesterEnabled =
-    osCfg.isPolicyEnabled &&
+    osCfg.entitlements.AccessGraph.enabled &&
     osCfg.isPolicyRoleVisualizerEnabled &&
     storageService.getAccessGraphRoleTesterEnabled();
 

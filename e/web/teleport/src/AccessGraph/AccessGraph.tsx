@@ -101,7 +101,7 @@ export function AccessGraph() {
   );
 
   if (!hasAccess) {
-    if (cfg.oss.identitySecurity.licensed) {
+    if (cfg.oss.entitlements.AccessGraph.enabled) {
       return (
         <AccessGraphSetupError
           isConfigured={cfg.oss.identitySecurity.accessGraphConfigSet}

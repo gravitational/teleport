@@ -30,8 +30,9 @@ export function FormMixin({ attempt }) {
 
   const [authConnectorName, setAuthConnectorName] = useState('entra-id');
 
-  const policyEnabled = cfg.isPolicyEnabled;
-  const [accessGraphEnabled, setAccessGraphEnabled] = useState(policyEnabled);
+  const accessGraphLicensed = cfg.entitlements.AccessGraph.enabled;
+  const [accessGraphEnabled, setAccessGraphEnabled] =
+    useState(accessGraphLicensed);
 
   const [selectedOwners, setSelectedOwners] = useState<UserOption[]>([]);
 
@@ -209,7 +210,7 @@ export function FormMixin({ attempt }) {
               <HoverTooltip
                 placement="top"
                 tipContent={
-                  policyEnabled ? null : (
+                  accessGraphLicensed ? null : (
                     <Text>
                       You need Identity Security license to enable this feature.
                     </Text>
@@ -220,7 +221,9 @@ export function FormMixin({ attempt }) {
                   isToggled={accessGraphEnabled}
                   onToggle={() => setAccessGraphEnabled(!accessGraphEnabled)}
                   size="small"
-                  disabled={!policyEnabled || attempt.status === 'processing'}
+                  disabled={
+                    !accessGraphLicensed || attempt.status === 'processing'
+                  }
                 >
                   <Text ml={2}>Enable Access Graph integration</Text>
                 </Toggle>

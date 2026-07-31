@@ -8,24 +8,24 @@ import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
 import { KeysEnum } from 'teleport/services/storageService';
 import type { Acl } from 'teleport/services/user/types';
 
-let originalIdentitySecurityLicensed: boolean;
+let originalSessionSummariesEntitlement: (typeof cfg.oss.entitlements)['SessionSummaries'];
 let originalHideInaccessibleFeatures: boolean;
 let originalSessionSummarizerEnabled: boolean;
 
 beforeEach(() => {
   localStorage.clear();
 
-  originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
+  originalSessionSummariesEntitlement = cfg.oss.entitlements.SessionSummaries;
   originalHideInaccessibleFeatures = cfg.oss.entitlements.FeatureHiding.enabled;
   originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
 
-  cfg.oss.identitySecurity.licensed = true;
+  cfg.oss.entitlements.SessionSummaries = { enabled: true, limit: 0 };
   cfg.oss.entitlements.FeatureHiding.enabled = false;
   cfg.oss.sessionSummarizerEnabled = false;
 });
 
 afterEach(() => {
-  cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
+  cfg.oss.entitlements.SessionSummaries = originalSessionSummariesEntitlement;
   cfg.oss.entitlements.FeatureHiding.enabled = originalHideInaccessibleFeatures;
   cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
 });
@@ -48,7 +48,7 @@ function renderCta(
   );
 }
 
-test('renders the dialog when identity security is licensed and not previously seen', () => {
+test('renders the dialog when Session Summaries is licensed and not previously seen', () => {
   renderCta();
 
   expect(
@@ -56,8 +56,8 @@ test('renders the dialog when identity security is licensed and not previously s
   ).toBeInTheDocument();
 });
 
-test('does not render when identity security is not licensed', () => {
-  cfg.oss.identitySecurity.licensed = false;
+test('does not render when Session Summaries is not licensed', () => {
+  cfg.oss.entitlements.SessionSummaries = { enabled: false, limit: 0 };
 
   renderCta();
 

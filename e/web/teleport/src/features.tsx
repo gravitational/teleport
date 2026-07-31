@@ -733,7 +733,9 @@ class FeatureSessionSummaries implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.sessionSummaries;
+    return (
+      cfg.oss.entitlements.SessionSummaries.enabled && flags.sessionSummaries
+    );
   }
 }
 
@@ -893,7 +895,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureRecordings(),
     new FeatureSessionSummaries(),
 
-    // - Policy
+    // - Identity Security
     new FeatureAccessGraph(),
     new FeatureAccessGraphBrowse(),
     new FeatureAccessGraphAlerts(),

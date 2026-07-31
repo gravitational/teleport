@@ -48,13 +48,11 @@ import {
   useCheckPluginRequiresCleanup,
   useFetchPlugin,
 } from 'e-teleport/services/plugins/hooks';
-import { useTeleport } from 'teleport';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { Route, Switch, useParams } from 'teleport/components/Router';
 import { addIndexToViews } from 'teleport/components/Wizard/flow';
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 import { ApiError } from 'teleport/services/api/parseError';
-import { storageService } from 'teleport/services/storageService';
 import { CtaEvent } from 'teleport/services/userEvent';
 
 function is404Error(error: unknown): boolean {
@@ -62,13 +60,11 @@ function is404Error(error: unknown): boolean {
 }
 
 export const OktaIntegrationSetUp = () => {
-  const ctx = useTeleport();
   const navigate = useNavigate();
   const params = useParams<Record<string, string | undefined>>();
   const subPage = params.subPage ?? params['*']?.split('/')[0];
 
-  const accessGraphEnabled =
-    storageService.getAccessGraphEnabled() && ctx.getFeatureFlags().accessGraph;
+  const activityCenterEnabled = cfg.oss.entitlements.ActivityCenter.enabled;
 
   const queryClient = useQueryClient();
 
@@ -89,8 +85,8 @@ export const OktaIntegrationSetUp = () => {
   const [showCleanUpModal, setShowCleanUpModal] = useState(false);
 
   const oktaIntegrationSteps = useMemo(
-    () => getOktaIntegrationSteps(accessGraphEnabled, cfg.oss.isCloud),
-    [accessGraphEnabled]
+    () => getOktaIntegrationSteps(activityCenterEnabled, cfg.oss.isCloud),
+    [activityCenterEnabled]
   );
 
   const highestCompletedStepType = useMemo<
@@ -191,7 +187,7 @@ export const OktaIntegrationSetUp = () => {
               element={<SetUpSSO />}
               exact
             />
-            {accessGraphEnabled && (
+            {activityCenterEnabled && (
               <Route
                 key={OktaIntegrationStepType.IdentitySecuritySync}
                 path={OktaIntegrationStepType.IdentitySecuritySync}

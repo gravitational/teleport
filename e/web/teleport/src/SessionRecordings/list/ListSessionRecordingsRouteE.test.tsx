@@ -21,14 +21,14 @@ import { makeAcl } from 'teleport/services/user/makeAcl';
 enableMswServer();
 
 let originalSessionSummarizerEnabled: boolean;
-let originalIdentitySecurityLicensed: boolean;
+let originalSessionSummariesEntitlement: (typeof cfg.oss.entitlements)['SessionSummaries'];
 
 beforeEach(() => {
   testQueryClient.clear();
 
   // backup original flag values
   originalSessionSummarizerEnabled = cfg.oss.sessionSummarizerEnabled;
-  originalIdentitySecurityLicensed = cfg.oss.identitySecurity.licensed;
+  originalSessionSummariesEntitlement = cfg.oss.entitlements.SessionSummaries;
 
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -51,7 +51,7 @@ afterEach(() => {
 
   // restore original flag values
   cfg.oss.sessionSummarizerEnabled = originalSessionSummarizerEnabled;
-  cfg.oss.identitySecurity.licensed = originalIdentitySecurityLicensed;
+  cfg.oss.entitlements.SessionSummaries = originalSessionSummariesEntitlement;
 });
 
 const listRecordingsUrl = generatePath(
@@ -64,18 +64,21 @@ const listRecordingsUrl = generatePath(
 function setupTest({
   summarizerEnabled,
   acl,
-  identitySecurityLicensed = false,
+  sessionSummariesLicensed = false,
 }: {
   summarizerEnabled: boolean;
   acl?: Partial<Acl>;
-  identitySecurityLicensed?: boolean;
+  sessionSummariesLicensed?: boolean;
 }) {
   const ctx = createTeleportContext({
     customAcl: makeAcl(acl),
   });
 
   cfg.oss.sessionSummarizerEnabled = summarizerEnabled;
-  cfg.oss.identitySecurity.licensed = identitySecurityLicensed;
+  cfg.oss.entitlements.SessionSummaries = {
+    enabled: sessionSummariesLicensed,
+    limit: 0,
+  };
 
   return render(
     <MemoryRouter>
@@ -129,7 +132,7 @@ test('should show a view summary button when the feature is enabled', async () =
   expect(buttons).toHaveLength(3);
 });
 
-test('should show the CTA when identity security is disabled', async () => {
+test('should show the CTA when Session Summaries is disabled', async () => {
   server.use(
     http.get(listRecordingsUrl, () => {
       return HttpResponse.json({
@@ -147,7 +150,7 @@ test('should show the CTA when identity security is disabled', async () => {
   ).toBeInTheDocument();
 });
 
-test('should show the session summaries status as enabled when identity security and the feature are enabled', async () => {
+test('should show the session summaries status as enabled when licensed and the feature is enabled', async () => {
   server.use(
     http.get(listRecordingsUrl, () => {
       return HttpResponse.json({
@@ -164,7 +167,7 @@ test('should show the session summaries status as enabled when identity security
       inferenceSecret: fullAccess,
       inferenceModel: fullAccess,
     },
-    identitySecurityLicensed: true,
+    sessionSummariesLicensed: true,
   });
 
   await screen.findByText('server-01');
@@ -180,7 +183,7 @@ test('should show the session summaries status as enabled when identity security
   ).not.toHaveTextContent('Not Enabled');
 });
 
-test('should show a link to set up session summaries when identity security is enabled but the feature is disabled', async () => {
+test('should show a link to set up session summaries when licensed but the feature is disabled', async () => {
   server.use(
     http.get(listRecordingsUrl, () => {
       return HttpResponse.json({
@@ -197,7 +200,7 @@ test('should show a link to set up session summaries when identity security is e
       inferenceSecret: fullAccess,
       inferenceModel: fullAccess,
     },
-    identitySecurityLicensed: true,
+    sessionSummariesLicensed: true,
   });
 
   await screen.findByText('server-01');

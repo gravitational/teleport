@@ -40,7 +40,8 @@ export function ReadRoleAccess({
   const roleDiffProps = useRoleWithAccessGraph();
   const demoMode = roleDiffProps?.roleDiffState === RoleDiffState.DemoReady;
   const roleTesterEnabled =
-    (cfg.isPolicyEnabled && storageService.getAccessGraphRoleTesterEnabled()) ||
+    (cfg.entitlements.AccessGraph.enabled &&
+      storageService.getAccessGraphRoleTesterEnabled()) ||
     demoMode;
 
   const onRoleUpdateForAccessGraph = useCallback(

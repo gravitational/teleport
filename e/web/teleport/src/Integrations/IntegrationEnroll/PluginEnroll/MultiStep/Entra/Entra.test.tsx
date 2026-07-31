@@ -35,8 +35,7 @@ jest.mock('shared/libs/logger', () => {
 });
 
 const defaultEnterpriseFlag = cfg.isEnterprise;
-const defaultPolicyFlag = cfg.isPolicyEnabled;
-const defaultPolicyEntitlement = cfg.entitlements.Policy;
+const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 const defaultIdentityEntitlement = cfg.entitlements.Identity;
 
 const authConnectorValue = 'entra-id-custom';
@@ -79,15 +78,13 @@ beforeEach(() => {
 afterEach(() => {
   jest.clearAllMocks();
   cfg.isEnterprise = defaultEnterpriseFlag;
-  cfg.isPolicyEnabled = defaultPolicyFlag;
-  cfg.entitlements.Policy = defaultPolicyEntitlement;
+  cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
   cfg.entitlements.Identity = defaultIdentityEntitlement;
 });
 
-test('entra onboard with policy disabled', async () => {
+test('entra onboard with Access Graph disabled', async () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = false;
-  cfg.entitlements.Policy = { enabled: false, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: false, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
@@ -134,10 +131,9 @@ test('entra onboard with policy disabled', async () => {
   ).toBeInTheDocument();
 });
 
-test('entra onboard with policy enabled', async () => {
+test('entra onboard with Access Graph enabled', async () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = true;
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
@@ -198,8 +194,7 @@ test('entra onboard with policy enabled', async () => {
 
 test('group filter toggle default on', async () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = true;
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
@@ -232,8 +227,7 @@ test('group filter toggle default on', async () => {
 
 test('group filter toggle off and configured filters', async () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = true;
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
@@ -278,8 +272,7 @@ test('group filter toggle off and configured filters', async () => {
 
 test('group filter toggle on should wipe configured filters', async () => {
   cfg.isEnterprise = true;
-  cfg.isPolicyEnabled = true;
-  cfg.entitlements.Policy = { enabled: true, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');
@@ -326,8 +319,7 @@ test('group filter toggle on should wipe configured filters', async () => {
 
 test('entra id group source', async () => {
   cfg.edition = 'ent';
-  cfg.isPolicyEnabled = false;
-  cfg.entitlements.Policy = { enabled: false, limit: 0 };
+  cfg.entitlements.AccessGraph = { enabled: false, limit: 0 };
   cfg.entitlements.Identity = { enabled: true, limit: 0 };
 
   renderPluginEnroll('entra-id');

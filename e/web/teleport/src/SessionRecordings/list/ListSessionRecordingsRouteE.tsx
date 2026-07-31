@@ -12,15 +12,16 @@ export function ListSessionRecordingsRouteE() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
 
-  const identitySecurityEnabled = cfg.oss.identitySecurity.licensed;
+  const sessionSummariesLicensed =
+    cfg.oss.entitlements.SessionSummaries.enabled;
 
   const headerSlot = useMemo(() => {
-    if (identitySecurityEnabled) {
+    if (sessionSummariesLicensed) {
       return <SessionSummariesStatus />;
     }
 
     return <SessionSummariesCta />;
-  }, [identitySecurityEnabled, flags.accessGraph]);
+  }, [sessionSummariesLicensed, flags.sessionSummaries]);
 
   return (
     <ListSessionRecordings

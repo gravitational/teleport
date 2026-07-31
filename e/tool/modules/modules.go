@@ -57,7 +57,7 @@ func NewEnterpriseModules(cfg EnterpriseModulesConfig) *EnterpriseModules {
 		plugins:           cfg.HostedPluginsEnabled,
 		automaticUpgrades: cfg.AutomaticUpgradesEnabled,
 		accessMonitoring:  cfg.Features.GetEntitlement(entitlements.AccessMonitoring).Enabled,
-		accessGraph:       cfg.Features.GetEntitlement(entitlements.Policy).Enabled,
+		accessGraph:       cfg.Features.GetEntitlement(entitlements.AccessGraph).Enabled,
 	}
 
 	if cfg.License != nil && cfg.License.License != nil {
@@ -92,7 +92,7 @@ func (p *EnterpriseModules) Features() modules.Features {
 	features.RecoveryCodes = p.recoveryCodes
 	// Plugins are always enabled based on auth file config
 	features.Plugins = p.plugins
-	// AccessGraph is enabled at startup when the Entitlements Policy is enabled
+	// AccessGraph is enabled at startup when its entitlement is enabled.
 	features.AccessGraph = p.accessGraph
 	// AccessMonitoringConfigured is enabled at startup when
 	// the entitlement AccessMonitoring is enabled
@@ -290,10 +290,9 @@ func setLegacyLogic(license types.License) modules.Features {
 		f.ProductType = modules.ProductTypeEUB
 	}
 
-	// Enable Access Graph, Activity Center and Session Summaries if Policy is enabled,
-	// as these features depend on Policy; this is for backwards compatibility with
-	// older licenses that may not have these entitlements explicitly set,
-	// but should have them enabled if they have Policy enabled.
+	// For backwards compatibility, treat the legacy Policy license flag as the
+	// bundle of Access Graph, Activity Center, and Session Summaries. Older
+	// licenses predate the dedicated entitlements.
 	if license.GetSupportsPolicy().Value() {
 		f.Entitlements[entitlements.AccessGraph] = modules.EntitlementInfo{Enabled: true}
 		f.Entitlements[entitlements.ActivityCenter] = modules.EntitlementInfo{Enabled: true}

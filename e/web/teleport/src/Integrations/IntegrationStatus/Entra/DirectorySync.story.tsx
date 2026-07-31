@@ -68,7 +68,7 @@ const render = (
   status: PluginStatus<PluginEntraIDStatusDetails>
 ) => {
   const ctx = createTeleportContextE();
-  cfg.isPolicyEnabled = true;
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   return (
     <ContextProvider ctx={ctx}>
       <DirectorySyncDetails

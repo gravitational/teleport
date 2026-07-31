@@ -16,7 +16,7 @@ export default {
 export const Default: StoryObj = {
   render: () => {
     const ctx = createTeleportContextE();
-    cfg.isPolicyEnabled = true;
+    cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
     return render(ctx, entraPlugin);
   },
 };
@@ -24,7 +24,7 @@ export const Default: StoryObj = {
 export const DirectorySyncError: StoryObj = {
   render: () => {
     const ctx = createTeleportContextE();
-    cfg.isPolicyEnabled = true;
+    cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
     const plugin = { ...entraPlugin };
     plugin.status = entraPluginErrorStatus;
     return render(ctx, plugin);

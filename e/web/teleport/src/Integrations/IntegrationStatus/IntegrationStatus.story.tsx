@@ -62,7 +62,7 @@ export const EntraID: StoryObj = {
     },
   },
   render: () => {
-    cfg.oss.isPolicyEnabled = true;
+    cfg.oss.entitlements.AccessGraph = { enabled: true, limit: 0 };
     return render(
       cfg.oss.getIntegrationStatusRoute('entra-id', 'entra-id-default')
     );

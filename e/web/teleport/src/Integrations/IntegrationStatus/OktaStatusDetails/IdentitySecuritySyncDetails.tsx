@@ -34,18 +34,18 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import { Panel, PanelTitle } from './Shared';
 
 export function IdentitySecuritySyncDetails({
-  accessGraphEnabled,
+  activityCenterEnabled,
   disabled,
   syncEnabled,
   onToggle,
 }: {
-  accessGraphEnabled: boolean;
+  activityCenterEnabled: boolean;
   disabled?: boolean;
   syncEnabled?: boolean;
   onToggle: () => void;
 }) {
   const navigate = useNavigate();
-  const showContent = accessGraphEnabled && syncEnabled;
+  const showContent = activityCenterEnabled && syncEnabled;
 
   return (
     <Panel>
@@ -53,7 +53,7 @@ export function IdentitySecuritySyncDetails({
         <PanelTitle>Identity Security Sync</PanelTitle>
         <StatusAndOptions
           enabled={syncEnabled}
-          disabled={!accessGraphEnabled}
+          disabled={!activityCenterEnabled}
           setEnabled={onToggle}
           options={[
             {
@@ -82,7 +82,7 @@ export function IdentitySecuritySyncDetails({
         ) : (
           <>
             <UpsellBulletList bullets={IDENTITY_SECURITY_SYNC_CONFIG.bullets} />
-            {!accessGraphEnabled && (
+            {!activityCenterEnabled && (
               <ButtonLockedFeature
                 event={CtaEvent.CTA_IDENTITY_SECURITY}
                 mt={1}

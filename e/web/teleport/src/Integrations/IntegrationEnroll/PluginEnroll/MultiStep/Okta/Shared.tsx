@@ -245,7 +245,7 @@ export interface OktaIntegrationStepWithEnabled extends OktaIntegrationLevelStep
 
 function calculateIsEnabled(
   config: OktaIntegrationLevelStep,
-  accessGraphEnabled: boolean
+  activityCenterEnabled: boolean
 ): boolean {
   if (!config.productRequirement) {
     return true;
@@ -256,7 +256,7 @@ function calculateIsEnabled(
       return cfg.oss.entitlements.Identity.enabled;
 
     case OktaLevelProductRequirement.IdentitySecurity:
-      return accessGraphEnabled;
+      return activityCenterEnabled;
   }
 }
 
@@ -269,7 +269,7 @@ function shouldIncludeStep(step: OktaIntegrationLevelStep, isCloud: boolean) {
 }
 
 export function getOktaIntegrationSteps(
-  accessGraphEnabled: boolean,
+  activityCenterEnabled: boolean,
   isCloud: boolean
 ): OktaIntegrationStepWithEnabled[] {
   const configs: OktaIntegrationLevelStep[] = [
@@ -284,7 +284,7 @@ export function getOktaIntegrationSteps(
     .filter(config => shouldIncludeStep(config, isCloud))
     .map(config => ({
       ...config,
-      enabled: calculateIsEnabled(config, accessGraphEnabled),
+      enabled: calculateIsEnabled(config, activityCenterEnabled),
     }));
 }
 
