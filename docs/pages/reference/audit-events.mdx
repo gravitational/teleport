@@ -4997,9 +4997,16 @@ Example:
   "time": "2025-05-23T11:11:11.111Z",
   "uid": "80400ed9-644e-4a6e-ab99-b264b34d0f55",
   "user": "ai-user",
-  "app_name": "mcp-everything"
+  "app_name": "mcp-everything",
+  "client_info": "claude-ai/0.1.0",
+  "server_info": "mcp-everything/1.2.3",
+  "protocol_version": "2025-06-18"
 }
 ```
+
+`client_info` is reported by the MCP client in its `initialize` request. Use the
+session ID (`sid`) to correlate this client identity with the other MCP audit
+events in the session.
 
 ## mfa.add
 
