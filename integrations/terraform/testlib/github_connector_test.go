@@ -172,9 +172,43 @@ func (s *TerraformSuiteOSS) TestGithubConnectorTeamsToRoles() {
 }
 
 // TestGithubConnectorWithoutMapping verifies that a GitHub SSO connector
-// can be created without teams to roles mapping. This is used in the case
-// where users get their roles exclusively from Teleport, e.g. via Access List.
+// can be created without teams to roles mapping.
 func (s *TerraformSuiteOSS) TestGithubConnectorWithoutMapping() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetGithubConnector(ctx, "test", false)
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_github_connector.test"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("github_connector_without_mapping.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.#", "0"),
+				),
+			},
+			{
+				Config:   s.getFixture("github_connector_without_mapping.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+// TestGithubConnectorRemoveMapping verifies that a GitHub SSO connector
+// can be updated to remove teams to roles mapping.
+func (s *TerraformSuiteOSS) TestGithubConnectorRemoveMapping() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -196,12 +230,15 @@ func (s *TerraformSuiteOSS) TestGithubConnectorWithoutMapping() {
 			{
 				Config: s.getFixture("github_connector_teams_to_roles.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, "kind", "github"),
-					resource.TestCheckResourceAttr(name, "metadata.expires", "2032-10-12T07:20:50Z"),
-					resource.TestCheckResourceAttr(name, "spec.client_id", "Iv1.3386eee92ff932a4"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.organization", "evilmartians"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.team", "devs"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.0.roles.0", "myrole"),
+				),
+			},
+			{
+				Config: s.getFixture("github_connector_without_mapping.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.teams_to_roles.#", "0"),
 				),
 			},
 			{
