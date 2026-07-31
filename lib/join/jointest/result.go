@@ -17,9 +17,9 @@
 package jointest
 
 import (
-	"reflect"
+	"testing"
 
-	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/lib/join/joinclient"
@@ -27,43 +27,20 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// ValidateScopedHostResult verifies the scoped controls returned by a
+// RequireScopedHostResult verifies the scoped controls returned by a
 // successful host join instead of treating a nil error as sufficient coverage.
-func ValidateScopedHostResult(result *joinclient.JoinResult, token *joiningv1.ScopedToken) error {
-	if result == nil {
-		return trace.BadParameter("join result is nil")
-	}
-	if result.Certs == nil {
-		return trace.BadParameter("join result certificates are nil")
-	}
-	if token == nil {
-		return trace.BadParameter("scoped token is nil")
-	}
+func RequireScopedHostResult(t testing.TB, result *joinclient.JoinResult, token *joiningv1.ScopedToken) {
+	t.Helper()
+
+	require.NotNil(t, result)
+	require.NotNil(t, result.Certs)
 
 	cert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
-	if err != nil {
-		return trace.Wrap(err, "parsing TLS certificate")
-	}
+	require.NoError(t, err)
 	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err, "parsing TLS identity")
-	}
+	require.NoError(t, err)
 
-	expectedScope := token.GetSpec().GetAssignedScope()
-	if expectedScope != identity.AgentScope {
-		return trace.CompareFailed("assigned scope mismatch: expected %q, got %q", expectedScope, identity.AgentScope)
-	}
-
-	expectedLabelHash := joining.HashImmutableLabels(token.GetSpec().GetImmutableLabels())
-	if expectedLabelHash != identity.ImmutableLabelHash {
-		return trace.CompareFailed("immutable label hash mismatch: expected %q, got %q", expectedLabelHash, identity.ImmutableLabelHash)
-	}
-
-	expectedLabels := token.GetSpec().GetImmutableLabels().GetSsh()
-	actualLabels := result.ImmutableLabels.GetSsh()
-	if !reflect.DeepEqual(expectedLabels, actualLabels) {
-		return trace.CompareFailed("immutable SSH labels mismatch: expected %v, got %v", expectedLabels, actualLabels)
-	}
-
-	return nil
+	require.Equal(t, token.GetSpec().GetAssignedScope(), identity.AgentScope)
+	require.Equal(t, joining.HashImmutableLabels(token.GetSpec().GetImmutableLabels()), identity.ImmutableLabelHash)
+	require.Equal(t, token.GetSpec().GetImmutableLabels().GetSsh(), result.ImmutableLabels.GetSsh())
 }

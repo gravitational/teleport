@@ -709,21 +709,9 @@ func TestJoinGHA(t *testing.T) {
 			require.NoError(t, err)
 
 			t.Run("scoped joinclient", func(t *testing.T) {
-				scopedToken, err := jointest.CreateScopedToken(t.Context(), authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
-				require.NoError(t, err)
-				t.Cleanup(func() {
-					_, err := authServer.Auth().DeleteScopedToken(context.Background(), joiningv1.DeleteScopedTokenRequest_builder{
-						Name:  scopedToken.GetMetadata().GetName(),
-						Scope: scopedToken.GetScope(),
-					}.Build())
-					require.NoError(t, err)
-				})
-
+				scopedToken := jointest.CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
 				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: scopes.QualifiedName{
-						Scope: scopedToken.GetScope(),
-						Name:  scopedToken.GetMetadata().GetName(),
-					}.String(),
+					Token:      scopedToken.GetMetadata().GetName(),
 					JoinMethod: types.JoinMethodGitHub,
 					ID: state.IdentityID{
 						Role:     types.RoleInstance,
@@ -738,7 +726,7 @@ func TestJoinGHA(t *testing.T) {
 				}
 
 				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
-				require.NoError(t, jointest.ValidateScopedHostResult(result, scopedToken))
+				jointest.RequireScopedHostResult(t, result, scopedToken)
 			})
 
 			token, err := types.NewProvisionTokenFromSpec(
@@ -832,8 +820,7 @@ func TestJoinGHABot(t *testing.T) {
 	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
 
 	// Create a scoped bot.
-	qualifiedBotName, err := jointest.CreateScopedBot(t.Context(), authServer.Auth(), "gha-bot")
-	require.NoError(t, err)
+	qualifiedBotName := jointest.CreateScopedBot(t, authServer.Auth(), "gha-bot")
 
 	// Create the scoped token for bot joining.
 	tokenSpec := types.ProvisionTokenSpecV2{
@@ -871,10 +858,7 @@ func TestJoinGHABot(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: scopes.QualifiedName{
-			Scope: scopedToken.GetScope(),
-			Name:  scopedToken.GetMetadata().GetName(),
-		}.String(),
+		Token:      "github-bot-token",
 		JoinMethod: types.JoinMethodGitHub,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
@@ -932,10 +916,7 @@ func TestJoinGHABot(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-			Token: scopes.QualifiedName{
-				Scope: nonMatchingToken.GetScope(),
-				Name:  nonMatchingToken.GetMetadata().GetName(),
-			}.String(),
+			Token:      "github-bot-token-no-match",
 			JoinMethod: types.JoinMethodGitHub,
 			ID: state.IdentityID{
 				Role: types.RoleBot,
