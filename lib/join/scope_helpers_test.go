@@ -85,7 +85,8 @@ func CreateScopedToken(
 
 	t.Cleanup(func() {
 		_, err := client.DeleteScopedToken(context.Background(), joiningv1.DeleteScopedTokenRequest_builder{
-			Name: token.GetMetadata().GetName(),
+			Name:  token.GetMetadata().GetName(),
+			Scope: token.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	})
