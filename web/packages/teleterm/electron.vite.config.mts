@@ -27,12 +27,15 @@ import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
 import { getConnectCsp } from './csp';
 
-const rootDirectory = path.resolve(__dirname, '../../..');
-const outputDirectory = path.resolve(__dirname, 'build', 'app');
+const rootDirectory = path.resolve(import.meta.dirname, '../../..');
+const outputDirectory = path.resolve(import.meta.dirname, 'build', 'app');
 
-// these dependencies don't play well unless they're externalized
-// if Vite complains about a dependency, add it here
-const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
+// Dependencies that must be bundled rather than externalized.
+//
+// ring-buffer-ts ships as a minified UMD/CommonJS bundle with no ESM entry.
+// This makes the Node's ESM loader fail to detect its named exports.
+// A workaround is to switch to `import rb from 'ring-buffer-ts'` but this doesn't work under Babel.
+const bundledDeps = ['ring-buffer-ts'];
 
 // electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
 // Vite 8 ignores (it uses rolldownOptions).
@@ -43,21 +46,8 @@ const externalizeDeps = ['strip-ansi', 'ansi-regex', 'd3-color'];
 // See https://electron-vite.org/guide/dependency-handling.
 const pkg = createRequire(import.meta.url)('./package.json');
 const deps = Object.keys(pkg.dependencies || {}).filter(
-  dep => !externalizeDeps.includes(dep)
+  dep => !bundledDeps.includes(dep)
 );
-
-const commonRolldownOptions: Rolldown.RolldownOptions = {
-  onLog(level, log, defaultHandler) {
-    // Suppress direct eval warning from @protobufjs/inquire.
-    // The eval is intentional (to call require without bundler detection) and patching
-    // it to indirect eval would break Electron's module-scoped require.
-    if (log.code === 'EVAL' && log.id?.includes('@protobufjs/inquire')) {
-      return;
-    }
-
-    defaultHandler(level, log);
-  },
-};
 
 // Main and preload run in Node.js, so we externalize electron, Node.js built-in
 // modules, and package.json dependencies (they'll be included during packaging).
@@ -80,22 +70,23 @@ const config = defineConfig(env => {
       build: {
         outDir: path.resolve(outputDirectory, 'main'),
         rolldownOptions: {
-          ...commonRolldownOptions,
           ...nodeExternalOptions,
           input: {
-            index: path.resolve(__dirname, 'src/main.ts'),
+            index: path.resolve(import.meta.dirname, 'src/main.ts'),
             sharedProcess: path.resolve(
-              __dirname,
+              import.meta.dirname,
               'src/sharedProcess/sharedProcess.ts'
             ),
             agentCleanupDaemon: path.resolve(
-              __dirname,
+              import.meta.dirname,
               'src/agentCleanupDaemon/agentCleanupDaemon.js'
             ),
           },
           output: {
-            format: 'cjs',
-            manualChunks,
+            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
+            // https://github.com/alex8088/electron-vite/issues/894
+            entryFileNames: '[name].mjs',
+            format: 'es',
           },
         },
       },
@@ -115,14 +106,15 @@ const config = defineConfig(env => {
       build: {
         outDir: path.resolve(outputDirectory, 'preload'),
         rolldownOptions: {
-          ...commonRolldownOptions,
           ...nodeExternalOptions,
           input: {
-            index: path.resolve(__dirname, 'src/preload.ts'),
+            index: path.resolve(import.meta.dirname, 'src/preload.ts'),
           },
           output: {
-            format: 'cjs',
-            manualChunks,
+            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
+            // https://github.com/alex8088/electron-vite/issues/894
+            entryFileNames: '[name].mjs',
+            format: 'es',
           },
         },
       },
@@ -140,9 +132,14 @@ const config = defineConfig(env => {
       build: {
         outDir: path.resolve(outputDirectory, 'renderer'),
         rolldownOptions: {
-          ...commonRolldownOptions,
           input: {
-            index: path.resolve(__dirname, 'index.html'),
+            index: path.resolve(import.meta.dirname, 'index.html'),
+          },
+          output: {
+            // TODO(gzdunek): Remove this once electron-vite supports Vite 8.
+            // https://github.com/alex8088/electron-vite/issues/894
+            entryFileNames: '[name].mjs',
+            format: 'es',
           },
         },
       },
@@ -179,14 +176,6 @@ const config = defineConfig(env => {
 });
 
 export { config as default };
-
-function manualChunks(id: string) {
-  for (const dep of externalizeDeps) {
-    if (id.includes(dep)) {
-      return dep;
-    }
-  }
-}
 
 function cspPlugin(csp: string): Plugin {
   return {
