@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -300,9 +299,7 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	// fallback queue does not take ownership of it on a delivery failure. The
 	// originating instance retries from its own queue.
 	ctx = events.WithForwardedEmit(ctx)
-	emitCtx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
-	defer cancel()
-	err = auth.EmitAuditEvent(emitCtx, event)
+	err = auth.EmitAuditEvent(ctx, event)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
