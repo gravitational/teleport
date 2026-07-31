@@ -248,6 +248,16 @@ const PagerArrow = styled.button`
     color: ${({ theme }) => theme.colors.text.main};
   }
 
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible:not(:disabled) {
+    outline: 2px solid ${({ theme }) => theme.colors.brand};
+    outline-offset: 2px;
+    border-radius: ${({ theme }) => theme.radii[1]}px;
+  }
+
   &:disabled {
     color: ${({ theme }) => theme.colors.text.disabled};
     cursor: not-allowed;

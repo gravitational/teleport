@@ -135,20 +135,20 @@ export function BeamRowActions({
 
   const renderPublishItem = ({ label, info, onClick }: PublishItem) =>
     isOwner ? (
-      <MenuItem key={label} onClick={onClick} disabled={busy}>
+      <BeamMenuItem key={label} onClick={onClick} disabled={busy}>
         {label}
         <PublishInfoSlot onClick={e => e.stopPropagation()}>
           <Tooltip interactive content={info}>
             <InfoIcon boxSize={4} color="text.slightlyMuted" />
           </Tooltip>
         </PublishInfoSlot>
-      </MenuItem>
+      </BeamMenuItem>
     ) : (
       <Tooltip
         key={label}
         content={`You don't have permission to ${publishVerb} this beam`}
       >
-        <MenuItem disabled>{label}</MenuItem>
+        <BeamMenuItem disabled>{label}</BeamMenuItem>
       </Tooltip>
     );
 
@@ -182,11 +182,11 @@ export function BeamRowActions({
       buttonIconProps={{ css: borderedMenuTriggerCss, 'aria-label': 'Options' }}
     >
       {publishItems.map(renderPublishItem)}
-      <MenuItem onClick={handleCopyUuid}>Copy UUID</MenuItem>
+      <BeamMenuItem onClick={handleCopyUuid}>Copy UUID</BeamMenuItem>
       {canRemove && (
-        <MenuItem onClick={() => onRequestDelete(beam)} disabled={busy}>
+        <BeamMenuItem onClick={() => onRequestDelete(beam)} disabled={busy}>
           Delete
-        </MenuItem>
+        </BeamMenuItem>
       )}
     </MenuIcon>
   );
@@ -206,6 +206,17 @@ const PublishInfoSlot = styled.span`
   padding-left: ${({ theme }) => theme.space[3]}px;
 `;
 
+const BeamMenuItem = styled(MenuItem).attrs({
+  as: 'button',
+  type: 'button',
+})`
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  text-align: left;
+`;
+
 const ConnectButton = styled(ButtonBorder)`
   padding-left: ${({ theme }) => theme.space[3]}px;
   padding-right: ${({ theme }) => theme.space[3]}px;
@@ -220,5 +231,14 @@ const borderedMenuTriggerCss = ({ theme }: { theme: Theme }) => `
 
   &:hover {
     border-color: ${theme.colors.text.slightlyMuted};
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.brand};
+    outline-offset: 2px;
   }
 `;

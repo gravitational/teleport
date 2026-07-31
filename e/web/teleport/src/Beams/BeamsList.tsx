@@ -28,8 +28,11 @@ import { BeamsToolbar } from './components/BeamsToolbar';
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog';
 import { PAGE_SIZE, SortDir } from './components/constants';
 import { useDeleteBeams, useListBeams } from './components/useBeamMutations';
+import { useBeamRecordingHostnames } from './components/useBeamRecordingHostnames';
 import { useBeamSelection } from './components/useBeamSelection';
 import { useBeamsListParams } from './components/useBeamsListParams';
+
+const EMPTY_HOSTNAMES: ReadonlySet<string> = new Set();
 
 export function BeamsList() {
   const ctx = useTeleport();
@@ -37,6 +40,7 @@ export function BeamsList() {
   const flags = ctx.getFeatureFlags();
   const access = ctx.storeUser.getBeamAccess();
   const canList = flags.listBeam && flags.readBeam;
+  const canViewRecordings = flags.recordings;
 
   const params = useBeamsListParams();
   const users = params.filterOwn ? [ctx.storeUser.getUsername()] : undefined;
@@ -78,6 +82,12 @@ export function BeamsList() {
       users,
       enabled: canList,
     });
+
+  const recordings = useBeamRecordingHostnames({
+    clusterId,
+    enabled: canList && canViewRecordings,
+  });
+  const recordingHostnames = recordings.data ?? EMPTY_HOSTNAMES;
 
   const onBeamCreated = (beam: Beam) => {
     handleSort('expires', 'DESC');
@@ -184,6 +194,8 @@ export function BeamsList() {
           currentUsername={ctx.storeUser.getUsername()}
           canEdit={access.edit}
           canRemove={access.remove}
+          canViewRecordings={canViewRecordings}
+          recordingHostnames={recordingHostnames}
           selection={selection}
           sortField={params.sortField}
           sortDir={params.sortDir}
@@ -247,6 +259,15 @@ const QuickstartPill = styled(Link)`
 
   &:hover {
     background: ${({ theme }) => theme.colors.levels.elevated};
+  }
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.brand};
+    outline-offset: 2px;
   }
 `;
 

@@ -1,5 +1,7 @@
 import { ThemeProvider as NewThemeProvider } from '@gravitational/design-system';
+import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
+import { generatePath } from 'react-router';
 
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
@@ -25,6 +27,7 @@ import {
   listBeamsSuccess,
   updateBeamSuccess,
 } from 'e-teleport/test/helpers/beams';
+import cfg from 'teleport/config';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
 import { beamsService } from '../services/beams/beams';
@@ -134,6 +137,93 @@ describe('BeamsList', () => {
 
     expect(screen.getByText('cosmic-author')).toBeInTheDocument();
     expect(screen.getByText('solid-flux')).toBeInTheDocument();
+  });
+
+  it('links a beam to its session recordings when the recordings API returns a matching hostname', async () => {
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam],
+      next_page_token: '',
+    });
+
+    const recordingsPath = generatePath(cfg.api.clusterEventsRecordingsPath, {
+      clusterId: 'localhost',
+    });
+    const recordingsRequests: URL[] = [];
+    server.use(
+      http.get(recordingsPath, ({ request }) => {
+        const url = new URL(request.url);
+        recordingsRequests.push(url);
+        // First page has no beam recording; second page (via startKey) does.
+        // Ensures we follow pagination instead of stopping after one page.
+        if (!url.searchParams.get('startKey')) {
+          return HttpResponse.json({
+            events: [
+              {
+                code: 'T2004I',
+                interactive: true,
+                participants: ['other'],
+                server_hostname: 'unrelated-host',
+                session_start: '2026-07-24T12:00:00Z',
+                session_stop: '2026-07-24T12:01:00Z',
+                sid: 'recording-id-1',
+                time: '2026-07-24T12:01:00Z',
+                user: 'other',
+              },
+            ],
+            startKey: 'page-2',
+          });
+        }
+        return HttpResponse.json({
+          events: [
+            {
+              code: 'T2004I',
+              interactive: true,
+              participants: [ownedBeam.user],
+              server_hostname: `beam-${ownedBeam.name}`,
+              session_start: '2026-07-24T12:00:00Z',
+              session_stop: '2026-07-24T12:01:00Z',
+              sid: 'recording-id-2',
+              time: '2026-07-24T12:01:00Z',
+              user: ownedBeam.user,
+            },
+          ],
+          startKey: '',
+        });
+      })
+    );
+
+    render(<BeamsList />, {
+      wrapper: makeWrapper(
+        makeAcl({
+          beam: {
+            list: true,
+            create: true,
+            edit: true,
+            remove: true,
+            read: true,
+          },
+          recordedSessions: { ...defaultAccess, list: true },
+        })
+      ),
+    });
+
+    const link = await screen.findByRole('link', {
+      name: `View session recordings for ${ownedBeam.alias}`,
+    });
+
+    expect(recordingsRequests).toHaveLength(2);
+    expect(recordingsRequests[0].pathname).toBe(recordingsPath);
+    expect(recordingsRequests[0].searchParams.get('limit')).toBe('5000');
+    expect(recordingsRequests[0].searchParams.get('from')).toBeTruthy();
+    expect(recordingsRequests[0].searchParams.get('to')).toBeTruthy();
+    expect(recordingsRequests[0].searchParams.get('startKey')).toBeNull();
+    expect(recordingsRequests[1].searchParams.get('startKey')).toBe('page-2');
+
+    const href = new URL(link.getAttribute('href')!, 'https://example.com');
+    expect(href.pathname).toBe('/web/cluster/localhost/recordings');
+    expect(href.searchParams.get('resources')).toBe(`beam-${ownedBeam.name}`);
+    expect(href.searchParams.get('from')).toBeTruthy();
+    expect(href.searchParams.get('to')).toBeTruthy();
   });
 
   it('allows paging', async () => {

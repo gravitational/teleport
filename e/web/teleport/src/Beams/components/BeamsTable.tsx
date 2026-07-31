@@ -6,6 +6,7 @@ import {
   ComposedCheckbox,
   DataTable,
   Flex,
+  PlayCircleIcon,
   Spinner,
   TerminalIcon,
   Text,
@@ -27,11 +28,14 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
+import { ButtonIcon } from 'design';
 import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import { Beam, BeamsSortField } from 'e-teleport/services/beams/types';
+import cfg from 'teleport/config';
 
 import { BeamRowActions } from './BeamRowActions';
 import {
@@ -56,6 +60,8 @@ type BeamsTableContextValue = {
   currentUsername: string;
   canEdit: boolean;
   canRemove: boolean;
+  canViewRecordings: boolean;
+  recordingHostnames: ReadonlySet<string>;
   beams: Beam[];
   selection: BeamSelection;
   sortField: BeamsSortField;
@@ -78,6 +84,8 @@ type BeamsTableProps = {
   currentUsername: string;
   canEdit: boolean;
   canRemove: boolean;
+  canViewRecordings?: boolean;
+  recordingHostnames?: ReadonlySet<string>;
   selection: BeamSelection;
   sortField: BeamsSortField;
   sortDir: SortDir;
@@ -86,6 +94,8 @@ type BeamsTableProps = {
   onRequestDelete: (beams: Beam[]) => void;
 };
 
+const NO_RECORDINGS: ReadonlySet<string> = new Set();
+
 export function BeamsTable({
   beams,
   clusterId,
@@ -93,6 +103,8 @@ export function BeamsTable({
   currentUsername,
   canEdit,
   canRemove,
+  canViewRecordings = false,
+  recordingHostnames = NO_RECORDINGS,
   selection,
   sortField,
   sortDir,
@@ -114,6 +126,8 @@ export function BeamsTable({
     currentUsername,
     canEdit,
     canRemove,
+    canViewRecordings,
+    recordingHostnames,
     beams,
     selection,
     sortField,
@@ -294,16 +308,66 @@ function ExpirationCell({ row }: { row: Row<Beam> }) {
 }
 
 function ActionsCell({ row }: { row: Row<Beam> }) {
-  const { clusterId, canEdit, canRemove, onRequestDelete } =
-    useBeamsTableContext();
+  const {
+    clusterId,
+    canEdit,
+    canRemove,
+    canViewRecordings,
+    recordingHostnames,
+    onRequestDelete,
+  } = useBeamsTableContext();
+  const beam = row.original;
+  const hasRecording =
+    canViewRecordings && recordingHostnames.has(`beam-${beam.name}`);
+
   return (
-    <BeamRowActions
-      beam={row.original}
-      clusterId={clusterId}
-      canEdit={canEdit}
-      canRemove={canRemove}
-      onRequestDelete={b => onRequestDelete([b])}
-    />
+    <Flex alignItems="center" justifyContent="flex-end" gap={3}>
+      {hasRecording && (
+        <SessionRecordingLink clusterId={clusterId} beam={beam} />
+      )}
+      <BeamRowActions
+        beam={beam}
+        clusterId={clusterId}
+        canEdit={canEdit}
+        canRemove={canRemove}
+        onRequestDelete={b => onRequestDelete([b])}
+      />
+    </Flex>
+  );
+}
+
+// A beam's SSH sessions are recorded under the hostname `beam-<beam.name>`,
+// which is the resource name the recordings list filters on.
+function SessionRecordingLink({
+  clusterId,
+  beam,
+}: {
+  clusterId: string;
+  beam: Beam;
+}) {
+  const resource = `beam-${beam.name}`;
+  const to = new Date();
+  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+  const params = new URLSearchParams({
+    resources: resource,
+    from: from.toISOString(),
+    to: to.toISOString(),
+  });
+  const url = `${cfg.getRecordingsRoute(clusterId)}?${params.toString()}`;
+
+  const label = beam.alias || beam.name;
+  return (
+    <Tooltip content="Session recordings">
+      <ButtonIcon
+        as={Link}
+        to={url}
+        size={1}
+        color="text.slightlyMuted"
+        aria-label={`View session recordings for ${label}`}
+      >
+        <PlayCircleIcon boxSize={6} />
+      </ButtonIcon>
+    </Tooltip>
   );
 }
 
@@ -461,7 +525,8 @@ const CopyButtonWrapper = styled.span`
   opacity: 0;
   transition: opacity 150ms;
 
-  tr:hover & {
+  tr:hover &,
+  &:focus-within {
     opacity: 1;
   }
 `;
@@ -498,6 +563,15 @@ const ProtocolBadge = styled.button`
     background: ${({ theme }) => theme.colors.interactive.tonal.neutral[0]};
   }
 
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.brand};
+    outline-offset: 2px;
+  }
+
   &[data-muted] {
     color: ${({ theme }) => theme.colors.text.disabled};
     cursor: not-allowed;
@@ -514,4 +588,14 @@ const HeaderSortButton = styled.button`
   cursor: pointer;
   font: inherit;
   font-weight: ${({ theme }) => theme.fontWeights.bold};
+  border-radius: ${({ theme }) => theme.radii[1]}px;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.brand};
+    outline-offset: 2px;
+  }
 `;
