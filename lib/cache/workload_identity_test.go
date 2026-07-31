@@ -314,7 +314,7 @@ func TestWorkloadIdentityCacheRange(t *testing.T) {
 	})
 
 	collectRange := func(t *testing.T, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) []*workloadidentityv1pb.WorkloadIdentity {
-		return collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, start, end, sortField, sortDesc))
+		return collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(t.Context(), start, end, sortField, sortDesc))
 	}
 
 	names := func(in []*workloadidentityv1pb.WorkloadIdentity) []string {
@@ -438,7 +438,7 @@ func TestWorkloadIdentityCacheRangePagination(t *testing.T) {
 		require.NoError(t, err)
 		for {
 			page, next, err := generic.CollectPageAndCursor(
-				p.cache.RangeWorkloadIdentities(ctx, token, "", sortField, sortDesc),
+				p.cache.RangeWorkloadIdentities(t.Context(), token, "", sortField, sortDesc),
 				5,
 				keyFn,
 			)
