@@ -48,7 +48,7 @@ import { defaultRoleVersion, newRole } from './StandardEditor/standardmodel';
 import * as StandardModelModule from './StandardEditor/standardmodel';
 import { defaultOptions, withDefaults } from './StandardEditor/withDefaults';
 
-const defaultIsPolicyEnabled = cfg.isPolicyEnabled;
+const defaultAccessGraphEntitlement = cfg.entitlements.AccessGraph;
 
 // The Ace editor is very difficult to deal with in tests, especially that for
 // handling its state, we are using input event, which is asynchronous. Thus,
@@ -99,7 +99,7 @@ beforeEach(() => {
 
 afterEach(() => {
   jest.restoreAllMocks();
-  cfg.isPolicyEnabled = defaultIsPolicyEnabled;
+  cfg.entitlements.AccessGraph = defaultAccessGraphEntitlement;
 });
 
 test('rendering and switching tabs for new role', async () => {
@@ -190,7 +190,7 @@ test('rendering and switching tabs for a non-standard role', async () => {
 });
 
 it('calls onRoleUpdate on each modification in the standard editor', async () => {
-  cfg.isPolicyEnabled = true;
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   const onRoleUpdate = jest.fn();
   render(<TestRoleEditor demoMode onRoleUpdate={onRoleUpdate} />);
   expect(onRoleUpdate).toHaveBeenLastCalledWith(
@@ -206,7 +206,7 @@ it('calls onRoleUpdate on each modification in the standard editor', async () =>
 });
 
 it('calls onRoleUpdate after the first rendering of a non-standard role', async () => {
-  cfg.isPolicyEnabled = true;
+  cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
   const onRoleUpdate = jest.fn();
   const nonStandardRole = withDefaults({
     unsupportedField: true,
@@ -417,7 +417,7 @@ test('saving a new role', async () => {
 });
 
 describe('saving a new role after editing as YAML', () => {
-  test('with Policy disabled', async () => {
+  test('with Access Graph disabled', async () => {
     const onSave = jest.fn();
     render(<TestRoleEditor onSave={onSave} />);
 
@@ -440,8 +440,8 @@ describe('saving a new role after editing as YAML', () => {
     } as CreateNewRoleSaveClickEventData);
   });
 
-  test('with Policy enabled', async () => {
-    cfg.isPolicyEnabled = true;
+  test('with Access Graph enabled', async () => {
+    cfg.entitlements.AccessGraph = { enabled: true, limit: 0 };
     jest
       .spyOn(storageService, 'getAccessGraphRoleTesterEnabled')
       .mockReturnValue(true);

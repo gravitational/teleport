@@ -1905,7 +1905,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 		accessGraphSettings *clusterconfigpb.AccessGraphSettings
 	}{
 		{
-			name:              "authorized proxy with non empty access graph config; Policy module is disabled",
+			name:              "authorized proxy with non empty access graph config; Access Graph entitlement is disabled",
 			role:              types.RoleProxy,
 			testSetup:         func(t *testing.T) {},
 			accessGraphConfig: cfgEnabled,
@@ -1917,13 +1917,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized proxy with non empty access graph config; Policy module is enabled",
+			name: "authorized proxy with non empty access graph config; Access Graph entitlement is enabled",
 			role: types.RoleProxy,
 			testSetup: func(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -1942,13 +1942,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "authorized discovery with non empty access graph config; Policy module is enabled",
+			name: "authorized discovery with non empty access graph config; Access Graph entitlement is enabled",
 			role: types.RoleDiscovery,
 			testSetup: func(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -1967,13 +1967,13 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "Policy module is enabled with secrets scan option",
+			name: "Access Graph entitlement is enabled with secrets scan option",
 			role: types.RoleDiscovery,
 			testSetup: func(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2131,7 +2131,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2256,7 +2256,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
@@ -2350,7 +2350,7 @@ func TestResetAccessGraphSettings(t *testing.T) {
 				m := modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}
