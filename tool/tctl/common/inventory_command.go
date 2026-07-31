@@ -26,8 +26,10 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -276,16 +278,9 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			}
 
 			var auditQueueBacklog int64
-			auditQueue := "" // unknown / not reported
+			auditQueue := formatAuditQueue(instance.GetAuditQueueStatus())
 			if aq := instance.GetAuditQueueStatus(); aq != nil {
 				auditQueueBacklog = aq.PendingCount + aq.DeadLetterCount + aq.CorruptCount
-				auditQueue = fmt.Sprintf("%d", aq.PendingCount)
-				if aq.DeadLetterCount > 0 {
-					auditQueue += fmt.Sprintf(" (%d DL)", aq.DeadLetterCount)
-				}
-				if aq.CorruptCount > 0 {
-					auditQueue += fmt.Sprintf(" (%d corrupt)", aq.CorruptCount)
-				}
 			}
 
 			rows = append(rows, instanceRow{
@@ -330,6 +325,37 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
+}
+
+const minDisplayedAuditQueueAge = 5 * time.Minute
+
+func formatAuditQueue(aq *types.AuditQueueStatus) string {
+	if aq == nil {
+		return ""
+	}
+	minAge := int64(minDisplayedAuditQueueAge.Seconds())
+	out := fmt.Sprintf("%d", aq.PendingCount)
+	if aq.OldestPendingAgeSeconds >= minAge {
+		out += fmt.Sprintf(" (oldest %s)", formatAge(aq.OldestPendingAgeSeconds))
+	}
+	if aq.DeadLetterCount > 0 {
+		out += fmt.Sprintf(" (%d DL", aq.DeadLetterCount)
+		if aq.OldestDeadLetterAgeSeconds >= minAge {
+			out += fmt.Sprintf(", oldest %s", formatAge(aq.OldestDeadLetterAgeSeconds))
+		}
+		out += ")"
+	}
+	if aq.CorruptCount > 0 {
+		out += fmt.Sprintf(" (%d corrupt)", aq.CorruptCount)
+	}
+	return out
+}
+
+// formatAge renders an age in seconds as a coarse duration, e.g. "5 minutes"
+// or "1 hour".
+func formatAge(seconds int64) string {
+	base := time.Unix(0, 0)
+	return strings.TrimSpace(humanize.RelTime(base, base.Add(time.Duration(seconds)*time.Second), "", ""))
 }
 
 func (c *InventoryCommand) Ping(ctx context.Context, client *authclient.Client) error {
