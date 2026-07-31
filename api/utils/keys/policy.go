@@ -116,17 +116,19 @@ func (p PrivateKeyPolicy) MFAVerified() bool {
 	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
 }
 
-func (p PrivateKeyPolicy) validate() error {
+func (p PrivateKeyPolicy) validateRequireablePolicy() error {
 	switch p {
 	case PrivateKeyPolicyNone,
 		PrivateKeyPolicyHardwareKey,
 		PrivateKeyPolicyHardwareKeyTouch,
 		PrivateKeyPolicyHardwareKeyPIN,
-		PrivateKeyPolicyHardwareKeyTouchAndPIN,
-		PrivateKeyPolicyWebSession:
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return nil
 	}
-	return trace.BadParameter("%q is not a valid key policy", p)
+	// Key policies like [PrivateKeyPolicyWebSession] mark an identity as exempt
+	// from key policy checks, so they satisfy every requirement and can never be
+	// one themselves.
+	return trace.BadParameter("%q is not a valid key policy that can be required", p)
 }
 
 // PolicyThatSatisfiesSet returns least restrictive policy necessary to satisfy the given set of policies.
@@ -178,7 +180,7 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	}
 
 	policy := PrivateKeyPolicy(subMatches[2])
-	if err := policy.validate(); err != nil {
+	if err := policy.validateRequireablePolicy(); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return policy, nil

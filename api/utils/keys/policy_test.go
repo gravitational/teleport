@@ -22,18 +22,21 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 var (
-	privateKeyPolicies = []keys.PrivateKeyPolicy{
+	requireablePrivateKeyPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyNone,
 		keys.PrivateKeyPolicyHardwareKey,
 		keys.PrivateKeyPolicyHardwareKeyTouch,
 		keys.PrivateKeyPolicyHardwareKeyPIN,
 		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+	}
+	identityOnlyPrivateKeyPolicies = []keys.PrivateKeyPolicy{
 		keys.PrivateKeyPolicyWebSession,
 	}
 	hardwareKeyPolicies = []keys.PrivateKeyPolicy{
@@ -60,20 +63,13 @@ var (
 )
 
 func TestIsRequiredPolicyMet(t *testing.T) {
-	privateKeyPolicies := []keys.PrivateKeyPolicy{
-		keys.PrivateKeyPolicyNone,
-		keys.PrivateKeyPolicyHardwareKey,
-		keys.PrivateKeyPolicyHardwareKeyTouch,
-		keys.PrivateKeyPolicyHardwareKeyPIN,
-		keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
-	}
 	for _, tc := range []struct {
 		requiredPolicy     keys.PrivateKeyPolicy
 		satisfyingPolicies []keys.PrivateKeyPolicy
 	}{
 		{
 			requiredPolicy:     keys.PrivateKeyPolicyNone,
-			satisfyingPolicies: privateKeyPolicies,
+			satisfyingPolicies: requireablePrivateKeyPolicies,
 		}, {
 			requiredPolicy:     keys.PrivateKeyPolicyHardwareKey,
 			satisfyingPolicies: hardwareKeyPolicies,
@@ -89,13 +85,29 @@ func TestIsRequiredPolicyMet(t *testing.T) {
 		},
 	} {
 		t.Run(string(tc.requiredPolicy), func(t *testing.T) {
-			for _, keyPolicy := range privateKeyPolicies {
+			for _, keyPolicy := range requireablePrivateKeyPolicies {
 				if tc.requiredPolicy.IsSatisfiedBy(keyPolicy) {
 					require.Contains(t, tc.satisfyingPolicies, keyPolicy, "Policy %q does not meet %q but IsRequirePolicyMet(%v, %v) returned true", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
 				} else {
 					require.NotContains(t, tc.satisfyingPolicies, keyPolicy, "Policy %q does meet %q but IsRequirePolicyMet(%v, %v) returned false", keyPolicy, tc.requiredPolicy, tc.requiredPolicy, keyPolicy)
 				}
 			}
+		})
+	}
+}
+
+func TestIdentityOnlyPrivateKeyPolicies(t *testing.T) {
+	for _, policy := range identityOnlyPrivateKeyPolicies {
+		t.Run(string(policy), func(t *testing.T) {
+			for _, requiredPolicy := range requireablePrivateKeyPolicies {
+				assert.True(t, requiredPolicy.IsSatisfiedBy(policy), "%q does not satisfy %q", policy, requiredPolicy)
+			}
+
+			assert.False(t, policy.IsHardwareKeyPolicy(), "%q must not count as a hardware key policy", policy)
+			assert.False(t, policy.MFAVerified(), "%q must not count as MFA verification", policy)
+
+			_, err := keys.ParsePrivateKeyPolicyError(keys.NewPrivateKeyPolicyError(policy))
+			assert.Error(t, err, "%q must not parse as a required policy", policy)
 		})
 	}
 }
@@ -207,7 +219,7 @@ func TestParsePrivateKeyPolicyError(t *testing.T) {
 		},
 	}
 
-	for _, policy := range privateKeyPolicies {
+	for _, policy := range requireablePrivateKeyPolicies {
 		testCases = append(testCases, testCase{
 			desc:              fmt.Sprintf("valid key policy: %v", policy),
 			errIn:             keys.NewPrivateKeyPolicyError(policy),
