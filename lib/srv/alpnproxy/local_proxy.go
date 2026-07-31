@@ -314,6 +314,13 @@ func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certifi
 }
 
 func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certificate) *httputil.ReverseProxy {
+	var transport http.RoundTripper = &http.Transport{
+		DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
+	}
+	if middleware, ok := l.cfg.HTTPMiddleware.(LocalProxyHTTPTransportMiddleware); ok {
+		transport = middleware.WrapRoundTripper(transport)
+	}
+
 	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
@@ -341,9 +348,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certif
 			code := trace.ErrorToCode(err)
 			http.Error(w, http.StatusText(code), code)
 		},
-		Transport: &http.Transport{
-			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
-		},
+		Transport: transport,
 	}
 }
 

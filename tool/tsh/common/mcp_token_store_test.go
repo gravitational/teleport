@@ -21,11 +21,13 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -116,6 +118,57 @@ func TestMCPOAuthHeaderSourceFastPath(t *testing.T) {
 	header, err := source.GetAuthHeader(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, "Bearer valid-token", header)
+}
+
+func TestMCPOAuthHeaderSourceRejectedTokenSingleFlight(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.json")
+	rejectedHeader := "Bearer rejected-token"
+	require.NoError(t, saveMCPOAuthCredentials(path, newTestCreds("rejected-token", time.Now().Add(time.Hour))))
+
+	var refreshCalls atomic.Int32
+	newSource := func() *mcpOAuthHeaderSource {
+		return &mcpOAuthHeaderSource{
+			appName:   "app",
+			credsPath: path,
+			refresh: func(ctx context.Context, refreshToken string) (*mcpclienttransport.Token, error) {
+				refreshCalls.Add(1)
+				require.Equal(t, "refresh-rejected-token", refreshToken)
+				time.Sleep(50 * time.Millisecond)
+				token := &mcpclienttransport.Token{
+					AccessToken:  "fresh-token",
+					TokenType:    "Bearer",
+					RefreshToken: "refresh-fresh-token",
+					ExpiresAt:    time.Now().Add(time.Hour),
+				}
+				store := &fileTokenStore{
+					path:         path,
+					clientID:     "test-client-id",
+					clientSecret: "test-client-secret",
+				}
+				require.NoError(t, store.SaveToken(ctx, token))
+				return token, nil
+			},
+		}
+	}
+
+	const workers = 8
+	var wg sync.WaitGroup
+	headers := make([]string, workers)
+	errs := make([]error, workers)
+	for i := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			headers[i], errs[i] = newSource().RefreshAuthHeader(context.Background(), rejectedHeader)
+		}()
+	}
+	wg.Wait()
+
+	require.Equal(t, int32(1), refreshCalls.Load())
+	for i := range workers {
+		require.NoError(t, errs[i])
+		require.Equal(t, "Bearer fresh-token", headers[i])
+	}
 }
 
 func TestMCPOAuthHeaderSourceNoRefreshToken(t *testing.T) {
@@ -251,4 +304,110 @@ func TestMCPOAuthProxyMiddlewareHandleRequest(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, recorder.Code)
 		require.Contains(t, recorder.Body.String(), "tsh mcp login sentry")
 	})
+}
+
+type mcpTokenStoreRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f mcpTokenStoreRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestMCPOAuthProxyMiddlewareInvalidTokenRetry(t *testing.T) {
+	t.Run("refreshes injected token and retries", func(t *testing.T) {
+		var headers, bodies []string
+		middleware := &mcpOAuthProxyMiddleware{
+			getAuthHeader: func(context.Context) (string, error) {
+				return "Bearer rejected-token", nil
+			},
+			refreshAuthHeader: func(_ context.Context, rejected string) (string, error) {
+				require.Equal(t, "Bearer rejected-token", rejected)
+				return "Bearer fresh-token", nil
+			},
+		}
+		base := mcpTokenStoreRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			headers = append(headers, req.Header.Get("Authorization"))
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			bodies = append(bodies, string(body))
+			if len(headers) == 1 {
+				return mcpInvalidTokenTestResponse(req), nil
+			}
+			return mcpTestHTTPResponse(req, http.StatusOK), nil
+		})
+		req, err := http.NewRequest(http.MethodPost, "http://localhost:19101/mcp", strings.NewReader(`{"method":"tools/list"}`))
+		require.NoError(t, err)
+		require.False(t, middleware.HandleRequest(httptest.NewRecorder(), req))
+
+		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, []string{"Bearer rejected-token", "Bearer fresh-token"}, headers)
+		require.Equal(t, []string{`{"method":"tools/list"}`, `{"method":"tools/list"}`}, bodies)
+	})
+
+	t.Run("does not refresh client supplied token", func(t *testing.T) {
+		var requests int
+		middleware := &mcpOAuthProxyMiddleware{
+			getAuthHeader: func(context.Context) (string, error) {
+				t.Fatal("stored token must not replace a client-supplied token")
+				return "", nil
+			},
+			refreshAuthHeader: func(context.Context, string) (string, error) {
+				t.Fatal("client-supplied token must not be refreshed by tsh")
+				return "", nil
+			},
+		}
+		base := mcpTokenStoreRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			return mcpInvalidTokenTestResponse(req), nil
+		})
+		req, err := http.NewRequest(http.MethodGet, "http://localhost:19101/mcp", nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer client-token")
+		require.False(t, middleware.HandleRequest(httptest.NewRecorder(), req))
+
+		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		require.Equal(t, 1, requests)
+	})
+
+	t.Run("refresh failure returns actionable forbidden response", func(t *testing.T) {
+		middleware := &mcpOAuthProxyMiddleware{
+			getAuthHeader: func(context.Context) (string, error) {
+				return "Bearer rejected-token", nil
+			},
+			refreshAuthHeader: func(context.Context, string) (string, error) {
+				return "", trace.Wrap(&mcpOAuthLoginRequiredError{appName: "sentry"})
+			},
+		}
+		base := mcpTokenStoreRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return mcpInvalidTokenTestResponse(req), nil
+		})
+		req, err := http.NewRequest(http.MethodGet, "http://localhost:19101/mcp", nil)
+		require.NoError(t, err)
+		require.False(t, middleware.HandleRequest(httptest.NewRecorder(), req))
+
+		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "tsh mcp login sentry")
+	})
+}
+
+func mcpInvalidTokenTestResponse(req *http.Request) *http.Response {
+	resp := mcpTestHTTPResponse(req, http.StatusUnauthorized)
+	resp.Header.Set("WWW-Authenticate", `Bearer error="invalid_token"`)
+	return resp
+}
+
+func mcpTestHTTPResponse(req *http.Request, status int) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(http.StatusText(status))),
+		Request:    req,
+	}
 }

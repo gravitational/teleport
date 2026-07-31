@@ -22,9 +22,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -36,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var mcpOAuthInvalidTokenErrorPattern = regexp.MustCompile(`(?i)(?:^|[,\t ])error[\t ]*=[\t ]*(?:"invalid_token"|invalid_token)(?:[,\t ]|$)`)
 
 // mcpOAuthCredentials is everything tsh needs to authorize requests to an
 // OAuth-protected MCP server: the token itself plus the client credentials
@@ -128,15 +132,23 @@ func (s *fileTokenStore) SaveToken(ctx context.Context, token *mcpclienttranspor
 	}))
 }
 
-// newMCPOAuthGetAuthHeader returns an Authorization header source backed by
-// the app's stored OAuth credentials, or nil if the user has not run
-// `tsh mcp login` for this app.
-func newMCPOAuthGetAuthHeader(dialer *client.MCPServerDialer, homePath, proxyHost, cluster, appName string) (func(context.Context) (string, error), error) {
+// newMCPOAuthHeaderSource returns an Authorization header source backed by the
+// app's stored OAuth credentials, or nil if the user has not run `tsh mcp
+// login` for this app.
+func newMCPOAuthHeaderSource(ctx context.Context, dialer *client.MCPServerDialer, homePath, proxyHost, cluster, appName string) (*mcpOAuthHeaderSource, error) {
 	credsPath := mcpOAuthTokenPath(homePath, proxyHost, cluster, appName)
 	creds, err := loadMCPOAuthCredentials(credsPath)
 	if trace.IsNotFound(err) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	app, err := dialer.GetApp(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(app.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,13 +167,13 @@ func newMCPOAuthGetAuthHeader(dialer *client.MCPServerDialer, homePath, proxyHos
 			clientSecret: creds.ClientSecret,
 		},
 	})
-	oauthHandler.SetBaseURL("http://localhost")
+	oauthHandler.SetBaseURL(oauthBaseURL)
 	source := &mcpOAuthHeaderSource{
 		appName:   appName,
 		credsPath: credsPath,
 		refresh:   oauthHandler.RefreshToken,
 	}
-	return source.GetAuthHeader, nil
+	return source, nil
 }
 
 // mcpOAuthRefreshLockTimeout is how long a process waits for the refresh
@@ -179,7 +191,9 @@ const mcpOAuthRefreshLockTimeout = 30 * time.Second
 // across processes: take an exclusive file lock, re-read the file (another
 // process may have refreshed while we waited), and only refresh if the
 // stored token is still expired. Same pattern as tsh's kube credentials
-// lock and known_hosts locking.
+// lock and known_hosts locking. A server-rejected token follows the same
+// path, except the rejected token is refreshed even if its recorded expiry
+// is still in the future.
 type mcpOAuthHeaderSource struct {
 	appName   string
 	credsPath string
@@ -199,6 +213,17 @@ func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error
 		return bearerAuthHeader(&creds.Token), nil
 	}
 
+	return s.refreshAuthHeader(ctx, "")
+}
+
+// RefreshAuthHeader refreshes a token rejected by the MCP server. If another
+// tsh process has already replaced the rejected token, its replacement is
+// reused instead of spending the shared refresh token a second time.
+func (s *mcpOAuthHeaderSource) RefreshAuthHeader(ctx context.Context, rejectedHeader string) (string, error) {
+	return s.refreshAuthHeader(ctx, rejectedHeader)
+}
+
+func (s *mcpOAuthHeaderSource) refreshAuthHeader(ctx context.Context, rejectedHeader string) (string, error) {
 	unlock, err := utils.FSTryWriteLockTimeout(ctx, s.credsPath+".lock", mcpOAuthRefreshLockTimeout)
 	if err != nil {
 		return "", trace.Wrap(err, "waiting for the MCP OAuth token refresh lock")
@@ -207,11 +232,13 @@ func (s *mcpOAuthHeaderSource) GetAuthHeader(ctx context.Context) (string, error
 
 	// Re-check under the lock: if another process already refreshed while
 	// we waited, use its token instead of refreshing again.
-	creds, err = loadMCPOAuthCredentials(s.credsPath)
+	creds, err := loadMCPOAuthCredentials(s.credsPath)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if !creds.Token.IsExpired() && creds.Token.AccessToken != "" {
+	currentHeader := bearerAuthHeader(&creds.Token)
+	if !creds.Token.IsExpired() && creds.Token.AccessToken != "" &&
+		(rejectedHeader == "" || currentHeader != rejectedHeader) {
 		return bearerAuthHeader(&creds.Token), nil
 	}
 	if creds.Token.RefreshToken == "" {
@@ -263,22 +290,28 @@ func bearerAuthHeader(token *mcpclienttransport.Token) string {
 // names the real server, not localhost).
 type mcpOAuthProxyMiddleware struct {
 	alpnproxy.DefaultLocalProxyHTTPMiddleware
-	getAuthHeader func(context.Context) (string, error)
+	getAuthHeader     func(context.Context) (string, error)
+	refreshAuthHeader func(context.Context, string) (string, error)
 }
+
+type mcpOAuthInjectedContextKey struct{}
 
 // newMCPOAuthProxyMiddleware returns the injection middleware for the app,
 // or nil if the user has not run `tsh mcp login` for it (callers should keep
 // the plain tunnel behavior).
-func newMCPOAuthProxyMiddleware(tc *client.TeleportClient, homePath, appName string) (*mcpOAuthProxyMiddleware, error) {
+func newMCPOAuthProxyMiddleware(ctx context.Context, tc *client.TeleportClient, homePath, appName string) (*mcpOAuthProxyMiddleware, error) {
 	dialer := client.NewMCPServerDialer(tc, appName)
-	getAuthHeader, err := newMCPOAuthGetAuthHeader(dialer, homePath, tc.WebProxyHost(), tc.SiteName, appName)
+	source, err := newMCPOAuthHeaderSource(ctx, dialer, homePath, tc.WebProxyHost(), tc.SiteName, appName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if getAuthHeader == nil {
+	if source == nil {
 		return nil, nil
 	}
-	return &mcpOAuthProxyMiddleware{getAuthHeader: getAuthHeader}, nil
+	return &mcpOAuthProxyMiddleware{
+		getAuthHeader:     source.GetAuthHeader,
+		refreshAuthHeader: source.RefreshAuthHeader,
+	}, nil
 }
 
 func (m *mcpOAuthProxyMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
@@ -295,5 +328,97 @@ func (m *mcpOAuthProxyMiddleware) HandleRequest(rw http.ResponseWriter, req *htt
 		return true
 	}
 	req.Header.Set("Authorization", header)
+	*req = *req.WithContext(context.WithValue(req.Context(), mcpOAuthInjectedContextKey{}, true))
 	return false
+}
+
+// WrapRoundTripper implements alpnproxy.LocalProxyHTTPTransportMiddleware. It
+// refreshes only credentials injected by this middleware; a client-provided
+// Authorization header remains entirely owned by the client.
+func (m *mcpOAuthProxyMiddleware) WrapRoundTripper(base http.RoundTripper) http.RoundTripper {
+	if m.refreshAuthHeader == nil {
+		return base
+	}
+	return &mcpOAuthProxyRetryRoundTripper{
+		base:              base,
+		refreshAuthHeader: m.refreshAuthHeader,
+	}
+}
+
+type mcpOAuthProxyRetryRoundTripper struct {
+	base              http.RoundTripper
+	refreshAuthHeader func(context.Context, string) (string, error)
+}
+
+func (t *mcpOAuthProxyRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil || !isMCPInvalidTokenResponse(resp) ||
+		req.Context().Value(mcpOAuthInjectedContextKey{}) != true {
+		return resp, err
+	}
+
+	retry, ok, err := cloneMCPRequestForOAuthRetry(req)
+	if err != nil {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+		return mcpOAuthProxyRefreshErrorResponse(req, err), nil
+	}
+	if !ok {
+		return resp, nil
+	}
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+
+	header, err := t.refreshAuthHeader(req.Context(), req.Header.Get("Authorization"))
+	if err != nil {
+		return mcpOAuthProxyRefreshErrorResponse(req, err), nil
+	}
+	if header == "" {
+		return mcpOAuthProxyRefreshErrorResponse(req, trace.BadParameter("OAuth token refresh returned an empty Authorization header")), nil
+	}
+	retry.Header.Set("Authorization", header)
+	return t.base.RoundTrip(retry)
+}
+
+func isMCPInvalidTokenResponse(resp *http.Response) bool {
+	if resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		return false
+	}
+	for _, challenge := range resp.Header.Values("WWW-Authenticate") {
+		if strings.Contains(strings.ToLower(challenge), "bearer") &&
+			mcpOAuthInvalidTokenErrorPattern.MatchString(challenge) {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneMCPRequestForOAuthRetry(req *http.Request) (*http.Request, bool, error) {
+	retry := req.Clone(req.Context())
+	if req.Body == nil || req.Body == http.NoBody {
+		return retry, true, nil
+	}
+	if req.GetBody == nil {
+		return nil, false, nil
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return nil, false, trace.Wrap(err, "recreating request body for OAuth retry")
+	}
+	retry.Body = body
+	return retry, true, nil
+}
+
+func mcpOAuthProxyRefreshErrorResponse(req *http.Request, err error) *http.Response {
+	message := makeMCPReconnectUserMessage(err) + "\n"
+	return &http.Response{
+		Status:        fmt.Sprintf("%d %s", http.StatusForbidden, http.StatusText(http.StatusForbidden)),
+		StatusCode:    http.StatusForbidden,
+		Header:        http.Header{"Content-Type": []string{"text/plain; charset=utf-8"}},
+		Body:          io.NopCloser(strings.NewReader(message)),
+		ContentLength: int64(len(message)),
+		Request:       req,
+	}
 }
