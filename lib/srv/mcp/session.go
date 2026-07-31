@@ -286,7 +286,7 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
-	var allowed []mcp.Tool
+	allowed := make([]mcp.Tool, 0, len(listResult.Tools))
 	for _, tool := range listResult.Tools {
 		if s.checkAccessToTool(ctx, tool.Name) == nil {
 			allowed = append(allowed, tool)
