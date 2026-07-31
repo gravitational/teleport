@@ -57,6 +57,9 @@ type AzureInstancesMetadata struct {
 
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
+
+	// MatcherType is the type of matcher that discovered these instances.
+	MatcherType string
 }
 
 func (md AzureInstancesMetadata) LogValue() slog.Value {
@@ -392,6 +395,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 				Integration:         f.Integration,
 				InstallerParams:     f.InstallerParams,
 				DiscoveryConfigName: f.DiscoveryConfigName,
+				MatcherType:         f.MatcherType,
 			},
 			Instances: vms,
 		})
@@ -412,16 +416,13 @@ func (f *azureInstanceFetcher) primaryPrivateIPByVM(
 		return nil, trace.Wrap(err, "getting network interfaces client")
 	}
 
-	// Create a set of resource groups to list NICs for.
+	// Create a set of resource groups to list NICs for and find scale set names
+	// of uniform VMSS VMs.
 	resourceGroups := make(map[string]struct{})
-	for batchGroup := range instanceGroups {
-		resourceGroups[strings.ToLower(batchGroup.resourceGroup)] = struct{}{}
-	}
-
-	// Find scale set names of uniform VMSS VMs in the matched instances.
 	scaleSetNamesByRG := make(map[string][]string)
 	for batchGroup, vms := range instanceGroups {
 		rg := strings.ToLower(batchGroup.resourceGroup)
+		resourceGroups[rg] = struct{}{}
 		for _, vm := range vms {
 			if vm.UniformScaleSetName != "" {
 				scaleSetNamesByRG[rg] = append(scaleSetNamesByRG[rg], vm.UniformScaleSetName)
@@ -429,19 +430,26 @@ func (f *azureInstanceFetcher) primaryPrivateIPByVM(
 		}
 	}
 
-	var privateIPByVM = make(map[string]string)
+	// Gather all NICs for the matched resource groups
+	var nicsByAttachedVM = make(map[string][]*azure.NetworkInterface)
 	for resourceGroup := range resourceGroups {
 		nics, err := nicClient.ListNetworkInterfaces(ctx, resourceGroup, scaleSetNamesByRG[resourceGroup])
 		if err != nil {
 			return nil, trace.Wrap(err, "listing network interfaces for resource group %q", resourceGroup)
 		}
-		var nicsByAttachedVM = make(map[string][]*azure.NetworkInterface)
 		for _, nic := range nics {
+			// Skip NICs that aren't attached to a VM
+			if nic.AttachedVMID == "" {
+				continue
+			}
 			nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)] = append(nicsByAttachedVM[strings.ToLower(nic.AttachedVMID)], nic)
 		}
-		for vmId, nics := range nicsByAttachedVM {
-			privateIPByVM[vmId] = primaryPrivateIP(nics)
-		}
+	}
+
+	// For each VM, find the primary private IP
+	var privateIPByVM = make(map[string]string)
+	for vmId, nics := range nicsByAttachedVM {
+		privateIPByVM[vmId] = primaryPrivateIP(nics)
 	}
 	return privateIPByVM, nil
 }
@@ -451,7 +459,7 @@ func (f *azureInstanceFetcher) primaryPrivateIPByVM(
 // flagged as primary. If no NIC/IP config is flagged primary (which would be an
 // Azure error) it falls back to the first NIC with a usable private IP.
 func primaryPrivateIP(nics []*azure.NetworkInterface) string {
-	var fallback, primaryFallback string
+	var fallback, primaryNICFallback, primaryConfigFallback string
 	for _, nic := range nics {
 		for _, ipConfig := range nic.IPConfigurations {
 			// Some non-primary IP Configurations can have a CIDR address as their
@@ -466,15 +474,20 @@ func primaryPrivateIP(nics []*azure.NetworkInterface) string {
 			}
 			// If the NIC is primary but the IP configuration is not, save it as a
 			// fallback in case no primary IP configuration is found.
-			if nic.Primary && primaryFallback == "" {
-				primaryFallback = ipConfig.PrivateIP
+			if nic.Primary && primaryNICFallback == "" {
+				primaryNICFallback = ipConfig.PrivateIP
+			}
+			// If the IP configuration is primary but the NIC is not, save it as a
+			// fallback in case no primary NIC is found.
+			if ipConfig.Primary && primaryConfigFallback == "" {
+				primaryConfigFallback = ipConfig.PrivateIP
 			}
 			if fallback == "" {
 				fallback = ipConfig.PrivateIP
 			}
 		}
 	}
-	return cmp.Or(primaryFallback, fallback)
+	return cmp.Or(primaryNICFallback, primaryConfigFallback, fallback)
 }
 
 // LogValue implements [slog.LogValuer].

@@ -845,6 +845,24 @@ func TestPrimaryPrivateIP(t *testing.T) {
 			},
 			want: "",
 		},
+		{
+			name: "prefers the primary IP config when the NIC primary flag is unset",
+			nics: []*azure.NetworkInterface{{
+				IPConfigurations: []azure.IPConfiguration{
+					{PrivateIP: "10.0.0.9"},
+					{PrivateIP: "10.0.0.1", Primary: true},
+				},
+			}},
+			want: "10.0.0.1",
+		},
+		{
+			name: "prefers any IP on the primary NIC over a primary config on another NIC",
+			nics: []*azure.NetworkInterface{
+				{IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.9", Primary: true}}},
+				{Primary: true, IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.1"}}},
+			},
+			want: "10.0.0.1",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.want, primaryPrivateIP(tc.nics))
@@ -858,14 +876,20 @@ func TestPrimaryPrivateIP(t *testing.T) {
 type fakeNetworkInterfacesClient struct {
 	nicsByRG map[string][]*azure.NetworkInterface
 	listErr  error
+	// gotScaleSetNamesByRG records the scale-set names passed to
+	// ListNetworkInterfaces, keyed by the resource group argument.
+	gotScaleSetNamesByRG map[string][]string
 }
 
-func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, _ []string) ([]*azure.NetworkInterface, error) {
+func (f *fakeNetworkInterfacesClient) ListNetworkInterfaces(_ context.Context, resourceGroup string, scaleSetNames []string) ([]*azure.NetworkInterface, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
-	if resourceGroup == types.Wildcard {
-		return nil, trace.BadParameter("wildcard resource group names are not supported")
+	if len(scaleSetNames) > 0 {
+		if f.gotScaleSetNamesByRG == nil {
+			f.gotScaleSetNamesByRG = make(map[string][]string)
+		}
+		f.gotScaleSetNamesByRG[resourceGroup] = append(f.gotScaleSetNamesByRG[resourceGroup], scaleSetNames...)
 	}
 	return f.nicsByRG[resourceGroup], nil
 }
@@ -1030,6 +1054,77 @@ func TestAzureFetcherGetInstancesWindowsNICListError(t *testing.T) {
 	// discovering Windows VMs without private IPs.
 	_, err := fetcher.GetInstances(t.Context(), false)
 	require.ErrorContains(t, err, "no network access")
+}
+
+func TestAzureFetcherGetInstancesWindowsUniformVMSS(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sub          = "00000000-0000-0000-0000-000000000000"
+		scaleSetName = "scaleset1"
+	)
+	windowsOS := armcompute.OperatingSystemTypesWindows
+
+	// Mixed case to test that the ID is compared case-insensitively
+	scaleSetID := fmt.Sprintf(
+		"/subscriptions/%s/resourceGroups/RG1/providers/Microsoft.Compute/virtualMachineScaleSets/%s",
+		sub, scaleSetName,
+	)
+	vmssVMID := scaleSetID + "/virtualMachines/0"
+
+	vmClient := azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+		VirtualMachineAPI: &azure.ARMComputeMock{},
+		ScaleSetsAPI: &azure.ARMScaleSetsMock{
+			ScaleSetRecords: []*armcompute.VirtualMachineScaleSet{{
+				ID:   to.Ptr(scaleSetID),
+				Name: to.Ptr(scaleSetName),
+			}},
+		},
+		ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
+			GetResult: armcompute.VirtualMachineScaleSetVM{
+				ID:         to.Ptr(vmssVMID),
+				Name:       to.Ptr(scaleSetName + "_0"),
+				InstanceID: to.Ptr("0"),
+				Location:   to.Ptr("eastus"),
+				Properties: &armcompute.VirtualMachineScaleSetVMProperties{
+					StorageProfile: &armcompute.StorageProfile{
+						OSDisk: &armcompute.OSDisk{OSType: &windowsOS},
+					},
+				},
+			},
+		},
+	})
+
+	nicClient := &fakeNetworkInterfacesClient{
+		nicsByRG: map[string][]*azure.NetworkInterface{
+			"rg1": {{
+				AttachedVMID:     vmssVMID,
+				Primary:          true,
+				IPConfigurations: []azure.IPConfiguration{{PrivateIP: "10.0.0.42", Primary: true}},
+			}},
+		},
+	}
+
+	clients := &mockClients{
+		vmClients:  map[string]azure.VirtualMachinesClient{sub: vmClient},
+		nicClients: map[string]azure.NetworkInterfacesClient{sub: nicClient},
+	}
+
+	fetcher := windowsVMFetcher(t, clients, []string{"eastus"})
+
+	instances, err := fetcher.GetInstances(t.Context(), false)
+	require.NoError(t, err)
+
+	// The matched VM's scale-set name must be passed to the NIC client under
+	// the lower-cased resource group.
+	require.Equal(t, map[string][]string{"rg1": {scaleSetName}}, nicClient.gotScaleSetNamesByRG)
+
+	// The scale-set VM is discovered with the private IP joined from its NIC.
+	require.Len(t, instances, 1)
+	require.Len(t, instances[0].Instances, 1)
+	vm := instances[0].Instances[0]
+	require.Equal(t, scaleSetName, vm.UniformScaleSetName)
+	require.Equal(t, "10.0.0.42", vm.PrimaryPrivateIP)
 }
 
 func TestMatchersToAzureInstanceFetchersMatcherTypes(t *testing.T) {
