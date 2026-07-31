@@ -73,7 +73,7 @@ sets unhealthyPodEvictionPolicy k8s < 1.27 when configured:
       selector:
         matchLabels:
           app: RELEASE-NAME
-      unhealthyPodEvictionPolicy: AlwaysAllow
+      unhealthyPodEvictionPolicy: IfHealthyBudget
 should create a PDB when enabled in values (pdb.yaml):
   1: |
     apiVersion: policy/v1beta1
