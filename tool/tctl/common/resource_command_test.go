@@ -23,9 +23,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2854,6 +2858,126 @@ version: v1
 
 	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
 	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+}
+
+func TestSAMLCommandsWithUnavailableMetadata(t *testing.T) {
+	const (
+		connectorName = "unavailable-metadata"
+		metadata      = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com/metadata">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+	)
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.SAML: {Enabled: true},
+				},
+			},
+		}
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	var unavailable atomic.Bool
+	var metadataRequests atomic.Int64
+	metadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		metadataRequests.Add(1)
+		if unavailable.Load() {
+			http.Error(w, "metadata unavailable", http.StatusNotFound)
+			return
+		}
+		_, _ = io.WriteString(w, metadata)
+	}))
+	t.Cleanup(metadataServer.Close)
+
+	connector, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+		Display:                  "Unavailable metadata",
+		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+		EntityDescriptorURL:      metadataServer.URL,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "developers", Roles: []string{"access"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = clt.CreateSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	unavailable.Store(true)
+
+	t.Run("list", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, out.String(), connectorName)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("get", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		out, err := runResourceCommand(t, clt, []string{"get", types.KindSAMLConnector + "/" + connectorName, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, out.String(), connectorName)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("export", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		var exportErr error
+		var closeErr error
+		stdoutReader, stdoutWriter, err := os.Pipe()
+		require.NoError(t, err)
+		previousStdout := os.Stdout
+		os.Stdout = stdoutWriter
+		func() {
+			defer func() { os.Stdout = previousStdout }()
+			exportErr = (&SAMLCommand{connectorName: connectorName}).export(t.Context(), clt)
+			closeErr = stdoutWriter.Close()
+		}()
+		require.NoError(t, exportErr)
+		require.NoError(t, closeErr)
+		exportedCert, err := io.ReadAll(stdoutReader)
+		require.NoError(t, err)
+		require.NoError(t, stdoutReader.Close())
+		require.Contains(t, string(exportedCert), "BEGIN CERTIFICATE")
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
+
+	t.Run("force replace", func(t *testing.T) {
+		requestCount := metadataRequests.Load()
+		replacement, err := types.NewSAMLConnector(connectorName, types.SAMLConnectorSpecV2{
+			Display:                  "Replacement",
+			AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			Audience:                 "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			ServiceProviderIssuer:    "https://proxy.example.com/v1/webapi/saml/acs/" + connectorName,
+			EntityDescriptor:         metadata,
+			AttributesToRoles: []types.AttributeMapping{
+				{Name: "groups", Value: "developers", Roles: []string{"access"}},
+			},
+		})
+		require.NoError(t, err)
+		replacementYAML, err := services.MarshalSAMLConnector(replacement)
+		require.NoError(t, err)
+		replacementPath := filepath.Join(t.TempDir(), "replacement.yaml")
+		require.NoError(t, os.WriteFile(replacementPath, replacementYAML, 0o600))
+		_, err = runResourceCommand(t, clt, []string{"create", "-f", replacementPath})
+		require.NoError(t, err)
+		require.Equal(t, requestCount, metadataRequests.Load(), "tctl command followed the unavailable metadata URL")
+	})
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
