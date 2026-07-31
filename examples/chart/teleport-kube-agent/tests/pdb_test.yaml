@@ -31,6 +31,10 @@ tests:
       minorVersion: 27
     values:
       - ../.lint/pdb.yaml
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
@@ -43,21 +47,25 @@ tests:
       minorVersion: 26 
     values:
       - ../.lint/pdb.yaml
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: ""
     asserts:
       - isNull:
           path: spec.unhealthyPodEvictionPolicy
       - matchSnapshot: {}
 
-  - it: sets unhealthyPodEvictionPolicy k8s < 1.27 if forced
+  - it: sets unhealthyPodEvictionPolicy k8s < 1.27 when configured
     capabilities:
       majorVersion: 1
-      minorVersion: 30
+      minorVersion: 26
     values:
       - ../.lint/pdb.yaml
     set:
       highAvailability:
         podDisruptionBudget:
-          forceUnhealthyPodEvictionPolicy: true
+          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy

@@ -43,6 +43,7 @@ sets PodDisruptionBudget labels when specified:
       selector:
         matchLabels:
           app: RELEASE-NAME
+      unhealthyPodEvictionPolicy: AlwaysAllow
 sets unhealthyPodEvictionPolicy for k8s = 1.27:
   1: |
     apiVersion: policy/v1beta1
@@ -58,7 +59,7 @@ sets unhealthyPodEvictionPolicy for k8s = 1.27:
         matchLabels:
           app: RELEASE-NAME
       unhealthyPodEvictionPolicy: AlwaysAllow
-sets unhealthyPodEvictionPolicy k8s < 1.27 if forced:
+sets unhealthyPodEvictionPolicy k8s < 1.27 when configured:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget
@@ -87,3 +88,4 @@ should create a PDB when enabled in values (pdb.yaml):
       selector:
         matchLabels:
           app: RELEASE-NAME
+      unhealthyPodEvictionPolicy: AlwaysAllow
