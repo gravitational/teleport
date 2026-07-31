@@ -1818,6 +1818,10 @@ func (s *PresenceService) listSSHServers(ctx context.Context, req proto.ListReso
 }
 
 func getFakePaginationKey(ki backend.KeyedItem) string {
+	if server, ok := ki.(types.Server); ok && server.GetKind() == types.KindNode {
+		return services.GetCursorForNode(server)
+	}
+
 	// TODO(eriktate/scopes): this will need to be reassessed when we implement scoped namespacing
 	if kubeCluster, ok := ki.(types.KubeCluster); ok {
 		if scope := kubeCluster.GetScope(); scope != "" {

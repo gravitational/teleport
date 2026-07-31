@@ -1588,6 +1588,63 @@ func TestFakePaginateWithScopes(t *testing.T) {
 	}
 }
 
+// TestFakePaginateNodesWithScopes verifies that fake pagination over nodes that
+// share a name across scopes visits each node exactly once. Node names are only
+// unique within a scope, so the pagination key must incorporate the scope.
+func TestFakePaginateNodesWithScopes(t *testing.T) {
+	t.Parallel()
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+	newNode := func(i int) *types.ServerV2 {
+		return &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "node",
+				// we use the revision to easily tell the resources apart
+				Revision: strconv.Itoa(i),
+			},
+			Scope: makeScope(i),
+		}
+	}
+
+	nodeCount := 100
+	// all nodes have the same name, so the only way to correctly paginate them
+	// is by scope
+	resources := make([]types.ResourceWithLabels, nodeCount)
+	for i := range nodeCount {
+		resources[i] = newNode(i)
+	}
+
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
+		startKey := ""
+		count := 0
+		for range nodeCount/pageSize + 1 {
+			res, err := FakePaginate(resources, FakePaginateParams{
+				ResourceType: types.KindNode,
+				Limit:        int32(pageSize),
+				Kinds:        []string{types.KindNode},
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+			for _, r := range res.Resources {
+				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
+				count++
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+		require.Equal(t, nodeCount, count, "page size %d", pageSize)
+	}
+}
+
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
