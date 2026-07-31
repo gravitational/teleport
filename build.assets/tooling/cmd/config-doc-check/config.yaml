@@ -6,18 +6,22 @@ service_sections:
       - section_key: teleport
         type_name: Global
     dismissed_keys:
+      - teleport.audit_queue # Need to add
       - teleport.auth_connection_config # it is included in the example as a comment
       - teleport.auth_servers # deprecated
       - teleport.ca_signature_algo # deprecated
+      - teleport.cache # auth service specific, not instance-wide
+      - teleport.ciphers # auth service specific, not instance-wide
+      - teleport.ciphersuites # auth service specific, not instance-wide
+      - teleport.connection_limits.max_users # deprecated
+      - teleport.connection_limits.rates # Need to add
+      - teleport.join_params.azure # Need to add
+      - teleport.join_params.generic_oidc # Need to add
       - teleport.kex_algos # auth service specific, not instance-wide
       - teleport.mac_algos # auth service specific, not instance-wide
       - teleport.pid_file # it is included in the example as a comment
       - teleport.shutdown_delay # it is included in the example as a comment
-      - teleport.cache # auth service specific, not instance-wide
-      - teleport.ciphers # auth service specific, not instance-wide
-      - teleport.ciphersuites # auth service specific, not instance-wide
       - teleport.storage # auth service specific, not instance-wide
-      - teleport.connection_limits.max_users # deprecated
   - name: Auth Service
     example_path: docs/pages/includes/config-reference/auth-service.yaml
     key_type_pairs:
@@ -26,7 +30,42 @@ service_sections:
       - section_key: auth_service
         type_name: Auth
     dismissed_keys:
+      - auth_service.access_monitoring.database
+      - auth_service.access_monitoring.data_limit
+      - auth_service.access_monitoring.query_results
+      - auth_service.access_monitoring.role_tags
+      - auth_service.access_monitoring.table
+      - auth_service.audit_queue
+      - auth_service.authentication.allow_cli_auth_via_browser
+      - auth_service.authentication.connector_name
+      - auth_service.authentication.hardware_key
+      - auth_service.authentication.headless
+      - auth_service.authentication.local_auth
+      - auth_service.authentication.passwordless
+      - auth_service.authentication.second_factor
+      - auth_service.authentication.piv_slot # deprecated
+      - auth_service.authentication.stable_unix_user_config.first_uid # it is included in the example as a comment
+      - auth_service.authentication.stable_unix_user_config.last_uid # it is included in the example as a comment
+      - auth_service.authentication.u2f.device_attestation_cas # deprecated
+      - auth_service.authentication.u2f.facets # deprecated
+      - auth_service.ca_key_params.pkcs11.pin_path # it is included in the example as a comment
+      - auth_service.ca_key_params.health_check
+      - auth_service.ca_key_params.aws_kms.multi_region
+      - auth_service.ca_key_params.aws_kms.tags
+      - auth_service.hosted_plugins
+      - auth_service.kubeconfig_file
+      - auth_service.proxy_checks_host_keys
+      - auth_service.proxy_ping_interval
+      - auth_service.reverse_tunnels # for internal use only
+      - auth_service.scoped_tokens
+      - auth_service.session_control_timeout
+      - auth_service.session_recording
+      - auth_service.session_recording.data_limit
+      - auth_service.tunnel_strategy.agent_connection_count # it is included in the example TODO: detect protobuf field presence
+      - auth_service.tunnel_strategy.strategy # Not allowed to be set
+      - auth_service.tunnel_strategy.type # it is included in the example TODO: detect protobuf field presence
       - teleport.advertise_ip # instance-wide, not auth service specific
+      - teleport.audit_queue
       - teleport.auth_connection_config # instance-wide, not auth service specific
       - teleport.auth_server # instance-wide, not auth service specific
       - teleport.auth_servers # instance-wide, not auth service specific
@@ -44,16 +83,6 @@ service_sections:
       - teleport.proxy_server # instance-wide, not auth service specific
       - teleport.relay_server # instance-wide, not auth service specific
       - teleport.shutdown_delay # instance-wide, not auth service specific
-      - auth_service.reverse_tunnels # for internal use only
-      - auth_service.authentication.piv_slot # deprecated
-      - auth_service.authentication.stable_unix_user_config.first_uid # it is included in the example as a comment
-      - auth_service.authentication.stable_unix_user_config.last_uid # it is included in the example as a comment
-      - auth_service.authentication.u2f.device_attestation_cas # deprecated
-      - auth_service.authentication.u2f.facets # deprecated
-      - auth_service.ca_key_params.pkcs11.pin_path # it is included in the example as a comment
-      - auth_service.tunnel_strategy.strategy # Not allowed to be set
-      - auth_service.tunnel_strategy.agent_connection_count # it is included in the example TODO: detect protobuf field presence
-      - auth_service.tunnel_strategy.type # it is included in the example TODO: detect protobuf field presence
   - name: SSH Service
     example_path: docs/pages/includes/config-reference/ssh-service.yaml
     key_type_pairs:
@@ -89,7 +118,7 @@ service_sections:
     dismissed_keys:
       - db_service.databases.ca_cert_file # deprecated
   - name: Discovery Service
-    example_path: docs/pages/includes/discovery/discovery-config.yaml
+    example_path: docs/pages/includes/config-reference/discovery-config.yaml
     key_type_pairs:
       - section_key: discovery_service
         type_name: Discovery
