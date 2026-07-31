@@ -47,7 +47,7 @@ const (
 	auditQueueTable                = "audit_queue"
 	auditDeadLetterTable           = "audit_dead_letter"
 	corruptEventsTable             = "corrupt_events"
-	defaultMaxAttempts             = 10
+	defaultMaxAttempts             = 3
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
 	maxDrainKickBackoff            = 30 * time.Second
@@ -601,15 +601,31 @@ func drainQueueState(ctx context.Context, db *sql.DB) (mainEmpty bool, deadLette
 const statsQuery = `SELECT
 	(SELECT COALESCE(SUM(event_count), 0) FROM audit_queue),
 	(SELECT COALESCE(SUM(event_count), 0) FROM audit_dead_letter),
-	(SELECT COUNT(*) FROM corrupt_events)`
+	(SELECT COUNT(*) FROM corrupt_events),
+	(SELECT MIN(enqueued_at) FROM audit_queue),
+	(SELECT MIN(failed_at) FROM audit_dead_letter)`
 
 // Stats reports the current depth of the queue: the number of events pending in
 // the main queue, the number in the dead-letter queue, and the number
-// quarantined as corrupt.
+// quarantined as corrupt, along with the age of the oldest event in the main
+// and dead-letter queues.
 func (q *sqliteQueue) Stats(ctx context.Context) (Stats, error) {
 	var stats Stats
-	if err := q.db.QueryRowContext(ctx, statsQuery).Scan(&stats.PendingCount, &stats.DeadLetterCount, &stats.CorruptCount); err != nil {
+	var oldestPending, oldestDeadLetter sql.NullInt64
+	if err := q.db.QueryRowContext(ctx, statsQuery).Scan(
+		&stats.PendingCount,
+		&stats.DeadLetterCount,
+		&stats.CorruptCount,
+		&oldestPending,
+		&oldestDeadLetter,
+	); err != nil {
 		return Stats{}, trace.Wrap(err)
+	}
+	if oldestPending.Valid {
+		stats.OldestPendingTime = time.Unix(oldestPending.Int64, 0).UTC()
+	}
+	if oldestDeadLetter.Valid {
+		stats.OldestDeadLetterTime = time.Unix(oldestDeadLetter.Int64, 0).UTC()
 	}
 	return stats, nil
 }

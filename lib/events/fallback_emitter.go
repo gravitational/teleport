@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -87,11 +88,12 @@ func (c *FallbackEmitterConfig) CheckAndSetDefaults() error {
 //
 // See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#auth-server--kubernetes-and-cloud-considerations
 type FallbackEmitter struct {
-	cfg    FallbackEmitterConfig
-	queue  auditqueue.Queue
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	cfg             FallbackEmitterConfig
+	queue           auditqueue.Queue
+	ctx             context.Context
+	cancel          context.CancelFunc
+	deliveryTimeout time.Duration
+	wg              sync.WaitGroup
 }
 
 // NewFallbackEmitter returns a FallbackEmitter wrapping cfg.Primary.
@@ -112,12 +114,18 @@ func NewFallbackEmitter(cfg FallbackEmitterConfig) (*FallbackEmitter, error) {
 		}
 	}
 
+	deliveryTimeout := cfg.AuditQueueCfg.DeliveryTimeout
+	if deliveryTimeout <= 0 {
+		deliveryTimeout = auditqueue.DefaultDeliveryTimeout
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &FallbackEmitter{
-		cfg:    cfg,
-		queue:  queue,
-		ctx:    ctx,
-		cancel: cancel,
+		cfg:             cfg,
+		queue:           queue,
+		ctx:             ctx,
+		cancel:          cancel,
+		deliveryTimeout: deliveryTimeout,
 	}
 	if queue != nil {
 		slog.InfoContext(ctx, "Audit fallback queue is enabled.")
@@ -179,6 +187,10 @@ func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error,
 // backend and returns the subset that were fully delivered.
 func (f *FallbackEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
 	var delivered []auditqueue.Item
+
+	ctx, cancel := context.WithTimeout(ctx, f.deliveryTimeout)
+	defer cancel()
+
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return delivered
