@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -40,11 +39,10 @@ import (
 
 type mcpLoginCommand struct {
 	*kingpin.CmdClause
-	cf               *CLIConf
-	clientID         string
-	promptSecret     bool
-	clientSecretFile string
-	callbackPort     uint16
+	cf           *CLIConf
+	clientID     string
+	promptSecret bool
+	callbackPort uint16
 }
 
 func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand {
@@ -57,9 +55,6 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		StringVar(&cmd.clientID)
 	cmd.Flag("client-secret", "Prompt for the OAuth client secret of a pre-registered confidential client.").
 		BoolVar(&cmd.promptSecret)
-	cmd.Flag("client-secret-file", "Read the OAuth client secret from a file.").
-		PlaceHolder("PATH").
-		StringVar(&cmd.clientSecretFile)
 	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
 		Uint16Var(&cmd.callbackPort)
 	return cmd
@@ -196,29 +191,16 @@ func (c *mcpLoginCommand) run() error {
 
 func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
 	clientID := strings.TrimSpace(c.clientID)
-	hasSecret := c.promptSecret || c.clientSecretFile != ""
-	switch {
-	case c.promptSecret && c.clientSecretFile != "":
-		return "", "", trace.BadParameter("--client-secret and --client-secret-file are mutually exclusive")
-	case clientID == "" && hasSecret:
-		return "", "", trace.BadParameter("--client-secret and --client-secret-file require --client-id")
-	case !hasSecret:
+	if !c.promptSecret {
 		return clientID, "", nil
 	}
+	if clientID == "" {
+		return "", "", trace.BadParameter("--client-secret requires --client-id")
+	}
 
-	var clientSecret string
-	if c.promptSecret {
-		var err error
-		clientSecret, err = prompt.Password(c.cf.Context, c.cf.Stderr(), prompt.Stdin(), "Enter OAuth client secret")
-		if err != nil {
-			return "", "", trace.Wrap(err)
-		}
-	} else {
-		data, err := os.ReadFile(c.clientSecretFile)
-		if err != nil {
-			return "", "", trace.Wrap(trace.ConvertSystemError(err), "reading OAuth client secret file")
-		}
-		clientSecret = strings.TrimSpace(string(data))
+	clientSecret, err := prompt.Password(c.cf.Context, c.cf.Stderr(), prompt.Stdin(), "Enter OAuth client secret")
+	if err != nil {
+		return "", "", trace.Wrap(err)
 	}
 	if clientSecret == "" {
 		return "", "", trace.BadParameter("OAuth client secret is empty")

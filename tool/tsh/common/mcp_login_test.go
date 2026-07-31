@@ -20,8 +20,6 @@ package common
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -57,19 +55,6 @@ func TestMCPLoginOAuthClientCredentials(t *testing.T) {
 		require.Empty(t, clientSecret)
 	})
 
-	t.Run("confidential client secret file", func(t *testing.T) {
-		secretPath := filepath.Join(t.TempDir(), "secret")
-		require.NoError(t, os.WriteFile(secretPath, []byte("client-secret\n"), 0o600))
-		cmd := newCommand()
-		cmd.clientID = "client-id"
-		cmd.clientSecretFile = secretPath
-
-		clientID, clientSecret, err := cmd.getOAuthClientCredentials()
-		require.NoError(t, err)
-		require.Equal(t, "client-id", clientID)
-		require.Equal(t, "client-secret", clientSecret)
-	})
-
 	t.Run("prompt for confidential client secret", func(t *testing.T) {
 		oldStdin := prompt.Stdin()
 		t.Cleanup(func() {
@@ -93,26 +78,19 @@ func TestMCPLoginOAuthClientCredentials(t *testing.T) {
 
 		_, _, err := cmd.getOAuthClientCredentials()
 		require.True(t, trace.IsBadParameter(err))
-		require.ErrorContains(t, err, "require --client-id")
-	})
-
-	t.Run("secret inputs are mutually exclusive", func(t *testing.T) {
-		cmd := newCommand()
-		cmd.clientID = "client-id"
-		cmd.promptSecret = true
-		cmd.clientSecretFile = "secret"
-
-		_, _, err := cmd.getOAuthClientCredentials()
-		require.True(t, trace.IsBadParameter(err))
-		require.ErrorContains(t, err, "mutually exclusive")
+		require.ErrorContains(t, err, "requires --client-id")
 	})
 
 	t.Run("empty client secret", func(t *testing.T) {
-		secretPath := filepath.Join(t.TempDir(), "secret")
-		require.NoError(t, os.WriteFile(secretPath, []byte("\n"), 0o600))
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString(""))
+
 		cmd := newCommand()
 		cmd.clientID = "client-id"
-		cmd.clientSecretFile = secretPath
+		cmd.promptSecret = true
 
 		_, _, err := cmd.getOAuthClientCredentials()
 		require.True(t, trace.IsBadParameter(err))
