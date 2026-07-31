@@ -2587,21 +2587,15 @@ export const formatters: Formatters = {
       mode,
       enforcement_expires,
     }) => {
-      if (!success) {
-        return `User [${user}] has failed to update Client IP Restrictions.`;
-      }
-      let msg = `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}]`;
-      if (mode) {
-        msg += ` in [${mode}] mode`;
-      }
+      const modeStr = mode ? ` in [${mode}] mode` : '';
       // The zero timestamp means no enforcement expiry was set.
-      if (
-        enforcement_expires &&
-        new Date(enforcement_expires).getFullYear() > 1
-      ) {
-        msg += `, with enforcement expiring on [${enforcement_expires}]`;
-      }
-      return `${msg}.`;
+      const enforcementStr =
+        enforcement_expires && new Date(enforcement_expires).getFullYear() > 1
+          ? `, with enforcement expiring on [${enforcement_expires}]`
+          : '';
+      return success
+        ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}]${modeStr}${enforcementStr}.`
+        : `User [${user}] has failed to update Client IP Restrictions.`;
     },
   },
   [eventCodes.APPAUTHCONFIG_CREATE]: {
