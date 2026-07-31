@@ -320,6 +320,9 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 
 	result, err := mcpResponse.GetListToolResult()
 	require.NoError(t, err)
+	// A JSON null unmarshals to a nil slice while an empty array unmarshals to
+	// a non-nil empty slice. MCP clients expect tools to always be an array.
+	require.NotNil(t, result.Tools)
 	checkToolsListResult(t, result, wantTools)
 }
 
