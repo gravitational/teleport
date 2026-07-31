@@ -64,10 +64,12 @@ func (g *opensshServerV2TestingPrimitives) CreateTeleportResource(ctx context.Co
 }
 
 func (g *opensshServerV2TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Server, error) {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return g.setup.TeleportClient.GetNode(ctx, defaults.Namespace, name)
 }
 
 func (g *opensshServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return trace.Wrap(g.setup.TeleportClient.DeleteNode(ctx, defaults.Namespace, name))
 }
 

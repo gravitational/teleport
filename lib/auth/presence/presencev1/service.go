@@ -855,8 +855,8 @@ func (s *Service) DeleteKubeServer(
 	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
 }
 
-// GetNode returns the specified node resource.
-func (s *Service) GetNode(ctx context.Context, req *presencepb.GetSSHServerRequest) (*presencepb.GetSSHServerResponse, error) {
+// GetSSHServer returns the specified node resource.
+func (s *Service) GetSSHServer(ctx context.Context, req *presencepb.GetSSHServerRequest) (*presencepb.GetSSHServerResponse, error) {
 	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -900,8 +900,8 @@ func getCursorForNode(node *types.ServerV2) string {
 	return services.GetCursorForNode(node)
 }
 
-// ListNodes returns a page of registered nodes.
-func (s *Service) ListNodes(ctx context.Context, req *presencepb.ListSSHServersRequest) (*presencepb.ListSSHServersResponse, error) {
+// ListSSHServers returns a page of registered nodes.
+func (s *Service) ListSSHServers(ctx context.Context, req *presencepb.ListSSHServersRequest) (*presencepb.ListSSHServersResponse, error) {
 	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -946,7 +946,7 @@ func (s *Service) ListNodes(ctx context.Context, req *presencepb.ListSSHServersR
 }
 
 // DeleteSSHServer removes the specified node resource.
-func (s *Service) DeleteNode(ctx context.Context, req *presencepb.DeleteSSHServerRequest) (*presencepb.DeleteSSHServerResponse, error) {
+func (s *Service) DeleteSSHServer(ctx context.Context, req *presencepb.DeleteSSHServerRequest) (*presencepb.DeleteSSHServerResponse, error) {
 	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

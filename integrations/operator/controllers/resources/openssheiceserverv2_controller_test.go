@@ -72,10 +72,12 @@ func (g *opensshEICEServerV2TestingPrimitives) CreateTeleportResource(ctx contex
 }
 
 func (g *opensshEICEServerV2TestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.Server, error) {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return g.setup.TeleportClient.GetNode(ctx, defaults.Namespace, name)
 }
 
 func (g *opensshEICEServerV2TestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return trace.Wrap(g.setup.TeleportClient.DeleteNode(ctx, defaults.Namespace, name))
 }
 

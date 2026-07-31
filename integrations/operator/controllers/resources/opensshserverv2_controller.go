@@ -40,6 +40,7 @@ type openSSHServerClient struct {
 
 // Get gets the Teleport OpenSSH server of a given name.
 func (r openSSHServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, key.Name)
 	if err != nil {
 		return server, trace.Wrap(err)
@@ -68,6 +69,7 @@ func (r openSSHServerClient) Update(ctx context.Context, server types.Server) er
 
 // Delete deletes a Teleport OpenSSH server.
 func (r openSSHServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, key.Name))
 }
 

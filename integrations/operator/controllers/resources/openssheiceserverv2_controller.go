@@ -40,6 +40,7 @@ type openSSHEICEServerClient struct {
 
 // Get gets the Teleport OpenSSHEICE server of a given name.
 func (r openSSHEICEServerClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Server, error) {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	server, err := r.teleportClient.GetNode(ctx, defaults.Namespace, key.Name)
 	if err != nil {
 		return server, trace.Wrap(err)
@@ -68,6 +69,7 @@ func (r openSSHEICEServerClient) Update(ctx context.Context, server types.Server
 
 // Delete deletes a Teleport OpenSSHEICE server.
 func (r openSSHEICEServerClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	//nolint:staticcheck // TODO(williamo): remove when we update IAC
 	return trace.Wrap(r.teleportClient.DeleteNode(ctx, defaults.Namespace, key.Name))
 }
 
