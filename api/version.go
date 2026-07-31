@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.0-prealpha.2"
+const Version = "19.0.0-proxy-only-helm.carheden.2"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 0
-const VersionPreRelease = "prealpha.2"
+const VersionPreRelease = "proxy-only-helm.carheden.2"
 const VersionMetadata = ""
