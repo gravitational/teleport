@@ -378,6 +378,11 @@ func TestTokenize(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "a segment starting with the conjoining jamo %E1%86%A8 (U+11A8) is rejected",
+			path:    "/%EA%B0%80/%E1%86%A8",
+			wantErr: true,
+		},
+		{
 			name:    "a segment starting with the combining mark %CC%87 is rejected",
 			path:    "/p/%CC%87x",
 			wantErr: true,
@@ -494,6 +499,8 @@ func TestNonASCIIFold(t *testing.T) {
 		"ideographic space %E3%80%80 (U+3000) folds":         {path: "/p/a%E3%80%80b", errContains: "not NFKC-normalized"},
 		"ogham space mark %E1%9A%80 (U+1680) is a separator": {path: "/p/a%E1%9A%80b", errContains: "disallowed character"},
 		"line separator %E2%80%A8 (U+2028) is a separator":   {path: "/p/a%E2%80%A8b", errContains: "disallowed character"},
+		"conjoining jamo %E1%86%A8 (U+11A8) composes":        {path: "/p/%EA%B0%80%E1%86%A8", errContains: "not NFKC-normalized"},
+		"conjoining jamo starting a segment":                 {path: "/%EA%B0%80/%E1%86%A8", errContains: "composes onto the character before it"},
 	}
 	for name, tt := range reject {
 		t.Run("reject "+name, func(t *testing.T) {
@@ -515,6 +522,7 @@ func FuzzTokenizeNonASCII(f *testing.F) {
 		"/p/a%C0%AFb", "/p/a%E2%80%8Bb", "/p/cafe%CC%81", "/api/v4/x%2Fy",
 		"/job/My%20Job/lastBuild", "/p/%20%CC%81x", "/p/a%C2%A0b",
 		"/a/..%20/b", "/a/%20/b", "/a/.%20./b", "/a/.../b",
+		"/%EA%B0%80/%E1%86%A8",
 		"/files/secret./x", "/files/secret%20./x",
 	} {
 		f.Add(seed)

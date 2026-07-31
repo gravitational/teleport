@@ -114,7 +114,7 @@ func Tokenize(path string) ([]string, error) {
 func validatePathBytes(path string) error {
 	for i := range len(path) {
 		if !isLegalPathByte(path[i]) {
-			return trace.BadParameter("path %q contains an illegal URL byte %q", clip(path), string(path[i]))
+			return trace.BadParameter("path %q contains an illegal URL byte %q", clip(path), path[i:i+1])
 		}
 	}
 	return nil
@@ -239,18 +239,19 @@ func rejectDotSegment(seg string) error {
 	return nil
 }
 
-// rejectLeadingMark rejects a segment whose first rune is a combining
-// mark. The mark has no base character and renders on the separator
-// before it, so "/a/%CC%87b", where %CC%87 is U+0307 combining dot
-// above, looks like "/a/b". RFC 5891 section 4.2.3.2 bans the same
-// form at the start of a domain label.
+// rejectLeadingMark rejects a segment whose first rune composes onto
+// the character before it, so "/a/%CC%87b", where %CC%87 is U+0307
+// combining dot above, looks like "/a/b". RFC 5891 section 4.2.3.2
+// bans the same form at the start of a domain label. A conjoining
+// Hangul jamo composes the same way without being a mark, so the
+// NFKC boundary property covers what unicode.IsMark misses.
 func rejectLeadingMark(seg string) error {
 	if seg == "" || seg[0] < utf8.RuneSelf {
 		return nil
 	}
 	r, _ := utf8.DecodeRuneInString(seg)
-	if unicode.IsMark(r) {
-		const msg = "segment %q starts with the combining mark %q; a mark must follow a base character"
+	if unicode.IsMark(r) || !norm.NFKC.PropertiesString(seg).BoundaryBefore() {
+		const msg = "segment %q starts with %q, which composes onto the character before it; it must follow a base character"
 		return trace.BadParameter(msg, clip(seg), string(r))
 	}
 	return nil
