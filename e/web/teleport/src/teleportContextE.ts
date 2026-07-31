@@ -100,7 +100,16 @@ class TeleportEContext extends TeleportContext {
       }
     }
 
-    if (cfgE.oss.entitlements.Beams.enabled && cfgE.oss.beamsUi) {
+    const beamAccess = this.storeUser.getBeamAccess();
+    const canReachBeams =
+      (beamAccess.list && beamAccess.read) ||
+      !(cfgE.oss.isDashboard || cfgE.oss.hideInaccessibleFeatures);
+
+    if (
+      cfgE.oss.entitlements.Beams.enabled &&
+      cfgE.oss.beamsUi &&
+      canReachBeams
+    ) {
       this.redirectUrl = cfgE.getBeamsQuickstartRoute();
     }
   }

@@ -753,9 +753,15 @@ class FeatureBeamsQuickstart implements TeleportFeature {
     component: BeamsQuickstart,
   };
 
-  hasAccess() {
-    // Hide this feature if the entitlement is not enabled.
+  // Beams is only discoverable if the entitlement is enabled
+  get discoverable() {
     return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  hasAccess(flags: FeatureFlags) {
+    return (
+      cfg.oss.entitlements.Beams.enabled && flags.listBeam && flags.readBeam
+    );
   }
 
   navigationItem = {
@@ -783,8 +789,15 @@ class FeatureBeamsList implements TeleportFeature {
     component: BeamsList,
   };
 
-  hasAccess() {
+  // Beams is only discoverable if the entitlement is enabled
+  get discoverable() {
     return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  hasAccess(flags: FeatureFlags) {
+    return (
+      cfg.oss.entitlements.Beams.enabled && flags.listBeam && flags.readBeam
+    );
   }
 
   navigationItem = {
@@ -812,8 +825,15 @@ class FeatureBeamsFeedback implements TeleportFeature {
     component: BeamsFeedback,
   };
 
-  hasAccess() {
+  // Beams is only discoverable if the entitlement is enabled
+  get discoverable() {
     return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  hasAccess(flags: FeatureFlags) {
+    return (
+      cfg.oss.entitlements.Beams.enabled && flags.listBeam && flags.readBeam
+    );
   }
 
   navigationItem = {

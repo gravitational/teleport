@@ -24,19 +24,22 @@ test.each(ossTitles)(`oss title %s should exist in Enterprise`, testCase => {
   expect(enterpriseTitles).toContain(testCase);
 });
 
-let originalFeatureHiding: boolean;
+let originalEntitlements: typeof cfg.entitlements;
 
 beforeEach(() => {
-  originalFeatureHiding = cfg.entitlements.FeatureHiding.enabled;
+  originalEntitlements = structuredClone(cfg.entitlements);
 });
 
 afterEach(() => {
-  cfg.entitlements.FeatureHiding.enabled = originalFeatureHiding;
+  cfg.entitlements = originalEntitlements;
 });
 
 // A user with no permissions should see no navigation entries other than Resources when feature hiding is on.
 test('a user without any access sees no navigation items', () => {
-  cfg.entitlements.FeatureHiding.enabled = true;
+  // Enable every entitlement, otherwise features that depend on one wouldn't be caught by this test
+  for (const entitlement of Object.values(cfg.entitlements)) {
+    entitlement.enabled = true;
+  }
 
   const visible = getEnterpriseFeatures()
     .filter(feature => canShowFeature(feature, disabledFeatureFlags))
