@@ -17,9 +17,11 @@ import { CalendarDateSelect } from 'e-teleport/AccessListManagement/Shared/Audit
 import { UserKind } from 'e-teleport/AccessListManagement/Shared/types';
 import { useFetch } from 'e-teleport/AccessListManagement/useFetch';
 import {
+  AlreadyEnrolledUsersAlert,
   EnrollingNestedListsAlert,
   getNewAndExistingUsersForAddingNewUsers,
   type AccessListModified,
+  type AlreadyEnrolledUser,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
   AccessList,
@@ -152,7 +154,9 @@ export function EnrollNewMembers({
 
   // duplicatedMembers are duplicate members extracted from
   // selectedMembers.
-  const [duplicatedMembers, setDuplicatedMembers] = useState<string[]>([]);
+  const [duplicatedMembers, setDuplicatedMembers] = useState<
+    AlreadyEnrolledUser[]
+  >([]);
 
   const selectedMembersContainAccessLists = useMemo(
     () =>
@@ -243,9 +247,7 @@ export function EnrollNewMembers({
               <Alert kind="danger">{attempt.statusText}</Alert>
             )}
             {duplicatedMembers.length > 0 && (
-              <Alert kind="danger">
-                {`The following usernames are already enrolled. Remove them from the list to continue: ${duplicatedMembers.join(', ')}`}
-              </Alert>
+              <AlreadyEnrolledUsersAlert users={duplicatedMembers} />
             )}
             <EnrollNewMembersFields
               userKind="Members"

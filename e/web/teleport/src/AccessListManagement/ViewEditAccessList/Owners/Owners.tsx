@@ -230,7 +230,8 @@ export function Owners(props: OwnersProps) {
           kind="Owner"
           accessList={accessList}
           username={deleteOwner.name}
-          displayName={
+          displayPrimary={deleteOwner.displayPrimary}
+          listTitle={
             deleteOwner.membershipKind === AccessListMemberKind.List
               ? deleteOwner.title
               : undefined

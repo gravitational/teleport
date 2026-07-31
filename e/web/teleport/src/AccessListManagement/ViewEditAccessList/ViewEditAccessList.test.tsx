@@ -329,12 +329,28 @@ test('renders user display values across access list detail tabs', async () => {
   expect(screen.getByText('username-only-adder')).toBeInTheDocument();
   expect(screen.getByText('Nested Member List')).toBeInTheDocument();
 
+  const displayMemberRow = screen.getByText('Display Member').closest('tr')!;
+  await userEvent.click(within(displayMemberRow).getByText(/delete/i));
+  const memberDeleteDialog = within(screen.getByRole('dialog'));
+  expect(memberDeleteDialog.getByText('Display Member')).toBeInTheDocument();
+  expect(memberDeleteDialog.getByText('display-member')).toBeInTheDocument();
+  expect(memberDeleteDialog.queryByText('Member Team')).not.toBeInTheDocument();
+  await userEvent.click(memberDeleteDialog.getByText(/cancel/i));
+
   await userEvent.click(screen.getByText(/owners \(3\)/i));
   expect(screen.getByText('Display Owner')).toBeInTheDocument();
   expect(screen.getByText('display-owner')).toBeInTheDocument();
   expect(screen.getByText('Owner Team')).toBeInTheDocument();
   expect(screen.getByText('username-only-owner')).toBeInTheDocument();
   expect(screen.getByText('Nested Owner List')).toBeInTheDocument();
+
+  const displayOwnerRow = screen.getByText('Display Owner').closest('tr')!;
+  await userEvent.click(within(displayOwnerRow).getByText(/delete/i));
+  const ownerDeleteDialog = within(screen.getByRole('dialog'));
+  expect(ownerDeleteDialog.getByText('Display Owner')).toBeInTheDocument();
+  expect(ownerDeleteDialog.getByText('display-owner')).toBeInTheDocument();
+  expect(ownerDeleteDialog.queryByText('Owner Team')).not.toBeInTheDocument();
+  await userEvent.click(ownerDeleteDialog.getByText(/cancel/i));
 
   await userEvent.click(screen.getByText(/audits/i));
   expect(await screen.findByText('Display Reviewer')).toBeInTheDocument();

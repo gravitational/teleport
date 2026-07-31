@@ -8,6 +8,7 @@ import Link from 'design/Link';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 import { Option } from 'shared/components/Select';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import {
   convertToTraitConvenience,
@@ -224,6 +225,34 @@ export const UserRevokeButtonCell = ({
   </Cell>
 );
 
+export type AlreadyEnrolledUser = {
+  name: string;
+  displayPrimary?: string;
+};
+
+export function AlreadyEnrolledUsersAlert({
+  users,
+}: {
+  users: AlreadyEnrolledUser[];
+}) {
+  return (
+    <Alert kind="danger">
+      The following users are already enrolled. Remove them from the list to
+      continue:{' '}
+      {users.map((user, index) => (
+        <React.Fragment key={user.name}>
+          {index > 0 && ', '}
+          <UserDisplayName
+            username={user.name}
+            primaryText={user.displayPrimary}
+            layout="inline"
+          />
+        </React.Fragment>
+      ))}
+    </Alert>
+  );
+}
+
 // getNewAndExistingUsersForEnrollingNewUsers extracts
 // existing users in the selected users list and returns
 // the extracted existed users and the unique list of
@@ -243,13 +272,20 @@ export function getNewAndExistingUsersForAddingNewUsers(
   existingUsers: AccessListMember[] | AccessListOwner[],
   selectedUsers: Option<MemberSelection>[]
 ) {
-  const duplicateUsers: string[] = [];
+  const duplicateUsers: AlreadyEnrolledUser[] = [];
   const newUsers = selectedUsers.filter(opt => {
-    if (existingUsers.some(m => m.name === opt.value.name)) {
-      duplicateUsers.push(opt.value.name);
-      return false;
+    const existingUser = existingUsers.find(m => m.name === opt.value.name);
+    if (!existingUser) {
+      return true;
     }
-    return true;
+
+    duplicateUsers.push({
+      name: existingUser.name,
+      ...(existingUser.displayPrimary && {
+        displayPrimary: existingUser.displayPrimary,
+      }),
+    });
+    return false;
   });
 
   return { duplicateUsers, newUsers };

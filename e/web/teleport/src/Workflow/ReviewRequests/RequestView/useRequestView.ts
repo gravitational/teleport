@@ -79,6 +79,10 @@ export default function useRequestView(ctx: TeleportContextE) {
 
   return {
     user: ctx.storeUser.getUsername(),
+    userDisplay: {
+      primary: ctx.storeUser.state.displayPrimary,
+      secondary: ctx.storeUser.state.displaySecondary,
+    },
     fetchRequestAttempt,
     getFlags,
     confirmDelete,

@@ -6,6 +6,7 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/DialogConfirmation';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
@@ -18,7 +19,8 @@ import { AccessListModified } from './Shared';
 
 type Base = {
   username: string;
-  displayName?: string | undefined;
+  listTitle?: string;
+  displayPrimary?: string;
   onClose(): void;
   accessList: AccessListModified;
   updateAccessList(accessList: AccessList): void;
@@ -34,7 +36,8 @@ type PropForOwner = Base & {
 export function DeleteUserConfirmDialog({
   kind,
   username,
-  displayName,
+  listTitle,
+  displayPrimary,
   onClose,
   accessList,
   updateAccessList,
@@ -78,9 +81,18 @@ export function DeleteUserConfirmDialog({
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         <P1>
           Are you sure you want to delete {kind}{' '}
-          <Text as="span" bold color="text.main">
-            {displayName || username}
-          </Text>{' '}
+          {listTitle ? (
+            <Text as="span" bold color="text.main">
+              {listTitle}
+            </Text>
+          ) : (
+            <UserDisplayName
+              username={username}
+              primaryText={displayPrimary}
+              primaryTextProps={{ fontWeight: 'bold' }}
+              layout="inline"
+            />
+          )}{' '}
           ?
         </P1>
         {accessList.origin === AccessListOrigin.Okta && kind === 'Member' && (

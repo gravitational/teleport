@@ -1,9 +1,14 @@
+import { render, screen } from 'design/utils/testing';
+
 import {
   AccessListMember,
   AccessListMemberKind,
 } from 'e-teleport/services/accessmanagement';
 
-import { getNewAndExistingUsersForAddingNewUsers } from './Shared';
+import {
+  AlreadyEnrolledUsersAlert,
+  getNewAndExistingUsersForAddingNewUsers,
+} from './Shared';
 
 describe('getNewAndExistingUsersForAddingNewUsers', () => {
   [
@@ -48,7 +53,11 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
     },
     {
       case: 'existing users are extracted from selected',
-      existingUsers: [{ name: 'test' }, { name: 'test3' }, { name: 'test4' }],
+      existingUsers: [
+        { name: 'test', displayPrimary: 'Test User' },
+        { name: 'test3' },
+        { name: 'test4' },
+      ],
       selectedUsers: [
         { value: 'test', label: '' },
         { value: 'test1', label: '' },
@@ -58,7 +67,11 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
         { value: 'test5', label: '' },
       ],
       output: {
-        duplicateUsers: ['test', 'test3', 'test4'],
+        duplicateUsers: [
+          { name: 'test', displayPrimary: 'Test User' },
+          { name: 'test3' },
+          { name: 'test4' },
+        ],
         newUsers: [
           {
             value: { name: 'test1', membershipKind: AccessListMemberKind.User },
@@ -110,7 +123,11 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
         { value: 'test2', label: '' },
       ],
       output: {
-        duplicateUsers: ['test', 'test1', 'test2'],
+        duplicateUsers: [
+          { name: 'test' },
+          { name: 'test1' },
+          { name: 'test2' },
+        ],
         newUsers: [],
       },
     },
@@ -126,4 +143,27 @@ describe('getNewAndExistingUsersForAddingNewUsers', () => {
       expect(obj).toStrictEqual(tc.output);
     });
   });
+});
+
+test('already enrolled alert renders displays without secondary text', () => {
+  const users = [
+    {
+      name: '100002',
+      displayPrimary: 'Marc Dubois',
+      displaySecondary: 'marc@example.com',
+    },
+    {
+      name: 'username-only',
+    },
+  ];
+
+  render(<AlreadyEnrolledUsersAlert users={users} />);
+
+  expect(
+    screen.getByText(/The following users are already enrolled/)
+  ).toBeVisible();
+  expect(screen.getByText('Marc Dubois')).toBeVisible();
+  expect(screen.getByText('100002')).toBeVisible();
+  expect(screen.getByText('username-only')).toBeVisible();
+  expect(screen.queryByText('marc@example.com')).not.toBeInTheDocument();
 });

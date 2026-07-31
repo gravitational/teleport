@@ -15,8 +15,10 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import type { MemberSelection } from 'e-teleport/AccessListManagement/Shared/Shared';
 import {
   AccessListModified,
+  AlreadyEnrolledUsersAlert,
   EnrollingNestedListsAlert,
   getNewAndExistingUsersForAddingNewUsers,
+  type AlreadyEnrolledUser,
 } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import {
   AccessList,
@@ -47,7 +49,9 @@ export function EnrollNewOwners({
 
   // duplicatedOwners are duplicate owners extracted from
   // selectedOwners.
-  const [duplicatedOwners, setDuplicatedOwners] = useState<string[]>([]);
+  const [duplicatedOwners, setDuplicatedOwners] = useState<
+    AlreadyEnrolledUser[]
+  >([]);
 
   const selectedOwnersContainAccessLists = useMemo(
     () =>
@@ -125,9 +129,7 @@ export function EnrollNewOwners({
               <Alert kind="danger">{attempt.statusText}</Alert>
             )}
             {duplicatedOwners.length > 0 && (
-              <Alert kind="danger">
-                {`The following usernames are already enrolled, remove them from the list to continue: ${duplicatedOwners.join(', ')}`}
-              </Alert>
+              <AlreadyEnrolledUsersAlert users={duplicatedOwners} />
             )}
             <EnrollNewMembersFields
               selectedMembers={selectedOwners}

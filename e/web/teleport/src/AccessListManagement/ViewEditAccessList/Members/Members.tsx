@@ -164,7 +164,8 @@ export function Members(props: MembersProps) {
           onClose={() => setDeleteMember(null)}
           kind="Member"
           username={deleteMember.name}
-          displayName={
+          displayPrimary={deleteMember.displayPrimary}
+          listTitle={
             deleteMember.membershipKind === AccessListMemberKind.List
               ? deleteMember.title
               : undefined

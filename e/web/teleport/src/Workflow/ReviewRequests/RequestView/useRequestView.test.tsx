@@ -32,6 +32,10 @@ test('flags for own request', async () => {
     expect(accessRequestState).toBe('PENDING');
   });
   expect(result.current.user).toBe('Sam');
+  expect(result.current.userDisplay).toEqual({
+    primary: 'Sam Smith',
+    secondary: 'sam@example.com',
+  });
 
   expect(result.current.fetchRequestAttempt.data.id).toEqual(
     requestRolePending.id
@@ -178,6 +182,8 @@ function Wrapper(props: any) {
 
 const userContext = makeUserContext({
   userName: 'Sam',
+  displayPrimary: 'Sam Smith',
+  displaySecondary: 'sam@example.com',
   userAcl: {
     reviewRequests: true,
     accessRequests: {
