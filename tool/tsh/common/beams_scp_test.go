@@ -79,6 +79,49 @@ func TestBeamsSCPCommandRun(t *testing.T) {
 		},
 	}
 
+	// Additional test for ownership validation
+	t.Run("access denied when user does not own beam", func(t *testing.T) {
+		cf := &CLIConf{
+			Context:        context.Background(),
+			Proxy:          "proxy.example.com:443",
+			Username:       "bob", // Different user
+			OverrideStdout: &bytes.Buffer{},
+			HomePath:       t.TempDir(),
+		}
+		mustCreateEmptyProfile(t, cf)
+
+		cmd := beamsSCPCommand{
+			src:       "alpha:/var/log/app.log",
+			dest:      "/tmp/app.log",
+			recursive: true,
+			quiet:     false,
+			getBeamFn: func(_ context.Context, _ authclient.ClientI, name string) (*beamsv1.Beam, error) {
+				// Beam is owned by alice, but bob is trying to access it
+				beam := makeTestBeam(
+					name,
+					"11111111-1111-1111-1111-111111111111",
+					"alice", // Owner is alice
+					name+"-app",
+					time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+					nil,
+				)
+				beam.GetStatus().SetNodeId("node-123")
+				return beam, nil
+			},
+			withClusterFn: func(_ context.Context, _ *client.TeleportClient, fn func(authclient.ClientI) error) error {
+				return fn(nil)
+			},
+			sftpFn: func(_ context.Context, _ *client.TeleportClient, _ client.SFTPRequest) error {
+				t.Fatal("SFTP should not be called when ownership validation fails")
+				return nil
+			},
+		}
+
+		err := cmd.run(cf)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not authorized to access beam")
+	})
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var output bytes.Buffer
