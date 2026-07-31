@@ -52,6 +52,7 @@ import {
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
+import { shouldHideInaccessibleFeatures } from 'teleport/features';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   SamlAppActionProvider,
@@ -105,7 +106,7 @@ function expandDesktopKinds(kinds?: string[]): string[] | undefined {
 }
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
-  return [
+  const kinds: FilterKind[] = [
     {
       kind: 'node',
       disabled: !flags.nodes,
@@ -135,6 +136,13 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       disabled: !flags.applications,
     },
   ];
+
+  // When feature hiding is enabled, kinds the user can't access are removed from the filter entirely.
+  if (shouldHideInaccessibleFeatures(cfg)) {
+    return kinds.filter(kind => !kind.disabled);
+  }
+
+  return kinds;
 };
 
 export function ClusterResources({
