@@ -65,11 +65,11 @@ tests:
     set:
       highAvailability:
         podDisruptionBudget:
-          unhealthyPodEvictionPolicy: AlwaysAllow
+          unhealthyPodEvictionPolicy: IfHealthyBudget
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
-          value: AlwaysAllow
+          value: IfHealthyBudget
       - matchSnapshot: {}
 
   - it: honors user-provided unhealthyPodEvictionPolicy
