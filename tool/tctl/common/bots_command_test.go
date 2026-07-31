@@ -824,6 +824,32 @@ func TestBotInstancesScoped(t *testing.T) {
 		require.Contains(t, out, "test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
 	})
 
+	t.Run("list hides add hint for scoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: "/staging::test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		require.NotContains(t, buf.String(), "bots instances add")
+	})
+
+	t.Run("list shows add hint for unscoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: "test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(ctx, client))
+
+		require.Contains(t, buf.String(), "bots instances add test-bot-1")
+	})
+
 	t.Run("show scoped instance", func(t *testing.T) {
 		buf := strings.Builder{}
 		cmd := BotsCommand{

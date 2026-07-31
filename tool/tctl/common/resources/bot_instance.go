@@ -52,12 +52,10 @@ func (c *botInstanceCollection) WriteText(w io.Writer, verbose bool) error {
 	// last heartbeat, last auth, etc.
 	var rows [][]string
 	for _, item := range c.items {
-		// Instances of scoped bots are identified by the bot's scope-qualified
-		// name; instances of unscoped bots by the bot's bare name.
-		botName := item.GetSpec().GetBotName()
-		if scope := item.GetScope(); scope != "" {
-			botName = scopes.QualifiedName{Scope: scope, Name: botName}.String()
-		}
+		botName := scopes.QualifiedName{
+			Scope: item.GetScope(),
+			Name:  item.GetSpec().GetBotName(),
+		}.String()
 		rows = append(rows, []string{botName, item.GetSpec().GetInstanceId()})
 	}
 

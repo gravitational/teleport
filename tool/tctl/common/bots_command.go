@@ -895,10 +895,10 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 
 		// Instances of scoped bots are identified by the bot's scope-qualified
 		// name; instances of unscoped bots by the bot's bare name.
-		id := fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId())
-		if scope := i.GetScope(); scope != "" {
-			id = scope + scopes.QualifiedNameSeparator + id
-		}
+		id := scopes.QualifiedName{
+			Scope: i.GetScope(),
+			Name:  fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId()),
+		}.String()
 
 		t.AddRow([]string{
 			id, joinMethod,
@@ -910,7 +910,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
 
-	if c.botName != "" {
+	// 'bots instances add' does not support scoped bots yet.
+	if c.botName != "" && botScope == "" {
 		fmt.Fprintf(c.stdout, "\nTo onboard a new instance for this bot, run:\n\n> %s bots instances add %s\n", executableFileName, c.botName)
 	}
 
