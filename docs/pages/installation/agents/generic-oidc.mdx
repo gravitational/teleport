@@ -1,0 +1,285 @@
+---
+title: Joining Services with any OIDC provider via Generic OIDC
+sidebar_label: Generic OIDC
+description: Use OIDC tokens from arbitrary providers to join services using the Generic OIDC join method.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+---
+
+While Teleport natively supports many cloud platforms and identity providers, it
+is still often necessary to join Teleport services using identity providers that
+do not have a dedicated join method. Generic OIDC allows you to join Teleport
+services from any platform or provider where workloads are issued OIDC
+compatible JWTs, and allows you to define custom rules to allow only the
+intended hosts or workloads to authenticate to Teleport.
+
+This guide will explain how to use the **Generic OIDC join method** to configure
+Teleport services to join your Teleport cluster by establishing trust with an
+OIDC-compatible issuer of your choice.
+
+## How it works
+
+(!docs/pages/includes/provision-token/generic-oidc-how-it-works.mdx!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.11.0 or higher)"!)
+
+- An OIDC-compatible issuer of your choice (see below for specific requirements)
+- An environment or workload that can fetch JWTs from your OIDC-compatible
+  issuer
+- (!docs/pages/includes/iac-clients.mdx!)
+
+## Security considerations and limitations
+
+(!docs/pages/includes/provision-token/generic-oidc-security-notes.mdx!)
+
+## Step 1/2. Create a Generic OIDC join token
+
+To allow your new agent to authenticate with Teleport, you'll need to create a
+join token. Join tokens define the criteria by which the Teleport Auth Service
+decides whether a join attempt will be allowed or rejected. In this step, you'll
+create a `generic_oidc`-type join token.
+
+### Retrieving a reference token
+
+To create a `generic_oidc` join token, you'll first need to determine which OIDC
+provider you're using and then find or generate a reference JWT to use as a
+template for building your join token and rules.
+
+Many providers provide documented token examples, for example:
+- [GitHub Actions](https://docs.github.com/en/actions/concepts/security/openid-connect#understanding-the-oidc-token)
+- [BuildKite](https://buildkite.com/docs/agent/cli/reference/oidc)
+- [GitLab CI](https://docs.gitlab.com/ci/secrets/id_token_authentication/#token-payload)
+- [Google Cloud](https://docs.cloud.google.com/compute/docs/instances/verifying-instance-identity)
+
+Note that many of these providers (like GitHub, GitLab, and Google Cloud) have
+dedicated Teleport join methods which should be used instead of `generic_oidc`.
+
+Alternatively, if you can fetch a JWT inside your existing workload, then you
+can decode it with a tool like [`jwt-cli`](https://github.com/mike-engel/jwt-cli):
+```code
+$ echo "$EXAMPLE_TOKEN" | jwt decode -
+```
+
+Different providers issue tokens to workloads in different ways, for example:
+- Many CI/CD providers insert a token into a job's environment as an environment
+  variable before the job starts. Note that many providers require a config
+  parameter to enable this for a given step or workflow, or require a
+  project-level setting to enable OIDC token issuance.
+- Some platforms have a CLI tool that can fetch tokens and write them to stdout.
+- Other platforms have an internal private HTTP API you can query to request a
+  token.
+
+Regardless of your provider, to continue you'll need to determine which of the
+two options you'll use to configure the `tbot` client to use the token:
+1. An environment variable that contains a JWT
+2. A command to run that fetches a JWT. For providers that provide an HTTP
+   endpoint, you may need to provide your own script that fetches the token, for
+   example using `curl`.
+
+For this example, we'll use a hypothetical provider named ExampleCI. They
+provide a command to run to fetch tokens with a given audience (`aud`) value,
+and their tokens look like this:
+```code
+$ example-ci issue-token --audience=teleport.example.com/example-agent | jwt decode -
+{
+  "namespace_id": "123",
+  "namespace_path": "acme-corp",
+  "project_id": "456",
+  "project_path": "acme-corp/example-project",
+  "user_id": "1",
+  "user_login": "alice",
+  "user_email": "alice@example.com",
+  "job_id": "100",
+  "ref": "feature-branch-1",
+  "ref_type": "branch",
+  "ref_path": "refs/heads/feature-branch-1",
+  "ref_protected": "false",
+  "runner": {
+    "environment": "self-hosted",
+    "protected": "false",
+    "action": "start"
+  },
+  "job_source": "push",
+  "jti": "235b3a54-b797-45c7-ae9a-f72d7bc6ef5b",
+  "iss": "https://example.com",
+  "iat": 1681395193,
+  "nbf": 1681395188,
+  "exp": 1681398793,
+  "sub": "project_path:acme-corp/example-project:ref_type:branch:ref:feature-branch-1",
+  "aud": "teleport.example.com/example-agent"
+}
+```
+
+### Creating a join token
+
+With this JWT template in mind, you will create a join token that grants access
+to any CI/CD workflow runs within the `acme-corp/example-project` repository,
+with some additional restrictions included for demonstration purposes. You can
+find a full list of the available rules and syntax on the
+[join token reference page.](../../reference/deployment/join-methods.mdx#generic-oidc-generic_oidc)
+
+To do so, decide how you wish to create the token - directly via `tctl`, via
+Teleport's Terraform provider, or via Teleport's Kubernetes operator - and
+refer to the matching token template to use as a starting point:
+
+<Tabs>
+<TabItem label="tctl">
+
+Create `token.yaml` with this initial content:
+
+(!docs/pages/includes/provision-token/generic-oidc-spec.mdx!)
+
+Customize it as necessary, and when ready, create the token:
+
+```code
+$ tctl create token.yaml
+```
+
+Finally, validate the token was created:
+
+```code
+$ tctl get token/generic-oidc-token
+
+kind: token
+metadata:
+  expires: "3000-01-01T00:00:00Z"
+  name: generic-oidc-token
+spec:
+  join_method: generic_oidc
+  roles:
+  - Node
+version: v2
+```
+
+</TabItem>
+<TabItem label="Terraform">
+<Admonition type="warning" title="must_match_fields limitation">
+Note that `must_match_fields` is currently not supported in Teleport's Terraform
+provider and any rules you specify in that field **will be silently ignored**.
+
+For now, either write all rules instead within `allow_any`, or create your
+`generic_oidc` tokens via `tctl`.
+</Admonition>
+
+Add the following resource to your Terraform configuration, adjusting values and
+rules as necessary:
+
+(!docs/pages/includes/provision-token/generic-oidc-spec-hcl.mdx!)
+
+</TabItem>
+<TabItem label="Kubernetes">
+<Admonition type="warning" title="must_match_fields limitation">
+Note that `must_match_fields` has limited support in Teleport's Kubernetes
+operator: rules can only be written against root-level claims on the incoming
+JWT. Attempting to check nested claim fields will result in an error.
+
+If you need to check nested fields, either write those checks within `allow_any`
+rules, or create your `generic_oidc` token via `tctl` which does not have this
+limitation.
+</Admonition>
+
+Add the following Kubernetes resource manifest, adjusting values and rules as
+necessary:
+
+(!docs/pages/includes/provision-token/generic-oidc-spec-kube.mdx!)
+</TabItem>
+</Tabs>
+
+Be aware that the examples shown above are for demonstrative purposes. Make sure
+to replace all rules with values tailored to your provider and environment,
+using the reference token you fetched as a guide.
+
+Broadly, we recommend the following minimum rules:
+- Define some "global" requirements in `must_match_fields`, like an organization
+  name or ID. These are always required, and are cheap insurance to protect
+  against an `allow_any` rule that might accidentally let unintended clients in.
+  At worst, these can limit the blast radius to within your organization.
+
+  In the example JWT shown above, `namespace_id` and `namespace_path` might be
+  good global rules to configure for all joining clients.
+- Define one or more `allow_any` rules to allow individual workloads or other
+  compute units that should be granted access, using either `expression` or
+  `conditions`.
+
+  With the example JWT in mind, `project_id` and `project_path` might be useful
+  fields to perform an equality check on, to ensure join attempts are coming
+  from an authorized project.
+  - The `conditions` rule allows you to specify a list of simple conditions
+    (`eq`, `not_eq`, `in`, `not_in`) that claim attributes must match.
+  - The `expression` rule type uses Teleport's [predicate
+    language](../../reference/access-controls/predicate-language.mdx) to
+    evaluate claims based on complex logic.
+
+    See the [limitations](#limitations) section above for some specific
+    compatibility notes when using some built-in predicate functions.
+
+Additionally, be aware of the rule evaluation order:
+- First, all `must_match_fields` checks are executed. All values specified here
+   must both exist and match the corresponding values on the incoming JWT. If
+   `must_match_fields` is empty, this is skipped.
+- Next, each rule listed in `allow_any` is evaluated sequentially and evaluation
+  stops after the first matching rule (either an `expression` or `conditions`).
+- You may combine as many rules as you'd like between either `must_match_fields`
+  or `allow_any`, or skip either variant entirely if you prefer. At least one
+  rule or value must be matched between both rule types.
+
+## Step 2/2. Set up Teleport on your provider
+
+The Generic OIDC join method can be used for Teleport processes running the SSH,
+Proxy, Kubernetes, Application, Database, or Desktop Service.
+
+1. Install Teleport on your target environment (VM or physical machine)
+
+   (!docs/pages/includes/install-linux.mdx!)
+
+1. Configure your Teleport process with a custom `teleport.yaml` file. Use the
+   `join_params` section with `token_name` matching your token created in Step 1
+   and `method: generic_oidc` as shown in the following example config:
+
+   ```yaml
+   # /etc/teleport.yaml
+   version: v3
+   teleport:
+     join_params:
+       token_name: generic-oidc-token
+       method: generic_oidc
+       generic_oidc:
+         # Specify a command to run. The first value must be the executable to run,
+         # followed by arguments, one per list entry. This example calls
+         # `example-provider issue-token ...` with a client-specified audience
+         # request. Your provider will differ.
+         command: ["example-ci", "issue-token", "--audience=<Var name="teleport.example.com"/>/example-agent"]
+
+         # By default, commands timeout after 1 minute. If your OIDC provider
+         # needs a different value, specify it in `timeout`
+         # timeout: 1m
+
+         # Alternatively, if the token can be found inside an environment
+         # variable, you can simply specify the name of the variable containing
+         # the token. This cannot be combined with `command`.
+         # env: "ENV_VAR_WITH_JWT"
+     proxy_server: <Var name="teleport.example.com:443"/>
+   ssh_service:
+     enabled: true
+   auth_service:
+     enabled: false
+   proxy_service:
+     enabled: false
+   ```
+
+1. Start Teleport:
+
+   (!docs/pages/includes/start-teleport.mdx!)
+
+1. Confirm that your Teleport process is able to connect to and join your
+   cluster. You're all set!
+
+
+## Next steps
+
+- See [Application Access guides](../../enroll-resources/application-access/application-access.mdx)
+- See [Database Access Guides](../../enroll-resources/database-access/guides/guides.mdx)

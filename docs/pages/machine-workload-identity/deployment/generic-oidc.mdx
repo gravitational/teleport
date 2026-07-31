@@ -1,0 +1,388 @@
+---
+title: Deploying tbot with any OIDC provider via Generic OIDC
+description: How to install and configure the Machine & Workload Identity agent, `tbot`, on any OIDC provider using Generic OIDC
+sidebar_label: Generic OIDC
+tags:
+ - ci-cd
+ - how-to
+ - mwi
+ - infrastructure-identity
+page_type: how-to
+---
+
+While Teleport natively supports many cloud platforms and identity providers, it
+is still often necessary to join bots using identity providers that do not have
+a dedicated join method. Generic OIDC allows you to join bots from any platform
+or provider where workloads are issued OIDC compatible JWTs, and allows you to
+define custom rules to allow only the intended workloads to authenticate to
+Teleport.
+
+In this guide, you will create a Machine & Workload Identity Bot and configure
+Teleport to allow it to join from a hypothetical provider that does not have a
+Teleport join method, and without using any long-lived credentials.
+
+## How it works
+
+(!docs/pages/includes/provision-token/generic-oidc-how-it-works.mdx!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.11.0 or higher)"!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- Your user should have the privileges to create token resources.
+- You must already have an OIDC-compliant identity provider that can issue JWTs
+  to your bot environment
+
+## Security considerations and limitations
+
+(!docs/pages/includes/provision-token/generic-oidc-security-notes.mdx!)
+
+## Step 1/3. Create a Bot
+
+(!docs/pages/includes/machine-id/create-a-bot.mdx!)
+
+## Step 2/3. Create a join token for Generic OIDC
+
+In order to allow your workload to authenticate with your Teleport cluster,
+you'll need to create a join token. These tokens define criteria by which the
+Auth Service decides whether to allow a bot or node to join.
+
+### Retrieving a reference token
+
+To create a `generic_oidc` join token, you'll first need to determine which OIDC
+provider you're using and then find or generate a reference JWT to use as a
+template for building your join token and rules.
+
+Many providers provide documented token examples, for example:
+- [GitHub Actions](https://docs.github.com/en/actions/concepts/security/openid-connect#understanding-the-oidc-token)
+- [BuildKite](https://buildkite.com/docs/agent/cli/reference/oidc)
+- [GitLab CI](https://docs.gitlab.com/ci/secrets/id_token_authentication/#token-payload)
+
+Note that many of these providers (like GitHub) have dedicated Teleport join
+methods which should be used instead of `generic_oidc`.
+
+Alternatively, if you can fetch a JWT inside your existing workload, then you
+can decode it with a tool like [`jwt-cli`](https://github.com/mike-engel/jwt-cli):
+```code
+$ echo "$EXAMPLE_TOKEN" | jwt decode -
+```
+
+Different providers issue tokens to workloads in different ways, for example:
+- Many CI/CD providers insert a token into a job's environment as an environment
+  variable before the job starts. Note that many providers require a config
+  parameter to enable this for a given step or workflow, or require a
+  project-level setting to enable OIDC token issuance.
+- Some platforms have a CLI tool that can fetch tokens and write them to stdout.
+- Other platforms have an internal private HTTP API you can query to request a
+  token.
+
+Regardless of your provider, to continue you'll need to determine which of the
+two options you'll use to configure the `tbot` client to use the token:
+1. An environment variable that contains a JWT
+2. A command to run that fetches a JWT
+
+For this example, we'll use a hypothetical provider named ExampleCI. They
+provide a command to run to fetch tokens with a given audience (`aud`) value,
+and their tokens look like this:
+```code
+$ example-ci issue-token --audience=example.teleport.sh/example-bot | jwt decode -
+{
+  "namespace_id": "123",
+  "namespace_path": "acme-corp",
+  "project_id": "456",
+  "project_path": "acme-corp/example-project",
+  "user_id": "1",
+  "user_login": "alice",
+  "user_email": "alice@example.com",
+  "job_id": "100",
+  "ref": "feature-branch-1",
+  "ref_type": "branch",
+  "ref_path": "refs/heads/feature-branch-1",
+  "ref_protected": "false",
+  "runner": {
+    "environment": "self-hosted",
+    "protected": "false",
+    "action": "start"
+  },
+  "job_source": "push",
+  "jti": "235b3a54-b797-45c7-ae9a-f72d7bc6ef5b",
+  "iss": "https://example.com",
+  "iat": 1681395193,
+  "nbf": 1681395188,
+  "exp": 1681398793,
+  "sub": "project_path:acme-corp/example-project:ref_type:branch:ref:feature-branch-1",
+  "aud": "example.teleport.sh/example-bot"
+}
+```
+
+### Creating a join token
+
+With this JWT template in mind, you will create a join token that grants access
+to any CI/CD workflow runs within the `acme-corp/example-project` repository,
+with some additional restrictions included for demonstration purposes. You can
+find a full list of the available rules and syntax on the
+[join token reference page.](../../reference/deployment/join-methods.mdx#generic-oidc-generic_oidc)
+
+Create a file named `bot-token.yaml`:
+
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example-bot
+spec:
+  # The Bot role indicates that this token grants access to a bot user, rather
+  # than allowing a node to join. This role is built in to Teleport.
+  roles: [Bot]
+  join_method: generic_oidc
+
+  # The bot_name indicates which bot user this token grants access to. This
+  # should match the name of the bot that you created in the previous step.
+  bot_name: example
+
+  generic_oidc:
+    # Issuer is the JWT issuer, and must match the `iss` value in the token
+    # template. Additionally, it must serve OIDC discovery and JWKS documents,
+    # unless `static_jwks` is configured as well.
+    issuer: https://example.com
+
+    # The token audience, or `aud` value. If your provider lets you set or
+    # request this value, it should uniquely identify the Teleport cluster and
+    # token, like the example below. You can use a random value like a UUID
+    # if you prefer not to use the token.
+    # If your provider does not allow you to specify the audience, enter the
+    # value they provide here directly. Additionally, some providers include an
+    # array of audiences; if so, the value specified here must be present in the
+    # array.
+    # The audience is always validated regardless of any custom rules you
+    # specify.
+    audience: <Var name="example.teleport.sh"/>/example-bot
+
+    # These "field"-style matchers are "global" and are applied to all join
+    # attempts using this token. They're useful for ensuring all `allow_any`
+    # rules still check important fields, like the organization or namespace,
+    # and ensure that even a mistake in an `allow_any` rule that might otherwise
+    # allow joins from an unintended party still check at least that field.
+    #
+    # These match against the structure of the incoming JWT, so you can freely
+    # specify even nested fields. Note that only strings, numbers, and booleans
+    # can be used here. To check
+    # against lists, you must use `allow_any` rules.
+    #
+    # This field is optional if you only want to use `allow_any` rules; at least
+    # one rule is required between both rule categories.
+    must_match_fields:
+      # This ensures all joins at least come from the "acme-corp" namespace. Be
+      # cautious of only matching against bare repository names: they may not be
+      # adequately namespaced, so attackers might be able to make a repository
+      # with the same name in a different namespace. A `must_match_fields` check
+      # ensures all `allow_any` rules that allow different repositories or other
+      # sub-resources at least must fall within this namespace, even if a given
+      # expression accidentally allows unintended clients.
+      namespace_path: acme-corp
+
+      # Note the datatype: a plain 123 in YAML would parse a number and would
+      # not match the datatype in the template JWT (a number inside a string).
+      # As a security tip, for providers that provide both forms, it may be
+      # helpful to match both a name and unique ID:
+      # - Unique IDs help prevent name-reuse attacks if a repository or
+      #   namespace is deleted
+      # - Named identifiers help give a readable name to an arbitrary number or
+      #   UUID
+      # Combining both can help keep tokens both secure and auditable.
+      namespace_id: "123"
+
+      # You can nest fields freely. If a parent field doesn't exist, the join
+      # attempt is rejected.
+      runner:
+        environment: self-hosted
+
+    # These rules are evaluated after `must_match_fields` (if any), and only one
+    # needs to match for the join to be allowed. This lets you allow joins from
+    # multiple different repositories within the same token, if desired.
+    #
+    # This field is optional if you are satisfied with the "AND"-only rules of
+    # `must_match_fields`; at least one rule is required between both rule
+    # categories.
+    allow_any:
+      # This rule uses a Teleport Predicate expression to allow joins where the
+      # user email matches a given suffix via regex.
+      # All claim fields are available under the `claims` variable. Note that
+      # the `set()` helper must be used to wrap any list or string values for
+      # functions that expect a Set, like `regexp.match()` or `contains_all()`.
+      # Note that the expression is wrapped in single quotes ('...') due to the
+      # double quotes inside the expression itself.
+      - expression: 'regexp.match(set(claims.user_email), "^.+@example.com$")'
+
+      # This allows workflows from the `acme-corp/example-project` repo to join
+      # without further restrictions.
+      - conditions:
+        - attribute: project_path
+          eq:
+            value: acme-corp/example-project
+
+      # This allows workflows from `acme-corp/other-project`, but only if they
+      # are run against the `feature-branch-1` branch.
+      - conditions:
+        - attribute: project_path
+          eq:
+            value: acme-corp/other-project
+        - attribute: ref_type
+          eq:
+            value: branch
+        - attribute: ref
+          eq:
+            value: feature-branch-1
+
+```
+
+As these are explicitly demonstration values, make sure to replace all of these
+rules with values tailored to your provider and environment. Broadly, we
+recommend the following minimum rules:
+- Define some "global" requirements in `must_match_fields`, like an organization
+  name or ID. These are always required, and are cheap insurance to protect
+  against an `allow_any` rule that might accidentally let unintended clients in.
+  At worst, these can limit the blast radius to within your organization.
+- Define one or more `allow_any` rules to allow individual repositories,
+  workloads, or other units that should be granted access, using either
+  `expression` or `conditions`.
+  - The `conditions` rule allows you to specify a list of simple conditions
+    (`eq`, `not_eq`, `in`, `not_in`) that claim attributes must match.
+  - The `expression` rule type uses Teleport's [predicate
+    language](../../reference/access-controls/predicate-language.mdx) to
+    evaluate claims based on complex logic.
+
+    See the [limitations](#limitations) section above for some specific
+    compatibility notes when using some built-in predicate functions.
+
+Additionally, be aware of the rule evaluation order:
+- First, all `must_match_fields` checks are executed. All values specified here
+   must both exist and match the corresponding values on the incoming JWT. If
+   `must_match_fields` is empty, this is skipped.
+- Next, each rule listed in `allow_any` is evaluated sequentially and evaluation
+  stops after the first matching rule (either an `expression` or `conditions`).
+- You may combine as many rules as you'd like between either `must_match_fields`
+  or `allow_any`, or skip either variant entirely if you prefer. At least one
+  rule or value must be matched between both rule types.
+
+Once you've written your token YAML, create it with `tctl`:
+
+```code
+$ tctl create -f bot-token.yaml
+```
+
+Check that token `example-bot` has been created with the following
+command:
+
+```code
+$ tctl tokens ls
+Token       Type Labels Expiry Time (UTC)
+----------- ---- ------ ----------------------------------------------
+example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
+```
+
+## Step 3/3. Configure `tbot` within your workflow
+
+Due to the wide variation in potential providers or platforms you might use
+`generic_oidc` on, we can only provide generalized advice for running `tbot`.
+
+First, to install `tbot`, you can use your Teleport cluster's `install.sh` to
+download and install the proper version:
+```code
+$ curl "https://<Var name="example.teleport.sh"/>:443/scripts/install.sh" | bash
+```
+
+Next, `tbot` needs to be configured to connect to your Teleport cluster, and
+must also to be configured to actually fetch the JWT. This can be done inside
+`tbot.yaml`, but you might use a slightly different starting template depending
+on the type of workload or provider in use.
+
+### Ephemeral workloads
+
+For ephemeral workloads like CI/CD runs, there's no need to specify a long-lived
+`storage` directory, so the `memory` type can be used. Start with this
+`tbot.yaml`:
+```yaml
+version: v2
+proxy_server: <Var name="example.teleport.sh"/>:443
+onboarding:
+  join_method: generic_oidc
+  token: example-bot
+  generic_oidc:
+    # Specify a command to run. The first value must be the executable to run,
+    # followed by arguments, one per list entry.
+    command: ["example-ci", "issue-token", "--audience=<Var name="example.teleport.sh"/>/example-bot"]
+
+    # By default, commands timeout after 1 minute. If your OIDC provider needs
+    # a different value, specify it in `timeout`
+    # timeout: 1m
+
+    # Alternatively, if the token can be found inside an environment variable,
+    # you can simply specify the name of the variable containing the token:
+    # env: "ENV_VAR_WITH_JWT"
+
+storage:
+  # For ephemeral workloads, there is no need to store data persistently
+  type: memory
+
+# Configure one or more services. Refer to the Access Guides to set up your
+# desired services.
+services: []
+```
+
+### Long-lived workloads
+
+For deployments where you expect a single `tbot` instance to last a long time,
+and if it has a persistent filesystem, you might instead start with this
+`tbot.yaml`:
+
+```yaml
+version: v2
+proxy_server: <Var name="example.teleport.sh"/>:443
+onboarding:
+  join_method: generic_oidc
+  token: example-bot
+  generic_oidc:
+    # Specify a command to run. The first value must be the executable to run,
+    # followed by arguments, one per list entry.
+    command: ["example-ci", "issue-token", "--audience=<Var name="example.teleport.sh"/>/example-bot"]
+
+    # By default, commands timeout after 1 minute. If your OIDC provider needs
+    # a different value, specify it in `timeout`
+    # timeout: 1m
+
+    # Alternatively, if the token can be found inside an environment variable,
+    # you can simply specify the name of the variable containing the token:
+    # env: "ENV_VAR_WITH_JWT"
+
+storage:
+  # This writes long-lived bot data to the configured directory. Note that the
+  # Unix user that runs `tbot` must have write access to this path.
+  type: directory
+  path: /var/lib/teleport/bot
+
+# Configure one or more services. Refer to the Access Guides to set up your
+# desired services.
+services: []
+```
+
+### Running `tbot`
+
+Once configured, run the `tbot` client:
+```code
+$ tbot start -c tbot.yaml
+```
+
+Note that the exact mechanics for running `tbot`, especially if you need it to
+run in the background to serve proxies or other long-lived services, will vary
+between different providers and platforms.
+
+## Next steps
+
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish
+  configuring `tbot` for your environment by assigning roles and configuring
+  services.
+- For more information about the `generic_oidc` join method, read the
+  [join token reference page](../../reference/deployment/join-methods.mdx#generic-oidc-generic_oidc)
+- [More information about `anonymous-telemetry`.](../../reference/machine-workload-identity/telemetry.mdx)
