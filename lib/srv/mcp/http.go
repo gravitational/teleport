@@ -80,7 +80,9 @@ func (s *Server) handleAuthErrHTTP(ctx context.Context, clientConn net.Conn, aut
 func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCtx) error {
 	session, err := s.getSessionHandlerWithJWT(ctx, sessionCtx)
 	if err != nil {
-		return trace.Wrap(err, "setting up session handler")
+		setupErr := trace.Wrap(err, "setting up session handler")
+		s.cfg.Log.WarnContext(ctx, "Failed to set up MCP session handler", "error", setupErr)
+		return trace.NewAggregate(setupErr, s.handleAuthErrHTTP(ctx, sessionCtx.ClientConn, setupErr))
 	}
 	defer session.sessionAuditor.flush(s.cfg.ParentContext)
 
