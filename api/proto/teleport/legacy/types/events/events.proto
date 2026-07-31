@@ -10042,6 +10042,20 @@ message ClientIPRestrictionsUpdate {
 
   // ClientIPRestrictions is the new Client IP Restrictions allowlist.
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
+
+  // Mode is the new Client IP Restrictions enforcement mode ("draft" or
+  // "enforced"), recorded exactly as accepted by the server. Empty when the
+  // request did not set a mode (treated as enforced), for deletions, and for
+  // updates made through APIs that predate the mode field.
+  string Mode = 7 [(gogoproto.jsontag) = "mode,omitempty"];
+
+  // EnforcementExpires is the time at which the Client IP Restrictions
+  // enforcement lapses. Zero if no expiry is set.
+  google.protobuf.Timestamp EnforcementExpires = 8 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "enforcement_expires,omitempty"
+  ];
 }
 
 // AppAuthConfigCreate is emitted when a AppAuthConfig is created.
