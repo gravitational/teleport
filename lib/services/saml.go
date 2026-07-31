@@ -27,6 +27,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -256,8 +258,12 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 	}()
 
 	if url != "" && !params.Options.NoFollowURLs {
-		httpClient := &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		var checkRedirect func(req *http.Request, via []*http.Request) error
+		// TODO(kopiczko): Remove this env var after Jul 2027 (one year since introduced) if no issue is reported.
+		if disableCheckRedirect, _ := apiutils.ParseBool(os.Getenv(teleport.EnvVarUnstableDisableSAMLRedirectDowngradeCheck)); disableCheckRedirect {
+			log.DebugContext(ctx, "Redirect HTTPS downgrade check disabled with the unstable environment variable")
+		} else {
+			checkRedirect = func(req *http.Request, via []*http.Request) error {
 				if len(via) != 0 && strings.EqualFold(via[len(via)-1].URL.Scheme, "https") && !strings.EqualFold(req.URL.Scheme, "https") {
 					return errors.New("connection downgrade not allowed for URL: " + req.URL.String())
 				}
@@ -265,8 +271,12 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 					return errors.New("stopped after 10 redirects")
 				}
 				return nil
-			},
-			Transport: params.Options.Transport,
+			}
+		}
+
+		httpClient := &http.Client{
+			CheckRedirect: checkRedirect,
+			Transport:     params.Options.Transport,
 		}
 
 		ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
@@ -306,15 +316,6 @@ func getEntityDescriptor(ctx context.Context, params getEntityDescriptorParams) 
 		return "", nil, trace.BadParameter("failed to parse entity_descriptor XML: %s", err)
 	}
 	return rawEntityDescriptor, entityDescriptor, nil
-}
-
-// GetAttributeNames returns a list of claim names from the claim values
-func GetAttributeNames(attributes map[string]samltypes.Attribute) []string {
-	var out []string
-	for _, attr := range attributes {
-		out = append(out, attr.Name)
-	}
-	return out
 }
 
 // SAMLAssertionsToTraits converts saml assertions to traits

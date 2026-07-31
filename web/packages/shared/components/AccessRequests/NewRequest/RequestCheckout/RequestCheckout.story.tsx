@@ -36,6 +36,7 @@ import {
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
+import type { ReviewerOption } from './types';
 
 export default {
   title: 'Shared/AccessRequests/Checkout',
@@ -129,6 +130,61 @@ export const LoadedResourceRequest = () => {
         fetchResourceRequestRolesAttempt={{ status: 'success' }}
         selectedResourceRequestRoles={selectedResourceRequestRoles}
         setSelectedResourceRequestRoles={setSelectedResourceRequestRoles}
+        selectedReviewers={selectedReviewers}
+        setSelectedReviewers={setSelectedReviewers}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedResourceRequestWithReviewerDisplays = () => {
+  const [selectedReviewers, setSelectedReviewers] = useState<ReviewerOption[]>([
+    {
+      value: 'reviewer-one',
+      label: 'reviewer-one',
+      isSelected: true,
+    },
+    {
+      value: 'manual-reviewer',
+      label: 'manual-reviewer',
+      isSelected: true,
+    },
+  ]);
+  const dryRunResponseWithReviewerDisplays = {
+    ...dryRunResponse,
+    reviewers: [
+      {
+        name: 'reviewer-one',
+        display: {
+          primary: 'Shared Reviewer',
+          secondary: 'reviewer-one@example.com',
+        },
+        state: 'PENDING' as const,
+      },
+      {
+        name: 'reviewer-two',
+        display: { primary: 'Shared Reviewer' },
+        state: 'PENDING' as const,
+      },
+      {
+        name: 'username-only-reviewer',
+        display: {},
+        state: 'PENDING' as const,
+      },
+      {
+        name: 'absent-display-reviewer',
+        state: 'PENDING' as const,
+      },
+    ],
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        dryRunResponse={dryRunResponseWithReviewerDisplays}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
       />

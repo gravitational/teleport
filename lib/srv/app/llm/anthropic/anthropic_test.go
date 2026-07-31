@@ -28,26 +28,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
+	llmtesting "github.com/gravitational/teleport/lib/srv/app/llm/testing"
 )
 
 func TestNewRequest(t *testing.T) {
 	apiKey := "random-api-key"
 
-	signAWSRequest := func(_ context.Context, _ types.Application, req *http.Request, reqBody []byte) error {
-		hash := sha256.New()
-		hash.Write(reqBody)
-		req.Header.Set("X-Amz-Content-Sha256", hex.EncodeToString(hash.Sum(nil)))
-		req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential=test")
-		return nil
-	}
-
 	for name, tc := range map[string]struct {
 		llm             types.Application
+		reserveFunc     llmrequest.ReserveFunc
 		request         func() *http.Request
 		signAWSRequest  func(context.Context, types.Application, *http.Request, []byte) error
 		expectedError   require.ErrorAssertionFunc
@@ -59,6 +55,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -87,6 +84,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -110,6 +108,7 @@ func TestNewRequest(t *testing.T) {
 					{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
 				},
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -140,6 +139,7 @@ func TestNewRequest(t *testing.T) {
 				},
 				FallbackModel: "claude-sonnet-4-20250514",
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -169,6 +169,7 @@ func TestNewRequest(t *testing.T) {
 					{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
 				},
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -190,6 +191,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -211,6 +213,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -234,6 +237,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -251,6 +255,7 @@ func TestNewRequest(t *testing.T) {
 				Format:   types.LLMFormatAnthropic,
 				Provider: types.LLMProviderAnthropic,
 			}, nil /* appAWS */),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodGet,
@@ -273,7 +278,8 @@ func TestNewRequest(t *testing.T) {
 			}, &types.AppAWS{
 				Region: "us-west-2",
 			}),
-			signAWSRequest: signAWSRequest,
+			reserveFunc:    llmtesting.NoopReserveFunc,
+			signAWSRequest: llmtesting.SignAWSRequest,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -311,6 +317,7 @@ func TestNewRequest(t *testing.T) {
 			}, &types.AppAWS{
 				Region: "us-west-2",
 			}),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			signAWSRequest: func(ctx context.Context, a types.Application, r *http.Request, b []byte) error {
 				return errors.New("signing failed")
 			},
@@ -337,6 +344,7 @@ func TestNewRequest(t *testing.T) {
 			}, &types.AppAWS{
 				Region: "us-west-2",
 			}),
+			reserveFunc: llmtesting.NoopReserveFunc,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -356,7 +364,8 @@ func TestNewRequest(t *testing.T) {
 			}, &types.AppAWS{
 				Region: "us-west-2",
 			}),
-			signAWSRequest: signAWSRequest,
+			reserveFunc:    llmtesting.NoopReserveFunc,
+			signAWSRequest: llmtesting.SignAWSRequest,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodPost,
@@ -376,7 +385,8 @@ func TestNewRequest(t *testing.T) {
 			}, &types.AppAWS{
 				Region: "us-west-2",
 			}),
-			signAWSRequest: signAWSRequest,
+			reserveFunc:    llmtesting.NoopReserveFunc,
+			signAWSRequest: llmtesting.SignAWSRequest,
 			request: func() *http.Request {
 				r, _ := http.NewRequest(
 					http.MethodGet,
@@ -389,19 +399,44 @@ func TestNewRequest(t *testing.T) {
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},
+		"max output limit exceeded": {
+			llm: newApp(t, &types.LLM{
+				Format:   types.LLMFormatAnthropic,
+				Provider: types.LLMProviderAnthropic,
+			}, nil /* appAWS */),
+			reserveFunc: llmtesting.ReserveFunc(llmlimiter.ReserveInfo{}, trace.LimitExceeded("limit exceeded")),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/messages",
+					strings.NewReader(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "claude-sonnet-4-20250514", info.RequestedModel())
+				require.Equal(tt, "claude-sonnet-4-20250514", info.ProviderModel())
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			req, info, err := NewRequest(&llmrequest.Config{
+			res, err := NewRequest(&llmrequest.Config{
 				App:               tc.llm,
 				DownstreamRequest: tc.request(),
 				GetAPIKeyFunc: func() string {
 					return apiKey
 				},
 				SignBedrockRequest: tc.signAWSRequest,
+				Reserve:            tc.reserveFunc,
 			})
+			require.NotNil(t, res)
+			require.NotNil(t, res.SettleFunc)
 			tc.expectedError(t, err)
-			tc.expectedRequest(t, req)
-			tc.expectedInfo(t, info)
+			tc.expectedRequest(t, res.HTTPRequest)
+			tc.expectedInfo(t, res.Info)
 		})
 	}
 }
@@ -462,10 +497,11 @@ func BenchmarkNewRequest(b *testing.B) {
 
 			for b.Loop() {
 				r.Body = io.NopCloser(bytes.NewReader(bc.body))
-				if _, _, err := NewRequest(&llmrequest.Config{
+				if _, err := NewRequest(&llmrequest.Config{
 					App:               app,
 					DownstreamRequest: r,
 					GetAPIKeyFunc:     func() string { return "" },
+					Reserve:           llmtesting.NoopReserveFunc,
 				}); err != nil {
 					b.Fatal(err)
 				}

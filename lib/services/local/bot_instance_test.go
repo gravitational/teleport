@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -79,6 +80,13 @@ func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
 		}
 
 		bi.GetMetadata().SetExpires(timestamppb.New(expiry))
+	}
+}
+
+// withBotInstanceScope sets the scope of a bot instance to the given value.
+func withBotInstanceScope(scope string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		bi.SetScope(scope)
 	}
 }
 
@@ -143,13 +151,13 @@ func withBotInstanceHeartbeatHostname(value string) func(*machineidv1.BotInstanc
 }
 
 // createInstances creates new bot instances for the named bot with random UUIDs
-func createInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, count int) map[string]struct{} {
+func createInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string, count int, fns ...func(*machineidv1.BotInstance)) map[string]struct{} {
 	t.Helper()
 
 	ids := map[string]struct{}{}
 
 	for range count {
-		bi := newBotInstance(botName)
+		bi := newBotInstance(botName, fns...)
 		_, err := service.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
 
@@ -274,7 +282,7 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 	_, err = service.CreateBotInstance(ctx, newBotInstance("example"))
 	require.NoError(t, err)
 
-	_, err = service.GetBotInstance(ctx, "example", "invalid")
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: "example", InstanceId: "invalid"}.Build())
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -303,7 +311,7 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.Equal(t, bi.GetSpec().GetInstanceId(), patched.GetMetadata().GetName())
 
 	// we should be able to retrieve a matching instance
-	bi2, err := service.GetBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId())
+	bi2, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build())
 	require.NoError(t, err)
 	require.EqualExportedValues(t, patched, bi2)
 	require.Equal(t, bi.GetMetadata().GetName(), bi2.GetMetadata().GetName())
@@ -320,9 +328,13 @@ func TestBotInstanceCRUD(t *testing.T) {
 		Hostname: "foo",
 	}.Build()
 
-	patched, err = service.PatchBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId(), func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-		bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
-		return bi, nil
+	patched, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Name: bi.GetSpec().GetBotName()},
+		InstanceID: bi.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
+			return bi, nil
+		},
 	})
 	require.NoError(t, err)
 
@@ -330,10 +342,10 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.EqualExportedValues(t, heartbeat, patched.GetStatus().GetLatestHeartbeats()[0])
 
 	// delete the stored instance
-	require.NoError(t, service.DeleteBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId()))
+	require.NoError(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
 
 	// subsequent delete attempts should fail
-	require.Error(t, service.DeleteBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId()))
+	require.Error(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "", BotName: bi.GetSpec().GetBotName(), InstanceId: bi.GetSpec().GetInstanceId()}.Build()))
 }
 
 // TestBotInstanceList verifies list and filtering by bot functionality for bot
@@ -355,8 +367,11 @@ func TestBotInstanceList(t *testing.T) {
 
 	aIds := createInstances(t, ctx, service, "a", 3)
 	bIds := createInstances(t, ctx, service, "b", 4)
+	// "a" is also the name of a scoped bot in /foo; its instances live in the
+	// scoped key range.
+	scopedAIds := createInstances(t, ctx, service, "a", 2, withBotInstanceScope("/foo"))
 
-	// listing "a" should only return known "a" instances
+	// listing "a" should only return known instances of the unscoped bot "a"
 	aInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
 		FilterBotName: "a",
 	})
@@ -374,6 +389,23 @@ func TestBotInstanceList(t *testing.T) {
 		require.Contains(t, bIds, ins.GetSpec().GetInstanceId())
 	}
 
+	// listing "a" in scope /foo should only return the scoped bot's instances
+	scopedAInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName:  "a",
+		FilterBotScope: "/foo",
+	})
+	require.Len(t, scopedAInstances, 2)
+	for _, ins := range scopedAInstances {
+		require.Contains(t, scopedAIds, ins.GetSpec().GetInstanceId())
+	}
+
+	// a scope filter only qualifies a bot name, so listing scope /foo without a
+	// bot name is rejected rather than listing the whole scope
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		FilterBotScope: "/foo",
+	})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+
 	allIds := map[string]struct{}{}
 	for i := range aIds {
 		allIds[i] = struct{}{}
@@ -381,15 +413,111 @@ func TestBotInstanceList(t *testing.T) {
 	for i := range bIds {
 		allIds[i] = struct{}{}
 	}
+	for i := range scopedAIds {
+		allIds[i] = struct{}{}
+	}
 
-	// Listing an empty bot name ("") should return all instances.
+	// Listing with no bot filter should return all instances, unscoped and
+	// scoped.
 	allInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
 		FilterBotName: "",
 	})
-	require.Len(t, allInstances, 7)
+	require.Len(t, allInstances, 9)
 	for _, ins := range allInstances {
 		require.Contains(t, allIds, ins.GetSpec().GetInstanceId())
 	}
+}
+
+// TestBotInstanceScopedCoexistence verifies that instances of same-named bots
+// in different scopes (and unscoped) are stored disjointly and are only
+// addressable under their own bot's scope.
+func TestBotInstanceScopedCoexistence(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Three bots named "x": unscoped, in /foo, and in /bar.
+	unscoped := newBotInstance("x")
+	foo := newBotInstance("x", withBotInstanceScope("/foo"))
+	bar := newBotInstance("x", withBotInstanceScope("/bar"))
+	for _, bi := range []*machineidv1.BotInstance{unscoped, foo, bar} {
+		_, err := service.CreateBotInstance(ctx, bi)
+		require.NoError(t, err)
+	}
+
+	// The scoped instance is stored in the scope-namespaced key range.
+	encodedScope, err := scopes.EncodeForKey("/foo")
+	require.NoError(t, err)
+	_, err = mem.Get(ctx, backend.NewKey(scopedPrefix, botInstancePrefix, encodedScope, "x", foo.GetSpec().GetInstanceId()))
+	require.NoError(t, err)
+
+	// Each instance resolves only under its own bot's scope.
+	got, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: "x", InstanceId: unscoped.GetSpec().GetInstanceId()}.Build())
+	require.NoError(t, err)
+	require.Empty(t, got.GetScope())
+	got, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "/foo", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build())
+	require.NoError(t, err)
+	require.Equal(t, "/foo", got.GetScope())
+
+	// The wrong (or missing) scope does not resolve.
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "/bar", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "/foo", BotName: "x", InstanceId: unscoped.GetSpec().GetInstanceId()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+
+	// Patching routes by scope, and the scope itself cannot be patched.
+	patched, err := service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		InstanceID: foo.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.GetStatus().SetLatestHeartbeats([]*machineidv1.BotInstanceStatusHeartbeat{
+				machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "scoped-host"}.Build(),
+			})
+			return bi, nil
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/foo", patched.GetScope())
+
+	_, err = service.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: "/foo", Name: "x"},
+		InstanceID: foo.GetSpec().GetInstanceId(),
+		UpdateFn: func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			bi.SetScope("/other")
+			return bi, nil
+		},
+	})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+	require.ErrorContains(t, err, "scope: cannot be patched")
+
+	// Deleting under the wrong scope does not delete; the right scope deletes
+	// only that bot's instance.
+	err = service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "/bar", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	require.NoError(t, service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{BotScope: "/foo", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build()))
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "/foo", BotName: "x", InstanceId: foo.GetSpec().GetInstanceId()}.Build())
+	require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "", BotName: "x", InstanceId: unscoped.GetSpec().GetInstanceId()}.Build())
+	require.NoError(t, err)
+	_, err = service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{BotScope: "/bar", BotName: "x", InstanceId: bar.GetSpec().GetInstanceId()}.Build())
+	require.NoError(t, err)
+
+	// DeleteAllBotInstances empties both the unscoped and scoped ranges.
+	require.NoError(t, service.DeleteAllBotInstances(ctx))
+	remaining := listInstances(t, ctx, service, nil)
+	require.Empty(t, remaining)
 }
 
 // TestBotInstanceListWithSearchFilter verifies list and filtering with search

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -2729,6 +2730,55 @@ app_service:
 `,
 			name:   "app and wildcard resources",
 			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+    - 192.0.2.10
+`,
+			name:   "allowed target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    - ::1/128
+`,
+			name:   "denied target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+  denied_hosts:
+    - 127.0.0.0/8
+`,
+			name: "allowed and denied target hosts are mutually exclusive",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "mutually exclusive")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - localhost
+`,
+			name: "target hosts reject hostnames",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "must be an IP address or CIDR range")
+			},
 		},
 		{
 			inConfigString: `
@@ -6441,4 +6491,34 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestApplyAuditQueueConfig(t *testing.T) {
+	t.Parallel()
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["teleport"].(cfgMap)["audit_queue"] = cfgMap{
+			"soft_limit":                 "50MiB",
+			"hard_limit":                 "500MiB",
+			"max_attempts":               3,
+			"dead_letter_ttl":            "48h",
+			"dead_letter_sweep_interval": "10m",
+			"orphan_scan_interval":       "15m",
+			"backend":                    []any{auditqueue.KindSQLiteDisk, auditqueue.KindSQLiteMemory},
+			"synchronous":                auditqueue.SynchronousFull,
+		}
+	})
+	fc, err := ReadConfig(bytes.NewReader(text))
+	require.NoError(t, err)
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, ApplyFileConfig(fc, cfg))
+	require.Equal(t, servicecfg.AuditQueueConfig{
+		SoftLimit:               50 * 1024 * 1024,
+		MaxBytes:                500 * 1024 * 1024,
+		MaxAttempts:             3,
+		DeadLetterTTL:           48 * time.Hour,
+		DeadLetterSweepInterval: 10 * time.Minute,
+		OrphanScanInterval:      15 * time.Minute,
+		Backends:                []string{"sqlite_disk", "sqlite_memory"},
+		Synchronous:             "FULL",
+	}, cfg.AuditQueue)
 }

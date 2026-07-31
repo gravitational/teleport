@@ -742,6 +742,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
@@ -1407,6 +1410,10 @@ const (
 	// BeamAppTypeLabel is the label used to denote the type of app created for
 	// Beams. Valid values: "ingress" and "llm".
 	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
+
+	// BeamRegionLabel is the label used to track the resolved routing region
+	// for a Beam.
+	BeamRegionLabel = BeamsInternalLabelPrefix + "region"
 )
 
 const (

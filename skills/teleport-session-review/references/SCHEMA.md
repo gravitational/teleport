@@ -155,7 +155,8 @@ Relevant fields (observed on a live v18.8 Enterprise cluster):
 | Field | Meaning |
 |---|---|
 | `edition` | `ent` = Enterprise; `oss`/`community` = no summaries/search. |
-| `identitySecurity.licensed` | Identity Security is licensed. |
+| `entitlements.SessionSummaries.enabled` | Session Summaries is licensed. |
+| `entitlements.AccessGraph.enabled` | Access Graph is licensed. |
 | `identitySecurity.sessionSummarizationEnabled` | **The session-summarization gate.** Must be `true` for search/summaries. |
 | `identitySecurity.accessGraphConfigSet` | Access Graph is configured. |
 | `sessionSummarizerEnabled` | Top-level mirror of the summarization gate. |
@@ -167,7 +168,8 @@ requires 18.8.0+).
 
 Capability summary: `recordings ls` / `download` and `tsh play` work on **every
 edition**; `recordings search` (+ AI summaries) needs `edition=ent` **and**
-`identitySecurity.licensed=true` **and**
+`entitlements.SessionSummaries.enabled=true` **and**
+`entitlements.AccessGraph.enabled=true` **and**
 `identitySecurity.sessionSummarizationEnabled=true` on a **v18.8.0+** proxy.
 
 ---

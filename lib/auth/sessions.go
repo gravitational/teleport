@@ -55,11 +55,6 @@ import (
 type NewWebSessionRequest = sessionreq.NewWebSessionRequest
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	if req.Scope != "" {
-		// TODO(fspmarshall/scopes): add scoping support for web sessions
-		return nil, trace.BadParameter("web sessions cannot be pinned to a scope")
-	}
-
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -153,7 +148,16 @@ func (a *Server) newWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, services.AccessChecker, error) {
+) (types.WebSession, *services.ScopedAccessCheckerContext, error) {
+	if req.Scope != "" {
+		if req.DelegationSessionID != "" {
+			return nil, nil, trace.BadParameter("access delegation is only supported for unscoped sessions")
+		}
+		if err := a.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -168,15 +172,25 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:                 userState.GetName(),
-		Roles:                    req.Roles,
-		Traits:                   req.Traits,
-		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
-		DelegationSessionID:      req.DelegationSessionID,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var checkerCtx *services.ScopedAccessCheckerContext
+	var unscopedChecker services.AccessChecker
+	if req.Scope != "" {
+		checkerCtx, err = a.AccessCheckerForScope(ctx, req.Scope, userState, req.RequestedResourceAccessIDs)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	} else {
+		unscopedChecker, err = services.NewAccessChecker(&services.AccessInfo{
+			Username:                 userState.GetName(),
+			Roles:                    req.Roles,
+			Traits:                   req.Traits,
+			AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
+			DelegationSessionID:      req.DelegationSessionID,
+		}, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		checkerCtx = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
 	}
 
 	idleTimeout, err := a.getWebIdleTimeout(ctx)
@@ -207,7 +221,7 @@ func (a *Server) newWebSession(
 
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
+		sessionTTL = checkerCtx.CertParams().AdjustSessionTTL(apidefaults.CertDuration)
 	}
 
 	if req.AttestWebSession {
@@ -241,7 +255,7 @@ func (a *Server) newWebSession(
 		TTL:            sessionTTL,
 		SSHPublicKey:   sshAuthorizedKey,
 		TLSPublicKey:   tlsPublicKeyPEM,
-		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		CheckerContext: checkerCtx,
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
 	}
@@ -322,7 +336,14 @@ func (a *Server) newWebSession(
 	}
 
 	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		return checker.Roles(), nil
+		if unscopedChecker != nil {
+			return unscopedChecker.Roles(), nil
+		}
+		// For scoped sessions, no traditional roles apply, so let's only compute
+		// the trusted device mode from global cluster settings.
+		// TODO(bl-nero): Update this once there's actual support for device trust
+		// in scoped sessions.
+		return nil, nil
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
 	} else {
@@ -336,7 +357,7 @@ func (a *Server) newWebSession(
 		}
 	}
 
-	return sess, checker, nil
+	return sess, checkerCtx, nil
 }
 
 func (a *Server) getWebIdleTimeout(ctx context.Context) (time.Duration, error) {
@@ -447,6 +468,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		AppName:           req.AppName,
 		AppURI:            req.URI,
 		DeviceExtensions:  identity.DeviceExtensions,
+		TargetScope:       req.Scope,
+		Identity:          identity,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -555,6 +578,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Only allow this certificate to be used for applications.
 		Usage:             []string{teleport.UsageAppsOnly},
 		AppName:           req.AppName,
+		TargetScope:       req.TargetScope,
 		AppPublicAddr:     req.PublicAddr,
 		AppClusterName:    req.ClusterName,
 		AppTargetPort:     req.AppTargetPort,

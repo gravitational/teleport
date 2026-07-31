@@ -18,12 +18,18 @@ package local_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -531,4 +537,240 @@ func TestCreateResource_CertAuthorityOverride(t *testing.T) {
 			t.Errorf("CertAuthorityOverride mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+func TestSubCAService_PendingCSRRequest_CRUD(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		Clock: clock,
+	})
+	service := env.SubCA
+
+	const pkh1 = "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3"
+	const pkh2 = "1cd6a96e049f643d1f8c1cdd0390c08c2a7587df204ba254ee46009c08e80456"
+	req := subcav1.PendingCSRRequest_builder{
+		Kind:    types.KindPendingCSRRequest,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: uuid.NewString(),
+		}.Build(),
+		Spec: subcav1.PendingCSRRequestSpec_builder{
+			ClusterName: env.ClusterName,
+			CaType:      string(types.WindowsCA),
+			PublicKeyHashes: []*subcav1.PublicKeyHash{
+				subcav1.PublicKeyHash_builder{Value: pkh1}.Build(),
+				subcav1.PublicKeyHash_builder{Value: pkh2}.Build(),
+			},
+		}.Build(),
+	}.Build()
+
+	if !t.Run("create", func(t *testing.T) {
+		got, err := service.CreatePendingCSRRequest(t.Context(), proto.CloneOf(req))
+		require.NoError(t, err)
+		// Drift clock so we can detect eventual changes to metadata.expires.
+		clock.Advance(1 * time.Minute)
+
+		assert.NotNil(t, got.GetMetadata().GetExpires(), "PendingCSRRequest.Metadata.Expires is nil")
+
+		req.GetMetadata().SetExpires(got.GetMetadata().GetExpires())
+		req.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+		if diff := cmp.Diff(req, got, protocmp.Transform()); diff != "" {
+			t.Errorf("Create mismatch (-want +got)\n%s", diff)
+		}
+	}) {
+		t.Skip("create test failed, skipping other tests")
+	}
+
+	name := req.GetMetadata().GetName()
+
+	t.Run("update", func(t *testing.T) {
+		const csr = `
+-----BEGIN CERTIFICATE REQUEST-----
+CSR GOES HERE
+-----END CERTIFICATE REQUEST-----`
+
+		newReq := proto.CloneOf(req)
+		newReq.SetStatus(subcav1.PendingCSRRequestStatus_builder{
+			PublicKeyHashToPendingCsr: map[string]*subcav1.PendingCSR{
+				pkh1: subcav1.PendingCSR_builder{
+					Status: &status.Status{}, // zero == success
+					Csr: subcav1.CertificateSigningRequest_builder{
+						Pem: strings.TrimSpace(csr),
+					}.Build(),
+				}.Build(),
+				pkh2: subcav1.PendingCSR_builder{
+					Status: &status.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to sign CSR",
+					},
+				}.Build(),
+			},
+		}.Build())
+
+		updated, err := service.UpdatePendingCSRRequest(t.Context(), proto.CloneOf(newReq))
+		require.NoError(t, err)
+		// Assign updated so other tests use the latest instance.
+		req = updated
+
+		newReq.GetMetadata().SetRevision(updated.GetMetadata().GetRevision())
+		if diff := cmp.Diff(newReq, updated, protocmp.Transform()); diff != "" {
+			t.Errorf("Update mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		got, err := service.GetPendingCSRRequest(t.Context(), name)
+		require.NoError(t, err)
+
+		if diff := cmp.Diff(req, got, protocmp.Transform()); diff != "" {
+			t.Errorf("Get mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("list", func(t *testing.T) {
+		const pageSize = 0
+		const pageToken = ""
+		got, nextPageToken, err := service.ListPendingCSRRequests(t.Context(), pageSize, pageToken)
+		require.NoError(t, err)
+		assert.Empty(t, nextPageToken, "nextPageToken not empty")
+
+		want := []*subcav1.PendingCSRRequest{req}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("List mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		require.NoError(t, service.DeletePendingCSRRequest(t.Context(), name))
+
+		assert.ErrorAs(t,
+			service.DeletePendingCSRRequest(t.Context(), name),
+			new(*trace.NotFoundError),
+		)
+	})
+}
+
+func TestSubCAService_PendingCSRRequest_validation(t *testing.T) {
+	t.Parallel()
+
+	env := subcaenv.New(t, subcaenv.EnvParams{})
+	service := env.SubCA
+
+	const pkh1 = "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3"
+	const pkh2 = "1cd6a96e049f643d1f8c1cdd0390c08c2a7587df204ba254ee46009c08e80456"
+	const pkhUnrelated = "4531b8b283404ec913dc02c136efa16aea35465d19ec828b52056a1b593ecac1"
+
+	makeReq := func(modify func(*subcav1.PendingCSRRequest)) *subcav1.PendingCSRRequest {
+		validReq := subcav1.PendingCSRRequest_builder{
+			Kind:    types.KindPendingCSRRequest,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "aa8fa139-c4bf-4cb8-821a-3be57565d231",
+			}.Build(),
+			Spec: subcav1.PendingCSRRequestSpec_builder{
+				ClusterName: env.ClusterName,
+				CaType:      string(types.DatabaseClientCA),
+				PublicKeyHashes: []*subcav1.PublicKeyHash{
+					subcav1.PublicKeyHash_builder{Value: pkh1}.Build(),
+					subcav1.PublicKeyHash_builder{Value: pkh2}.Build(),
+				},
+			}.Build(),
+		}.Build()
+		modify(validReq)
+		return validReq
+	}
+
+	tests := []struct {
+		name    string
+		req     *subcav1.PendingCSRRequest
+		wantErr string
+	}{
+		{
+			name: "cluster_name required",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.GetSpec().SetClusterName("")
+			}),
+			wantErr: "spec.cluster_name",
+		},
+		{
+			name: "ca_type required",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.GetSpec().SetCaType("")
+			}),
+			wantErr: "spec.ca_type",
+		},
+		{
+			name: "custom_subject invalid",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.GetSpec().SetCustomSubject(subcav1.DistinguishedName_builder{
+					Names: []*subcav1.AttributeTypeAndValue{
+						nil, // invalid
+					},
+				}.Build())
+			}),
+			wantErr: "custom_subject",
+		},
+		{
+			name: "public_key_hashes required",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.GetSpec().SetPublicKeyHashes([]*subcav1.PublicKeyHash{})
+			}),
+			wantErr: "public_key_hashes required",
+		},
+		{
+			name: "public_key_hashes must not be empty",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				pkhs := req.GetSpec().GetPublicKeyHashes()
+				pkhs = append(pkhs, nil)
+				req.GetSpec().SetPublicKeyHashes(pkhs)
+			}),
+			wantErr: "public_key_hashes[2]: value required",
+		},
+		{
+			name: "status CSR keys must match spec keys",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.SetStatus(subcav1.PendingCSRRequestStatus_builder{
+					PublicKeyHashToPendingCsr: map[string]*subcav1.PendingCSR{
+						pkhUnrelated: subcav1.PendingCSR_builder{
+							Status: &status.Status{Code: int32(codes.Internal)},
+						}.Build(),
+					},
+				}.Build())
+			}),
+			wantErr: "unrequested key not allowed",
+		},
+		{
+			name: "status CSR entries must have a status",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.SetStatus(subcav1.PendingCSRRequestStatus_builder{
+					PublicKeyHashToPendingCsr: map[string]*subcav1.PendingCSR{
+						pkh1: nil,
+					},
+				}.Build())
+			}),
+			wantErr: "status required",
+		},
+		{
+			name: "status CSR `OK` entries must have a PEM",
+			req: makeReq(func(req *subcav1.PendingCSRRequest) {
+				req.SetStatus(subcav1.PendingCSRRequestStatus_builder{
+					PublicKeyHashToPendingCsr: map[string]*subcav1.PendingCSR{
+						pkh1: subcav1.PendingCSR_builder{
+							Status: &status.Status{}, // zero == OK
+						}.Build(),
+					},
+				}.Build())
+			}),
+			wantErr: "csr required",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := service.CreatePendingCSRRequest(t.Context(), test.req)
+			assert.ErrorContains(t, err, test.wantErr, "PendingCSRRequest validation error mismatch")
+		})
+	}
 }

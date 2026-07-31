@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -39,6 +40,9 @@ var (
 	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
 	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
 	roleFileRe         = regexp.MustCompile(`\bfile:\s*['"]@gravitational/e2e/roles/([^'"]+)['"]`)
+	describeTitleRe    = regexp.MustCompile(`\.describe\(\s*['"]([^'"]*)['"]`)
+	testDefRe          = regexp.MustCompile(`\btest(?:\.(?:only|skip|fixme))?\(\s*['"]`)
+	teleportKeyRe      = regexp.MustCompile(`\bteleport\s*:`)
 
 	// The "key" regexes below require a word boundary so identifiers like
 	// `super_user:` or `myRoles:` don't match as `user:` / `roles:`.
@@ -282,13 +286,11 @@ func parseHelperImports(path string) []string {
 }
 
 func scanFile(path string, targetLine int) []*fixtures.Fixture {
-	data, err := os.ReadFile(path)
-	if err != nil {
+	cleaned, ok := readCleaned(path)
+	if !ok {
 		return nil
 	}
 
-	lines := strings.Split(string(data), "\n")
-	cleaned := stripComments(lines)
 	blocks := parseBlocks(cleaned)
 	content := strings.Join(cleaned, "\n")
 
@@ -309,6 +311,16 @@ func scanFile(path string, targetLine int) []*fixtures.Fixture {
 	}
 
 	return result
+}
+
+// readCleaned reads a spec file and returns its lines with comments stripped.
+func readCleaned(path string) ([]string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Warn("scan: could not read file", "path", path, "error", err)
+		return nil, false
+	}
+	return stripComments(strings.Split(string(data), "\n")), true
 }
 
 func stripComments(lines []string) []string {
@@ -577,17 +589,11 @@ func defaultUsers() []scannedUser {
 // are rejected if they declare user/users/recordings since runtime would
 // merge them into every importing spec.
 func scanFileUsers(path string, targetLine int, sourceFile string) ([]scannedUser, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// Helper module paths are guessed from import names (see
-		// resolveTargetsWithHelpers), so the file may not exist. Warn
-		// but continue rather than failing the whole scan.
-		slog.Warn("scan: could not read file", "path", path, "error", err)
+	cleaned, ok := readCleaned(path)
+	if !ok {
 		return nil, nil
 	}
 
-	lines := strings.Split(string(data), "\n")
-	cleaned := stripComments(lines)
 	blocks := parseBlocks(cleaned)
 	content := strings.Join(cleaned, "\n")
 
@@ -1108,4 +1114,178 @@ func sortRoles(roles []scannedRole) {
 
 		return strings.Compare(a.file, b.file)
 	})
+}
+
+// uniqueTeleportConfig is a distinct custom Teleport config declared by one or more
+// test files, and the test files that declare it.
+type uniqueTeleportConfig struct {
+	// raw is the config object's raw JS text.
+	raw string
+	// files are the test files that declared this config.
+	files []string
+}
+
+// scanTeleportConfigs finds the unique custom Teleport configs declared by tests
+// and the base-config selectors (tests that run without one).
+func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, []string, error) {
+	byKey := make(map[string]*uniqueTeleportConfig)
+	var order []string
+	var defaults []string
+
+	for _, t := range targets {
+		cleaned, ok := readCleaned(t.path)
+		if !ok {
+			continue
+		}
+		content := strings.Join(cleaned, "\n")
+
+		// A config declared in a helper has no describe to scope it to so it should be rejected
+		if t.sourceFile == "" {
+			for _, call := range findTestUseCalls(content) {
+				if open, _ := findKeyValueAtDepth(content[call.start:call.end], "teleport", '{', '}', 1); open >= 0 {
+					return nil, nil, fmt.Errorf(
+						"%s:%d: helper modules cannot declare teleport: in test.use()",
+						t.path, 1+strings.Count(content[:call.start], "\n"))
+				}
+			}
+			continue
+		}
+
+		configs, err := extractTeleportConfigs(content, parseBlocks(cleaned), t.path)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, sc := range configs {
+			key := normalizeConfigText(sc.raw)
+			u, ok := byKey[key]
+			if !ok {
+				u = &uniqueTeleportConfig{raw: sc.raw}
+				byKey[key] = u
+				order = append(order, key)
+			}
+			u.files = append(u.files, fileSelector(t.sourceFile, sc.line))
+		}
+
+		defaults = append(defaults, defaultSelectors(t.sourceFile, content, configs, t.line)...)
+	}
+
+	result := make([]uniqueTeleportConfig, 0, len(order))
+	for _, k := range order {
+		result = append(result, *byKey[k])
+	}
+	return result, defaults, nil
+}
+
+// defaultSelectors returns the selectors for this file's tests that run against
+// the base config which is either the whole file if it declares no config, or each test
+// defined outside a config-scoped describe.
+func defaultSelectors(sourceFile, content string, configs []scopedTeleportConfig, line int) []string {
+	if len(configs) == 0 {
+		return []string{fileSelector(sourceFile, line)}
+	}
+
+	var out []string
+	for _, loc := range testDefRe.FindAllStringIndex(content, -1) {
+		if inConfiguredBlock(loc[0], configs) {
+			continue
+		}
+		out = append(out, fileSelector(sourceFile, 1+strings.Count(content[:loc[0]], "\n")))
+	}
+	return out
+}
+
+func inConfiguredBlock(pos int, configs []scopedTeleportConfig) bool {
+	for _, c := range configs {
+		if pos > c.startByte && pos < c.endByte {
+			return true
+		}
+	}
+	return false
+}
+
+// scopedTeleportConfig is a declared config and the describe block it's scoped to.
+type scopedTeleportConfig struct {
+	raw                string
+	line               int
+	startByte, endByte int
+}
+
+// extractTeleportConfigs returns every declared config with the describe it is
+// scoped to.
+func extractTeleportConfigs(content string, blocks []blockRange, path string) ([]scopedTeleportConfig, error) {
+	var out []scopedTeleportConfig
+
+	for _, call := range findTestUseCalls(content) {
+		body := content[call.start:call.end]
+
+		teleportOpen, teleportClose := findKeyValueAtDepth(body, "teleport", '{', '}', 1)
+		if teleportOpen < 0 {
+			if teleportKeyRe.MatchString(body) {
+				return nil, fmt.Errorf("%s: the teleport option in test.use() must be an inline object", path)
+			}
+			continue
+		}
+
+		teleportBody := body[teleportOpen:teleportClose]
+		configOpen, configClose := findKeyValueAtDepth(teleportBody, "config", '{', '}', 1)
+		if configOpen < 0 {
+			return nil, fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
+		}
+
+		b := smallestEnclosingBlock(call.start, blocks)
+		if b == nil || describeTitle(content, b.startByte) == "" {
+			return nil, fmt.Errorf("%s: a teleport config must be declared inside a named test.describe block", path)
+		}
+
+		sc := scopedTeleportConfig{
+			raw:       teleportBody[configOpen:configClose],
+			line:      b.start,
+			startByte: b.startByte,
+			endByte:   b.endByte,
+		}
+		for _, existing := range out {
+			if existing.line == sc.line && normalizeConfigText(existing.raw) != normalizeConfigText(sc.raw) {
+				return nil, fmt.Errorf("%s: conflicting teleport configs declared in the same describe", path)
+			}
+		}
+		out = append(out, sc)
+	}
+
+	return out, nil
+}
+
+// describeTitle returns the title of the innermost test.describe enclosing the
+// block that opens at blockStart, or "" if it isn't a named describe
+func describeTitle(content string, blockStart int) string {
+	ms := describeTitleRe.FindAllStringSubmatch(content[:blockStart], -1)
+	if len(ms) == 0 {
+		return ""
+	}
+	return ms[len(ms)-1][1]
+}
+
+// normalizeConfigText gets rid of whitespace.
+func normalizeConfigText(s string) string {
+	var b strings.Builder
+	space := false
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			space = true
+			continue
+		}
+		if space && b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		space = false
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func fileSelector(sourceFile string, line int) string {
+	if line > 0 {
+		return fmt.Sprintf("%s:%d", sourceFile, line)
+	}
+	return sourceFile
 }

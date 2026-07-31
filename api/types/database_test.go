@@ -735,6 +735,21 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
+			// the endpoint parser does not yet understand api.aws dual-stack URIs,
+			// they must keep validating as custom endpoints when a region is set.
+			desc:    "dual-stack api.aws URI with region must keep validating (compat)",
+			uri:     "dynamodb.us-west-1.api.aws",
+			region:  "us-west-1",
+			account: "123456789012",
+			wantSpec: DatabaseSpecV3{
+				URI: "dynamodb.us-west-1.api.aws",
+				AWS: AWS{
+					Region:    "us-west-1",
+					AccountID: "123456789012",
+				},
+			},
+		},
+		{
 			desc:       "configured external ID but not assume role is ok",
 			uri:        "localhost:8080",
 			region:     "us-west-1",

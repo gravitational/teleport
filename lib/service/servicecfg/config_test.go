@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,6 +114,89 @@ func TestDefaultConfig(t *testing.T) {
 	require.Equal(t, 18*time.Second, config.AuthConnectionConfig.BackoffStepDuration)
 	require.Equal(t, 9*time.Second, config.AuthConnectionConfig.InitialConnectionDelay)
 
+}
+
+func TestParseTargetHostPrefixes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		hosts   []string
+		want    []netip.Prefix
+		wantErr string
+	}{
+		{
+			name:  "empty",
+			hosts: nil,
+		},
+		{
+			name:  "bare IPv4",
+			hosts: []string{"192.0.2.10"},
+			want:  []netip.Prefix{netip.MustParsePrefix("192.0.2.10/32")},
+		},
+		{
+			name:  "bare IPv6",
+			hosts: []string{"2001:db8::1"},
+			want:  []netip.Prefix{netip.MustParsePrefix("2001:db8::1/128")},
+		},
+		{
+			name:  "CIDRs",
+			hosts: []string{"10.10.0.0/16", "::1/128"},
+			want: []netip.Prefix{
+				netip.MustParsePrefix("10.10.0.0/16"),
+				netip.MustParsePrefix("::1/128"),
+			},
+		},
+		{
+			name:    "hostname",
+			hosts:   []string{"localhost"},
+			wantErr: "must be an IP address or CIDR range",
+		},
+		{
+			name:    "empty entry",
+			hosts:   []string{""},
+			wantErr: "empty entry",
+		},
+		{
+			name:    "malformed CIDR",
+			hosts:   []string{"10.0.0.0/not-a-mask"},
+			wantErr: "must be an IP address or CIDR range",
+		},
+		{
+			name:    "IPv4-in-IPv6 address rejected",
+			hosts:   []string{"::ffff:192.0.2.10"},
+			wantErr: "IPv4-in-IPv6",
+		},
+		{
+			name:    "IPv4-in-IPv6 CIDR rejected",
+			hosts:   []string{"::ffff:169.254.0.0/112"},
+			wantErr: "IPv4-in-IPv6",
+		},
+		{
+			name:    "IPv6 zone identifier rejected",
+			hosts:   []string{"fe80::1%eth0"},
+			wantErr: "zone",
+		},
+		{
+			name:    "non-canonical CIDR rejected",
+			hosts:   []string{"10.0.0.5/8"},
+			wantErr: "canonical",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ParseTargetHostPrefixes(tt.hosts)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // TestCheckApp validates application configuration.

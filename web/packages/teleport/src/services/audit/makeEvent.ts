@@ -20,6 +20,8 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { pluralize } from 'shared/utils/text';
 
+import { osTypeLabel } from 'teleport/DeviceTrust/types';
+
 import {
   Event,
   EventCode,
@@ -655,6 +657,34 @@ export const formatters: Formatters = {
     type: 'http.response.body_chunk',
     desc: 'App HTTP Response Body',
     format: () => 'HTTP response body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_TARGET_DIAL_DENIED]: {
+    type: 'app.session.target.dial.denied',
+    desc: 'App Target Dial Denied',
+    format: event => {
+      const {
+        user,
+        app_name,
+        target_host,
+        target_port,
+        policy,
+        blocked_ip,
+        blocked_prefix,
+      } = event;
+      let target = target_host;
+      if (target_port) {
+        target += `:${target_port}`;
+      }
+
+      let message = `User [${user}] was blocked from connecting to target [${target}] for application [${app_name}] by [${policy}]`;
+      if (blocked_ip) {
+        message += `, blocked IP: [${blocked_ip}]`;
+      }
+      if (blocked_prefix) {
+        message += `, matched prefix: [${blocked_prefix}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
@@ -1462,6 +1492,20 @@ export const formatters: Formatters = {
       success || (status && status.success)
         ? `User [${user}] has confirmed device web authentication`
         : `User [${user}] has failed to confirm device web authentication`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST]: {
+    type: 'device.enroll_pairing.request',
+    desc: 'Device Enroll Pairing Requested',
+    format: ({ user, device }) =>
+      `Device enrollment was requested for user [${user}]${formatDevice(device)}`,
+  },
+  [eventCodes.DEVICE_ENROLL_PAIRING_REQUEST_FAILURE]: {
+    type: 'device.enroll_pairing.request',
+    desc: 'Device Enroll Pairing Request Failed',
+    format: ({ device, error }) =>
+      error
+        ? `Device enrollment request failed${formatDevice(device)}: ${error}`
+        : `Device enrollment request failed${formatDevice(device)}`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
@@ -2961,3 +3005,22 @@ export function formatSqn({
   }
   return `${scope}::${name}`;
 }
+
+// formatDevice renders the OS type and serial number (carried as asset_tag) of a device audit
+// event's device metadata, e.g. " (OS [iOS], serial number [ABC123])". Returns an empty string when
+// neither is present.
+const formatDevice = (device?: {
+  asset_tag?: string;
+  os_type?: number;
+}): string => {
+  const parts: string[] = [];
+  // Account for os_type possibly being 0 (UNSPECIFIED) with os_type != null.
+  const os = device?.os_type != null ? osTypeLabel(device.os_type) : undefined;
+  if (os) {
+    parts.push(`OS [${os}]`);
+  }
+  if (device?.asset_tag) {
+    parts.push(`serial number [${device.asset_tag}]`);
+  }
+  return parts.length ? ` (${parts.join(', ')})` : '';
+};

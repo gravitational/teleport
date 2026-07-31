@@ -349,8 +349,10 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend: srv.Backend,
-		Modules: cfg.Modules,
+		Backend:                     srv.Backend,
+		Modules:                     cfg.Modules,
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -669,7 +671,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		PrimaryCache:       c,
 		Events:             p.AuthServer.Services,
 		Inventory:          p.AuthServer.Services,
-		BotInstanceBackend: p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services.BotInstance,
 	})
 	if err != nil {
 		return trace.Wrap(err)

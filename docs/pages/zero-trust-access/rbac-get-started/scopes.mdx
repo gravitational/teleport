@@ -6,6 +6,7 @@ tags:
  - privileged-access
  - conceptual
  - zero-trust
+page_type: conceptual
 ---
 
 **Scopes** are a hierarchical organization system for Teleport resources and
@@ -20,6 +21,11 @@ at `/staging/west`. Alice can then manage scoped roles, scoped tokens, and
 SSH Services in `/staging/west` and descendant scopes such as
 `/staging/west/team-a`, but she cannot affect `/staging/east`, `/prod`, or
 unscoped cluster resources.
+
+This page describes the concepts behind scopes, and provides instructions for
+basic usage and specific scenarios.
+
+## Use cases
 
 Scopes are designed to enable:
 
@@ -84,9 +90,12 @@ be assumed unsupported in scoped mode.
   scope and assigning scoped SSH access to users.
 - Basic scoped Kubernetes access, including joining Kubernetes services
   at a scope and assigning scoped Kubernetes access to users.
-- Granting scoped roles to users via Access Lists.
+- Scoped Access Lists that can be managed by scoped administrators and used to
+  grant scoped roles to groups of users.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
+- Scoped Workload Identity resources for issuing SPIFFE credentials to
+  workloads within a scope.
 
 ## Basic usage
 
@@ -152,7 +161,7 @@ spec:
       remote:
         enabled: true
   rules:
-    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance]
+    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
       verbs: [create, list, readnosecrets, update, delete]
     - resources: [scoped_token]
       verbs: [create, list, read, update, delete]
@@ -174,7 +183,7 @@ scope: /examples
 spec:
   user: alice
   assignments:
-    - role: example-admin
+    - role: /examples::example-admin
       scope: /examples/basic
 version: v1
 EOF
@@ -239,7 +248,7 @@ $ tsh ssh ubuntu@example-node
 
 Only static Kubernetes clusters support joining with scopes. Dynamic
 cluster registration, including those discovered by the Teleport Discovery
-Service, dot not yet support scopes.
+Service, does not yet support scopes.
 
 Log the scoped admin into the desired scope:
 
@@ -479,23 +488,23 @@ $ tsh ssh ubuntu@example-node
 Access Lists can grant scoped roles to groups of users without requiring an
 individual scoped role assignment per user.
 
-Access Lists are currently unscoped resources and must be managed by an
-unscoped cluster administrator. They may only grant scoped roles defined at
-the root scope `/`, but they can assign those roles at any scope listed in
-the role's `assignable_scopes`.
-
-While logged in with the unscoped `editor` role, create a scoped role at
-the root scope:
+Log the scoped admin into the desired scope:
 
 ```code
-$ tctl create <<EOF
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+````
+
+Create a scoped role that can grant SSH access in `/examples/basic`:
+
+```code
+$ tctl create -f <<EOF
 kind: scoped_role
 metadata:
   name: example-access
-scope: /
+scope: /examples/basic
 spec:
   assignable_scopes:
-    - /examples/**
+    - /examples/basic
   ssh:
     logins: [ubuntu]
     labels:
@@ -521,15 +530,16 @@ version: v1
 kind: access_list
 metadata:
   name: example-access-list
+scope: /examples/basic
 spec:
   title: "Example scoped Access List"
   description: "Grants scoped access to SSH Services in /examples/basic"
   owners:
-    - name: admin
+    - name: alice
       membership_kind: MEMBERSHIP_KIND_USER
   grants:
     scoped_roles:
-      - role: example-access
+      - role: /examples/basic::example-access
         scope: /examples/basic
 EOF
 ```
@@ -537,28 +547,68 @@ EOF
 Add members to the Access List:
 
 ```code
-$ tctl acl users add example-access-list alice
-$ tctl acl users add example-access-list bob
+$ tctl acl users add /examples/basic::example-access-list bob
+successfully added user bob to access list /examples/basic::example-access-list
+$ tctl acl users add /examples/basic::example-access-list charlie
+successfully added user charlie to access list /examples/basic::example-access-list
 ```
 
-Confirm the scoped role has been materialized for each member:
+Access Lists that grant scoped roles always result in a "materialized" scoped
+role assignment for each of their members and owners.
+A "materialized" scoped role assignment is one that is automatically created
+and kept up to date for each user that is granted a scoped role by an Access List.
+Each materialized scoped role assignment assigns all of the scoped roles granted
+by the Access List to the user.
+Confirm a scoped role assignment has been materialized for each member:
 
 ```code
 $ tctl get scoped_role_assignments --format text
-SubKind      Scope Name                                       User  Assigns
------------- ----- ------------------------------------------ ----- ---------------------------------
-materialized /     acl-lBPn7FNe97FTVpWdlHjKGrm54xE41RWEphlhLg bob   example-access => /examples/basic
-materialized /     acl-wkniExD3WxPtVW7NvlcNMigD-slBSP2fSW0J1Q alice example-access => /examples/basic
+SubKind      ID                                                          Assignee      Assigns
+------------ ----------------------------------------------------------- ------------- --------------------------------------------------
+materialized /examples/basic::acl-4ezohtYllrk-gbWjn0hj_npCNwhujMurruDLRg user: charlie /examples/basic::example-access -> /examples/basic
+materialized /examples/basic::acl-XMyMVGoNZopPQ9WxuZ5RH6GM5FPHVwLSTFUsBg user: bob     /examples/basic::example-access -> /examples/basic
 ```
 
 Access Lists and members can also be managed via the Web UI under
-**Identity Governance > Access Lists**. Granted scoped roles are visible
-in the UI but cannot yet be edited there.
+**Identity Governance > Access Lists**.
+Currently, only unscoped Access Lists can be created or managed in the web UI,
+but unscoped Access Lists can still grant scoped roles as long as the role is
+defined in the root scope `/`.
 
-Nested Access Lists are fully supported. Scoped roles can also be granted
-to Access List owners using the `owner_grants` field. See the
-[Access Lists reference](../../reference/access-controls/access-lists.mdx)
+Nested Access Lists are fully supported, meaning Access Lists can have members
+that are other Access Lists, and members of the child list receive all scoped
+role grants from the parent list.
+Scoped roles can also be granted to Access List owners using the `owner_grants`
+field.
+See the [Access Lists reference](../../reference/access-controls/access-lists.mdx)
 for details.
+
+### Scoped Access List rules
+
+To maintain hierarchical scoped privilege isolation, the following rules apply
+to scoped Access Lists:
+
+1. An Access List can only grant scoped roles defined in a scope that is equal
+   to or an ancestor of the list's scope.
+1. A scoped role grant can only grant the scoped role at a scope that is equal
+   to or a descendent of the list's scope.
+1. An Access List can only be added as a member of another Access List if the
+   member list's scope is equal to or an ancestor of the parent list's scope.
+1. An Access List can only be added as an owner of another Access List if the
+   owner list's scope is equal to or an ancestor of the owned list's scope.
+1. A scoped Access List (or an unscoped list that grants any scoped roles) may
+   not contain member requirements or owner requirements.
+
+Any attempt to create an Access List violating these rules will be rejected by
+the Auth Service with an error message.
+
+For an example Access List with scope `/examples/basic`:
+
+1. It can only grant scoped roles defined in `/examples/basic` or `/examples` or `/`.
+1. It can only grant scoped roles at `/examples/basic` or `/examples/basic/**`.
+1. It can only have member Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It can only have owner Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It may not contain any member or owner requirements.
 
 ## Infrastructure as Code
 
@@ -661,7 +711,7 @@ sub_kind: dynamic
 spec:
   user: my-scope-admin
   assignments:
-    - role: staging-scope-mwi-admin
+    - role: /staging::staging-scope-mwi-admin
       scope: /staging
 ```
 
@@ -690,7 +740,7 @@ sub_kind: dynamic
 spec:
   bot: /staging::my-scoped-bot
   assignments:
-    - role: staging-ssh-access
+    - role: /staging::staging-ssh-access
       scope: /staging
 ```
 
@@ -737,3 +787,137 @@ services:
 Once `tbot` is running, the credentials it produces can be used to access
 resources within the scope using `tsh` or `tctl` with the identity file,
 or with `ssh` using the OpenSSH configuration files generated by `tbot`.
+
+### Scoped SPIFFE
+
+The standard `workload_identity` resource supports the `scope` field. When
+set, the Workload Identity is considered scoped. Scoped Workload Identities
+can be created, read, updated, and deleted by scope admins through scoped
+roles and scoped role assignments, and can be used by scoped Bots to issue
+SPIFFE credentials to workloads. A scoped Workload Identity cannot be
+defined in the root scope `/`. See the
+[Workload Identity resource reference](../../reference/machine-workload-identity/workload-identity/workload-identity-resource.mdx)
+for the available fields.
+
+#### SPIFFE ID structure
+
+A scoped Workload Identity must specify a SPIFFE ID that encodes the scope
+in which it is defined. The path of the SPIFFE ID consists of three
+sections:
+
+- The scope section: segments that match the scope in which the Workload
+  Identity is defined.
+- The separator segment: `/_/`.
+- The administratively-defined section: one or more segments freely chosen
+  by the administrator.
+
+For example, a Workload Identity defined in `/staging` may specify the
+SPIFFE ID `/staging/_/payments/api`. Workloads are then issued SVIDs with
+the following SPIFFE ID:
+
+```text
+spiffe://example.teleport.sh/staging/_/payments/api
+```
+
+The following rules apply to the SPIFFE ID of a scoped Workload Identity:
+
+- The scope section must exactly match the scope in which the Workload
+  Identity is defined. It cannot be an ancestor or descendant of that
+  scope. This means the scope responsible for a SPIFFE ID can always be
+  determined from the ID alone, and admins of one scope cannot issue SPIFFE
+  IDs that appear to belong to another scope.
+- The scope section must be immediately followed by the separator segment.
+- The administratively-defined section must contain at least one segment,
+  and must not itself contain the separator segment, so that a scoped
+  SPIFFE ID contains exactly one separator.
+- Templating within the SPIFFE ID is supported. These rules are enforced
+  against the rendered SPIFFE ID at issuance time, so template attributes
+  cannot be used to escape the scope.
+
+#### Granting issuance to a scoped Bot
+
+Issuance is controlled by the `workload_identity` section of a scoped role,
+which selects the Workload Identities that the role permits issuance with
+by label. Issuance additionally requires the `readnosecrets` verb (and,
+when issuing by label selector, `list`) for the `workload_identity`
+resource in the role's `rules`.
+
+#### Configuring `tbot` in scoped mode
+
+In scoped mode, `tbot` supports the `workload-identity-x509`,
+`workload-identity-jwt`, and `workload-identity-api` services. When
+selecting a scoped Workload Identity by name, use its scope-qualified name,
+for example `/staging::staging-payments-api`.
+
+### Scoped SPIFFE example
+
+The following example builds on the scoped MWI example above, granting the
+scoped Bot `my-scoped-bot` the ability to issue SPIFFE SVIDs. It assumes the
+scope administrator's role also grants write access to the `workload_identity` resource.
+
+As the scope administrator, create a scoped Workload Identity:
+
+```yaml
+kind: workload_identity
+version: v1
+metadata:
+  name: staging-payments-api
+  labels:
+    app: payments
+scope: /staging
+spec:
+  spiffe:
+    id: /staging/_/payments/api
+```
+
+Create a scoped role permitting issuance with Workload Identities labeled
+`app: payments`, and assign it to the Bot:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: staging-spiffe-issuer
+scope: /staging
+spec:
+  assignable_scopes:
+    - /staging
+  workload_identity:
+    labels:
+      - name: app
+        values: [payments]
+  rules:
+    - resources: [workload_identity]
+      verbs: [list, readnosecrets]
+---
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: 9c41d3be-72af-4d9e-8e5a-1f3b6c0d47e1
+scope: /staging
+sub_kind: dynamic
+spec:
+  bot: /staging::my-scoped-bot
+  assignments:
+    - role: /staging::staging-spiffe-issuer
+      scope: /staging
+```
+
+Add a Workload Identity service to the `tbot` configuration from the
+previous example, selecting the Workload Identity by its scope-qualified
+name:
+
+```yaml
+services:
+  - type: workload-identity-api
+    listen: unix:///opt/machine-id/workload.sock
+    selector:
+      name: /staging::staging-payments-api
+```
+
+Workloads connecting to the SPIFFE Workload API socket are issued SVIDs
+with the following SPIFFE ID:
+
+```text
+spiffe://example.teleport.sh/staging/_/payments/api
+```

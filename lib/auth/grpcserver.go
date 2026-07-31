@@ -295,6 +295,10 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Mark this event as forwarded from a remote instance so the auth server's
+	// fallback queue does not take ownership of it on a delivery failure. The
+	// originating instance retries from its own queue.
+	ctx = events.WithForwardedEmit(ctx)
 	err = auth.EmitAuditEvent(ctx, event)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1289,11 +1293,11 @@ func (g *GRPCServer) GetAccessRequestAllowedPromotions(ctx context.Context, requ
 }
 
 func (g *GRPCServer) GetAccessCapabilities(ctx context.Context, req *types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caps, err := auth.ServerWithRoles.GetAccessCapabilities(ctx, *req)
+	caps, err := auth.ScopedServerWithRoles.GetAccessCapabilities(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1708,13 +1712,15 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 }
 
 // DeleteApplicationServer deletes an application server.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
-	if err != nil {
+	if err := auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -1929,7 +1935,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *authpb.DeleteAppSessionRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2262,12 +2268,15 @@ func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *authpb.Ups
 }
 
 // DeleteKubernetesServer deletes a kubernetes server.
+//
+// Deprecated: Use DeleteKubeServer in the presence service instead.
+// TODO (eriktate): remove in v20
 func (g *GRPCServer) DeleteKubernetesServer(ctx context.Context, req *authpb.DeleteKubernetesServerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteKubernetesServer(ctx, req.GetHostID(), req.GetName())
+	err = auth.DeleteKubernetesServer(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5500,6 +5509,9 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *authpb.Appen
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
+//
+// Deprecated: Use GetKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
@@ -5573,6 +5585,9 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
@@ -5601,6 +5616,9 @@ func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.Lis
 }
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
+//
+// Deprecated: Use DeleteKubeCluster from kubev1 instead.
+// TODO (eriktate): Remove in v20
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
@@ -6487,7 +6505,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
 		Backend:    cfg.AuthServer.Services,
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

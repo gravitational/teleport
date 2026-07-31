@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func (s *TerraformSuiteOSS) TestScopedToken() {
@@ -36,7 +37,10 @@ func (s *TerraformSuiteOSS) TestScopedToken() {
 	ctx := t.Context()
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetScopedToken(ctx, "test-scoped-token", false)
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:  "test-scoped-token",
+			Scope: "/staging/aa",
+		}.Build())
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
 		}
@@ -80,6 +84,46 @@ func (s *TerraformSuiteOSS) TestScopedToken() {
 	})
 }
 
+func (s *TerraformSuiteOSS) TestScopedTokenBot() {
+	t := s.T()
+	ctx := t.Context()
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:  "test-bot-scoped-token",
+			Scope: "/staging/aa",
+		}.Build())
+		if !trace.IsNotFound(err) {
+			return trace.Errorf("expected not found, actual: %v", err)
+		}
+		return nil
+	}
+
+	name := "teleport_scoped_token.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("scoped_token_bot_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", types.KindScopedToken),
+					resource.TestCheckResourceAttr(name, "scope", "/staging/aa"),
+					resource.TestCheckResourceAttr(name, "spec.join_method", "kubernetes"),
+					resource.TestCheckResourceAttr(name, "spec.roles.0", "Bot"),
+					resource.TestCheckResourceAttr(name, "spec.usage_mode", "bot"),
+				),
+			},
+			{
+				Config:   s.getFixture("scoped_token_bot_0_create.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	t := s.T()
 	ctx := t.Context()
@@ -107,7 +151,11 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.client.GetScopedToken(ctx, id, true)
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:       id,
+			Scope:      "/staging",
+			WithSecret: true,
+		}.Build())
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
 
@@ -119,7 +167,7 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 				Config:        fmt.Sprintf("%s\nresource %q %q { }", s.terraformConfig, r, id),
 				ResourceName:  name,
 				ImportState:   true,
-				ImportStateId: id,
+				ImportStateId: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 				ImportStateCheck: func(state []*terraform.InstanceState) error {
 					require.Equal(t, types.KindScopedToken, state[0].Attributes["kind"])
 					require.Equal(t, "/staging", state[0].Attributes["scope"])
