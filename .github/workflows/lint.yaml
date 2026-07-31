@@ -23,6 +23,7 @@ jobs:
       has_ui: ${{ steps.changes.outputs.has_ui }}
       has_bpf: ${{ steps.changes.outputs.has_bpf }}
       has_cli: ${{ steps.changes.outputs.has_cli }}
+      has_file_config: ${{ steps.changes.outputs.has_file_config }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -112,6 +113,12 @@ jobs:
               - 'lib/utils/docs-usage.md.tmpl'
               - 'lib/utils/docsconfigs/**'
               - 'docs/pages/reference/cli/**'
+            has_file_config:
+              - '.github/workflows/lint.yaml'
+              - 'build.assets/tooling/cmd/config-doc-check/**'
+              - 'lib/config/**.go'
+              - 'docs/pages/includes/config-reference/**.yaml'
+              - 'Makefile'
 
   lint-go:
     name: Lint (Go)
@@ -445,3 +452,23 @@ jobs:
       - name: Check if CLI reference docs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make cli-docs-up-to-date
+
+  lint-config-docs:
+    name: Configuration Reference Docs
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_file_config == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check if configuration reference docs are up to date
+        run: make docs-check-config-coverage
+
