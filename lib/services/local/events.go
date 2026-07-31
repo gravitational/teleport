@@ -1330,7 +1330,7 @@ func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 			}
 			return &types.ServerV2{
 				Kind:    types.KindNode,
-				Version: types.V3,
+				Version: types.V2,
 				Metadata: types.Metadata{
 					Name: components[1],
 				},

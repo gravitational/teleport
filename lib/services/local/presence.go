@@ -354,12 +354,12 @@ func (s *PresenceService) AppendDeleteNodeActions(
 	name string,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
-	return s.AppendDeleteScopedNodeActions(actions, scopes.QualifiedName{Name: name}, condition)
+	return s.AppendDeleteSSHServerActions(actions, scopes.QualifiedName{Name: name}, condition)
 }
 
-// AppendDeleteScopedNodeActions adds conditional actions to an atomic write to
+// AppendDeleteSSHServerActions adds conditional actions to an atomic write to
 // delete a scoped or unscoped node resource.
-func (s *PresenceService) AppendDeleteScopedNodeActions(
+func (s *PresenceService) AppendDeleteSSHServerActions(
 	actions []backend.ConditionalAction,
 	scopedName scopes.QualifiedName,
 	condition backend.Condition,
