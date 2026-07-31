@@ -25,7 +25,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 )
+
+// ReserveFunc reserves tokens out of the application limits for the request
+// being built.
+type ReserveFunc func(context.Context, llmlimiter.ReserveRequest) (llmlimiter.ReserveInfo, llmlimiter.SettleFunc, error)
 
 // Config is config used to create a new provide request.
 type Config struct {
@@ -42,6 +47,8 @@ type Config struct {
 	// SignBedrockRequest signs the AWS Bedrock request.
 	// Required for the AWS Bedrock provider.
 	SignBedrockRequest func(ctx context.Context, app types.Application, request *http.Request, requestBody []byte) error
+	// Reserve is the function used to reserve tokens for the request.
+	Reserve ReserveFunc
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -60,6 +67,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.GetAPIKeyFunc == nil {
 		return trace.BadParameter("get api key function is required")
 	}
+	if c.Reserve == nil {
+		return trace.BadParameter("reserve function is required")
+	}
 	if c.App.GetLLM().Provider == types.LLMProviderAWSBedrock {
 		if c.SignBedrockRequest == nil {
 			return trace.BadParameter("sign aws bedrock request function is required for the bedrock provider")
@@ -67,6 +77,19 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// Request is the provider request built out of the downstream request. It is
+// partially filled when building it fails, so its fields must be checked before
+// being used.
+type Request struct {
+	// HTTPRequest is the request to be sent to the provider.
+	HTTPRequest *http.Request
+	// Info contains the request information.
+	Info RequestInfo
+	// SettleFunc settles the tokens reserved for the request. It is only
+	// present after the reservation is made.
+	SettleFunc llmlimiter.SettleFunc
 }
 
 // RequestInfo interface that contains the request information.

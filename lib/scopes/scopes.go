@@ -144,7 +144,7 @@ func StrongValidateSegment(segment string) error {
 		return trace.BadParameter("segment %q is too short (min characters %d)", segment, minSegmentSize)
 	}
 
-	if err := strongValidateFormat(segment, segmentRegexp); err != nil {
+	if err := strongValidateFormat("segment", segment, segmentRegexp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -155,29 +155,30 @@ func StrongValidateSegment(segment string) error {
 	return nil
 }
 
-// strongValidateFormat applies the strong formatting checks:
+// strongValidateFormat applies the strong formatting checks to value, describing it as noun
+// (e.g. "segment" or "name") in any error it returns:
 // - no uppercase characters
 // - the provided shape regexp
 // - weak checks as a defensive backstop
-func strongValidateFormat(segment string, shape *regexp.Regexp) error {
+func strongValidateFormat(noun, value string, shape *regexp.Regexp) error {
 	// check for uppercase characters separately. this would be caught by the regex, but its better
 	// UX to call out uppercase characters specifically since its a common mistake.
-	for _, r := range segment {
+	for _, r := range value {
 		if unicode.IsUpper(r) {
-			return trace.BadParameter("segment %q contains uppercase character(s)", segment)
+			return trace.BadParameter("%s %q contains uppercase character(s)", noun, value)
 		}
 	}
 
-	if !shape.MatchString(segment) {
-		return trace.BadParameter("segment %q is malformed", segment)
+	if !shape.MatchString(value) {
+		return trace.BadParameter("%s %q is malformed", noun, value)
 	}
 
 	// as an extra precaution, also run all weak checks just to be certain we didn't accidentally
 	// construct a weak check that rejects something that would otherwise pass a strong check. strong
 	// validation is not used in perf-critical paths, so there isn't any real downside to a little
 	// defensiveness here.
-	if err := WeakValidateSegment(segment); err != nil {
-		return trace.BadParameter("segment would not pass weak validation: %v", err)
+	if err := WeakValidateSegment(value); err != nil {
+		return trace.BadParameter("%s would not pass weak validation: %v", noun, err)
 	}
 
 	return nil
@@ -203,6 +204,10 @@ func WeakValidateSegment(segment string) error {
 	return nil
 }
 
+// nameRegexp is the regular expression used to validate scoped resource names. It enforces
+// the same character rules as segmentRegexp, but allows for single character names.
+var nameRegexp = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\_\.]*[a-z0-9])?$`)
+
 // StrongValidateResourceName checks if a scoped resource name is valid according to all resource name
 // formatting rules. Scoped resource names follow the same character restrictions as scope segments, but
 // are not subject to the maximum segment length limit. This function *must* be called on all scoped
@@ -214,19 +219,7 @@ func StrongValidateResourceName(name string) error {
 		return trace.BadParameter("name is empty")
 	}
 
-	// check for uppercase characters separately. this would be caught by the regex, but its better
-	// UX to call out uppercase characters specifically since its a common mistake.
-	for _, r := range name {
-		if unicode.IsUpper(r) {
-			return trace.BadParameter("name %q contains uppercase character(s)", name)
-		}
-	}
-
-	if !nameRegexp.MatchString(name) {
-		return trace.BadParameter("name %q is malformed", name)
-	}
-
-	return nil
+	return trace.Wrap(strongValidateFormat("name", name, nameRegexp))
 }
 
 // isNonSpacePrintableASCII checks if a byte is a non-space printable ASCII character (i.e. a byte in the range

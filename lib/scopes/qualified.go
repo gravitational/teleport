@@ -19,7 +19,6 @@
 package scopes
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -84,7 +83,7 @@ func (q QualifiedName) StrongValidate() error {
 		return trace.BadParameter("scope-qualified name %q has invalid scope: %v", q, err)
 	}
 
-	if err := strongValidateName(q.Name); err != nil {
+	if err := StrongValidateResourceName(q.Name); err != nil {
 		return trace.BadParameter("scope-qualified name %q has invalid name: %v", q, err)
 	}
 
@@ -113,18 +112,12 @@ func (q QualifiedName) WeakValidate() error {
 	return nil
 }
 
-// nameRegexp is the regular expression used to validate scoped resource names. It enforces
-// the same character rules as segmentRegexp, but allows for single character names.
-var nameRegexp = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\_\.]*[a-z0-9])?$`)
-
-// strongValidateName checks if a scoped resource name is valid according to scope character
-// formatting rules. Unlike scope segments, names carry no length constraints.
-func strongValidateName(name string) error {
-	if name == "" {
-		return trace.BadParameter("name is empty")
-	}
-
-	return trace.Wrap(strongValidateFormat(name, nameRegexp))
+// MaybeSQN returns true if the given string *might* be a scope-qualified name. This function is intended to be used
+// for testing fields that may contain a mix of scope-qualified and unscoped names. Generally, any string that trips
+// this check should be considered to have been intended to be an SQN by the user, and treated as a typo if it fails
+// to parse as one.
+func MaybeSQN(s string) bool {
+	return strings.HasPrefix(s, separator) || strings.Contains(s, QualifiedNameSeparator)
 }
 
 // ParseQualifiedName parses a scope-qualified name string into its scope and name
@@ -133,13 +126,10 @@ func strongValidateName(name string) error {
 // the format of the scope or name components; use [QualifiedName.StrongValidate] or
 // [QualifiedName.WeakValidate] for validation.
 func ParseQualifiedName(sqn string) (QualifiedName, error) {
-	idx := strings.Index(sqn, QualifiedNameSeparator)
-	if idx < 0 {
+	scope, name, ok := strings.Cut(sqn, QualifiedNameSeparator)
+	if !ok {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q missing %q separator", sqn, QualifiedNameSeparator)
 	}
-
-	scope := sqn[:idx]
-	name := sqn[idx+len(QualifiedNameSeparator):]
 
 	if scope == "" {
 		return QualifiedName{}, trace.BadParameter("scope-qualified name %q has empty scope component", sqn)

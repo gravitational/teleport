@@ -4,6 +4,8 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Teleport Verify uses the built-in QR code scanner to receive enrollment data from the Teleport Web UI</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Teleport Verify uses Face ID to confirm your presence when proving this device's identity</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

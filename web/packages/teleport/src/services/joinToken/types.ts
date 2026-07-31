@@ -29,6 +29,8 @@ export type JoinToken = {
   isStatic: boolean;
   // the token is managed by the Teleport Cloud system and should not be edited by end users
   isCloudSystem?: boolean;
+  // the token is a Teleport-internal system resource (e.g. a beam join token)
+  isSystemResource?: boolean;
   // the join method of the token
   method: string;
   // Roles are the roles granted to the token

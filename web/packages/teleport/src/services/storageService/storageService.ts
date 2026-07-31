@@ -383,4 +383,18 @@ export const storageService = {
   getUseLoginScopePicker(): boolean {
     return this.getParsedJSONValue(KeysEnum.USE_LOGIN_SCOPE_PICKER, false);
   },
+
+  // Returns true if the user has already picked a scope for this session or
+  // explicitly made the session unscoped. This allows us to tell the
+  // difference between a session that is "implicitly unscoped" (where the user
+  // has not yet interacted with the scope picker) and an "explicitly unscoped"
+  // one (where the user already made their choice). In both cases, the scope
+  // is an empty string, hence this additional flag.
+  getScopeSelected(): boolean {
+    return this.getParsedJSONValue(KeysEnum.SCOPE_SELECTED, false);
+  },
+
+  setScopeSelected(s: boolean) {
+    window.localStorage.setItem(KeysEnum.SCOPE_SELECTED, JSON.stringify(s));
+  },
 };

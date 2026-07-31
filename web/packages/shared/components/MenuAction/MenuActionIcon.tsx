@@ -75,6 +75,8 @@ export default class MenuActionIcon extends React.Component<
           anchorEl={this.anchorEl}
           open={open}
           onClose={this.onClose}
+          autoFocus
+          trapFocus
           anchorOrigin={{
             vertical: 'bottom',
             horizontal: 'center',

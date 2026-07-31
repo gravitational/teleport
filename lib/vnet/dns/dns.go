@@ -408,7 +408,7 @@ func buildAAAAResponse(buf []byte, requestHeader *dnsmessage.Header, question *d
 	return buf, trace.Wrap(err, "serializing DNS response")
 }
 
-func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, rcode dnsmessage.RCode) (*dnsmessage.Builder, error) {
+func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, rcode dnsmessage.RCode) (dnsmessage.Builder, error) {
 	buf = buf[:0]
 	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
 		ID:            requestHeader.ID,
@@ -416,12 +416,11 @@ func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dns
 		Authoritative: true,
 		RCode:         dnsmessage.RCodeSuccess,
 	})
-	responseBuilder.EnableCompression()
 	if err := responseBuilder.StartQuestions(); err != nil {
-		return nil, trace.Wrap(err, "starting questions section of DNS response")
+		return dnsmessage.Builder{}, trace.Wrap(err, "starting questions section of DNS response")
 	}
 	if err := responseBuilder.Question(*question); err != nil {
-		return nil, trace.Wrap(err, "adding question to DNS response")
+		return dnsmessage.Builder{}, trace.Wrap(err, "adding question to DNS response")
 	}
-	return &responseBuilder, nil
+	return responseBuilder, nil
 }
