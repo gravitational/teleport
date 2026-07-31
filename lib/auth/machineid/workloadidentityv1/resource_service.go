@@ -194,11 +194,10 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
-	// list method scope filters must use identity-based defaults per RFD 0229i
-	scopeFilter := authCtx.CheckerContext.ResolveScopeFilter(req.GetScopeFilter())
-	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+	if err := scopes.ValidateFilter(req.GetScopeFilter()); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	scopeFilter := authCtx.CheckerContext.ResolveScopeFilter(req.GetScopeFilter())
 
 	sortField := services.WorkloadIdentitySortField(req.GetSortField())
 	keyFn, err := services.WorkloadIdentityKey(sortField)

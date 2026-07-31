@@ -3023,7 +3023,7 @@ func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
 	listNames := func(t *testing.T, clt *authclient.Client, scopeFilter *scopesv1.Filter) []string {
 		t.Helper()
 		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(clt.GetConnection())
-		res, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+		res, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
 			PageSize:    100,
 			ScopeFilter: scopeFilter,
 		}.Build())
@@ -3082,16 +3082,23 @@ func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
 
 	t.Run("malformed filter is rejected", func(t *testing.T) {
 		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
-		_, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+		_, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
 			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
 		}.Build())
 		require.ErrorContains(t, err, "requires a non-empty scope")
+
+		// A scope without a mode must fail as malformed, not be resolved to the
+		// identity default (which would silently discard the scope).
+		_, err = client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			ScopeFilter: scopesv1.Filter_builder{Scope: grantedScope}.Build(),
+		}.Build())
+		require.ErrorContains(t, err, "without a mode")
 	})
 
 	t.Run("V1 lists every scope", func(t *testing.T) {
 		// V1 cannot express a filter, so the shim pins it to mode ALL.
 		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
-		res, err := client.ListWorkloadIdentities(ctx, workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
+		res, err := client.ListWorkloadIdentities(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
 			PageSize: 100,
 		}.Build())
 		require.NoError(t, err)

@@ -200,7 +200,7 @@ func TestWorkloadIdentityCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			seeded, err := collection.fetcher(ctx, false)
+			seeded, err := collection.fetcher(t.Context(), false)
 			require.NoError(t, err)
 
 			var names []string
