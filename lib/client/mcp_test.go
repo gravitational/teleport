@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"net"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,6 +68,10 @@ type mockMCPServerDialerClient struct {
 	tlsCA      *tlsca.CertAuthority
 	clock      *clockwork.FakeClock
 	identity   tlsca.Identity
+
+	issueCertCalls    atomic.Int32
+	issueCertStarted  chan struct{}
+	continueIssueCert <-chan struct{}
 }
 
 func (m *mockMCPServerDialerClient) DialALPN(_ context.Context, cert tls.Certificate, protocol alpncommon.Protocol) (net.Conn, error) {
@@ -89,6 +94,13 @@ func (m *mockMCPServerDialerClient) ListApps(_ context.Context, req *proto.ListR
 }
 
 func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, params ReissueParams) (*KeyRing, error) {
+	m.issueCertCalls.Add(1)
+	if m.issueCertStarted != nil {
+		m.issueCertStarted <- struct{}{}
+	}
+	if m.continueIssueCert != nil {
+		<-m.continueIssueCert
+	}
 	if params.RouteToApp.Name == "" {
 		return nil, trace.BadParameter("missing app name")
 	}
@@ -123,6 +135,49 @@ func (m *mockMCPServerDialerClient) IssueUserCertsWithMFA(_ context.Context, par
 			},
 		},
 	}, nil
+}
+
+func TestMCPServerDialerSerializesCachedAppAndCertificate(t *testing.T) {
+	tlsCA, _, err := newSelfSignedCA(CAPriv, "localhost")
+	require.NoError(t, err)
+
+	issueCertStarted := make(chan struct{}, 2)
+	continueIssueCert := make(chan struct{})
+	mockClient := &mockMCPServerDialerClient{
+		appServers:        types.AppServers{mustMakeAppServer(t, "http-mcp", "mcp+http://localhost:1234")},
+		clock:             clockwork.NewFakeClock(),
+		tlsCA:             tlsCA,
+		identity:          tlsca.Identity{Username: "test"},
+		issueCertStarted:  issueCertStarted,
+		continueIssueCert: continueIssueCert,
+	}
+	dialer := NewMCPServerDialer(mockClient, "http-mcp")
+	dialer.clock = mockClient.clock
+
+	errC := make(chan error, 2)
+	go func() {
+		_, err := dialer.DialALPN(t.Context())
+		errC <- err
+	}()
+	<-issueCertStarted
+
+	// DialALPN must hold the cache mutex while it populates the cached app and
+	// certificate. Otherwise Streamable HTTP's concurrent connections can race
+	// certificate issuance and intermittently stall connection setup.
+	if dialer.mu.TryLock() {
+		dialer.mu.Unlock()
+		t.Fatal("DialALPN did not lock the app and certificate cache")
+	}
+
+	go func() {
+		_, err := dialer.DialALPN(t.Context())
+		errC <- err
+	}()
+	close(continueIssueCert)
+
+	require.NoError(t, <-errC)
+	require.NoError(t, <-errC)
+	require.Equal(t, int32(1), mockClient.issueCertCalls.Load())
 }
 
 func (m *mockMCPServerDialerClient) ProfileStatus() (*ProfileStatus, error) {
