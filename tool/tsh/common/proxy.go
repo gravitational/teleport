@@ -673,7 +673,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	// behavior is kept. Only HTTP-transport MCP apps reach this point, see
 	// checkProxyMCPCompatibility.
 	if app.IsMCP() {
-		mcpOAuthMiddleware, err := newMCPOAuthProxyMiddleware(tc, cf.HomePath, cf.AppSQN.Name)
+		mcpOAuthMiddleware, err := newMCPOAuthProxyMiddleware(cf.Context, tc, cf.HomePath, cf.AppSQN.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}

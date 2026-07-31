@@ -20,13 +20,137 @@ package common
 
 import (
 	"bytes"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils/prompt"
 )
+
+type mcpOAuthRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f mcpOAuthRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestMCPOAuthDiscoveryBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		appURI  string
+		want    string
+		wantErr string
+	}{
+		{
+			name:   "root endpoint",
+			appURI: "mcp+https://mcp.example.com",
+			want:   "http://localhost",
+		},
+		{
+			name:   "standard MCP path",
+			appURI: "mcp+https://mcp.example.com/mcp",
+			want:   "http://localhost/mcp",
+		},
+		{
+			name:   "nested provider path",
+			appURI: "mcp+https://mcp.example.com/v2/mcp?tenant=ignored#fragment",
+			want:   "http://localhost/v2/mcp",
+		},
+		{
+			name:   "escaped path",
+			appURI: "mcp+https://mcp.example.com/tenant%2Fone/mcp",
+			want:   "http://localhost/tenant%2Fone/mcp",
+		},
+		{
+			name:    "non MCP scheme",
+			appURI:  "https://mcp.example.com/mcp",
+			wantErr: "does not use HTTP transport",
+		},
+		{
+			name:    "missing host",
+			appURI:  "mcp+https:///mcp",
+			wantErr: "missing a host",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := mcpOAuthDiscoveryBaseURL(test.appURI)
+			if test.wantErr != "" {
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
+	t.Parallel()
+
+	const (
+		appURI         = "mcp+https://mcp.example.com/v2/mcp"
+		publicResource = "https://mcp.example.com/v2/mcp"
+	)
+
+	var requests []string
+	httpClient := &http.Client{Transport: mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		requests = append(requests, req.URL.String())
+		var body string
+		switch {
+		case req.URL.Host == "localhost" && req.URL.Path == "/.well-known/oauth-protected-resource/v2/mcp":
+			body = `{"resource":"` + publicResource + `","authorization_servers":["https://auth.example.com"]}`
+		case req.URL.Host == "auth.example.com" && req.URL.Path == "/.well-known/oauth-authorization-server":
+			body = `{"issuer":"https://auth.example.com","authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
+		default:
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("not found")),
+				Request:    req,
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+
+	baseURL, err := mcpOAuthDiscoveryBaseURL(appURI)
+	require.NoError(t, err)
+	handler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
+		ClientID:    "pre-registered-client",
+		RedirectURI: "http://localhost:12345/callback",
+		PKCEEnabled: true,
+		HTTPClient:  httpClient,
+	})
+	handler.SetBaseURL(baseURL)
+
+	authorizationURL, err := handler.GetAuthorizationURL(t.Context(), "state", "challenge")
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"http://localhost/.well-known/oauth-protected-resource/v2/mcp",
+		"https://auth.example.com/.well-known/oauth-authorization-server",
+	}, requests)
+
+	parsedAuthorizationURL, err := url.Parse(authorizationURL)
+	require.NoError(t, err)
+	require.Equal(t, "https://auth.example.com/authorize", parsedAuthorizationURL.Scheme+"://"+parsedAuthorizationURL.Host+parsedAuthorizationURL.Path)
+	require.Equal(t, publicResource, parsedAuthorizationURL.Query().Get("resource"))
+	require.NotContains(t, parsedAuthorizationURL.Query().Get("resource"), "localhost")
+}
 
 func TestMCPLoginOAuthClientCredentials(t *testing.T) {
 	newCommand := func() *mcpLoginCommand {

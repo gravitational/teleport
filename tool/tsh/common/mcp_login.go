@@ -112,7 +112,11 @@ func (c *mcpLoginCommand) run() error {
 		HTTPClient:   httpClient,
 		TokenStore:   tokenStore,
 	})
-	oauthHandler.SetBaseURL("http://localhost")
+	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(app.GetURI())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	oauthHandler.SetBaseURL(oauthBaseURL)
 
 	if clientID == "" {
 		fmt.Fprintf(c.cf.Stdout(), "Registering OAuth client for MCP server %q...\n", c.cf.AppSQN.Name)
@@ -204,6 +208,31 @@ func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
 		return "", "", trace.BadParameter("OAuth client secret is empty")
 	}
 	return clientID, clientSecret, nil
+}
+
+// mcpOAuthDiscoveryBaseURL returns the local URL used for OAuth metadata
+// discovery through the Teleport tunnel. The hostname is deliberately local
+// so hostRoutingTransport sends the request through Teleport, while the full
+// path from the enrolled MCP application URI is preserved for RFC 9728
+// path-aware protected-resource discovery.
+func mcpOAuthDiscoveryBaseURL(appURI string) (string, error) {
+	uri, err := url.Parse(appURI)
+	if err != nil {
+		return "", trace.Wrap(err, "parsing MCP application URI")
+	}
+	if uri.Scheme != types.SchemeMCPHTTP && uri.Scheme != types.SchemeMCPHTTPS {
+		return "", trace.BadParameter("MCP application URI %q does not use HTTP transport", appURI)
+	}
+	if uri.Host == "" {
+		return "", trace.BadParameter("MCP application URI %q is missing a host", appURI)
+	}
+
+	return (&url.URL{
+		Scheme:  "http",
+		Host:    "localhost",
+		Path:    uri.Path,
+		RawPath: uri.RawPath,
+	}).String(), nil
 }
 
 // newMCPOAuthHTTPClient returns the HTTP client for talking OAuth. The

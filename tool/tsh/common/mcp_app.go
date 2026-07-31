@@ -496,12 +496,18 @@ func (c *mcpConnectCommand) run() error {
 	// Authorization header is produced per request so that expired access
 	// tokens get silently refreshed. An explicit -H "Authorization: ..."
 	// always wins.
-	var getAuthHeader func(context.Context) (string, error)
+	var oauthSource *mcpOAuthHeaderSource
 	if _, ok := httpHeaders["Authorization"]; !ok {
-		getAuthHeader, err = newMCPOAuthGetAuthHeader(dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
+		oauthSource, err = newMCPOAuthHeaderSource(c.cf.Context, dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	var getAuthHeader func(context.Context) (string, error)
+	var refreshAuthHeader func(context.Context, string) (string, error)
+	if oauthSource != nil {
+		getAuthHeader = oauthSource.GetAuthHeader
+		refreshAuthHeader = oauthSource.RefreshAuthHeader
 	}
 
 	return clientmcp.ProxyStdioConn(
@@ -513,9 +519,10 @@ func (c *mcpConnectCommand) run() error {
 			MakeReconnectUserMessage: func(err error) string {
 				return makeMCPReconnectUserMessageForApp(c.cf.AppSQN.Name, err)
 			},
-			AutoReconnect:     c.autoReconnect,
-			HTTPHeaders:       httpHeaders,
-			GetHTTPAuthHeader: getAuthHeader,
+			AutoReconnect:         c.autoReconnect,
+			HTTPHeaders:           httpHeaders,
+			GetHTTPAuthHeader:     getAuthHeader,
+			RefreshHTTPAuthHeader: refreshAuthHeader,
 		},
 	)
 }

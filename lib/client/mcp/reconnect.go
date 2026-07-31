@@ -57,6 +57,10 @@ type ProxyStdioConnConfig struct {
 	// remote MCP server and its result is sent as the Authorization header.
 	// Used for OAuth access tokens that may get refreshed between requests.
 	GetHTTPAuthHeader func(context.Context) (string, error)
+	// RefreshHTTPAuthHeader, if set, is called when the remote MCP server
+	// explicitly rejects the current Bearer token as invalid. It receives the
+	// rejected Authorization header and returns a replacement for one retry.
+	RefreshHTTPAuthHeader func(context.Context, string) (string, error)
 
 	// Logger is the slog logger.
 	Logger *slog.Logger
@@ -75,6 +79,9 @@ func (cfg *ProxyStdioConnConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.DialServer == nil {
 		return trace.BadParameter("missing DialServer")
+	}
+	if cfg.RefreshHTTPAuthHeader != nil && cfg.GetHTTPAuthHeader == nil {
+		return trace.BadParameter("RefreshHTTPAuthHeader requires GetHTTPAuthHeader")
 	}
 	if cfg.MakeReconnectUserMessage == nil {
 		cfg.MakeReconnectUserMessage = func(err error) string {
@@ -226,8 +233,14 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 		}
 		var roundTripper http.RoundTripper = transport
 		if r.GetHTTPAuthHeader != nil {
+			if r.RefreshHTTPAuthHeader != nil {
+				roundTripper = &oauthRetryRoundTripper{
+					base:              roundTripper,
+					refreshAuthHeader: r.RefreshHTTPAuthHeader,
+				}
+			}
 			roundTripper = &authHeaderRoundTripper{
-				base:      transport,
+				base:      roundTripper,
 				getHeader: r.GetHTTPAuthHeader,
 			}
 		}

@@ -50,6 +50,13 @@ type LocalProxyHTTPMiddleware interface {
 	ClearCerts()
 }
 
+// LocalProxyHTTPTransportMiddleware is an optional extension for HTTP
+// middleware that needs to observe an upstream response and possibly retry the
+// request. The returned transport must delegate to base for network access.
+type LocalProxyHTTPTransportMiddleware interface {
+	WrapRoundTripper(base http.RoundTripper) http.RoundTripper
+}
+
 // DefaultLocalProxyHTTPMiddleware provides default no-op implementations for
 // [LocalProxyHTTPMiddleware].
 type DefaultLocalProxyHTTPMiddleware struct {
