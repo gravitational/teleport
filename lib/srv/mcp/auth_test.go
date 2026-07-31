@@ -19,9 +19,11 @@
 package mcp
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -231,4 +233,35 @@ func TestServer_getSessionHandlerWithJWT_perUserCache(t *testing.T) {
 	require.NotEqual(t, aliceSessionCtx.Identity.Username, bobSessionCtx.Identity.Username)
 	require.Equal(t, aliceSessionCtx, aliceSessionHandler.sessionCtx)
 	require.Equal(t, bobSessionCtx, bobSessionHandler.sessionCtx)
+}
+
+func TestServer_getSessionHandlerWithJWT_setupTimeoutReloadsCache(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "test-http"}, types.AppSpecV3{
+		URI: "mcp+https://example.com/mcp",
+	})
+	require.NoError(t, err)
+	testCtx := setupTestContext(t, withAdminRole(t), withApp(app))
+	authClient := &blockingAuthClient{}
+	srv, err := NewServer(ServerConfig{
+		Emitter:                    &libevents.DiscardEmitter{},
+		ParentContext:              t.Context(),
+		HostID:                     "host-id",
+		AccessPoint:                fakeAccessPoint{},
+		CipherSuites:               utils.DefaultCipherSuites(),
+		AuthClient:                 authClient,
+		sessionHandlerSetupTimeout: 10 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	_, err = srv.getSessionHandlerWithJWT(t.Context(), testCtx.SessionCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.True(t, trace.IsConnectionProblem(err))
+	_, err = srv.getSessionHandlerWithJWT(t.Context(), testCtx.SessionCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// ReloadOnErr must start a fresh setup after the first timed-out loader
+	// instead of leaving this user's session blocked on a poisoned cache entry.
+	require.Equal(t, int32(2), authClient.calls.Load())
 }
