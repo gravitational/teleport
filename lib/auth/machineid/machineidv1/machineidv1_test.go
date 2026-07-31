@@ -3638,6 +3638,24 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
 	})
 
+	t.Run("scope filter with a scope but no mode is rejected", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+		require.NoError(t, err)
+
+		// Rejected as malformed rather than resolved to the identity default,
+		// which would silently discard the scope.
+		for _, botName := range []string{"", grantedInstances[0].GetSpec().GetBotName()} {
+			_, err = client.BotInstanceServiceClient().ListBotInstancesV2(t.Context(), machineidv1pb.ListBotInstancesV2Request_builder{
+				PageSize: 100,
+				Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
+					BotName:     botName,
+					ScopeFilter: scopesv1.Filter_builder{Scope: "/scopes/granted"}.Build(),
+				}.Build(),
+			}.Build())
+			require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
+		}
+	})
+
 	t.Run("bot scope with bot name returns that bot's instances", func(t *testing.T) {
 		client, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
 		require.NoError(t, err)

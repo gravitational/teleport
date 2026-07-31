@@ -758,8 +758,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		botScope, botName = qn.Scope, qn.Name
 	}
 
-	// Exhaustive view: mode ALL, not the identity default (never alongside a
-	// bot filter, which the server rejects).
+	// Exhaustive view, per the scope_filter field docs.
 	var scopeFilter *scopesv1.Filter
 	if botName == "" {
 		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()

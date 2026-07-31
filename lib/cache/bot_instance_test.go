@@ -161,7 +161,7 @@ func TestBotInstanceCollectionSeedHonorsWatchScopeFilter(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			seeded, err := collection.fetcher(ctx, false)
+			seeded, err := collection.fetcher(t.Context(), false)
 			require.NoError(t, err)
 
 			gotScopes := make([]string, 0, len(seeded))
@@ -584,7 +584,6 @@ func TestBotInstanceCacheList(t *testing.T) {
 	}
 }
 
-// TestBotInstanceCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
 // TestBotInstanceCacheFallback compares reads served by the unhealthy-cache
 // fallback against the healthy cache: both apply the collection's scope filter
 // to lists and gets, while sort support legitimately differs (the upstream

@@ -718,5 +718,3 @@ func TestBotInstanceScopedCoexistence(t *testing.T) {
 	remaining := listInstances(t, ctx, service, nil)
 	require.Empty(t, remaining)
 }
-
-

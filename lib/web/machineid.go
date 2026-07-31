@@ -471,8 +471,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 
 	botName := r.URL.Query().Get("bot_name")
 
-	// Exhaustive view: mode ALL, not the identity default (never alongside a
-	// bot filter, which the server rejects).
+	// Exhaustive view, per the scope_filter field docs.
 	var scopeFilter *scopesv1.Filter
 	if botName == "" {
 		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
