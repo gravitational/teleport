@@ -244,12 +244,14 @@ recommend the following minimum rules:
   name or ID. These are always required, and are cheap insurance to protect
   against an `allow_any` rule that might accidentally let unintended clients in.
   At worst, these can limit the blast radius to within your organization.
+
 - Define one or more `allow_any` rules to allow individual repositories,
   workloads, or other units that should be granted access, using either
   `expression` or `conditions`.
 
   - The `conditions` rule allows you to specify a list of simple conditions
     (`eq`, `not_eq`, `in`, `not_in`) that claim attributes must match.
+
   - The `expression` rule type uses Teleport's [predicate
     language](../../reference/access-controls/predicate-language.mdx) to
     evaluate claims based on complex logic.
