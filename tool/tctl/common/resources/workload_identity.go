@@ -201,7 +201,13 @@ func createWorkloadIdentity(
 		}
 	}
 
-	fmt.Printf("Workload Identity %q has been created\n", in.GetMetadata().GetName())
+	fmt.Printf(
+		"Workload Identity %q has been created\n",
+		scopes.QualifiedName{
+			Name:  in.GetMetadata().GetName(),
+			Scope: in.GetScope(),
+		}.String(),
+	)
 
 	return nil
 }
