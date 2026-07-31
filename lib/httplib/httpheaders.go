@@ -50,6 +50,16 @@ var (
 	defaultFontSrc     = CSPMap{"font-src": {"'self'", "data:"}}
 	defaultConnectSrc  = CSPMap{"connect-src": {"'self'", "wss:"}}
 	wasmSecurityPolicy = CSPMap{"script-src": {"'self'", "'wasm-unsafe-eval'"}}
+
+	// stripeSecurityPolicy grants the origins Stripe.js and the Payment Element
+	// need to load and communicate with Stripe. Applied only to stripe-managed
+	// tenants — see getIndexContentSecurityPolicyString.
+	// https://docs.stripe.com/security/guide#content-security-policy
+	stripeSecurityPolicy = CSPMap{
+		"script-src":  {"https://js.stripe.com", "https://*.js.stripe.com"},
+		"frame-src":   {"https://js.stripe.com", "https://*.js.stripe.com", "https://hooks.stripe.com"},
+		"connect-src": {"https://api.stripe.com"},
+	}
 )
 
 // combineCSPMaps combines multiple CSP maps into a single map.
@@ -137,11 +147,22 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
-	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
+type cspOption int
 
-	if withWasm {
-		cspMaps = append(cspMaps, wasmSecurityPolicy)
+const (
+	withWASM cspOption = iota
+	withStripe
+)
+
+func getIndexContentSecurityPolicy(options ...cspOption) CSPMap {
+	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
+	for _, option := range options {
+		switch option {
+		case withWASM:
+			cspMaps = append(cspMaps, wasmSecurityPolicy)
+		case withStripe:
+			cspMaps = append(cspMaps, stripeSecurityPolicy)
+		}
 	}
 
 	return combineCSPMaps(cspMaps...)
@@ -172,23 +193,34 @@ const (
 )
 
 var (
-	indexCSPWithWASM    = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(true))
-	indexCSPWithoutWASM = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(false))
+	indexCSPWithWASM          = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(withWASM))
+	indexCSPWithoutWASM       = GetContentSecurityPolicyString(getIndexContentSecurityPolicy())
+	indexCSPStripeWithWASM    = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(withStripe, withWASM))
+	indexCSPStripeWithoutWASM = GetContentSecurityPolicyString(getIndexContentSecurityPolicy(withStripe))
 )
 
-func getIndexContentSecurityPolicyString(urlPath string) string {
-	if wasm := desktopSessionRe.MatchString(urlPath) ||
+func getIndexContentSecurityPolicyString(withStripe bool, urlPath string) string {
+	wasm := desktopSessionRe.MatchString(urlPath) ||
 		linuxDesktopSessionRe.MatchString(urlPath) ||
 		recordingRe.MatchString(urlPath) ||
-		sshSessionRe.MatchString(urlPath); wasm {
+		sshSessionRe.MatchString(urlPath)
+	switch {
+	case wasm && withStripe:
+		return indexCSPStripeWithWASM
+	case wasm:
 		return indexCSPWithWASM
+	case withStripe:
+		return indexCSPStripeWithoutWASM
+	default:
+		return indexCSPWithoutWASM
 	}
-	return indexCSPWithoutWASM
 }
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page.
-func SetIndexContentSecurityPolicy(h http.Header, urlPath string) {
-	h.Set(cspHeaderName, getIndexContentSecurityPolicyString(urlPath))
+// withStripe should be true for stripe-managed tenants so that Stripe.js and the Payment Element
+// can load in the cloud panel.
+func SetIndexContentSecurityPolicy(h http.Header, withStripe bool, urlPath string) {
+	h.Set(cspHeaderName, getIndexContentSecurityPolicyString(withStripe, urlPath))
 }
 
 // SetRedirectPageContentSecurityPolicy sets the Content-Security-Policy header

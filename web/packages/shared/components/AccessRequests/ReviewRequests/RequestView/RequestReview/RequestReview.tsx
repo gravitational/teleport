@@ -26,6 +26,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
 import { Option } from 'shared/components/Select';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -33,6 +34,7 @@ import {
   AccessRequest,
   RequestKind,
   RequestState,
+  UserDisplay,
 } from 'shared/services/accessRequests';
 
 import { AccessDurationReview } from '../../../AccessDuration';
@@ -50,6 +52,7 @@ export interface RequestReviewProps {
   fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
   shortTermDuration: string;
   user: string;
+  userDisplay?: UserDisplay;
   submitReviewAttempt: Attempt<AccessRequest>;
   request: AccessRequest;
 }
@@ -58,6 +61,7 @@ export default function RequestReview({
   submitReviewAttempt,
   submitReview,
   user,
+  userDisplay,
   fetchSuggestedAccessListsAttempt,
   shortTermDuration,
   request,
@@ -125,7 +129,15 @@ export default function RequestReview({
           style={{ position: 'relative' }}
         >
           <Box bg="levels.sunken" py={1} px={3}>
-            <H3 mr={3}>{user} - add a review</H3>
+            <H3 mr={3}>
+              <UserDisplayName
+                username={user}
+                primaryText={userDisplay?.primary}
+                primaryTextProps={{ fontWeight: 'bold' }}
+                layout="inline"
+              />
+              {' - add a review'}
+            </H3>
           </Box>
           <Box p={3} bg="levels.elevated">
             {submitReviewAttempt.status === 'error' && (
