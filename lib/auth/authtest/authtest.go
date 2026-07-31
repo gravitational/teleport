@@ -671,7 +671,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		PrimaryCache:       c,
 		Events:             p.AuthServer.Services,
 		Inventory:          p.AuthServer.Services,
-		BotInstanceBackend: p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services.BotInstance,
 	})
 	if err != nil {
 		return trace.Wrap(err)
