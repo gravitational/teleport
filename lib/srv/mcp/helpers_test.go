@@ -380,6 +380,17 @@ type mockAuthClient struct {
 	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
 }
 
+type blockingAuthClient struct {
+	mockAuthClient
+	calls atomic.Int32
+}
+
+func (c *blockingAuthClient) GenerateAppToken(ctx context.Context, _ types.GenerateAppTokenRequest) (string, error) {
+	c.calls.Add(1)
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
 // WorkloadIdentityIssuanceClient implements [AuthClient].
 func (m *mockAuthClient) WorkloadIdentityIssuanceClient() workloadidentityv1.WorkloadIdentityIssuanceServiceClient {
 	return m.workloadIdentityClt
