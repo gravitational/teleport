@@ -146,10 +146,12 @@ type ReissueParams struct {
 	// mimics LocalKeystore and remove this.
 	ExistingCreds *KeyRing
 
-	// MFACheck is optional parameter passed if MFA check was already done.
-	// It can be nil.
+	// MFACheck is RouteToCluster's answer to the MFA requirement check for this
+	// request's target resource, when the caller already has it.
 	MFACheck *proto.IsMFARequiredResponse
-	// AuthClient is the client used for the MFACheck that can be reused
+	// AuthClient runs the MFA requirement check if given and MFACheck is nil.
+	// It must be a client of RouteToCluster's auth server, since only that cluster can answer the check.
+	// It never issues the certs, which always come from the root cluster.
 	AuthClient authclient.ClientI
 	// RequesterName identifies who is sending the cert reissue request.
 	RequesterName proto.UserCertsRequest_Requester
