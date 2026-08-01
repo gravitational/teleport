@@ -122,7 +122,7 @@ type collections struct {
 	oktaAssignments                    *collection[types.OktaAssignment, oktaAssignmentIndex]
 	samlIdPServiceProviders            *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
 	webSessions                        *collection[types.WebSession, webSessionIndex]
-	appSessions                        *collection[types.WebSession, appSessionIndex]
+	appSessions                        *typedCollection[types.WebSession, appSessionIndexes]
 	snowflakeSessions                  *collection[types.WebSession, snowflakeSessionIndex]
 	accessLists                        *collection[*accesslist.AccessList, accessListIndex]
 	accessListMembers                  *collection[*accesslist.AccessListMember, accessListMemberIndex]

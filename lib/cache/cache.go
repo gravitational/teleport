@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	sortcache "github.com/gravitational/teleport/lib/utils/sortcache/v2"
 )
 
 var (
@@ -678,39 +679,45 @@ func (c *Cache) setReadOK(ok bool) {
 // locks, and holding one does not block cache writes or resets. Reads that
 // proceed against the cache operate on immutable store snapshots, so they
 // remain consistent even if a reset replaces store contents mid-read.
-func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
+func acquireReadGuard[T any, S collectionStore[T]](cache *Cache, c *storeCollection[T, S]) (readGuard[T, S], error) {
 	if cache.closed.Load() {
-		return readGuard[T, I]{}, trace.Errorf("cache is closed")
+		return readGuard[T, S]{}, trace.Errorf("cache is closed")
 	}
 
 	kind := resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}
 	if cache.readStatus.Load().kindConfirmed(kind) {
-		return readGuard[T, I]{
+		return readGuard[T, S]{
 			cacheRead: true,
 			store:     c.store,
+			snapshot:  c.store.snapshot(),
 		}, nil
 	}
 
-	return readGuard[T, I]{
+	return readGuard[T, S]{
 		cacheRead: false,
 	}, nil
 }
 
 // readGuard indicates whether a read should be served from the cache or from
 // the upstream backend, and carries the collection store for the cache case.
-type readGuard[T any, I comparable] struct {
+type readGuard[T any, S any] struct {
 	cacheRead bool
-	store     *store[T, I]
+	store     S
+	// snapshot is the immutable view of the store captured when the guard
+	// was acquired. All reads performed under one guard should use it so
+	// that a single request observes a single consistent generation. Only
+	// set when cacheRead is true.
+	snapshot *sortcache.Snapshot[T]
 }
 
 // ReadCache checks if this readGuard holds a cache reference.
-func (r *readGuard[T, I]) ReadCache() bool {
+func (r *readGuard[T, S]) ReadCache() bool {
 	return r.cacheRead
 }
 
 // Release is a no-op retained for call-site symmetry with the previous
 // lock-holding guard implementation; snapshot-based reads hold no locks.
-func (r *readGuard[T, I]) Release() {}
+func (r *readGuard[T, S]) Release() {}
 
 // Config defines cache configuration parameters
 type Config struct {

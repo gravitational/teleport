@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/sortcache"
+	sortcache "github.com/gravitational/teleport/lib/utils/sortcache/v2"
 )
 
 type webSessionIndex string
@@ -105,28 +105,31 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 	return out, trace.Wrap(err)
 }
 
-type appSessionIndex string
+// appSessionIndexes is the index-handle set of the app session collection.
+// The user index is a secondary index: its compound key (user, session id)
+// is compared component-wise, so a user name containing a "/" can no longer
+// collide with or leak into another user's range.
+type appSessionIndexes struct {
+	name *sortcache.Index[types.WebSession, string]
+	user *sortcache.Index2[types.WebSession, string, string]
+}
 
-const (
-	appSessionNameIndex appSessionIndex = "name"
-	appSessionUserIndex appSessionIndex = "user"
-)
-
-func newAppSessionCollection(upstream services.AppSessionReader, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
+func newAppSessionCollection(upstream services.AppSessionReader, w types.WatchKind) (*typedCollection[types.WebSession, appSessionIndexes], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AppSession")
 	}
 
-	return &collection[types.WebSession, appSessionIndex]{
-		store: newStore(
-			types.KindAppSession,
-			types.WebSession.Copy,
-			map[appSessionIndex]func(types.WebSession) string{
-				appSessionNameIndex: types.WebSession.GetName,
-				appSessionUserIndex: func(r types.WebSession) string {
-					return r.GetUser() + "/" + r.GetMetadata().Name
-				},
-			}),
+	indexes := appSessionIndexes{
+		name: sortcache.NewIndex("name", types.WebSession.GetName),
+	}
+	indexes.user = sortcache.NewSecondaryIndex("user", indexes.name, types.WebSession.GetUser)
+
+	return &typedCollection[types.WebSession, appSessionIndexes]{
+		// the primary (name) index is registered first: delete events carry
+		// header-only values whose user field is empty, and deletes resolve
+		// via the first index that matches.
+		store: newTypedStore(types.KindAppSession, types.WebSession.Copy,
+			indexes, indexes.name, indexes.user),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.WebSession, error) {
 			out, err := stream.Collect(
 				stream.FilterMap(
@@ -163,20 +166,22 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
 	defer span.End()
 
-	var upstreamRead bool
-	getter := genericGetter[types.WebSession, appSessionIndex]{
-		cache:      c,
-		collection: c.collections.appSessions,
-		index:      appSessionNameIndex,
-		upstreamGet: func(ctx context.Context, s string) (types.WebSession, error) {
-			upstreamRead = true
-
-			session, err := c.Config.AppSession.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: s})
-			return session, trace.Wrap(err)
-		},
+	rg, err := acquireReadGuard(c, c.collections.appSessions)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	out, err := getter.get(ctx, req.SessionID)
-	if trace.IsNotFound(err) && !upstreamRead {
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		session, err := c.Config.AppSession.GetAppSession(ctx, req)
+		return session, trace.Wrap(err)
+	}
+
+	session, err := getByIndex(rg, rg.store.indexes.name, req.SessionID)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
@@ -186,8 +191,10 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 			)
 			return sess, nil
 		}
+		return nil, trace.Wrap(err)
 	}
-	return out, trace.Wrap(err)
+
+	return session.Copy(), nil
 }
 
 // ListAppSessions returns a page of application web sessions.
@@ -212,17 +219,13 @@ func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, us
 		pageSize = maxSessionPageSize
 	}
 
+	// the page token is the session id at which the next page starts,
+	// matching the upstream implementation's token format.
 	var sessions iter.Seq[types.WebSession]
 	if user == "" {
-		sessions = rg.store.resources(appSessionNameIndex, pageToken, "")
+		sessions = rg.store.resources(rg.store.indexes.name.AscendFrom(rg.snapshot, pageToken))
 	} else {
-		startKey := user + "/"
-		endKey := sortcache.NextKey(startKey)
-		if pageToken != "" {
-			startKey += pageToken
-		}
-
-		sessions = rg.store.resources(appSessionUserIndex, startKey, endKey)
+		sessions = rg.store.resources(rg.store.indexes.user.AscendPrefixFrom(rg.snapshot, user, pageToken))
 	}
 
 	var out []types.WebSession

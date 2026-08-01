@@ -42,16 +42,16 @@ type server struct {
 // newExpiryCache builds a cache with a name primary index and an
 // expiry-ordered secondary index — the "moved key" shape: every update that
 // extends an item's expiry moves its key on the secondary index.
-func newExpiryCache() (*SortCache[*server], *Index[*server, string], *Index[*server, Tuple2[int64, string]]) {
+func newExpiryCache() (*SortCache[*server], *Index[*server, string], *Index2[*server, int64, string]) {
 	nameIdx := NewIndex("name", func(s *server) string { return s.name })
 	expiryIdx := NewTupleIndex2("expiry", func(s *server) (int64, string) { return s.expiry, s.name })
 	c := New(Config[*server]{Indexes: []AnyIndex[*server]{nameIdx, expiryIdx}})
 	return c, nameIdx, expiryIdx
 }
 
-func newCache() (*SortCache[*server], *Index[*server, string], *Index[*server, Tuple2[string, string]]) {
+func newCache() (*SortCache[*server], *Index[*server, string], *Index2[*server, string, string]) {
 	nameIdx := NewIndex("name", func(s *server) string { return s.name })
-	hostIdx := NewTupleIndex2("host", func(s *server) (string, string) { return s.host, s.name })
+	hostIdx := NewSecondaryIndex("host", nameIdx, func(s *server) string { return s.host })
 	c := New(Config[*server]{Indexes: []AnyIndex[*server]{nameIdx, hostIdx}})
 	return c, nameIdx, hostIdx
 }
@@ -438,4 +438,33 @@ func TestSnapshotConsistencyUnderChurn(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	close(stop)
 	wg.Wait()
+}
+
+func TestPrefixIterationAndResume(t *testing.T) {
+	t.Parallel()
+
+	c, nameIdx, hostIdx := newCache()
+	for i := range 10 {
+		c.Put(&server{name: fmt.Sprintf("%02d", i), host: "h" + fmt.Sprint(i%2)})
+	}
+	// hosts with embedded separators must not bleed into each other's prefix.
+	c.Put(&server{name: "50", host: "h0/x"})
+	snap := c.Snapshot()
+
+	names := func(seq func(func(*server) bool)) []string {
+		var out []string
+		for _, s := range collect(seq) {
+			out = append(out, s.name)
+		}
+		return out
+	}
+
+	require.Equal(t, []string{"00", "02", "04", "06", "08"}, names(hostIdx.AscendPrefix(snap, "h0")))
+	require.Equal(t, []string{"04", "06", "08"}, names(hostIdx.AscendPrefixFrom(snap, "h0", "04")))
+	require.Equal(t, []string{"08", "06", "04", "02", "00"}, names(hostIdx.DescendPrefix(snap, "h0")))
+	require.Equal(t, []string{"04", "02", "00"}, names(hostIdx.DescendPrefixFrom(snap, "h0", "04")))
+	require.Equal(t, []string{"50"}, names(hostIdx.AscendPrefix(snap, "h0/x")))
+
+	require.Equal(t, []string{"07", "08", "09", "50"}, names(nameIdx.AscendFrom(snap, "07")))
+	require.Equal(t, []string{"07", "06", "05", "04", "03", "02", "01", "00"}, names(nameIdx.DescendFrom(snap, "07")))
 }

@@ -18,7 +18,10 @@
 
 package sortcache
 
-import "cmp"
+import (
+	"cmp"
+	"iter"
+)
 
 // Tuple2 is a compound key of two ordered components, compared
 // lexicographically by component. It replaces `a + "/" + b` string
@@ -110,26 +113,104 @@ func (t Tuple3[A, B, C]) Compare(o Tuple3[A, B, C]) int {
 	return cmp.Compare(t.Third, o.Third)
 }
 
+// Index2 is an index with a two-component compound key. It embeds
+// [Index] (so Get/Ascend/Descend and registration work as for any index) and
+// adds prefix-scoped iteration over the first key component.
+type Index2[T any, A, B cmp.Ordered] struct {
+	Index[T, Tuple2[A, B]]
+}
+
 // NewTupleIndex2 creates an index with a two-component compound key.
-func NewTupleIndex2[T any, A, B cmp.Ordered](name string, key func(T) (A, B)) *Index[T, Tuple2[A, B]] {
-	return NewIndexFunc(name,
+func NewTupleIndex2[T any, A, B cmp.Ordered](name string, key func(T) (A, B)) *Index2[T, A, B] {
+	ix := &Index2[T, A, B]{}
+	initIndex(&ix.Index, name,
 		func(t T) Tuple2[A, B] {
 			a, b := key(t)
 			return T2(a, b)
 		},
 		func(x, y Tuple2[A, B]) bool { return x.Compare(y) < 0 },
 	)
+	return ix
+}
+
+// AscendPrefix iterates all values whose first key component equals a, in
+// ascending order of the second component.
+func (ix *Index2[T, A, B]) AscendPrefix(s *Snapshot[T], a A) iter.Seq[T] {
+	start, stop := Prefix2[A, B](a)
+	return ix.Ascend(s, start, stop)
+}
+
+// AscendPrefixFrom iterates values whose first key component equals a,
+// ascending, starting at second component from (inclusive). This is the
+// shape of pagination resumption within a prefix: pass the page token as
+// from to continue a listing.
+func (ix *Index2[T, A, B]) AscendPrefixFrom(s *Snapshot[T], a A, from B) iter.Seq[T] {
+	return ix.Ascend(s, Inclusive(T2(a, from)), Inclusive(Tuple2Max[A, B](a)))
+}
+
+// DescendPrefix iterates all values whose first key component equals a, in
+// descending order of the second component.
+func (ix *Index2[T, A, B]) DescendPrefix(s *Snapshot[T], a A) iter.Seq[T] {
+	start, stop := Prefix2[A, B](a)
+	return ix.Descend(s, stop, start)
+}
+
+// DescendPrefixFrom iterates values whose first key component equals a,
+// descending, starting at second component from (inclusive).
+func (ix *Index2[T, A, B]) DescendPrefixFrom(s *Snapshot[T], a A, from B) iter.Seq[T] {
+	return ix.Descend(s, Inclusive(T2(a, from)), Inclusive(Tuple2Min[A, B](a)))
+}
+
+// NewSecondaryIndex creates an index sorted by the given key component and
+// disambiguated by the primary index's key: the effective compound key is
+// (key(t), primary.KeyOf(t)).
+//
+// This is the constructor for the overwhelmingly common secondary-index
+// shape, and it is immune to component-ordering mistakes because the caller
+// supplies only the leading component. It also makes the uniqueness
+// discipline structural: two distinct values (distinct primary keys) cannot
+// collide on a secondary index built this way.
+func NewSecondaryIndex[T any, K, PK cmp.Ordered](name string, primary *Index[T, PK], key func(T) K) *Index2[T, K, PK] {
+	ix := &Index2[T, K, PK]{}
+	initIndex(&ix.Index, name,
+		func(t T) Tuple2[K, PK] {
+			return T2(key(t), primary.KeyOf(t))
+		},
+		func(x, y Tuple2[K, PK]) bool { return x.Compare(y) < 0 },
+	)
+	return ix
+}
+
+// Index3 is an index with a three-component compound key. It embeds [Index]
+// and adds prefix-scoped iteration over the two leading key components.
+type Index3[T any, A, B, C cmp.Ordered] struct {
+	Index[T, Tuple3[A, B, C]]
 }
 
 // NewTupleIndex3 creates an index with a three-component compound key.
-func NewTupleIndex3[T any, A, B, C cmp.Ordered](name string, key func(T) (A, B, C)) *Index[T, Tuple3[A, B, C]] {
-	return NewIndexFunc(name,
+func NewTupleIndex3[T any, A, B, C cmp.Ordered](name string, key func(T) (A, B, C)) *Index3[T, A, B, C] {
+	ix := &Index3[T, A, B, C]{}
+	initIndex(&ix.Index, name,
 		func(t T) Tuple3[A, B, C] {
 			a, b, c := key(t)
 			return T3(a, b, c)
 		},
 		func(x, y Tuple3[A, B, C]) bool { return x.Compare(y) < 0 },
 	)
+	return ix
+}
+
+// AscendPrefix iterates all values whose two leading key components equal
+// (a, b), in ascending order of the third component.
+func (ix *Index3[T, A, B, C]) AscendPrefix(s *Snapshot[T], a A, b B) iter.Seq[T] {
+	start, stop := Prefix3[A, B, C](a, b)
+	return ix.Ascend(s, start, stop)
+}
+
+// AscendPrefixFrom iterates values whose two leading key components equal
+// (a, b), ascending, starting at third component from (inclusive).
+func (ix *Index3[T, A, B, C]) AscendPrefixFrom(s *Snapshot[T], a A, b B, from C) iter.Seq[T] {
+	return ix.Ascend(s, Inclusive(T3(a, b, from)), Inclusive(Tuple3Max[A, B, C](a, b)))
 }
 
 // Prefix2 returns bounds covering every key whose First component equals a.

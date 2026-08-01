@@ -23,15 +23,30 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	sortcache "github.com/gravitational/teleport/lib/utils/sortcache/v2"
 )
 
-// collection is responsible for managing a cached resource.
-type collection[T any, I comparable] struct {
+// collectionStore is the store interface a collection needs to maintain its
+// contents from fetch and event-stream updates, and to hand consistent
+// snapshots to read guards.
+type collectionStore[T any] interface {
+	clear() error
+	replace(items []T) error
+	put(item T) error
+	delete(item T) error
+	snapshot() *sortcache.Snapshot[T]
+}
+
+// storeCollection is responsible for managing a cached resource. It is
+// generic over its store shape so that legacy string-keyed collections and
+// typed-index collections share one implementation; use the [collection] and
+// [typedCollection] aliases rather than naming this type directly.
+type storeCollection[T any, S collectionStore[T]] struct {
 	// fetcher is called by fetch to retrieve and seed the
 	// store with all known resources from upstream.
 	fetcher func(ctx context.Context, loadSecrets bool) ([]T, error)
 	// store persists all resources in memory.
-	store *store[T, I]
+	store S
 	// watch contains the kind of resource being monitored.
 	watch types.WatchKind
 	// headerTransform is used when handling delete events in [onDelete]. Since
@@ -53,7 +68,7 @@ type collection[T any, I comparable] struct {
 	singleton bool
 }
 
-func (c collection[_, _]) watchKind() types.WatchKind {
+func (c *storeCollection[_, _]) watchKind() types.WatchKind {
 	return c.watch
 }
 
@@ -63,7 +78,7 @@ func (c collection[_, _]) watchKind() types.WatchKind {
 // specified.
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T, _]) onDelete(r types.Resource) error {
+func (c *storeCollection[T, _]) onDelete(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -98,7 +113,7 @@ func (c *collection[T, _]) onDelete(r types.Resource) error {
 // An error is returned if the resource is of an unexpected type
 //
 // This is a no-op if the configured filter does not return true.
-func (c *collection[T, _]) onPut(r types.Resource) error {
+func (c *storeCollection[T, _]) onPut(r types.Resource) error {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
 		tt := t.UnwrapT()
@@ -121,7 +136,7 @@ func (c *collection[T, _]) onPut(r types.Resource) error {
 }
 
 // fetch populates the store with items received by the configured fetcher.
-func (c collection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
+func (c *storeCollection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
@@ -160,3 +175,12 @@ func (c collection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(c
 		return trace.Wrap(c.store.replace(resources))
 	}, nil
 }
+
+// collection is the legacy string-keyed collection shape: the second type
+// parameter names the index-constant type of a [store]. It is deleted once
+// the last collection migrates to [typedCollection].
+type collection[T any, I comparable] = storeCollection[T, *store[T, I]]
+
+// typedCollection is a collection backed by a [typedStore] with a
+// collection-defined index-handle set IX.
+type typedCollection[T any, IX any] = storeCollection[T, *typedStore[T, IX]]

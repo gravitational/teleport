@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"fmt"
 	"iter"
+	"sync/atomic"
 
 	"github.com/google/btree"
 )
@@ -38,7 +39,10 @@ type Index[T any, K any] struct {
 	name string
 	key  func(T) K
 	less func(K, K) bool
-	pos  int
+	// pos is the index's position within the caches it is registered to.
+	// It is assigned on first registration (many caches may share one handle,
+	// provided the index layout is identical) and never changes afterwards.
+	pos atomic.Int32
 }
 
 // NewIndex creates an index whose key type has a natural ordering.
@@ -50,12 +54,18 @@ func NewIndex[T any, K cmp.Ordered](name string, key func(T) K) *Index[T, K] {
 // [NewIndex] or the tuple index constructors; this is the escape hatch for
 // key types with bespoke comparison semantics.
 func NewIndexFunc[T any, K any](name string, key func(T) K, less func(K, K) bool) *Index[T, K] {
-	return &Index[T, K]{
-		name: name,
-		key:  key,
-		less: less,
-		pos:  -1,
-	}
+	ix := &Index[T, K]{}
+	initIndex(ix, name, key, less)
+	return ix
+}
+
+// initIndex initializes an index in place. (Index contains an atomic and
+// cannot be copied after construction.)
+func initIndex[T any, K any](ix *Index[T, K], name string, key func(T) K, less func(K, K) bool) {
+	ix.name = name
+	ix.key = key
+	ix.less = less
+	ix.pos.Store(-1)
 }
 
 // Name returns the display name the index was created with.
@@ -98,7 +108,17 @@ func Exclusive[K any](key K) Bound[K] { return Bound[K]{key: key, kind: boundExc
 // The snapshot is immutable, so iteration is consistent, lock-free, and the
 // yield function may be arbitrarily slow without blocking writes.
 func (ix *Index[T, K]) Ascend(s *Snapshot[T], start, stop Bound[K]) iter.Seq[T] {
-	tr := ix.treeOf(s)
+	return ix.ascend(ix.treeOf(s), start, stop)
+}
+
+// AscendFrom iterates from the given key (inclusive) to the end of the
+// index in ascending order. This is the shape of pagination resumption: pass
+// the page token key to continue a listing.
+func (ix *Index[T, K]) AscendFrom(s *Snapshot[T], from K) iter.Seq[T] {
+	return ix.Ascend(s, Inclusive(from), Open[K]())
+}
+
+func (ix *Index[T, K]) ascend(tr *tree[T, K], start, stop Bound[K]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		emit := func(e entry[T, K]) bool { return yield(e.val) }
 
@@ -158,7 +178,17 @@ func (ix *Index[T, K]) Ascend(s *Snapshot[T], start, stop Bound[K]) iter.Seq[T] 
 // stop. Note that in descending order start is the *upper* end of the range;
 // start-inclusive/stop-exclusive semantics still apply.
 func (ix *Index[T, K]) Descend(s *Snapshot[T], start, stop Bound[K]) iter.Seq[T] {
-	tr := ix.treeOf(s)
+	return ix.descend(ix.treeOf(s), start, stop)
+}
+
+// DescendFrom iterates from the given key (inclusive) to the beginning of
+// the index in descending order. This is the shape of pagination resumption
+// for descending listings: pass the page token key to continue.
+func (ix *Index[T, K]) DescendFrom(s *Snapshot[T], from K) iter.Seq[T] {
+	return ix.Descend(s, Inclusive(from), Open[K]())
+}
+
+func (ix *Index[T, K]) descend(tr *tree[T, K], start, stop Bound[K]) iter.Seq[T] {
 	return func(yield func(T) bool) {
 		emit := func(e entry[T, K]) bool { return yield(e.val) }
 
@@ -220,10 +250,11 @@ func (ix *Index[T, K]) Count(s *Snapshot[T], start, stop Bound[K]) int {
 }
 
 func (ix *Index[T, K]) treeOf(s *Snapshot[T]) *tree[T, K] {
-	if ix.pos < 0 || ix.pos >= len(s.trees) {
+	pos := int(ix.pos.Load())
+	if pos < 0 || pos >= len(s.trees) {
 		panic(fmt.Sprintf("sortcache: index %q is not registered with this cache", ix.name))
 	}
-	tr, ok := s.trees[ix.pos].(*tree[T, K])
+	tr, ok := s.trees[pos].(*tree[T, K])
 	if !ok || tr.ix != ix {
 		panic(fmt.Sprintf("sortcache: index %q does not belong to this cache", ix.name))
 	}
@@ -238,10 +269,12 @@ type AnyIndex[T any] interface {
 }
 
 func (ix *Index[T, K]) setPos(p int) {
-	if ix.pos != -1 && ix.pos != p {
-		panic(fmt.Sprintf("sortcache: index %q registered with conflicting positions %d and %d (an index handle may only be shared by caches with identical index layouts)", ix.name, ix.pos, p))
+	if ix.pos.CompareAndSwap(-1, int32(p)) {
+		return
 	}
-	ix.pos = p
+	if prev := ix.pos.Load(); prev != int32(p) {
+		panic(fmt.Sprintf("sortcache: index %q registered with conflicting positions %d and %d (an index handle may only be shared by caches with identical index layouts)", ix.name, prev, p))
+	}
 }
 
 func (ix *Index[T, K]) newTree() indexTree[T] {

@@ -130,6 +130,74 @@ func TestAppSessions(t *testing.T) {
 	}, 15*time.Second, 100*time.Millisecond)
 }
 
+// TestAppSessionsUserIsolation verifies that listing one user's app sessions
+// never returns another user's sessions, even when user names embed the "/"
+// separator that the old string-concatenated index key used. With the legacy
+// `user + "/" + name` key, sessions of user "alice/admin" sorted inside user
+// "alice"'s prefix range and leaked into alice's listings; the typed
+// (user, name) compound key compares the user component exactly.
+func TestAppSessionsUserIsolation(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	upsert := func(name, user string) {
+		err := p.appSessionS.UpsertAppSession(ctx, &types.WebSessionV2{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindAppSession,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Spec: types.WebSessionSpecV2{
+				User: user,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	upsert("session-a1", "alice")
+	upsert("session-a2", "alice")
+	upsert("session-b1", "alice/admin")
+	upsert("session-b2", "alice/admin")
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		cached, next, err := p.cache.ListAppSessions(ctx, 0, "", "")
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, cached, 4)
+	}, 15*time.Second, 100*time.Millisecond)
+
+	listAll := func(user string, pageSize int) []types.WebSession {
+		var out []types.WebSession
+		for pageToken := ""; ; {
+			page, next, err := p.cache.ListAppSessions(ctx, pageSize, pageToken, user)
+			require.NoError(t, err)
+			out = append(out, page...)
+			pageToken = next
+			if next == "" {
+				return out
+			}
+		}
+	}
+
+	for _, pageSize := range []int{0, 1} {
+		alice := listAll("alice", pageSize)
+		require.Len(t, alice, 2, "page size %d", pageSize)
+		for _, sess := range alice {
+			require.Equal(t, "alice", sess.GetUser())
+		}
+
+		admin := listAll("alice/admin", pageSize)
+		require.Len(t, admin, 2, "page size %d", pageSize)
+		for _, sess := range admin {
+			require.Equal(t, "alice/admin", sess.GetUser())
+		}
+	}
+}
+
 func TestWebSessions(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
