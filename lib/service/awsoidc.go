@@ -99,8 +99,6 @@ func (process *TeleportProcess) initAWSOIDCDeployServiceUpdater(channels automat
 
 // AWSOIDCDeployServiceUpdaterCache provides access to reading and listing resources using the cache.
 type AWSOIDCDeployServiceUpdaterCache interface {
-	// GetToken returns a provision token by name.
-	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 	// ListIntegrations returns a paginated list of all integration resources.
@@ -117,6 +115,9 @@ type AWSOIDCDeployServiceUpdaterClient interface {
 	CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error
 	// GetClusterMaintenanceConfig gets the current maintenance window config singleton.
 	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
+	// GetToken returns a provision token by name. Provision tokens are not
+	// replicated by proxy caches, so this read goes to the auth service.
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 }
@@ -315,7 +316,9 @@ func (updater *AWSOIDCDeployServiceUpdater) updateAWSOIDCDeployService(ctx conte
 	}
 
 	// The deploy service client is initialized using AWS OIDC integration.
-	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.Cache, updater.AuthClient)
+	// Both token operations go to the auth service: provision tokens are not
+	// replicated by proxy caches.
+	awsOIDCDeployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, req, updater.AuthClient, updater.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}

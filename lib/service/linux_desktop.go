@@ -73,7 +73,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCacheForLinuxDesktop(conn.Client, []string{teleport.ComponentLinuxDesktop})
+	accessPoint, err := process.newLocalCacheForLinuxDesktop(conn.Client, teleport.ComponentLinuxDesktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}

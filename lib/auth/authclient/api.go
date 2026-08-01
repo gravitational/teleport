@@ -209,9 +209,6 @@ type ReadProxyAccessPoint interface {
 	// GetUIConfig returns configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context) (types.UIConfig, error)
 
-	// GetToken finds and returns token by ID
-	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
-
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
@@ -270,9 +267,6 @@ type ReadProxyAccessPoint interface {
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
-
-	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
-	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
@@ -2069,4 +2063,4 @@ func (w *OktaWrapper) Close() error {
 
 // NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
-type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
+type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName string) (RemoteProxyAccessPoint, error)

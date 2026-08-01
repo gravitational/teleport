@@ -52,7 +52,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	accessPoint, err := process.newLocalCacheForDiscovery(conn.Client,
-		[]string{teleport.ComponentDiscovery})
+		teleport.ComponentDiscovery)
 	if err != nil {
 		return trace.Wrap(err)
 	}

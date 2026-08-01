@@ -603,7 +603,7 @@ func InitAuthCache(p AuthCacheParams) error {
 	c, err := accesspoint.NewCache(accesspoint.Config{
 		Context:      p.AuthServer.CloseContext(),
 		Setup:        cache.ForAuth,
-		CacheName:    []string{teleport.ComponentAuth},
+		CacheName:    teleport.ComponentAuth,
 		EventsSystem: true,
 		Unstarted:    p.Unstarted,
 

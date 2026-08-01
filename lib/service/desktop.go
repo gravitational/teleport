@@ -74,7 +74,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCacheForWindowsDesktop(conn.Client, []string{teleport.ComponentWindowsDesktop})
+	accessPoint, err := process.newLocalCacheForWindowsDesktop(conn.Client, teleport.ComponentWindowsDesktop)
 	if err != nil {
 		return trace.Wrap(err)
 	}

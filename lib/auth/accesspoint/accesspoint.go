@@ -23,7 +23,6 @@ package accesspoint
 
 import (
 	"context"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -47,7 +46,7 @@ type Config struct {
 	// modifies it to support a specific teleport service.
 	Setup cache.SetupConfigFn
 	// CacheName identifies the cache in logs.
-	CacheName []string
+	CacheName string
 	// EventsSystem is true if cache should have the events system enabled.
 	EventsSystem bool
 	// Unstarted is true if the cache should not be started.
@@ -142,18 +141,38 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	return cache.New(cfg.Setup(cfg.cacheConfig()))
+}
+
+// NewProxyCache assembles the proxy topology cache from the provided
+// dependencies. Unlike [NewCache], no Setup function is used: the proxy watch
+// set is owned by [cache.NewProxyCache].
+func NewProxyCache(cfg Config) (*cache.ProxyCache, error) {
+	if cfg.CacheName == "" {
+		return nil, trace.BadParameter("missing parameter CacheName")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+
+	return cache.NewProxyCache(cfg.cacheConfig())
+}
+
+// cacheConfig converts the access point dependencies into a cache
+// configuration.
+func (cfg Config) cacheConfig() cache.Config {
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
 	}
 
-	component := slices.Clone(cfg.CacheName)
+	component := []string{cfg.CacheName}
 	if cfg.ProcessID != "" {
 		component = append(component, cfg.ProcessID)
 	}
 
 	component = append(component, teleport.ComponentCache)
-	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
+	metricComponent := []string{cfg.CacheName, teleport.ComponentCache}
 
 	cacheCfg := cache.Config{
 		Context:                 cfg.Context,
@@ -217,5 +236,5 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		SubCAService:            cfg.SubCAService,
 	}
 
-	return cache.New(cfg.Setup(cacheCfg))
+	return cacheCfg
 }

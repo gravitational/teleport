@@ -82,7 +82,7 @@ func (process *TeleportProcess) runRelayService() error {
 	}
 	defer conn.Close()
 
-	accessPoint, err := process.newLocalCacheForRelay(conn.Client, []string{teleport.ComponentRelay})
+	accessPoint, err := process.newLocalCacheForRelay(conn.Client, teleport.ComponentRelay)
 	if err != nil {
 		return err
 	}

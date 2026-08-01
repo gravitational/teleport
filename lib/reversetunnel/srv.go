@@ -1417,7 +1417,7 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 func createLeafClusterCache(srv *server, clt authclient.ClientI, domainName string) (authclient.RemoteProxyAccessPoint, error) {
 	// Configure access to the cached subset of the Auth Server API of the leaf
 	// cluster this leaf cluster provides access to.
-	accessPoint, err := srv.Config.NewCachingAccessPoint(clt, []string{"reverse", domainName})
+	accessPoint, err := srv.Config.NewCachingAccessPoint(clt, teleport.Component("reverse", domainName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

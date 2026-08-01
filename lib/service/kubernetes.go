@@ -82,7 +82,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	cfg := process.Config
 
 	// Create a caching auth client.
-	accessPoint, err := process.newLocalCacheForKubernetes(conn.Client, []string{teleport.ComponentKube})
+	accessPoint, err := process.newLocalCacheForKubernetes(conn.Client, teleport.ComponentKube)
 	if err != nil {
 		return trace.Wrap(err)
 	}
