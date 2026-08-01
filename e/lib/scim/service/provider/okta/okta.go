@@ -380,7 +380,7 @@ func (s *oktaShim) createUserFromSCIMResource(res *scimpb.Resource) (types.User,
 		return nil, trace.Wrap(err)
 	}
 
-	user.SetRevision(res.GetMeta().GetVersion())
+	user.SetRevision(conv.ResourceVersion(res))
 
 	return user, nil
 }

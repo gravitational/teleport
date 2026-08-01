@@ -5,7 +5,6 @@ import (
 	"io"
 	"maps"
 	"reflect"
-	"strconv"
 	"time"
 
 	scimSchema "github.com/elimity-com/scim/schema"
@@ -300,7 +299,7 @@ func ToUser(user types.User, options ...userOption) *User {
 		Schemas: []string{scimSchema.UserSchema},
 		Meta: &Metadata{
 			ResourceType: ResourceTypeUser,
-			Version:      scimconv.VersionAsETag(user.GetVersion()),
+			Version:      scimconv.VersionAsETag(user.GetRevision()),
 		},
 		ExternalID:  user.GetName(),
 		UserName:    user.GetName(),
@@ -342,7 +341,7 @@ func ToGroup(acl *accesslist.AccessList, options ...groupOption) *Group {
 	g := &Group{
 		Meta: &Metadata{
 			ResourceType: ResourceTypeGroup,
-			Version:      strconv.Quote(acl.Version),
+			Version:      scimconv.VersionAsETag(acl.GetRevision()),
 		},
 		Schemas:     []string{scimSchema.GroupSchema},
 		DisplayName: acl.Spec.Title,

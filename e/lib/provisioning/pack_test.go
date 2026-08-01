@@ -151,18 +151,19 @@ func withUserLabels(labels map[string]string) userOptionFn {
 	}
 }
 
-func (s *testPack) mustCreateTeleportUser(t *testing.T, name string, options ...userOptionFn) {
+func (s *testPack) mustCreateTeleportUser(t *testing.T, name string, options ...userOptionFn) types.User {
 	opts := &userOption{}
 	for _, opt := range options {
 		opt(opts)
 	}
-	_, err := s.depsMock.CreateUser(context.Background(), &types.UserV2{
+	created, err := s.depsMock.CreateUser(context.Background(), &types.UserV2{
 		Metadata: types.Metadata{
 			Labels: opts.labels,
 			Name:   name,
 		},
 	})
 	require.NoError(t, err)
+	return created
 }
 
 func (s *testPack) mustUpdateTeleportUser(t *testing.T, name string, mutate func(u types.User)) types.User {
@@ -186,6 +187,12 @@ func (s *testPack) mustCreateAccessList(t *testing.T, name, title string) *acces
 		},
 	}
 	return s.mustUpsertAccessList(t, acl)
+}
+
+func (s *testPack) mustGetAccessList(t *testing.T, name string) *accesslist.AccessList {
+	acl, err := s.depsMock.GetAccessList(t.Context(), name)
+	require.NoError(t, err, "Missing expected access list %q", name)
+	return acl
 }
 
 func (s *testPack) mustCreateAccessListWithCleanup(t *testing.T, name, title string) *accesslist.AccessList {

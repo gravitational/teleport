@@ -18,8 +18,10 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	identitycentercommon "github.com/gravitational/teleport/e/lib/aws/identitycenter/common"
+	scimconv "github.com/gravitational/teleport/e/lib/scim/conv"
 	scimsdk "github.com/gravitational/teleport/e/lib/scim/sdk"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestDownstreamProvisioning(t *testing.T) {
@@ -49,10 +51,13 @@ func TestDownstreamProvisioning(t *testing.T) {
 	}
 
 	t.Run("should provision teleport user to scim downstream", func(t *testing.T) {
-		pack.mustCreateTeleportUser(t, aliceUser)
-		assertSCIMUserExists(t, pack.scimMock, aliceUser)
-		pack.mustCreateTeleportUser(t, bobUser)
-		assertSCIMUserExists(t, pack.scimMock, bobUser)
+		alice := pack.mustCreateTeleportUser(t, aliceUser)
+		assertSCIMUserExists(t, pack.scimMock, aliceUser,
+			withUserRevision(alice))
+
+		bob := pack.mustCreateTeleportUser(t, bobUser)
+		assertSCIMUserExists(t, pack.scimMock, bobUser,
+			withUserRevision(bob))
 	})
 
 	t.Run("should provision access list to scim downstream", func(t *testing.T) {
@@ -66,16 +71,19 @@ func TestDownstreamProvisioning(t *testing.T) {
 		pack.mustUpsertAccessListMemberWithNonExistentUserAccount(t, aclID, knownExternalUser, common.OriginAWSIdentityCenter)
 		pack.mustUpsertAccessListMemberWithNonExistentUserAccount(t, aclID, "external-user2", "")
 		pack.mustUpsertAccessListMember(t, aclID, bobUser, accesslist.MembershipKindUser)
+		acl := pack.mustGetAccessList(t, aclID)
 
 		// EXPECT that the Access List is provisioned downstream as a SCIM group
 		// containing all members from categories (a) and (b), and none from
 		// category (c) (i.e. external-user2), which is missing an identity center origin label is excluded.
-		assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, aliceUser, bobUser, knownExternalUser)
+		assertSCIMGroupExists(t, pack.scimMock, aclTitle,
+			withMembers(aliceUser, bobUser, knownExternalUser),
+			withAccessListRevision(acl))
 	})
 
 	t.Run("should de-provision scim group membership for member deleted from access list", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteAccessListMember(ctx, aclID, aliceUser))
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclTitle, 2)
+		assertSCIMGroupExists(t, pack.scimMock, aclTitle, withMemberCount(2))
 	})
 
 	t.Run("should de-provision scim group", func(t *testing.T) {
@@ -121,7 +129,7 @@ func TestAccessListPredicate(t *testing.T) {
 		pack.mustUpsertAccessListMember(t, aclIncludedID, aliceUser, accesslist.MembershipKindUser)
 
 		// Expect that only the matching access list is provisioned
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclIncludedTitle, 1)
+		assertSCIMGroupExists(t, pack.scimMock, aclIncludedTitle, withMemberCount(1))
 		assertSCIMGroupDoesntExist(t, pack.scimMock, aclExcludedTitle)
 	})
 
@@ -137,11 +145,11 @@ func TestAccessListPredicate(t *testing.T) {
 		pack.mustUpsertAccessList(t, acl)
 		pack.mustUpsertAccessListMember(t, aclIncludedID, aliceUser, accesslist.MembershipKindUser)
 
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, aclIncludedTitle, 1)
+		assertSCIMGroupExists(t, pack.scimMock, aclIncludedTitle, withMemberCount(1))
 
 		// WHEN I update the access list so that it no longer matches the
 		// predicate
-		acl.Spec.Grants.Traits["provision"][0] = "no on your life"
+		acl.Spec.Grants.Traits["provision"][0] = "not on your life"
 		pack.mustUpsertAccessList(t, acl)
 
 		// EXPECT that the downstream group is deleted
@@ -193,7 +201,8 @@ func TestAccessListProvisioningEvents(t *testing.T) {
 	}
 
 	// EXPECT that the "allowed" group was provisioned and populated downstream
-	assertSCIMGroupExistsWithMembers(t, pack.scimMock, "Access List: allowed", aliceUser)
+	assertSCIMGroupExists(t, pack.scimMock, "Access List: allowed",
+		withMembers(aliceUser))
 
 	// EXPECT that the OnPrincipalProvisioning event callback was invoked on the
 	// Access List at least once on all access lists
@@ -276,10 +285,10 @@ func TestAccessListDeprovisioningEvents(t *testing.T) {
 
 	// GIVEN that the user and access lists have all been provisioned downstream
 	for _, u := range users {
-		assertSCIMUserExistAndIsActive(t, pack.scimMock, u)
+		assertSCIMUserExists(t, pack.scimMock, u, withActiveState(true))
 	}
 	for _, aclTitle := range accessLists {
-		assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, users...)
+		assertSCIMGroupExists(t, pack.scimMock, aclTitle, withMembers(users...))
 	}
 
 	// WHEN I delete the Access Lists
@@ -364,11 +373,11 @@ func TestAccessListProvisioningNested(t *testing.T) {
 		// When I make the `Child` Access List a member of `Parent`
 		pack.mustUpsertAccessListMember(t, parentACLID, childACLID, accesslist.MembershipKindList)
 
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, childACLTitle, 2)
+		assertSCIMGroupExists(t, pack.scimMock, childACLTitle, withMemberCount(2))
 
 		// Expect that the membership of the downstream group `Parent` is
 		// expanded to include the two users from `Child`
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 3)
+		assertSCIMGroupExists(t, pack.scimMock, parentACLTitle, withMemberCount(3))
 	})
 
 	t.Run("should re-provision access list when child list is updated", func(t *testing.T) {
@@ -378,7 +387,7 @@ func TestAccessListProvisioningNested(t *testing.T) {
 
 		// Expect that the membership of the downstream group `Parent` contracts
 		// to reflect that Bob is no longer inherits membership of `Parent`
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 2)
+		assertSCIMGroupExists(t, pack.scimMock, parentACLTitle, withMemberCount(2))
 	})
 
 	t.Run("should re-provision access list when member list deleted", func(t *testing.T) {
@@ -388,7 +397,7 @@ func TestAccessListProvisioningNested(t *testing.T) {
 
 		// Expect that the membership of the downstream group `Parent`contracts
 		// to just  the one member of `Parent`
-		assertSCIMGroupExitsWithMembersLength(t, pack.scimMock, parentACLTitle, 1)
+		assertSCIMGroupExists(t, pack.scimMock, parentACLTitle, withMemberCount(1))
 	})
 }
 
@@ -404,7 +413,7 @@ func TestUserProvisioningActivationDeactivation(t *testing.T) {
 	)
 
 	pack.mustCreateTeleportUser(t, aliceUser)
-	assertSCIMUserExistAndIsActive(t, pack.scimMock, aliceUser)
+	assertSCIMUserExists(t, pack.scimMock, aliceUser, withActiveState(true))
 
 	t.Run("should de-activate scim user in downstream when a user is locked in teleport", func(t *testing.T) {
 		l := &types.LockV2{
@@ -412,12 +421,12 @@ func TestUserProvisioningActivationDeactivation(t *testing.T) {
 			Spec:     types.LockSpecV2{Target: types.LockTarget{User: aliceUser}},
 		}
 		require.NoError(t, pack.depsMock.UpsertLock(ctx, l))
-		assertSCIMUserExistAndIsNotActive(t, pack.scimMock, aliceUser)
+		assertSCIMUserExists(t, pack.scimMock, aliceUser, withActiveState(false))
 	})
 
 	t.Run("should re-activate scim user in downstream when teleport user lock is deleted", func(t *testing.T) {
 		require.NoError(t, pack.depsMock.DeleteLock(ctx, lockName))
-		assertSCIMUserExistAndIsActive(t, pack.scimMock, aliceUser)
+		assertSCIMUserExists(t, pack.scimMock, aliceUser, withActiveState(true))
 	})
 }
 
@@ -448,7 +457,7 @@ func TestUserProvisioningPredicate(t *testing.T) {
 
 	// EXPECT that the user of interest is created in the downstream SCIM server,
 	// AND that the other user is not
-	assertSCIMUserExistAndIsActive(t, pack.scimMock, bobUser)
+	assertSCIMUserExists(t, pack.scimMock, bobUser, withActiveState(true))
 	assertSCIMUserDoesntExist(t, pack.scimMock, aliceUser)
 }
 
@@ -503,7 +512,7 @@ func TestUserProvisioningEvents(t *testing.T) {
 	// Expect that all users NOT suppressed by the OnProvisioning callback
 	// exist in downstream system
 	for _, u := range allowedUsers {
-		assertSCIMUserExistAndIsActive(t, pack.scimMock, u)
+		assertSCIMUserExists(t, pack.scimMock, u, withActiveState(true))
 	}
 	for _, u := range forbiddenUsers {
 		assertSCIMUserDoesntExist(t, pack.scimMock, u)
@@ -554,7 +563,7 @@ func TestUserDeprovisioningEvents(t *testing.T) {
 		pack.mustCreateTeleportUser(t, username)
 	}
 	for _, user := range users {
-		assertSCIMUserExistAndIsActive(t, pack.scimMock, user)
+		assertSCIMUserExists(t, pack.scimMock, user, withActiveState(true))
 	}
 
 	// WHEN I delete the teleport users...
@@ -579,7 +588,7 @@ func TestUserDeprovisioningEvents(t *testing.T) {
 			assertSCIMUserDoesntExist(t, pack.scimMock, u)
 		}
 	}
-	assertSCIMUserExistAndIsActive(t, pack.scimMock, designatedSurvivor)
+	assertSCIMUserExists(t, pack.scimMock, designatedSurvivor, withActiveState(true))
 
 	// EXPECT that all provisioning records are deleted from Teleport
 	eventualWithT(t,
@@ -683,7 +692,7 @@ func TestMissingDownstreamPrincipal(t *testing.T) {
 		}
 
 		for _, name := range userNames {
-			assertSCIMUserExistAndIsActive(t, pack.scimMock, name)
+			assertSCIMUserExists(t, pack.scimMock, name, withActiveState(true))
 		}
 
 		t.Run("Deleted", func(t *testing.T) {
@@ -727,7 +736,7 @@ func TestMissingDownstreamPrincipal(t *testing.T) {
 				not(withExternalID(initialExternalID)),
 				withProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 			)
-			assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, userNames[1:]...)
+			assertSCIMGroupExists(t, pack.scimMock, aclTitle, withMembers(userNames[1:]...))
 		})
 
 		t.Run("Recreated", func(t *testing.T) {
@@ -750,7 +759,7 @@ func TestMissingDownstreamPrincipal(t *testing.T) {
 				withProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED),
 			)
 			initialExternalID := initialState.GetStatus().GetExternalId()
-			assertSCIMGroupExistsWithMembers(t, pack.scimMock, aclTitle, userNames...)
+			assertSCIMGroupExists(t, pack.scimMock, aclTitle, withMembers(userNames...))
 
 			// WHEN I manually assign a new ID to the downstream group to simulate
 			// a group being deleted and re-created outside of Teleport's
@@ -786,40 +795,72 @@ func eventualWithT(t *testing.T, condition func(collect *assert.CollectT)) {
 	require.EventuallyWithT(t, condition, defaultWaitFor, defaultTick)
 }
 
-func assertSCIMGroupExists(t *testing.T, client scimsdk.Client, groupDisplayName string) {
-	eventualWithT(t, func(collect *assert.CollectT) {
-		_, err := client.GetGroupByDisplayName(context.Background(), groupDisplayName)
-		assert.NoError(collect, err)
-	})
+type scimGroupAssertion func(assert.TestingT, *scimsdk.Group) bool
+
+func withAccessListRevision(acl *accesslist.AccessList) scimGroupAssertion {
+	expected := scimconv.VersionAsETag(acl.GetRevision())
+	return func(t assert.TestingT, g *scimsdk.Group) bool {
+		return assert.NotNil(t, g.Meta, "SCIM Group missing metadata") &&
+			assert.Equal(t, expected, g.Meta.Version,
+				"SCIM Group version must match Teleport Access List revision")
+	}
 }
 
-func assertSCIMGroupExistsWithMembers(t *testing.T, client scimsdk.Client, groupDisplayName string, members ...string) {
+func withMembers(expected ...string) scimGroupAssertion {
+	return func(t assert.TestingT, g *scimsdk.Group) bool {
+		actual := sliceutils.Map(g.Members, (*scimsdk.GroupMember).GetDisplay)
+		return assert.ElementsMatch(t, expected, actual,
+			"Group member lists must match")
+	}
+}
+
+func withMemberCount(n int) scimGroupAssertion {
+	return func(t assert.TestingT, g *scimsdk.Group) bool {
+		return assert.Len(t, g.Members, n, "Group must have exactly %d members", n)
+	}
+}
+
+func assertSCIMGroupExists(t *testing.T, client scimsdk.Client, groupDisplayName string, assertions ...scimGroupAssertion) {
 	eventualWithT(t, func(collect *assert.CollectT) {
-		acl, err := client.GetGroupByDisplayName(context.Background(), groupDisplayName)
-		if assert.NoError(collect, err) {
-			var actualMembers []string
-			for _, am := range acl.Members {
-				actualMembers = append(actualMembers, am.Display)
-			}
-			assert.ElementsMatch(collect, members, actualMembers)
+		g, err := client.GetGroupByDisplayName(context.Background(), groupDisplayName)
+		if !assert.NoError(collect, err) {
+			return
+		}
+		for _, assertion := range assertions {
+			// Run all the assertions to collect as much information as possible
+			// during test failures
+			assertion(collect, g)
 		}
 	})
 }
 
-func assertSCIMGroupExitsWithMembersLength(t *testing.T, client scimsdk.Client, groupDisplayName string, wantMembersLength int) {
-	eventualWithT(t, func(collect *assert.CollectT) {
-		acl, err := client.GetGroupByDisplayName(context.Background(), groupDisplayName)
-		if assert.NoError(collect, err) {
-			assert.Len(collect, acl.Members, wantMembersLength,
-				"Group %q expected to have %d members", groupDisplayName, wantMembersLength)
-		}
-	})
+type scimUserAssertion func(assert.TestingT, *scimsdk.User) bool
+
+func withUserRevision(user types.User) scimUserAssertion {
+	expected := scimconv.VersionAsETag(user.GetRevision())
+	return func(t assert.TestingT, user *scimsdk.User) bool {
+		return assert.NotNil(t, user.Meta, "User resource missing metadata") &&
+			assert.Equal(t, expected, user.Meta.Version, "Unexpected user revision")
+	}
 }
 
-func assertSCIMUserExists(t *testing.T, client scimsdk.Client, userName string) {
+func withActiveState(expected bool) scimUserAssertion {
+	return func(t assert.TestingT, user *scimsdk.User) bool {
+		return assert.Equal(t, expected, user.Active, "Expected User to have Active state %v", expected)
+	}
+}
+
+func assertSCIMUserExists(t *testing.T, client scimsdk.Client, userName string, assertions ...scimUserAssertion) {
 	eventualWithT(t, func(collect *assert.CollectT) {
-		_, err := client.GetUserByUserName(context.Background(), userName)
-		assert.NoError(collect, err)
+		user, err := client.GetUserByUserName(context.Background(), userName)
+		if !assert.NoError(collect, err) {
+			return
+		}
+		for _, assertion := range assertions {
+			// run all assertions to collect as much information as possible
+			// about any failures
+			assertion(collect, user)
+		}
 	})
 }
 
@@ -827,26 +868,6 @@ func assertSCIMUserDoesntExist(t *testing.T, client scimsdk.Client, userName str
 	eventualWithT(t, func(collect *assert.CollectT) {
 		_, err := client.GetUserByUserName(context.Background(), userName)
 		assert.True(collect, trace.IsNotFound(err))
-	})
-}
-
-func assertSCIMUserExistAndIsNotActive(t *testing.T, client scimsdk.Client, userName string) {
-	eventualWithT(t, func(collect *assert.CollectT) {
-		out, err := client.GetUserByUserName(context.Background(), userName)
-		if !assert.NoError(collect, err) {
-			return
-		}
-		assert.False(collect, out.Active)
-	})
-}
-
-func assertSCIMUserExistAndIsActive(t *testing.T, client scimsdk.Client, userName string) {
-	eventualWithT(t, func(collect *assert.CollectT) {
-		out, err := client.GetUserByUserName(context.Background(), userName)
-		if !assert.NoError(collect, err) {
-			return
-		}
-		assert.True(collect, out.Active)
 	})
 }
 
