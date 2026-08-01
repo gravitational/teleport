@@ -530,9 +530,8 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		// fields to ensure Kubernetes doesn't prune them in the validator.
 		//
 		// Note that AdditionalProperties cannot be set: if it's non-nil, all
-		// child fields get pruned before the validator bothers to check
-		// XPreserveUnknownFields. In practice this means nested structs get
-		// pruned or rejected at runtime.
+		// child fields get pruned regardless of `XPreserveUnknownFields`, which
+		// in practice means nested structs get pruned or rejected at runtime.
 		prop.XPreserveUnknownFields = new(true)
 	case field.IsMessage():
 		inner := field.TypeMessage()
