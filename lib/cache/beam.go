@@ -85,7 +85,7 @@ func (c *Cache) GetBeam(ctx context.Context, name string) (*beamsv1.Beam, error)
 	defer span.End()
 
 	getter := genericGetter[*beamsv1.Beam, beamIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.beams,
 		index:       beamNameIndex,
 		upstreamGet: c.Config.Beams.GetBeam,
@@ -100,7 +100,7 @@ func (c *Cache) GetBeamByAlias(ctx context.Context, alias string) (*beamsv1.Beam
 	defer span.End()
 
 	getter := genericGetter[*beamsv1.Beam, beamIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.beams,
 		index:       beamAliasIndex,
 		upstreamGet: c.Config.Beams.GetBeamByAlias,
@@ -136,7 +136,7 @@ func (c *Cache) ListBeamsV2(ctx context.Context, pageSize int, pageToken string,
 	}
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.beams,
 		index:      index,
 		isDesc:     isDesc,
@@ -182,7 +182,7 @@ func (c *Cache) IterateBeamsV2(ctx context.Context, pageToken string, options *s
 	}
 
 	lister := genericLister[*beamsv1.Beam, beamIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.beams,
 		index:      index,
 		isDesc:     isDesc,

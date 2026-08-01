@@ -263,7 +263,7 @@ func (c *Cache) GetPrincipalAssignment(ctx context.Context, id services.Principa
 	defer span.End()
 
 	getter := genericGetter[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.identityCenterPrincipalAssignments,
 		index:      identityCenterPrincipalAssignmentNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*identitycenterv1.PrincipalAssignment, error) {
@@ -280,7 +280,7 @@ func (c *Cache) ListPrincipalAssignments(ctx context.Context, pageSize int, page
 	defer span.End()
 
 	lister := genericLister[*identitycenterv1.PrincipalAssignment, identityCenterPrincipalAssignmentIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.identityCenterPrincipalAssignments,
 		index:        identityCenterPrincipalAssignmentNameIndex,
 		upstreamList: c.Config.IdentityCenter.ListPrincipalAssignments,

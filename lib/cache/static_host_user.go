@@ -71,7 +71,7 @@ func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.staticHostUsers,
 		index:        staticHostUserNameIndex,
 		upstreamList: c.Config.StaticHostUsers.ListStaticHostUsers,
@@ -89,7 +89,7 @@ func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovis
 	defer span.End()
 
 	getter := genericGetter[*userprovisioningv2.StaticHostUser, staticHostUserIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.staticHostUsers,
 		index:       staticHostUserNameIndex,
 		upstreamGet: c.Config.StaticHostUsers.GetStaticHostUser,

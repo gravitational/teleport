@@ -22,10 +22,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -72,33 +74,63 @@ func (c *Cache) GitServerReadOnlyClient() gitserver.ReadOnlyClient {
 	return c
 }
 
-func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetGitServer")
+// gitServerCollection provides read access to the cached Git servers. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type gitServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.GitServerGetter
+	col      *collection[types.Server, gitServerIndex]
+}
+
+func (c gitServerCollection) GetGitServer(ctx context.Context, name string) (types.Server, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetGitServer")
 	defer span.End()
 
 	getter := genericGetter[types.Server, gitServerIndex]{
-		cache:       c,
-		collection:  c.collections.gitServers,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       gitServerNameIndex,
-		upstreamGet: c.Config.GitServers.GetGitServer,
+		upstreamGet: c.upstream.GetGitServer,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListGitServers")
+func (c gitServerCollection) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListGitServers")
 	defer span.End()
 
 	lister := genericLister[types.Server, gitServerIndex]{
-		cache:        c,
-		collection:   c.collections.gitServers,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        gitServerNameIndex,
-		upstreamList: c.Config.GitServers.ListGitServers,
+		upstreamList: c.upstream.ListGitServers,
 		nextToken: func(t types.Server) string {
 			return t.GetMetadata().Name
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) GetGitServer(ctx context.Context, name string) (types.Server, error) {
+	return gitServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.GitServers,
+		col:      c.collections.gitServers,
+	}.GetGitServer(ctx, name)
+}
+
+func (c *Cache) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return gitServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.GitServers,
+		col:      c.collections.gitServers,
+	}.ListGitServers(ctx, pageSize, pageToken)
 }

@@ -19,9 +19,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -61,16 +63,28 @@ func newAuthServerCollection(p services.Presence, w types.WatchKind) (*collectio
 	}, nil
 }
 
+// authServerCollection provides read access to cached auth servers. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type authServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Presence
+	col      *collection[types.Server, authServerIndex]
+}
+
 // GetAuthServers returns a list of registered servers
 //
 // Deprecated: Prefer paginated gRPC variant [ListAuthServers].
 //
 // TODO(kiosion): DELETE IN 21.0.0
-func (c *Cache) GetAuthServers() ([]types.Server, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
+func (c authServerCollection) GetAuthServers() ([]types.Server, error) {
+	_, span := c.tracer.Start(context.TODO(), "cache/GetAuthServers")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.authServers)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -78,7 +92,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 
 	if !rg.ReadCache() {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		servers, err := c.Config.Presence.GetAuthServers()
+		servers, err := c.upstream.GetAuthServers()
 		return servers, trace.Wrap(err)
 	}
 
@@ -90,18 +104,42 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	return servers, nil
 }
 
+// GetAuthServers returns a list of registered servers
+//
+// Deprecated: Prefer paginated gRPC variant [ListAuthServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *Cache) GetAuthServers() ([]types.Server, error) {
+	return authServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.authServers,
+	}.GetAuthServers()
+}
+
 // ListAuthServers returns a paginated list of registered auth servers.
-func (c *Cache) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAuthServers")
+func (c authServerCollection) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListAuthServers")
 	defer span.End()
 
 	lister := genericLister[types.Server, authServerIndex]{
-		cache:        c,
-		collection:   c.collections.authServers,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        authServerNameIndex,
-		upstreamList: c.Config.Presence.ListAuthServers,
+		upstreamList: c.upstream.ListAuthServers,
 		nextToken:    types.Server.GetName,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListAuthServers returns a paginated list of registered auth servers.
+func (c *Cache) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return authServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.authServers,
+	}.ListAuthServers(ctx, pageSize, pageToken)
 }

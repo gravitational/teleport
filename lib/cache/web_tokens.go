@@ -21,9 +21,11 @@ import (
 	"iter"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -64,17 +66,29 @@ func newWebTokenCollection(upstream services.WebToken, w types.WatchKind) (*coll
 	}, nil
 }
 
+// webTokenCollection provides read access to the cached web tokens. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type webTokenCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.WebToken
+	col      *collection[types.WebToken, webTokenIndex]
+}
+
 // GetWebToken gets a web token.
-func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
+func (c webTokenCollection) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWebToken")
 	defer span.End()
 
 	getter := genericGetter[types.WebToken, webTokenIndex]{
-		cache:      c,
-		collection: c.collections.webTokens,
+		engine:     c.engine,
+		collection: c.col,
 		index:      webTokenNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.WebToken, error) {
-			token, err := c.Config.WebToken.GetWebToken(ctx, req)
+			token, err := c.upstream.GetWebToken(ctx, req)
 			return token, trace.Wrap(err)
 		},
 	}
@@ -82,18 +96,18 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebTokens")
+func (c webTokenCollection) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWebTokens")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.webTokens)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		users, err := c.Config.WebToken.GetWebTokens(ctx)
+		users, err := c.upstream.GetWebTokens(ctx)
 		return users, trace.Wrap(err)
 	}
 
@@ -106,15 +120,15 @@ func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
 }
 
 // ListWebTokens returns a page of web tokens
-func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWebTokens")
+func (c webTokenCollection) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListWebTokens")
 	defer span.End()
 
 	lister := genericLister[types.WebToken, webTokenIndex]{
-		cache:        c,
-		collection:   c.collections.webTokens,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        webTokenNameIndex,
-		upstreamList: c.Config.WebToken.ListWebTokens,
+		upstreamList: c.upstream.ListWebTokens,
 		nextToken:    types.WebToken.GetName,
 	}
 	out, next, err := lister.list(ctx, limit, start)
@@ -126,19 +140,19 @@ func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]t
 }
 
 // RangeWebTokens returns web tokens within the range [start, end).
-func (c *Cache) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+func (c webTokenCollection) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
 	lister := genericLister[types.WebToken, webTokenIndex]{
-		cache:        c,
-		collection:   c.collections.webTokens,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        webTokenNameIndex,
-		upstreamList: c.Config.WebToken.ListWebTokens,
+		upstreamList: c.upstream.ListWebTokens,
 		nextToken:    types.WebToken.GetName,
 		// TODO(lokraszewski): DELETE IN v21.0.0
-		fallbackGetter: c.Config.WebToken.GetWebTokens,
+		fallbackGetter: c.upstream.GetWebTokens,
 	}
 
 	return func(yield func(types.WebToken, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeWebTokens")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeWebTokens")
 		defer span.End()
 
 		for token, err := range lister.RangeWithFallback(ctx, start, end) {
@@ -151,4 +165,43 @@ func (c *Cache) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2
 			}
 		}
 	}
+}
+
+// GetWebToken gets a web token.
+func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+	return webTokenCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WebToken,
+		col:      c.collections.webTokens,
+	}.GetWebToken(ctx, req)
+}
+
+func (c *Cache) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
+	return webTokenCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WebToken,
+		col:      c.collections.webTokens,
+	}.GetWebTokens(ctx)
+}
+
+// ListWebTokens returns a page of web tokens
+func (c *Cache) ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error) {
+	return webTokenCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WebToken,
+		col:      c.collections.webTokens,
+	}.ListWebTokens(ctx, limit, start)
+}
+
+// RangeWebTokens returns web tokens within the range [start, end).
+func (c *Cache) RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error] {
+	return webTokenCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WebToken,
+		col:      c.collections.webTokens,
+	}.RangeWebTokens(ctx, start, end)
 }

@@ -21,6 +21,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -28,6 +29,7 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -67,17 +69,29 @@ func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w
 	}, nil
 }
 
+// healthCheckConfigCollection provides read access to the cached health
+// check configs. Its exported methods are promoted onto every topology cache
+// that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type healthCheckConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.HealthCheckConfigReader
+	col      *collection[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]
+}
+
 // ListHealthCheckConfigs lists health check configs with pagination.
-func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextToken string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListHealthCheckConfigs")
+func (c healthCheckConfigCollection) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextToken string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListHealthCheckConfigs")
 	defer span.End()
 
 	lister := genericLister[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
-		cache:           c,
-		collection:      c.collections.healthCheckConfig,
+		engine:          c.engine,
+		collection:      c.col,
 		index:           healthCheckConfigNameIndex,
 		defaultPageSize: defaults.DefaultChunkSize,
-		upstreamList:    c.Config.HealthCheckConfig.ListHealthCheckConfigs,
+		upstreamList:    c.upstream.ListHealthCheckConfigs,
 		nextToken: func(t *healthcheckconfigv1.HealthCheckConfig) string {
 			return t.GetMetadata().GetName()
 		},
@@ -90,16 +104,36 @@ func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextTo
 }
 
 // GetHealthCheckConfig fetches a health check config by name.
-func (c *Cache) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetHealthCheckConfig")
+func (c healthCheckConfigCollection) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetHealthCheckConfig")
 	defer span.End()
 
 	getter := genericGetter[*healthcheckconfigv1.HealthCheckConfig, healthCheckConfigIndex]{
-		cache:       c,
-		collection:  c.collections.healthCheckConfig,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       healthCheckConfigNameIndex,
-		upstreamGet: c.Config.HealthCheckConfig.GetHealthCheckConfig,
+		upstreamGet: c.upstream.GetHealthCheckConfig,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+// ListHealthCheckConfigs lists health check configs with pagination.
+func (c *Cache) ListHealthCheckConfigs(ctx context.Context, pageSize int, nextToken string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error) {
+	return healthCheckConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.HealthCheckConfig,
+		col:      c.collections.healthCheckConfig,
+	}.ListHealthCheckConfigs(ctx, pageSize, nextToken)
+}
+
+// GetHealthCheckConfig fetches a health check config by name.
+func (c *Cache) GetHealthCheckConfig(ctx context.Context, name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
+	return healthCheckConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.HealthCheckConfig,
+		col:      c.collections.healthCheckConfig,
+	}.GetHealthCheckConfig(ctx, name)
 }

@@ -20,8 +20,10 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -95,17 +97,30 @@ func newCertAuthorityCollection(t services.Trust, w types.WatchKind) (*collectio
 	}, nil
 }
 
+// certAuthorityCollection provides read access to cached certificate
+// authorities. Its exported methods are promoted onto every topology cache
+// that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type certAuthorityCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.Trust
+	col      *collection[types.CertAuthority, certAuthorityIndex]
+}
+
 type getCertAuthorityCacheKey struct {
 	id types.CertAuthID
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
+func (c certAuthorityCollection) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.certAuthorities)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +135,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 			// fallback is sane because method is never used
 			// in construction of derivative caches.
 			if trace.IsNotFound(err) {
-				if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
+				if ca, err := c.upstream.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
 					return ca, nil
 				}
 			}
@@ -137,13 +152,13 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	// When signing keys are requested, always read from the upstream.
 	if loadSigningKeys {
-		ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys)
+		ca, err := c.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, err
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
 	cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
-		ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys)
+		ca, err := c.upstream.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, err
 	})
 	if err != nil {
@@ -152,17 +167,29 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	return cachedCA.Clone(), nil
 }
 
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	return certAuthorityCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Trust,
+		col:      c.collections.certAuthorities,
+	}.GetCertAuthority(ctx, id, loadSigningKeys)
+}
+
 type getCertAuthoritiesCacheKey struct {
 	caType types.CertAuthType
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
+func (c certAuthorityCollection) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.certAuthorities)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,13 +216,13 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 
 	// When signing keys are requested, always read from the upstream.
 	if loadSigningKeys {
-		cas, err := c.Config.Trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		cas, err := c.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
 		return cas, err
 	}
 
 	// When no keys are requested, use the ca cache to reduce the upstream load.
 	cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
-		cas, err := c.Config.Trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
+		cas, err := c.upstream.GetCertAuthorities(ctx, caType, loadSigningKeys)
 		return cas, trace.Wrap(err)
 	})
 	if err != nil || cachedCAs == nil {
@@ -206,4 +233,16 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 		cas = append(cas, ca.Clone())
 	}
 	return cas, nil
+}
+
+// GetCertAuthorities returns a list of authorities of a given type
+// loadSigningKeys controls whether signing keys should be loaded or not
+func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
+	return certAuthorityCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Trust,
+		col:      c.collections.certAuthorities,
+	}.GetCertAuthorities(ctx, caType, loadSigningKeys)
 }

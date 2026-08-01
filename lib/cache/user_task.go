@@ -73,7 +73,7 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, pageToken str
 	defer span.End()
 
 	lister := genericLister[*usertasksv1.UserTask, userTaskIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.userTasks,
 		index:      userTaskNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
@@ -97,7 +97,7 @@ func (c *Cache) GetUserTask(ctx context.Context, name string) (*usertasksv1.User
 	defer span.End()
 
 	getter := genericGetter[*usertasksv1.UserTask, userTaskIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.userTasks,
 		index:       userTaskNameIndex,
 		upstreamGet: c.Config.UserTasks.GetUserTask,

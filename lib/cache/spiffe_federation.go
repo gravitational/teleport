@@ -72,7 +72,7 @@ func (c *Cache) ListSPIFFEFederations(ctx context.Context, pageSize int, nextTok
 	defer span.End()
 
 	lister := genericLister[*machineidv1.SPIFFEFederation, spiffeFederationIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.spiffeFederations,
 		index:        spiffeFederationNameIndex,
 		upstreamList: c.Config.SPIFFEFederations.ListSPIFFEFederations,
@@ -90,7 +90,7 @@ func (c *Cache) GetSPIFFEFederation(ctx context.Context, name string) (*machinei
 	defer span.End()
 
 	getter := genericGetter[*machineidv1.SPIFFEFederation, spiffeFederationIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.spiffeFederations,
 		index:       spiffeFederationNameIndex,
 		upstreamGet: c.Config.SPIFFEFederations.GetSPIFFEFederation,

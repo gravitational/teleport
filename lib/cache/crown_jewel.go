@@ -73,7 +73,7 @@ func (c *Cache) ListCrownJewels(ctx context.Context, pageSize int64, pageToken s
 	defer span.End()
 
 	lister := genericLister[*crownjewelv1.CrownJewel, crownJewelIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.crownJewels,
 		index:      crownJewelNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*crownjewelv1.CrownJewel, string, error) {
@@ -94,7 +94,7 @@ func (c *Cache) GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.C
 	defer span.End()
 
 	getter := genericGetter[*crownjewelv1.CrownJewel, crownJewelIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.crownJewels,
 		index:       crownJewelNameIndex,
 		upstreamGet: c.Config.CrownJewels.GetCrownJewel,

@@ -68,7 +68,7 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[types.OktaImportRule, oktaImportRuleIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.oktaImportRules,
 		index:        oktaImportRuleNameIndex,
 		upstreamList: c.Config.Okta.ListOktaImportRules,
@@ -86,7 +86,7 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 	defer span.End()
 
 	getter := genericGetter[types.OktaImportRule, oktaImportRuleIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.oktaImportRules,
 		index:       oktaImportRuleNameIndex,
 		upstreamGet: c.Config.Okta.GetOktaImportRule,
@@ -136,7 +136,7 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[types.OktaAssignment, oktaAssignmentIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.oktaAssignments,
 		index:        oktaAssignmentNameIndex,
 		upstreamList: c.Config.Okta.ListOktaAssignments,
@@ -154,7 +154,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	defer span.End()
 
 	getter := genericGetter[types.OktaAssignment, oktaAssignmentIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.oktaAssignments,
 		index:       oktaAssignmentNameIndex,
 		upstreamGet: c.Config.Okta.GetOktaAssignment,

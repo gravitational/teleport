@@ -67,7 +67,7 @@ func (c *Cache) GetPluginStaticCredentials(ctx context.Context, name string) (ty
 	defer span.End()
 
 	getter := genericGetter[types.PluginStaticCredentials, pluginStaticCredentialsIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.pluginStaticCredentials,
 		index:       pluginStaticCredentialsNameIndex,
 		upstreamGet: c.Config.PluginStaticCredentials.GetPluginStaticCredentials,

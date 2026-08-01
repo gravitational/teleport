@@ -20,10 +20,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,19 +70,31 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 	}, nil
 }
 
+// tunnelConnectionCollection provides read access to cached tunnel
+// connections. Its exported methods are promoted onto every topology cache
+// that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type tunnelConnectionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Trust
+	col      *collection[types.TunnelConnection, tunnelConnectionIndex]
+}
+
 // GetTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTunnelConnections")
+func (c tunnelConnectionCollection) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetTunnelConnections")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetTunnelConnections(ctx, clusterName)
+		tunnels, err := c.upstream.GetTunnelConnections(ctx, clusterName)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -94,19 +108,29 @@ func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([
 	return tunnels, nil
 }
 
+// GetTunnelConnections is a part of auth.Cache implementation
+func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	return tunnelConnectionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Trust,
+		col:      c.collections.tunnelConnections,
+	}.GetTunnelConnections(ctx, clusterName)
+}
+
 // GetAllTunnelConnections is a part of auth.Cache implementation
-func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAllTunnelConnections")
+func (c tunnelConnectionCollection) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAllTunnelConnections")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tunnels, err := c.Config.Trust.GetAllTunnelConnections(ctx)
+		tunnels, err := c.upstream.GetAllTunnelConnections(ctx)
 		return tunnels, trace.Wrap(err)
 	}
 
@@ -118,18 +142,28 @@ func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.Tunn
 	return tunnels, nil
 }
 
+// GetAllTunnelConnections is a part of auth.Cache implementation
+func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
+	return tunnelConnectionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Trust,
+		col:      c.collections.tunnelConnections,
+	}.GetAllTunnelConnections(ctx)
+}
+
 // ListTunnelConnections returns a page of tunnel connections matching the
 // given filter.
-func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListTunnelConnections")
+func (c tunnelConnectionCollection) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListTunnelConnections")
 	defer span.End()
 
 	lister := genericLister[types.TunnelConnection, tunnelConnectionIndex]{
-		cache:      c,
-		collection: c.collections.tunnelConnections,
+		engine:     c.engine,
+		collection: c.col,
 		index:      tunnelConnectionNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.TunnelConnection, string, error) {
-			return c.Config.Trust.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+			return c.upstream.ListTunnelConnections(ctx, pageSize, pageToken, filter)
 		},
 		nextToken: func(tc types.TunnelConnection) string {
 			return tc.GetClusterName() + "/" + tc.GetName()
@@ -148,6 +182,17 @@ func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageTok
 
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	return tunnelConnectionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Trust,
+		col:      c.collections.tunnelConnections,
+	}.ListTunnelConnections(ctx, pageSize, pageToken, filter)
 }
 
 type remoteClusterIndex string
@@ -187,12 +232,25 @@ type remoteClustersCacheKey struct {
 	name string
 }
 
+// remoteClusterCollection provides read access to cached remote clusters.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type remoteClusterCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.Trust
+	col      *collection[types.RemoteCluster, remoteClusterIndex]
+}
+
 // GetRemoteClusters returns a list of remote clusters
-func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteClusters")
+func (c remoteClusterCollection) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetRemoteClusters")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.remoteClusters)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +270,7 @@ func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, e
 		var startKey string
 
 		for {
-			clusters, next, err := c.Config.Trust.ListRemoteClusters(ctx, 0, startKey)
+			clusters, next, err := c.upstream.ListRemoteClusters(ctx, 0, startKey)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -237,20 +295,31 @@ func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, e
 	return remotes, nil
 }
 
+// GetRemoteClusters returns a list of remote clusters
+func (c *Cache) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	return remoteClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Trust,
+		col:      c.collections.remoteClusters,
+	}.GetRemoteClusters(ctx)
+}
+
 // GetRemoteCluster returns a remote cluster by name
-func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRemoteCluster")
+func (c remoteClusterCollection) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetRemoteCluster")
 	defer span.End()
 
 	var upstreamRead bool
 	getter := genericGetter[types.RemoteCluster, remoteClusterIndex]{
-		cache:      c,
-		collection: c.collections.remoteClusters,
+		engine:     c.engine,
+		collection: c.col,
 		index:      remoteClusterNameIndex,
 		upstreamGet: func(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
 			upstreamRead = true
 			cachedRemote, err := utils.FnCacheGet(ctx, c.fnCache, remoteClustersCacheKey{clusterName}, func(ctx context.Context) (types.RemoteCluster, error) {
-				remote, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName)
+				remote, err := c.upstream.GetRemoteCluster(ctx, clusterName)
 				return remote, err
 			})
 			if err != nil {
@@ -264,25 +333,47 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 	if trace.IsNotFound(err) && !upstreamRead {
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
+		if rc, err := c.upstream.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
 	return out, trace.Wrap(err)
 }
 
+// GetRemoteCluster returns a remote cluster by name
+func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	return remoteClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Trust,
+		col:      c.collections.remoteClusters,
+	}.GetRemoteCluster(ctx, clusterName)
+}
+
 // ListRemoteClusters returns a page of remote clusters.
-func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+func (c remoteClusterCollection) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListRemoteClusters")
 	defer span.End()
 
 	lister := genericLister[types.RemoteCluster, remoteClusterIndex]{
-		cache:        c,
-		collection:   c.collections.remoteClusters,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        remoteClusterNameIndex,
-		upstreamList: c.Config.Trust.ListRemoteClusters,
+		upstreamList: c.upstream.ListRemoteClusters,
 		nextToken:    types.RemoteCluster.GetName,
 	}
 	out, next, err := lister.list(ctx, pageSize, nextToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListRemoteClusters returns a page of remote clusters.
+func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
+	return remoteClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Trust,
+		col:      c.collections.remoteClusters,
+	}.ListRemoteClusters(ctx, pageSize, nextToken)
 }

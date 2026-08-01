@@ -24,12 +24,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/cache/internal"
 )
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
 type genericGetter[T any, I comparable] struct {
-	// cache to performe the primary read from.
-	cache *Cache
+	// engine that publishes read-health for the primary read.
+	engine *internal.Engine
 	// collection that contains the item.
 	collection *collection[T, I]
 	// index of the collection to read with.
@@ -45,7 +46,7 @@ type genericGetter[T any, I comparable] struct {
 // is retained by the caller.
 func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, error) {
 	var t T
-	rg, err := acquireReadGuard(g.cache, g.collection)
+	rg, err := acquireGuard(g.engine, g.collection)
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -66,8 +67,8 @@ func (g genericGetter[T, I]) get(ctx context.Context, identifier string) (T, err
 
 // genericLister is a helper to retrieve a page of items from a cache collection.
 type genericLister[T any, I comparable] struct {
-	// cache to performe the primary read from.
-	cache *Cache
+	// engine that publishes read-health for the primary read.
+	engine *internal.Engine
 	// collection that contains the item.
 	collection *collection[T, I]
 	// index of the collection to read with.
@@ -124,7 +125,7 @@ func (g genericLister[T, I]) clipEnd(page []T, next, end string) ([]T, string) {
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 // The items returend are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startToken, endToken string) ([]T, string, error) {
-	rg, err := acquireReadGuard(l.cache, l.collection)
+	rg, err := acquireGuard(l.engine, l.collection)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

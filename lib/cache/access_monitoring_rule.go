@@ -71,7 +71,7 @@ func (c *Cache) ListAccessMonitoringRules(ctx context.Context, pageSize int, pag
 	defer span.End()
 
 	lister := genericLister[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.accessMonitoringRules,
 		index:        accessMonitoringRuleNameIndex,
 		upstreamList: c.Config.AccessMonitoringRules.ListAccessMonitoringRules,
@@ -89,7 +89,7 @@ func (c *Cache) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *ac
 	defer span.End()
 
 	lister := genericLister[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.accessMonitoringRules,
 		index:        accessMonitoringRuleNameIndex,
 		upstreamList: c.Config.AccessMonitoringRules.ListAccessMonitoringRules,
@@ -110,7 +110,7 @@ func (c *Cache) GetAccessMonitoringRule(ctx context.Context, name string) (*acce
 	defer span.End()
 
 	getter := genericGetter[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.accessMonitoringRules,
 		index:       accessMonitoringRuleNameIndex,
 		upstreamGet: c.Config.AccessMonitoringRules.GetAccessMonitoringRule,

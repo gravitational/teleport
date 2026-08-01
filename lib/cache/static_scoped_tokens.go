@@ -70,7 +70,7 @@ func (c *Cache) GetStaticScopedTokens(ctx context.Context) (*joiningv1.StaticSco
 	defer span.End()
 
 	getter := genericGetter[*joiningv1.StaticScopedTokens, staticScopedTokensIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.staticScopedTokens,
 		index:      staticScopedTokensNameIndex,
 		upstreamGet: func(ctx context.Context, ident string) (*joiningv1.StaticScopedTokens, error) {

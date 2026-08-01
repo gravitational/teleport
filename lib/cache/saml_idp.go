@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -62,17 +64,29 @@ func newSAMLIdPServiceProviderCollection(upstream services.SAMLIdPServiceProvide
 	}, nil
 }
 
+// samlIdPServiceProviderCollection provides read access to cached SAML IdP
+// service providers. Its exported methods are promoted onto every topology
+// cache that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type samlIdPServiceProviderCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.SAMLIdPServiceProviders
+	col      *collection[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]
+}
+
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
-func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
+func (c samlIdPServiceProviderCollection) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
 	defer span.End()
 
 	lister := genericLister[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
-		cache:           c,
-		collection:      c.collections.samlIdPServiceProviders,
+		engine:          c.engine,
+		collection:      c.col,
 		index:           samlIdPServiceProviderNameIndex,
 		defaultPageSize: 200,
-		upstreamList:    c.Config.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders,
+		upstreamList:    c.upstream.ListSAMLIdPServiceProviders,
 		nextToken: func(t types.SAMLIdPServiceProvider) string {
 			return t.GetMetadata().Name
 		},
@@ -81,17 +95,37 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, p
 	return out, next, trace.Wrap(err)
 }
 
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
+	return samlIdPServiceProviderCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.SAMLIdPServiceProviders,
+		col:      c.collections.samlIdPServiceProviders,
+	}.ListSAMLIdPServiceProviders(ctx, pageSize, pageToken)
+}
+
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
-func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
+func (c samlIdPServiceProviderCollection) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
 	defer span.End()
 
 	getter := genericGetter[types.SAMLIdPServiceProvider, samlIdPServiceProviderIndex]{
-		cache:       c,
-		collection:  c.collections.samlIdPServiceProviders,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       samlIdPServiceProviderNameIndex,
-		upstreamGet: c.Config.SAMLIdPServiceProviders.GetSAMLIdPServiceProvider,
+		upstreamGet: c.upstream.GetSAMLIdPServiceProvider,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	return samlIdPServiceProviderCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.SAMLIdPServiceProviders,
+		col:      c.collections.samlIdPServiceProviders,
+	}.GetSAMLIdPServiceProvider(ctx, name)
 }

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -79,19 +81,35 @@ func newWindowsDesktopServiceCollection(upstream services.Presence, w types.Watc
 	}, nil
 }
 
+// windowsDesktopServiceCollection provides read access to cached Windows
+// desktop services. Its exported methods are promoted onto every topology
+// cache that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type windowsDesktopServiceCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Presence
+	// upstreamDesktops serves the upstream fallback for
+	// ListWindowsDesktopServices, which lives on the WindowsDesktops service
+	// rather than on Presence.
+	upstreamDesktops services.WindowsDesktops
+	col              *collection[types.WindowsDesktopService, windowsDesktopServiceIndex]
+}
+
 // GetWindowsDesktopServices returns all registered Windows desktop services.
-func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
+func (c windowsDesktopServiceCollection) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.windowsDesktopServices)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		services, err := c.Presence.GetWindowsDesktopServices(ctx)
+		services, err := c.upstream.GetWindowsDesktopServices(ctx)
 		return services, trace.Wrap(err)
 	}
 
@@ -103,19 +121,30 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	return out, nil
 }
 
+// GetWindowsDesktopServices returns all registered Windows desktop services.
+func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
+	return windowsDesktopServiceCollection{
+		engine:           c.engine,
+		tracer:           c.Tracer,
+		upstream:         c.Config.Presence,
+		upstreamDesktops: c.Config.WindowsDesktops,
+		col:              c.collections.windowsDesktopServices,
+	}.GetWindowsDesktopServices(ctx)
+}
+
 // GetWindowsDesktopService returns a registered Windows desktop service by name.
-func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
+func (c windowsDesktopServiceCollection) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWindowsDesktopService")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.windowsDesktopServices)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		service, err := c.Presence.GetWindowsDesktopService(ctx, name)
+		service, err := c.upstream.GetWindowsDesktopService(ctx, name)
 		return service, trace.Wrap(err)
 	}
 
@@ -127,19 +156,30 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 	return svc.Clone(), nil
 }
 
+// GetWindowsDesktopService returns a registered Windows desktop service by name.
+func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error) {
+	return windowsDesktopServiceCollection{
+		engine:           c.engine,
+		tracer:           c.Tracer,
+		upstream:         c.Config.Presence,
+		upstreamDesktops: c.Config.WindowsDesktops,
+		col:              c.collections.windowsDesktopServices,
+	}.GetWindowsDesktopService(ctx, name)
+}
+
 // ListWindowsDesktopServices returns all registered Windows desktop hosts.
-func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
+func (c windowsDesktopServiceCollection) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.windowsDesktopServices)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		services, err := c.Config.WindowsDesktops.ListWindowsDesktopServices(ctx, req)
+		services, err := c.upstreamDesktops.ListWindowsDesktopServices(ctx, req)
 		return services, trace.Wrap(err)
 	}
 
@@ -179,6 +219,17 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 
 	return &resp, nil
+}
+
+// ListWindowsDesktopServices returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
+	return windowsDesktopServiceCollection{
+		engine:           c.engine,
+		tracer:           c.Tracer,
+		upstream:         c.Config.Presence,
+		upstreamDesktops: c.Config.WindowsDesktops,
+		col:              c.collections.windowsDesktopServices,
+	}.ListWindowsDesktopServices(ctx, req)
 }
 
 type windowsDesktopIndex string
@@ -238,19 +289,31 @@ func newWindowsDesktopCollection(upstream services.WindowsDesktops, w types.Watc
 	}, nil
 }
 
+// windowsDesktopCollection provides read access to cached Windows desktops.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type windowsDesktopCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.WindowsDesktops
+	col      *collection[types.WindowsDesktop, windowsDesktopIndex]
+}
+
 // GetWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
+func (c windowsDesktopCollection) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWindowsDesktops")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.windowsDesktops)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		desktops, err := c.Config.WindowsDesktops.GetWindowsDesktops(ctx, filter)
+		desktops, err := c.upstream.GetWindowsDesktops(ctx, filter)
 		return desktops, trace.Wrap(err)
 	}
 
@@ -278,19 +341,29 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	return out, nil
 }
 
+// GetWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
+	return windowsDesktopCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WindowsDesktops,
+		col:      c.collections.windowsDesktops,
+	}.GetWindowsDesktops(ctx, filter)
+}
+
 // ListWindowsDesktops returns all registered Windows desktop hosts.
-func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
+func (c windowsDesktopCollection) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListWindowsDesktops")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.windowsDesktops)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		desktops, err := c.Config.WindowsDesktops.ListWindowsDesktops(ctx, req)
+		desktops, err := c.upstream.ListWindowsDesktops(ctx, req)
 		return desktops, trace.Wrap(err)
 	}
 
@@ -336,6 +409,16 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	return &resp, nil
 }
 
+// ListWindowsDesktops returns all registered Windows desktop hosts.
+func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
+	return windowsDesktopCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.WindowsDesktops,
+		col:      c.collections.windowsDesktops,
+	}.ListWindowsDesktops(ctx, req)
+}
+
 type dynamicWindowsDesktopIndex string
 
 const dynamicWindowsDesktopNameIndex dynamicWindowsDesktopIndex = "name"
@@ -371,35 +454,67 @@ func newDynamicWindowsDesktopCollection(upstream services.DynamicWindowsDesktops
 	}, nil
 }
 
+// dynamicWindowsDesktopCollection provides read access to cached dynamic
+// Windows desktops. Its exported methods are promoted onto every topology
+// cache that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type dynamicWindowsDesktopCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.DynamicWindowsDesktops
+	col      *collection[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]
+}
+
 // GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
+func (c dynamicWindowsDesktopCollection) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetDynamicWindowsDesktop")
 	defer span.End()
 
 	getter := genericGetter[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
-		cache:       c,
-		collection:  c.collections.dynamicWindowsDesktops,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       dynamicWindowsDesktopNameIndex,
-		upstreamGet: c.Config.DynamicWindowsDesktops.GetDynamicWindowsDesktop,
+		upstreamGet: c.upstream.GetDynamicWindowsDesktop,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
 }
 
+// GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
+func (c *Cache) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return dynamicWindowsDesktopCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.DynamicWindowsDesktops,
+		col:      c.collections.dynamicWindowsDesktops,
+	}.GetDynamicWindowsDesktop(ctx, name)
+}
+
 // ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
-func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
+func (c dynamicWindowsDesktopCollection) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
 	defer span.End()
 
 	lister := genericLister[types.DynamicWindowsDesktop, dynamicWindowsDesktopIndex]{
-		cache:        c,
-		collection:   c.collections.dynamicWindowsDesktops,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        dynamicWindowsDesktopNameIndex,
-		upstreamList: c.Config.DynamicWindowsDesktops.ListDynamicWindowsDesktops,
+		upstreamList: c.upstream.ListDynamicWindowsDesktops,
 		nextToken: func(dwd types.DynamicWindowsDesktop) string {
 			return dwd.GetMetadata().Name
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, nextPage)
 	return out, next, trace.Wrap(err)
+}
+
+// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
+func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, nextPage string) ([]types.DynamicWindowsDesktop, string, error) {
+	return dynamicWindowsDesktopCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.DynamicWindowsDesktops,
+		col:      c.collections.dynamicWindowsDesktops,
+	}.ListDynamicWindowsDesktops(ctx, pageSize, nextPage)
 }

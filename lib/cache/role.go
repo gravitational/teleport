@@ -19,9 +19,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -57,19 +59,31 @@ func newRoleCollection(a services.Access, w types.WatchKind) (*collection[types.
 	}, nil
 }
 
+// roleCollection provides read access to cached roles. Its exported methods
+// are promoted onto every topology cache that embeds it; the reads are
+// implemented exactly once here. It is a stateless value assembled inline by
+// each of its consumers so that no shared scaffolding couples their
+// lifetimes.
+type roleCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Access
+	col      *collection[types.Role, roleIndex]
+}
+
 // GetRoles is a part of auth.Cache implementation
-func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
+func (c roleCollection) GetRoles(ctx context.Context) ([]types.Role, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetRoles")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.roles)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		roles, err := c.Config.Access.GetRoles(ctx)
+		roles, err := c.upstream.GetRoles(ctx)
 		return roles, trace.Wrap(err)
 	}
 
@@ -81,19 +95,29 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// GetRoles is a part of auth.Cache implementation
+func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
+	return roleCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Access,
+		col:      c.collections.roles,
+	}.GetRoles(ctx)
+}
+
 // ListRoles is a paginated role getter.
-func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListRoles")
+func (c roleCollection) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListRoles")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.roles)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		resp, err := c.Config.Access.ListRoles(ctx, req)
+		resp, err := c.upstream.ListRoles(ctx, req)
 		return resp, trace.Wrap(err)
 	}
 
@@ -130,19 +154,29 @@ func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*pr
 	return &resp, nil
 }
 
+// ListRoles is a paginated role getter.
+func (c *Cache) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	return roleCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Access,
+		col:      c.collections.roles,
+	}.ListRoles(ctx, req)
+}
+
 // GetRole is a part of auth.Cache implementation
-func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
+func (c roleCollection) GetRole(ctx context.Context, name string) (types.Role, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetRole")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.roles)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		role, err := c.Config.Access.GetRole(ctx, name)
+		role, err := c.upstream.GetRole(ctx, name)
 		return role, trace.Wrap(err)
 	}
 
@@ -154,7 +188,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if trace.IsNotFound(err) {
-			if role, err := c.Config.Access.GetRole(ctx, name); err == nil {
+			if role, err := c.upstream.GetRole(ctx, name); err == nil {
 				return role, nil
 			}
 
@@ -165,4 +199,14 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	}
 
 	return r.Clone(), nil
+}
+
+// GetRole is a part of auth.Cache implementation
+func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
+	return roleCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Access,
+		col:      c.collections.roles,
+	}.GetRole(ctx, name)
 }

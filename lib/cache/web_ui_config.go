@@ -20,8 +20,10 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -63,19 +65,40 @@ func newWebUIConfigCollection(upstream services.ClusterConfiguration, w types.Wa
 	}, nil
 }
 
-func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
+// webUIConfigCollection provides read access to the cached web UI config.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the read is implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type webUIConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.ClusterConfiguration
+	col      *collection[types.UIConfig, webUIConfigIndex]
+}
+
+func (c webUIConfigCollection) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetUIConfig")
 	defer span.End()
 
 	getter := genericGetter[types.UIConfig, webUIConfigIndex]{
-		cache:      c,
-		collection: c.collections.uiConfigs,
+		engine:     c.engine,
+		collection: c.col,
 		index:      webUIConfigNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.UIConfig, error) {
-			cfg, err := c.Config.ClusterConfig.GetUIConfig(ctx)
+			cfg, err := c.upstream.GetUIConfig(ctx)
 			return cfg, trace.Wrap(err)
 		},
 	}
 	out, err := getter.get(ctx, types.MetaNameUIConfig)
 	return out, trace.Wrap(err)
+}
+
+func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	return webUIConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.uiConfigs,
+	}.GetUIConfig(ctx)
 }

@@ -19,9 +19,11 @@ package cache
 import (
 	"context"
 	"iter"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"rsc.io/ordered"
 
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -74,19 +77,31 @@ func newDatabaseCollection(upstream services.Databases, w types.WatchKind) (*col
 	}, nil
 }
 
+// databaseCollection provides read access to cached databases. Its exported
+// methods are promoted onto every topology cache that embeds it; the reads
+// are implemented exactly once here. It is a stateless value assembled inline
+// by each of its consumers so that no shared scaffolding couples their
+// lifetimes.
+type databaseCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Databases
+	col      *collection[types.Database, databaseIndex]
+}
+
 // GetDatabase returns the specified database resource.
-func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
+func (c databaseCollection) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetDatabase")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.dbs)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		dbs, err := c.Config.Databases.GetDatabase(ctx, name)
+		dbs, err := c.upstream.GetDatabase(ctx, name)
 		return dbs, trace.Wrap(err)
 	}
 
@@ -98,20 +113,30 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 	return d.Copy(), nil
 }
 
+// GetDatabase returns the specified database resource.
+func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, error) {
+	return databaseCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Databases,
+		col:      c.collections.dbs,
+	}.GetDatabase(ctx, name)
+}
+
 // GetDatabases returns all database resources.
 // Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
-func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
+func (c databaseCollection) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.dbs)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		dbs, err := c.Config.Databases.GetDatabases(ctx)
+		dbs, err := c.upstream.GetDatabases(ctx)
 		return dbs, trace.Wrap(err)
 	}
 
@@ -123,36 +148,57 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	return out, nil
 }
 
+// GetDatabases returns all database resources.
+// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
+func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
+	return databaseCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Databases,
+		col:      c.collections.dbs,
+	}.GetDatabases(ctx)
+}
+
 // ListDatabases returns a page of database resources.
-func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabases")
+func (c databaseCollection) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListDatabases")
 	defer span.End()
 
 	lister := genericLister[types.Database, databaseIndex]{
-		cache:        c,
-		collection:   c.collections.dbs,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        databaseNameIndex,
-		upstreamList: c.Config.Databases.ListDatabases,
+		upstreamList: c.upstream.ListDatabases,
 		nextToken:    types.Database.GetName,
 	}
 	out, next, err := lister.list(ctx, limit, startKey)
 	return out, next, trace.Wrap(err)
 }
 
+// ListDatabases returns a page of database resources.
+func (c *Cache) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
+	return databaseCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Databases,
+		col:      c.collections.dbs,
+	}.ListDatabases(ctx, limit, startKey)
+}
+
 // RangeDatabases returns database resources within the range [start, end).
-func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+func (c databaseCollection) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
 	lister := genericLister[types.Database, databaseIndex]{
-		cache:        c,
-		collection:   c.collections.dbs,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        databaseNameIndex,
-		upstreamList: c.Config.Databases.ListDatabases,
+		upstreamList: c.upstream.ListDatabases,
 		nextToken:    types.Database.GetName,
 		// TODO(lokraszewski): DELETE IN v21.0.0
-		fallbackGetter: c.Config.Databases.GetDatabases,
+		fallbackGetter: c.upstream.GetDatabases,
 	}
 
 	return func(yield func(types.Database, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabases")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeDatabases")
 		defer span.End()
 
 		for db, err := range lister.RangeWithFallback(ctx, start, end) {
@@ -165,6 +211,16 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 			}
 		}
 	}
+}
+
+// RangeDatabases returns database resources within the range [start, end).
+func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
+	return databaseCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Databases,
+		col:      c.collections.dbs,
+	}.RangeDatabases(ctx, start, end)
 }
 
 type databaseServerIndex string
@@ -217,19 +273,32 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 	}, nil
 }
 
+// databaseServerCollection provides read access to cached database servers.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type databaseServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream services.Presence
+	col      *collection[types.DatabaseServer, databaseServerIndex]
+}
+
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
+func (c databaseServerCollection) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetDatabaseServers")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.dbServers)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		servers, err := c.Config.Presence.GetDatabaseServers(ctx, namespace)
+		servers, err := c.upstream.GetDatabaseServers(ctx, namespace)
 		return servers, trace.Wrap(err)
 	}
 
@@ -241,14 +310,25 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	return out, nil
 }
 
+// GetDatabaseServers returns all registered database proxy servers.
+func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	return databaseServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.dbServers,
+	}.GetDatabaseServers(ctx, namespace, opts...)
+}
+
 // RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
-func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+func (c databaseServerCollection) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
 	if databaseName == "" {
 		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
 	}
 
 	return func(yield func(types.DatabaseServer, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabaseServersWithName")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeDatabaseServersWithName")
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
@@ -274,7 +354,7 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 				backendKey = hostID + "/" + serverName
 			}
 
-			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+			resp, err := c.upstream.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindDatabaseServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
@@ -288,7 +368,7 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 			for _, r := range resp.Resources {
 				server, ok := r.(types.DatabaseServer)
 				if !ok {
-					c.Logger.WarnContext(ctx, "expected DatabaseServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					c.logger.WarnContext(ctx, "expected DatabaseServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 				if server.GetDatabase().GetName() == databaseName {
@@ -308,8 +388,8 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 		}
 
 		lister := genericLister[types.DatabaseServer, databaseServerIndex]{
-			cache:           c,
-			collection:      c.collections.dbServers,
+			engine:          c.engine,
+			collection:      c.col,
 			index:           databaseServerDatabaseNameIndex,
 			nextToken:       databaseServerByDatabaseNameKey,
 			defaultPageSize: defaults.DefaultChunkSize,
@@ -324,6 +404,17 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 			}
 		}
 	}
+}
+
+// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	return databaseServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.dbServers,
+	}.RangeDatabaseServersWithName(ctx, databaseName)
 }
 
 type databaseServiceIndex string
@@ -409,33 +500,63 @@ func newDatabaseObjectCollection(upstream services.DatabaseObjects, w types.Watc
 	}, nil
 }
 
-func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseObject")
+// databaseObjectCollection provides read access to cached database objects.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type databaseObjectCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.DatabaseObjects
+	col      *collection[*dbobjectv1.DatabaseObject, databaseObjectIndex]
+}
+
+func (c databaseObjectCollection) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetDatabaseObject")
 	defer span.End()
 
 	getter := genericGetter[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
-		cache:       c,
-		collection:  c.collections.databaseObjects,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       databaseObjectNameIndex,
-		upstreamGet: c.Config.DatabaseObjects.GetDatabaseObject,
+		upstreamGet: c.upstream.GetDatabaseObject,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
 }
 
-func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListDatabaseObjects")
+func (c *Cache) GetDatabaseObject(ctx context.Context, name string) (*dbobjectv1.DatabaseObject, error) {
+	return databaseObjectCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.DatabaseObjects,
+		col:      c.collections.databaseObjects,
+	}.GetDatabaseObject(ctx, name)
+}
+
+func (c databaseObjectCollection) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListDatabaseObjects")
 	defer span.End()
 
 	lister := genericLister[*dbobjectv1.DatabaseObject, databaseObjectIndex]{
-		cache:        c,
-		collection:   c.collections.databaseObjects,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        databaseObjectNameIndex,
-		upstreamList: c.Config.DatabaseObjects.ListDatabaseObjects,
+		upstreamList: c.upstream.ListDatabaseObjects,
 		nextToken: func(dbo *dbobjectv1.DatabaseObject) string {
 			return dbo.GetMetadata().GetName()
 		},
 	}
 	out, next, err := lister.list(ctx, size, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) ListDatabaseObjects(ctx context.Context, size int, pageToken string) ([]*dbobjectv1.DatabaseObject, string, error) {
+	return databaseObjectCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.DatabaseObjects,
+		col:      c.collections.databaseObjects,
+	}.ListDatabaseObjects(ctx, size, pageToken)
 }

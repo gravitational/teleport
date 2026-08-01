@@ -86,7 +86,7 @@ func (c *Cache) GetBotInstance(ctx context.Context, req *machineidv1.GetBotInsta
 	defer span.End()
 
 	getter := genericGetter[*machineidv1.BotInstance, botInstanceIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
@@ -146,7 +146,7 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	}
 
 	lister := genericLister[*machineidv1.BotInstance, botInstanceIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.botInstances,
 		index:           index,
 		isDesc:          isDesc,

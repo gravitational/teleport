@@ -72,7 +72,7 @@ func (c *Cache) ListDiscoveryConfigs(ctx context.Context, pageSize int, pageToke
 	defer span.End()
 
 	lister := genericLister[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.discoveryConfigs,
 		index:        discoveryConfigNameIndex,
 		upstreamList: c.Config.DiscoveryConfigs.ListDiscoveryConfigs,
@@ -90,7 +90,7 @@ func (c *Cache) GetDiscoveryConfig(ctx context.Context, name string) (*discovery
 	defer span.End()
 
 	getter := genericGetter[*discoveryconfig.DiscoveryConfig, discoveryConfigIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.discoveryConfigs,
 		index:       discoveryConfigNameIndex,
 		upstreamGet: c.Config.DiscoveryConfigs.GetDiscoveryConfig,

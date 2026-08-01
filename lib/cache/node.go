@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,19 +61,32 @@ func newNodeCollection(p services.Presence, w types.WatchKind) (*collection[type
 	}, nil
 }
 
+// nodeCollection provides read access to cached nodes. Its exported methods
+// are promoted onto every topology cache that embeds it; the reads are
+// implemented exactly once here. It is a stateless value assembled inline by
+// each of its consumers so that no shared scaffolding couples their
+// lifetimes.
+type nodeCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.Presence
+	col      *collection[types.Server, nodeIndex]
+}
+
 // GetNode finds and returns a node by name and namespace.
-func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
+func (c nodeCollection) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetNode")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.nodes)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		node, err := c.Config.Presence.GetNode(ctx, namespace, name)
+		node, err := c.upstream.GetNode(ctx, namespace, name)
 		return node, trace.Wrap(err)
 	}
 
@@ -83,16 +98,27 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	return n.DeepCopy(), nil
 }
 
+// GetNode finds and returns a node by name and namespace.
+func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
+	return nodeCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Presence,
+		col:      c.collections.nodes,
+	}.GetNode(ctx, namespace, name)
+}
+
 type getNodesCacheKey struct {
 	namespace string
 }
 
 // GetNodes is a part of auth.Cache implementation
-func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
+func (c nodeCollection) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetNodes")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.nodes)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,11 +141,22 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 
 }
 
+// GetNodes is a part of auth.Cache implementation
+func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return nodeCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Presence,
+		col:      c.collections.nodes,
+	}.GetNodes(ctx, namespace)
+}
+
 // getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
 // must be cloned to avoid concurrent modification.
-func (c *Cache) getNodesWithTTLCache(ctx context.Context) ([]types.Server, error) {
+func (c nodeCollection) getNodesWithTTLCache(ctx context.Context) ([]types.Server, error) {
 	cachedNodes, err := utils.FnCacheGet(ctx, c.fnCache, getNodesCacheKey{defaults.Namespace}, func(ctx context.Context) ([]types.Server, error) {
-		nodes, err := c.Config.Presence.GetNodes(ctx, defaults.Namespace)
+		nodes, err := c.upstream.GetNodes(ctx, defaults.Namespace)
 		return nodes, err
 	})
 
@@ -130,4 +167,16 @@ func (c *Cache) getNodesWithTTLCache(ctx context.Context) ([]types.Server, error
 		clonedNodes = append(clonedNodes, node.DeepCopy())
 	}
 	return clonedNodes, trace.Wrap(err)
+}
+
+// getNodesWithTTLCache implements TTL-based caching for the GetNodes endpoint.  All nodes that will be returned from the caching layer
+// must be cloned to avoid concurrent modification.
+func (c *Cache) getNodesWithTTLCache(ctx context.Context) ([]types.Server, error) {
+	return nodeCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Presence,
+		col:      c.collections.nodes,
+	}.getNodesWithTTLCache(ctx)
 }

@@ -603,16 +603,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 }
 
 // newPack returns a new test pack or fails the test on error
-func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
-	t.Helper()
-
-	ctx := t.Context()
-	p, err := newPackWithoutCache(t.TempDir(), opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.cache, err = New(setupConfig(Config{
+// cacheConfig assembles a cache configuration wired to the pack's upstream
+// services. The pack's eventsC channel is registered for replication-event
+// observation; tests constructing additional caches over the same pack should
+// clear EventsC to avoid interleaving event streams.
+func (p *testPack) cacheConfig(ctx context.Context) Config {
+	return Config{
 		Context:                 ctx,
 		Events:                  p.eventsS,
 		ClusterConfig:           p.clusterConfigS,
@@ -668,7 +664,19 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
 		SubCAService:            p.subCA,
-	}))
+	}
+}
+
+func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption) (*testPack, error) {
+	t.Helper()
+
+	ctx := t.Context()
+	p, err := newPackWithoutCache(t.TempDir(), opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.cache, err = New(setupConfig(p.cacheConfig(ctx)))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

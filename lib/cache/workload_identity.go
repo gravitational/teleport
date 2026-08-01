@@ -97,7 +97,7 @@ func (c *Cache) RangeWorkloadIdentities(
 	}
 
 	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.workloadIdentity,
 		index:      index,
 		isDesc:     sortDesc,
@@ -148,7 +148,7 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1
 	cursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
 
 	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.workloadIdentity,
 		index:      workloadIdentityNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*workloadidentityv1pb.WorkloadIdentity, error) {

@@ -69,12 +69,25 @@ func newClusterNameCollection(c services.ClusterConfiguration, w types.WatchKind
 	}, nil
 }
 
+// clusterNameCollection provides read access to the cached cluster name.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the read is implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type clusterNameCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.ClusterConfiguration
+	col      *collection[types.ClusterName, clusterNameIndex]
+}
+
 // GetClusterName gets the name of the cluster from the backend.
-func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterName")
+func (c clusterNameCollection) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetClusterName")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.clusterName)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -89,13 +102,24 @@ func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
 	}
 
 	cachedName, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (types.ClusterName, error) {
-		cfg, err := c.Config.ClusterConfig.GetClusterName(ctx)
+		cfg, err := c.upstream.GetClusterName(ctx)
 		return cfg, err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cachedName.Clone(), nil
+}
+
+// GetClusterName gets the name of the cluster from the backend.
+func (c *Cache) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+	return clusterNameCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.clusterName,
+	}.GetClusterName(ctx)
 }
 
 type clusterAuditConfigIndex string
@@ -139,12 +163,25 @@ type clusterConfigCacheKey struct {
 	kind string
 }
 
+// clusterAuditConfigCollection provides read access to the cached cluster
+// audit config. Its exported methods are promoted onto every topology cache
+// that embeds it; the read is implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type clusterAuditConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.ClusterConfiguration
+	col      *collection[types.ClusterAuditConfig, clusterAuditConfigIndex]
+}
+
 // GetClusterAuditConfig gets ClusterAuditConfig from the backend.
-func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
+func (c clusterAuditConfigCollection) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.auditConfig)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -159,13 +196,24 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditCo
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"audit"}, func(ctx context.Context) (types.ClusterAuditConfig, error) {
-		cfg, err := c.Config.ClusterConfig.GetClusterAuditConfig(ctx)
+		cfg, err := c.upstream.GetClusterAuditConfig(ctx)
 		return cfg, err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cachedCfg.Clone(), nil
+}
+
+// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
+func (c *Cache) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error) {
+	return clusterAuditConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.auditConfig,
+	}.GetClusterAuditConfig(ctx)
 }
 
 type clusterNetworkingConfigIndex string
@@ -208,26 +256,14 @@ func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w typ
 // clusterNetworkingConfigCollection provides read access to the cached
 // cluster networking config. Its exported methods are promoted onto every
 // topology cache that embeds it; the read is implemented exactly once here.
-// It is a stateless value assembled on demand by
-// [Cache.clusterNetworkingConfigReads].
+// It is a stateless value assembled inline by each of its consumers so that
+// no shared scaffolding couples their lifetimes.
 type clusterNetworkingConfigCollection struct {
 	engine   *internal.Engine
 	tracer   oteltrace.Tracer
 	fnCache  *utils.FnCache
 	upstream services.ClusterConfiguration
 	col      *collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]
-}
-
-// clusterNetworkingConfigReads assembles the cluster networking config read
-// collection for this cache.
-func (c *Cache) clusterNetworkingConfigReads() clusterNetworkingConfigCollection {
-	return clusterNetworkingConfigCollection{
-		engine:   c.engine,
-		tracer:   c.Tracer,
-		fnCache:  c.fnCache,
-		upstream: c.Config.ClusterConfig,
-		col:      c.collections.networkingConfig,
-	}
 }
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
@@ -261,7 +297,13 @@ func (c clusterNetworkingConfigCollection) GetClusterNetworkingConfig(ctx contex
 
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	return c.clusterNetworkingConfigReads().GetClusterNetworkingConfig(ctx)
+	return clusterNetworkingConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.networkingConfig,
+	}.GetClusterNetworkingConfig(ctx)
 }
 
 type authPreferenceIndex string
@@ -304,23 +346,13 @@ func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchK
 // authPreferenceCollection provides read access to the cached cluster auth
 // preference. Its exported methods are promoted onto every topology cache
 // that embeds it; the read is implemented exactly once here. It is a
-// stateless value assembled on demand by [Cache.authPreferenceReads].
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
 type authPreferenceCollection struct {
 	engine   *internal.Engine
 	tracer   oteltrace.Tracer
 	upstream services.ClusterConfiguration
 	col      *collection[types.AuthPreference, authPreferenceIndex]
-}
-
-// authPreferenceReads assembles the auth preference read collection for this
-// cache.
-func (c *Cache) authPreferenceReads() authPreferenceCollection {
-	return authPreferenceCollection{
-		engine:   c.engine,
-		tracer:   c.Tracer,
-		upstream: c.Config.ClusterConfig,
-		col:      c.collections.authPreference,
-	}
 }
 
 // GetAuthPreference gets the cluster authentication config.
@@ -348,7 +380,12 @@ func (c authPreferenceCollection) GetAuthPreference(ctx context.Context) (types.
 
 // GetAuthPreference gets the cluster authentication config.
 func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	return c.authPreferenceReads().GetAuthPreference(ctx)
+	return authPreferenceCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.authPreference,
+	}.GetAuthPreference(ctx)
 }
 
 type sessionRecordingConfigIndex string
@@ -391,24 +428,13 @@ func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w type
 // sessionRecordingConfigCollection provides read access to the cached
 // session recording config. Its exported methods are promoted onto every
 // topology cache that embeds it; the read is implemented exactly once here.
-// It is a stateless value assembled on demand by
-// [Cache.sessionRecordingConfigReads].
+// It is a stateless value assembled inline by each of its consumers so that
+// no shared scaffolding couples their lifetimes.
 type sessionRecordingConfigCollection struct {
 	engine   *internal.Engine
 	tracer   oteltrace.Tracer
 	upstream services.ClusterConfiguration
 	col      *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
-}
-
-// sessionRecordingConfigReads assembles the session recording config read
-// collection for this cache.
-func (c *Cache) sessionRecordingConfigReads() sessionRecordingConfigCollection {
-	return sessionRecordingConfigCollection{
-		engine:   c.engine,
-		tracer:   c.Tracer,
-		upstream: c.Config.ClusterConfig,
-		col:      c.collections.sessionRecordingConfig,
-	}
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
@@ -436,7 +462,12 @@ func (c sessionRecordingConfigCollection) GetSessionRecordingConfig(ctx context.
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	return c.sessionRecordingConfigReads().GetSessionRecordingConfig(ctx)
+	return sessionRecordingConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.sessionRecordingConfig,
+	}.GetSessionRecordingConfig(ctx)
 }
 
 type accessGraphSettingsIndex string
@@ -478,18 +509,31 @@ func newAccessGraphSettingsCollection(upstream services.ClusterConfiguration, w 
 	}, nil
 }
 
+// accessGraphSettingsCollection provides read access to the cached access
+// graph settings. Its exported methods are promoted onto every topology
+// cache that embeds it; the read is implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type accessGraphSettingsCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.ClusterConfiguration
+	col      *collection[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]
+}
+
 // GetAccessGraphSettings gets AccessGraphSettings from the backend.
-func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
+func (c accessGraphSettingsCollection) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAccessGraphSettings")
 	defer span.End()
 
 	getter := genericGetter[*clusterconfigv1.AccessGraphSettings, accessGraphSettingsIndex]{
-		cache:      c,
-		collection: c.collections.accessGraphSettings,
+		engine:     c.engine,
+		collection: c.col,
 		index:      accessGraphSettingsNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*clusterconfigv1.AccessGraphSettings, error) {
 			cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
-				cfg, err := c.Config.ClusterConfig.GetAccessGraphSettings(ctx)
+				cfg, err := c.upstream.GetAccessGraphSettings(ctx)
 				return cfg, err
 			})
 			if err != nil {
@@ -501,4 +545,15 @@ func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.Ac
 	}
 	out, err := getter.get(ctx, types.MetaNameAccessGraphSettings)
 	return out, trace.Wrap(err)
+}
+
+// GetAccessGraphSettings gets AccessGraphSettings from the backend.
+func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigv1.AccessGraphSettings, error) {
+	return accessGraphSettingsCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.accessGraphSettings,
+	}.GetAccessGraphSettings(ctx)
 }

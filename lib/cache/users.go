@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -81,23 +83,35 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 	}, nil
 }
 
+// userCollection provides read access to cached users. Its exported methods
+// are promoted onto every topology cache that embeds it; the reads are
+// implemented exactly once here. It is a stateless value assembled inline by
+// each of its consumers so that no shared scaffolding couples their
+// lifetimes.
+type userCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.UsersService
+	col      *collection[types.User, userIndex]
+}
+
 // GetUser is a part of auth.Cache implementation.
-func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUser")
+func (c userCollection) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUser(ctx, name, withSecrets)
+		return c.upstream.GetUser(ctx, name, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		user, err := c.Config.Users.GetUser(ctx, name, withSecrets)
+		user, err := c.upstream.GetUser(ctx, name, withSecrets)
 		return user, trace.Wrap(err)
 	}
 
@@ -109,7 +123,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if trace.IsNotFound(err) {
-			if user, err := c.Config.Users.GetUser(ctx, name, withSecrets); err == nil {
+			if user, err := c.upstream.GetUser(ctx, name, withSecrets); err == nil {
 				return user, nil
 			}
 		}
@@ -123,23 +137,33 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 	return u.WithoutSecrets().(types.User), nil
 }
 
+// GetUser is a part of auth.Cache implementation.
+func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
+	return userCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Users,
+		col:      c.collections.users,
+	}.GetUser(ctx, name, withSecrets)
+}
+
 // GetUsers is a part of auth.Cache implementation
-func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUsers")
+func (c userCollection) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
-		return c.Config.Users.GetUsers(ctx, withSecrets)
+		return c.upstream.GetUsers(ctx, withSecrets)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		users, err := c.Config.Users.GetUsers(ctx, withSecrets)
+		users, err := c.upstream.GetUsers(ctx, withSecrets)
 		return users, trace.Wrap(err)
 	}
 
@@ -155,24 +179,34 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 	return users, nil
 }
 
+// GetUsers is a part of auth.Cache implementation
+func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
+	return userCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Users,
+		col:      c.collections.users,
+	}.GetUsers(ctx, withSecrets)
+}
+
 // ListUsers returns a page of users.
-func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUsers")
+func (c userCollection) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
 	if req.GetWithSecrets() { // cache never tracks user secrets
-		rsp, err := c.Config.Users.ListUsers(ctx, req)
+		rsp, err := c.upstream.ListUsers(ctx, req)
 		return rsp, trace.Wrap(err)
 	}
 
-	rg, err := acquireReadGuard(c, c.collections.users)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		resp, err := c.Config.Users.ListUsers(ctx, req)
+		resp, err := c.upstream.ListUsers(ctx, req)
 		return resp, trace.Wrap(err)
 	}
 
@@ -205,4 +239,14 @@ func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*
 		}
 	}
 	return &resp, nil
+}
+
+// ListUsers returns a page of users.
+func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
+	return userCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Users,
+		col:      c.collections.users,
+	}.ListUsers(ctx, req)
 }

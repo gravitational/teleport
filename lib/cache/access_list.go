@@ -155,7 +155,7 @@ func (c *Cache) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.L
 		}
 	}
 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.accessLists,
 		isDesc:          isDesc,
 		index:           index,
@@ -186,7 +186,7 @@ func (c *Cache) ListAccessLists(ctx context.Context, pageSize int, pageToken str
 	defer span.End()
 
 	lister := genericLister[*accesslist.AccessList, accessListIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.accessLists,
 		index:           accessListNameIndex,
 		defaultPageSize: 100,
@@ -213,7 +213,7 @@ func (c *Cache) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccess
 
 	var upstreamRead bool
 	getter := genericGetter[*accesslist.AccessList, accessListIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.accessLists,
 		index:      accessListNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*accesslist.AccessList, error) {
@@ -450,7 +450,7 @@ func (c *Cache) ListAllAccessListMembersV2(ctx context.Context, req *accesslistv
 	}
 
 	lister := genericLister[*accesslist.AccessListMember, accessListMemberIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.accessListMembers,
 		index:           accessListMemberNameIndex,
 		defaultPageSize: 200,
@@ -639,7 +639,7 @@ func (c *Cache) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.L
 	defer span.End()
 
 	lister := genericLister[*accesslist.Review, accessListReviewIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.accessListReviews,
 		index:           accessListReviewNameIndex,
 		defaultPageSize: 200,

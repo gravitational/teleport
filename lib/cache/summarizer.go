@@ -71,7 +71,7 @@ func (c *Cache) GetInferenceModel(ctx context.Context, name string) (*summarizer
 	defer span.End()
 
 	getter := genericGetter[*summarizerv1.InferenceModel, inferenceModelIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.inferenceModels,
 		index:       inferenceModelNameIndex,
 		upstreamGet: c.Config.Summarizer.GetInferenceModel,
@@ -85,7 +85,7 @@ func (c *Cache) ListInferenceModels(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[*summarizerv1.InferenceModel, inferenceModelIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.inferenceModels,
 		index:        inferenceModelNameIndex,
 		upstreamList: c.Config.Summarizer.ListInferenceModels,
@@ -137,7 +137,7 @@ func (c *Cache) GetInferenceSecret(ctx context.Context, name string) (*summarize
 	defer span.End()
 
 	getter := genericGetter[*summarizerv1.InferenceSecret, inferenceSecretIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.inferenceSecrets,
 		index:       inferenceSecretNameIndex,
 		upstreamGet: c.Config.Summarizer.GetInferenceSecret,
@@ -151,7 +151,7 @@ func (c *Cache) ListInferenceSecrets(ctx context.Context, pageSize int, pageToke
 	defer span.End()
 
 	lister := genericLister[*summarizerv1.InferenceSecret, inferenceSecretIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.inferenceSecrets,
 		index:        inferenceSecretNameIndex,
 		upstreamList: c.Config.Summarizer.ListInferenceSecrets,
@@ -203,7 +203,7 @@ func (c *Cache) GetInferencePolicy(ctx context.Context, name string) (*summarize
 	defer span.End()
 
 	getter := genericGetter[*summarizerv1.InferencePolicy, inferencePolicyIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.inferencePolicies,
 		index:       inferencePolicyNameIndex,
 		upstreamGet: c.Config.Summarizer.GetInferencePolicy,
@@ -217,7 +217,7 @@ func (c *Cache) ListInferencePolicies(ctx context.Context, pageSize int, pageTok
 	defer span.End()
 
 	lister := genericLister[*summarizerv1.InferencePolicy, inferencePolicyIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.inferencePolicies,
 		index:        inferencePolicyNameIndex,
 		upstreamList: c.Config.Summarizer.ListInferencePolicies,
@@ -295,7 +295,7 @@ func (c *Cache) GetClassifier(ctx context.Context, name string) (*summarizerv1.C
 	defer span.End()
 
 	getter := genericGetter[*summarizerv1.Classifier, classifierIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.classifiers,
 		index:       classifierNameIndex,
 		upstreamGet: c.Config.Summarizer.GetClassifier,
@@ -309,7 +309,7 @@ func (c *Cache) ListClassifiers(ctx context.Context, pageSize int, pageToken str
 	defer span.End()
 
 	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.classifiers,
 		index:        classifierNameIndex,
 		upstreamList: c.Config.Summarizer.ListClassifiers,
@@ -323,7 +323,7 @@ func (c *Cache) ListClassifiers(ctx context.Context, pageSize int, pageToken str
 
 func (c *Cache) RangeClassifiers(ctx context.Context, start, end string) iter.Seq2[*summarizerv1.Classifier, error] {
 	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.classifiers,
 		index:        classifierNameIndex,
 		upstreamList: c.Config.Summarizer.ListClassifiers,
@@ -394,7 +394,7 @@ func (c *Cache) GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalM
 	defer span.End()
 
 	getter := genericGetter[*summarizerv1.RetrievalModel, retrievalModelIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.retrievalModels,
 		index:      retrievalModelNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*summarizerv1.RetrievalModel, error) {

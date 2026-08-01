@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -62,16 +64,28 @@ func newIntegrationCollection(upstream services.Integrations, w types.WatchKind)
 	}, nil
 }
 
+// integrationCollection provides read access to cached integrations. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type integrationCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Integrations
+	col      *collection[types.Integration, integrationIndex]
+}
+
 // ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
+func (c integrationCollection) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
 	lister := genericLister[types.Integration, integrationIndex]{
-		cache:        c,
-		collection:   c.collections.integrations,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        integrationNameIndex,
-		upstreamList: c.Config.Integrations.ListIntegrations,
+		upstreamList: c.upstream.ListIntegrations,
 		nextToken: func(t types.Integration) string {
 			return t.GetMetadata().Name
 		},
@@ -80,17 +94,37 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, pageToken st
 	return out, next, trace.Wrap(err)
 }
 
+// ListIntegrations returns a paginated list of all Integrations resources.
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
+	return integrationCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Integrations,
+		col:      c.collections.integrations,
+	}.ListIntegrations(ctx, pageSize, pageToken)
+}
+
 // GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
+func (c integrationCollection) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
 	getter := genericGetter[types.Integration, integrationIndex]{
-		cache:       c,
-		collection:  c.collections.integrations,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       integrationNameIndex,
-		upstreamGet: c.Config.Integrations.GetIntegration,
+		upstreamGet: c.upstream.GetIntegration,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+// GetIntegration returns the specified Integration resources.
+func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	return integrationCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Integrations,
+		col:      c.collections.integrations,
+	}.GetIntegration(ctx, name)
 }

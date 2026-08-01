@@ -21,9 +21,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -61,20 +63,42 @@ func newReverseTunnelCollection(upstream services.Presence, w types.WatchKind) (
 	}, nil
 }
 
+// reverseTunnelCollection provides read access to cached reverse tunnels.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type reverseTunnelCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Presence
+	col      *collection[types.ReverseTunnel, reverseTunnelIndex]
+}
+
 // ListReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListReverseTunnels")
+func (c reverseTunnelCollection) ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListReverseTunnels")
 	defer span.End()
 
 	lister := genericLister[types.ReverseTunnel, reverseTunnelIndex]{
-		cache:        c,
-		collection:   c.collections.reverseTunnels,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        reverseTunnelNameIndex,
-		upstreamList: c.Config.Presence.ListReverseTunnels,
+		upstreamList: c.upstream.ListReverseTunnels,
 		nextToken: func(t types.ReverseTunnel) string {
 			return t.GetMetadata().Name
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListReverseTunnels is a part of auth.Cache implementation
+func (c *Cache) ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error) {
+	return reverseTunnelCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.reverseTunnels,
+	}.ListReverseTunnels(ctx, pageSize, pageToken)
 }

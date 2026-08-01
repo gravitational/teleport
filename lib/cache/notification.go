@@ -61,7 +61,7 @@ func (c *Cache) ListUserNotifications(ctx context.Context, pageSize int, startKe
 	defer span.End()
 
 	lister := genericLister[*notificationsv1.Notification, userNotificationIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.userNotifications,
 		index:        userNotificationNameIndex,
 		upstreamList: c.Config.Notifications.ListUserNotifications,
@@ -105,7 +105,7 @@ func (c *Cache) ListGlobalNotifications(ctx context.Context, pageSize int, start
 	defer span.End()
 
 	lister := genericLister[*notificationsv1.GlobalNotification, globalNotificationIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.globalNotifications,
 		index:        globalNotificationNameIndex,
 		upstreamList: c.Config.Notifications.ListGlobalNotifications,

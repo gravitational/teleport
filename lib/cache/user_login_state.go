@@ -96,7 +96,7 @@ func (c *Cache) GetUserLoginState(ctx context.Context, name string) (*userlogins
 
 	var upstreamRead bool
 	getter := genericGetter[*userloginstate.UserLoginState, userLoginStateIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.userLoginStates,
 		index:      userLoginStateNameIndex,
 		upstreamGet: func(ctx context.Context, name string) (*userloginstate.UserLoginState, error) {
@@ -122,7 +122,7 @@ func (c *Cache) ListUserLoginStates(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[*userloginstate.UserLoginState, userLoginStateIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.userLoginStates,
 		index:           userLoginStateNameIndex,
 		upstreamList:    c.Config.UserLoginStates.ListUserLoginStates,

@@ -20,8 +20,10 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -61,20 +63,42 @@ func newNetworkingRestrictionCollection(upstream services.Restrictions, w types.
 	}, nil
 }
 
+// networkingRestrictionCollection provides read access to the cached network
+// restrictions. Its exported methods are promoted onto every topology cache
+// that embeds it; the read is implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type networkingRestrictionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Restrictions
+	col      *collection[types.NetworkRestrictions, networkingRestrictionIndex]
+}
+
 // GetNetworkRestrictions gets the network restrictions.
-func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
+func (c networkingRestrictionCollection) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetNetworkRestrictions")
 	defer span.End()
 
 	getter := genericGetter[types.NetworkRestrictions, networkingRestrictionIndex]{
-		cache:      c,
-		collection: c.collections.networkRestrictions,
+		engine:     c.engine,
+		collection: c.col,
 		index:      networkingRestrictionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.NetworkRestrictions, error) {
-			restriction, err := c.Config.Restrictions.GetNetworkRestrictions(ctx)
+			restriction, err := c.upstream.GetNetworkRestrictions(ctx)
 			return restriction, trace.Wrap(err)
 		},
 	}
 	out, err := getter.get(ctx, types.MetaNameNetworkRestrictions)
 	return out, trace.Wrap(err)
+}
+
+// GetNetworkRestrictions gets the network restrictions.
+func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error) {
+	return networkingRestrictionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Restrictions,
+		col:      c.collections.networkRestrictions,
+	}.GetNetworkRestrictions(ctx)
 }

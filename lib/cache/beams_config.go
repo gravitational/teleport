@@ -76,7 +76,7 @@ func (c *Cache) GetBeamsConfig(ctx context.Context) (*beamsv1.BeamsConfig, error
 	defer span.End()
 
 	getter := genericGetter[*beamsv1.BeamsConfig, beamsConfigIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.beamsConfig,
 		index:      beamsConfigNameIndex,
 		upstreamGet: func(ctx context.Context, name string) (*beamsv1.BeamsConfig, error) {

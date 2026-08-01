@@ -20,10 +20,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -65,12 +67,24 @@ func newStaticTokensCollection(c services.ClusterConfiguration, w types.WatchKin
 	}, nil
 }
 
+// staticTokensCollection provides read access to the cached static tokens.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the read is implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type staticTokensCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.ClusterConfiguration
+	col      *collection[types.StaticTokens, staticTokensIndex]
+}
+
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticTokens")
+func (c staticTokensCollection) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetStaticTokens")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.staticTokens)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -84,8 +98,18 @@ func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
 		return st.Clone(), nil
 	}
 
-	st, err := c.Config.ClusterConfig.GetStaticTokens(ctx)
+	st, err := c.upstream.GetStaticTokens(ctx)
 	return st, trace.Wrap(err)
+}
+
+// GetStaticTokens gets the list of static tokens used to provision nodes.
+func (c *Cache) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return staticTokensCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.staticTokens,
+	}.GetStaticTokens(ctx)
 }
 
 type provisionTokenIndex string
@@ -130,21 +154,33 @@ func newProvisionTokensCollection(p services.Provisioner, w types.WatchKind) (*c
 	}, nil
 }
 
+// provisionTokensCollection provides read access to cached provision tokens.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type provisionTokensCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Provisioner
+	col      *collection[types.ProvisionToken, provisionTokenIndex]
+}
+
 // GetTokens returns all active (non-expired) provisioning tokens
 // Deprecated: use [ListProvisionTokens] istead.
 // TODO(hugoShaka): DELETE IN 19.0.0
-func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
+func (c provisionTokensCollection) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.provisionTokens)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		tokens, err := c.Config.Provisioner.GetTokens(ctx)
+		tokens, err := c.upstream.GetTokens(ctx)
 		return tokens, trace.Wrap(err)
 	}
 
@@ -156,19 +192,31 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	return tokens, nil
 }
 
+// GetTokens returns all active (non-expired) provisioning tokens
+// Deprecated: use [ListProvisionTokens] istead.
+// TODO(hugoShaka): DELETE IN 19.0.0
+func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
+	return provisionTokensCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Provisioner,
+		col:      c.collections.provisionTokens,
+	}.GetTokens(ctx)
+}
+
 // GetToken finds and returns token by ID
-func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
+func (c provisionTokensCollection) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetToken")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.provisionTokens)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		token, err := c.Config.Provisioner.GetToken(ctx, name)
+		token, err := c.upstream.GetToken(ctx, name)
 		return token, trace.Wrap(err)
 	}
 
@@ -180,7 +228,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
 		if trace.IsNotFound(err) {
-			if token, err := c.Config.Provisioner.GetToken(ctx, name); err == nil {
+			if token, err := c.upstream.GetToken(ctx, name); err == nil {
 				return token, nil
 			}
 		}
@@ -190,22 +238,32 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	return t.Clone(), nil
 }
 
+// GetToken finds and returns token by ID
+func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	return provisionTokensCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Provisioner,
+		col:      c.collections.provisionTokens,
+	}.GetToken(ctx, name)
+}
+
 // ListProvisionTokens returns a paginated list of provision tokens. Items can
 // be filtered by role and bot name. Tokens with ANY of the provided roles are
 // returned. If a bot name is provided, only tokens having a role of Bot are
 // returned.
-func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListProvisionTokens")
+func (c provisionTokensCollection) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListProvisionTokens")
 	defer span.End()
 
 	lister := genericLister[types.ProvisionToken, provisionTokenIndex]{
-		cache:           c,
-		collection:      c.collections.provisionTokens,
+		engine:          c.engine,
+		collection:      c.col,
 		index:           provisionTokenStoreNameIndex,
 		isDesc:          false,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.ProvisionToken, string, error) {
-			return c.Config.Provisioner.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
+			return c.upstream.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
 		},
 		filter: func(t types.ProvisionToken) bool {
 			return local.MatchToken(t, anyRoles, botName)
@@ -219,4 +277,17 @@ func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken
 		pageToken,
 	)
 	return out, next, trace.Wrap(err)
+}
+
+// ListProvisionTokens returns a paginated list of provision tokens. Items can
+// be filtered by role and bot name. Tokens with ANY of the provided roles are
+// returned. If a bot name is provided, only tokens having a role of Bot are
+// returned.
+func (c *Cache) ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error) {
+	return provisionTokensCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Provisioner,
+		col:      c.collections.provisionTokens,
+	}.ListProvisionTokens(ctx, pageSize, pageToken, anyRoles, botName)
 }

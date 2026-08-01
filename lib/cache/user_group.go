@@ -21,9 +21,11 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -64,19 +66,31 @@ func newUserGroupCollection(upstream services.UserGroups, w types.WatchKind) (*c
 	}, nil
 }
 
+// userGroupCollection provides read access to cached user groups. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type userGroupCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.UserGroups
+	col      *collection[types.UserGroup, userGroupIndex]
+}
+
 // ListUserGroups returns a paginated list of user group resources.
-func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
+func (c userGroupCollection) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListUserGroups")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.userGroups)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		group, nextKey, err := c.Config.UserGroups.ListUserGroups(ctx, pageSize, nextKey)
+		group, nextKey, err := c.upstream.ListUserGroups(ctx, pageSize, nextKey)
 		return group, nextKey, trace.Wrap(err)
 	}
 
@@ -100,19 +114,29 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 	return groups, "", nil
 }
 
+// ListUserGroups returns a paginated list of user group resources.
+func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	return userGroupCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.UserGroups,
+		col:      c.collections.userGroups,
+	}.ListUserGroups(ctx, pageSize, nextKey)
+}
+
 // GetUserGroup returns the specified user group resources.
-func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
+func (c userGroupCollection) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetUserGroup")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.userGroups)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		group, err := c.Config.UserGroups.GetUserGroup(ctx, name)
+		group, err := c.upstream.GetUserGroup(ctx, name)
 		return group, trace.Wrap(err)
 	}
 
@@ -121,4 +145,14 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 		return nil, trace.Wrap(err)
 	}
 	return group.Clone(), nil
+}
+
+// GetUserGroup returns the specified user group resources.
+func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	return userGroupCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.UserGroups,
+		col:      c.collections.userGroups,
+	}.GetUserGroup(ctx, name)
 }

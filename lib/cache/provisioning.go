@@ -70,7 +70,7 @@ func (c *Cache) GetProvisioningState(ctx context.Context, downstream services.Do
 	defer span.End()
 
 	getter := genericGetter[*provisioningv1.PrincipalState, principalStateIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.provisioningStates,
 		index:      principalStateNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*provisioningv1.PrincipalState, error) {
@@ -87,7 +87,7 @@ func (c *Cache) ListProvisioningStatesForAllDownstreams(ctx context.Context, pag
 	defer span.End()
 
 	lister := genericLister[*provisioningv1.PrincipalState, principalStateIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.provisioningStates,
 		index:        principalStateNameIndex,
 		upstreamList: c.Config.ProvisioningStates.ListProvisioningStatesForAllDownstreams,

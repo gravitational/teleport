@@ -20,9 +20,11 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -62,16 +64,28 @@ func newProxyServerCollection(p services.Presence, w types.WatchKind) (*collecti
 	}, nil
 }
 
+// proxyServerCollection provides read access to cached proxy servers. Its
+// exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type proxyServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Presence
+	col      *collection[types.Server, proxyServerIndex]
+}
+
 // GetProxies is a part of auth.Cache implementation
 //
 // Deprecated: Prefer paginated gRPC variant [ListProxyServers].
 //
 // TODO(kiosion): DELETE IN 21.0.0
-func (c *Cache) GetProxies() ([]types.Server, error) {
-	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
+func (c proxyServerCollection) GetProxies() ([]types.Server, error) {
+	_, span := c.tracer.Start(context.TODO(), "cache/GetProxies")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.proxyServers)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,7 +93,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 
 	if !rg.ReadCache() {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		servers, err := c.Config.Presence.GetAuthServers()
+		servers, err := c.upstream.GetProxies()
 		return servers, trace.Wrap(err)
 	}
 
@@ -91,18 +105,42 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	return servers, nil
 }
 
+// GetProxies is a part of auth.Cache implementation
+//
+// Deprecated: Prefer paginated gRPC variant [ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *Cache) GetProxies() ([]types.Server, error) {
+	return proxyServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.proxyServers,
+	}.GetProxies()
+}
+
 // ListProxyServers returns a paginated list of registered proxy servers.
-func (c *Cache) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListProxyServers")
+func (c proxyServerCollection) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListProxyServers")
 	defer span.End()
 
 	lister := genericLister[types.Server, proxyServerIndex]{
-		cache:        c,
-		collection:   c.collections.proxyServers,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        proxyServerNameIndex,
-		upstreamList: c.Config.Presence.ListProxyServers,
+		upstreamList: c.upstream.ListProxyServers,
 		nextToken:    types.Server.GetName,
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// ListProxyServers returns a paginated list of registered proxy servers.
+func (c *Cache) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return proxyServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.proxyServers,
+	}.ListProxyServers(ctx, pageSize, pageToken)
 }

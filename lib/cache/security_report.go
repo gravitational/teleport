@@ -77,7 +77,7 @@ func (c *Cache) GetSecurityAuditQuery(ctx context.Context, name string) (*secrep
 	defer span.End()
 
 	getter := genericGetter[*secreports.AuditQuery, auditQueryIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.auditQueries,
 		index:       auditQueryNameIndex,
 		upstreamGet: c.Config.SecReports.GetSecurityAuditQuery,
@@ -116,7 +116,7 @@ func (c *Cache) ListSecurityAuditQueries(ctx context.Context, pageSize int, page
 	defer span.End()
 
 	lister := genericLister[*secreports.AuditQuery, auditQueryIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.auditQueries,
 		index:        auditQueryNameIndex,
 		upstreamList: c.Config.SecReports.ListSecurityAuditQueries,
@@ -176,7 +176,7 @@ func (c *Cache) GetSecurityReport(ctx context.Context, name string) (*secreports
 	defer span.End()
 
 	getter := genericGetter[*secreports.Report, securityReportIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.secReports,
 		index:       securityReportNameIndex,
 		upstreamGet: c.Config.SecReports.GetSecurityReport,
@@ -215,7 +215,7 @@ func (c *Cache) ListSecurityReports(ctx context.Context, pageSize int, pageToken
 	defer span.End()
 
 	lister := genericLister[*secreports.Report, securityReportIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.secReports,
 		index:        securityReportNameIndex,
 		upstreamList: c.Config.SecReports.ListSecurityReports,
@@ -274,7 +274,7 @@ func (c *Cache) GetSecurityReportState(ctx context.Context, name string) (*secre
 	defer span.End()
 
 	getter := genericGetter[*secreports.ReportState, securityReportStateIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.secReportsStates,
 		index:       securityReportStateNameIndex,
 		upstreamGet: c.Config.SecReports.GetSecurityReportState,
@@ -289,7 +289,7 @@ func (c *Cache) ListSecurityReportsStates(ctx context.Context, pageSize int, pag
 	defer span.End()
 
 	lister := genericLister[*secreports.ReportState, securityReportStateIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.secReportsStates,
 		index:        securityReportStateNameIndex,
 		upstreamList: c.Config.SecReports.ListSecurityReportsStates,

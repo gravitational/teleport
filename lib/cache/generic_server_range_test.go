@@ -222,6 +222,9 @@ func testRangeServersWithTargetName[T hostIDGetterResource](t *testing.T, funcs 
 			Config: Config{
 				Tracer: tracing.NoopTracer("test"),
 			},
+			// an empty registry: parameter validation must fail before any
+			// collection or engine access, so none need to be populated.
+			collections: &collections{},
 		}
 
 		_, err := stream.Collect(funcs.rangeByName(c, ctx, ""))

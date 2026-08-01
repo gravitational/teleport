@@ -289,7 +289,7 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := genericLister[types.Application, appIndex]{
-				cache:      p.cache,
+				engine:     p.cache.engine,
 				collection: p.cache.collections.apps,
 				index:      appNameIndex,
 				nextToken:  types.Application.GetName,
@@ -356,7 +356,7 @@ func TestGenericListerDoesNotReturnFilteredNextToken(t *testing.T) {
 	require.NoError(t, collection.store.put(filtered))
 
 	lister := genericLister[types.Application, appIndex]{
-		cache:      cache,
+		engine:     cache.engine,
 		collection: collection,
 		index:      appNameIndex,
 		upstreamList: func(context.Context, int, string) ([]types.Application, string, error) {

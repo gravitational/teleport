@@ -20,11 +20,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -55,35 +57,67 @@ func newRelayServerCollection(upstream services.Presence, w types.WatchKind) (*c
 	}, nil
 }
 
+// relayServerCollection provides read access to the cached relay servers.
+// Its exported methods are promoted onto every topology cache that embeds
+// it; the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type relayServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Presence
+	col      *collection[*presencev1.RelayServer, relayServerIndex]
+}
+
 // GetRelayServer implements [authclient.Cache].
-func (c *Cache) GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetRelayServer")
+func (c relayServerCollection) GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetRelayServer")
 	defer span.End()
 
 	getter := genericGetter[*presencev1.RelayServer, relayServerIndex]{
-		cache:       c,
-		collection:  c.collections.relayServers,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       relayServerNameIndex,
-		upstreamGet: c.Config.Presence.GetRelayServer,
+		upstreamGet: c.upstream.GetRelayServer,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
 }
 
 // ListRelayServers implements [authclient.Cache].
-func (c *Cache) ListRelayServers(ctx context.Context, pageSize int, pageToken string) ([]*presencev1.RelayServer, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListRelayServers")
+func (c relayServerCollection) ListRelayServers(ctx context.Context, pageSize int, pageToken string) ([]*presencev1.RelayServer, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListRelayServers")
 	defer span.End()
 
 	lister := genericLister[*presencev1.RelayServer, relayServerIndex]{
-		cache:        c,
-		collection:   c.collections.relayServers,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        relayServerNameIndex,
-		upstreamList: c.Config.Presence.ListRelayServers,
+		upstreamList: c.upstream.ListRelayServers,
 		nextToken: func(t *presencev1.RelayServer) string {
 			return t.GetMetadata().GetName()
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// GetRelayServer implements [authclient.Cache].
+func (c *Cache) GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error) {
+	return relayServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.relayServers,
+	}.GetRelayServer(ctx, name)
+}
+
+// ListRelayServers implements [authclient.Cache].
+func (c *Cache) ListRelayServers(ctx context.Context, pageSize int, pageToken string) ([]*presencev1.RelayServer, string, error) {
+	return relayServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Presence,
+		col:      c.collections.relayServers,
+	}.ListRelayServers(ctx, pageSize, pageToken)
 }

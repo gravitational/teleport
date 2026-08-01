@@ -19,14 +19,17 @@ package cache
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"rsc.io/ordered"
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -68,20 +71,32 @@ func newAppCollection(upstream services.Applications, w types.WatchKind) (*colle
 	}, nil
 }
 
+// appCollection provides read access to cached applications. Its exported
+// methods are promoted onto every topology cache that embeds it; the reads
+// are implemented exactly once here. It is a stateless value assembled inline
+// by each of its consumers so that no shared scaffolding couples their
+// lifetimes.
+type appCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Applications
+	col      *collection[types.Application, appIndex]
+}
+
 // Apps returns application resources within the range [start, end).
-func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+func (c appCollection) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
 	lister := genericLister[types.Application, appIndex]{
-		cache:        c,
-		collection:   c.collections.apps,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        appNameIndex,
-		upstreamList: c.Config.Apps.ListApps,
+		upstreamList: c.upstream.ListApps,
 		nextToken:    types.Application.GetName,
 		// TODO(tross): DELETE IN v21.0.0
-		fallbackGetter: c.Config.Apps.GetApps,
+		fallbackGetter: c.upstream.GetApps,
 	}
 
 	return func(yield func(types.Application, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/Apps")
+		ctx, span := c.tracer.Start(ctx, "cache/Apps")
 		defer span.End()
 
 		for app, err := range lister.RangeWithFallback(ctx, start, end) {
@@ -96,16 +111,26 @@ func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.App
 	}
 }
 
+// Apps returns application resources within the range [start, end).
+func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error] {
+	return appCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Apps,
+		col:      c.collections.apps,
+	}.Apps(ctx, start, end)
+}
+
 // ListApps returns a page of application resources.
-func (c *Cache) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListApps")
+func (c appCollection) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListApps")
 	defer span.End()
 
 	lister := genericLister[types.Application, appIndex]{
-		cache:        c,
-		collection:   c.collections.apps,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        appNameIndex,
-		upstreamList: c.Config.Apps.ListApps,
+		upstreamList: c.upstream.ListApps,
 		nextToken: func(a types.Application) string {
 			return a.GetMetadata().Name
 		},
@@ -114,19 +139,29 @@ func (c *Cache) ListApps(ctx context.Context, limit int, startKey string) ([]typ
 	return out, next, trace.Wrap(err)
 }
 
+// ListApps returns a page of application resources.
+func (c *Cache) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+	return appCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Apps,
+		col:      c.collections.apps,
+	}.ListApps(ctx, limit, startKey)
+}
+
 // GetApps returns all application resources.
-func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
+func (c appCollection) GetApps(ctx context.Context) ([]types.Application, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetApps")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.apps)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		apps, err := c.Config.Apps.GetApps(ctx)
+		apps, err := c.upstream.GetApps(ctx)
 		return apps, trace.Wrap(err)
 	}
 
@@ -138,19 +173,39 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	return out, nil
 }
 
+// GetApps returns all application resources.
+func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
+	return appCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Apps,
+		col:      c.collections.apps,
+	}.GetApps(ctx)
+}
+
 // GetApp returns the specified application resource.
-func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
+func (c appCollection) GetApp(ctx context.Context, name string) (types.Application, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
 	getter := genericGetter[types.Application, appIndex]{
-		cache:       c,
-		collection:  c.collections.apps,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       appNameIndex,
-		upstreamGet: c.Config.Apps.GetApp,
+		upstreamGet: c.upstream.GetApp,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+// GetApp returns the specified application resource.
+func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, error) {
+	return appCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Apps,
+		col:      c.collections.apps,
+	}.GetApp(ctx, name)
 }
 
 type appServerIndex string
@@ -205,12 +260,25 @@ func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection
 	}, nil
 }
 
+// appServerCollection provides read access to cached application servers.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type appServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream services.Presence
+	col      *collection[types.AppServer, appServerIndex]
+}
+
 // GetApplicationServers returns all registered application servers.
-func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
+func (c appServerCollection) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetApplicationServers")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.appServers)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,18 +293,29 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 		return out, nil
 	}
 
-	servers, err := c.Config.Presence.GetApplicationServers(ctx, namespace)
+	servers, err := c.upstream.GetApplicationServers(ctx, namespace)
 	return servers, trace.Wrap(err)
 }
 
+// GetApplicationServers returns all registered application servers.
+func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	return appServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.appServers,
+	}.GetApplicationServers(ctx, namespace)
+}
+
 // RangeApplicationServersWithName returns an iterator over application servers for a given app name.
-func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+func (c appServerCollection) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
 	if appName == "" {
 		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
 	}
 
 	return func(yield func(types.AppServer, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeApplicationServersWithName")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeApplicationServersWithName")
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.AppServer, string, error) {
@@ -262,7 +341,7 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 				}
 			}
 
-			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+			resp, err := c.upstream.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindAppServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
@@ -276,7 +355,7 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 			for _, r := range resp.Resources {
 				server, ok := r.(types.AppServer)
 				if !ok {
-					c.Logger.WarnContext(ctx, "expected AppServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					c.logger.WarnContext(ctx, "expected AppServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 				if app := server.GetApp(); app != nil && app.GetName() == appName {
@@ -292,8 +371,8 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 		}
 
 		lister := genericLister[types.AppServer, appServerIndex]{
-			cache:           c,
-			collection:      c.collections.appServers,
+			engine:          c.engine,
+			collection:      c.col,
 			index:           appServerAppNameIndex,
 			nextToken:       appServerByAppNameKey,
 			defaultPageSize: defaults.DefaultChunkSize,
@@ -308,4 +387,15 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 			}
 		}
 	}
+}
+
+// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+	return appServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.appServers,
+	}.RangeApplicationServersWithName(ctx, appName)
 }

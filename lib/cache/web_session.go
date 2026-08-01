@@ -19,11 +19,14 @@ package cache
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	sortcache "github.com/gravitational/teleport/lib/utils/sortcache/v2"
@@ -73,20 +76,33 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 	}, nil
 }
 
+// webSessionCollection provides read access to cached regular web sessions.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type webSessionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream types.WebSessionInterface
+	col      *collection[types.WebSession, webSessionIndex]
+}
+
 // GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
+func (c webSessionCollection) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetWebSession")
 	defer span.End()
 
 	var upstreamRead bool
 	getter := genericGetter[types.WebSession, webSessionIndex]{
-		cache:      c,
-		collection: c.collections.webSessions,
+		engine:     c.engine,
+		collection: c.col,
 		index:      webSessionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.WebSession, error) {
 			upstreamRead = true
 
-			session, err := c.Config.WebSession.Get(ctx, types.GetWebSessionRequest{SessionID: s})
+			session, err := c.upstream.Get(ctx, types.GetWebSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
 	}
@@ -94,8 +110,8 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 	if trace.IsNotFound(err) && !upstreamRead {
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if sess, err := c.Config.WebSession.Get(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
+		if sess, err := c.upstream.Get(ctx, req); err == nil {
+			c.logger.DebugContext(ctx, "Cache was forced to load session from upstream",
 				"session_kind", sess.GetSubKind(),
 				"session", sess.GetName(),
 			)
@@ -103,6 +119,17 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 		}
 	}
 	return out, trace.Wrap(err)
+}
+
+// GetWebSession gets a regular web session.
+func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+	return webSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.WebSession,
+		col:      c.collections.webSessions,
+	}.GetWebSession(ctx, req)
 }
 
 // appSessionIndexes is the index-handle set of the app session collection.
@@ -161,19 +188,32 @@ func newAppSessionCollection(upstream services.AppSessionReader, w types.WatchKi
 	}, nil
 }
 
+// appSessionCollection provides read access to cached application web
+// sessions. Its exported methods are promoted onto every topology cache that
+// embeds it; the reads are implemented exactly once here. It is a stateless
+// value assembled inline by each of its consumers so that no shared
+// scaffolding couples their lifetimes.
+type appSessionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream services.AppSessionReader
+	col      *typedCollection[types.WebSession, appSessionIndexes]
+}
+
 // GetAppSession gets an application web session.
-func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
+func (c appSessionCollection) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAppSession")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.appSessions)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		session, err := c.Config.AppSession.GetAppSession(ctx, req)
+		session, err := c.upstream.GetAppSession(ctx, req)
 		return session, trace.Wrap(err)
 	}
 
@@ -184,8 +224,8 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 		}
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if sess, err := c.Config.AppSession.GetAppSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
+		if sess, err := c.upstream.GetAppSession(ctx, req); err == nil {
+			c.logger.DebugContext(ctx, "Cache was forced to load session from upstream",
 				"session_kind", sess.GetSubKind(),
 				"session", sess.GetName(),
 			)
@@ -197,19 +237,30 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	return session.Copy(), nil
 }
 
+// GetAppSession gets an application web session.
+func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	return appSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.AppSession,
+		col:      c.collections.appSessions,
+	}.GetAppSession(ctx, req)
+}
+
 // ListAppSessions returns a page of application web sessions.
-func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAppSessions")
+func (c appSessionCollection) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListAppSessions")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.appSessions)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		out, next, err := c.Config.AppSession.ListAppSessions(ctx, pageSize, pageToken, user)
+		out, next, err := c.upstream.ListAppSessions(ctx, pageSize, pageToken, user)
 		return out, next, trace.Wrap(err)
 	}
 
@@ -238,6 +289,17 @@ func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, us
 	}
 
 	return out, "", nil
+}
+
+// ListAppSessions returns a page of application web sessions.
+func (c *Cache) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	return appSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.AppSession,
+		col:      c.collections.appSessions,
+	}.ListAppSessions(ctx, pageSize, pageToken, user)
 }
 
 type snowflakeSessionIndex string
@@ -287,18 +349,42 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 
 // GetSnowflakeSession gets Snowflake web session.
 func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
+	return snowflakeSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.SnowflakeSession,
+		col:      c.collections.snowflakeSessions,
+	}.GetSnowflakeSession(ctx, req)
+}
+
+// snowflakeSessionCollection provides read access to cached Snowflake web
+// sessions. Its exported methods are promoted onto every topology cache that
+// embeds it; the reads are implemented exactly once here. It is a stateless
+// value assembled inline by each of its consumers so that no shared
+// scaffolding couples their lifetimes.
+type snowflakeSessionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream services.SnowflakeSession
+	col      *collection[types.WebSession, snowflakeSessionIndex]
+}
+
+// GetSnowflakeSession gets Snowflake web session.
+func (c snowflakeSessionCollection) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetSnowflakeSession")
 	defer span.End()
 
 	var upstreamRead bool
 	getter := genericGetter[types.WebSession, snowflakeSessionIndex]{
-		cache:      c,
-		collection: c.collections.snowflakeSessions,
+		engine:     c.engine,
+		collection: c.col,
 		index:      snowflakeSessionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.WebSession, error) {
 			upstreamRead = true
 
-			session, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: s})
+			session, err := c.upstream.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{SessionID: s})
 			return session, trace.Wrap(err)
 		},
 	}
@@ -306,8 +392,8 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	if trace.IsNotFound(err) && !upstreamRead {
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if sess, err := c.Config.SnowflakeSession.GetSnowflakeSession(ctx, req); err == nil {
-			c.Logger.DebugContext(ctx, "Cache was forced to load session from upstream",
+		if sess, err := c.upstream.GetSnowflakeSession(ctx, req); err == nil {
+			c.logger.DebugContext(ctx, "Cache was forced to load session from upstream",
 				"session_kind", sess.GetSubKind(),
 				"session", sess.GetName(),
 			)
@@ -318,19 +404,19 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 }
 
 // RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
-func (c *Cache) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+func (c snowflakeSessionCollection) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
 	lister := genericLister[types.WebSession, snowflakeSessionIndex]{
-		cache:        c,
-		collection:   c.collections.snowflakeSessions,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        snowflakeSessionNameIndex,
-		upstreamList: c.Config.SnowflakeSession.ListSnowflakeSessions,
+		upstreamList: c.upstream.ListSnowflakeSessions,
 		nextToken:    types.WebSession.GetName,
 		// TODO(lokraszewski): DELETE IN v21.0.0
-		fallbackGetter: c.Config.SnowflakeSession.GetSnowflakeSessions,
+		fallbackGetter: c.upstream.GetSnowflakeSessions,
 	}
 
 	return func(yield func(types.WebSession, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeSnowflakeSessions")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeSnowflakeSessions")
 		defer span.End()
 
 		for db, err := range lister.RangeWithFallback(ctx, start, end) {
@@ -345,16 +431,27 @@ func (c *Cache) RangeSnowflakeSessions(ctx context.Context, start, end string) i
 	}
 }
 
+// RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
+func (c *Cache) RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error] {
+	return snowflakeSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.SnowflakeSession,
+		col:      c.collections.snowflakeSessions,
+	}.RangeSnowflakeSessions(ctx, start, end)
+}
+
 // ListSnowflakeSessions returns a page of Snowflake session resources.
-func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListSnowflakeSessions")
+func (c snowflakeSessionCollection) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListSnowflakeSessions")
 	defer span.End()
 
 	lister := genericLister[types.WebSession, snowflakeSessionIndex]{
-		cache:        c,
-		collection:   c.collections.snowflakeSessions,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        snowflakeSessionNameIndex,
-		upstreamList: c.Config.SnowflakeSession.ListSnowflakeSessions,
+		upstreamList: c.upstream.ListSnowflakeSessions,
 		nextToken: func(a types.WebSession) string {
 			return a.GetMetadata().Name
 		},
@@ -363,19 +460,30 @@ func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey s
 	return out, next, trace.Wrap(err)
 }
 
+// ListSnowflakeSessions returns a page of Snowflake session resources.
+func (c *Cache) ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error) {
+	return snowflakeSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.SnowflakeSession,
+		col:      c.collections.snowflakeSessions,
+	}.ListSnowflakeSessions(ctx, limit, startKey)
+}
+
 // GetSnowflakeSessions returns all Snowflake session resources.
-func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSessions")
+func (c snowflakeSessionCollection) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetSnowflakeSessions")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.snowflakeSessions)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		sessions, err := c.Config.SnowflakeSession.GetSnowflakeSessions(ctx)
+		sessions, err := c.upstream.GetSnowflakeSessions(ctx)
 		return sessions, trace.Wrap(err)
 	}
 
@@ -385,4 +493,15 @@ func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, e
 	}
 
 	return out, nil
+}
+
+// GetSnowflakeSessions returns all Snowflake session resources.
+func (c *Cache) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
+	return snowflakeSessionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.SnowflakeSession,
+		col:      c.collections.snowflakeSessions,
+	}.GetSnowflakeSessions(ctx)
 }

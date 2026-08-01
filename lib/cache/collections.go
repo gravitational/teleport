@@ -101,7 +101,7 @@ type collections struct {
 	authPreference                     *collection[types.AuthPreference, authPreferenceIndex]
 	sessionRecordingConfig             *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
 	autoUpdateConfig                   *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
-	autoUpdateVerion                   *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
+	autoUpdateVersion                  *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
 	autoUpdateRollout                  *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
 	autoUpdateAgentReports             *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
 	autoUpdateBotInstanceReports       *collection[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]
@@ -500,8 +500,8 @@ func setupCollections(c Config) (*collections, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			out.autoUpdateVerion = collect
-			out.byKind[resourceKind] = out.autoUpdateVerion
+			out.autoUpdateVersion = collect
+			out.byKind[resourceKind] = out.autoUpdateVersion
 		case types.KindAutoUpdateAgentRollout:
 			collect, err := newAutoUpdateRolloutCollection(c.AutoUpdateService, watch)
 			if err != nil {

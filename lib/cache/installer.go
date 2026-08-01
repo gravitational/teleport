@@ -67,7 +67,7 @@ func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer,
 	defer span.End()
 
 	getter := genericGetter[types.Installer, installerIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.installers,
 		index:       installerNameIndex,
 		upstreamGet: c.Config.ClusterConfig.GetInstaller,
@@ -106,7 +106,7 @@ func (c *Cache) ListInstallers(ctx context.Context, limit int, start string) ([]
 	defer span.End()
 
 	lister := genericLister[types.Installer, installerIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.installers,
 		index:        installerNameIndex,
 		upstreamList: c.Config.ClusterConfig.ListInstallers,
@@ -119,7 +119,7 @@ func (c *Cache) ListInstallers(ctx context.Context, limit int, start string) ([]
 // RangeInstallers returns installer script resources within the range [start, end).
 func (c *Cache) RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error] {
 	lister := genericLister[types.Installer, installerIndex]{
-		cache:        c,
+		engine:       c.engine,
 		collection:   c.collections.installers,
 		index:        installerNameIndex,
 		upstreamList: c.Config.ClusterConfig.ListInstallers,

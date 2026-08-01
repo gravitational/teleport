@@ -74,7 +74,7 @@ func (c *Cache) GetRecordingEncryption(ctx context.Context) (*recordingencryptio
 	defer span.End()
 
 	getter := genericGetter[*recordingencryptionv1.RecordingEncryption, recordingEncryptionIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.recordingEncryption,
 		index:      recordingEncryptionNameIndex,
 		upstreamGet: func(ctx context.Context, ident string) (*recordingencryptionv1.RecordingEncryption, error) {

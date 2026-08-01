@@ -79,7 +79,7 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 
 	var upstreamRead bool
 	getter := genericGetter[types.Lock, lockIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.locks,
 		index:      lockNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (types.Lock, error) {
@@ -165,7 +165,7 @@ func matchLock(lock types.Lock, filter *types.LockFilter, now time.Time) bool {
 // RangeLocks returns locks within the range [start, end) matching a given filter.
 func (c *Cache) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
 	lister := genericLister[types.Lock, lockIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.locks,
 		index:      lockNameIndex,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
@@ -212,7 +212,7 @@ func (c *Cache) ListLocks(ctx context.Context, limit int, startKey string, filte
 	defer span.End()
 
 	lister := genericLister[types.Lock, lockIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.locks,
 		index:      lockNameIndex,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {

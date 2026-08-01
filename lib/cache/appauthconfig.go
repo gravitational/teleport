@@ -73,7 +73,7 @@ func (c *Cache) ListAppAuthConfigs(ctx context.Context, pageSize int, nextToken 
 	defer span.End()
 
 	lister := genericLister[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]{
-		cache:           c,
+		engine:          c.engine,
 		collection:      c.collections.appAuthConfig,
 		index:           appAuthConfigNameIndex,
 		defaultPageSize: defaults.DefaultChunkSize,
@@ -95,7 +95,7 @@ func (c *Cache) GetAppAuthConfig(ctx context.Context, name string) (*appauthconf
 	defer span.End()
 
 	getter := genericGetter[*appauthconfigv1.AppAuthConfig, appAuthConfigIndex]{
-		cache:       c,
+		engine:      c.engine,
 		collection:  c.collections.appAuthConfig,
 		index:       appAuthConfigNameIndex,
 		upstreamGet: c.Config.AppAuthConfig.GetAppAuthConfig,

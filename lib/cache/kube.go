@@ -19,8 +19,10 @@ package cache
 import (
 	"context"
 	"iter"
+	"log/slog"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"rsc.io/ordered"
 
@@ -30,6 +32,7 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -88,19 +91,32 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 	}, nil
 }
 
+// kubeServerCollection provides read access to cached kubernetes servers.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type kubeServerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	logger   *slog.Logger
+	upstream services.Presence
+	col      *collection[types.KubeServer, kubeServerIndex]
+}
+
 // GetKubernetesServers is a part of auth.Cache implementation
-func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
+func (c kubeServerCollection) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetKubernetesServers")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.kubeServers)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		servers, err := c.Config.Presence.GetKubernetesServers(ctx)
+		servers, err := c.upstream.GetKubernetesServers(ctx)
 		return servers, trace.Wrap(err)
 	}
 
@@ -112,14 +128,25 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	return out, nil
 }
 
+// GetKubernetesServers is a part of auth.Cache implementation
+func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	return kubeServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.kubeServers,
+	}.GetKubernetesServers(ctx)
+}
+
 // RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
-func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+func (c kubeServerCollection) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
 	if clusterName == "" {
 		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
 	}
 
 	return func(yield func(types.KubeServer, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeKubernetesServersWithName")
+		ctx, span := c.tracer.Start(ctx, "cache/RangeKubernetesServersWithName")
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.KubeServer, string, error) {
@@ -144,7 +171,7 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 				}
 			}
 
-			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+			resp, err := c.upstream.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindKubeServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
@@ -158,7 +185,7 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 			for _, r := range resp.Resources {
 				server, ok := r.(types.KubeServer)
 				if !ok {
-					c.Logger.WarnContext(ctx, "expected KubeServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					c.logger.WarnContext(ctx, "expected KubeServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 				if cluster := server.GetCluster(); cluster != nil && cluster.GetName() == clusterName {
@@ -174,8 +201,8 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 		}
 
 		lister := genericLister[types.KubeServer, kubeServerIndex]{
-			cache:           c,
-			collection:      c.collections.kubeServers,
+			engine:          c.engine,
+			collection:      c.col,
 			index:           kubeServerClusterNameIndex,
 			nextToken:       kubeServerByClusterNameKey,
 			defaultPageSize: defaults.DefaultChunkSize,
@@ -190,6 +217,17 @@ func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName 
 			}
 		}
 	}
+}
+
+// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+	return kubeServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.kubeServers,
+	}.RangeKubernetesServersWithName(ctx, clusterName)
 }
 
 type kubeClusterIndex string
@@ -238,19 +276,31 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 	}, nil
 }
 
+// kubeClusterCollection provides read access to cached kubernetes clusters.
+// Its exported methods are promoted onto every topology cache that embeds it;
+// the reads are implemented exactly once here. It is a stateless value
+// assembled inline by each of its consumers so that no shared scaffolding
+// couples their lifetimes.
+type kubeClusterCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.Kubernetes
+	col      *collection[types.KubeCluster, kubeClusterIndex]
+}
+
 // GetKubernetesClusters returns all kubernetes cluster resources.
-func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
+func (c kubeClusterCollection) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.kubeClusters)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		clusters, err := c.Config.Kubernetes.GetKubernetesClusters(ctx)
+		clusters, err := c.upstream.GetKubernetesClusters(ctx)
 		return clusters, trace.Wrap(err)
 	}
 
@@ -262,9 +312,19 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	return out, nil
 }
 
+// GetKubernetesClusters returns all kubernetes cluster resources.
+func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
+	return kubeClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Kubernetes,
+		col:      c.collections.kubeClusters,
+	}.GetKubernetesClusters(ctx)
+}
+
 // ListKubeClusters returns a page of registered kubernetes clusters.
-func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListKubeClusters")
+func (c kubeClusterCollection) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListKubeClusters")
 	defer span.End()
 
 	scopeFilter := req.GetScopeFilter()
@@ -272,11 +332,11 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeCl
 		return nil, "", trace.Wrap(err)
 	}
 	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:      c,
-		collection: c.collections.kubeClusters,
+		engine:     c.engine,
+		collection: c.col,
 		index:      kubeClusterNameIndex,
 		upstreamList: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
-			return c.Kubernetes.ListKubeClusters(ctx, req)
+			return c.upstream.ListKubeClusters(ctx, req)
 		},
 		nextToken: services.GetCursorForKubeCluster,
 		filter: func(cluster types.KubeCluster) bool {
@@ -286,9 +346,19 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeCl
 	return lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
 }
 
+// ListKubeClusters returns a page of registered kubernetes clusters.
+func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	return kubeClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Kubernetes,
+		col:      c.collections.kubeClusters,
+	}.ListKubeClusters(ctx, req)
+}
+
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
-	ctx, span := c.Tracer.Start(ctx, "cache/RangeKubeClusters")
+func (c kubeClusterCollection) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	ctx, span := c.tracer.Start(ctx, "cache/RangeKubeClusters")
 	defer span.End()
 	scopeFilter := req.GetScopeFilter()
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
@@ -296,11 +366,11 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeC
 	}
 
 	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:      c,
-		collection: c.collections.kubeClusters,
+		engine:     c.engine,
+		collection: c.col,
 		index:      kubeClusterNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-			return c.Kubernetes.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			return c.upstream.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				PageSize:    int32(pageSize),
 				PageToken:   pageToken,
 				ScopeFilter: scopeFilter,
@@ -315,19 +385,29 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeC
 	return lister.Range(ctx, req.GetPageToken(), "")
 }
 
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	return kubeClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Kubernetes,
+		col:      c.collections.kubeClusters,
+	}.RangeKubeClusters(ctx, req)
+}
+
 // GetKubeCluster returns the specified kubernetes cluster resource.
-func (c *Cache) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeCluster")
+func (c kubeClusterCollection) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetKubeCluster")
 	defer span.End()
 
 	clusterCursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
 
 	getter := genericGetter[types.KubeCluster, kubeClusterIndex]{
-		cache:      c,
-		collection: c.collections.kubeClusters,
+		engine:     c.engine,
+		collection: c.col,
 		index:      kubeClusterNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (types.KubeCluster, error) {
-			return c.Kubernetes.GetKubeCluster(ctx, req)
+			return c.upstream.GetKubeCluster(ctx, req)
 		},
 	}
 
@@ -336,6 +416,16 @@ func (c *Cache) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClust
 		return nil, trace.Wrap(err)
 	}
 	return out.Copy(), trace.Wrap(err)
+}
+
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (c *Cache) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	return kubeClusterCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.Kubernetes,
+		col:      c.collections.kubeClusters,
+	}.GetKubeCluster(ctx, req)
 }
 
 type kubeWaitingContainerIndex string
@@ -365,18 +455,30 @@ func newKubernetesWaitingContainerCollection(upstream services.KubeWaitingContai
 	}, nil
 }
 
+// kubeWaitingContainerCollection provides read access to cached kubernetes
+// waiting containers. Its exported methods are promoted onto every topology
+// cache that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no shared
+// scaffolding couples their lifetimes.
+type kubeWaitingContainerCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.KubeWaitingContainer
+	col      *collection[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]
+}
+
 // ListKubernetesWaitingContainers lists Kubernetes ephemeral
 // containers that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
+func (c kubeWaitingContainerCollection) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListKubernetesWaitingContainers")
 	defer span.End()
 
 	lister := genericLister[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
-		cache:        c,
-		collection:   c.collections.kubeWaitingContainers,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        kubeWaitingContainerNameIndex,
-		upstreamList: c.Config.KubeWaitingContainers.ListKubernetesWaitingContainers,
+		upstreamList: c.upstream.ListKubernetesWaitingContainers,
 		nextToken: func(t *kubewaitingcontainerv1.KubernetesWaitingContainer) string {
 			spec := t.GetSpec()
 			return kubernetesWaitingContainerCacheKey(spec)
@@ -386,19 +488,31 @@ func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize in
 	return out, next, trace.Wrap(err)
 }
 
+// ListKubernetesWaitingContainers lists Kubernetes ephemeral
+// containers that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerv1.KubernetesWaitingContainer, string, error) {
+	return kubeWaitingContainerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.KubeWaitingContainers,
+		col:      c.collections.kubeWaitingContainers,
+	}.ListKubernetesWaitingContainers(ctx, pageSize, pageToken)
+}
+
 // GetKubernetesWaitingContainer returns a Kubernetes ephemeral
 // container that are waiting to be created until moderated
 // session conditions are met.
-func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
+func (c kubeWaitingContainerCollection) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetKubernetesWaitingContainer")
 	defer span.End()
 
 	getter := genericGetter[*kubewaitingcontainerv1.KubernetesWaitingContainer, kubeWaitingContainerIndex]{
-		cache:      c,
-		collection: c.collections.kubeWaitingContainers,
+		engine:     c.engine,
+		collection: c.col,
 		index:      kubeWaitingContainerNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
-			container, err := c.Config.KubeWaitingContainers.GetKubernetesWaitingContainer(ctx, req)
+			container, err := c.upstream.GetKubernetesWaitingContainer(ctx, req)
 			return container, trace.Wrap(err)
 		},
 	}
@@ -406,6 +520,18 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 	name := kubernetesWaitingContainerCacheKey(req)
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
+}
+
+// GetKubernetesWaitingContainer returns a Kubernetes ephemeral
+// container that are waiting to be created until moderated
+// session conditions are met.
+func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerv1.KubernetesWaitingContainer, error) {
+	return kubeWaitingContainerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.KubeWaitingContainers,
+		col:      c.collections.kubeWaitingContainers,
+	}.GetKubernetesWaitingContainer(ctx, req)
 }
 
 type kubernetesWaitingContainerCacheKeyFieldGetter interface {

@@ -39,7 +39,7 @@ func (c *Cache) GetCertAuthorityOverride(
 	defer span.End()
 
 	getter := genericGetter[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.certAuthorityOverrides,
 		index:      certAuthorityOverrideCacheNameIndex,
 		upstreamGet: func(ctx context.Context, cacheName string) (*subcav1.CertAuthorityOverride, error) {
@@ -62,7 +62,7 @@ func (c *Cache) ListCertAuthorityOverrides(ctx context.Context, pageSize int, pa
 	defer span.End()
 
 	lister := genericLister[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]{
-		cache:      c,
+		engine:     c.engine,
 		collection: c.collections.certAuthorityOverrides,
 		index:      certAuthorityOverrideCacheNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {

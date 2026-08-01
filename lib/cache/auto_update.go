@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -75,18 +77,31 @@ type autoUpdateCacheKey struct {
 	kind string
 }
 
+// autoUpdateConfigCollection provides read access to the cached autoupdate
+// config. Its exported methods are promoted onto every topology cache that
+// embeds it; the reads are implemented exactly once here. It is a stateless
+// value assembled inline by each of its consumers so that no shared
+// scaffolding couples their lifetimes.
+type autoUpdateConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.AutoUpdateServiceGetter
+	col      *collection[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]
+}
+
 // GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
-func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
+func (c autoUpdateConfigCollection) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAutoUpdateConfig")
 	defer span.End()
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateConfig, autoUpdateConfigIndex]{
-		cache:      c,
-		collection: c.collections.autoUpdateConfig,
+		engine:     c.engine,
+		collection: c.col,
 		index:      autoUpdateConfigNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateConfig, error) {
 			cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
-				cfg, err := c.Config.AutoUpdateService.GetAutoUpdateConfig(ctx)
+				cfg, err := c.upstream.GetAutoUpdateConfig(ctx)
 				return cfg, trace.Wrap(err)
 			})
 			if err != nil {
@@ -97,6 +112,17 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpda
 	}
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateConfig)
 	return out, trace.Wrap(err)
+}
+
+// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1.AutoUpdateConfig, error) {
+	return autoUpdateConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateConfig,
+	}.GetAutoUpdateConfig(ctx)
 }
 
 type autoUpdateVersionIndex string
@@ -138,18 +164,31 @@ func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w
 	}, nil
 }
 
+// autoUpdateVersionCollection provides read access to the cached autoupdate
+// version. Its exported methods are promoted onto every topology cache that
+// embeds it; the reads are implemented exactly once here. It is a stateless
+// value assembled inline by each of its consumers so that no shared
+// scaffolding couples their lifetimes.
+type autoUpdateVersionCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.AutoUpdateServiceGetter
+	col      *collection[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]
+}
+
 // GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
-func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
+func (c autoUpdateVersionCollection) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAutoUpdateVersion")
 	defer span.End()
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateVersion, autoUpdateVersionIndex]{
-		cache:      c,
-		collection: c.collections.autoUpdateVerion,
+		engine:     c.engine,
+		collection: c.col,
 		index:      autoUpdateVersionNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateVersion, error) {
 			cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
-				version, err := c.Config.AutoUpdateService.GetAutoUpdateVersion(ctx)
+				version, err := c.upstream.GetAutoUpdateVersion(ctx)
 				return version, trace.Wrap(err)
 			})
 			if err != nil {
@@ -160,6 +199,17 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpd
 	}
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateVersion)
 	return out, trace.Wrap(err)
+}
+
+// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1.AutoUpdateVersion, error) {
+	return autoUpdateVersionCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateVersion,
+	}.GetAutoUpdateVersion(ctx)
 }
 
 type autoUpdateAgentRolloutIndex string
@@ -201,18 +251,31 @@ func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w
 	}, nil
 }
 
+// autoUpdateRolloutCollection provides read access to the cached autoupdate
+// agent rollout. Its exported methods are promoted onto every topology cache
+// that embeds it; the reads are implemented exactly once here. It is a
+// stateless value assembled inline by each of its consumers so that no
+// shared scaffolding couples their lifetimes.
+type autoUpdateRolloutCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.AutoUpdateServiceGetter
+	col      *collection[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]
+}
+
 // GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
-func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
+func (c autoUpdateRolloutCollection) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAutoUpdateAgentRollout")
 	defer span.End()
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateAgentRollout, autoUpdateAgentRolloutIndex]{
-		cache:      c,
-		collection: c.collections.autoUpdateRollout,
+		engine:     c.engine,
+		collection: c.col,
 		index:      autoUpdateAgentRolloutNameIndex,
 		upstreamGet: func(ctx context.Context, s string) (*autoupdatev1.AutoUpdateAgentRollout, error) {
 			cachedRollout, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"rollout"}, func(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
-				rollout, err := c.Config.AutoUpdateService.GetAutoUpdateAgentRollout(ctx)
+				rollout, err := c.upstream.GetAutoUpdateAgentRollout(ctx)
 				return rollout, trace.Wrap(err)
 			})
 			if err != nil {
@@ -223,6 +286,17 @@ func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.Au
 	}
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateAgentRollout)
 	return out, trace.Wrap(err)
+}
+
+// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
+func (c *Cache) GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdatev1.AutoUpdateAgentRollout, error) {
+	return autoUpdateRolloutCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateRollout,
+	}.GetAutoUpdateAgentRollout(ctx)
 }
 
 type autoUpdateAgentReportIndex string
@@ -260,37 +334,69 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 	}, nil
 }
 
+// autoUpdateAgentReportCollection provides read access to the cached
+// autoupdate agent reports. Its exported methods are promoted onto every
+// topology cache that embeds it; the reads are implemented exactly once
+// here. It is a stateless value assembled inline by each of its consumers so
+// that no shared scaffolding couples their lifetimes.
+type autoUpdateAgentReportCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.AutoUpdateServiceGetter
+	col      *collection[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]
+}
+
 // GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from the backend.
-func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1.AutoUpdateAgentReport, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateAgentReport")
+func (c autoUpdateAgentReportCollection) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1.AutoUpdateAgentReport, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAutoUpdateAgentReport")
 	defer span.End()
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
-		cache:       c,
-		collection:  c.collections.autoUpdateAgentReports,
+		engine:      c.engine,
+		collection:  c.col,
 		index:       autoUpdateAgentReportNameIndex,
-		upstreamGet: c.Config.AutoUpdateService.GetAutoUpdateAgentReport,
+		upstreamGet: c.upstream.GetAutoUpdateAgentReport,
 	}
 	out, err := getter.get(ctx, name)
 	return out, trace.Wrap(err)
 }
 
 // ListAutoUpdateAgentReports lists autoupdate_agent_reports.
-func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1.AutoUpdateAgentReport, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListAutoUpdateAgentReports")
+func (c autoUpdateAgentReportCollection) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1.AutoUpdateAgentReport, string, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/ListAutoUpdateAgentReports")
 	defer span.End()
 
 	lister := genericLister[*autoupdatev1.AutoUpdateAgentReport, autoUpdateAgentReportIndex]{
-		cache:        c,
-		collection:   c.collections.autoUpdateAgentReports,
+		engine:       c.engine,
+		collection:   c.col,
 		index:        autoUpdateAgentReportNameIndex,
-		upstreamList: c.Config.AutoUpdateService.ListAutoUpdateAgentReports,
+		upstreamList: c.upstream.ListAutoUpdateAgentReports,
 		nextToken: func(t *autoupdatev1.AutoUpdateAgentReport) string {
 			return t.GetMetadata().GetName()
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
 	return out, next, trace.Wrap(err)
+}
+
+// GetAutoUpdateAgentReport gets the AutoUpdateAgentReport from the backend.
+func (c *Cache) GetAutoUpdateAgentReport(ctx context.Context, name string) (*autoupdatev1.AutoUpdateAgentReport, error) {
+	return autoUpdateAgentReportCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateAgentReports,
+	}.GetAutoUpdateAgentReport(ctx, name)
+}
+
+// ListAutoUpdateAgentReports lists autoupdate_agent_reports.
+func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pageToken string) ([]*autoupdatev1.AutoUpdateAgentReport, string, error) {
+	return autoUpdateAgentReportCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateAgentReports,
+	}.ListAutoUpdateAgentReports(ctx, pageSize, pageToken)
 }
 
 type autoUpdateBotInstanceReportIndex string
@@ -331,18 +437,39 @@ func newAutoUpdateBotInstanceReportCollection(upstream services.AutoUpdateServic
 	}, nil
 }
 
-func (c *Cache) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1.AutoUpdateBotInstanceReport, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateBotInstanceReport")
+// autoUpdateBotInstanceReportCollection provides read access to the cached
+// autoupdate bot instance report. Its exported methods are promoted onto
+// every topology cache that embeds it; the reads are implemented exactly
+// once here. It is a stateless value assembled inline by each of its
+// consumers so that no shared scaffolding couples their lifetimes.
+type autoUpdateBotInstanceReportCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.AutoUpdateServiceGetter
+	col      *collection[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]
+}
+
+func (c autoUpdateBotInstanceReportCollection) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1.AutoUpdateBotInstanceReport, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAutoUpdateBotInstanceReport")
 	defer span.End()
 
 	getter := genericGetter[*autoupdatev1.AutoUpdateBotInstanceReport, autoUpdateBotInstanceReportIndex]{
-		cache:      c,
-		collection: c.collections.autoUpdateBotInstanceReports,
+		engine:     c.engine,
+		collection: c.col,
 		index:      autoUpdateBotInstanceReportNameIndex,
 		upstreamGet: func(ctx context.Context, _ string) (*autoupdatev1.AutoUpdateBotInstanceReport, error) {
-			return c.Config.AutoUpdateService.GetAutoUpdateBotInstanceReport(ctx)
+			return c.upstream.GetAutoUpdateBotInstanceReport(ctx)
 		},
 	}
 	out, err := getter.get(ctx, types.MetaNameAutoUpdateBotInstanceReport)
 	return out, trace.Wrap(err)
+}
+
+func (c *Cache) GetAutoUpdateBotInstanceReport(ctx context.Context) (*autoupdatev1.AutoUpdateBotInstanceReport, error) {
+	return autoUpdateBotInstanceReportCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.AutoUpdateService,
+		col:      c.collections.autoUpdateBotInstanceReports,
+	}.GetAutoUpdateBotInstanceReport(ctx)
 }
