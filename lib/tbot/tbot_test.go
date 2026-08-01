@@ -93,7 +93,6 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -1221,18 +1220,17 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	// (e.g. visible in the reverse tunnel server) otherwise dials to it may
 	// result in "direct dialing to nodes not found in inventory is not
 	// supported".
+	hostID, err := process.WaitForHostID(ctx)
+	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := process.GetReverseTunnelServer()
 		require.NoError(t, err)
 		cluster, err := rts.Cluster(ctx, "root")
 		require.NoError(t, err)
-		nw, err := cluster.NodeWatcher()
+		ap, err := cluster.CachingAccessPoint()
 		require.NoError(t, err)
-		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
-			return r.GetHostname() == "server01"
-		})
+		_, err = ap.GetSSHServer(ctx, hostID)
 		require.NoError(t, err)
-		require.Len(t, got, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	targets := []string{
@@ -1506,18 +1504,17 @@ func TestScopedBotSSH(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the scoped SSH node to be visible in the reverse tunnel.
+	nodeHostID, err := nodeProcess.WaitForHostID(ctx)
+	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := process.GetReverseTunnelServer()
 		require.NoError(t, err)
 		cluster, err := rts.Cluster(ctx, clusterName)
 		require.NoError(t, err)
-		nw, err := cluster.NodeWatcher()
+		ap, err := cluster.CachingAccessPoint()
 		require.NoError(t, err)
-		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
-			return r.GetHostname() == nodeHostname
-		})
+		_, err = ap.GetSSHServer(ctx, nodeHostID)
 		require.NoError(t, err)
-		require.Len(t, got, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Configure and run tbot with an identity output.

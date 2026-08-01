@@ -518,15 +518,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	})
 	require.NoError(t, err)
 
-	proxyNodeWatcher, err := services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Client:    s.proxyClient,
-		},
-		NodesGetter: s.proxyClient,
-	})
-	require.NoError(t, err)
-
 	//nolint:staticcheck // SA1019 This should be updated to use [services.NewCertAuthorityWatcher]
 	caWatcher, err := services.DeprecatedNewCertAuthorityWatcher(s.ctx, services.CertAuthorityWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -580,7 +571,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
-		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		AppServerWatcher:      appServerWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
@@ -9434,16 +9424,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyLockWatcher.Close)
 
-	proxyNodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Client:    client,
-		},
-		NodesGetter: client,
-	})
-	require.NoError(t, err)
-	t.Cleanup(proxyNodeWatcher.Close)
-
 	proxyGitServerWatcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -9486,7 +9466,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		NewCachingAccessPoint: noCache,
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
-		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		AppServerWatcher:      appServerWatcher,

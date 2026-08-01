@@ -2051,7 +2051,6 @@ func TestProxyRoundRobin(t *testing.T) {
 	listener, reverseTunnelAddress := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -2068,7 +2067,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
@@ -2204,7 +2202,6 @@ func TestProxyDirectAccess(t *testing.T) {
 	listener, _ := mustListen(t)
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -2221,7 +2218,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
@@ -2876,7 +2872,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 
 		proxyClient, _ := newProxyClient(t, f.testSrv)
 		lockWatcher := newLockWatcher(ctx, t, proxyClient)
-		nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -2893,7 +2888,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			DataDir:               t.TempDir(),
 			Emitter:               proxyClient,
 			LockWatcher:           lockWatcher,
-			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 			DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
@@ -3149,7 +3143,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	listener, _ := mustListen(t)
 	proxyClient, _ := newProxyClient(t, f.testSrv)
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -3166,7 +3159,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
@@ -3488,19 +3480,6 @@ func newLockWatcher(ctx context.Context, t testing.TB, client types.Events) *ser
 	return lockWatcher
 }
 
-func newNodeWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
-	nodeWatcher, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client:    client,
-		},
-		NodesGetter: client,
-	})
-	require.NoError(t, err)
-	t.Cleanup(nodeWatcher.Close)
-	return nodeWatcher
-}
-
 func newGitServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.Server, readonly.Server] {
 	watcher, err := services.NewGitServerWatcher(ctx, services.GitServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -3610,7 +3589,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 	listener, _ := mustListen(t)
 	defer listener.Close()
 	lockWatcher := newLockWatcher(ctx, t, proxyClient)
-	nodeWatcher := newNodeWatcher(ctx, t, proxyClient)
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
@@ -3627,7 +3605,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 		DataDir:               t.TempDir(),
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
-		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),

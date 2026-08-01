@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net"
 	"sync"
@@ -176,9 +177,25 @@ func (s *leafCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, e
 	return s.leafCache, nil
 }
 
-// NodeWatcher returns the services.NodeWatcher for the leaf cluster.
-func (s *leafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return s.nodeWatcher, nil
+// RangeReadonlySSHServers returns read-only views of the leaf cluster's SSH
+// server resources within the range [start, end), served from the leaf node
+// watcher. (Leaf watcher retirement is a separate step from the local proxy's.)
+func (s *leafCluster) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return func(yield func(readonly.Server, error) bool) {
+		servers, err := s.nodeWatcher.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool {
+			return n.GetName() >= start && (end == "" || n.GetName() < end)
+		})
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+
+		for _, server := range servers {
+			if !yield(server, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (s *leafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {

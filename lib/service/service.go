@@ -5238,25 +5238,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    teleport.ComponentProxy,
-			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
-			Client:       accessPoint,
-			MaxStaleness: time.Minute,
-		},
-		NodesGetter: accessPoint,
-		// The proxy's node watcher is a routing construct; it must observe nodes in
-		// every scope, not just unscoped ones, so it watches with MODE_ALL. This is
-		// backed by the ForProxy cache, which mirrors nodes in all scopes (see
-		// cache.ForProxy). Sibling routing watchers backed by ForRelay/ForRemoteProxy
-		// intentionally stay unscoped since those caches do not mirror scoped nodes.
-		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	gitServerWatcher, err := services.NewGitServerWatcher(process.ExitContext(), services.GitServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentProxy,
@@ -5584,7 +5565,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Logger:                  process.logger,
 				LockWatcher:             lockWatcher,
 				PeerClient:              peerClient,
-				NodeWatcher:             nodeWatcher,
 				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
 				DatabaseServerWatcher:   databaseServerWatcher,
@@ -5835,7 +5815,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:               proxySigner,
-			NodeWatcher:               nodeWatcher,
 			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,

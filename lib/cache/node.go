@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"iter"
 
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -74,9 +76,10 @@ type nodeCollection struct {
 	col      *collection[types.Server, nodeIndex]
 }
 
-// GetNode finds and returns a node by name and namespace.
-func (c nodeCollection) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
-	ctx, span := c.tracer.Start(ctx, "cache/GetNode")
+// GetSSHServer finds and returns an SSH server by name. The returned server
+// is a deep copy owned by the caller.
+func (c nodeCollection) GetSSHServer(ctx context.Context, name string) (types.Server, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetSSHServer")
 	defer span.End()
 
 	rg, err := acquireGuard(c.engine, c.col)
@@ -86,7 +89,7 @@ func (c nodeCollection) GetNode(ctx context.Context, namespace, name string) (ty
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		node, err := c.upstream.GetNode(ctx, namespace, name)
+		node, err := c.upstream.GetNode(ctx, defaults.Namespace, name)
 		return node, trace.Wrap(err)
 	}
 
@@ -98,6 +101,18 @@ func (c nodeCollection) GetNode(ctx context.Context, namespace, name string) (ty
 	return n.DeepCopy(), nil
 }
 
+// GetSSHServer finds and returns an SSH server by name. The returned server
+// is a deep copy owned by the caller.
+func (c *Cache) GetSSHServer(ctx context.Context, name string) (types.Server, error) {
+	return nodeCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Presence,
+		col:      c.collections.nodes,
+	}.GetSSHServer(ctx, name)
+}
+
 // GetNode finds and returns a node by name and namespace.
 func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	return nodeCollection{
@@ -106,7 +121,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 		fnCache:  c.fnCache,
 		upstream: c.Config.Presence,
 		col:      c.collections.nodes,
-	}.GetNode(ctx, namespace, name)
+	}.GetSSHServer(ctx, name)
 }
 
 type getNodesCacheKey struct {
@@ -139,6 +154,71 @@ func (c nodeCollection) GetNodes(ctx context.Context, namespace string) ([]types
 
 	return out, nil
 
+}
+
+// RangeReadonlySSHServers returns read-only views of the SSH server resources
+// within the range [start, end). The yielded values are shared with the cache:
+// they must not be mutated or retained beyond the iteration — callers keep a
+// match by calling DeepCopy on it.
+//
+// The healthy read path is served from a single consistent snapshot of the
+// cache captured when iteration begins: it holds no locks, does not block
+// cache updates, and observes neither missed nor duplicated servers
+// regardless of concurrent changes. This is the primitive that replaces
+// maintaining a secondary materialized view via services.NodeWatcher.
+func (c nodeCollection) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return func(yield func(readonly.Server, error) bool) {
+		ctx, span := c.tracer.Start(ctx, "cache/RangeReadonlySSHServers")
+		defer span.End()
+
+		rg, err := acquireGuard(c.engine, c.col)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			nodes, err := c.getNodesWithTTLCache(ctx)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			for _, node := range nodes {
+				if node.GetName() < start {
+					continue
+				}
+				if end != "" && node.GetName() >= end {
+					continue
+				}
+				if !yield(node, nil) {
+					return
+				}
+			}
+			return
+		}
+
+		for node := range rg.store.resources(nodeNameIndex, start, end) {
+			if !yield(node, nil) {
+				return
+			}
+		}
+	}
+}
+
+// RangeReadonlySSHServers returns read-only views of the SSH server resources
+// within the range [start, end). The yielded values are shared with the cache:
+// they must not be mutated or retained beyond the iteration — callers keep a
+// match by calling DeepCopy on it.
+func (c *Cache) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return nodeCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.Presence,
+		col:      c.collections.nodes,
+	}.RangeReadonlySSHServers(ctx, start, end)
 }
 
 // GetNodes is a part of auth.Cache implementation

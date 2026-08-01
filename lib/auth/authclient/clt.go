@@ -77,6 +77,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1613,6 +1614,38 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	return out
 }
 
+// GetSSHServer returns an SSH server by name.
+func (c *Client) GetSSHServer(ctx context.Context, name string) (types.Server, error) {
+	server, err := c.GetNode(ctx, apidefaults.Namespace, name)
+	return server, trace.Wrap(err)
+}
+
+// RangeReadonlySSHServers returns read-only views of the SSH server resources
+// within the range [start, end). The client-side implementation lists all
+// nodes and ranges locally; cache-backed access points serve this from a
+// snapshot instead.
+func (c *Client) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return func(yield func(readonly.Server, error) bool) {
+		nodes, err := c.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+
+		for _, node := range nodes {
+			if node.GetName() < start {
+				continue
+			}
+			if end != "" && node.GetName() >= end {
+				continue
+			}
+			if !yield(node, nil) {
+				return
+			}
+		}
+	}
+}
+
 // ClientI is a client to Auth service
 type ClientI interface {
 	IdentityService
@@ -1979,6 +2012,16 @@ type ClientI interface {
 
 	// ReadOnlyClient provides direct read access to Git servers.
 	gitserver.ReadOnlyClient
+
+	// GetSSHServer returns an SSH server by name. The returned server is
+	// owned by the caller.
+	GetSSHServer(ctx context.Context, name string) (types.Server, error)
+
+	// RangeReadonlySSHServers returns read-only views of the SSH server
+	// resources within the range [start, end). The yielded values are shared
+	// and must not be mutated or retained beyond the iteration; callers keep
+	// a match by calling DeepCopy on it.
+	RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error]
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)

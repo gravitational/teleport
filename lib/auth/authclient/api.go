@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -218,11 +219,18 @@ type ReadProxyAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns an SSH server by name. The returned server is
+	// owned by the caller.
+	GetSSHServer(ctx context.Context, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+
+	// RangeReadonlySSHServers returns read-only views of the SSH server
+	// resources within the range [start, end). The yielded values are shared
+	// and must not be mutated or retained beyond the iteration; callers keep
+	// a match by calling DeepCopy on it.
+	RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error]
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	//
@@ -443,8 +451,9 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
-	// GetNode returns a node by name and namespace.
-	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
+	// GetSSHServer returns an SSH server by name. The returned server is
+	// owned by the caller.
+	GetSSHServer(ctx context.Context, name string) (types.Server, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)

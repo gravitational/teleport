@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net"
 	"slices"
@@ -189,9 +190,10 @@ func (s *localCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, 
 	return s.accessPoint, nil
 }
 
-// NodeWatcher returns a services.NodeWatcher for this cluster.
-func (s *localCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return s.srv.NodeWatcher, nil
+// RangeReadonlySSHServers returns read-only views of the cluster's SSH server
+// resources within the range [start, end).
+func (s *localCluster) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return s.srv.localAccessPoint.RangeReadonlySSHServers(ctx, start, end)
 }
 
 // AppServerWatcher returns the watcher that maintains the app server set for the cluster
@@ -1009,7 +1011,12 @@ func (s *localCluster) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localCluster) sshTunnelStats() error {
-	missing, err := s.srv.NodeWatcher.CurrentResourcesWithFilter(s.srv.ctx, func(server readonly.Server) bool {
+	var missing []string
+	for server, err := range s.srv.localAccessPoint.RangeReadonlySSHServers(s.srv.ctx, "", "") {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//
@@ -1018,10 +1025,10 @@ func (s *localCluster) sshTunnelStats() error {
 		// their TTL value.
 		ttl := s.clock.Now().Add(-1 * apidefaults.ServerAnnounceTTL)
 		if server.Expiry().Before(ttl) {
-			return false
+			continue
 		}
 		if !server.GetUseTunnel() {
-			return false
+			continue
 		}
 
 		ids := server.GetProxyIDs()
@@ -1030,19 +1037,16 @@ func (s *localCluster) sshTunnelStats() error {
 		// current proxy if the proxy id is present. A node is expected to be
 		// connected to all proxies if no proxy ids are present.
 		if s.peerClient != nil && len(ids) != 0 && !slices.Contains(ids, s.srv.ID) {
-			return false
+			continue
 		}
 
 		// Check if the tunnel actually exists.
-		_, err := s.getRemoteConn(&sshutils.DialReq{
+		if _, err := s.getRemoteConn(&sshutils.DialReq{
 			ServerID: fmt.Sprintf("%v.%v", server.GetName(), s.domainName),
 			ConnType: types.NodeTunnel,
-		})
-
-		return err != nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
+		}); err != nil {
+			missing = append(missing, server.GetName())
+		}
 	}
 
 	// Update Prometheus metrics and also log if any tunnels are missing.

@@ -214,9 +214,6 @@ type Config struct {
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
 
-	// NodeWatcher is a node watcher.
-	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
-
 	// GitServerWatcher is a Git server watcher.
 	GitServerWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
@@ -295,9 +292,6 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 	if cfg.LockWatcher == nil {
 		return trace.BadParameter("missing parameter LockWatcher")
-	}
-	if cfg.NodeWatcher == nil {
-		return trace.BadParameter("missing parameter NodeWatcher")
 	}
 	if cfg.GitServerWatcher == nil {
 		return trace.BadParameter("missing parameter GitServerWatcher")

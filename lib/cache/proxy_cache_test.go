@@ -82,7 +82,7 @@ func TestProxyCache(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(netCfg, gotNet, ignoreRevision))
 
-		gotNode, err := pc.GetNode(ctx, apidefaults.Namespace, "proxy-cache-node")
+		gotNode, err := pc.GetSSHServer(ctx, "proxy-cache-node")
 		require.NoError(t, err)
 		require.Equal(t, "proxy-cache-node", gotNode.GetName())
 	}, 15*time.Second, 100*time.Millisecond)
@@ -94,7 +94,7 @@ func TestProxyCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(authPref, gotPref, ignoreRevision))
 
-	gotNode, err := pc.GetNode(ctx, apidefaults.Namespace, "proxy-cache-node")
+	gotNode, err := pc.GetSSHServer(ctx, "proxy-cache-node")
 	require.NoError(t, err)
 	require.Equal(t, "proxy-cache-node", gotNode.GetName())
 	pc.cache.setReadOK(true)

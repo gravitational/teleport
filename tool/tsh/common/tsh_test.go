@@ -1658,7 +1658,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
 	require.NoError(t, err)
 
-	// hasNodes checks for nodes via the proxy's NodeWatcher, which is the source
+	// hasNodes checks for nodes via the proxy's cache, which is the source
 	// that tsh checks when resolving SSH targets.
 	hasNodes := func(proxy *service.TeleportProcess, clusterName string, hostIDs ...string) func() bool {
 		return func() bool {
@@ -1670,22 +1670,17 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			watcher, err := cluster.NodeWatcher()
-			if err != nil {
-				return false
-			}
-			nodes, err := watcher.CurrentResources(ctx)
+			ap, err := cluster.CachingAccessPoint()
 			if err != nil {
 				return false
 			}
 
-			foundCount := 0
-			for _, node := range nodes {
-				if slices.Contains(hostIDs, node.GetName()) {
-					foundCount++
+			for _, hostID := range hostIDs {
+				if _, err := ap.GetSSHServer(ctx, hostID); err != nil {
+					return false
 				}
 			}
-			return foundCount == len(hostIDs)
+			return true
 		}
 	}
 

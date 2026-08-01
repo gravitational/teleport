@@ -437,15 +437,20 @@ type fakeCluster struct {
 	cluster reversetunnelclient.Cluster
 }
 
-// GetNodes uses the wrapped cluster's NodeWatcher to filter nodes
+// GetNodes uses the wrapped cluster to filter nodes
 func (r fakeCluster) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
-	watcher, err := r.cluster.NodeWatcher()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var out []types.Server
+	for server, err := range r.cluster.RangeReadonlySSHServers(ctx, "", "") {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if fn(server) {
+			out = append(out, server.DeepCopy())
+		}
 	}
 
-	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
-	return servers, trace.Wrap(err)
+	return out, nil
 }
 
 // GetGitServers uses the wrapped cluster's GitServerWatcher to filter git servers.

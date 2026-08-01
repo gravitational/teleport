@@ -183,10 +183,6 @@ type Handler struct {
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
-	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
-	// the proxy's cache and get nodes in real time.
-	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
-
 	// appServerWatcher ia a app server watcher to speed up app look up.
 	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
@@ -327,10 +323,6 @@ type Config struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
-
-	// NodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
-	// the proxy's cache and get nodes in real time.
-	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
 	// AppServerWatcher ia a app server watcher to speed up app look up.
 	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
@@ -718,10 +710,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// This endpoint is used both by Web UI and Connect.
 	h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
-
-	if cfg.NodeWatcher != nil {
-		h.nodeWatcher = cfg.NodeWatcher
-	}
 
 	if cfg.AppServerWatcher != nil {
 		h.appServerWatcher = cfg.AppServerWatcher
@@ -4251,11 +4239,6 @@ func (h *Handler) siteNodeConnect(
 		keepAliveInterval = req.KeepAliveInterval
 	}
 
-	nw, err := cluster.NodeWatcher()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	term, err := NewTerminal(ctx, TerminalHandlerConfig{
 		Logger:             h.logger,
 		Term:               req.Term,
@@ -4278,18 +4261,15 @@ func (h *Handler) siteNodeConnect(
 		SSHDialTimeout:     dialTimeout,
 		FIPSBuild:          h.cfg.Modules.IsFIPSBuild(),
 		HostNameResolver: func(serverID string) (string, error) {
-			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
-				return n.GetName() == serverID
-			})
+			server, err := authAccessPoint.GetSSHServer(r.Context(), serverID)
 			if err != nil {
+				if trace.IsNotFound(err) {
+					return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
+				}
 				return "", trace.Wrap(err)
 			}
 
-			if len(matches) != 1 {
-				return "", trace.NotFound("unable to resolve hostname for server %s", serverID)
-			}
-
-			return matches[0].GetHostname(), nil
+			return server.GetHostname(), nil
 		},
 	})
 	if err != nil {

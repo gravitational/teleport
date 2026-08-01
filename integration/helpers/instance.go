@@ -2027,14 +2027,17 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 			conn.Close()
 		}
 
-		// Validate that the site watcher contains the expected count.
-		watcher, err := cluster.NodeWatcher()
-		if err != nil {
-			return trace.Wrap(err)
+		// Validate that the cluster's node view contains the expected count.
+		var matches int
+		for _, err := range cluster.RangeReadonlySSHServers(context.TODO(), "", "") {
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			matches++
 		}
 
-		if watcher.ResourceCount() != count {
-			return trace.BadParameter("node watcher contained %v nodes, but wanted to find %v nodes", watcher.ResourceCount(), count)
+		if matches != count {
+			return trace.BadParameter("cluster contained %v nodes, but wanted to find %v nodes", matches, count)
 		}
 
 		return nil

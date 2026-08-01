@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
 	"net"
 	"time"
 
@@ -127,8 +128,11 @@ type Cluster interface {
 	// CachingAccessPoint returns access point that is lightweight
 	// but is resilient to auth server crashes
 	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
-	// NodeWatcher returns the node watcher that maintains the node set for the cluster
-	NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
+	// RangeReadonlySSHServers returns read-only views of the cluster's SSH
+	// server resources within the range [start, end). The yielded values are
+	// shared and must not be mutated or retained beyond the iteration;
+	// callers keep a match by calling DeepCopy on it.
+	RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error]
 	// GitServerWatcher returns the Git server watcher for the cluster
 	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
 	// AppServerWatcher returns the watcher that maintains the app server set for the cluster

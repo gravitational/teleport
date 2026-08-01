@@ -19,7 +19,9 @@
 package reversetunnel
 
 import (
+	"context"
 	"fmt"
+	"iter"
 	"net"
 	"sync"
 	"time"
@@ -90,12 +92,14 @@ func (p *expectedLeafClusters) CachingAccessPoint() (authclient.RemoteProxyAcces
 	return cluster.CachingAccessPoint()
 }
 
-func (p *expectedLeafClusters) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
+func (p *expectedLeafClusters) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
 	cluster, err := p.pickCluster()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return func(yield func(readonly.Server, error) bool) {
+			yield(nil, trace.Wrap(err))
+		}
 	}
-	return cluster.NodeWatcher()
+	return cluster.RangeReadonlySSHServers(ctx, start, end)
 }
 
 func (p *expectedLeafClusters) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
@@ -224,8 +228,10 @@ func (s *expectedLeafCluster) CachingAccessPoint() (authclient.RemoteProxyAccess
 	return nil, s.discoveryError("unable to fetch access point for leaf cluster")
 }
 
-func (s *expectedLeafCluster) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
-	return nil, s.discoveryError("unable to fetch node watcher for leaf cluster")
+func (s *expectedLeafCluster) RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error] {
+	return func(yield func(readonly.Server, error) bool) {
+		yield(nil, s.discoveryError("unable to fetch nodes for leaf cluster"))
+	}
 }
 
 func (s *expectedLeafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
