@@ -524,9 +524,16 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		// JSON object. We can't know the structure ahead of time and there can
 		// be many levels of nesting within this.
 		prop.Type = "object"
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Allows: true,
-		}
+
+		// Structs have no defined schema and may be entirely user-defined /
+		// free-form, so set XPreserveUnknownFields to disable pruning for child
+		// fields to ensure Kubernetes doesn't prune them in the validator.
+		//
+		// Note that AdditionalProperties cannot be set: if it's non-nil, all
+		// child fields get pruned before the validator bothers to check
+		// XPreserveUnknownFields. In practice this means nested structs get
+		// pruned or rejected at runtime.
+		prop.XPreserveUnknownFields = new(true)
 	case field.IsMessage():
 		inner := field.TypeMessage()
 		if inner == nil {
