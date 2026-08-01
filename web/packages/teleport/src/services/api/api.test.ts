@@ -123,7 +123,6 @@ describe('api.fetch', () => {
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
           ...mfaResp,
-          webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
     });
@@ -144,7 +143,6 @@ describe('api.fetch', () => {
         ...getAuthHeaders(),
         [MFA_HEADER]: JSON.stringify({
           ...mfaResp,
-          webauthnAssertionResponse: mfaResp.webauthn_response,
         }),
       },
     });
