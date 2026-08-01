@@ -1107,27 +1107,12 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
-	if a.scopedContext.HasBuiltinRole(types.RoleNode) {
-		callerID, _ := getLocalServerID(a.scopedContext.Identity)
-		if s.GetName() != callerID {
-			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-		}
-	}
-
 	return a.authServer.UpsertNode(ctx, s)
 }
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	scopedServer := a.ScopedServerWithRoles()
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("access denied")
-	}
 
 	switch handle.GetType() {
 	case constants.KeepAliveNode:
@@ -1135,16 +1120,11 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
-		if handle.HostID != "" {
-			if serverName != handle.HostID {
-				return trace.AccessDenied("access denied")
-			}
-		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
-			if serverName != handle.Name {
-				return trace.AccessDenied("access denied")
-			}
+		hostID := handle.HostID
+		if hostID == "" { // DELETE IN 9.0. Legacy app server is heartbeating back.
+			hostID = handle.Name
 		}
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleApp, types.RoleOkta); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", hostID, types.RoleApp, types.RoleOkta); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabase:
@@ -1159,11 +1139,6 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if handle.HostID == "" {
-			return trace.BadParameter("hostID is required for kubernetes keep alive")
-		} else if serverName != handle.HostID {
-			return trace.AccessDenied("access denied")
-		}
 		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
 		// we need to check if the host has the Kube or Proxy role.
 		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleKube, types.RoleProxy); err != nil {
