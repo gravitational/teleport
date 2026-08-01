@@ -343,8 +343,8 @@ type ReadProxyAccessPoint interface {
 	// GetAutoUpdateAgentRollout gets the AutoUpdateAgentRollout from the backend.
 	GetAutoUpdateAgentRollout(ctx context.Context) (*autoupdate.AutoUpdateAgentRollout, error)
 
-	// GitServerReadOnlyClient returns the read-only client for Git servers.
-	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+	// ReadOnlyClient provides read access to Git servers.
+	gitserver.ReadOnlyClient
 
 	// GetRelayServer returns the relay server heartbeat with a given name.
 	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)

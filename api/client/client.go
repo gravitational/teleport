@@ -5792,6 +5792,16 @@ func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 	return c.GitServerClient()
 }
 
+// GetGitServer returns a Git server by name.
+func (c *Client) GetGitServer(ctx context.Context, name string) (types.Server, error) {
+	return c.GitServerClient().GetGitServer(ctx, name)
+}
+
+// ListGitServers returns a paginated list of Git servers.
+func (c *Client) ListGitServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
+	return c.GitServerClient().ListGitServers(ctx, pageSize, pageToken)
+}
+
 // StableUNIXUsersClient returns a client for the stable UNIX users API.
 func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
 	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)

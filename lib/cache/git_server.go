@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/cache/internal"
@@ -63,15 +62,6 @@ func newGitServerCollection(upstream services.GitServerGetter, w types.WatchKind
 		},
 		watch: w,
 	}, nil
-}
-
-// GitServerReadOnlyClient returns the read-only client for Git servers.
-//
-// Note that Cache implements GitServerReadOnlyClient to satisfy
-// auth.ProxyAccessPoint but also has the getter functions at top level to
-// satisfy auth.Cache.
-func (c *Cache) GitServerReadOnlyClient() gitserver.ReadOnlyClient {
-	return c
 }
 
 // gitServerCollection provides read access to the cached Git servers. Its

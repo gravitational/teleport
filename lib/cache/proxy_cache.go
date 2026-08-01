@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -119,11 +118,6 @@ func (p *ProxyCache) NewWatcher(ctx context.Context, watch types.Watch) (types.W
 // stream as a stream.Stream.
 func (p *ProxyCache) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
 	return p.cache.NewStream(ctx, watch)
-}
-
-// GitServerReadOnlyClient returns the read-only client for Git servers.
-func (p *ProxyCache) GitServerReadOnlyClient() gitserver.ReadOnlyClient {
-	return p
 }
 
 // Close releases the underlying replication cache and all associated

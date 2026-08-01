@@ -37,7 +37,7 @@ import (
 // AccessPoint defines a subset of functions needed by git services.
 type AccessPoint interface {
 	services.AuthPreferenceGetter
-	GitServerReadOnlyClient() gitserver.ReadOnlyClient
+	gitserver.ReadOnlyClient
 }
 
 // KeyManagerConfig is the config used for KeyManager.
@@ -104,7 +104,7 @@ func (m *KeyManager) startWatcher(ctx context.Context) error {
 			Logger:    m.cfg.Logger,
 			Client:    m.cfg.AuthClient,
 		},
-		GitServerGetter:       m.cfg.AccessPoint.GitServerReadOnlyClient(),
+		GitServerGetter:       m.cfg.AccessPoint,
 		EnableUpdateBroadcast: true,
 	})
 	if err != nil {
