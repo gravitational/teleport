@@ -17,9 +17,6 @@
 package cache
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/gravitational/trace"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
@@ -49,27 +46,17 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
-// collectionHandler is used by the [Cache] to seed the initial
+// collectionHandler is used by the cache engine to seed the initial
 // data and process events for a particular resource.
-type collectionHandler interface {
-	// fetch fetches resources and returns a function which will apply said resources to the cache.
-	// fetch *must* not mutate cache state outside of the apply function.
-	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
-	// being prepared. If cacheOK is false, fetch shouldn't fetch any resources, but the apply function that it
-	// returns must still delete resources from the backend.
-	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
-	// onDelete will delete a single target resource from the cache. For
-	// singletons, this is usually an alias to clear.
-	onDeletes(rs []types.Resource) error
-	// onPut will update a single target resource from the cache
-	onPuts(rs []types.Resource) error
-	// watchKind returns a watch
-	// required for this collection
-	watchKind() types.WatchKind
-}
+type collectionHandler = internal.Handler
+
+// resourceKind identifies a cached resource kind/subkind pair; it is the
+// registry key for collection handlers.
+type resourceKind = internal.ResourceKind
 
 // collections is the group of resource [collection]s
 // that the [Cache] supports.
@@ -893,38 +880,11 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 		// Web sessions use subkind to differentiate between
 		// the types of sessions
 		return resourceKind{
-			kind:    wk.Kind,
-			subkind: wk.SubKind,
+			Kind:    wk.Kind,
+			SubKind: wk.SubKind,
 		}
 	}
 	return resourceKind{
-		kind: wk.Kind,
+		Kind: wk.Kind,
 	}
-}
-
-func resourceKindFromResource(res types.Resource) resourceKind {
-	switch res.GetKind() {
-	case types.KindWebSession:
-		// Web sessions use subkind to differentiate between
-		// the types of sessions
-		return resourceKind{
-			kind:    res.GetKind(),
-			subkind: res.GetSubKind(),
-		}
-	}
-	return resourceKind{
-		kind: res.GetKind(),
-	}
-}
-
-type resourceKind struct {
-	kind    string
-	subkind string
-}
-
-func (r resourceKind) String() string {
-	if r.subkind == "" {
-		return r.kind
-	}
-	return fmt.Sprintf("%s/%s", r.kind, r.subkind)
 }

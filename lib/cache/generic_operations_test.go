@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -30,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
@@ -330,9 +333,11 @@ func TestGenericListerDoesNotReturnFilteredNextToken(t *testing.T) {
 			}),
 		watch: watchKind,
 	}
-	cache := &Cache{}
-	cache.setReadStatus(true, map[resourceKind]types.WatchKind{
-		{kind: kind}: watchKind,
+	engine, err := internal.NewEngine(internal.Config{Registerer: prometheus.NewRegistry()})
+	require.NoError(t, err)
+	cache := &Cache{engine: engine}
+	engine.SetReadStatus(true, map[resourceKind]types.WatchKind{
+		{Kind: kind}: watchKind,
 	})
 
 	newApp := func(name string) types.Application {

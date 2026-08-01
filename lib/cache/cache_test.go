@@ -85,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
@@ -116,12 +117,34 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// TestUnwatchedKindRead verifies that reading a resource kind the cache is
+// not configured to watch yields a NotImplemented error instead of a
+// nil-collection panic. The interface subsets used to be the only guard
+// against this; concrete topology caches rely on this backstop plus
+// construction-time validation.
+func TestUnwatchedKindRead(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForNode)
+	t.Cleanup(p.Close)
+
+	// ForNode does not watch apps: the apps collection is nil.
+	_, err := p.cache.GetApps(t.Context())
+	require.Error(t, err)
+	require.True(t, trace.IsNotImplemented(err), "expected NotImplemented, got %v", err)
+
+	// point reads take the same guard path.
+	_, err = p.cache.GetApp(t.Context(), "some-app")
+	require.Error(t, err)
+	require.True(t, trace.IsNotImplemented(err), "expected NotImplemented, got %v", err)
+}
+
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
 // cached by nodes.
 func TestNodesDontCacheHighVolumeResources(t *testing.T) {
 	t.Parallel()
 	for _, kind := range ForNode(Config{}).Watches {
-		require.False(t, isHighVolumeResource(kind.Kind), "resource=%q", kind.Kind)
+		require.False(t, internal.IsHighVolumeResource(kind.Kind), "resource=%q", kind.Kind)
 	}
 }
 
@@ -1850,13 +1873,13 @@ func TestSetupConfigFns(t *testing.T) {
 
 	authKindMap := make(map[resourceKind]types.WatchKind)
 	for _, wk := range ForAuth(Config{ClusterConfig: clusterConfigCache}).Watches {
-		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
+		authKindMap[resourceKind{Kind: wk.Kind, SubKind: wk.SubKind}] = wk
 	}
 
 	for name, f := range setupFuncs {
 		t.Run(name, func(t *testing.T) {
 			for _, wk := range f(Config{ClusterConfig: clusterConfigCache}).Watches {
-				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
+				authWK, ok := authKindMap[resourceKind{Kind: wk.Kind, SubKind: wk.SubKind}]
 				if !ok || !authWK.Contains(wk) {
 					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
 				}
@@ -1867,7 +1890,7 @@ func TestSetupConfigFns(t *testing.T) {
 		})
 	}
 
-	authCAWatchKind, ok := authKindMap[resourceKind{kind: types.KindCertAuthority}]
+	authCAWatchKind, ok := authKindMap[resourceKind{Kind: types.KindCertAuthority}]
 	require.True(t, ok)
 	require.Empty(t, authCAWatchKind.Filter, "auth should not use a CA filter")
 }
@@ -1899,7 +1922,7 @@ func (p *proxyEvents) closeWatchers() {
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	var effectiveKinds []types.WatchKind
 	for _, requested := range watch.Kinds {
-		if _, ok := p.ignoreKinds[resourceKind{kind: requested.Kind, subkind: requested.SubKind}]; ok {
+		if _, ok := p.ignoreKinds[resourceKind{Kind: requested.Kind, SubKind: requested.SubKind}]; ok {
 			continue
 		}
 		effectiveKinds = append(effectiveKinds, requested)
@@ -1923,7 +1946,7 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEvents {
 	ignoreSet := make(map[resourceKind]struct{}, len(ignoreKinds))
 	for _, kind := range ignoreKinds {
-		ignoreSet[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = struct{}{}
+		ignoreSet[resourceKind{Kind: kind.Kind, SubKind: kind.SubKind}] = struct{}{}
 	}
 	return &proxyEvents{
 		events:      events,
@@ -2190,7 +2213,7 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	err = p.cache.collections.users.onPuts([]types.Resource{user})
+	err = p.cache.collections.users.OnPuts([]types.Resource{user})
 	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache

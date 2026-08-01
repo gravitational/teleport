@@ -68,10 +68,6 @@ type storeCollection[T any, S collectionStore[T]] struct {
 	singleton bool
 }
 
-func (c *storeCollection[_, _]) watchKind() types.WatchKind {
-	return c.watch
-}
-
 // unwrap converts an event resource into the collection's resource type. ok
 // is false if the resource is excluded by the collection's filter. Delete
 // events may carry a bare [types.ResourceHeader], which is converted via the
@@ -97,13 +93,13 @@ func (c *storeCollection[T, _]) unwrap(r types.Resource, allowHeader bool) (out 
 	return out, true, nil
 }
 
-// onDeletes attempts to remove the provided resources from the store as a
+// OnDeletes attempts to remove the provided resources from the store as a
 // single commit. An error is returned if a resource is of an unexpected
 // type, or a resource is a [types.ResourceHeader] and no headerTransform was
 // specified.
 //
 // Resources excluded by the configured filter are skipped.
-func (c *storeCollection[T, _]) onDeletes(rs []types.Resource) error {
+func (c *storeCollection[T, _]) OnDeletes(rs []types.Resource) error {
 	items := make([]T, 0, len(rs))
 	for _, r := range rs {
 		t, ok, err := c.unwrap(r, true /* allow header */)
@@ -121,11 +117,11 @@ func (c *storeCollection[T, _]) onDeletes(rs []types.Resource) error {
 	return trace.Wrap(c.store.delete(items...))
 }
 
-// onPuts attempts to place the provided resources into the local store as a
+// OnPuts attempts to place the provided resources into the local store as a
 // single commit. An error is returned if a resource is of an unexpected type.
 //
 // Resources excluded by the configured filter are skipped.
-func (c *storeCollection[T, _]) onPuts(rs []types.Resource) error {
+func (c *storeCollection[T, _]) OnPuts(rs []types.Resource) error {
 	items := make([]T, 0, len(rs))
 	for _, r := range rs {
 		t, ok, err := c.unwrap(r, false /* puts always carry full resources */)
@@ -143,8 +139,8 @@ func (c *storeCollection[T, _]) onPuts(rs []types.Resource) error {
 	return trace.Wrap(c.store.put(items...))
 }
 
-// fetch populates the store with items received by the configured fetcher.
-func (c *storeCollection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
+// Fetch populates the store with items received by the configured fetcher.
+func (c *storeCollection[T, _]) Fetch(ctx context.Context, cacheOK bool) (apply func(context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
