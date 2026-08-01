@@ -32,8 +32,8 @@ import (
 type collectionStore[T any] interface {
 	clear() error
 	replace(items []T) error
-	put(item T) error
-	delete(item T) error
+	put(items ...T) error
+	delete(items ...T) error
 	snapshot() *sortcache.Snapshot[T]
 }
 
@@ -72,67 +72,75 @@ func (c *storeCollection[_, _]) watchKind() types.WatchKind {
 	return c.watch
 }
 
-// onDelete attempts to remove the provided resource from the store.
-// An error is returned if the resource is of an unexpected type, or
-// the resource is a [types.ResourceHeader] and no headerTransform was
-// specified.
-//
-// This is a no-op if the configured filter does not return true.
-func (c *storeCollection[T, _]) onDelete(r types.Resource) error {
+// unwrap converts an event resource into the collection's resource type. ok
+// is false if the resource is excluded by the collection's filter. Delete
+// events may carry a bare [types.ResourceHeader], which is converted via the
+// collection's headerTransform when allowHeader is set.
+func (c *storeCollection[T, _]) unwrap(r types.Resource, allowHeader bool) (out T, ok bool, err error) {
 	switch t := r.(type) {
 	case interface{ UnwrapT() T }:
-		tt := t.UnwrapT()
-		if c.filter != nil && !c.filter(tt) {
-			return nil
-		}
-
-		return trace.Wrap(c.store.delete(tt))
+		out = t.UnwrapT()
 	case *types.ResourceHeader:
-		if c.headerTransform == nil {
-			return trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeFor[T]())
+		if !allowHeader || c.headerTransform == nil {
+			return out, false, trace.BadParameter("unable to convert types.ResourceHeader to %v (no transform specified, this is a bug)", reflect.TypeFor[T]())
 		}
-
-		tt := c.headerTransform(t)
-		if c.filter != nil && !c.filter(tt) {
-			return nil
-		}
-
-		return trace.Wrap(c.store.delete(tt))
+		out = c.headerTransform(t)
 	case T:
-		if c.filter != nil && !c.filter(t) {
-			return nil
-		}
-
-		return trace.Wrap(c.store.delete(t))
+		out = t
 	default:
-		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeFor[T]())
+		return out, false, trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeFor[T]())
 	}
+
+	if c.filter != nil && !c.filter(out) {
+		return out, false, nil
+	}
+	return out, true, nil
 }
 
-// onUpdate attempts to place the resource into the local store.
-// An error is returned if the resource is of an unexpected type
+// onDeletes attempts to remove the provided resources from the store as a
+// single commit. An error is returned if a resource is of an unexpected
+// type, or a resource is a [types.ResourceHeader] and no headerTransform was
+// specified.
 //
-// This is a no-op if the configured filter does not return true.
-func (c *storeCollection[T, _]) onPut(r types.Resource) error {
-	switch t := r.(type) {
-	case interface{ UnwrapT() T }:
-		tt := t.UnwrapT()
-		if c.filter != nil && !c.filter(tt) {
-			return nil
+// Resources excluded by the configured filter are skipped.
+func (c *storeCollection[T, _]) onDeletes(rs []types.Resource) error {
+	items := make([]T, 0, len(rs))
+	for _, r := range rs {
+		t, ok, err := c.unwrap(r, true /* allow header */)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-
-		c.store.put(tt)
-		return nil
-	case T:
-		if c.filter != nil && !c.filter(t) {
-			return nil
+		if ok {
+			items = append(items, t)
 		}
-
-		c.store.put(t)
-		return nil
-	default:
-		return trace.BadParameter("unexpected type %T (expected %v)", r, reflect.TypeFor[T]())
 	}
+	if len(items) == 0 {
+		return nil
+	}
+
+	return trace.Wrap(c.store.delete(items...))
+}
+
+// onPuts attempts to place the provided resources into the local store as a
+// single commit. An error is returned if a resource is of an unexpected type.
+//
+// Resources excluded by the configured filter are skipped.
+func (c *storeCollection[T, _]) onPuts(rs []types.Resource) error {
+	items := make([]T, 0, len(rs))
+	for _, r := range rs {
+		t, ok, err := c.unwrap(r, false /* puts always carry full resources */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if ok {
+			items = append(items, t)
+		}
+	}
+	if len(items) == 0 {
+		return nil
+	}
+
+	return trace.Wrap(c.store.put(items...))
 }
 
 // fetch populates the store with items received by the configured fetcher.

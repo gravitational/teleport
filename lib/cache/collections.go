@@ -63,9 +63,9 @@ type collectionHandler interface {
 	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
 	// onDelete will delete a single target resource from the cache. For
 	// singletons, this is usually an alias to clear.
-	onDelete(t types.Resource) error
+	onDeletes(rs []types.Resource) error
 	// onPut will update a single target resource from the cache
-	onPut(t types.Resource) error
+	onPuts(rs []types.Resource) error
 	// watchKind returns a watch
 	// required for this collection
 	watchKind() types.WatchKind

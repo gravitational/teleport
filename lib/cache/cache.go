@@ -1393,6 +1393,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	var lastStalenessWarning time.Time
 	var staleEventCount int
+	batch := make([]types.Event, 0, maxEventBatchSize)
 	for {
 		select {
 		case <-watcher.Done():
@@ -1405,6 +1406,20 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			}
 			c.notify(ctx, Event{Type: RelativeExpiry})
 		case event := <-watcher.Events():
+			// opportunistically drain any other already-pending events so
+			// that bursts are applied as batched store commits instead of
+			// one copy-on-write commit per event.
+			batch = append(batch[:0], event)
+		drain:
+			for len(batch) < maxEventBatchSize {
+				select {
+				case next := <-watcher.Events():
+					batch = append(batch, next)
+				default:
+					break drain
+				}
+			}
+
 			// check for expired resources in OpPut events and log them periodically. stale OpPut events
 			// may be an indicator of poor performance, and can lead to confusing and inconsistent state
 			// as the cache may prune items that aught to exist.
@@ -1421,30 +1436,34 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			// than pruning the resources that we think *might* have been removed from the real backend.
 			// TODO(fspmarshall): ^^^
 			//
-			cacheEventsReceived.WithLabelValues(c.target).Inc()
-			if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
-				if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
-					cacheStaleEventsReceived.WithLabelValues(c.target).Inc()
-					staleEventCount++
-					if now.After(lastStalenessWarning.Add(time.Minute)) {
-						kind := event.Resource.GetKind()
-						if sk := event.Resource.GetSubKind(); sk != "" {
-							kind = fmt.Sprintf("%s/%s", kind, sk)
+			cacheEventsReceived.WithLabelValues(c.target).Add(float64(len(batch)))
+			for _, event := range batch {
+				if event.Type == types.OpPut && !event.Resource.Expiry().IsZero() {
+					if now := c.Clock.Now(); now.After(event.Resource.Expiry()) {
+						cacheStaleEventsReceived.WithLabelValues(c.target).Inc()
+						staleEventCount++
+						if now.After(lastStalenessWarning.Add(time.Minute)) {
+							kind := event.Resource.GetKind()
+							if sk := event.Resource.GetSubKind(); sk != "" {
+								kind = fmt.Sprintf("%s/%s", kind, sk)
+							}
+							c.Logger.WarnContext(ctx, "Encountered stale event(s), may indicate degraded backend or event system performance",
+								"stale_event_count", staleEventCount,
+								"last_kind", kind,
+							)
+							lastStalenessWarning = now
+							staleEventCount = 0
 						}
-						c.Logger.WarnContext(ctx, "Encountered stale event(s), may indicate degraded backend or event system performance",
-							"stale_event_count", staleEventCount,
-							"last_kind", kind,
-						)
-						lastStalenessWarning = now
-						staleEventCount = 0
 					}
 				}
 			}
 
-			if err := c.processEvent(ctx, event); err != nil {
+			if err := c.processEventBatch(ctx, batch); err != nil {
 				return trace.Wrap(err)
 			}
-			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
+			for _, event := range batch {
+				c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
+			}
 		}
 	}
 }
@@ -1682,38 +1701,71 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 	}, nil
 }
 
-// processEvent hands the event off to the appropriate collection for processing. Any
-// resources which were not registered are ignored. If processing completed successfully,
-// the event will be emitted via the fanout.
+// maxEventBatchSize bounds how many pending events the event loop drains
+// into a single processing batch.
+const maxEventBatchSize = 1024
+
+// processEvent hands a single event off to the appropriate collection for
+// processing. See [Cache.processEventBatch].
 func (c *Cache) processEvent(ctx context.Context, event types.Event) error {
-	resourceKind := resourceKindFromResource(event.Resource)
+	return trace.Wrap(c.processEventBatch(ctx, []types.Event{event}))
+}
 
-	handler, handlerFound := c.collections.byKind[resourceKind]
+// processEventBatch hands events off to the appropriate collections for
+// processing. Runs of consecutive events of the same kind and operation are
+// applied as a single store commit to amortize the copy-on-write write cost.
+// Any resources which were not registered are ignored. After a run is
+// applied, its events are emitted via the fanouts in order, so a fanout
+// subscriber never observes an event whose effect is not yet visible in the
+// cache.
+func (c *Cache) processEventBatch(ctx context.Context, events []types.Event) error {
+	for i := 0; i < len(events); {
+		event := events[i]
+		kind := resourceKindFromResource(event.Resource)
 
-	switch {
-	case handlerFound:
-		switch event.Type {
-		case types.OpDelete:
-			if err := handler.onDelete(event.Resource); err != nil {
-				if !trace.IsNotFound(err) {
-					c.Logger.WarnContext(ctx, "Failed to delete resource", "error", err)
+		// find the run of consecutive events sharing this event's kind and
+		// operation.
+		j := i + 1
+		for j < len(events) && events[j].Type == event.Type && resourceKindFromResource(events[j].Resource) == kind {
+			j++
+		}
+		run := events[i:j]
+		i = j
+
+		if handler, ok := c.collections.byKind[kind]; ok {
+			switch event.Type {
+			case types.OpDelete:
+				resources := make([]types.Resource, 0, len(run))
+				for _, e := range run {
+					resources = append(resources, e.Resource)
+				}
+				if err := handler.onDeletes(resources); err != nil {
+					if !trace.IsNotFound(err) {
+						c.Logger.WarnContext(ctx, "Failed to delete resource", "error", err)
+						return trace.Wrap(err)
+					}
+				}
+			case types.OpPut:
+				resources := make([]types.Resource, 0, len(run))
+				for _, e := range run {
+					resources = append(resources, e.Resource)
+				}
+				if err := handler.onPuts(resources); err != nil {
 					return trace.Wrap(err)
 				}
+			default:
+				c.Logger.WarnContext(ctx, "Skipping unsupported event type", "event", event.Type)
 			}
-		case types.OpPut:
-			if err := handler.onPut(event.Resource); err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			c.Logger.WarnContext(ctx, "Skipping unsupported event type", "event", event.Type)
 		}
-	}
 
-	c.eventsFanout.Emit(event)
-	if !isHighVolumeResource(resourceKind.kind) {
-		c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
-			f.Emit(event)
-		})
+		for _, e := range run {
+			c.eventsFanout.Emit(e)
+			if !isHighVolumeResource(kind.kind) {
+				c.lowVolumeEventsFanout.ForEach(func(f *services.FanoutV2) {
+					f.Emit(e)
+				})
+			}
+		}
 	}
 
 	return nil

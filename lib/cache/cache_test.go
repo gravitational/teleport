@@ -2190,7 +2190,7 @@ func TestPartialHealth(t *testing.T) {
 	meta := user.GetMetadata()
 	meta.Labels = map[string]string{"origin": "cache"}
 	user.SetMetadata(meta)
-	err = p.cache.collections.users.onPut(user)
+	err = p.cache.collections.users.onPuts([]types.Resource{user})
 	require.NoError(t, err)
 
 	// the label on the returned user proves that it came from the cache

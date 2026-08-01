@@ -135,22 +135,27 @@ func (s *typedStore[T, IX]) replace(items []T) error {
 	return nil
 }
 
-// put adds a new item, or updates an existing item.
-func (s *typedStore[T, IX]) put(t T) error {
+// put adds or updates the provided items as a single commit. The variadic
+// slice is treated as scratch space (items are replaced by their clones).
+func (s *typedStore[T, IX]) put(items ...T) error {
 	start := time.Now()
-	s.cache.Put(s.clone(t))
+	for i, t := range items {
+		items[i] = s.clone(t)
+	}
+	s.cache.Put(items...)
 	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
+	backendmetrics.WriteRequests.WithLabelValues("cache").Add(float64(len(items)))
 	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
 	return nil
 }
 
-// delete removes the provided item if any of the indexes match.
-func (s *typedStore[T, IX]) delete(t T) error {
+// delete removes the provided items, if any of the indexes match, as a
+// single commit.
+func (s *typedStore[T, IX]) delete(items ...T) error {
 	start := time.Now()
-	s.cache.Delete(t)
+	s.cache.Delete(items...)
 	backendmetrics.WriteLatencies.WithLabelValues("cache").Observe(time.Since(start).Seconds())
-	backendmetrics.WriteRequests.WithLabelValues("cache").Inc()
+	backendmetrics.WriteRequests.WithLabelValues("cache").Add(float64(len(items)))
 	backendmetrics.Requests.WithLabelValues("cache", s.kind, "false").Inc()
 
 	return nil
