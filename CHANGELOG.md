@@ -1,5 +1,13 @@
 # Changelog
 
+## 18.10.3 (7/31/26)
+
+This is a follow up to the 18.10.1 private security release.
+
+In addition to the previous release it includes the following bug fixes:
+
+* Fixed Kubernetes requests using the `proxy` special-verb URL path prefix being rejected as unknown resource kinds.
+
 ## 18.10.1 (07/17/26)
 
 This is a private security release. The changelog will be publicly announced in a later version.
@@ -1830,5 +1838,3 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
-
-
