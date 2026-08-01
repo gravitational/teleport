@@ -101,7 +101,6 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
-	enableRLockCheck()
 	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -114,11 +113,7 @@ func TestMain(m *testing.M) {
 		},
 	})
 	logtest.InitLogger(testing.Verbose)
-	code := m.Run()
-	if code == 0 {
-		finalRLockCheck()
-	}
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
 // TestNodesDontCacheHighVolumeResources verifies that resources classified as "high volume" aren't
@@ -1492,7 +1487,7 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 
 	// Ensure the cache is healthy before proceeding to
 	// prevent running the tests falling back to upstream reads.
-	require.True(t, p.cache.ok)
+	require.True(t, p.cache.readOK())
 
 	// Create a resource.
 	r, err := funcs.newResource("test-resource-1")
@@ -2876,7 +2871,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 
 	// Verify pagination behaves correctly through the upstream-fallback path
 	// when the cache is not healthy.
-	p.cache.ok = false
+	p.cache.setReadOK(false)
 
 	upstreamPage1, upstreamNext1, err := funcs.cacheList(ctx, defaultTestPageSize, "")
 	require.NoError(t, err)
@@ -2897,7 +2892,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	upstreamListed := slices.Concat(upstreamPage1, upstreamPage2, upstreamPage3)
 	assert.Empty(t, cmp.Diff(expected, upstreamListed, cmpOpts...))
 
-	p.cache.ok = true
+	p.cache.setReadOK(true)
 
 	if funcs.Range != nil && funcs.cacheRange != nil {
 		if !p.ignoreRangeEndKey {
@@ -2918,7 +2913,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 		assert.Empty(t, cmp.Diff(expected, append(page1, out...), cmpOpts...))
 
 		// invalidate the cache, cover upstream fallback
-		p.cache.ok = false
+		p.cache.setReadOK(false)
 		out, err = stream.Collect(funcs.cacheRange(ctx, "", ""))
 		require.NoError(t, err)
 		assert.Len(t, out, len(expected))
@@ -2926,7 +2921,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	}
 
 	// invalidate the cache, cover upstream fallback
-	p.cache.ok = false
+	p.cache.setReadOK(false)
 	out, err := funcs.cacheListAll(ctx)
 	require.NoError(t, err)
 	assert.Len(t, out, len(expected))
@@ -2935,7 +2930,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
-	p.cache.ok = true
+	p.cache.setReadOK(true)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)

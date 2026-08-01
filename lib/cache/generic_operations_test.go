@@ -296,7 +296,7 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 				fallbackGetter:  tt.fallbackGetter,
 			}
 
-			p.cache.ok = tt.cacheOk
+			p.cache.setReadOK(tt.cacheOk)
 			got, err := stream.Collect(l.RangeWithFallback(context.Background(), tt.start, tt.end))
 
 			if tt.wantErr != "" {
@@ -330,12 +330,10 @@ func TestGenericListerDoesNotReturnFilteredNextToken(t *testing.T) {
 			}),
 		watch: watchKind,
 	}
-	cache := &Cache{
-		ok: true,
-		confirmedKinds: map[resourceKind]types.WatchKind{
-			{kind: kind}: watchKind,
-		},
-	}
+	cache := &Cache{}
+	cache.setReadStatus(true, map[resourceKind]types.WatchKind{
+		{kind: kind}: watchKind,
+	})
 
 	newApp := func(name string) types.Application {
 		app, err := types.NewAppV3(types.Metadata{

@@ -195,7 +195,7 @@ func testRangeServersWithTargetName[T hostIDGetterResource](t *testing.T, funcs 
 			seeds:  rangeServerSeeds(apidefaults.DefaultChunkSize+1, "shared-target", true, nil),
 			onCollected: func(n int, c *Cache) {
 				if n == apidefaults.DefaultChunkSize {
-					c.ok = false
+					c.setReadOK(false)
 				}
 			},
 		},
@@ -206,9 +206,9 @@ func testRangeServersWithTargetName[T hostIDGetterResource](t *testing.T, funcs 
 			onCollected: func(n int, c *Cache) {
 				switch n {
 				case apidefaults.DefaultChunkSize:
-					c.ok = false
+					c.setReadOK(false)
 				case 2 * apidefaults.DefaultChunkSize:
-					c.ok = true
+					c.setReadOK(true)
 				}
 			},
 		},

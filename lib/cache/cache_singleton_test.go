@@ -95,7 +95,7 @@ func testSingleton153[T types.Resource153](t *testing.T, p *testPack, funcs test
 
 	// Ensure the cache is healthy before proceeding to
 	// prevent running the tests falling back to upstream reads.
-	require.True(t, p.cache.ok)
+	require.True(t, p.cache.readOK())
 
 	// Ensure the singleton doesn't already exist.
 	_, err := funcs.get(ctx)
@@ -136,12 +136,12 @@ func testSingleton153[T types.Resource153](t *testing.T, p *testPack, funcs test
 	require.Empty(t, cmp.Diff(updatedBackendRes, res, cmpOpts...))
 	require.NotEmpty(t, cmp.Diff(backendRes, updatedBackendRes, cmpOpts...), "update did not change the resource")
 
-	p.cache.ok = false
+	p.cache.setReadOK(false)
 	// Ensure fallback works when cache is unhealthy.
 	fallbackRes, err := funcs.cacheGet(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(res, fallbackRes, cmpOpts...))
-	p.cache.ok = true
+	p.cache.setReadOK(true)
 
 	err = funcs.delete(ctx)
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func testLegacySingleton[T types.Resource](t *testing.T, p *testPack, funcs test
 
 	// Ensure the cache is healthy before proceeding to
 	// prevent running the tests falling back to upstream reads.
-	require.True(t, p.cache.ok)
+	require.True(t, p.cache.readOK())
 
 	// Ensure the singleton doesn't already exist.
 	_, err := funcs.get(ctx)
@@ -250,12 +250,12 @@ func testLegacySingleton[T types.Resource](t *testing.T, p *testPack, funcs test
 	require.Empty(t, cmp.Diff(updatedBackendRes, res, cmpOpts...))
 	require.NotEmpty(t, cmp.Diff(backendRes, updatedBackendRes, cmpOpts...), "update did not change the resource")
 
-	p.cache.ok = false
+	p.cache.setReadOK(false)
 	// Ensure fallback works when cache is unhealthy.
 	fallbackRes, err := funcs.cacheGet(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(res, fallbackRes, cmpOpts...))
-	p.cache.ok = true
+	p.cache.setReadOK(true)
 
 	err = funcs.delete(ctx)
 	require.NoError(t, err)

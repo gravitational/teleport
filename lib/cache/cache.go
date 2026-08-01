@@ -543,22 +543,17 @@ type Cache struct {
 	// Logger emits log messages.
 	Logger *slog.Logger
 
-	// rw is used to prevent reads of invalid cache states.  From a
-	// memory-safety perspective, this RWMutex is used to protect
-	// the `ok` and `confirmedKinds` fields. *However*, cache reads
-	// must hold the read lock for the duration of the read, not just
-	// when checking the `ok` or `confirmedKinds` fields. Since the write
-	// lock must be held in order to modify the `ok` field, this serves
-	// to ensure that all in-progress reads complete *before* a reset can begin.
+	// readStatus is the atomically-published read-health state of the cache:
+	// whether the cache is valid for reads, and which kinds were confirmed by
+	// the server for the current generation. Both are published together so
+	// that a read observes a consistent pair with a single atomic load.
 	//
-	// In test builds with the race detector enabled, it's a read-write mutex
-	// that must be unlocked for reading in the same goroutine that acquired the
-	// read lock. This is currently the case and shouldn't be particularly
-	// restricting in the future.
-	rw rwMutex
-	// ok indicates whether the cache is in a valid state for reads.
-	// If `ok` is `false`, reads are forwarded directly to the backend.
-	ok bool
+	// Reads intentionally do not exclude resets: collection stores are
+	// snapshot-based, so a read that began against the previous generation
+	// keeps observing a complete, internally consistent view even while an
+	// apply replaces store contents. If readStatus reports not-ok, reads are
+	// forwarded directly to the backend instead.
+	readStatus atomic.Pointer[readState]
 
 	// generation is a counter that is incremented each time a healthy
 	// state is established.  A generation of zero means that a healthy
@@ -588,10 +583,6 @@ type Cache struct {
 
 	// collections is a registry of resource collections.
 	collections *collections
-
-	// confirmedKinds is a map of kinds confirmed by the server to be included in the current generation
-	// by resource Kind/SubKind
-	confirmedKinds map[resourceKind]types.WatchKind
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
@@ -627,52 +618,89 @@ func (c *Cache) FirstInit() <-chan struct{} {
 	return c.firstTimeInitC
 }
 
-// setReadStatus updates Cache.ok, which determines whether the
-// cache is overall accessible for reads, and confirmedKinds
-// which stores resource kinds accessible in current generation.
+// readState is the read-health state of the cache, published atomically via
+// Cache.readStatus so that the health bit and the confirmed kinds are always
+// observed together.
+type readState struct {
+	// ok indicates whether the cache is in a valid state for reads.
+	// If ok is false, reads are forwarded directly to the backend.
+	ok bool
+	// confirmedKinds is a map of kinds confirmed by the server to be included
+	// in the current generation by resource Kind/SubKind.
+	confirmedKinds map[resourceKind]types.WatchKind
+}
+
+// healthy reports whether the cache is overall accessible for reads.
+func (s *readState) healthy() bool {
+	return s != nil && s.ok
+}
+
+// kindConfirmed reports whether the cache is accessible for reads of the
+// given kind in the current generation.
+func (s *readState) kindConfirmed(k resourceKind) bool {
+	if !s.healthy() {
+		return false
+	}
+	_, ok := s.confirmedKinds[k]
+	return ok
+}
+
+// setReadStatus publishes whether the cache is overall accessible for reads,
+// along with the resource kinds accessible in the current generation.
 func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.WatchKind) {
 	if c.neverOK {
 		// we are running inside of a test where the cache
 		// needs to pretend that it never becomes healthy.
 		return
 	}
-	c.rw.Lock()
-	defer c.rw.Unlock()
-	c.ok = ok
-	c.confirmedKinds = confirmedKinds
+	c.readStatus.Store(&readState{ok: ok, confirmedKinds: confirmedKinds})
 }
 
-// acquireReadGuard provides a readGuard that may be used to determine how
-// a cache read should operate. The returned guard *must* be released to prevent deadlocks.
+// readOK reports whether the cache is currently in a valid state for reads.
+func (c *Cache) readOK() bool {
+	return c.readStatus.Load().healthy()
+}
+
+// setReadOK flips the health bit while preserving the confirmed kinds of the
+// current generation. It is a test helper for simulating an unhealthy cache;
+// unlike setReadStatus it ignores neverOK.
+func (c *Cache) setReadOK(ok bool) {
+	prev := c.readStatus.Load()
+	next := &readState{ok: ok}
+	if prev != nil {
+		next.confirmedKinds = prev.confirmedKinds
+	}
+	c.readStatus.Store(next)
+}
+
+// acquireReadGuard provides a readGuard that may be used to determine how a
+// cache read should operate. Acquiring a guard is wait-free: it takes no
+// locks, and holding one does not block cache writes or resets. Reads that
+// proceed against the cache operate on immutable store snapshots, so they
+// remain consistent even if a reset replaces store contents mid-read.
 func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
 	if cache.closed.Load() {
 		return readGuard[T, I]{}, trace.Errorf("cache is closed")
 	}
-	cache.rw.RLock()
 
-	if cache.ok {
-		if _, kindOK := cache.confirmedKinds[resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}]; kindOK {
-			return readGuard[T, I]{
-				cacheRead: true,
-				release:   cache.rw.RUnlock,
-				store:     c.store,
-			}, nil
-		}
+	kind := resourceKind{kind: c.watch.Kind, subkind: c.watch.SubKind}
+	if cache.readStatus.Load().kindConfirmed(kind) {
+		return readGuard[T, I]{
+			cacheRead: true,
+			store:     c.store,
+		}, nil
 	}
 
-	cache.rw.RUnlock()
 	return readGuard[T, I]{
 		cacheRead: false,
 	}, nil
 }
 
-// readGuard holds a reference to a read-only "collection" T. If the referenced resource is in the cache,
-// then readGuard also holds the release function for the read lock, and ensures that it is not double-called.
+// readGuard indicates whether a read should be served from the cache or from
+// the upstream backend, and carries the collection store for the cache case.
 type readGuard[T any, I comparable] struct {
 	cacheRead bool
 	store     *store[T, I]
-	once      sync.Once
-	release   func()
 }
 
 // ReadCache checks if this readGuard holds a cache reference.
@@ -680,17 +708,9 @@ func (r *readGuard[T, I]) ReadCache() bool {
 	return r.cacheRead
 }
 
-// Release releases the read lock if it is held.  This method
-// can be called multiple times.
-func (r *readGuard[T, I]) Release() {
-	r.once.Do(func() {
-		if r.release == nil {
-			return
-		}
-
-		r.release()
-	})
-}
+// Release is a no-op retained for call-site symmetry with the previous
+// lock-holding guard implementation; snapshot-based reads hold no locks.
+func (r *readGuard[T, I]) Release() {}
 
 // Config defines cache configuration parameters
 type Config struct {
@@ -995,6 +1015,7 @@ func New(config Config) (*Cache, error) {
 			"target", config.target,
 		),
 	}
+	cs.readStatus.Store(&readState{})
 
 	if config.Unstarted {
 		return cs, nil
@@ -1090,10 +1111,12 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 }
 
 func (c *Cache) validateWatchRequest(watch types.Watch) (kinds []types.WatchKind, highVolume bool, err error) {
-	c.rw.RLock()
-	cacheOK := c.ok
-	confirmedKinds := c.confirmedKinds
-	c.rw.RUnlock()
+	state := c.readStatus.Load()
+	cacheOK := state.healthy()
+	var confirmedKinds map[resourceKind]types.WatchKind
+	if state != nil {
+		confirmedKinds = state.confirmedKinds
+	}
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var containsHighVolumeResource bool
@@ -1697,19 +1720,12 @@ func (c *Cache) ListResources(ctx context.Context, req authproto.ListResourcesRe
 	if c.closed.Load() {
 		return nil, trace.Errorf("cache is closed")
 	}
-	c.rw.RLock()
-
 	kind := types.WatchKind{Kind: req.ResourceType}
-	_, kindOK := c.confirmedKinds[resourceKind{kind: kind.Kind, subkind: kind.SubKind}]
-	if !c.ok || !kindOK {
-		// release the lock early and read from the upstream.
-		c.rw.RUnlock()
+	if !c.readStatus.Load().kindConfirmed(resourceKind{kind: kind.Kind, subkind: kind.SubKind}) {
+		// read from the upstream.
 		resp, err := c.listResourcesFallback(ctx, req)
 		return resp, trace.Wrap(err)
-
 	}
-
-	defer c.rw.RUnlock()
 
 	resp, err := c.listResources(ctx, req)
 	return resp, trace.Wrap(err)
@@ -1907,10 +1923,7 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 
 // GetUnifiedResourcesAndBotsCount returns the combined total number of nodes, app servers, database servers, kube servers, desktops, and bot instances.
 func (c *Cache) GetUnifiedResourcesAndBotsCount() int {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
-
-	if !c.ok {
+	if !c.readOK() {
 		return -1
 	}
 
