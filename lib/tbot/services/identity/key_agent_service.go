@@ -303,8 +303,3 @@ func (*hardwareKeyService) NewPrivateKey(context.Context, hardwarekey.PrivateKey
 	// Hardware Key Agent during login.
 	return nil, trace.NotImplemented("generating new private keys is not supported")
 }
-
-func (*hardwareKeyService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	// This method is marked for deletion in v19.
-	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
-}

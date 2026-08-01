@@ -35,10 +35,6 @@ type Service interface {
 	// Sign performs a cryptographic signature using the specified hardware
 	// private key and provided signature parameters.
 	Sign(ctx context.Context, ref *PrivateKeyRef, keyInfo ContextualKeyInfo, rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error)
-	// TODO(Joerger): DELETE IN v19.0.0
-	// GetFullKeyRef gets the full [PrivateKeyRef] for an existing hardware private
-	// key in the given slot of the hardware key with the given serial number.
-	GetFullKeyRef(serialNumber uint32, slotKey PIVSlotKey) (*PrivateKeyRef, error)
 }
 
 // Signer is a hardware key implementation of [crypto.Signer].
@@ -152,14 +148,6 @@ func decodeKeyRef(encodedKeyRef []byte, s Service) (*PrivateKeyRef, error) {
 
 	// Ensure that all required fields are decoded.
 	if err := ref.Validate(); err != nil {
-		// If some fields are missing, this is likely an old login key with only
-		// the serial number and slot. Fetch missing data from the hardware key.
-		// This data will be saved to the login key on next login
-		// TODO(Joerger): DELETE IN v19.0.0
-		if ref.SerialNumber != 0 && ref.SlotKey != 0 {
-			return s.GetFullKeyRef(ref.SerialNumber, ref.SlotKey)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
