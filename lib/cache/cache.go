@@ -494,17 +494,23 @@ var _ authclient.Cache = (*Cache)(nil)
 // proceed against the cache operate on immutable store snapshots, so they
 // remain consistent even if a reset replaces store contents mid-read.
 func acquireReadGuard[T any, S collectionStore[T]](cache *Cache, c *storeCollection[T, S]) (readGuard[T, S], error) {
+	return acquireGuard(cache.engine, c)
+}
+
+// acquireGuard is the engine-level variant of [acquireReadGuard], used by
+// collection read types that hold the engine rather than the owning cache.
+func acquireGuard[T any, S collectionStore[T]](engine *internal.Engine, c *storeCollection[T, S]) (readGuard[T, S], error) {
 	if c == nil {
 		// the cache was not configured to watch this resource kind; reads of
 		// unwatched kinds are a misconfiguration, not a panic.
-		return readGuard[T, S]{}, trace.NotImplemented("cache %q does not watch the requested resource kind", cache.Config.target)
+		return readGuard[T, S]{}, trace.NotImplemented("cache %q does not watch the requested resource kind", engine.Target)
 	}
-	if cache.engine.Closed() {
+	if engine.Closed() {
 		return readGuard[T, S]{}, trace.Errorf("cache is closed")
 	}
 
 	kind := internal.ResourceKind{Kind: c.watch.Kind, SubKind: c.watch.SubKind}
-	if cache.engine.KindConfirmed(kind) {
+	if engine.KindConfirmed(kind) {
 		return readGuard[T, S]{
 			cacheRead: true,
 			store:     c.store,

@@ -20,12 +20,14 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -203,12 +205,37 @@ func newClusterNetworkingConfigCollection(c services.ClusterConfiguration, w typ
 	}, nil
 }
 
+// clusterNetworkingConfigCollection provides read access to the cached
+// cluster networking config. Its exported methods are promoted onto every
+// topology cache that embeds it; the read is implemented exactly once here.
+// It is a stateless value assembled on demand by
+// [Cache.clusterNetworkingConfigReads].
+type clusterNetworkingConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	fnCache  *utils.FnCache
+	upstream services.ClusterConfiguration
+	col      *collection[types.ClusterNetworkingConfig, clusterNetworkingConfigIndex]
+}
+
+// clusterNetworkingConfigReads assembles the cluster networking config read
+// collection for this cache.
+func (c *Cache) clusterNetworkingConfigReads() clusterNetworkingConfigCollection {
+	return clusterNetworkingConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		fnCache:  c.fnCache,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.networkingConfig,
+	}
+}
+
 // GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
-func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
+func (c clusterNetworkingConfigCollection) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.networkingConfig)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -223,13 +250,18 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNe
 	}
 
 	cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"networking"}, func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-		cfg, err := c.Config.ClusterConfig.GetClusterNetworkingConfig(ctx)
+		cfg, err := c.upstream.GetClusterNetworkingConfig(ctx)
 		return cfg, err
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cachedCfg.Clone(), nil
+}
+
+// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
+func (c *Cache) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	return c.clusterNetworkingConfigReads().GetClusterNetworkingConfig(ctx)
 }
 
 type authPreferenceIndex string
@@ -269,12 +301,34 @@ func newAuthPreferenceCollection(c services.ClusterConfiguration, w types.WatchK
 	}, nil
 }
 
+// authPreferenceCollection provides read access to the cached cluster auth
+// preference. Its exported methods are promoted onto every topology cache
+// that embeds it; the read is implemented exactly once here. It is a
+// stateless value assembled on demand by [Cache.authPreferenceReads].
+type authPreferenceCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.ClusterConfiguration
+	col      *collection[types.AuthPreference, authPreferenceIndex]
+}
+
+// authPreferenceReads assembles the auth preference read collection for this
+// cache.
+func (c *Cache) authPreferenceReads() authPreferenceCollection {
+	return authPreferenceCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.authPreference,
+	}
+}
+
 // GetAuthPreference gets the cluster authentication config.
-func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
+func (c authPreferenceCollection) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetAuthPreference")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.authPreference)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,8 +342,13 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 		return cfg.Clone(), nil
 	}
 
-	cfg, err := c.Config.ClusterConfig.GetAuthPreference(ctx)
+	cfg, err := c.upstream.GetAuthPreference(ctx)
 	return cfg, trace.Wrap(err)
+}
+
+// GetAuthPreference gets the cluster authentication config.
+func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+	return c.authPreferenceReads().GetAuthPreference(ctx)
 }
 
 type sessionRecordingConfigIndex string
@@ -329,12 +388,35 @@ func newSessionRecordingConfigCollection(c services.ClusterConfiguration, w type
 	}, nil
 }
 
+// sessionRecordingConfigCollection provides read access to the cached
+// session recording config. Its exported methods are promoted onto every
+// topology cache that embeds it; the read is implemented exactly once here.
+// It is a stateless value assembled on demand by
+// [Cache.sessionRecordingConfigReads].
+type sessionRecordingConfigCollection struct {
+	engine   *internal.Engine
+	tracer   oteltrace.Tracer
+	upstream services.ClusterConfiguration
+	col      *collection[types.SessionRecordingConfig, sessionRecordingConfigIndex]
+}
+
+// sessionRecordingConfigReads assembles the session recording config read
+// collection for this cache.
+func (c *Cache) sessionRecordingConfigReads() sessionRecordingConfigCollection {
+	return sessionRecordingConfigCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		upstream: c.Config.ClusterConfig,
+		col:      c.collections.sessionRecordingConfig,
+	}
+}
+
 // GetSessionRecordingConfig gets session recording configuration.
-func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
+func (c sessionRecordingConfigCollection) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	ctx, span := c.tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
-	rg, err := acquireReadGuard(c, c.collections.sessionRecordingConfig)
+	rg, err := acquireGuard(c.engine, c.col)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -348,8 +430,13 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRec
 		return cfg.Clone(), nil
 	}
 
-	cfg, err := c.Config.ClusterConfig.GetSessionRecordingConfig(ctx)
+	cfg, err := c.upstream.GetSessionRecordingConfig(ctx)
 	return cfg, trace.Wrap(err)
+}
+
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Cache) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	return c.sessionRecordingConfigReads().GetSessionRecordingConfig(ctx)
 }
 
 type accessGraphSettingsIndex string
