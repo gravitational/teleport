@@ -139,27 +139,24 @@ func (c collection[T, _]) fetch(ctx context.Context, cacheOK bool) (apply func(c
 	}
 
 	return func(ctx context.Context) error {
-		// Always perform the delete if this is not a singleton, otherwise
-		// only perform the delete if the singleton wasn't found
-		// or the resource kind isn't cached in the current generation.
-		if !c.singleton || deleteSingleton || !cacheOK {
-			if err := c.store.clear(); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		}
-		// If this is a singleton and we performed a deletion, return here
-		// because we only want to update or delete a singleton, not both.
-		// Also don't continue if the resource kind isn't cached in the current generation.
+		// If this is a singleton and the fetch found nothing, or the resource
+		// kind isn't cached in the current generation, wipe the store and
+		// don't continue. (A singleton that was found is only updated, not
+		// cleared first.)
 		if c.singleton && deleteSingleton || !cacheOK {
+			return trace.Wrap(c.store.clear())
+		}
+
+		if c.singleton && len(resources) == 0 {
+			// singleton fetch succeeded but returned nothing; leave any
+			// existing value in place, matching the update-or-delete-only
+			// singleton contract.
 			return nil
 		}
-		for _, resource := range resources {
-			if err := c.store.put(resource); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
+
+		// atomically swap in the fetched generation: concurrent readers
+		// observe either the complete old state or the complete new state,
+		// never a partially populated store.
+		return trace.Wrap(c.store.replace(resources))
 	}, nil
 }

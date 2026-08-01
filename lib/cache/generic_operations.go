@@ -149,9 +149,9 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 		pageSize = defaultPageSize
 	}
 
-	fetchFn := rg.store.cache.Ascend
+	fetchFn := rg.store.resources
 	if l.isDesc {
-		fetchFn = rg.store.cache.Descend
+		fetchFn = rg.store.resourcesDescending
 	}
 
 	var out []T
