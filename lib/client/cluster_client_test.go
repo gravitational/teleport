@@ -758,7 +758,6 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 
 	// Every permutation the loops below generate must appear here, so a missing row fails the test.
 	want := map[inputs]outcome{
-		// A prefetched check is supplied, so the caller's client is not used and the issuer is always the root cluster's auth server.
 		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
 		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
 		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
@@ -777,14 +776,12 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
 		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
 
-		// No caller client, no prefetched check.
 		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{connected: 1}},
 		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{dialedRoot: 1}, dials: counts{root: 1}},
 		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{dialedLeaf1: 1}, dials: counts{leaf1: 1}},
 		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{connected: 1}, dials: counts{root: 1}},
 		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{dialedLeaf2: 1}, dials: counts{leaf2: 1, root: 1}},
 
-		// A caller client is supplied, so the requirement check is answered by it, but the certs are still issued by the root cluster's auth server.
 		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerRoot: 1}},
 		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerRoot: 1}, dials: counts{root: 1}},
 		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerRoot: 1}},
