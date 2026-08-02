@@ -540,14 +540,22 @@ func (k *kubeLocalProxy) getCertReissuer() func(ctx context.Context, teleportClu
 		}
 		currentContext := cfg.CurrentContext
 
-		cert, err := k.certIssuer.IssueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+		// Hold the cluster connection across the reissue so the relogin can only happen here,
+		// before the kubeconfig is recreated below.
+		release, err := k.certIssuer.AcquireConn(ctx)
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
+		defer release()
 
 		// We recreate ephemeral kubeconfig to make sure it's there even after relogin.
 		k.kubeconfig.CurrentContext = currentContext
 		if err := k.WriteKubeConfig(); err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+
+		cert, err := k.certIssuer.IssueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
+		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 		return *cert, nil

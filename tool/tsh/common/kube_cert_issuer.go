@@ -149,6 +149,16 @@ func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, ku
 	return issuer.issueMFAGatedCert(ctx, cc, params)
 }
 
+// AcquireConn holds the shared cluster connection until the returned release is called.
+// Dialing it performs a relogin if the base session is expired.
+func (issuer *kubeCertIssuer) AcquireConn(ctx context.Context) (func(), error) {
+	_, release, err := issuer.conn.Acquire(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return release, nil
+}
+
 func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[string]*client.KeyRing, error) {
 	kubeKeys := map[string]*client.KeyRing{}
 	for _, teleportCluster := range teleportClusters {
