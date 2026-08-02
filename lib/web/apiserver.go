@@ -112,7 +112,6 @@ import (
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -182,9 +181,6 @@ type Handler struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
-
-	// appServerWatcher ia a app server watcher to speed up app look up.
-	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
@@ -324,9 +320,6 @@ type Config struct {
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
 
-	// AppServerWatcher ia a app server watcher to speed up app look up.
-	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
-
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
@@ -394,18 +387,25 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
-	if err != nil {
+	match := app.MatchPublicAddr(publicAddr)
+	var apps []types.Application
+	for server, err := range h.handler.cfg.AccessPoint.RangeReadonlyApplicationServers(r.Context(), "", "") {
+		if err != nil {
+			h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
+			return
+		}
+
+		if match(server) {
+			apps = append(apps, server.GetApp().Copy())
+		}
+	}
+
+	if len(apps) == 0 {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
 	}
 
-	if len(servers) == 0 {
-		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
-		return
-	}
-
-	foundApp := servers[rand.N(len(servers))].GetApp()
+	foundApp := apps[rand.N(len(apps))]
 	corsPolicy := foundApp.GetCORS()
 	if corsPolicy == nil {
 		return
@@ -710,10 +710,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// This endpoint is used both by Web UI and Connect.
 	h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
-
-	if cfg.AppServerWatcher != nil {
-		h.appServerWatcher = cfg.AppServerWatcher
-	}
 
 	const v1Prefix = "/v1"
 	notFoundRoutingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

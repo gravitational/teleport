@@ -1646,6 +1646,33 @@ func (c *Client) RangeReadonlySSHServers(ctx context.Context, start, end string)
 	}
 }
 
+// RangeReadonlyApplicationServers returns read-only views of the application
+// server resources within the range [start, end). The client-side
+// implementation lists all application servers and ranges locally;
+// cache-backed access points serve this from a snapshot instead.
+func (c *Client) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return func(yield func(readonly.AppServer, error) bool) {
+		servers, err := c.GetApplicationServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+
+		for _, server := range servers {
+			cursor := services.GetCursorForAppServer(server)
+			if cursor < start {
+				continue
+			}
+			if end != "" && cursor >= end {
+				continue
+			}
+			if !yield(server, nil) {
+				return
+			}
+		}
+	}
+}
+
 // ClientI is a client to Auth service
 type ClientI interface {
 	IdentityService
@@ -2022,6 +2049,14 @@ type ClientI interface {
 	// and must not be mutated or retained beyond the iteration; callers keep
 	// a match by calling DeepCopy on it.
 	RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error]
+
+	// RangeReadonlyApplicationServers returns read-only views of the
+	// application server resources within the range [start, end), where the
+	// bounds are resource cursors as produced by
+	// services.GetCursorForAppServer. The yielded values are shared and must
+	// not be mutated or retained beyond the iteration; callers keep a match
+	// by calling Copy on it.
+	RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error]
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)

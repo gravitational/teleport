@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -306,6 +307,74 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 		upstream: c.Config.Presence,
 		col:      c.collections.appServers,
 	}.GetApplicationServers(ctx, namespace)
+}
+
+// RangeReadonlyApplicationServers returns read-only views of the application
+// server resources within the range [start, end), where the bounds are
+// resource cursors as produced by services.GetCursorForAppServer. The yielded
+// values are shared with the cache: they must not be mutated or retained
+// beyond the iteration — callers keep a match by calling Copy on it.
+//
+// The healthy read path is served from a single consistent snapshot of the
+// cache captured when iteration begins: it holds no locks, does not block
+// cache updates, and observes neither missed nor duplicated servers
+// regardless of concurrent changes. This is the primitive that replaces
+// maintaining a secondary materialized view via services.AppServersWatcher.
+func (c appServerCollection) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return func(yield func(readonly.AppServer, error) bool) {
+		ctx, span := c.tracer.Start(ctx, "cache/RangeReadonlyApplicationServers")
+		defer span.End()
+
+		rg, err := acquireGuard(c.engine, c.col)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			servers, err := c.upstream.GetApplicationServers(ctx, defaults.Namespace)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			for _, server := range servers {
+				cursor := services.GetCursorForAppServer(server)
+				if cursor < start {
+					continue
+				}
+				if end != "" && cursor >= end {
+					continue
+				}
+				if !yield(server, nil) {
+					return
+				}
+			}
+			return
+		}
+
+		for server := range rg.store.resources(appServerNameIndex, start, end) {
+			if !yield(server, nil) {
+				return
+			}
+		}
+	}
+}
+
+// RangeReadonlyApplicationServers returns read-only views of the application
+// server resources within the range [start, end), where the bounds are
+// resource cursors as produced by services.GetCursorForAppServer. The yielded
+// values are shared with the cache: they must not be mutated or retained
+// beyond the iteration — callers keep a match by calling Copy on it.
+func (c *Cache) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return appServerCollection{
+		engine:   c.engine,
+		tracer:   c.Tracer,
+		logger:   c.Logger,
+		upstream: c.Config.Presence,
+		col:      c.collections.appServers,
+	}.RangeReadonlyApplicationServers(ctx, start, end)
 }
 
 // RangeApplicationServersWithName returns an iterator over application servers for a given app name.

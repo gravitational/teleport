@@ -37,13 +37,18 @@ import (
 // function. Matcher functions that can match on public address and name are
 // available.
 func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, fn Matcher) ([]types.AppServer, error) {
-	watcher, err := cluster.AppServerWatcher()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var out []types.AppServer
+	for server, err := range cluster.RangeReadonlyApplicationServers(ctx, "", "") {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if fn(server) {
+			out = append(out, server.Copy())
+		}
 	}
 
-	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
-	return servers, trace.Wrap(err)
+	return out, nil
 }
 
 // Matcher allows matching on different properties of an app server.

@@ -102,12 +102,14 @@ func (p *expectedLeafClusters) RangeReadonlySSHServers(ctx context.Context, star
 	return cluster.RangeReadonlySSHServers(ctx, start, end)
 }
 
-func (p *expectedLeafClusters) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+func (p *expectedLeafClusters) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
 	cluster, err := p.pickCluster()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return func(yield func(readonly.AppServer, error) bool) {
+			yield(nil, trace.Wrap(err))
+		}
 	}
-	return cluster.AppServerWatcher()
+	return cluster.RangeReadonlyApplicationServers(ctx, start, end)
 }
 
 func (p *expectedLeafClusters) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
@@ -234,8 +236,10 @@ func (s *expectedLeafCluster) RangeReadonlySSHServers(ctx context.Context, start
 	}
 }
 
-func (s *expectedLeafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	return nil, s.discoveryError("unable to fetch app server watcher for leaf cluster")
+func (s *expectedLeafCluster) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return func(yield func(readonly.AppServer, error) bool) {
+		yield(nil, s.discoveryError("unable to fetch app servers for leaf cluster"))
+	}
 }
 
 func (s *expectedLeafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {

@@ -539,15 +539,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)
 
-	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Client:    s.proxyClient,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(appServerWatcher.Close)
-
 	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -572,7 +563,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		DataDir:               t.TempDir(),
 		LockWatcher:           proxyLockWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
-		AppServerWatcher:      appServerWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
@@ -9434,15 +9424,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(proxyGitServerWatcher.Close)
 
-	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Client:    client,
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(appServerWatcher.Close)
-
 	databaseServerWatcher, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -9468,7 +9449,6 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		LockWatcher:           proxyLockWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
-		AppServerWatcher:      appServerWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Addr().String()},

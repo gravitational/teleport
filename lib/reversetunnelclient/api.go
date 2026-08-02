@@ -135,8 +135,11 @@ type Cluster interface {
 	RangeReadonlySSHServers(ctx context.Context, start, end string) iter.Seq2[readonly.Server, error]
 	// GitServerWatcher returns the Git server watcher for the cluster
 	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
-	// AppServerWatcher returns the watcher that maintains the app server set for the cluster
-	AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error)
+	// RangeReadonlyApplicationServers returns read-only views of the
+	// cluster's application server resources within the range [start, end).
+	// The yielded values are shared and must not be mutated or retained
+	// beyond the iteration; callers keep a match by calling Copy on it.
+	RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error]
 	// DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster
 	DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels

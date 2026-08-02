@@ -220,9 +220,6 @@ type Config struct {
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
-	// AppServerWatcher is a app server watcher.
-	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
-
 	// DatabaseServerWatcher is a database server watcher.
 	DatabaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 
@@ -298,9 +295,6 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
-	}
-	if cfg.AppServerWatcher == nil {
-		return trace.BadParameter("missing parameter AppServerWatcher")
 	}
 	if cfg.DatabaseServerWatcher == nil {
 		return trace.BadParameter("missing parameter DatabaseServerWatcher")

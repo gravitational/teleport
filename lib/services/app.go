@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -353,6 +354,12 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 // in the logical resource stream: "<host-id>/<name>" for unscoped app servers
 // and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
 func GetCursorForAppServer(server types.AppServer) string {
+	return GetCursorForReadonlyAppServer(server)
+}
+
+// GetCursorForReadonlyAppServer is GetCursorForAppServer for callers holding
+// a read-only view of the app server.
+func GetCursorForReadonlyAppServer(server readonly.AppServer) string {
 	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
 }
 

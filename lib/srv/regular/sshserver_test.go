@@ -2068,7 +2068,6 @@ func TestProxyRoundRobin(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
-		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
@@ -2219,7 +2218,6 @@ func TestProxyDirectAccess(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
-		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
@@ -2889,7 +2887,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 			Emitter:               proxyClient,
 			LockWatcher:           lockWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
-			AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 			DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 			EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -3160,7 +3157,6 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
-		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
@@ -3507,21 +3503,6 @@ func newCertAuthorityWatcher(ctx context.Context, t *testing.T, client types.Eve
 	return caWatcher
 }
 
-func newAppServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.AppServer, readonly.AppServer] {
-	t.Helper()
-
-	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client:    client,
-		},
-	})
-
-	require.NoError(t, err)
-	t.Cleanup(appServerWatcher.Close)
-	return appServerWatcher
-}
-
 func newDatabaseServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer] {
 	t.Helper()
 
@@ -3606,7 +3587,6 @@ func TestHostUserCreationProxy(t *testing.T) {
 		Emitter:               proxyClient,
 		LockWatcher:           lockWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
-		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),

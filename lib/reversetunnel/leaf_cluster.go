@@ -198,8 +198,27 @@ func (s *leafCluster) RangeReadonlySSHServers(ctx context.Context, start, end st
 	}
 }
 
-func (s *leafCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	return s.appServerWatcher, nil
+// RangeReadonlyApplicationServers returns read-only views of the leaf
+// cluster's application server resources within the range [start, end),
+// served from the leaf app server watcher. (Leaf watcher retirement is a
+// separate step from the local proxy's.)
+func (s *leafCluster) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return func(yield func(readonly.AppServer, error) bool) {
+		servers, err := s.appServerWatcher.CurrentResourcesWithFilter(ctx, func(as readonly.AppServer) bool {
+			cursor := services.GetCursorForReadonlyAppServer(as)
+			return cursor >= start && (end == "" || cursor < end)
+		})
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+
+		for _, server := range servers {
+			if !yield(server, nil) {
+				return
+			}
+		}
+	}
 }
 
 // GitServerWatcher returns the Git server watcher for the leaf cluster.

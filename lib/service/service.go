@@ -5270,17 +5270,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	appServerWatcher, err := services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
-			Client:    accessPoint,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	databaseServerWatcher, err := services.NewDatabaseServerWatcher(process.ExitContext(), services.DatabaseServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
@@ -5565,7 +5554,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Logger:                  process.logger,
 				LockWatcher:             lockWatcher,
 				PeerClient:              peerClient,
-				AppServerWatcher:        appServerWatcher,
 				GitServerWatcher:        gitServerWatcher,
 				DatabaseServerWatcher:   databaseServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
@@ -5749,16 +5737,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		connectionsHandler.SetApplicationsProvider(
 			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
-				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
-					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
-				if err != nil {
-					return nil, trace.Wrap(err)
+				match := webapp.MatchAppServerForRoute(appName, publicAddr)
+				for server, err := range accessPoint.RangeReadonlyApplicationServers(ctx, "", "") {
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					// TODO(okraport): determine if we should shuffle app servers here.
+					if match(server) {
+						return server.GetApp().Copy(), nil
+					}
 				}
-				if len(allAppServers) == 0 {
-					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
-				}
-				// TODO(okraport): determine if we should shuffle app servers here.
-				return allAppServers[0].GetApp(), nil
+				return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
 			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
@@ -5815,7 +5804,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return ctx, trace.Wrap(err)
 			}),
 			PROXYSigner:               proxySigner,
-			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,

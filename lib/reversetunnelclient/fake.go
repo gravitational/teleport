@@ -20,12 +20,14 @@ package reversetunnelclient
 
 import (
 	"context"
+	"iter"
 	"net"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -71,21 +73,12 @@ type FakeCluster struct {
 	closedMtx sync.Mutex
 	// closed is set to true after the cluster is being closed.
 	closed bool
-	// appServerWatcher ia a app server watcher to speed up app look up.
-	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 	// databaseServerWatcher is a database server watcher to speed up database server look up.
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 }
 
 // NewFakeCluster is a FakeCluster constructor.
 func NewFakeCluster(clusterName string, accessPoint authclient.RemoteProxyAccessPoint) *FakeCluster {
-	appServerWatcher, _ := services.NewAppServersWatcher(context.TODO(), services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "FakeCluster",
-			Client:    accessPoint,
-		},
-	})
-
 	databaseServerWatcher, _ := services.NewDatabaseServerWatcher(context.TODO(), services.DatabaseServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "FakeCluster",
@@ -97,14 +90,33 @@ func NewFakeCluster(clusterName string, accessPoint authclient.RemoteProxyAccess
 		Name:                  clusterName,
 		connCh:                make(chan net.Conn),
 		AccessPoint:           accessPoint,
-		appServerWatcher:      appServerWatcher,
 		databaseServerWatcher: databaseServerWatcher,
 	}
 }
 
-// AppServerWatcher returns the watcher that maintains the app server set for the cluster
-func (s *FakeCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	return s.appServerWatcher, nil
+// RangeReadonlyApplicationServers returns read-only views of the cluster's
+// application server resources within the range [start, end).
+func (s *FakeCluster) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return func(yield func(readonly.AppServer, error) bool) {
+		servers, err := s.AccessPoint.GetApplicationServers(ctx, defaults.Namespace)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+
+		for _, server := range servers {
+			cursor := services.GetCursorForAppServer(server)
+			if cursor < start {
+				continue
+			}
+			if end != "" && cursor >= end {
+				continue
+			}
+			if !yield(server, nil) {
+				return
+			}
+		}
+	}
 }
 
 // DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster

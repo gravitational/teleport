@@ -196,9 +196,10 @@ func (s *localCluster) RangeReadonlySSHServers(ctx context.Context, start, end s
 	return s.srv.localAccessPoint.RangeReadonlySSHServers(ctx, start, end)
 }
 
-// AppServerWatcher returns the watcher that maintains the app server set for the cluster
-func (s *localCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	return s.srv.AppServerWatcher, nil
+// RangeReadonlyApplicationServers returns read-only views of the cluster's
+// application server resources within the range [start, end).
+func (s *localCluster) RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error] {
+	return s.srv.localAccessPoint.RangeReadonlyApplicationServers(ctx, start, end)
 }
 
 // GitServerWatcher returns a Git server watcher for this cluster.

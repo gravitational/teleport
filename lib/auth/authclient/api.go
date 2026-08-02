@@ -264,6 +264,14 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeReadonlyApplicationServers returns read-only views of the
+	// application server resources within the range [start, end), where the
+	// bounds are resource cursors as produced by
+	// services.GetCursorForAppServer. The yielded values are shared and must
+	// not be mutated or retained beyond the iteration; callers keep a match
+	// by calling Copy on it.
+	RangeReadonlyApplicationServers(ctx context.Context, start, end string) iter.Seq2[readonly.AppServer, error]
+
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
