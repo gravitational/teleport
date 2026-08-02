@@ -516,9 +516,16 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	mfaAgainstRoot := c.cluster == rootClient.cluster
+	// mfaAgainstRoot tells PerformSessionMFACeremony not to ask c.AuthClient whether MFA is required,
+	// leaving the root to evaluate it while creating the challenge.
+	// So ask c.AuthClient only when its cluster holds the target, since no other cluster can answer for it,
+	// and skip it when that cluster is the root.
+	connectedIsRoot := c.cluster == c.root
+	targetElsewhere := params.RouteToCluster != "" && params.RouteToCluster != c.cluster
+	mfaAgainstRoot := connectedIsRoot || targetElsewhere
+
 	var leafClusterName string
-	if !mfaAgainstRoot {
+	if !connectedIsRoot {
 		leafClusterName = c.cluster
 	}
 
