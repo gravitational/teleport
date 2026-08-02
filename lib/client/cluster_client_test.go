@@ -48,12 +48,18 @@ import (
 type fakeAuthClient struct {
 	authclient.ClientI
 
-	isMFARequired     func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
-	generateUserCerts func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+	isMFARequired               func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
+	generateUserCerts           func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+	createAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	close                       func() error
 }
 
 func (f fakeAuthClient) Close() error {
-	return nil
+	if f.close == nil {
+		return nil
+	}
+
+	return f.close()
 }
 
 func (f fakeAuthClient) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -73,7 +79,11 @@ func (f fakeAuthClient) GenerateUserCerts(ctx context.Context, req proto.UserCer
 }
 
 func (f fakeAuthClient) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-	return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+	if f.createAuthenticateChallenge == nil {
+		return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+	}
+
+	return f.createAuthenticateChallenge(ctx, req)
 }
 
 type fakePrompt struct {
@@ -687,17 +697,19 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 
 	// The clusters a cell can involve, named so the assertions can say which one served each step.
 	const (
-		root = "root"
-		leaf = "leaf"
+		root  = "root"
+		leaf1 = "leaf1"
+		leaf2 = "leaf2"
 	)
 
 	// The auth clients a cell can involve, named so the assertions can say which one served each step.
 	const (
-		connected  = "connected"
-		callerRoot = "caller root"
-		callerLeaf = "caller leaf"
-		dialedRoot = "dialed root"
-		dialedLeaf = "dialed leaf"
+		connected   = "connected"
+		callerRoot  = "caller root"
+		callerLeaf  = "caller leaf"
+		dialedRoot  = "dialed root"
+		dialedLeaf1 = "dialed leaf1"
+		dialedLeaf2 = "dialed leaf2"
 	)
 
 	ca := newTestAuthority(t)
@@ -713,7 +725,7 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	for _, cluster := range []string{root, leaf} {
+	for _, cluster := range []string{root, leaf1, leaf2} {
 		require.NoError(t, localAgent.clientStore.AddKeyRing(ca.makeSignedKeyRing(t, KeyRingIndex{
 			ProxyHost:   root,
 			ClusterName: cluster,
@@ -742,39 +754,50 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 	}
 
 	connectedIssues := outcome{issuer: connected}
+	// The ceremony re-checks the requirement at the connected leaf whenever this client is
+	// backed by one, whatever the request routes to.
 	leafDialsRoot := outcome{issuer: dialedRoot, checks: counts{connected: 1}, dials: counts{root: 1}}
 
 	// Every permutation the loops below generate must appear here, so a missing row fails the test.
 	want := map[inputs]outcome{
 		// A prefetched check is supplied, so the caller's client is not used and the issuer is always the root cluster's auth server.
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:         connectedIssues,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf}:         leafDialsRoot,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: root}:         connectedIssues,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: leaf}:         leafDialsRoot,
-		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}: connectedIssues,
-		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf}: leafDialsRoot,
-		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: root}: connectedIssues,
-		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: leaf}: leafDialsRoot,
-		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}: connectedIssues,
-		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf}: leafDialsRoot,
-		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: root}: connectedIssues,
-		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf, clientCluster: leaf}: leafDialsRoot,
+		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
 
-		// No caller client.
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}: {issuer: connected, checks: counts{connected: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{dialedRoot: 1, connected: 1}, dials: counts{root: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: root}: {issuer: connected, checks: counts{dialedLeaf: 1}, dials: counts{leaf: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{connected: 2}, dials: counts{root: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{callerClient: callerRoot, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+
+		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{callerClient: callerLeaf, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+
+		// No caller client, no prefetched check.
+		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{connected: 1}},
+		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{dialedRoot: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{dialedLeaf1: 1}, dials: counts{leaf1: 1}},
+		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{connected: 2}, dials: counts{root: 1}},
+		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{dialedLeaf2: 1, connected: 1}, dials: counts{leaf2: 1, root: 1}},
 
 		// A caller client is supplied, so the requirement check is answered by it, but the certs are still issued by the root cluster's auth server.
-		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}: {issuer: connected, checks: counts{callerRoot: 1}},
-		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{callerRoot: 1, connected: 1}, dials: counts{root: 1}},
-		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: root}: {issuer: connected, checks: counts{callerRoot: 1}},
-		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{callerRoot: 1, connected: 1}, dials: counts{root: 1}},
-		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}: {issuer: connected, checks: counts{callerLeaf: 1}},
-		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{callerLeaf: 1, connected: 1}, dials: counts{root: 1}},
-		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: root}: {issuer: connected, checks: counts{callerLeaf: 1}},
-		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: leaf, clientCluster: leaf}: {issuer: dialedRoot, checks: counts{callerLeaf: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerRoot: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerRoot: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerRoot: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerRoot: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: callerRoot, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerRoot: 1, connected: 1}, dials: counts{root: 1}},
+
+		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerLeaf: 1}},
+		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerLeaf: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerLeaf: 1}},
+		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerLeaf: 1, connected: 1}, dials: counts{root: 1}},
+		{callerClient: callerLeaf, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerLeaf: 1, connected: 1}, dials: counts{root: 1}},
 	}
 
 	// newClusterClient returns a client connected to the named cluster, backed by authClient.
@@ -814,85 +837,107 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 		require.Equal(t, want, got, what)
 	}
 
+	topologies := []struct{ routeToCluster, clientCluster string }{
+		{root, root},
+		{root, leaf1},
+		{leaf1, root},
+		{leaf1, leaf1},
+		{leaf2, leaf1},
+	}
+
 	for _, callerClient := range []string{"", callerRoot, callerLeaf} {
 		for _, prefetchedMFACheck := range []bool{true, false} {
-			for _, routeToCluster := range []string{root, leaf} {
-				for _, clientCluster := range []string{root, leaf} {
-					in := inputs{
-						callerClient:       callerClient,
-						prefetchedMFACheck: prefetchedMFACheck,
-						routeToCluster:     routeToCluster,
-						clientCluster:      clientCluster,
-					}
-
-					name := "no caller client"
-					if in.callerClient != "" {
-						name = in.callerClient
-					}
-					if in.prefetchedMFACheck {
-						name += ", prefetched check"
-					} else {
-						name += ", checked requirement"
-					}
-					name += ", routed to " + in.routeToCluster + ", " + in.clientCluster + " client"
-
-					t.Run(name, func(t *testing.T) {
-						t.Parallel()
-
-						expected, ok := want[in]
-						require.True(t, ok, "no expectation declared for %+v", in)
-
-						// One counting client per candidate, so every step names the auth server that served it.
-						checks, certRequests := counts{}, counts{}
-						authClients := map[string]fakeAuthClient{}
-						for _, name := range []string{connected, callerRoot, callerLeaf, dialedRoot, dialedLeaf} {
-							authClients[name] = fakeAuthClient{
-								isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-									checks[name]++
-									return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
-								},
-								generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-									certRequests[name]++
-									return generateUserCerts(ctx, req)
-								},
-							}
-						}
-
-						clt := newClusterClient(in.clientCluster, authClients[connected])
-
-						params := ReissueParams{NodeName: "test", RouteToCluster: in.routeToCluster}
-						if in.prefetchedMFACheck {
-							params.MFACheck = &proto.IsMFARequiredResponse{
-								MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-								Required:    true,
-							}
-						}
-						if in.callerClient != "" {
-							params.AuthClient = authClients[in.callerClient]
-						}
-
-						// A fake dial stands in for the proxy, mirroring ConnectToCluster.
-						// The connected cluster resolves without opening a connection.
-						dials := counts{}
-						dial := func(_ context.Context, clusterName string) (authclient.ClientI, error) {
-							if clusterName == in.clientCluster {
-								return clt.CurrentCluster(), nil
-							}
-							dials[clusterName]++
-							return authClients["dialed "+clusterName], nil
-						}
-
-						result, err := clt.issueUserCertsWithMFA(context.Background(), dial, params)
-						require.NoError(t, err)
-						require.NotNil(t, result)
-						require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
-						require.NotEmpty(t, result.KeyRing.Cert)
-
-						requireCounts(t, counts{expected.issuer: 1}, certRequests, "the root cluster's auth server must issue the certs, and nothing else")
-						requireCounts(t, expected.checks, checks, "auth servers asked whether MFA is required")
-						requireCounts(t, expected.dials, dials, "clusters dialed")
-					})
+			for _, topology := range topologies {
+				in := inputs{
+					callerClient:       callerClient,
+					prefetchedMFACheck: prefetchedMFACheck,
+					routeToCluster:     topology.routeToCluster,
+					clientCluster:      topology.clientCluster,
 				}
+
+				name := "no caller client"
+				if in.callerClient != "" {
+					name = in.callerClient
+				}
+				if in.prefetchedMFACheck {
+					name += ", prefetched check"
+				} else {
+					name += ", checked requirement"
+				}
+				name += ", routed to " + in.routeToCluster + ", " + in.clientCluster + " client"
+
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					expected, ok := want[in]
+					require.True(t, ok, "no expectation declared for %+v", in)
+
+					checks, certRequests, challenges, closes := counts{}, counts{}, counts{}, counts{}
+					var certRoutes []string
+					authClients := map[string]fakeAuthClient{}
+					for _, name := range []string{connected, callerRoot, callerLeaf, dialedRoot, dialedLeaf1, dialedLeaf2} {
+						authClients[name] = fakeAuthClient{
+							isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+								checks[name]++
+								return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+							},
+							generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+								certRequests[name]++
+								certRoutes = append(certRoutes, req.RouteToCluster)
+								return generateUserCerts(ctx, req)
+							},
+							createAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+								challenges[name]++
+								return &proto.MFAAuthenticateChallenge{WebauthnChallenge: &webauthnpb.CredentialAssertion{}}, nil
+							},
+							close: func() error {
+								closes[name]++
+								return nil
+							},
+						}
+					}
+
+					clt := newClusterClient(in.clientCluster, authClients[connected])
+
+					params := ReissueParams{NodeName: "test", RouteToCluster: in.routeToCluster}
+					if in.prefetchedMFACheck {
+						params.MFACheck = &proto.IsMFARequiredResponse{
+							MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+							Required:    true,
+						}
+					}
+					if in.callerClient != "" {
+						params.AuthClient = authClients[in.callerClient]
+					}
+
+					dials := counts{}
+					dial := func(_ context.Context, clusterName string) (authclient.ClientI, error) {
+						if clusterName == in.clientCluster {
+							return clt.CurrentCluster(), nil
+						}
+						dials[clusterName]++
+						return authClients["dialed "+clusterName], nil
+					}
+
+					result, err := clt.issueUserCertsWithMFA(context.Background(), dial, params)
+					require.NoError(t, err)
+					require.NotNil(t, result)
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+					require.NotEmpty(t, result.KeyRing.Cert)
+
+					requireCounts(t, counts{expected.issuer: 1}, certRequests, "the root cluster's auth server must issue the certs, and nothing else")
+					requireCounts(t, counts{expected.issuer: 1}, challenges, "the MFA challenge must come from the auth server that issues the certs")
+					requireCounts(t, expected.checks, checks, "auth servers asked whether MFA is required")
+					requireCounts(t, expected.dials, dials, "clusters dialed")
+
+					require.Equal(t, []string{in.routeToCluster}, certRoutes, "cert requests, by routed cluster")
+
+					wantCloses := counts{}
+					for cluster := range expected.dials {
+						wantCloses["dialed "+cluster] = 1
+					}
+					requireCounts(t, wantCloses, closes, "auth clients closed")
+				})
 			}
 		}
 	}
