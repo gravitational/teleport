@@ -542,10 +542,15 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
-	mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// A nil request tells PerformSessionMFACeremony that the requirement is settled, so no cluster is asked again.
+	// Only the cluster holding the target could answer, and it already has.
+	var mfaRequiredReq *proto.IsMFARequiredRequest
+	if !params.MFACheck.GetRequired() {
+		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+		mfaRequiredReq, err = params.isMFARequiredRequest(sshLogin)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// mfaAgainstRoot tells PerformSessionMFACeremony not to ask c.AuthClient whether MFA is required,
@@ -690,6 +695,12 @@ func (c *ClusterClient) issueUserCertsWithMFA(ctx context.Context, dial dialAuth
 		}
 	}
 
+	// The cluster holding the target has answered by now, so record it and spare the ceremony from asking again.
+	params.MFACheck = &proto.IsMFARequiredResponse{
+		Required:    true,
+		MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+	}
+
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
 	result, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
 	if err != nil {
@@ -787,7 +798,6 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 	// If connecting to a host in a leaf cluster and MFA failed check to see
 	// if the leaf cluster requires MFA. If it doesn't return an error indicating
 	// that MFA was not required instead of the error received from the root cluster.
-	var mfaKnownToBeRequired bool
 	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
 		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
 		log.DebugContext(ctx, "MFA requirement acquired from leaf", "mfa_required", mfaRequiredResp.GetMFARequired())
@@ -798,7 +808,6 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
 		mfaRequiredReq = nil // Already checked, don't check again at root.
-		mfaKnownToBeRequired = true
 	}
 
 	allowReuse := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
@@ -812,7 +821,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			// not an exhaustive list, but connection problem and limit exceeded are
 			// almost surely caused by network conditions or general problems rather
 			// than being from the actual handling of the request
-			if !mfaKnownToBeRequired && (trace.IsConnectionProblem(err) || trace.IsLimitExceeded(err)) {
+			if mfaRequiredReq != nil && (trace.IsConnectionProblem(err) || trace.IsLimitExceeded(err)) {
 				return nil, trace.Wrap(MFARequiredUnknown(trace.Unwrap(err)))
 			}
 			return nil, trace.Wrap(err)
