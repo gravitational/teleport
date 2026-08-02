@@ -3337,10 +3337,9 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI,
 		return clt, nil
 	}
 
-	cache, err := process.newAccessCacheForClient(accesspoint.Config{
-		Setup:     cache.ForDatabases,
+	cache, err := accesspoint.NewDatabasesCache(process.accessPointConfigForClient(accesspoint.Config{
 		CacheName: cacheName,
-	}, clt)
+	}, clt))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
@@ -385,8 +384,6 @@ type Server struct {
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
-	// watcher monitors changes to database resources.
-	watcher *services.GenericWatcher[types.Database, readonly.Database]
 	// proxiedDatabases contains databases this server currently is proxying.
 	// Proxied databases are reconciled against monitoredDatabases below.
 	proxiedDatabases map[string]types.Database
@@ -947,7 +944,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 	// Start watcher that will be dynamically (un-)registering
 	// proxied databases based on the database resources.
-	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
+	if err := s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1131,11 +1128,6 @@ func (s *Server) close(ctx context.Context) error {
 
 	// Signal to all goroutines to stop.
 	s.closeFunc()
-
-	// Stop the database resource watcher.
-	if s.watcher != nil {
-		s.watcher.Close()
-	}
 
 	// Close all cloud clients.
 	return trace.Wrap(s.cfg.GCPClients.Close())

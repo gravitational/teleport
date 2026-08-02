@@ -26,9 +26,10 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/readonly"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
@@ -77,41 +78,116 @@ func (s *Server) startReconciler(ctx context.Context) error {
 
 // startResourceWatcher starts watching changes to database resources and
 // registers/unregisters the proxied databases accordingly.
-func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.Database, readonly.Database], error) {
+//
+// The event subscription is only the wake-up signal: no per-watcher resource
+// set is maintained. On each wake the dynamic database set is re-read from a
+// consistent snapshot of the access point's cache, which observes neither
+// missed nor duplicated resources regardless of how events were batched.
+func (s *Server) startResourceWatcher(ctx context.Context) error {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.log.DebugContext(ctx, "Not starting database resource watcher.")
-		return nil, nil
+		return nil
 	}
 	s.log.DebugContext(ctx, "Starting database resource watcher.")
-	watcher, err := services.NewDatabaseWatcher(ctx, services.DatabaseWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDatabase,
-			Logger:    s.log,
-			Client:    s.cfg.AccessPoint,
-		},
-		DatabaseGetter: s.cfg.AccessPoint,
+
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  retryutils.FullJitter(defaults.HighResPollingPeriod),
+		Step:   defaults.HighResPollingPeriod,
+		Max:    defaults.MaxWatcherBackoff,
+		Jitter: retryutils.HalfJitter,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+
 	go func() {
 		defer s.log.DebugContext(ctx, "Database resource watcher done.")
-		defer watcher.Close()
 		for {
+			err := s.watchDatabaseResources(ctx)
+			if ctx.Err() != nil || s.closeContext.Err() != nil {
+				return
+			}
+			s.log.WarnContext(ctx, "Database resource watcher failed, restarting.", "error", err)
+
 			select {
-			case databases := <-watcher.ResourcesC:
-				s.monitoredDatabases.setResources(databases)
-				select {
-				case s.reconcileCh <- struct{}{}:
-				case <-ctx.Done():
-					return
-				}
+			case <-retry.After():
+				retry.Inc()
 			case <-ctx.Done():
+				return
+			case <-s.closeContext.Done():
 				return
 			}
 		}
 	}()
-	return watcher, nil
+	return nil
+}
+
+// watchDatabaseResources subscribes to database events and refreshes the
+// monitored dynamic database set from the cache on every change. It returns
+// when the watcher or the server closes.
+func (s *Server) watchDatabaseResources(ctx context.Context) error {
+	watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
+		Name:  teleport.ComponentDatabase,
+		Kinds: []types.WatchKind{{Kind: types.KindDatabase}},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	for {
+		select {
+		case <-watcher.Events():
+			// Coalesce any burst of events into a single refresh: the
+			// snapshot read below observes the net effect of all of them.
+			drainEvents(watcher)
+
+			if err := s.refreshMonitoredDatabaseResources(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+
+			select {
+			case s.reconcileCh <- struct{}{}:
+			case <-ctx.Done():
+				return nil
+			case <-s.closeContext.Done():
+				return nil
+			}
+		case <-watcher.Done():
+			return trace.Wrap(watcher.Error())
+		case <-ctx.Done():
+			return nil
+		case <-s.closeContext.Done():
+			return nil
+		}
+	}
+}
+
+// refreshMonitoredDatabaseResources replaces the monitored dynamic database
+// set with the current contents of the access point's cache snapshot.
+func (s *Server) refreshMonitoredDatabaseResources(ctx context.Context) error {
+	var databases types.Databases
+	for db, err := range s.cfg.AccessPoint.RangeDatabases(ctx, "", "") {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		databases = append(databases, db)
+	}
+
+	s.monitoredDatabases.setResources(databases)
+	return nil
+}
+
+// drainEvents consumes, without blocking, any events that are already
+// buffered on the watcher.
+func drainEvents(watcher types.Watcher) {
+	for {
+		select {
+		case <-watcher.Events():
+		default:
+			return
+		}
+	}
 }
 
 // startCloudWatcher starts fetching cloud databases according to the

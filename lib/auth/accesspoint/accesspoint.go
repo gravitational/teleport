@@ -158,6 +158,20 @@ func NewProxyCache(cfg Config) (*cache.ProxyCache, error) {
 	return cache.NewProxyCache(cfg.cacheConfig())
 }
 
+// NewDatabasesCache assembles the database service topology cache from the
+// provided dependencies. Unlike [NewCache], no Setup function is used: the
+// database watch set is owned by [cache.NewDatabasesCache].
+func NewDatabasesCache(cfg Config) (*cache.DatabasesCache, error) {
+	if cfg.CacheName == "" {
+		return nil, trace.BadParameter("missing parameter CacheName")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+
+	return cache.NewDatabasesCache(cfg.cacheConfig())
+}
+
 // cacheConfig converts the access point dependencies into a cache
 // configuration.
 func (cfg Config) cacheConfig() cache.Config {
