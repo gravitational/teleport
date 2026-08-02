@@ -428,13 +428,13 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
-		Username:           a.windowsUser,
-		Domain:             a.windowsDomain,
-		PKIDomain:          a.windowsPKIDomain,
-		ActiveDirectorySID: a.windowsSID,
-		TTL:                a.genTTL,
-		ClusterName:        cn.GetClusterName(),
-		OmitCDP:            a.omitCDP,
+		Username:    a.windowsUser,
+		Domain:      a.windowsDomain,
+		PKIDomain:   a.windowsPKIDomain,
+		SID:         a.windowsSID,
+		TTL:         a.genTTL,
+		ClusterName: cn.GetClusterName(),
+		OmitCDP:     a.omitCDP,
 	})
 	if err != nil {
 		return trace.Wrap(err)

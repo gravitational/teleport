@@ -232,19 +232,40 @@ impl Client {
         let mut rdp_stream = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
         let mut network_client = crate::network_client::NetworkClient::new();
-        let kerberos_config = params
-            .kdc_addr
-            .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
-            .transpose()
-            .map_err(ClientError::UrlError)?
-            .map(|kdc_url| KerberosConfig {
-                kdc_resolution: KdcResolution::KdcUrl(Some(kdc_url)),
-                hostname: params
-                    .computer_name
-                    .as_deref()
-                    .unwrap_or("missing.computer.name")
-                    .to_string(),
-            });
+
+        // IAKerb is enabled when NLA is enabled and the target machine is not domain-joined.
+        let iakerb_enabled = params.nla && !params.ad;
+
+        let hostname = if iakerb_enabled {
+            params.computer_name.as_deref().ok_or_else(|| {
+                ClientError::InternalError(
+                    "Hostname is required for NLA on non-domain-joined machines".to_string(),
+                )
+            })?
+        } else {
+            params
+                .computer_name
+                .as_deref()
+                .unwrap_or("missing.computer.name")
+        }
+        .to_owned();
+
+        let kdc_resolution = if iakerb_enabled {
+            KdcResolution::IAKerb
+        } else {
+            KdcResolution::KdcUrl(
+                params
+                    .kdc_addr
+                    .map(|kdc_addr| Url::parse(&format!("tcp://{}", kdc_addr)))
+                    .transpose()
+                    .map_err(ClientError::UrlError)?,
+            )
+        };
+        let kerberos_config = KerberosConfig {
+            kdc_resolution,
+            hostname,
+        };
+
         let connection_result = ironrdp_tokio::connect_finalize(
             upgraded,
             connector,
@@ -252,7 +273,7 @@ impl Client {
             &mut network_client,
             params.computer_name.unwrap_or(server_addr).into(),
             server_public_key,
-            kerberos_config,
+            Some(kerberos_config),
         )
         .await?
         .into_connected()?;
@@ -1544,13 +1565,13 @@ fn create_config(params: &ConnectParams, pin: String, cgo_handle: CgoHandle) -> 
         monitor_extended_layout: None,
         relative_mouse_input: false,
         enable_tls: true,
-        enable_credssp: params.ad && params.nla,
+        enable_credssp: params.nla,
         enable_standard_rdp_security: false,
         enable_audio_playback: false,
         enable_audio_capture: false,
         timezone_info: TimezoneInfo::default(),
         credentials: Credentials::SmartCard {
-            config: params.ad.then(|| SmartCardIdentity {
+            config: Some(SmartCardIdentity {
                 csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
                 reader_name: "Teleport".to_string(),
                 container_name: "".to_string(),
