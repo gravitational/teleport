@@ -19,7 +19,6 @@ package proxy
 import (
 	"context"
 	"log/slog"
-	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -29,56 +28,6 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
-
-// clusterStore holds the kube clusters served by a teleport service.
-// Safe for concurrent use. Only the resolvers that serve clusters locally
-// (kube_service, legacy proxy_service) embed a store; the proxy_service
-// resolver does not.
-type clusterStore struct {
-	mu      sync.RWMutex
-	details map[string]*kubeDetails
-}
-
-func newClusterStore() *clusterStore {
-	return &clusterStore{details: make(map[string]*kubeDetails)}
-}
-
-func (s *clusterStore) find(name string) (*kubeDetails, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if d, ok := s.details[name]; ok {
-		return d, nil
-	}
-	return nil, trace.NotFound("cluster %s not found", name)
-}
-
-func (s *clusterStore) upsert(name string, details *kubeDetails) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if old, ok := s.details[name]; ok {
-		old.Close()
-	}
-	s.details[name] = details
-}
-
-func (s *clusterStore) remove(name string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if old, ok := s.details[name]; ok {
-		old.Close()
-	}
-	delete(s.details, name)
-}
-
-func (s *clusterStore) clusters() types.KubeClusters {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	res := make(types.KubeClusters, 0, len(s.details))
-	for _, d := range s.details {
-		res = append(res, d.kubeCluster.Copy())
-	}
-	return res
-}
 
 // UpstreamResolver decides, per request, how the Forwarder should treat a
 // target kubernetes cluster: serve it locally with the returned details, or
@@ -106,13 +55,13 @@ type UpstreamResolver interface {
 // startup credentials. Owned by the Forwarder; passed by value into the
 // resolver.
 type initialKubeLoadConfig struct {
-	kubeconfigPath     string
-	kubeClusterName    string
-	tpClusterName      string
-	scope              string
-	checker            servicecfg.ImpersonationPermissionsChecker
-	clock              clockwork.Clock
-	log                *slog.Logger
+	kubeconfigPath  string
+	kubeClusterName string
+	tpClusterName   string
+	scope           string
+	checker         servicecfg.ImpersonationPermissionsChecker
+	clock           clockwork.Clock
+	log             *slog.Logger
 }
 
 // NewKubeServiceUpstream returns the resolver for a teleport kubernetes_service
