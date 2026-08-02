@@ -84,6 +84,10 @@ func TestKubeCertIssuer_SingleCeremony(t *testing.T) {
 		// One single-flighted ceremony plus one concurrent replay wave.
 		require.Equal(t, 2*time.Second, time.Since(start))
 		require.Equal(t, 1, cc.dials)
+
+		// The idle connection closes one linger after the burst.
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
 		require.Equal(t, 1, cc.closes)
 	})
 }

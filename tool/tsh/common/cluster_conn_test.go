@@ -21,51 +21,95 @@ package common
 import (
 	"context"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
 // TestClusterConn_HoldersShareOneConnection verifies that
-// concurrent holders share one dialed connection and the last release closes it.
+// concurrent holders share one dialed connection and it closes one linger after the last release.
 func TestClusterConn_HoldersShareOneConnection(t *testing.T) {
 	t.Parallel()
 
-	dialer := &fakeClusterDialer{}
-	conn := &clusterConn{dialer: dialer}
+	synctest.Test(t, func(t *testing.T) {
+		dialer := &fakeClusterDialer{}
+		conn := &clusterConn{dialer: dialer}
 
-	cc1, release1, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
-	cc2, release2, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
-	require.Same(t, cc1, cc2)
-	require.Len(t, dialer.conns, 1)
+		cc1, release1, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		cc2, release2, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		require.Same(t, cc1, cc2)
+		require.Len(t, dialer.conns, 1)
 
-	release1()
-	require.Equal(t, 0, dialer.conns[0].closes, "the connection must stay open while held")
-	release2()
-	require.Equal(t, 1, dialer.conns[0].closes, "the last release must close the connection")
+		release1()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 0, dialer.conns[0].closes, "the connection must stay open while held")
+
+		release2()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[0].closes, "the connection must close one linger after the last release")
+	})
 }
 
-// TestClusterConn_RedialAfterRelease verifies that
-// a released connection is not reused. The next acquire dials a new one.
-func TestClusterConn_RedialAfterRelease(t *testing.T) {
+// TestClusterConn_LingerReusesConnection verifies that
+// an acquire within the linger reuses the released connection and cancels its pending close.
+func TestClusterConn_LingerReusesConnection(t *testing.T) {
 	t.Parallel()
 
-	dialer := &fakeClusterDialer{}
-	conn := &clusterConn{dialer: dialer}
+	synctest.Test(t, func(t *testing.T) {
+		dialer := &fakeClusterDialer{}
+		conn := &clusterConn{dialer: dialer}
 
-	_, release, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
-	release()
+		cc1, release, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		release()
 
-	_, release, err = conn.Acquire(t.Context())
-	require.NoError(t, err)
-	release()
+		cc2, release, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		require.Same(t, cc1, cc2, "an acquire within the linger must reuse the connection")
+		require.Len(t, dialer.conns, 1, "an acquire within the linger must not dial")
 
-	require.Len(t, dialer.conns, 2)
-	require.Equal(t, 1, dialer.conns[0].closes)
-	require.Equal(t, 1, dialer.conns[1].closes)
+		time.Sleep(2 * clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 0, dialer.conns[0].closes, "the cancelled close must not fire under the holder")
+
+		release()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[0].closes)
+	})
+}
+
+// TestClusterConn_RedialAfterLinger verifies that
+// a connection idle past the linger closes and the next acquire dials a new one.
+func TestClusterConn_RedialAfterLinger(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		dialer := &fakeClusterDialer{}
+		conn := &clusterConn{dialer: dialer}
+
+		_, release, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		release()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[0].closes, "an idle connection must close after the linger")
+
+		_, release, err = conn.Acquire(t.Context())
+		require.NoError(t, err)
+		require.Len(t, dialer.conns, 2, "an acquire after the linger must dial a new connection")
+
+		release()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[1].closes)
+	})
 }
 
 // TestClusterConn_ReleaseIsIdempotent verifies that
@@ -73,20 +117,26 @@ func TestClusterConn_RedialAfterRelease(t *testing.T) {
 func TestClusterConn_ReleaseIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	dialer := &fakeClusterDialer{}
-	conn := &clusterConn{dialer: dialer}
+	synctest.Test(t, func(t *testing.T) {
+		dialer := &fakeClusterDialer{}
+		conn := &clusterConn{dialer: dialer}
 
-	_, release1, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
-	_, release2, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
+		_, release1, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		_, release2, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
 
-	release1()
-	release1()
-	require.Equal(t, 0, dialer.conns[0].closes, "a double release must not close the connection under the other holder")
+		release1()
+		release1()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 0, dialer.conns[0].closes, "a double release must not close the connection under the other holder")
 
-	release2()
-	require.Equal(t, 1, dialer.conns[0].closes)
+		release2()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[0].closes)
+	})
 }
 
 // TestClusterConn_DialErrorLeavesNoHolders verifies that
@@ -94,18 +144,22 @@ func TestClusterConn_ReleaseIsIdempotent(t *testing.T) {
 func TestClusterConn_DialErrorLeavesNoHolders(t *testing.T) {
 	t.Parallel()
 
-	dialer := &fakeClusterDialer{err: trace.ConnectionProblem(nil, "dial failed")}
-	conn := &clusterConn{dialer: dialer}
+	synctest.Test(t, func(t *testing.T) {
+		dialer := &fakeClusterDialer{err: trace.ConnectionProblem(nil, "dial failed")}
+		conn := &clusterConn{dialer: dialer}
 
-	_, _, err := conn.Acquire(t.Context())
-	require.Error(t, err)
+		_, _, err := conn.Acquire(t.Context())
+		require.Error(t, err)
 
-	dialer.err = nil
-	cc, release, err := conn.Acquire(t.Context())
-	require.NoError(t, err)
-	require.NotNil(t, cc)
-	release()
-	require.Equal(t, 1, dialer.conns[0].closes, "the failed acquire must not count as a holder")
+		dialer.err = nil
+		cc, release, err := conn.Acquire(t.Context())
+		require.NoError(t, err)
+		require.NotNil(t, cc)
+		release()
+		time.Sleep(clusterConnLinger)
+		synctest.Wait()
+		require.Equal(t, 1, dialer.conns[0].closes, "the failed acquire must not count as a holder")
+	})
 }
 
 type fakeClusterDialer struct {

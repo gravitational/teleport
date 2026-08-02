@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -28,15 +29,22 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 )
 
+// clusterConnLinger is how long a released connection is kept open for the next operation.
+// Middleware reissues arrive one at a time, so certs that expire together are
+// reissued over one connection instead of one dial each.
+const clusterConnLinger = 5 * time.Second
+
 // clusterConn is a shared cluster connection,
-// dialed on demand and closed when the last holder releases it,
-// so none is held while idle.
+// dialed on demand and closed after sitting idle for [clusterConnLinger],
+// so back-to-back operations reuse one connection and none is held open long while idle.
 type clusterConn struct {
 	dialer clusterDialer
 	conn   kubeCertClient
 	// holders counts the in-flight operations sharing conn.
 	holders int
-	mu      sync.Mutex
+	// closeTimer tracks the closing of an idle conn until the linger passes.
+	closeTimer *time.Timer
+	mu         sync.Mutex
 }
 
 type clusterDialer interface {
@@ -74,6 +82,10 @@ func (c *clusterConn) Acquire(ctx context.Context) (kubeCertClient, func(), erro
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.closeTimer != nil {
+		c.closeTimer.Stop()
+		c.closeTimer = nil
+	}
 	if c.conn == nil {
 		conn, err := c.dialer.DialCluster(ctx)
 		if err != nil {
@@ -91,10 +103,27 @@ func (c *clusterConn) Acquire(ctx context.Context) (kubeCertClient, func(), erro
 		if c.holders > 0 {
 			return
 		}
-		if err := c.conn.Close(); err != nil {
+		c.scheduleClose(ctx)
+	})
+	return c.conn, release, nil
+}
+
+// scheduleClose closes the now-idle conn once the linger passes,
+// unless an acquire takes the conn over first.
+// The caller must hold c.mu.
+func (c *clusterConn) scheduleClose(ctx context.Context) {
+	conn := c.conn
+	c.closeTimer = time.AfterFunc(clusterConnLinger, func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		// The conn was reacquired between the timer firing and this lock.
+		if c.holders > 0 || c.conn != conn {
+			return
+		}
+		if err := conn.Close(); err != nil {
 			logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
 		}
 		c.conn = nil
+		c.closeTimer = nil
 	})
-	return c.conn, release, nil
 }
