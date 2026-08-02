@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
@@ -2450,8 +2451,6 @@ type agentParams struct {
 	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
 	GetServerInfoFn func(database types.Database) func(context.Context) (*types.DatabaseServerV3, error)
-	// OnReconcile sets database resource reconciliation callback.
-	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
@@ -2601,12 +2600,31 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
+	// Build the database topology cache over the test auth client; it
+	// provides the dynamic database resources and the change pulse that
+	// drive reconciliation.
+	databasesCache, err := accesspoint.NewDatabasesCache(accesspoint.Config{
+		Context:           ctx,
+		CacheName:         teleport.ComponentDatabase,
+		Access:            c.authClient,
+		ClusterConfig:     c.authClient,
+		Databases:         c.authClient,
+		Events:            c.authClient,
+		Presence:          c.authClient,
+		Trust:             c.authClient,
+		Users:             c.authClient,
+		HealthCheckConfig: c.authClient,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, databasesCache.Close()) })
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
 		DataDir:          t.TempDir(),
 		AuthClient:       c.authClient,
 		AccessPoint:      c.authClient,
+		DatabasesCache:   databasesCache,
 		Authorizer:       dbAuthorizer,
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,
@@ -2632,7 +2650,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 			})
 		},
 		CADownloader:              p.CADownloader,
-		OnReconcile:               p.OnReconcile,
 		DatabaseObjects:           p.DatabaseObjects,
 		ConnectionMonitor:         connMonitor,
 		AzureClients:              p.AzureClients,

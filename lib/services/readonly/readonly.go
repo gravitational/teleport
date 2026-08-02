@@ -472,6 +472,8 @@ type Database interface {
 	// IsUsernameCaseInsensitive returns true if the database username is case
 	// insensitive.
 	IsUsernameCaseInsensitive() bool
+	// IsEqual determines if two database resources are equivalent to one another.
+	IsEqual(types.Database) bool
 }
 
 var _ Database = types.Database(nil)

@@ -64,10 +64,6 @@ func TestWatcher(t *testing.T) {
 	db0, err := makeStaticDatabase("db0", nil)
 	require.NoError(t, err)
 
-	// This channel will receive new set of databases the server proxies
-	// after each reconciliation.
-	reconcileCh := make(chan types.Databases)
-
 	// Create database server that proxies one static database and
 	// watches for databases with label group=a.
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -79,13 +75,13 @@ func TestWatcher(t *testing.T) {
 			// these should not be applied to non-AWS databases.
 			AWS: services.ResourceMatcherAWS{AssumeRoleARN: "some-role", ExternalID: "some-externalid"},
 		}},
-		OnReconcile: func(d types.Databases) {
-			reconcileCh <- d
-		},
 	})
 
+	// Observe what the agent publishes to the cluster.
+	w := newBackendDatabaseWatcher(ctx, t, testCtx)
+
 	// Only db0 should be registered initially.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0})
+	w.awaitDatabases(types.Databases{db0})
 
 	// Create database with label group=a.
 	db1, err := makeDynamicDatabase("db1", map[string]string{"group": "a"})
@@ -94,7 +90,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// It should be registered.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1})
+	w.awaitDatabases(types.Databases{db0, db1})
 
 	// Try to update db0 which is registered statically.
 	db0Updated, err := makeDynamicDatabase("db0", map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
@@ -103,7 +99,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// It should not be registered, old db0 should remain.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1})
+	w.awaitDatabases(types.Databases{db0, db1})
 
 	// Create database with label group=b.
 	db2, err := makeDynamicDatabase("db2", map[string]string{"group": "b"})
@@ -112,7 +108,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// It shouldn't be registered.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1})
+	w.awaitDatabases(types.Databases{db0, db1})
 
 	// Update db2 labels so it matches.
 	db2.SetStaticLabels(map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
@@ -120,7 +116,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both should be registered now.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1, db2})
+	w.awaitDatabases(types.Databases{db0, db1, db2})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
@@ -139,7 +135,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// db2 should get updated.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db1, db2})
+	w.awaitDatabases(types.Databases{db0, db1, db2})
 
 	// Update db1 labels so it doesn't match.
 	db1.SetStaticLabels(map[string]string{"group": "c", types.OriginLabel: types.OriginDynamic})
@@ -147,15 +143,14 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only db0 and db2 should remain registered.
-
-	assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
+	w.awaitDatabases(types.Databases{db0, db2})
 
 	// Remove db2.
 	err = testCtx.authServer.DeleteDatabase(ctx, db2.GetName())
 	require.NoError(t, err)
 
 	// Only static database should remain.
-	assertReconciledResource(t, reconcileCh, types.Databases{db0})
+	w.awaitDatabases(types.Databases{db0})
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
@@ -176,7 +171,6 @@ func TestWatcherDynamicResource(t *testing.T) {
 	db0, err := makeStaticDatabase("db0", nil)
 	require.NoError(t, err)
 
-	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
 		Databases: []types.Database{db0},
 		ResourceMatchers: []services.ResourceMatcher{
@@ -194,9 +188,6 @@ func TestWatcherDynamicResource(t *testing.T) {
 					ExternalID:    "external-id",
 				},
 			},
-		},
-		OnReconcile: func(d types.Databases) {
-			reconcileCh <- d
 		},
 		DiscoveryResourceChecker: &fakeDiscoveryResourceChecker{
 			byName: map[string]func(context.Context, types.Database) error{
@@ -219,7 +210,8 @@ func TestWatcherDynamicResource(t *testing.T) {
 			},
 		},
 	})
-	assertReconciledResource(t, reconcileCh, types.Databases{db0})
+	w := newBackendDatabaseWatcher(ctx, t, testCtx)
+	w.awaitDatabases(types.Databases{db0})
 
 	withRDSURL := func(v3 *types.DatabaseSpecV3) {
 		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
@@ -237,7 +229,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		err = testCtx.authServer.CreateDatabase(ctx, db1)
 		require.NoError(t, err)
 		// The db1 should not be registered by the agent due to ResourceMatchers mismatch:
-		assertReconciledResource(t, reconcileCh, types.Databases{db0})
+		w.awaitDatabases(types.Databases{db0})
 	})
 
 	t.Run("dynamic resource - match", func(t *testing.T) {
@@ -249,7 +241,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		err = testCtx.authServer.CreateDatabase(ctx, db2)
 		require.NoError(t, err)
 		// The db2 service should be properly registered by the agent.
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
+		w.awaitDatabases(types.Databases{db0, db2})
 	})
 
 	t.Run("discovery resource - no match", func(t *testing.T) {
@@ -261,7 +253,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		err = testCtx.authServer.CreateDatabase(ctx, db3)
 		require.NoError(t, err)
 		// The db3 should not be registered by the agent due to ResourceMatchers mismatch:
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
+		w.awaitDatabases(types.Databases{db0, db2})
 	})
 
 	t.Run("discovery resource - match", func(t *testing.T) {
@@ -274,7 +266,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		err = testCtx.authServer.CreateDatabase(ctx, db4)
 		require.NoError(t, err)
 		// The db4 service should be properly registered by the agent.
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4})
+		w.awaitDatabases(types.Databases{db0, db2, db4})
 	})
 
 	t.Run("discovery resource - AssumeRoleARN", func(t *testing.T) {
@@ -293,7 +285,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		db5 = discoveredDB5.Copy()
 		setStatusAWSAssumeRole(db5, "arn:aws:iam::123456789012:role/DBAccess", "external-id")
 
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5})
+		w.awaitDatabases(types.Databases{db0, db2, db4, db5})
 	})
 
 	t.Run("non-AWS discovery resource - AssumeRoleARN not applied", func(t *testing.T) {
@@ -310,7 +302,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, err)
 
 		db6 = azureDB.Copy()
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+		w.awaitDatabases(types.Databases{db0, db2, db4, db5, db6})
 	})
 
 	t.Run("discovery resource - fail check on create", func(t *testing.T) {
@@ -321,7 +313,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		require.NoError(t, testCtx.authServer.CreateDatabase(ctx, dbFailCheck))
 
 		// dbFailCheck should not be proxied.
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+		w.awaitDatabases(types.Databases{db0, db2, db4, db5, db6})
 	})
 
 	t.Run("discovery resource - fail check on update", func(t *testing.T) {
@@ -330,7 +322,7 @@ func TestWatcherDynamicResource(t *testing.T) {
 		err = testCtx.authServer.UpdateDatabase(ctx, badDB)
 		require.NoError(t, err)
 		// update is rejected for failed URI check.
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4, db5, db6})
+		w.awaitDatabases(types.Databases{db0, db2, db4, db5, db6})
 	})
 }
 
@@ -378,22 +370,9 @@ func TestWatcherCloudFetchers(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	reconcileCh := make(chan types.Databases)
 	testCtx.setupDatabaseServer(ctx, t, agentParams{
-		// Keep ResourceMatchers as nil to disable resource matchers.
-		OnReconcile: func(d types.Databases) {
-			if len(d) == 0 {
-				// The dynamic resource matchers and cloud watchers will both
-				// trigger a reconciliation, but dynamic matchers should return
-				// 0 resources from first init, whereas the cloud watchers
-				// should return databases.
-				// Dynamic matchers are included in config to test that the
-				// dynamic matcher AWS settings are not applied to cloud watcher
-				// databases.
-				return
-			}
-			reconcileCh <- d
-		},
+		// Dynamic matchers are included in config to test that the dynamic
+		// matcher AWS settings are not applied to cloud watcher databases.
 		ResourceMatchers: []services.ResourceMatcher{{
 			Labels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AWS: services.ResourceMatcherAWS{
@@ -420,27 +399,130 @@ func TestWatcherCloudFetchers(t *testing.T) {
 		}},
 	})
 
+	w := newBackendDatabaseWatcher(ctx, t, testCtx)
+
 	wantDatabases := types.Databases{azSQLServerDatabase, redshiftServerlessDatabase}
 	sort.Sort(wantDatabases)
 
 	// cloud metadata updater is disabled, so don't check the AWS metadata status.
-	assertReconciledResource(t, reconcileCh, wantDatabases, cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "AWS"))
+	w.awaitDatabases(wantDatabases, cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "AWS"))
 }
 
-func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases, opts ...cmp.Option) {
+// backendDatabaseWatcher observes the databases the agent publishes to the
+// cluster: registrations arrive as DatabaseServer heartbeats (OpPut) and
+// unregistrations as OpDelete. Tests assert against this externally visible
+// contract instead of internal reconciler state.
+type backendDatabaseWatcher struct {
+	t       *testing.T
+	watcher types.Watcher
+	state   map[string]types.Database
+}
+
+func newBackendDatabaseWatcher(ctx context.Context, t *testing.T, testCtx *testContext) *backendDatabaseWatcher {
 	t.Helper()
+
+	watcher, err := testCtx.authServer.NewWatcher(ctx, types.Watch{
+		Name:  "lib/srv/db.watcher_test",
+		Kinds: []types.WatchKind{{Kind: types.KindDatabaseServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
+
 	select {
-	case d := <-ch:
-		sort.Sort(d)
-		require.Len(t, databases, len(d))
-		require.Empty(t, cmp.Diff(databases, d,
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-watcher.Done():
+		t.Fatalf("watcher closed: %v", watcher.Error())
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for OpInit")
+	}
+
+	// Seed from a list so that heartbeats which landed before the watcher
+	// was established are observed too.
+	w := &backendDatabaseWatcher{t: t, watcher: watcher, state: make(map[string]types.Database)}
+	servers, err := testCtx.authServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	for _, server := range servers {
+		w.state[server.GetDatabase().GetName()] = server.GetDatabase()
+	}
+	return w
+}
+
+func (w *backendDatabaseWatcher) apply(event types.Event) {
+	switch event.Type {
+	case types.OpPut:
+		server, ok := event.Resource.(types.DatabaseServer)
+		require.True(w.t, ok, "unexpected resource type %T", event.Resource)
+		w.state[server.GetDatabase().GetName()] = server.GetDatabase()
+	case types.OpDelete:
+		delete(w.state, event.Resource.GetName())
+	}
+}
+
+// awaitDatabases consumes DatabaseServer events until the set of published
+// databases matches want, then briefly continues draining to catch
+// registrations that should not have happened (the "no change" assertions).
+func (w *backendDatabaseWatcher) awaitDatabases(want types.Databases, opts ...cmp.Option) {
+	w.t.Helper()
+
+	// The published heartbeat carries registration/announce-time enrichment;
+	// mirror the parts that are deterministic: CloudIAM stamps Status.AWS
+	// with the merged AWS metadata for AWS-hosted databases.
+	expected := make(types.Databases, 0, len(want))
+	for _, database := range want {
+		database = database.Copy()
+		if database.IsAWSHosted() {
+			database.SetStatusAWS(database.GetAWS())
+		}
+		expected = append(expected, database)
+	}
+
+	compare := func() string {
+		published := make(types.Databases, 0, len(w.state))
+		for _, database := range w.state {
+			published = append(published, database)
+		}
+		sort.Sort(published)
+		return cmp.Diff(expected, published,
 			append(cmp.Options{
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
-			}, opts...),
-		))
-	case <-time.After(time.Second):
-		require.FailNow(t, "Didn't receive reconcile event after 1s.")
+				// CACert and VNetDNSName are assigned by the server during
+				// registration; they are not part of the desired spec.
+				cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert", "VNetDNSName"),
+				// IAMPolicyStatus is the result of the announce-time cloud
+				// IAM check, not part of the desired spec.
+				cmpopts.IgnoreFields(types.AWS{}, "IAMPolicyStatus"),
+			}, opts...)...,
+		)
+	}
+
+	deadline := time.After(10 * time.Second)
+	for compare() != "" {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-deadline:
+			w.t.Fatalf("timed out waiting for published databases to converge: %v", compare())
+		}
+	}
+
+	// Settle: surface any event that contradicts the expected state, e.g. a
+	// registration that must not have happened.
+	settle := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+			if diff := compare(); diff != "" {
+				w.t.Fatalf("published databases diverged after converging: %v", diff)
+			}
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-settle:
+			return
+		}
 	}
 }
 

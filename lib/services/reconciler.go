@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/services/reconcile"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -129,57 +129,16 @@ func (c *GenericReconcilerConfig[K, T]) CheckAndSetDefaults() error {
 
 // ReconcilerMetrics is a set of metrics that the reconciler will update during
 // its reconciliation cycle.
-type ReconcilerMetrics struct {
-	reconciliationTotal    *prometheus.CounterVec
-	reconciliationDuration *prometheus.HistogramVec
-}
-
-const (
-	metricLabelResult          = "result"
-	metricLabelResultSuccess   = "success"
-	metricLabelResultError     = "error"
-	metricLabelResultNoop      = "noop"
-	metricLabelOperation       = "operation"
-	metricLabelOperationCreate = "create"
-	metricLabelOperationUpdate = "update"
-	metricLabelOperationDelete = "delete"
-	metricLabelKind            = "kind"
-)
+//
+// The canonical implementation lives in [reconcile.Metrics]; this alias keeps
+// the legacy reconciler's consumers compiling and is deleted with it.
+type ReconcilerMetrics = reconcile.Metrics
 
 // NewReconcilerMetrics creates subsystem-scoped metrics for the reconciler.
-// The caller is responsible for registering them into an appropriate registry.
-// The same ReconcilerMetrics can be used across different reconcilers.
-// The metrics subsystem cannot be empty.
+// See [reconcile.NewMetrics].
 func NewReconcilerMetrics(reg *metrics.Registry) (*ReconcilerMetrics, error) {
-	if reg == nil {
-		return nil, trace.BadParameter("missing metrics registry (this is a bug)")
-	}
-	if reg.Subsystem() == "" {
-		return nil, trace.BadParameter("missing metrics subsystem (this is a bug)")
-	}
-	return &ReconcilerMetrics{
-		reconciliationTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: reg.Namespace(),
-			Subsystem: reg.Subsystem(),
-			Name:      "reconciliation_total",
-			Help:      "Total number of individual resource reconciliations.",
-		}, []string{metricLabelKind, metricLabelOperation, metricLabelResult}),
-		reconciliationDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: reg.Namespace(),
-			Subsystem: reg.Subsystem(),
-			Name:      "reconciliation_duration_seconds",
-			Help:      "The duration of individual resource reconciliation in seconds.",
-		}, []string{metricLabelKind, metricLabelOperation}),
-	}, nil
-}
-
-// Register metrics in the specified [prometheus.Registerer], returns an error
-// if any metric fails, but still tries to register every metric before returning.
-func (m *ReconcilerMetrics) Register(r prometheus.Registerer) error {
-	return trace.NewAggregate(
-		r.Register(m.reconciliationTotal),
-		r.Register(m.reconciliationDuration),
-	)
+	m, err := reconcile.NewMetrics(reg)
+	return m, trace.Wrap(err)
 }
 
 // NewGenericReconciler creates a new GenericReconciler with provided configuration.
@@ -241,7 +200,7 @@ func (r *GenericReconciler[K, T]) onCreate(ctx context.Context, kind string, new
 	if err == nil {
 		r.stats.created.Add(1)
 	}
-	r.observeMetrics(kind, metricLabelOperationCreate, start, err)
+	r.metrics.Observe(kind, reconcile.OperationCreate, start, err)
 	return trace.Wrap(err)
 }
 
@@ -252,7 +211,7 @@ func (r *GenericReconciler[K, T]) onUpdate(ctx context.Context, kind string, new
 	if err == nil {
 		r.stats.updated.Add(1)
 	}
-	r.observeMetrics(kind, metricLabelOperationUpdate, start, err)
+	r.metrics.Observe(kind, reconcile.OperationUpdate, start, err)
 	return trace.Wrap(err)
 }
 
@@ -263,32 +222,8 @@ func (r *GenericReconciler[K, T]) onDelete(ctx context.Context, kind string, reg
 	if err == nil {
 		r.stats.deleted.Add(1)
 	}
-	r.observeMetrics(kind, metricLabelOperationDelete, start, err)
+	r.metrics.Observe(kind, reconcile.OperationDelete, start, err)
 	return trace.Wrap(err)
-}
-
-func (r *GenericReconciler[K, T]) observeMetrics(kind, operation string, start time.Time, err error) {
-	r.metrics.reconciliationDuration.With(prometheus.Labels{
-		metricLabelKind:      kind,
-		metricLabelOperation: operation,
-	}).Observe(time.Since(start).Seconds())
-
-	var result string
-	switch {
-	case err == nil:
-		result = metricLabelResultSuccess
-	// Only delete-not-found is a noop (resource already gone).
-	// For create/update, NotFound is a real error (e.g. backend race).
-	case operation == metricLabelOperationDelete && trace.IsNotFound(err):
-		result = metricLabelResultNoop
-	default:
-		result = metricLabelResultError
-	}
-	r.metrics.reconciliationTotal.With(prometheus.Labels{
-		metricLabelKind:      kind,
-		metricLabelOperation: operation,
-		metricLabelResult:    result,
-	}).Inc()
 }
 
 // Reconcile reconciles currently registered resources with new resources and

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache/internal"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -221,6 +222,58 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 		upstream: c.Config.Databases,
 		col:      c.collections.dbs,
 	}.RangeDatabases(ctx, start, end)
+}
+
+// RangeReadonlyDatabases returns read-only views of the database resources
+// within the range [start, end). The yielded values are shared with the
+// cache: they must not be mutated or retained beyond the iteration — callers
+// keep a match by calling Copy on it.
+//
+// The healthy read path is served from a single consistent snapshot of the
+// cache captured when iteration begins: it holds no locks, does not block
+// cache updates, and observes neither missed nor duplicated databases
+// regardless of concurrent changes. When the cache is unhealthy the iteration
+// is served by [databaseCollection.RangeDatabases], whose upstream reads
+// yield owned values through the same signature.
+func (c databaseCollection) RangeReadonlyDatabases(ctx context.Context, start, end string) iter.Seq2[readonly.Database, error] {
+	return func(yield func(readonly.Database, error) bool) {
+		ctx, span := c.tracer.Start(ctx, "cache/RangeReadonlyDatabases")
+		defer span.End()
+
+		rg, err := acquireGuard(c.engine, c.col)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			for db, err := range c.RangeDatabases(ctx, start, end) {
+				if !yield(db, err) {
+					return
+				}
+				if err != nil {
+					return
+				}
+			}
+			return
+		}
+
+		for db := range rg.store.resources(databaseNameIndex, start, end) {
+			if !yield(db, nil) {
+				return
+			}
+		}
+	}
+}
+
+// DatabaseChanges returns a channel that is closed after the next committed
+// change to the cached database set (including cache init and reset). Arm the
+// channel BEFORE reading the databases so a change landing after the read
+// fires it; the channel fires at most once per arm — call DatabaseChanges
+// again to re-arm. Bursts of changes coalesce into a single wake.
+func (c databaseCollection) DatabaseChanges() <-chan struct{} {
+	return c.col.changedSignal()
 }
 
 type databaseServerIndex string

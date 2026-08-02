@@ -3330,21 +3330,23 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.Client
 	return authclient.NewKubernetesWrapper(clt, cache), nil
 }
 
-// newLocalCacheForDatabase returns new instance of access point configured for a database service.
-func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName string) (authclient.DatabaseAccessPoint, error) {
+// newLocalCacheForDatabase returns new instance of access point configured
+// for a database service, along with the concrete database topology cache
+// backing it. The concrete cache is nil when caching is disabled.
+func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName string) (authclient.DatabaseAccessPoint, *cache.DatabasesCache, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
+		return clt, nil, nil
 	}
 
-	cache, err := accesspoint.NewDatabasesCache(process.accessPointConfigForClient(accesspoint.Config{
+	dbCache, err := accesspoint.NewDatabasesCache(process.accessPointConfigForClient(accesspoint.Config{
 		CacheName: cacheName,
 	}, clt))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return authclient.NewDatabaseWrapper(clt, cache), nil
+	return authclient.NewDatabaseWrapper(clt, dbCache), dbCache, nil
 }
 
 type eksClustersEnroller interface {

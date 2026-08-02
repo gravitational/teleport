@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,6 +41,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -54,6 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/services/reconcile"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
@@ -121,6 +123,11 @@ type Config struct {
 	AuthClient *authclient.Client
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint authclient.DatabaseAccessPoint
+	// DatabasesCache is the database service topology cache. It provides the
+	// dynamic database resources reconciled by this server and the change
+	// pulse that drives reconciliation. When unset (caching disabled),
+	// dynamic database resources are not reconciled.
+	DatabasesCache *cache.DatabasesCache
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// NewAudit allows to override audit logger in tests.
@@ -152,8 +159,6 @@ type Config struct {
 	CloudLabels labels.Importer
 	// OnHeartbeat is called after every heartbeat. Used to update process state.
 	OnHeartbeat func(error)
-	// OnReconcile is called after each database resource reconciliation.
-	OnReconcile func(types.Databases)
 	// Auth is responsible for generating database auth tokens.
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
@@ -385,13 +390,29 @@ type Server struct {
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]srv.HeartbeatI
 	// proxiedDatabases contains databases this server currently is proxying.
-	// Proxied databases are reconciled against monitoredDatabases below.
+	// Proxied databases are reconciled against the desired database set
+	// (static configuration, cloud fetcher results, and the database cache).
 	proxiedDatabases map[string]types.Database
-	// monitoredDatabases contains all cluster databases the proxied databases
-	// are reconciled against.
-	monitoredDatabases monitoredDatabases
-	// reconcileCh triggers reconciliation of proxied databases.
-	reconcileCh chan struct{}
+	// staticDatabases are the databases from the agent's YAML configuration,
+	// immutable after New.
+	staticDatabases types.Databases
+	// cloudDatabases holds the latest cloud-fetcher results, replaced
+	// wholesale by setCloudDatabases. Dynamic database resources are not
+	// stored at all: they are read from the database cache snapshot on each
+	// reconciliation cycle.
+	cloudDatabases atomic.Pointer[types.Databases]
+	// cloudDatabaseNames records which desired databases in the current
+	// reconciliation cycle came from the cloud fetchers. Owned by the
+	// reconciler goroutine; not protected by a lock.
+	cloudDatabaseNames map[string]struct{}
+	// dynamicDatabaseNames records which desired databases in the current
+	// reconciliation cycle are dynamic resources (db objects). Owned by the
+	// reconciler goroutine; not protected by a lock.
+	dynamicDatabaseNames map[string]struct{}
+	// reconciler reconciles the proxied databases against the desired
+	// database set and owns the reconciliation loop; non-cache desired-state
+	// sources request cycles via its Trigger method.
+	reconciler *reconcile.Monitor[string, types.Database, readonly.Database]
 	// mu protects access to server infos and databases.
 	mu sync.RWMutex
 	// logger is used for logging.
@@ -403,61 +424,6 @@ type Server struct {
 	connContext context.Context
 	// closeConnFunc is the cancel function of the connContext context.
 	closeConnFunc context.CancelFunc
-}
-
-// monitoredDatabases is a collection of databases from different sources
-// like configuration file, dynamic resources and imported from cloud.
-//
-// It's updated by respective watchers and is used for reconciling with the
-// currently proxied databases.
-type monitoredDatabases struct {
-	// static are databases from the agent's YAML configuration.
-	static types.Databases
-	// resources are databases created via CLI, API, or discovery service.
-	resources types.Databases
-	// cloud are databases detected by cloud watchers.
-	cloud types.Databases
-	// mu protects access to the fields.
-	mu sync.RWMutex
-}
-
-func (m *monitoredDatabases) setResources(databases types.Databases) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.resources = databases
-}
-
-func (m *monitoredDatabases) setCloud(databases types.Databases) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.cloud = databases
-}
-
-// isCloud_Locked returns whether a database was discovered by the cloud
-// watchers, aka legacy database discovery done by the db service.
-// The lock must be held when calling this function.
-func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
-	return slices.Contains(m.cloud, database)
-}
-
-// isDiscoveryResource_Locked returns whether a database was discovered by the
-// discovery service.
-// The lock must be held when calling this function.
-func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database) bool {
-	return database.Origin() == types.OriginCloud && m.isResource_Locked(database)
-}
-
-// isResource_Locked returns whether a database is a dynamic database, aka a db
-// object.
-// The lock must be held when calling this function.
-func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
-	return slices.Contains(m.resources, database)
-}
-
-// getLocked returns a slice containing all of the monitored databases.
-// The lock must be held when calling this function.
-func (m *monitoredDatabases) getLocked() map[string]types.Database {
-	return utils.FromSlice(append(append(m.static, m.resources...), m.cloud...), types.Database.GetName)
 }
 
 // New returns a new database server.
@@ -479,17 +445,16 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	closeCtx, closeCancelFunc := context.WithCancel(ctx)
 	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
-		cfg:              config,
-		log:              slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
-		closeContext:     closeCtx,
-		closeFunc:        closeCancelFunc,
-		dynamicLabels:    make(map[string]*labels.Dynamic),
-		heartbeats:       make(map[string]srv.HeartbeatI),
-		proxiedDatabases: config.Databases.ToMap(),
-		monitoredDatabases: monitoredDatabases{
-			static: config.Databases,
-		},
-		reconcileCh: make(chan struct{}),
+		cfg:                  config,
+		log:                  slog.With(teleport.ComponentKey, teleport.ComponentDatabase),
+		closeContext:         closeCtx,
+		closeFunc:            closeCancelFunc,
+		dynamicLabels:        make(map[string]*labels.Dynamic),
+		heartbeats:           make(map[string]srv.HeartbeatI),
+		proxiedDatabases:     config.Databases.ToMap(),
+		dynamicDatabaseNames: make(map[string]struct{}),
+		staticDatabases:      config.Databases,
+		cloudDatabaseNames:   make(map[string]struct{}),
 		middleware: &authz.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
@@ -722,6 +687,15 @@ func (s *Server) getProxiedDatabases() (databases types.Databases) {
 	return databases
 }
 
+// getProxiedDatabaseUnfiltered returns the registered database value by name,
+// without label overlays. It is the reconciler's view of current state.
+func (s *Server) getProxiedDatabaseUnfiltered(name string) (types.Database, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	database, found := s.proxiedDatabases[name]
+	return database, found
+}
+
 // getProxiedDatabase returns a proxied database by name with updated dynamic
 // and cloud labels.
 func (s *Server) getProxiedDatabase(name string) (types.Database, error) {
@@ -939,12 +913,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start reconciler that will be reconciling proxied databases with
 	// database resources and cloud instances.
 	if err := s.startReconciler(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Start watcher that will be dynamically (un-)registering
-	// proxied databases based on the database resources.
-	if err := s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

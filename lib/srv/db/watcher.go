@@ -20,174 +20,143 @@ package db
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/services/reconcile"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
 	dbfetchers "github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// startReconciler starts reconciler that registers/unregisters proxied
-// databases according to the up-to-date list of database resources and
-// databases imported from the cloud.
+// startReconciler starts the reconciler that registers/unregisters proxied
+// databases according to the desired database set: static configuration,
+// databases imported from the cloud, and — when a database cache is
+// available — dynamic database resources read directly from a consistent
+// cache snapshot on every cycle. No copy of the dynamic set is retained
+// between cycles; the cache's change pulse is the wake-up signal.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
-		Matcher:             s.matcher,
-		GetCurrentResources: s.getResources,
-		CompareResources: func(d1, d2 types.Database) int {
-			return services.EqualFromBool(d1.IsEqual(d2))
+	reconciler, err := reconcile.New(reconcile.Config[string, types.Database, readonly.Database]{
+		Matcher:    s.matcher,
+		GetCurrent: s.getProxiedDatabaseUnfiltered,
+		RangeCurrent: func() iter.Seq2[string, types.Database] {
+			return func(yield func(string, types.Database) bool) {
+				s.mu.RLock()
+				defer s.mu.RUnlock()
+				for name, database := range s.proxiedDatabases {
+					if !yield(name, database) {
+						return
+					}
+				}
+			}
 		},
-		GetNewResources: s.monitoredDatabases.getLocked,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindDatabase),
+		RangeDesired: func() iter.Seq2[readonly.Database, error] {
+			return s.rangeMonitoredDatabases(ctx)
+		},
+		KeyOf:       readonly.Database.GetName,
+		Materialize: func(v readonly.Database) types.Database { return v.Copy() },
+		CompareWithCurrent: func(current types.Database, view readonly.Database) int {
+			if view.IsEqual(current) {
+				return reconcile.Equal
+			}
+			return reconcile.Different
+		},
+		OnCreate: s.onCreate,
+		OnUpdate: s.onUpdate,
+		OnDelete: s.onDelete,
+		Changes:  s.databaseChangesOrNil,
+		Logger:   s.log.With("kind", types.KindDatabase),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go func() {
-		for {
-			select {
-			case <-s.reconcileCh:
-				// don't let monitored dbs change during reconciliation
-				s.monitoredDatabases.mu.RLock()
-				if err := reconciler.Reconcile(ctx); err != nil {
-					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
-				}
-				if s.cfg.OnReconcile != nil {
-					s.cfg.OnReconcile(s.getProxiedDatabases())
-				}
-				s.monitoredDatabases.mu.RUnlock()
-			case <-ctx.Done():
-				s.log.DebugContext(ctx, "Reconciler done.")
-				return
-			}
-		}
-	}()
+	s.reconciler = reconciler
+	go reconciler.Run(ctx)
 	return nil
 }
 
-// startResourceWatcher starts watching changes to database resources and
-// registers/unregisters the proxied databases accordingly.
-//
-// The event subscription is only the wake-up signal: no per-watcher resource
-// set is maintained. On each wake the dynamic database set is re-read from a
-// consistent snapshot of the access point's cache, which observes neither
-// missed nor duplicated resources regardless of how events were batched.
-func (s *Server) startResourceWatcher(ctx context.Context) error {
-	if len(s.cfg.ResourceMatchers) == 0 {
-		s.log.DebugContext(ctx, "Not starting database resource watcher.")
+// databaseChangesOrNil returns the database cache's change pulse, or nil —
+// which blocks forever in a select — when the dynamic-resource leg is
+// disabled.
+func (s *Server) databaseChangesOrNil() <-chan struct{} {
+	if s.cfg.DatabasesCache == nil || len(s.cfg.ResourceMatchers) == 0 {
 		return nil
 	}
-	s.log.DebugContext(ctx, "Starting database resource watcher.")
+	return s.cfg.DatabasesCache.DatabaseChanges()
+}
 
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  retryutils.FullJitter(defaults.HighResPollingPeriod),
-		Step:   defaults.HighResPollingPeriod,
-		Max:    defaults.MaxWatcherBackoff,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// rangeMonitoredDatabases yields read-only views of the desired database set
+// in decreasing precedence order — cloud, dynamic (cache snapshot), static —
+// matching the last-wins map merge order of the legacy reconciler under the
+// view reconciler's first-occurrence-wins contract. The cloud slice is
+// captured once at cycle start (it is replaced wholesale, never mutated, and
+// every replacement is followed by a Trigger, so a mid-cycle swap converges
+// on the next cycle). As views are yielded, s.cloudDatabaseNames and
+// s.dynamicDatabaseNames are rebuilt for the source checks performed by the
+// matcher and the create/update callbacks within the same cycle.
+//
+// Must only be invoked from the reconciler goroutine.
+func (s *Server) rangeMonitoredDatabases(ctx context.Context) iter.Seq2[readonly.Database, error] {
+	return func(yield func(readonly.Database, error) bool) {
+		clear(s.dynamicDatabaseNames)
+		clear(s.cloudDatabaseNames)
 
-	go func() {
-		defer s.log.DebugContext(ctx, "Database resource watcher done.")
-		for {
-			err := s.watchDatabaseResources(ctx)
-			if ctx.Err() != nil || s.closeContext.Err() != nil {
-				return
-			}
-			s.log.WarnContext(ctx, "Database resource watcher failed, restarting.", "error", err)
+		var cloud types.Databases
+		if dbs := s.cloudDatabases.Load(); dbs != nil {
+			cloud = *dbs
+		}
 
-			select {
-			case <-retry.After():
-				retry.Inc()
-			case <-ctx.Done():
-				return
-			case <-s.closeContext.Done():
+		for _, database := range cloud {
+			s.cloudDatabaseNames[database.GetName()] = struct{}{}
+			if !yield(database, nil) {
 				return
 			}
 		}
-	}()
-	return nil
-}
 
-// watchDatabaseResources subscribes to database events and refreshes the
-// monitored dynamic database set from the cache on every change. It returns
-// when the watcher or the server closes.
-func (s *Server) watchDatabaseResources(ctx context.Context) error {
-	watcher, err := s.cfg.AccessPoint.NewWatcher(ctx, types.Watch{
-		Name:  teleport.ComponentDatabase,
-		Kinds: []types.WatchKind{{Kind: types.KindDatabase}},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer watcher.Close()
-
-	for {
-		select {
-		case <-watcher.Events():
-			// Coalesce any burst of events into a single refresh: the
-			// snapshot read below observes the net effect of all of them.
-			drainEvents(watcher)
-
-			if err := s.refreshMonitoredDatabaseResources(ctx); err != nil {
-				return trace.Wrap(err)
+		if s.cfg.DatabasesCache != nil && len(s.cfg.ResourceMatchers) > 0 {
+			for database, err := range s.cfg.DatabasesCache.RangeReadonlyDatabases(ctx, "", "") {
+				if err != nil {
+					yield(nil, trace.Wrap(err))
+					return
+				}
+				// A name already claimed by a cloud database is not a
+				// dynamic resource: the cloud entry wins.
+				if _, ok := s.cloudDatabaseNames[database.GetName()]; !ok {
+					s.dynamicDatabaseNames[database.GetName()] = struct{}{}
+				}
+				if !yield(database, nil) {
+					return
+				}
 			}
+		}
 
-			select {
-			case s.reconcileCh <- struct{}{}:
-			case <-ctx.Done():
-				return nil
-			case <-s.closeContext.Done():
-				return nil
+		for _, database := range s.staticDatabases {
+			if !yield(database, nil) {
+				return
 			}
-		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
-		case <-ctx.Done():
-			return nil
-		case <-s.closeContext.Done():
-			return nil
 		}
 	}
 }
 
-// refreshMonitoredDatabaseResources replaces the monitored dynamic database
-// set with the current contents of the access point's cache snapshot.
-func (s *Server) refreshMonitoredDatabaseResources(ctx context.Context) error {
-	var databases types.Databases
-	for db, err := range s.cfg.AccessPoint.RangeDatabases(ctx, "", "") {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		databases = append(databases, db)
-	}
-
-	s.monitoredDatabases.setResources(databases)
-	return nil
+// isDynamicResource returns whether the named database is a dynamic database
+// resource (a db object) as of the current reconciliation cycle. Must only be
+// used from the reconciler goroutine.
+func (s *Server) isDynamicResource(name string) bool {
+	_, ok := s.dynamicDatabaseNames[name]
+	return ok
 }
 
-// drainEvents consumes, without blocking, any events that are already
-// buffered on the watcher.
-func drainEvents(watcher types.Watcher) {
-	for {
-		select {
-		case <-watcher.Events():
-		default:
-			return
-		}
-	}
+// isDiscoveryResource returns whether the named database is a dynamic
+// resource created by the discovery service. Must only be used from the
+// reconciler goroutine.
+func (s *Server) isDiscoveryResource(database types.Database) bool {
+	return database.Origin() == types.OriginCloud && s.isDynamicResource(database.GetName())
 }
 
 // startCloudWatcher starts fetching cloud databases according to the
@@ -229,15 +198,12 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 			case resources := <-watcher.ResourcesC():
 				databases, err := resources.AsDatabases()
 				if err == nil {
-					s.monitoredDatabases.setCloud(databases)
+					cloud := types.Databases(databases)
+					s.cloudDatabases.Store(&cloud)
 				} else {
 					s.log.WarnContext(ctx, "Failed to convert resources to databases.", "error", err)
 				}
-				select {
-				case s.reconcileCh <- struct{}{}:
-				case <-ctx.Done():
-					return
-				}
+				s.reconciler.Trigger()
 			case <-ctx.Done():
 				return
 			}
@@ -246,53 +212,38 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 	return nil
 }
 
-// getResources returns proxied databases as resources.
-func (s *Server) getResources() map[string]types.Database {
-	return utils.FromSlice(s.getProxiedDatabases(), types.Database.GetName)
-}
-
 // onCreate is called by reconciler when a new database is created.
 func (s *Server) onCreate(ctx context.Context, database types.Database) error {
-	// OnCreate receives a "new" resource from s.monitoredDatabases. Make a
-	// copy here so that any attribute changes to the proxied database will not
-	// affect database objects tracked in s.monitoredDatabases.
-	databaseCopy := database.Copy()
-
 	// only apply resource matcher settings to dynamic resources.
-	if s.monitoredDatabases.isResource_Locked(database) {
-		s.applyAWSResourceMatcherSettings(databaseCopy)
+	if s.isDynamicResource(database.GetName()) {
+		s.applyAWSResourceMatcherSettings(database)
 	}
 
 	// Run DiscoveryResourceChecker after resource matchers are applied to make
 	// sure the correct AssumeRoleARN is used.
-	if s.monitoredDatabases.isDiscoveryResource_Locked(database) {
-		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
+	if s.isDiscoveryResource(database) {
+		if err := s.cfg.discoveryResourceChecker.Check(ctx, database); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return s.registerDatabase(ctx, databaseCopy)
+	return s.registerDatabase(ctx, database)
 }
 
 // onUpdate is called by reconciler when an already proxied database is updated.
 func (s *Server) onUpdate(ctx context.Context, database, _ types.Database) error {
-	// OnUpdate receives a "new" resource from s.monitoredDatabases. Make a
-	// copy here so that any attribute changes to the proxied database will not
-	// affect database objects tracked in s.monitoredDatabases.
-	databaseCopy := database.Copy()
-
 	// only apply resource matcher settings to dynamic resources.
-	if s.monitoredDatabases.isResource_Locked(database) {
-		s.applyAWSResourceMatcherSettings(databaseCopy)
+	if s.isDynamicResource(database.GetName()) {
+		s.applyAWSResourceMatcherSettings(database)
 	}
 
 	// Run DiscoveryResourceChecker after resource matchers are applied to make
 	// sure the correct AssumeRoleARN is used.
-	if s.monitoredDatabases.isDiscoveryResource_Locked(database) {
-		if err := s.cfg.discoveryResourceChecker.Check(ctx, databaseCopy); err != nil {
+	if s.isDiscoveryResource(database) {
+		if err := s.cfg.discoveryResourceChecker.Check(ctx, database); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	return s.updateDatabase(ctx, databaseCopy)
+	return s.updateDatabase(ctx, database)
 }
 
 // onDelete is called by reconciler when a proxied database is deleted.
@@ -300,11 +251,13 @@ func (s *Server) onDelete(ctx context.Context, database types.Database) error {
 	return s.unregisterDatabase(ctx, database)
 }
 
-// matcher is used by reconciler to check if database matches selectors.
-func (s *Server) matcher(database types.Database) bool {
+// matcher is used by the reconciler to check if a database matches selectors.
+// It observes a shared read-only view and must not retain or mutate it. Must
+// only be used from the reconciler goroutine.
+func (s *Server) matcher(database readonly.Database) bool {
 	// In the case of databases discovered by this database server, matchers
 	// should be skipped.
-	if s.monitoredDatabases.isCloud_Locked(database) {
+	if _, ok := s.cloudDatabaseNames[database.GetName()]; ok {
 		return true // Cloud fetchers return only matching databases.
 	}
 

@@ -58,7 +58,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, teleport.ComponentDatabase)
+	accessPoint, databasesCache, err := process.newLocalCacheForDatabase(conn.Client, teleport.ComponentDatabase)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,6 +154,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		DataDir:              process.Config.DataDir,
 		AuthClient:           conn.Client,
 		AccessPoint:          accessPoint,
+		DatabasesCache:       databasesCache,
 		Emitter:              asyncEmitter,
 		Authorizer:           authorizer,
 		TLSConfig:            tlsConfig,

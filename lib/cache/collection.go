@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"reflect"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 
@@ -66,6 +67,40 @@ type storeCollection[T any, S collectionStore[T]] struct {
 	// TODO(tross|fspmarshall|espadolini) investigate if special singleton
 	// behavior can be removed.
 	singleton bool
+	// changed holds the currently armed change-pulse channel, nil when no
+	// listener is armed. Listeners allocate via changedSignal; commits fire
+	// via firePulse. The unlistened write-path cost is one atomic load.
+	changed atomic.Pointer[chan struct{}]
+}
+
+// changedSignal returns a channel that is closed after the next committed
+// change to the collection: event puts and deletes, and the wholesale
+// replaces performed on cache init and reset. Arm the channel BEFORE reading
+// a snapshot so that a change landing after the read fires it. The channel
+// fires at most once per arm; call changedSignal again to re-arm. Multiple
+// concurrent listeners share one channel and are all woken by a single
+// change.
+func (c *storeCollection[T, _]) changedSignal() <-chan struct{} {
+	for {
+		if p := c.changed.Load(); p != nil {
+			return *p
+		}
+		fresh := make(chan struct{})
+		if c.changed.CompareAndSwap(nil, &fresh) {
+			return fresh
+		}
+	}
+}
+
+// firePulse wakes all listeners armed via changedSignal, if any. When no
+// listener is armed this is a single atomic load and no allocation.
+func (c *storeCollection[T, _]) firePulse() {
+	if c.changed.Load() == nil {
+		return
+	}
+	if p := c.changed.Swap(nil); p != nil {
+		close(*p)
+	}
 }
 
 // unwrap converts an event resource into the collection's resource type. ok
@@ -114,7 +149,11 @@ func (c *storeCollection[T, _]) OnDeletes(rs []types.Resource) error {
 		return nil
 	}
 
-	return trace.Wrap(c.store.delete(items...))
+	if err := c.store.delete(items...); err != nil {
+		return trace.Wrap(err)
+	}
+	c.firePulse()
+	return nil
 }
 
 // OnPuts attempts to place the provided resources into the local store as a
@@ -136,7 +175,11 @@ func (c *storeCollection[T, _]) OnPuts(rs []types.Resource) error {
 		return nil
 	}
 
-	return trace.Wrap(c.store.put(items...))
+	if err := c.store.put(items...); err != nil {
+		return trace.Wrap(err)
+	}
+	c.firePulse()
+	return nil
 }
 
 // Fetch populates the store with items received by the configured fetcher.
@@ -163,7 +206,11 @@ func (c *storeCollection[T, _]) Fetch(ctx context.Context, cacheOK bool) (apply 
 		// don't continue. (A singleton that was found is only updated, not
 		// cleared first.)
 		if c.singleton && deleteSingleton || !cacheOK {
-			return trace.Wrap(c.store.clear())
+			if err := c.store.clear(); err != nil {
+				return trace.Wrap(err)
+			}
+			c.firePulse()
+			return nil
 		}
 
 		if c.singleton && len(resources) == 0 {
@@ -176,7 +223,11 @@ func (c *storeCollection[T, _]) Fetch(ctx context.Context, cacheOK bool) (apply 
 		// atomically swap in the fetched generation: concurrent readers
 		// observe either the complete old state or the complete new state,
 		// never a partially populated store.
-		return trace.Wrap(c.store.replace(resources))
+		if err := c.store.replace(resources); err != nil {
+			return trace.Wrap(err)
+		}
+		c.firePulse()
+		return nil
 	}, nil
 }
 
