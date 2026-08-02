@@ -431,7 +431,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
-		ActiveDirectorySID: a.windowsSID,
+		SID:                a.windowsSID,
 		TTL:                a.genTTL,
 		ClusterName:        cn.GetClusterName(),
 		OmitCDP:            a.omitCDP,
