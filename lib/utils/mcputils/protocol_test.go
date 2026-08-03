@@ -50,7 +50,8 @@ var (
   "params": {
     "name": "get_weather",
     "arguments": {
-      "location": "New York"
+      "location": "New York",
+      "snowflake_id": 9007199254740993
     }
   }
 }`)
@@ -112,9 +113,15 @@ func TestJSONRPCRequest(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "get_weather", name)
 
+	assert.Equal(t, string(sampleRequestJSON), m.RawMessage())
+
 	outputJSON, err := json.MarshalIndent(m, "", "  ")
 	require.NoError(t, err)
 	assert.JSONEq(t, string(sampleRequestJSON), string(outputJSON))
+
+	// Verify large numbers are preserved exactly through the round-trip.
+	// JSONEq cannot catch this because it parses both sides through float64.
+	assert.Contains(t, string(outputJSON), "9007199254740993")
 }
 
 func TestJSONRPCResponse(t *testing.T) {
@@ -156,8 +163,7 @@ func TestJSONRPCResponse(t *testing.T) {
 }
 
 func TestUnmarshalJSONRPCMessage_caseSensitive(t *testing.T) {
-	input := []byte(`
-{ "jsonrpc": "2.0",
+	input := []byte(`{ "jsonrpc": "2.0",
   "id": "good-id",
   "iD": "bad-id",
   "method": "tools/call",
@@ -172,8 +178,28 @@ func TestUnmarshalJSONRPCMessage_caseSensitive(t *testing.T) {
 		JSONRPC: "2.0",
 		ID:      mcp.NewRequestId("good-id"),
 		Method:  "tools/call",
-		Params: map[string]interface{}{
-			"name": "good-name",
+		Params: JSONRPCParams{
+			"name": json.RawMessage(`"good-name"`),
 		},
+		rawMessage: string(input),
 	}, output)
+}
+
+func TestJSONRPCParams_toAnyMap_preservesPrecision(t *testing.T) {
+	original := `{"name":"test","bigint":9007199254740993,"nested":{"key":"value"},"decimal":1.23456789012345678}`
+
+	var params JSONRPCParams
+	require.NoError(t, json.Unmarshal([]byte(original), &params))
+
+	anyMap := params.toAnyMap()
+	remarshaled, err := json.Marshal(anyMap)
+	require.NoError(t, err)
+
+	var originalMap, remarshaledMap map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(original), &originalMap))
+	require.NoError(t, json.Unmarshal(remarshaled, &remarshaledMap))
+
+	for k, v := range originalMap {
+		assert.JSONEq(t, string(v), string(remarshaledMap[k]), "mismatch for key %q", k)
+	}
 }

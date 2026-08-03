@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -211,7 +212,7 @@ func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) 
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
-	reqBody, err := utils.GetAndReplaceRequestBody(r)
+	reqBody, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)

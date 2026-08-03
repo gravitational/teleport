@@ -205,7 +205,7 @@ func (a *sessionAuditor) emitNotificationEvent(ctx context.Context, msg *mcputil
 		Message: apievents.MCPJSONRPCMessage{
 			JSONRPC: msg.JSONRPC,
 			Method:  msg.Method,
-			Params:  msg.Params.GetEventParams(),
+			Raw:     msg.RawMessage(),
 		},
 		Status: apievents.Status{
 			Success: true,
@@ -237,10 +237,11 @@ func (a *sessionAuditor) emitRequestEvent(ctx context.Context, msg *mcputils.JSO
 			Success: true,
 		},
 		Message: apievents.MCPJSONRPCMessage{
-			JSONRPC: msg.JSONRPC,
-			Method:  msg.Method,
-			ID:      msg.ID.String(),
-			Params:  msg.Params.GetEventParams(),
+			JSONRPC:       msg.JSONRPC,
+			Method:        msg.Method,
+			ID:            msg.ID.String(),
+			ToolsCallName: toolsCallName(msg),
+			Raw:           msg.RawMessage(),
 		},
 		Headers: wrappers.Traits(opts.header),
 	}
@@ -402,6 +403,14 @@ func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeRequest(msg
 		sessionStartEvent.ProtocolVersion = params.ProtocolVersion
 		sessionStartEvent.ClientInfo = fmt.Sprintf("%s/%s", params.ClientInfo.Name, params.ClientInfo.Version)
 	})
+}
+
+func toolsCallName(msg *mcputils.JSONRPCRequest) string {
+	if msg.Method != mcputils.MethodToolsCall {
+		return ""
+	}
+	name, _ := msg.Params.GetName()
+	return name
 }
 
 func (a *sessionAuditor) updatePendingSessionStartEventWithInitializeResult(ctx context.Context, resp *mcputils.JSONRPCResponse) {

@@ -254,7 +254,7 @@ func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPC
 		ID:      c.makeRequestID(),
 		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
-			"name": toolName,
+			"name": json.RawMessage(`"` + toolName + `"`),
 		},
 	}
 }
@@ -297,15 +297,6 @@ func (f fakeAccessPoint) GetClusterName(context.Context) (types.ClusterName, err
 }
 func (f fakeAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
 	return nil, trace.NotImplemented("not implemented")
-}
-
-func checkParamsHaveNameField(t *testing.T, params *apievents.Struct, wantName string) {
-	t.Helper()
-	require.NotNil(t, params)
-	require.NotNil(t, params.Fields)
-	value, ok := params.Fields["name"]
-	require.True(t, ok)
-	require.Equal(t, wantName, value.GetStringValue())
 }
 
 func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mcp.RequestId, wantTools []string) {
@@ -633,4 +624,11 @@ func requireRequestResponseError(t *testing.T, respJSON []byte, expectedCode int
 	escapedIncludedData = escapedIncludedData[1 : len(escapedIncludedData)-1]
 	require.NoError(t, err)
 	require.Contains(t, string(messageErrorDetails["data"]), string(escapedIncludedData))
+}
+
+func requireMarshalJSON(t *testing.T, v any) json.RawMessage {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
 }

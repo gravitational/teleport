@@ -5066,14 +5066,10 @@ Example:
   "success": false,
   "error": "access denied",
   "message": {
-    "id": 2,
+    "id": 3,
     "method": "tools/call",
-    "params": {
-      "name": "write_file",
-      "arguments": {
-        "path": "/etc/passwd"
-      }
-    },
+    "tools_call_name": "write_file",
+    "raw": "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"write_file\",\"arguments\":{\"path\":\"/etc/passwd\"}}}",
     "jsonrpc": "2.0"
   }
 }

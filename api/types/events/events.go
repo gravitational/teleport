@@ -2668,7 +2668,7 @@ func (m *MCPJSONRPCMessage) nonEmptyStrs() int {
 	if m == nil {
 		return 0
 	}
-	return nonEmptyStrs(m.JSONRPC, m.ID, m.Method) + m.Params.nonEmptyStrs()
+	return nonEmptyStrs(m.JSONRPC, m.ID, m.Method, m.ToolsCallName, m.Raw) + m.Params.nonEmptyStrs()
 }
 
 func (m *MCPJSONRPCMessage) trimToMaxFieldSize(maxFieldsSize int) MCPJSONRPCMessage {
@@ -2681,6 +2681,8 @@ func (m *MCPJSONRPCMessage) trimToMaxFieldSize(maxFieldsSize int) MCPJSONRPCMess
 	out.ID = trimStr(m.ID, maxFieldsSize)
 	out.Method = trimStr(m.Method, maxFieldsSize)
 	out.Params = m.Params.trimToMaxFieldSize(maxFieldsSize)
+	out.ToolsCallName = trimStr(m.ToolsCallName, maxFieldsSize)
+	out.Raw = trimStr(m.Raw, maxFieldsSize)
 	return out
 }
 
