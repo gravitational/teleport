@@ -3240,32 +3240,16 @@ func listNodesAllClusters(cf *CLIConf) error {
 }
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
-	var rows [][]string
-	var withScope bool
+	rows := make([][]string, 0, len(nodes))
 	for _, n := range nodes {
-		if n.Node.GetScope() != "" {
-			withScope = true
-			break
-		}
-	}
-
-	for _, n := range nodes {
-		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, withScope, verbose))
+		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
 	}
 
 	var t asciitable.Table
 	if verbose {
-		if withScope {
-			t = asciitable.MakeTable([]string{"Scope", "Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		} else {
-			t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		}
+		t = asciitable.MakeTable([]string{"Proxy", "Cluster", "Node Name", "Node ID", "Address", "Labels"}, rows...)
 	} else {
-		if withScope {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
-		} else {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
-		}
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
@@ -3472,7 +3456,7 @@ func serializeNodes(nodes []types.Server, format string) (string, error) {
 	return string(out), trace.Wrap(err)
 }
 
-func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbose bool) []string {
+func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string {
 	// Reusable function to get addr or tunnel for each node
 	getAddr := func(n types.Server) string {
 		switch {
@@ -3486,54 +3470,35 @@ func getNodeRow(proxy, cluster string, node types.Server, withScope bool, verbos
 	}
 
 	row := make([]string, 0)
-
-	if withScope {
-		row = append(row, node.GetScope())
-	}
-
 	if proxy != "" && cluster != "" {
 		row = append(row, proxy, cluster)
 	}
 
 	labels := common.FormatLabels(node.GetAllLabels(), verbose)
+	name := scopes.QualifiedName{Scope: node.GetScope(), Name: node.GetHostname()}.String()
 	if verbose {
-		row = append(row, node.GetHostname(), node.GetName(), getAddr(node), labels)
+		row = append(row, name, node.GetName(), getAddr(node), labels)
 	} else {
-		row = append(row, node.GetHostname(), getAddr(node), labels)
+		row = append(row, name, getAddr(node), labels)
 	}
 	return row
 }
 
 func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool) error {
-	var rows [][]string
-	var withScope bool
+	rows := make([][]string, 0, len(nodes))
 	for _, n := range nodes {
-		if n.GetScope() != "" {
-			withScope = true
-			break
-		}
-	}
-	for _, n := range nodes {
-		rows = append(rows, getNodeRow("", "", n, withScope, verbose))
+		rows = append(rows, getNodeRow("", "", n, verbose))
 	}
 	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		if withScope {
-			t = asciitable.MakeTable([]string{"Scope", "Node Name", "Node ID", "Address", "Labels"}, rows...)
-		} else {
-			t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
-		}
+		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"}, rows...)
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		if withScope {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Scope", "Node Name", "Address", "Labels"}, rows, "Labels")
-		} else {
-			t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
-		}
+		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
 	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
