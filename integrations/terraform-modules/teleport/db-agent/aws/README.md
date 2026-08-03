@@ -55,6 +55,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| allow\_database\_modification | Whether to add RDS permissions that allow the Teleport Database agent to modify database configuration. | `bool` | `false` | no |
 | apply\_aws\_tags | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
 | assign\_public\_ip | Whether to assign public IP addresses to Teleport db agent ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |

@@ -36,6 +36,12 @@ variable "vpc_id" {
 # Optional variables
 ################################################################################
 
+variable "allow_database_modification" {
+  default     = false
+  description = "Whether to add RDS permissions that allow the Teleport Database agent to modify database configuration."
+  type        = bool
+}
+
 variable "apply_aws_tags" {
   default     = {}
   description = "Additional AWS tags to apply to all created AWS resources."
