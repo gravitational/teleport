@@ -26,9 +26,6 @@ type AssignmentReconcilerAccessPoint interface {
 	// CreateOktaAssignment creates a new Okta assignment resource.
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-	// since the last transition.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 }

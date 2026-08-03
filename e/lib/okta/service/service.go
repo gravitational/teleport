@@ -496,21 +496,6 @@ func (s *Service) UpsertOktaAssignment(ctx context.Context, req *oktapb.UpsertOk
 	}.Build(), nil
 }
 
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-func (s *Service) UpdateOktaAssignmentStatus(ctx context.Context, req *oktapb.UpdateOktaAssignmentStatusRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()),
-		req.GetTimeHasPassed().AsDuration())
-	return &emptypb.Empty{}, trace.Wrap(err)
-}
-
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (s *Service) DeleteOktaAssignment(ctx context.Context, req *oktapb.DeleteOktaAssignmentRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)

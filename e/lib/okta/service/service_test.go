@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -128,6 +127,7 @@ func TestOktaAssignments(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a1, a2, a3}, listResp.GetAssignments(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	oldRevision := a1.GetRevision()
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
 	updateResp, err := svc.UpdateOktaAssignment(ctx, oktapb.UpdateOktaAssignmentRequest_builder{Assignment: a1}.Build())
 	require.NoError(t, err)
@@ -138,22 +138,9 @@ func TestOktaAssignments(t *testing.T) {
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	_, err = svc.UpdateOktaAssignmentStatus(ctx, oktapb.UpdateOktaAssignmentStatusRequest_builder{
-		Name:   a1.GetName(),
-		Status: types.OktaAssignmentSpecV1_PROCESSING,
-	}.Build())
-	require.NoError(t, err)
-
-	require.NoError(t, a1.SetStatus(constants.OktaAssignmentStatusProcessing))
-	a, err = svc.GetOktaAssignment(ctx, oktapb.GetOktaAssignmentRequest_builder{Name: a1.GetName()}.Build())
-	require.NoError(t, err)
-	a1.SetLastTransition(a.GetLastTransition())
-	require.Empty(t, cmp.Diff(a1, a,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
 	_, err = svc.DeleteOktaAssignment(ctx, oktapb.DeleteOktaAssignmentRequest_builder{
 		Name:     a1.GetName(),
-		Revision: a1.GetRevision(),
+		Revision: oldRevision,
 	}.Build())
 	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
 
