@@ -189,7 +189,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]. For an instance of a scoped bot, prefix the ID with the bot's scope: [scope]::[bot name]/[uuid].").Required().StringVar(&c.instanceID)
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
-	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form [scope]::[name]. If unset, lists instances from all bots.").StringVar(&c.botName)
 	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
