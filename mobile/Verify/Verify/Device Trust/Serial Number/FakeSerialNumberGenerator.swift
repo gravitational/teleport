@@ -17,8 +17,8 @@
 #if DEBUG
 	import Foundation
 
-	/// A small utility for generating a fake serial number, mostly to support
-	struct FakeSerialNumberGenerator {
+	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
+	enum FakeSerialNumberGenerator {
 		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 		static func generate() -> String {
