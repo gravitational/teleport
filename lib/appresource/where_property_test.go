@@ -29,9 +29,13 @@ import (
 	"pgregory.net/rapid"
 )
 
+// identifierText draws the short strings the generated clauses use for
+// names, roles, traits, and literals.
+var identifierText = rapid.StringMatching(`[a-zA-Z0-9_\-]{0,8}`)
+
 // drawEnv draws a valid environment with a canonical method.
 func drawEnv(t *rapid.T) Env {
-	str := rapid.StringMatching(`[a-zA-Z0-9_\-]{0,8}`)
+	str := identifierText
 	return Env{
 		Request: Request{Method: rapid.SampledFrom(validMethods).Draw(t, "method")},
 		Identity: Identity{
@@ -45,7 +49,7 @@ func drawEnv(t *rapid.T) Env {
 // drawClause draws a well-formed where clause of bounded depth.
 func drawClause(t *rapid.T, depth int) string {
 	if depth == 0 || rapid.Bool().Draw(t, "leaf") {
-		str := rapid.StringMatching(`[a-zA-Z0-9_\-]{0,8}`)
+		str := identifierText
 		switch rapid.IntRange(0, 5).Draw(t, "kind") {
 		case 0:
 			return `true`
@@ -87,12 +91,18 @@ func evaluateProp(t *rapid.T, expr string, env Env) bool {
 	return got
 }
 
-func TestCompileNeverPanics(t *testing.T) {
+// TestCompileReturnsValueOrError checks that CompileWhere never returns a
+// Where with a nil expression, which is what lets Evaluate dereference it
+// without a guard.
+func TestCompileReturnsValueOrError(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		expr := rapid.String().Draw(t, "expr")
 		where, err := CompileWhere(expr)
-		if err == nil && where == nil {
-			t.Fatalf("CompileWhere(%q) returned neither a value nor an error", expr)
+		if err != nil {
+			return
+		}
+		if where == nil || where.expression == nil {
+			t.Fatalf("CompileWhere(%q) returned a Where with no expression", expr)
 		}
 	})
 }
@@ -109,7 +119,7 @@ func TestNegationDuality(t *testing.T) {
 	})
 }
 
-func TestInvalidMethodDenied(t *testing.T) {
+func TestUnsupportedMethodRejectedForAnyString(t *testing.T) {
 	where, err := CompileWhere(`true`)
 	require.NoError(t, err)
 	rapid.Check(t, func(t *rapid.T) {
@@ -125,7 +135,9 @@ func TestInvalidMethodDenied(t *testing.T) {
 
 func TestContainsMatchesSlicesContains(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		str := rapid.StringMatching(`[a-zA-Z0-9_\-]{0,8}`)
+		// Unrestricted strings, because this property is about the
+		// strconv.Quote round trip through the parser.
+		str := rapid.String()
 		items := rapid.SliceOfN(str, 0, 4).Draw(t, "items")
 		item := str.Draw(t, "item")
 		quoted := make([]string, len(items))

@@ -28,57 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// Request encodes the elements of the HTTP request a where clause is
-// evaluated against. It is deliberately not an *http.Request, to make
-// clear which fields matter for evaluation.
-type Request struct {
-	Method string
-}
-
-// Identity is the caller a where clause is evaluated against. It is
-// deliberately not a tlsca.Identity, to make clear which fields matter
-// for evaluation.
-type Identity struct {
-	Name   string
-	Roles  []string
-	Traits map[string][]string
-}
-
-// Env holds the values one where clause evaluation reads.
-type Env struct {
-	Request  Request
-	Identity Identity
-}
-
-// Where is a compiled where clause. Only CompileWhere returns a usable
-// value. Evaluation writes nothing back to a Where, so a single Where can
-// serve concurrent requests.
-type Where struct {
-	expression typical.Expression[Env, bool]
-}
-
-// CompileWhere parses and type-checks a where clause.
-func CompileWhere(expr string) (*Where, error) {
-	expression, err := whereParser.Parse(expr)
-	if err != nil {
-		return nil, trace.NewAggregate(trace.BadParameter("compiling where clause %q", expr), err)
-	}
-	return &Where{expression: expression}, nil
-}
-
-// Evaluate reports whether the where clause matches the environment. On
-// error it reports no match.
-func (w *Where) Evaluate(env Env) (bool, error) {
-	if err := validateEnv(env); err != nil {
-		return false, trace.Wrap(err)
-	}
-	match, err := w.expression.Evaluate(env)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return match, nil
-}
-
 // validMethods are the HTTP methods a where clause evaluation accepts.
 var validMethods = []string{
 	http.MethodGet,
@@ -91,17 +40,84 @@ var validMethods = []string{
 	http.MethodTrace,
 }
 
-// validateEnv rejects an environment a where clause must not authorize,
-// such as a request method outside the canonical HTTP method list.
-func validateEnv(env Env) error {
-	if !slices.Contains(validMethods, env.Request.Method) {
-		return trace.BadParameter("unsupported HTTP method %q", env.Request.Method)
+// whereParser is the shared cached parser for where clauses.
+var whereParser = mustNewWhereParser()
+
+// Request encodes the elements of the HTTP request a where clause is
+// evaluated against.
+type Request struct {
+	Method string
+}
+
+// Identity is the caller a where clause is evaluated against.
+type Identity struct {
+	Name   string
+	Roles  []string
+	Traits map[string][]string
+}
+
+// Env holds the values one where clause evaluation reads. Request and
+// Identity are deliberately not [http.Request] and tlsca.Identity, to make
+// clear which fields matter for evaluation.
+type Env struct {
+	Request  Request
+	Identity Identity
+}
+
+// Where is a compiled where clause. Only CompileWhere returns a usable
+// value. Evaluation writes nothing back to a Where, so a single Where can
+// serve concurrent requests. The caller must not mutate the slices or
+// map in Env during an evaluation.
+type Where struct {
+	expression typical.Expression[Env, bool]
+}
+
+// NewEnv builds the environment a where clause is evaluated against and
+// rejects a request no rule may authorize. Callers build it once per
+// request, before matching any rule, because a rule without a where
+// clause never reaches Evaluate.
+func NewEnv(request Request, identity Identity) (Env, error) {
+	if err := validateMethod(request.Method); err != nil {
+		return Env{}, trace.Wrap(err)
+	}
+	return Env{Request: request, Identity: identity}, nil
+}
+
+// CompileWhere parses and type-checks a where clause.
+func CompileWhere(expr string) (*Where, error) {
+	expression, err := whereParser.Parse(expr)
+	if err != nil {
+		// The aggregate classifies the result as BadParameter for the
+		// caller and keeps typical's typed error for errors.As. Parse does
+		// not return a BadParameter for every failure.
+		return nil, trace.NewAggregate(trace.BadParameter("compiling where clause %q", expr), err)
+	}
+	return &Where{expression: expression}, nil
+}
+
+// Evaluate reports whether the where clause matches the environment. The
+// result is only meaningful when the error is nil.
+func (w *Where) Evaluate(env Env) (bool, error) {
+	if err := validateMethod(env.Request.Method); err != nil {
+		return false, trace.Wrap(err)
+	}
+	match, err := w.expression.Evaluate(env)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return match, nil
+}
+
+// validateMethod rejects a request method outside the canonical HTTP
+// method list. NewEnv runs it at the request boundary and Evaluate
+// repeats it, so an environment a caller assembled itself still cannot
+// authorize such a request.
+func validateMethod(method string) error {
+	if !slices.Contains(validMethods, method) {
+		return trace.BadParameter("unsupported HTTP method %q", method)
 	}
 	return nil
 }
-
-// whereParser is the shared cached parser for where clauses.
-var whereParser = mustNewWhereParser()
 
 // mustNewWhereParser builds the where clause parser and panics if the
 // parser spec is invalid or the expression cache cannot be built.
@@ -117,6 +133,9 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 			"user.roles": typical.DynamicVariable(func(e Env) ([]string, error) {
 				return e.Identity.Roles, nil
 			}),
+			// A key the identity does not have reads as an empty list, as in
+			// the role where-clause language, so a mistyped key under a
+			// negation matches every caller.
 			"user.traits": typical.DynamicMapFunction(func(e Env, key string) ([]string, error) {
 				return e.Identity.Traits[key], nil
 			}),
@@ -125,9 +144,8 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 			}),
 		},
 		Functions: map[string]typical.Function{
-			// set builds a set from its string arguments for contains membership
-			// tests. set and contains match the functions of the same names in
-			// the role where-clause language, services.NewWhereParser.
+			// set and contains are named after the functions in the role
+			// where-clause language, services.NewWhereParser.
 			"set": typical.UnaryVariadicFunction[Env](func(args ...string) ([]string, error) {
 				return args, nil
 			}),

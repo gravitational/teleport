@@ -19,6 +19,7 @@
 package appresource
 
 import (
+	"net/http"
 	"strconv"
 	"sync"
 	"testing"
@@ -27,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var getRequest = Request{Method: http.MethodGet}
 
 func evaluate(t *testing.T, expr string, request Request, identity Identity) bool {
 	t.Helper()
@@ -65,49 +68,69 @@ func TestEnvBindings(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.expr, func(t *testing.T) {
-			require.Equal(t, tt.want, evaluate(t, tt.expr, Request{Method: "GET"}, identity))
+			require.Equal(t, tt.want, evaluate(t, tt.expr, getRequest, identity))
 		})
 	}
+	require.True(t, evaluate(t, `request.method == "DELETE"`, Request{Method: http.MethodDelete}, identity))
+	require.False(t, evaluate(t, `contains(user.traits["allowed_projects"], "acme")`, getRequest, Identity{}))
 }
 
-// TestMethodValidated checks that evaluation fails for any method
+// TestUnsupportedMethodRejected checks that evaluation fails for a method
 // outside the canonical HTTP method list, even when the clause does not
 // read the method.
-func TestMethodValidated(t *testing.T) {
-	require.True(t, evaluate(t, `request.method == "DELETE"`, Request{Method: "DELETE"}, Identity{}))
+func TestUnsupportedMethodRejected(t *testing.T) {
 	for _, expr := range []string{`request.method == "DELETE"`, `true`} {
 		where, err := CompileWhere(expr)
 		require.NoError(t, err)
 		for _, method := range []string{"delete", "DeLeTe", "YOLO", ""} {
 			t.Run(expr+"/"+method, func(t *testing.T) {
 				got, err := where.Evaluate(Env{Request: Request{Method: method}})
-				require.Error(t, err)
+				require.ErrorContains(t, err, "unsupported HTTP method")
 				require.False(t, got)
 			})
 		}
 	}
 }
 
-func TestSet(t *testing.T) {
+// TestNewEnv checks the request boundary, which is where a rule without a
+// where clause has its method validated.
+func TestNewEnv(t *testing.T) {
 	identity := Identity{Name: "alice"}
-	require.True(t, evaluate(t, `contains(set("alice", "bob"), user.name)`, Request{Method: "GET"}, identity))
-	require.False(t, evaluate(t, `contains(set(), user.name)`, Request{Method: "GET"}, identity))
+	env, err := NewEnv(getRequest, identity)
+	require.NoError(t, err)
+	require.Equal(t, Env{Request: getRequest, Identity: identity}, env)
+	for _, method := range []string{"get", "GeT", "PROPFIND", ""} {
+		t.Run(method, func(t *testing.T) {
+			env, err := NewEnv(Request{Method: method}, identity)
+			require.ErrorContains(t, err, "unsupported HTTP method")
+			require.True(t, trace.IsBadParameter(err))
+			require.Zero(t, env)
+		})
+	}
 }
 
-func TestContainsOnStringBinding(t *testing.T) {
+func TestSet(t *testing.T) {
 	identity := Identity{Name: "alice"}
-	require.True(t, evaluate(t, `contains(user.name, "alice")`, Request{Method: "GET"}, identity))
-	require.False(t, evaluate(t, `contains(user.name, "ali")`, Request{Method: "GET"}, identity))
-	require.True(t, evaluate(t, `has_substring(user.name, "ali")`, Request{Method: "GET"}, identity))
+	require.True(t, evaluate(t, `contains(set("alice", "bob"), user.name)`, getRequest, identity))
+	require.False(t, evaluate(t, `contains(set(), user.name)`, getRequest, identity))
+}
+
+// TestContainsOnStringIsEquality checks equality rather than substring,
+// because typical wraps a string argument in a one-element slice.
+func TestContainsOnStringIsEquality(t *testing.T) {
+	identity := Identity{Name: "alice"}
+	require.True(t, evaluate(t, `contains(user.name, "alice")`, getRequest, identity))
+	require.False(t, evaluate(t, `contains(user.name, "ali")`, getRequest, identity))
+	require.True(t, evaluate(t, `has_substring(user.name, "ali")`, getRequest, identity))
 }
 
 func TestLowerUpper(t *testing.T) {
 	identity := Identity{Name: "alice"}
-	require.True(t, evaluate(t, `lower(request.method) == "get"`, Request{Method: "GET"}, identity))
-	require.True(t, evaluate(t, `upper(user.name) == "ALICE"`, Request{Method: "GET"}, identity))
+	require.True(t, evaluate(t, `lower(request.method) == "get"`, getRequest, identity))
+	require.True(t, evaluate(t, `upper(user.name) == "ALICE"`, getRequest, identity))
 }
 
-func TestSubstringFuncs(t *testing.T) {
+func TestHasPrefixSuffixSubstring(t *testing.T) {
 	identity := Identity{Name: "svc-ci-runner"}
 	tests := []struct {
 		expr string
@@ -122,30 +145,37 @@ func TestSubstringFuncs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.expr, func(t *testing.T) {
-			require.Equal(t, tt.want, evaluate(t, tt.expr, Request{Method: "GET"}, identity))
+			require.Equal(t, tt.want, evaluate(t, tt.expr, getRequest, identity))
 		})
 	}
 }
 
 func TestCombinations(t *testing.T) {
 	identity := Identity{Name: "alice", Traits: map[string][]string{"allowed_projects": {"acme"}}}
-	require.True(t, evaluate(t, `contains(user.traits["allowed_projects"], lower("ACME")) && request.method == "GET"`, Request{Method: "GET"}, identity))
-	require.False(t, evaluate(t, `has_prefix(lower(user.name), "bob") || contains(set("dev"), user.name)`, Request{Method: "GET"}, identity))
-	require.True(t, evaluate(t, `!contains(set("dev"), user.name)`, Request{Method: "GET"}, identity))
+	require.True(t, evaluate(t, `contains(user.traits["allowed_projects"], lower("ACME")) && request.method == "GET"`, getRequest, identity))
+	require.False(t, evaluate(t, `has_prefix(lower(user.name), "bob") || contains(set("dev"), user.name)`, getRequest, identity))
+	require.True(t, evaluate(t, `!contains(set("dev"), user.name)`, getRequest, identity))
+	// Conjunction binds tighter than disjunction.
+	require.True(t, evaluate(t, `false || true && true`, getRequest, identity))
 }
 
 // TestInvalidWhereClause checks that an unknown binding, an unknown
-// function, and the empty clause all fail at compile.
+// function, a clause that does not return a bool, and the empty clause
+// all fail to compile.
 func TestInvalidWhereClause(t *testing.T) {
 	for _, expr := range []string{
-		// Bindings the where environment does not provide. Paths are
-		// matched by the paths field, not in where.
+		// Bindings the where environment does not provide. Path matching
+		// is deliberately outside the where language.
 		`request.path == "/api"`,
 		`user.role == "dev"`,
 		// Names outside the function set. Regular expressions are
 		// excluded deliberately.
 		`regex_match("a.*", user.name)`,
 		`equals(user.name, "alice")`,
+		// Clauses that return something other than a bool.
+		`user.name`,
+		`set("a")`,
+		`user.name == user.roles`,
 		// The empty clause never stands for allow-everything.
 		``,
 	} {
@@ -163,7 +193,7 @@ func TestConcurrentEvaluate(t *testing.T) {
 	where, err := CompileWhere(`contains(user.roles, "dev") && request.method == "GET"`)
 	require.NoError(t, err)
 	env := Env{
-		Request:  Request{Method: "GET"},
+		Request:  getRequest,
 		Identity: Identity{Roles: []string{"dev"}},
 	}
 	var wg sync.WaitGroup
