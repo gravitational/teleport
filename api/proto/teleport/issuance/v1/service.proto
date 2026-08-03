@@ -65,6 +65,7 @@ message IssueScopedBotCertsRequest {
   // any usage-specific options. At least one of the usage values must be set.
   oneof usage {
     UsageIdentity identity = 4;
+    UsageApp app = 5;
   }
 }
 
@@ -72,6 +73,23 @@ message IssueScopedBotCertsRequest {
 // appropriate for SSH or API authn.
 message UsageIdentity {
   // Reserved for future identity-usage-specific options.
+}
+
+// UsageApp defines the mode
+message UsageApp {
+  // name is the name of the application to route to.
+  // Must resolve to an application within the scope to which
+  // the calling bot is pinned.
+  string name = 1;
+
+  // public_addr is the application public address.
+  string public_addr = 2;
+
+  // cluster_name is the cluster where the application resides.
+  string cluster_name = 3;
+
+  // scope is the scope of the target application.
+  string scope = 4;
 }
 
 // Response for IssueScopedBotCerts
