@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -757,6 +758,12 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		botScope, botName = qn.Scope, qn.Name
 	}
 
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
 			PageSize:  int32(pageSize),
@@ -764,10 +771,11 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
 			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
-				BotName:    botName,
-				BotScope:   botScope,
-				SearchTerm: c.search,
-				Query:      c.query,
+				BotName:     botName,
+				BotScope:    botScope,
+				SearchTerm:  c.search,
+				Query:       c.query,
+				ScopeFilter: scopeFilter,
 			}.Build(),
 		}.Build())
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
