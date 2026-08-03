@@ -34,7 +34,6 @@ public enum EnrollClientError: Error, Sendable {
 	case clientCreationFailed
 }
 
-
 extension EnrollClient {
 	public static let liveValue = EnrollClient(
 		requestEnrollmentToken: { hostName, port, pairingToken in
@@ -53,4 +52,3 @@ extension EnrollClient {
 		},
 	)
 }
-

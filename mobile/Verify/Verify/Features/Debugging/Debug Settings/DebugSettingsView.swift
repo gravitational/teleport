@@ -14,17 +14,30 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Core
-import Dependencies
-import DependenciesMacros
+#if DEBUG
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
+	import SwiftUI
 
-	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
-	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
+	struct DebugSettingsView: View {
+		@Bindable
+		var viewModel: DebugSettingsViewModel
 
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	nonisolated var serialNumberClient = SerialNumberClient()
-}
+		var body: some View {
+			Form {
+				Section("Serial Number") {
+					HStack {
+						TextField("Serial Number", text: viewModel.debugSerialNumberBinding)
+							.textFieldStyle(.roundedBorder)
+							.frame(maxWidth: .infinity, alignment: .leading)
+						Button {
+							viewModel.regenerateSerialNumber()
+						} label: {
+							Image(systemName: "arrow.circlepath")
+						}
+					}
+				}
+			}
+		}
+	}
+
+#endif

@@ -14,17 +14,34 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Core
-import Dependencies
-import DependenciesMacros
+#if DEBUG
 
-extension DependencyValues {
-	@DependencyEntry(liveValue: EnrollClient.liveValue)
-	nonisolated var enrollClient = EnrollClient()
+	import Dependencies
+	import Foundation
+	import Sharing
+	import SwiftUI
 
-	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
-	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
+	@Observable @MainActor
+	final class DebugSettingsViewModel {
+		@ObservationIgnored
+		@Dependency(\.serialNumberClient)
+		var serialNumberClient
 
-	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
-	nonisolated var serialNumberClient = SerialNumberClient()
-}
+		@ObservationIgnored
+		@Shared(.debugStorage(.debugSerialNumber))
+		var debugSerialNumber: String? = nil
+	}
+
+	// MARK: - Serial Number
+
+	extension DebugSettingsViewModel {
+		var debugSerialNumberBinding: Binding<String> {
+			Binding($debugSerialNumber.emptyIfNil)
+		}
+
+		func regenerateSerialNumber() {
+			$debugSerialNumber.withLock { $0 = FakeSerialNumberGenerator.generate() }
+		}
+	}
+
+#endif
