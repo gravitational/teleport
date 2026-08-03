@@ -317,7 +317,7 @@ export function ScopeSection({
                 </>
               }
               value={orgUnits.include}
-              placeholder="r-xy"
+              placeholder="r-abcd"
               onChange={include => onOrgUnitsChange({ ...orgUnits, include })}
             />
             {!includeValidationResult.valid && (
@@ -335,7 +335,7 @@ export function ScopeSection({
               label="Exclude Organizational Units"
               tooltipContent="Accounts under an excluded organizational unit will be ignored."
               value={orgUnits.exclude}
-              placeholder="ou-xy-abcdefgh"
+              placeholder="ou-abcd-xyz12345"
               onChange={exclude => onOrgUnitsChange({ ...orgUnits, exclude })}
             />
           </Box>
