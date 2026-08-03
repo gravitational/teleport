@@ -18,8 +18,11 @@ package jointest
 
 import (
 	"cmp"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -49,10 +52,12 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 		Scope:    override.GetScope(),
 		Metadata: override.GetMetadata(),
 		Spec: &joiningv1.ScopedTokenSpec{
-			AssignedScope: override.GetSpec().GetAssignedScope(),
-			JoinMethod:    cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
-			Roles:         roles,
-			UsageMode:     override.GetSpec().GetUsageMode(),
+			AssignedScope:   override.GetSpec().GetAssignedScope(),
+			JoinMethod:      cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
+			Roles:           roles,
+			UsageMode:       override.GetSpec().GetUsageMode(),
+			Bot:             override.GetSpec().GetBot(),
+			ImmutableLabels: override.GetSpec().GetImmutableLabels(),
 		},
 	}
 
@@ -176,9 +181,45 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			StaticJwks: staticJWKS,
 			Oidc:       oidc,
 		}
+	case types.JoinMethodGitHub:
+		if err := setProviderConfig(scopedToken.GetSpec(), "github", base.GitHub); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.BadParameter("unsupported join method %q", base.JoinMethod)
 	}
 
 	return scopedToken, nil
+}
+
+// setProviderConfig populates a provider message by protobuf field name. This
+// keeps forward-looking integration tests buildable before the generated scoped
+// provider type exists, while still failing until the production schema defines
+// and can decode the expected field.
+func setProviderConfig(spec *joiningv1.ScopedTokenSpec, fieldName string, config any) error {
+	if config == nil {
+		return trace.BadParameter("missing %s configuration", fieldName)
+	}
+
+	message := spec.ProtoReflect()
+	field := message.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field == nil {
+		return trace.NotImplemented("scoped token proto does not define %q configuration", fieldName)
+	}
+	if field.Kind() != protoreflect.MessageKind {
+		return trace.BadParameter("scoped token field %q must be a message", fieldName)
+	}
+
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return trace.Wrap(err, "marshaling classic %s configuration", fieldName)
+	}
+
+	value := message.NewField(field)
+	if err := (protojson.UnmarshalOptions{}).Unmarshal(encoded, value.Message().Interface()); err != nil {
+		return trace.Wrap(err, "converting classic %s configuration to scoped form", fieldName)
+	}
+	message.Set(field, value)
+
+	return nil
 }
