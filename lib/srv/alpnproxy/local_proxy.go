@@ -38,6 +38,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -302,6 +303,7 @@ func (l *LocalProxy) Close() error {
 
 func (l *LocalProxy) getALPNDialerConfig(serverName string, certs ...tls.Certificate) client.ALPNDialerConfig {
 	return client.ALPNDialerConfig{
+		DialTimeout:             apidefaults.DefaultIOTimeout,
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),

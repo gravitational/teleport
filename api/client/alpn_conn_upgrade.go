@@ -201,7 +201,7 @@ func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr s
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	conn, err := upgradeConnThroughWebAPI(ctx, tlsConn, upgradeURL, d.upgradeType())
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}
@@ -215,8 +215,8 @@ func (d *alpnConnUpgradeDialer) upgradeType() string {
 	return constants.WebAPIConnUpgradeTypeALPN
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
-	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
+func upgradeConnThroughWebAPI(ctx context.Context, conn net.Conn, api url.URL, alpnUpgradeType string) (net.Conn, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,6 +239,19 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 	// must be set on both the upgrade request here and the 101 Switching
 	// Protocols response from the server.
 	req.Header.Set(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
+
+	// The upgrade exchange is a raw request/response on the conn, so the
+	// context cannot interrupt it directly. Bound it with a deadline so a
+	// middlebox that accepts the connection but never relays a response
+	// (e.g. an L7 load balancer whose backend is unreachable) cannot hang
+	// the dial indefinitely.
+	deadline := time.Now().Add(defaults.DefaultIOTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
@@ -265,6 +278,12 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, alpnUpgradeType string
 	// Handle WebSocket.
 	logger := slog.With("hostname", api.Host)
 	if err := checkWebSocketUpgradeResponse(resp, alpnUpgradeType, challengeKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Clear the deadline. The tunneled connection is long-lived, and I/O on
+	// it is bounded by its consumers.
+	if err := conn.SetDeadline(time.Time{}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

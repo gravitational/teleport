@@ -232,6 +232,36 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 	}
 }
 
+func TestALPNConnUpgradeDialerHungUpgrade(t *testing.T) {
+	t.Parallel()
+
+	// Simulate a middlebox that accepts the connection but never responds
+	// to the upgrade request, like an L7 load balancer whose selected
+	// backend is unreachable.
+	handlerUnblock := make(chan struct{})
+	server := httptest.NewTLSServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		<-handlerUnblock
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(handlerUnblock) })
+
+	addr, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	pool := x509.NewCertPool()
+	pool.AddCert(server.Certificate())
+
+	dialer := newALPNConnUpgradeDialer(newDirectDialer(0, 5*time.Second), &tls.Config{RootCAs: pool}, false)
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+
+	_, err = dialer.DialContext(ctx, "tcp", addr.Host)
+	require.Error(t, err)
+	var netErr net.Error
+	require.ErrorAs(t, err, &netErr)
+	require.True(t, netErr.Timeout())
+}
+
 func mustReadConnData(t *testing.T, conn net.Conn, wantText string) {
 	t.Helper()
 
