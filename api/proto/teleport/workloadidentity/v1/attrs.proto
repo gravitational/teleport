@@ -48,6 +48,19 @@ message WorkloadAttrsKubernetesContainer {
   string image = 2;
   // The exact image digest the container is running.
   string image_digest = 3;
+  // The type of the container.
+  Type type = 4;
+
+  // Type maps to specific container types from Kubernetes.
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    // TYPE_REGULAR is used for the main containers of a Pod.
+    TYPE_REGULAR = 1;
+    // TYPE_INIT is used for the init containers of a Pod.
+    TYPE_INIT = 2;
+    // TYPE_EPHEMERAL is reserved for ephemeral containers, not currently supported.
+    TYPE_EPHEMERAL = 3;
+  }
 }
 
 // Attributes sourced from the Unix workload attestor.
