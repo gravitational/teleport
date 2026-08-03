@@ -1,5 +1,5 @@
-Scope         Node Name          Node ID            Address    Labels              
-------------- ------------------ ------------------ ---------- ------------------- 
-/staging/west scoped-direct-name scoped-direct-uuid 1.2.3.4:44 key1=val1,key2=val2 
-/staging/west scoped-tunnel-name scoped-tunnel-uuid ⟵ Tunnel                       
+SSH Server ID                     Hostname           Address    Labels              
+--------------------------------- ------------------ ---------- ------------------- 
+/staging/west::scoped-direct-uuid scoped-direct-name 1.2.3.4:44 key1=val1,key2=val2 
+/staging/west::scoped-tunnel-uuid scoped-tunnel-name ⟵ Tunnel                       
 
