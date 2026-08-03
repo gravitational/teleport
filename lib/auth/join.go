@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // checkTokenJoinRequestCommon checks all token join rules that are common to
@@ -362,15 +363,10 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 }
 
 // botUserNameFromToken returns the name of the backing User resource for the
-// bot referenced by the given provision token. Scoped bots are namespaced by
-// their scope, so their user name is derived from both the scope and the bot
-// name; unscoped bots use the bare bot name.
+// bot referenced by the given provision token.
 func botUserNameFromToken(token provision.Token) (string, error) {
 	botName, botScope := token.GetBot()
-	if botScope == "" {
-		return machineidv1.BotResourceName(botName), nil
-	}
-	username, err := machineidv1.ScopedBotResourceName(botScope, botName)
+	username, err := services.BotResourceName(botScope, botName)
 	return username, trace.Wrap(err)
 }
 
@@ -583,10 +579,9 @@ func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, pa
 	botName, botScope := token.GetBot()
 	botUserName, err := botUserNameFromToken(token)
 	if err != nil {
-		// The join audit event is best-effort: fall back to the bare bot user
-		// name rather than dropping the event.
+		// Best-effort: emit the event with the bare name rather than drop it.
 		a.logger.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
-		botUserName = machineidv1.BotResourceName(botName)
+		botUserName, _ = services.BotResourceName("", botName)
 	}
 	joinEvent := &apievents.BotJoin{
 		Metadata: apievents.Metadata{

@@ -169,8 +169,7 @@ type GetBotRequest_builder struct {
 
 	// The name of the bot to fetch.
 	BotName string
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to fetch an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope string
 }
 
@@ -563,8 +562,7 @@ type DeleteBotRequest_builder struct {
 
 	// The name of the bot to delete.
 	BotName string
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to delete an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope string
 }
 

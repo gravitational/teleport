@@ -114,8 +114,7 @@ type GetBotRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot to fetch.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to fetch an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -173,8 +172,7 @@ type GetBotRequest_builder struct {
 
 	// The name of the bot to fetch.
 	BotName string
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to fetch an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope string
 }
 
@@ -519,8 +517,7 @@ type DeleteBotRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot to delete.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to delete an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -578,8 +575,7 @@ type DeleteBotRequest_builder struct {
 
 	// The name of the bot to delete.
 	BotName string
-	// The scope in which the bot exists. Combined with bot_name to uniquely
-	// identify a scoped bot. Leave empty to delete an unscoped bot.
+	// The scope the bot exists in. Empty for an unscoped bot.
 	Scope string
 }
 

@@ -59,8 +59,7 @@ message CreateBotRequest {
 message GetBotRequest {
   // The name of the bot to fetch.
   string bot_name = 1;
-  // The scope in which the bot exists. Combined with bot_name to uniquely
-  // identify a scoped bot. Leave empty to fetch an unscoped bot.
+  // The scope the bot exists in. Empty for an unscoped bot.
   string scope = 2;
 }
 
@@ -101,7 +100,6 @@ message UpsertBotRequest {
 message DeleteBotRequest {
   // The name of the bot to delete.
   string bot_name = 1;
-  // The scope in which the bot exists. Combined with bot_name to uniquely
-  // identify a scoped bot. Leave empty to delete an unscoped bot.
+  // The scope the bot exists in. Empty for an unscoped bot.
   string scope = 2;
 }

@@ -59,25 +59,13 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestMain(m *testing.M) {
 	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
-}
-
-func TestBotResourceName(t *testing.T) {
-	require.Equal(
-		t,
-		"bot-name",
-		machineidv1.BotResourceName("name"),
-	)
-	require.Equal(
-		t,
-		"bot-name-with-spaces",
-		machineidv1.BotResourceName("name with spaces"),
-	)
 }
 
 // TestCreateBot is an integration test that uses a real gRPC client/server.
@@ -2818,15 +2806,14 @@ func TestDeleteBot(t *testing.T) {
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				wantUserName := machineidv1.BotResourceName(tt.req.GetBotName())
-				if tt.req.GetScope() != "" {
-					wantUserName, err = machineidv1.ScopedBotResourceName(tt.req.GetScope(), tt.req.GetBotName())
-					require.NoError(t, err)
-				}
-				_, err := srv.Auth().GetUser(ctx, wantUserName, false)
+				wantUserName, err := services.BotResourceName(tt.req.GetScope(), tt.req.GetBotName())
+				require.NoError(t, err)
+				_, err = srv.Auth().GetUser(ctx, wantUserName, false)
 				require.True(t, trace.IsNotFound(err), "bot user should be deleted")
 				if !tt.scoped {
-					_, err = srv.Auth().GetRole(ctx, machineidv1.BotResourceName(tt.req.GetBotName()))
+					roleName, err := services.BotResourceName("", tt.req.GetBotName())
+					require.NoError(t, err)
+					_, err = srv.Auth().GetRole(ctx, roleName)
 					require.True(t, trace.IsNotFound(err), "bot role should be deleted")
 				}
 			}
@@ -2842,7 +2829,7 @@ func TestDeleteBot(t *testing.T) {
 func TestBotScopeNamespacing(t *testing.T) {
 	t.Parallel()
 	srv, emitter := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
-	ctx := context.Background()
+	ctx := t.Context()
 
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)

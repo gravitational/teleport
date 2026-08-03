@@ -48,7 +48,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
@@ -937,16 +936,11 @@ func makeAuditEvent(ctx context.Context, info diagnostic.Info, attributesStruct 
 		default:
 			code = events.BotJoinCode
 		}
-		botUserName := machineidv1.BotResourceName(info.BotName)
-		if info.BotScope != "" {
-			scopedUserName, err := machineidv1.ScopedBotResourceName(info.BotScope, info.BotName)
-			if err != nil {
-				// The join audit event is best-effort: fall back to the bare
-				// bot user name rather than dropping the event.
-				log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
-			} else {
-				botUserName = scopedUserName
-			}
+		botUserName, err := services.BotResourceName(info.BotScope, info.BotName)
+		if err != nil {
+			// Best-effort: emit the event with the bare name rather than drop it.
+			log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
+			botUserName, _ = services.BotResourceName("", info.BotName)
 		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{

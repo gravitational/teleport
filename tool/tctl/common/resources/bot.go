@@ -112,7 +112,6 @@ func getBot(
 // botScopedHandler returns a [ScopedHandler] for bots that are registered with
 // a scope. Bots support both classic (unscoped) and scope-qualified access, so
 // this is registered alongside the classic handler in ScopedHandlers().
-//
 // Create is absent because the classic handler takes precedence for 'tctl
 // create' and already handles a scope on the bot resource.
 func botScopedHandler() ScopedHandler {
@@ -135,15 +134,11 @@ func getBotScoped(
 		return nil, rejectSubKind(types.KindBot, subKind)
 	}
 	if sqn == nil {
-		// No SQN was provided, so this is a list-all. The classic handler
-		// normally serves list-all (bot is registered in both maps), but fall
-		// back to it here for safety.
+		// List-all is normally served by the classic handler, which bot is also
+		// registered in; fall back to it for safety.
 		return getBot(ctx, client, services.Ref{Kind: types.KindBot}, opts)
 	}
 
-	// The scope travels in the request: scoped bots are namespaced by scope, so
-	// the server derives the lookup key from it and a wrong-scope read is a
-	// not-found. No client-side scope comparison is needed.
 	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
 		BotName: sqn.Name,
 		Scope:   sqn.Scope,
@@ -164,8 +159,6 @@ func deleteBotScoped(
 		return rejectSubKind(types.KindBot, subKind)
 	}
 
-	// The caller declares the scope it is addressing; the server derives the
-	// namespaced key from it and authorizes against the stored bot's scope.
 	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: sqn.Name,
 		Scope:   sqn.Scope,

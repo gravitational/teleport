@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -1084,14 +1083,13 @@ func TestBotsScoped(t *testing.T) {
 		withFileDescriptors(dynAddr.Descriptors),
 		withScopesFeatures(scopes.Features{Enabled: true}),
 	)
-	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
 	makeBot := func(t *testing.T, scope, name string) {
 		t.Helper()
-		_, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		_, err := client.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
 			Bot: machineidv1pb.Bot_builder{
 				Kind:     types.KindBot,
 				Version:  types.V1,
@@ -1111,28 +1109,30 @@ func TestBotsScoped(t *testing.T) {
 	t.Run("ls renders scoped bots as scope-qualified names", func(t *testing.T) {
 		buf := strings.Builder{}
 		cmd := BotsCommand{stdout: &buf, format: teleport.Text}
-		require.NoError(t, cmd.ListBots(ctx, client))
+		require.NoError(t, cmd.ListBots(t.Context(), client))
 
 		out := buf.String()
 		require.Contains(t, out, "/staging::robot")
 		// The scoped bot's backing user encodes its scope, which is how the two
 		// same-named bots stay distinct in storage.
-		scopedUser, err := machineidv1.ScopedBotResourceName("/staging", "robot")
+		scopedUser, err := services.BotResourceName("/staging", "robot")
 		require.NoError(t, err)
 		require.Contains(t, out, scopedUser)
-		require.Contains(t, out, machineidv1.BotResourceName("robot"))
+		unscopedUser, err := services.BotResourceName("", "robot")
+		require.NoError(t, err)
+		require.Contains(t, out, unscopedUser)
 	})
 
 	t.Run("update rejects a scoped bot", func(t *testing.T) {
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: "/staging::robot", botRoles: "access"}
-		err := cmd.UpdateBot(ctx, client)
+		err := cmd.UpdateBot(t.Context(), client)
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 		require.ErrorContains(t, err, "cannot update scoped bot")
 	})
 
 	t.Run("add rejects a scoped bot with a scoped_token hint", func(t *testing.T) {
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: "/staging::other"}
-		err := cmd.AddBot(ctx, client)
+		err := cmd.AddBot(t.Context(), client)
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 		require.ErrorContains(t, err, "scoped_token")
 		require.ErrorContains(t, err, "spec.usage_mode: bot")
@@ -1140,16 +1140,17 @@ func TestBotsScoped(t *testing.T) {
 
 	t.Run("instances add rejects a scoped bot with a scoped_token hint", func(t *testing.T) {
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: "/staging::robot"}
-		err := cmd.AddBotInstance(ctx, client)
+		err := cmd.AddBotInstance(t.Context(), client)
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 		require.ErrorContains(t, err, "scoped_token")
 	})
 
 	t.Run("lock targets the scoped bot's backing user", func(t *testing.T) {
+		ctx := t.Context()
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: "/staging::robot"}
 		require.NoError(t, cmd.LockBot(ctx, client))
 
-		scopedUser, err := machineidv1.ScopedBotResourceName("/staging", "robot")
+		scopedUser, err := services.BotResourceName("/staging", "robot")
 		require.NoError(t, err)
 		locks, err := client.GetLocks(ctx, false)
 		require.NoError(t, err)
@@ -1159,6 +1160,7 @@ func TestBotsScoped(t *testing.T) {
 	})
 
 	t.Run("rm with a bare name deletes only the unscoped bot", func(t *testing.T) {
+		ctx := t.Context()
 		buf := strings.Builder{}
 		cmd := BotsCommand{stdout: &buf, botName: "robot"}
 		require.NoError(t, cmd.RemoveBot(ctx, client))
@@ -1177,6 +1179,7 @@ func TestBotsScoped(t *testing.T) {
 	})
 
 	t.Run("rm with a scope-qualified name deletes the scoped bot", func(t *testing.T) {
+		ctx := t.Context()
 		buf := strings.Builder{}
 		cmd := BotsCommand{stdout: &buf, botName: "/staging::robot"}
 		require.NoError(t, cmd.RemoveBot(ctx, client))
@@ -1191,7 +1194,7 @@ func TestBotsScoped(t *testing.T) {
 
 	t.Run("rm rejects a malformed scope-qualified name", func(t *testing.T) {
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: "not-a-scope::robot"}
-		err := cmd.RemoveBot(ctx, client)
+		err := cmd.RemoveBot(t.Context(), client)
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 	})
 }
@@ -1200,34 +1203,40 @@ func TestParseBotRef(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		input     string
-		want      botRef
-		assertErr require.ErrorAssertionFunc
+		name  string
+		input string
+		want  botRef
+		// wantString is the ref rendered back out, which must round-trip.
+		wantString string
+		assertErr  require.ErrorAssertionFunc
 	}{
 		{
-			name:      "bare name is unscoped",
-			input:     "robot",
-			want:      botRef{name: "robot"},
-			assertErr: require.NoError,
+			name:       "bare name is unscoped",
+			input:      "robot",
+			want:       botRef{name: "robot"},
+			wantString: "robot",
+			assertErr:  require.NoError,
 		},
 		{
-			name:      "empty is unscoped and empty",
-			input:     "",
-			want:      botRef{},
-			assertErr: require.NoError,
+			name:       "empty is unscoped and empty",
+			input:      "",
+			want:       botRef{},
+			wantString: "",
+			assertErr:  require.NoError,
 		},
 		{
-			name:      "scope-qualified name",
-			input:     "/staging::robot",
-			want:      botRef{scope: "/staging", name: "robot"},
-			assertErr: require.NoError,
+			name:       "scope-qualified name",
+			input:      "/staging::robot",
+			want:       botRef{scope: "/staging", name: "robot"},
+			wantString: "/staging::robot",
+			assertErr:  require.NoError,
 		},
 		{
-			name:      "nested scope",
-			input:     "/staging/eu::robot",
-			want:      botRef{scope: "/staging/eu", name: "robot"},
-			assertErr: require.NoError,
+			name:       "nested scope",
+			input:      "/staging/eu::robot",
+			want:       botRef{scope: "/staging/eu", name: "robot"},
+			wantString: "/staging/eu::robot",
+			assertErr:  require.NoError,
 		},
 		{
 			name:      "invalid scope is rejected",
@@ -1254,6 +1263,7 @@ func TestParseBotRef(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantString, got.String())
 		})
 	}
 }
@@ -1313,11 +1323,4 @@ func TestCheckBotRefMatches(t *testing.T) {
 			tt.assertErr(t, checkBotRefMatches("some-token", tt.tokenBot, tt.ref))
 		})
 	}
-}
-
-func TestBotRefString(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, "robot", botRef{name: "robot"}.String())
-	require.Equal(t, "/staging::robot", botRef{scope: "/staging", name: "robot"}.String())
 }

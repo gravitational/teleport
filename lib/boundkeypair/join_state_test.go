@@ -267,19 +267,29 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			assertError:  require.NoError,
 		},
 		{
+			// The subject is the scope-qualified name, so a same-named bot in
+			// another scope is a different subject.
 			name:         "bot scope must match",
 			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
 			verifyParams: makeScopedParams("/bar", "test"),
 			assertError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "bot scope mismatch")
+				require.ErrorContains(tt, err, "invalid subject claim")
 			},
 		},
 		{
-			name:         "join state without bot scope rejected for scoped bot",
+			name:         "unscoped join state rejected for scoped bot",
 			issue:        makeIssuer(activeSigner, makeParams(withRecovery(0, 1))),
 			verifyParams: makeScopedParams("/foo", "test"),
 			assertError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "bot scope mismatch")
+				require.ErrorContains(tt, err, "invalid subject claim")
+			},
+		},
+		{
+			name:         "scoped join state rejected for unscoped bot",
+			issue:        makeIssuer(activeSigner, makeScopedParams("/foo", "test")),
+			verifyParams: makeParams(withRecovery(0, 1)),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "invalid subject claim")
 			},
 		},
 		{
@@ -308,4 +318,16 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 			tt.assertError(t, err)
 		})
 	}
+
+	t.Run("subject", func(t *testing.T) {
+		// An unscoped bot's subject must stay the bare name: changing it would
+		// invalidate every join state already held by an unscoped bot.
+		subject, err := makeParams().GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "test", subject)
+
+		subject, err = makeScopedParams("/foo", "test").GetSubject()
+		require.NoError(t, err)
+		require.Equal(t, "/foo::test", subject)
+	})
 }

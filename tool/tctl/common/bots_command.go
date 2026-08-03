@@ -49,12 +49,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/utils"
@@ -556,8 +556,6 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) e
 		return trace.Wrap(err)
 	}
 
-	// The server derives the key from the scope, so a bare name never reaches a
-	// scoped bot.
 	if _, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: ref.name,
 		Scope:   ref.scope,
@@ -581,13 +579,9 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.Wrap(err)
 	}
 
-	// The backing User name encodes the scope, so the lookup key differs.
-	resourceName := machineidv1.BotResourceName(ref.name)
-	if ref.isScoped() {
-		resourceName, err = machineidv1.ScopedBotResourceName(ref.scope, ref.name)
-		if err != nil {
-			return trace.Wrap(err, "building scoped bot resource name")
-		}
+	resourceName, err := services.BotResourceName(ref.scope, ref.name)
+	if err != nil {
+		return trace.Wrap(err, "building bot resource name")
 	}
 
 	user, err := client.GetUser(ctx, resourceName, false)
@@ -784,9 +778,6 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
-	// The bot may be given as a scope-qualified name (<scope>::<bot name>) to
-	// list instances of a scoped bot; a bare name lists instances of an
-	// unscoped bot.
 	ref, err := parseBotRef(c.botName)
 	if err != nil {
 		return trace.Wrap(err)
