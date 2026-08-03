@@ -9,6 +9,7 @@ import {
 } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/conditions';
 import { desktopIdentities } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/resources/desktop';
 import { gitHubIdentities } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/resources/github';
+import { linuxDesktopIdentities } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/resources/linux_desktop';
 import { serverIdentities } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/resources/server';
 import { Labels } from 'teleport/services/resources';
 
@@ -328,6 +329,40 @@ export function AccessSection({
                       <Box key={field}>
                         <SmallHeader>Logins</SmallHeader>
                         <Pills texts={windows_desktop_logins} />
+                      </Box>
+                    );
+                  default:
+                    field satisfies never;
+                }
+              })}
+            </AccessContainer>
+          </OutlineBox>
+        );
+      }
+
+      case 'linux_desktop_labels': {
+        const { linux_desktop_labels, linux_desktop_logins } =
+          standardRoleConditions;
+
+        return (
+          <OutlineBox key={field}>
+            <AccessDefinitionHeader>
+              Linux Desktop Access
+            </AccessDefinitionHeader>
+
+            <AccessContainer>
+              {renderLabels(linux_desktop_labels)}
+
+              {linuxDesktopIdentities.map(field => {
+                switch (field) {
+                  case 'linux_desktop_logins':
+                    if (!linux_desktop_logins?.length) {
+                      return null;
+                    }
+                    return (
+                      <Box key={field}>
+                        <SmallHeader>Logins</SmallHeader>
+                        <Pills texts={linux_desktop_logins} />
                       </Box>
                     );
                   default:

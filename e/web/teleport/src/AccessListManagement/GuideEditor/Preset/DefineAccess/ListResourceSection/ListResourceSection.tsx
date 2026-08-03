@@ -188,6 +188,7 @@ export function ListResourceSection({
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
+      case 'linux_desktop_labels':
         let labelVal =
           standardRoleState.roleConditions[selectedResourceTab][label.name];
         if (labelVal) {
@@ -256,6 +257,7 @@ export function ListResourceSection({
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       const currentLabels =
         standardRoleState.roleConditions[selectedResourceTab];
 

@@ -226,6 +226,7 @@ export function DefineAccess() {
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
     case 'github_permissions': {
       defineAccessContent = (
         <>
@@ -324,6 +325,7 @@ function initResourceFilters(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       query = getPredicateExpression({ accessField, roleConditions });
       break;
     default:

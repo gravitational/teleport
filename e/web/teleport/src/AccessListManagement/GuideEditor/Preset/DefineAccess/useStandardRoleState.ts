@@ -42,6 +42,11 @@ import {
   KubeIdentities,
 } from '../role/resources/kube';
 import {
+  emptyLinuxDesktopIdentities,
+  linuxDesktopIdentities,
+  LinuxDesktopIdentities,
+} from '../role/resources/linux_desktop';
+import {
   emptyServerIdentities,
   serverIdentities,
   ServerIdentities,
@@ -211,6 +216,7 @@ export type StandardRoleState = {
       | KubeIdentities
       | ServerIdentities
       | DesktopIdentities
+      | LinuxDesktopIdentities
   ): void;
 };
 
@@ -393,6 +399,7 @@ export function useStandardRoleState(): StandardRoleState {
       | KubeIdentities
       | ServerIdentities
       | DesktopIdentities
+      | LinuxDesktopIdentities
   ) {
     updateRoleConditions({ ...roleConditions, ...identities });
   }
@@ -409,6 +416,8 @@ export function useStandardRoleState(): StandardRoleState {
         return emptyServerIdentities();
       case 'windows_desktop_labels':
         return emptyDesktopIdentities();
+      case 'linux_desktop_labels':
+        return emptyLinuxDesktopIdentities();
       default:
         field satisfies never;
     }
@@ -467,6 +476,7 @@ export function useStandardRoleState(): StandardRoleState {
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
+      case 'linux_desktop_labels':
         // There is no default identities for these kinds yet.
         return null;
       default:
@@ -515,6 +525,7 @@ export function useStandardRoleState(): StandardRoleState {
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
+      case 'linux_desktop_labels':
         const labels = roleConditions[field];
         return Object.keys(labels).length > 0;
 
@@ -589,6 +600,15 @@ export function useStandardRoleState(): StandardRoleState {
                   field satisfies never;
               }
             });
+          case 'linux_desktop_labels':
+            return linuxDesktopIdentities.some(field => {
+              switch (field) {
+                case 'linux_desktop_logins':
+                  return roleConditions[field]?.length > 0;
+                default:
+                  field satisfies never;
+              }
+            });
 
           default:
             resourceField satisfies never;
@@ -613,6 +633,7 @@ export function useStandardRoleState(): StandardRoleState {
           case 'kubernetes_labels':
           case 'node_labels':
           case 'windows_desktop_labels':
+          case 'linux_desktop_labels':
             return false;
 
           default:

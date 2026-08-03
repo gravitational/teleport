@@ -183,6 +183,19 @@ export function fetchUnifiedResources(
               ...desktops,
             ];
             break;
+          case 'linux_desktop':
+            items = [
+              {
+                kind: 'linux_desktop',
+                os: 'linux',
+                name: 'LinuxTestRow',
+                addr: 'host.com',
+                labels: [{ name: 'env', value: 'test' }],
+                logins: [],
+              },
+              ...desktops,
+            ];
+            break;
           default:
             resourceKind satisfies never;
         }

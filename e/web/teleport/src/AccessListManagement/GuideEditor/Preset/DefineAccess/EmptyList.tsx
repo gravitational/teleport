@@ -67,6 +67,7 @@ export function EmptyList({
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       noAccess = <Text>or no {byline} are enrolled.</Text>;
       cta = (
         <li>

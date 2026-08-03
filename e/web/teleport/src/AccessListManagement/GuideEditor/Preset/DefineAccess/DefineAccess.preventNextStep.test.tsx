@@ -145,6 +145,10 @@ test(`prevent going next if typed labels do not result in a list`, async () => {
         await screen.findByText(/no windows desktops matched the labels/i);
         break;
 
+      case 'linux_desktop_labels':
+        await screen.findByText(/no linux desktops matched the labels/i);
+        break;
+
       default:
         field satisfies never;
     }

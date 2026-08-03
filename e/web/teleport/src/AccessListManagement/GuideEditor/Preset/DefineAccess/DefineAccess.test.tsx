@@ -254,6 +254,34 @@ describe('DefineAccess', () => {
           );
           break;
 
+        case 'linux_desktop_labels':
+          await screen.findByText(/define linux desktop access/i);
+          act(mio.enterAll);
+          await screen.findByText(/no linux desktop found/i);
+          expect(
+            screen.getByText(
+              /not have permission to access any linux desktops/i
+            )
+          ).toBeInTheDocument();
+          expect(
+            screen.queryByPlaceholderText(/type a label/i)
+          ).not.toBeInTheDocument();
+
+          expect(spiedUnifiedResource).toHaveBeenCalledTimes(1);
+          expect(spiedUnifiedResource).toHaveBeenCalledWith(
+            expect.anything(),
+            {
+              kinds: ['linux_desktop'],
+              limit: 48,
+              query: '',
+              search: undefined,
+              sort: { dir: 'ASC', fieldName: 'name' },
+              startKey: '',
+            },
+            expect.anything()
+          );
+          break;
+
         default:
           field satisfies never;
       }
@@ -346,6 +374,10 @@ describe('DefineAccess', () => {
 
         case 'windows_desktop_labels':
           expect(screen.getByText('WindowsTestRow')).toBeInTheDocument();
+          break;
+
+        case 'linux_desktop_labels':
+          expect(screen.getByText('LinuxTestRow')).toBeInTheDocument();
           break;
 
         default:

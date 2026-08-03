@@ -19,6 +19,7 @@ export function EmptyAccess({
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       content = (
         <>
           To configure access, <Mark>click on labels</Mark> below or type them

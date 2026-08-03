@@ -66,6 +66,8 @@ function getTabResourceName(resourceField: ListResourceAccessFields) {
       return 'Kubernetes';
     case 'windows_desktop_labels':
       return 'Desktops';
+    case 'linux_desktop_labels':
+      return 'Linux Desktops';
     case 'app_labels':
       return 'Applications';
     case 'db_labels':

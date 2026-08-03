@@ -4,6 +4,7 @@ import {
   Database,
   Git,
   Kubernetes,
+  Linux,
   Server,
   Windows,
 } from 'design/Icon';
@@ -33,5 +34,7 @@ export function SimpleResourceIcon({
       return <Server size={size} />;
     case 'windows_desktop_labels':
       return <Windows size={size} />;
+    case 'linux_desktop_labels':
+      return <Linux size={size} />;
   }
 }

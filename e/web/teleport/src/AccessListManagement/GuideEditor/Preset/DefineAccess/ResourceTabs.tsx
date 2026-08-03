@@ -92,6 +92,11 @@ export function ResourceTabs({
               />
             );
 
+          case 'linux_desktop_labels':
+            return (
+              <ResourceTab key={field} {...sharedProps} label="Linux Desktop" />
+            );
+
           default:
             field satisfies never;
         }

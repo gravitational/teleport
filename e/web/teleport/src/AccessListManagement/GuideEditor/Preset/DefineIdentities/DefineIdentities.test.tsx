@@ -501,6 +501,7 @@ test('defining access to everything renders all the correct identity tabs', asyn
     db_labels: false,
     kubernetes_labels: false,
     windows_desktop_labels: false,
+    linux_desktop_labels: false,
     node_labels: false,
     awsIc: false,
     github_permissions: false,
@@ -562,11 +563,18 @@ test('defining access to everything renders all the correct identity tabs', asyn
   addedAccess['db_labels'] = true;
 
   /**
-   * Define desktop access
+   * Define Windows desktop access
    */
   await goToAccessTab('windows_desktop_labels', user);
   await clickLabelAndWaitForRender('WindowsTestRow', user);
   addedAccess['windows_desktop_labels'] = true;
+
+  /**
+   * Define Linux desktop access
+   */
+  await goToAccessTab('linux_desktop_labels', user);
+  await clickLabelAndWaitForRender('LinuxTestRow', user);
+  addedAccess['linux_desktop_labels'] = true;
 
   /**
    * Define kube access
@@ -600,6 +608,7 @@ test('defining access to everything renders all the correct identity tabs', asyn
     db_labels: true,
     kubernetes_labels: true,
     windows_desktop_labels: true,
+    linux_desktop_labels: true,
     node_labels: true,
     awsIc: true,
     github_permissions: true,
@@ -612,7 +621,7 @@ test('defining access to everything renders all the correct identity tabs', asyn
 
   await screen.findByText(/application identities/i);
   expect(spiedUnifiedResource).not.toHaveBeenCalled();
-  expect(screen.getAllByRole('tab')).toHaveLength(5);
+  expect(screen.getAllByRole('tab')).toHaveLength(6);
 
   expect(
     screen.getByRole('tab', { name: /application tab/i })
@@ -637,6 +646,11 @@ test('defining access to everything renders all the correct identity tabs', asyn
   await user.click(screen.getByRole('button', { name: /next: desktops/i }));
   expect(screen.getByText(/windows desktop identities/i)).toBeInTheDocument();
 
+  await user.click(
+    screen.getByRole('button', { name: /next: linux desktops/i })
+  );
+  expect(screen.getByText(/linux desktop identities/i)).toBeInTheDocument();
+
   await user.click(screen.getByRole('button', { name: /next: kubernetes/i }));
   expect(screen.getByText(/kubernetes identities/i)).toBeInTheDocument();
 
@@ -652,6 +666,9 @@ test('defining access to everything renders all the correct identity tabs', asyn
    */
   await user.click(screen.getByRole('button', { name: /back/i }));
   expect(screen.getByText(/kubernetes identities/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /back/i }));
+  expect(screen.getByText(/linux desktop identities/i)).toBeInTheDocument();
 
   await user.click(screen.getByRole('button', { name: /back/i }));
   expect(screen.getByText(/windows desktop identities/i)).toBeInTheDocument();
@@ -700,6 +717,17 @@ test('defining access to everything renders all the correct identity tabs', asyn
   );
   act(mio.enterAll);
   await screen.findByText('WindowsTestRow');
+
+  // Remove Linux desktop
+  await goToAccessTab('linux_desktop_labels', user, 'LinuxTestRow');
+  inputWrapper = screen.getByTestId('resource-label-input');
+  await user.click(
+    within(inputWrapper).getByRole('button', {
+      name: 'Remove env: test',
+    })
+  );
+  act(mio.enterAll);
+  await screen.findByText('LinuxTestRow');
 
   /**
    * Go to identities tab again and test identity tabs are as expected

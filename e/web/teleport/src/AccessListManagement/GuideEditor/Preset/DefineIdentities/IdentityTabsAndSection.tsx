@@ -29,6 +29,10 @@ import {
   desktopIdentities,
 } from '../role/resources/desktop';
 import { KubeIdentities, kubeIdentities } from '../role/resources/kube';
+import {
+  LinuxDesktopIdentities,
+  linuxDesktopIdentities,
+} from '../role/resources/linux_desktop';
 import { ServerIdentities, serverIdentities } from '../role/resources/server';
 import { IdentityStepButtons, IdentityTabContainer } from './Shared';
 import { UpdateAccessRolesDialog } from './UpdateAccessRolesDialog';
@@ -201,6 +205,25 @@ export function IdentityTabsAndSection({
           }
         });
         standardRoleState.updateIdentity(desktopIdentitiesToUpdate);
+        break;
+      }
+
+      case 'linux_desktop': {
+        const linuxDesktopIdentitiesToUpdate: LinuxDesktopIdentities = {
+          linux_desktop_logins:
+            standardRoleState.roleConditions.linux_desktop_logins,
+        };
+        linuxDesktopIdentities.forEach(field => {
+          switch (field) {
+            case 'linux_desktop_logins':
+              linuxDesktopIdentitiesToUpdate.linux_desktop_logins =
+                roleModelVal.logins.map(opt => opt.value);
+              return;
+            default:
+              field satisfies never;
+          }
+        });
+        standardRoleState.updateIdentity(linuxDesktopIdentitiesToUpdate);
         break;
       }
 

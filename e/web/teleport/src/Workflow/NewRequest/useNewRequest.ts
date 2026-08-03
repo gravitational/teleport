@@ -499,6 +499,9 @@ export function getResourceId(resource: ResourceDefinition, clusterId: string) {
   if (resource.kind === 'node' || resource.kind === 'git_server') {
     return resource.id;
   }
+  if (resource.kind === 'linux_desktop') {
+    return resource.host_id;
+  }
   if (resource.kind === 'namespace') {
     return getResourceIdUri({
       resourceName: resource.cluster,

@@ -139,6 +139,7 @@ describe('newAccessRole for a standard role', () => {
           app_labels: { env: 'prod' },
           db_labels: { team: 'backend' },
           windows_desktop_labels: {},
+          linux_desktop_labels: {},
           kubernetes_labels: {},
           node_labels: {},
           github_permissions: [],
@@ -153,6 +154,7 @@ describe('newAccessRole for a standard role', () => {
           kubernetes_users: [],
           logins: [],
           windows_desktop_logins: [],
+          linux_desktop_logins: [],
         },
       },
     });
@@ -187,6 +189,7 @@ describe('newAccessRole for a standard role', () => {
           app_labels: { env: 'prod' },
           db_labels: { team: 'backend' },
           windows_desktop_labels: {},
+          linux_desktop_labels: {},
           kubernetes_labels: {},
           node_labels: {},
           github_permissions: [],
@@ -201,6 +204,7 @@ describe('newAccessRole for a standard role', () => {
           kubernetes_users: [],
           logins: [],
           windows_desktop_logins: [],
+          linux_desktop_logins: [],
         },
       },
     });

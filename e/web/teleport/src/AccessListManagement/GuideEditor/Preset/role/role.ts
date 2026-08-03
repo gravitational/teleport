@@ -187,10 +187,12 @@ function isAwsIcRoleKnownFieldUnsupported(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
     case 'db_service_labels':
       return hasLabels(allow[fieldName]);
 
     case 'windows_desktop_logins':
+    case 'linux_desktop_logins':
     case 'db_names':
     case 'db_users':
     case 'kubernetes_groups':
@@ -244,6 +246,7 @@ function isStandardRoleKnownFieldUnsupported(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       // Check for interpolation which is not supported.
       const labels = allow[fieldName] ?? {};
       const labelKeys = Object.keys(labels);
@@ -272,6 +275,7 @@ function isStandardRoleKnownFieldUnsupported(
       return false;
 
     case 'windows_desktop_logins':
+    case 'linux_desktop_logins':
     case 'db_names':
     case 'db_users':
     case 'kubernetes_groups':
@@ -422,6 +426,7 @@ export function roleHasAccessDefined(role: Role) {
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
+      case 'linux_desktop_labels':
         return hasLabels(allow[field]);
       case 'github_permissions':
         return allow.github_permissions?.length > 0;

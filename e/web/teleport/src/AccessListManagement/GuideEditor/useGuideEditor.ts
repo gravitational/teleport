@@ -435,6 +435,7 @@ export function useGuideEditor(): GuideEditorState {
       case 'kubernetes_labels':
       case 'node_labels':
       case 'windows_desktop_labels':
+      case 'linux_desktop_labels':
         return standardRoleState.definedAccess(resourceKind);
       default:
         resourceKind satisfies never;

@@ -4,6 +4,7 @@ import {
   Database,
   Git,
   Kubernetes,
+  Linux,
   Server,
   Windows,
 } from 'design/Icon';
@@ -14,6 +15,7 @@ import {
   DatabaseAccessInputFields,
   GitHubOrganizationAccessInputFields,
   KubernetesAccessInputFields,
+  LinuxDesktopAccessInputFields,
   ResourceAccessKind,
   ServerAccessInputFields,
   WindowsDesktopAccessInputFields,
@@ -130,6 +132,21 @@ export function getResourceAccessTabSpecs({
           },
         };
       }
+      case 'linux_desktop_labels': {
+        const sectionTitle = `Linux Desktop ${titleTxt}`;
+        return {
+          key: 'linux_desktop',
+          ariaLabel: 'Go to Linux Desktop tab',
+          kind: 'linux_desktop',
+          icon: Linux,
+          btnTitle: 'Linux Desktops',
+          controls: `${idPrefix}-linux_desktop`,
+          sectionTitle,
+          tooltip: {
+            content: sectionTitle,
+          },
+        };
+      }
       case 'github_permissions': {
         const sectionTitle = `Git Server ${titleTxt}`;
         return {
@@ -180,6 +197,7 @@ export function getRoleSectionInputFieldConfig({
   | KubernetesAccessInputFields
   | ServerAccessInputFields
   | WindowsDesktopAccessInputFields
+  | LinuxDesktopAccessInputFields
   | GitHubOrganizationAccessInputFields {
   switch (kind) {
     case 'app': {
@@ -217,6 +235,12 @@ export function getRoleSectionInputFieldConfig({
       };
     }
     case 'windows_desktop': {
+      return {
+        labels: withLabels,
+        logins: true,
+      };
+    }
+    case 'linux_desktop': {
       return {
         labels: withLabels,
         logins: true,

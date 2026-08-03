@@ -30,6 +30,7 @@ export function Header({
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       const { resourceKind, byline } = getResourceKindName(selectedResourceTab);
       return (
         <>

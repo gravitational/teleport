@@ -37,6 +37,9 @@ export function RemoveAccessDialog({
     case 'windows_desktop_labels':
       resourceName = 'Windows desktops';
       break;
+    case 'linux_desktop_labels':
+      resourceName = 'Linux desktops';
+      break;
     default:
       field satisfies never;
   }
@@ -48,6 +51,7 @@ export function RemoveAccessDialog({
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       filterKind = 'labels';
       break;
     case 'awsIc':

@@ -8,6 +8,7 @@ import { emptyDbIdentities } from '../resources/db';
 import { emptyDesktopIdentities } from '../resources/desktop';
 import { emptyGitHubIdentities } from '../resources/github';
 import { emptyKubeIdentities } from '../resources/kube';
+import { emptyLinuxDesktopIdentities } from '../resources/linux_desktop';
 import { emptyServerIdentities } from '../resources/server';
 
 export type RequiredRoleConditions = Required<RoleConditions>;
@@ -35,6 +36,7 @@ export const defaultStandardRoleConditions = (): StandardRoleConditions => ({
   app_labels: {},
   db_labels: {},
   windows_desktop_labels: {},
+  linux_desktop_labels: {},
   kubernetes_labels: {},
   node_labels: {},
 
@@ -44,12 +46,14 @@ export const defaultStandardRoleConditions = (): StandardRoleConditions => ({
   ...emptyKubeIdentities(),
   ...emptyServerIdentities(),
   ...emptyDesktopIdentities(),
+  ...emptyLinuxDesktopIdentities(),
 });
 
 export const requiredRoleConditions = (): RequiredRoleConditions => ({
   app_labels: {},
   db_labels: {},
   windows_desktop_labels: {},
+  linux_desktop_labels: {},
   kubernetes_labels: {},
   node_labels: {},
 
@@ -65,6 +69,7 @@ export const requiredRoleConditions = (): RequiredRoleConditions => ({
   gcp_service_accounts: [],
   mcp: {},
   windows_desktop_logins: [],
+  linux_desktop_logins: [],
   logins: [],
   db_names: [],
   db_users: [],
@@ -97,6 +102,10 @@ export function extractAllowRoleConditionsFromRole(
     // desktop access + identities
     windows_desktop_labels: allow.windows_desktop_labels || {},
     windows_desktop_logins: allow.windows_desktop_logins || [],
+
+    // linux desktop access + identities
+    linux_desktop_labels: allow.linux_desktop_labels || {},
+    linux_desktop_logins: allow.linux_desktop_logins || [],
 
     // kube access + identities
     kubernetes_labels: allow.kubernetes_labels || {},

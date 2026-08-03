@@ -31,6 +31,7 @@ type ListResourceConditions = Required<
     | 'kubernetes_users'
     | 'logins'
     | 'windows_desktop_logins'
+    | 'linux_desktop_logins'
   >
 >;
 
@@ -43,6 +44,7 @@ const emptyListResourceAccessConditions = (): ListResourceConditions => ({
   app_labels: {},
   db_labels: {},
   windows_desktop_labels: {},
+  linux_desktop_labels: {},
   kubernetes_labels: {},
   node_labels: {},
   github_permissions: [],
@@ -79,6 +81,7 @@ const emptyDefinableAccess = (): DefinableResourceConditions => ({
   awsIc: {},
   db_labels: {},
   windows_desktop_labels: {},
+  linux_desktop_labels: {},
   github_permissions: [],
   kubernetes_labels: {},
   node_labels: {},
@@ -108,6 +111,7 @@ const emptyLabelBasedResourceAccess = (): LabelBasedResourceAccess => ({
   app_labels: {},
   db_labels: {},
   windows_desktop_labels: {},
+  linux_desktop_labels: {},
   kubernetes_labels: {},
   node_labels: {},
 });

@@ -16,6 +16,8 @@ export function getResourceRbacLink(
       return 'https://goteleport.com/docs/enroll-resources/server-access/rbac/';
     case 'windows_desktop_labels':
       return 'https://goteleport.com/docs/enroll-resources/desktop-access/rbac/';
+    case 'linux_desktop_labels':
+      return 'https://goteleport.com/docs/enroll-resources/desktop-access/linux/';
     case 'github_permissions':
       return 'https://goteleport.com/docs/enroll-resources/application-access/cloud-apis/github-integration/#step-34-configure-access';
     default:
@@ -54,6 +56,11 @@ export function getResourceKindName(resource: DefinableResourceAccessFields) {
       return {
         resourceKind: 'Windows desktop',
         byline: 'Windows desktops',
+      };
+    case 'linux_desktop_labels':
+      return {
+        resourceKind: 'Linux desktop',
+        byline: 'Linux desktops',
       };
     case 'github_permissions':
       return {

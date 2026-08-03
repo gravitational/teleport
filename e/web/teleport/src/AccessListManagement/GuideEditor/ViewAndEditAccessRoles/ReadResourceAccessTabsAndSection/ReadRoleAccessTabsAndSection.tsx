@@ -58,6 +58,7 @@ export function ReadRoleAccessTabsAndSection() {
     case 'kube_cluster':
     case 'node':
     case 'windows_desktop':
+    case 'linux_desktop':
       const section = resourceAccessSections[selectedTabKind];
       const currentResourceIndex = role.roleModel.resources.findIndex(
         r => r.kind == selectedTabKind

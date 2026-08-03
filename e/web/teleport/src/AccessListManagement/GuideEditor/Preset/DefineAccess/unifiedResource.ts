@@ -38,6 +38,7 @@ export function getPredicateExpression(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       const labelLookup = props.roleConditions[accessField];
       if (!hasLabels(labelLookup)) {
         break;
@@ -106,6 +107,7 @@ export function getPredicateExpression(
     case 'kubernetes_labels':
     case 'node_labels':
     case 'windows_desktop_labels':
+    case 'linux_desktop_labels':
       break;
 
     default:
@@ -141,6 +143,9 @@ export function getUnifiedResourceKind(
 
     case 'windows_desktop_labels':
       return 'windows_desktop';
+
+    case 'linux_desktop_labels':
+      return 'linux_desktop';
 
     default:
       kind satisfies never;

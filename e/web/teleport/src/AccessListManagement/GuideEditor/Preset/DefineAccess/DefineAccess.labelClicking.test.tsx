@@ -100,6 +100,13 @@ test(`clicking labels for all label based resources`, async () => {
         );
         break;
 
+      case 'linux_desktop_labels':
+        await clickLabel('LinuxTestRow');
+        await withCustomError('linux_desktop_labels', () =>
+          clickLabel('LinuxTestRow')
+        );
+        break;
+
       default:
         field satisfies never;
     }
