@@ -23,6 +23,7 @@
 package machineidv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -745,8 +746,16 @@ type ListBotInstancesV2Request_Filters struct {
 	// (a scoped bot is identified by the pair (scope, name)); setting bot_scope
 	// without bot_name is an error. An empty bot_scope with a non-empty bot_name
 	// selects the unscoped bot with that name. This is not a standalone scope
-	// filter for listing all of a scope's instances.
-	BotScope      string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	// filter for listing all of a scope's instances - use scope_filter for that.
+	BotScope string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	// scope_filter selects BotInstances by the scope of their owning bot.
+	// Defaults to one of EXACT or UNSCOPED depending on whether the caller is a
+	// scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`)
+	// should specify mode ALL.
+	//
+	// Mutually exclusive with bot_name, which already constrains the result to a
+	// single bot in a single scope; setting both is an error.
+	ScopeFilter   *v1.Filter `protobuf:"bytes,5,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -804,6 +813,13 @@ func (x *ListBotInstancesV2Request_Filters) GetBotScope() string {
 	return ""
 }
 
+func (x *ListBotInstancesV2Request_Filters) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.ScopeFilter
+	}
+	return nil
+}
+
 func (x *ListBotInstancesV2Request_Filters) SetBotName(v string) {
 	x.BotName = v
 }
@@ -818,6 +834,21 @@ func (x *ListBotInstancesV2Request_Filters) SetQuery(v string) {
 
 func (x *ListBotInstancesV2Request_Filters) SetBotScope(v string) {
 	x.BotScope = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetScopeFilter(v *v1.Filter) {
+	x.ScopeFilter = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) HasScopeFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.ScopeFilter != nil
+}
+
+func (x *ListBotInstancesV2Request_Filters) ClearScopeFilter() {
+	x.ScopeFilter = nil
 }
 
 type ListBotInstancesV2Request_Filters_builder struct {
@@ -836,8 +867,16 @@ type ListBotInstancesV2Request_Filters_builder struct {
 	// (a scoped bot is identified by the pair (scope, name)); setting bot_scope
 	// without bot_name is an error. An empty bot_scope with a non-empty bot_name
 	// selects the unscoped bot with that name. This is not a standalone scope
-	// filter for listing all of a scope's instances.
+	// filter for listing all of a scope's instances - use scope_filter for that.
 	BotScope string
+	// scope_filter selects BotInstances by the scope of their owning bot.
+	// Defaults to one of EXACT or UNSCOPED depending on whether the caller is a
+	// scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`)
+	// should specify mode ALL.
+	//
+	// Mutually exclusive with bot_name, which already constrains the result to a
+	// single bot in a single scope; setting both is an error.
+	ScopeFilter *v1.Filter
 }
 
 func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2Request_Filters {
@@ -848,6 +887,7 @@ func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2R
 	x.SearchTerm = b.SearchTerm
 	x.Query = b.Query
 	x.BotScope = b.BotScope
+	x.ScopeFilter = b.ScopeFilter
 	return m0
 }
 
@@ -855,7 +895,7 @@ var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescr
 
 const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
-	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\"p\n" +
+	"0teleport/machineid/v1/bot_instance_service.proto\x12\x15teleport.machineid.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a!teleport/legacy/types/types.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"p\n" +
 	"\x15GetBotInstanceRequest\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vinstance_id\x18\x02 \x01(\tR\n" +
@@ -867,7 +907,7 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\x12,\n" +
 	"\x12filter_search_term\x18\x04 \x01(\tR\x10filterSearchTerm\x12!\n" +
-	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\xdf\x02\n" +
+	"\x04sort\x18\x05 \x01(\v2\r.types.SortByR\x04sort\"\x9f\x03\n" +
 	"\x19ListBotInstancesV2Request\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
@@ -875,13 +915,14 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\n" +
 	"sort_field\x18\x03 \x01(\tR\tsortField\x12\x1b\n" +
 	"\tsort_desc\x18\x04 \x01(\bR\bsortDesc\x12P\n" +
-	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1ax\n" +
+	"\x06filter\x18\x05 \x01(\v28.teleport.machineid.v1.ListBotInstancesV2Request.FiltersR\x06filter\x1a\xb7\x01\n" +
 	"\aFilters\x12\x19\n" +
 	"\bbot_name\x18\x01 \x01(\tR\abotName\x12\x1f\n" +
 	"\vsearch_term\x18\x02 \x01(\tR\n" +
 	"searchTerm\x12\x14\n" +
 	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1b\n" +
-	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\"\x8b\x01\n" +
+	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\x12=\n" +
+	"\fscope_filter\x18\x05 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"\x8b\x01\n" +
 	"\x18ListBotInstancesResponse\x12G\n" +
 	"\rbot_instances\x18\x01 \x03(\v2\".teleport.machineid.v1.BotInstanceR\fbotInstances\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"s\n" +
@@ -915,7 +956,8 @@ var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{
 	(*BotInstance)(nil),                       // 9: teleport.machineid.v1.BotInstance
 	(*BotInstanceStatusHeartbeat)(nil),        // 10: teleport.machineid.v1.BotInstanceStatusHeartbeat
 	(*BotInstanceServiceHealth)(nil),          // 11: teleport.machineid.v1.BotInstanceServiceHealth
-	(*emptypb.Empty)(nil),                     // 12: google.protobuf.Empty
+	(*v1.Filter)(nil),                         // 12: teleport.scopes.v1.Filter
+	(*emptypb.Empty)(nil),                     // 13: google.protobuf.Empty
 }
 var file_teleport_machineid_v1_bot_instance_service_proto_depIdxs = []int32{
 	8,  // 0: teleport.machineid.v1.ListBotInstancesRequest.sort:type_name -> types.SortBy
@@ -923,21 +965,22 @@ var file_teleport_machineid_v1_bot_instance_service_proto_depIdxs = []int32{
 	9,  // 2: teleport.machineid.v1.ListBotInstancesResponse.bot_instances:type_name -> teleport.machineid.v1.BotInstance
 	10, // 3: teleport.machineid.v1.SubmitHeartbeatRequest.heartbeat:type_name -> teleport.machineid.v1.BotInstanceStatusHeartbeat
 	11, // 4: teleport.machineid.v1.SubmitHeartbeatRequest.service_health:type_name -> teleport.machineid.v1.BotInstanceServiceHealth
-	0,  // 5: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
-	1,  // 6: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
-	2,  // 7: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:input_type -> teleport.machineid.v1.ListBotInstancesV2Request
-	4,  // 8: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
-	5,  // 9: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
-	9,  // 10: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
-	3,  // 11: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	3,  // 12: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:output_type -> teleport.machineid.v1.ListBotInstancesResponse
-	12, // 13: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
-	6,  // 14: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	12, // 5: teleport.machineid.v1.ListBotInstancesV2Request.Filters.scope_filter:type_name -> teleport.scopes.v1.Filter
+	0,  // 6: teleport.machineid.v1.BotInstanceService.GetBotInstance:input_type -> teleport.machineid.v1.GetBotInstanceRequest
+	1,  // 7: teleport.machineid.v1.BotInstanceService.ListBotInstances:input_type -> teleport.machineid.v1.ListBotInstancesRequest
+	2,  // 8: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:input_type -> teleport.machineid.v1.ListBotInstancesV2Request
+	4,  // 9: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:input_type -> teleport.machineid.v1.DeleteBotInstanceRequest
+	5,  // 10: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:input_type -> teleport.machineid.v1.SubmitHeartbeatRequest
+	9,  // 11: teleport.machineid.v1.BotInstanceService.GetBotInstance:output_type -> teleport.machineid.v1.BotInstance
+	3,  // 12: teleport.machineid.v1.BotInstanceService.ListBotInstances:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	3,  // 13: teleport.machineid.v1.BotInstanceService.ListBotInstancesV2:output_type -> teleport.machineid.v1.ListBotInstancesResponse
+	13, // 14: teleport.machineid.v1.BotInstanceService.DeleteBotInstance:output_type -> google.protobuf.Empty
+	6,  // 15: teleport.machineid.v1.BotInstanceService.SubmitHeartbeat:output_type -> teleport.machineid.v1.SubmitHeartbeatResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_instance_service_proto_init() }

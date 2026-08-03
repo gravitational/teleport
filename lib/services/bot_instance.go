@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -182,9 +183,15 @@ type ListBotInstancesRequestOptions struct {
 	// pair (scope, name), so this only ever qualifies FilterBotName and must be
 	// set alongside it; setting it without FilterBotName is an error. Leave
 	// empty if the bot is unscoped. This is deliberately not a scope filter for
-	// listing every BotInstance in a scope - that will be a separate field with
-	// explicit exact/descendant control.
+	// listing every BotInstance in a scope - use ScopeFilter for that.
 	FilterBotScope string
+	// ScopeFilter selects BotInstances by the scope of their owning bot. A nil or
+	// MODE_UNSPECIFIED filter matches every scope; identity-derived defaulting is
+	// the caller's job (see ScopedAccessCheckerContext.ResolveScopeFilter).
+	//
+	// Mutually exclusive with FilterBotName, which already constrains the result
+	// to a single bot in a single scope.
+	ScopeFilter *scopesv1.Filter
 	// A search term used to filter the results. If non-empty, it's used to
 	// match against supported fields.
 	FilterSearchTerm string
@@ -220,6 +227,13 @@ func (o *ListBotInstancesRequestOptions) GetFilterBotScope() string {
 		return ""
 	}
 	return o.FilterBotScope
+}
+
+func (o *ListBotInstancesRequestOptions) GetScopeFilter() *scopesv1.Filter {
+	if o == nil {
+		return nil
+	}
+	return o.ScopeFilter
 }
 
 func (o *ListBotInstancesRequestOptions) GetFilterSearchTerm() string {

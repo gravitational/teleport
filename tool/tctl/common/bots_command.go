@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -594,6 +595,12 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		botScope, botName = qn.Scope, qn.Name
 	}
 
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = &scopesv1.Filter{Mode: scopesv1.Mode_MODE_ALL}
+	}
+
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
 			PageSize:  int32(pageSize),
@@ -601,10 +608,11 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
 			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
-				BotName:    botName,
-				BotScope:   botScope,
-				SearchTerm: c.search,
-				Query:      c.query,
+				BotName:     botName,
+				BotScope:    botScope,
+				SearchTerm:  c.search,
+				Query:       c.query,
+				ScopeFilter: scopeFilter,
 			},
 		})
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -984,16 +992,16 @@ func splitEntries(flag string) []string {
 // a textual representation of a bot authentication record.
 func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuthentication) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
-	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
-	var meta fmt.Stringer = record.Metadata
+	table.AddRow([]string{"Authenticated At:", record.GetAuthenticatedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.GetJoinMethod())})
+	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.GetJoinToken())})
+	var meta fmt.Stringer = record.GetMetadata()
 	if attrs := record.GetJoinAttrs(); attrs != nil {
 		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
-	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
-	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
+	table.AddRow([]string{"Generation:", fmt.Sprint(record.GetGeneration())})
+	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.GetPublicKey()))})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -1002,15 +1010,15 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 // a textual representation of a bot heartbeat.
 func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Recorded At:", record.RecordedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.IsStartup)})
-	table.AddRow([]string{"Version:", record.Version})
-	table.AddRow([]string{"Hostname:", record.Hostname})
-	table.AddRow([]string{"Uptime:", record.Uptime.AsDuration().String()})
-	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"One Shot:", fmt.Sprint(record.OneShot)})
-	table.AddRow([]string{"Architecture:", record.Architecture})
-	table.AddRow([]string{"OS:", record.Os})
+	table.AddRow([]string{"Recorded At:", record.GetRecordedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.GetIsStartup())})
+	table.AddRow([]string{"Version:", record.GetVersion()})
+	table.AddRow([]string{"Hostname:", record.GetHostname()})
+	table.AddRow([]string{"Uptime:", record.GetUptime().AsDuration().String()})
+	table.AddRow([]string{"Join Method:", record.GetJoinMethod()})
+	table.AddRow([]string{"One Shot:", fmt.Sprint(record.GetOneShot())})
+	table.AddRow([]string{"Architecture:", record.GetArchitecture()})
+	table.AddRow([]string{"OS:", record.GetOs()})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
