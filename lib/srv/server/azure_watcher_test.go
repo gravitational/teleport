@@ -1125,21 +1125,22 @@ func TestAzureFetcherGetInstancesWindowsUniformVMSS(t *testing.T) {
 	require.Equal(t, "10.0.0.42", vm.PrimaryPrivateIP)
 }
 
-func TestMatchersToAzureInstanceFetchersMatcherTypes(t *testing.T) {
+func TestMatcherToAzureInstanceFetchersMatcherTypes(t *testing.T) {
 	t.Parallel()
 
-	fetchers := MatchersToAzureInstanceFetchers(
+	fetchers, err := MatcherToAzureInstanceFetchers(
 		t.Context(),
 		logtest.NewLogger(),
-		[]types.AzureMatcher{{
+		types.AzureMatcher{
 			Types:          []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM},
 			Subscriptions:  []string{"sub1"},
 			ResourceGroups: []string{"rg1"},
-		}},
+		},
 		nil,
 		"",
 		nil,
 	)
+	require.NoError(t, err)
 
 	var matcherTypes []string
 	for _, fetcher := range fetchers {
