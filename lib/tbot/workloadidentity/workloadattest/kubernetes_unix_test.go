@@ -60,9 +60,11 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 		containerStatusFunc     func(callCount int) []v1.ContainerStatus
 		initContainerStatusFunc func(callCount int) []v1.ContainerStatus
 		wantRequests            int
+		wantType                workloadidentityv1pb.WorkloadAttrsKubernetesContainer_Type
 	}{
-		"main container": {
+		"regular container": {
 			wantRequests: 2,
+			wantType:     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_REGULAR,
 			containerStatusFunc: func(callCount int) []v1.ContainerStatus {
 				// Don't return the container status in the first response, to simulate
 				// the kubelet API's eventual consistency.
@@ -98,6 +100,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 
 		"init container": {
 			wantRequests: 1,
+			wantType:     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT,
 			containerStatusFunc: func(_ int) []v1.ContainerStatus {
 				return []v1.ContainerStatus{
 					{
@@ -218,6 +221,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					Name:        "container-1",
 					Image:       "my.registry.io/my-app:v1",
 					ImageDigest: "sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					Type:        tc.wantType,
 				}.Build(),
 			}.Build(), att, protocmp.Transform()))
 			require.EqualValues(t, tc.wantRequests, requests.Load())

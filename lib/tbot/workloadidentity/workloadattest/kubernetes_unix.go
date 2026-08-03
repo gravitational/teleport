@@ -74,6 +74,12 @@ type KubernetesAttestor struct {
 	clock    clockwork.Clock
 }
 
+// containerStatus wraps a Kubernetes v1.ContainerStatus together with its type.
+type containerStatus struct {
+	Status v1.ContainerStatus
+	Type   workloadidentityv1pb.WorkloadAttrsKubernetesContainer_Type
+}
+
 // NewKubernetesAttestor creates a new KubernetesAttestor.
 func NewKubernetesAttestor(cfg KubernetesAttestorConfig, log *slog.Logger) *KubernetesAttestor {
 	kubeletClient := newKubeletClient(cfg.Kubelet)
@@ -109,9 +115,10 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
 	if containerStatus != nil {
 		ctr = workloadidentityv1pb.WorkloadAttrsKubernetesContainer_builder{
-			Name:        containerStatus.Name,
-			Image:       containerStatus.Image,
-			ImageDigest: imageDigestRegex.FindString(containerStatus.ImageID),
+			Name:        containerStatus.Status.Name,
+			Image:       containerStatus.Status.Image,
+			ImageDigest: imageDigestRegex.FindString(containerStatus.Status.ImageID),
+			Type:        containerStatus.Type,
 		}.Build()
 	}
 
@@ -128,7 +135,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 	return att, nil
 }
 
-func (a *KubernetesAttestor) getPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+func (a *KubernetesAttestor) getPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *containerStatus, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -145,7 +152,7 @@ func (a *KubernetesAttestor) getPodAndContainerStatus(ctx context.Context, podID
 
 	var (
 		pod             *v1.Pod
-		containerStatus *v1.ContainerStatus
+		containerStatus *containerStatus
 	)
 LOOP:
 	for {
@@ -177,7 +184,7 @@ LOOP:
 	return nil, nil, err
 }
 
-func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *v1.ContainerStatus, error) {
+func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, podID, containerID string) (*v1.Pod, *containerStatus, error) {
 	pods, err := a.kubeletClient.ListAllPods(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "listing all pods")
@@ -198,7 +205,7 @@ func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, po
 	for _, status := range pod.Status.ContainerStatuses {
 		// Kubelet returns the container ID prefixed by `<type>://`.
 		if _, id, _ := strings.Cut(status.ContainerID, "://"); id == containerID {
-			return pod, &status, nil
+			return pod, &containerStatus{Status: status, Type: workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_REGULAR}, nil
 		}
 	}
 
@@ -206,7 +213,7 @@ func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, po
 	for _, status := range pod.Status.InitContainerStatuses {
 		// Kubelet returns the container ID prefixed by `<type>://`.
 		if _, id, _ := strings.Cut(status.ContainerID, "://"); id == containerID {
-			return pod, &status, nil
+			return pod, &containerStatus{Status: status, Type: workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT}, nil
 		}
 	}
 
