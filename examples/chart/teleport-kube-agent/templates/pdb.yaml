@@ -18,13 +18,7 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
-{{- if not (has .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy (list "" "AlwaysAllow" "IfHealthyBudget")) }}
-{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy must be one of: \"\", \"AlwaysAllow\", \"IfHealthyBudget\"" }}
-{{- end }}
-{{- if (not (empty .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy)) }}
-{{- if (semverCompare "<1.27.0-0" .Capabilities.KubeVersion.Version) }}
-{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy is not supported on Kubernetes <1.27.0-0. Set value to \"\" to omit." }}
-{{- end }}
+{{- if and (not (empty .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy)) (semverCompare ">=1.27.0-0" .Capabilities.KubeVersion.Version) }}
   unhealthyPodEvictionPolicy: {{ .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
 {{- end }}
 {{- end }}
