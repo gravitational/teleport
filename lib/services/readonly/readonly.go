@@ -235,6 +235,8 @@ type Application interface {
 	GetAWSRolesAnywhereAcceptRoleSessionName() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
+	// IsEqual determines if two application resources are equivalent to one another.
+	IsEqual(types.Application) bool
 	// Copy returns a copy of this app resource.
 	Copy() *types.AppV3
 	// GetIntegration will return the Integration.

@@ -122,6 +122,58 @@ func (c *Cache) Apps(ctx context.Context, start, end string) iter.Seq2[types.App
 	}.Apps(ctx, start, end)
 }
 
+// RangeReadonlyApps returns read-only views of the application resources
+// within the range [start, end). The yielded values are shared with the
+// cache: they must not be mutated or retained beyond the iteration — callers
+// keep a match by calling Copy on it.
+//
+// The healthy read path is served from a single consistent snapshot of the
+// cache captured when iteration begins: it holds no locks, does not block
+// cache updates, and observes neither missed nor duplicated applications
+// regardless of concurrent changes. When the cache is unhealthy the
+// iteration is served by [appCollection.Apps], whose upstream reads yield
+// owned values through the same signature.
+func (c appCollection) RangeReadonlyApps(ctx context.Context, start, end string) iter.Seq2[readonly.Application, error] {
+	return func(yield func(readonly.Application, error) bool) {
+		ctx, span := c.tracer.Start(ctx, "cache/RangeReadonlyApps")
+		defer span.End()
+
+		rg, err := acquireGuard(c.engine, c.col)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			for app, err := range c.Apps(ctx, start, end) {
+				if !yield(app, err) {
+					return
+				}
+				if err != nil {
+					return
+				}
+			}
+			return
+		}
+
+		for app := range rg.store.resources(appNameIndex, start, end) {
+			if !yield(app, nil) {
+				return
+			}
+		}
+	}
+}
+
+// AppChanges returns a channel that is closed after the next committed change
+// to the cached application set (including cache init and reset). Arm the
+// channel BEFORE reading the applications so a change landing after the read
+// fires it; the channel fires at most once per arm — call AppChanges again to
+// re-arm. Bursts of changes coalesce into a single wake.
+func (c appCollection) AppChanges() <-chan struct{} {
+	return c.col.changedSignal()
+}
+
 // ListApps returns a page of application resources.
 func (c appCollection) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
 	ctx, span := c.tracer.Start(ctx, "cache/ListApps")

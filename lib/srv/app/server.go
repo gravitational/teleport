@@ -38,6 +38,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
@@ -46,8 +47,8 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/services/reconcile"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type appServerContextKey string
@@ -66,6 +67,11 @@ type Config struct {
 
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint authclient.AppsAccessPoint
+	// AppsCache is the app service topology cache. It provides the dynamic
+	// application resources reconciled by this server and the change pulse
+	// that drives reconciliation. When unset (caching disabled), dynamic
+	// application resources are not reconciled.
+	AppsCache *cache.AppsCache
 
 	// Hostname is the hostname where this application agent is running.
 	Hostname string
@@ -91,9 +97,6 @@ type Config struct {
 
 	// ScopePin is the scope and scoped role assignments the agent is pinned to.
 	ScopePin *scopesv1.Pin
-
-	// OnReconcile is called after each app resource reconciliation.
-	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
@@ -166,48 +169,17 @@ type Server struct {
 	dynamicLabels map[string]*labels.Dynamic
 
 	// apps are all apps this server currently proxies. Proxied apps are
-	// reconciled against monitoredApps below.
+	// reconciled against the desired application set (static configuration
+	// and the app cache).
 	apps map[string]types.Application
-	// monitoredApps contains all cluster apps the proxied apps are
-	// reconciled against.
-	monitoredApps monitoredApps
-	// reconcileCh triggers reconciliation of proxied apps.
-	reconcileCh chan struct{}
 
-	// watcher monitors changes to application resources.
-	watcher *services.GenericWatcher[types.Application, readonly.Application]
-
-	// reconcileDone is closed after the first successful
-	// reconciliation cycle completes. It is only signaled
-	// when a resource watcher is active (s.watcher != nil).
-	reconcileDone     chan struct{}
-	reconcileDoneOnce sync.Once
-}
-
-// monitoredApps is a collection of applications from different sources
-// like configuration file and dynamic resources.
-//
-// It's updated by respective watchers and is used for reconciling with the
-// currently proxied apps.
-type monitoredApps struct {
-	// static are apps from the agent's YAML configuration.
-	static types.Apps
-	// resources are apps created via CLI or API.
-	resources types.Apps
-	// mu protects access to the fields.
-	mu sync.Mutex
-}
-
-func (m *monitoredApps) setResources(apps types.Apps) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.resources = apps
-}
-
-func (m *monitoredApps) get() map[string]types.Application {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return utils.FromSlice(append(m.static, m.resources...), types.Application.GetName)
+	// reconciler reconciles the proxied apps against the desired application
+	// set and owns the reconciliation loop.
+	reconciler *reconcile.Monitor[string, types.Application, readonly.Application]
+	// dynamicAppNames records which desired applications in the current
+	// reconciliation cycle are dynamic resources (app objects). Owned by the
+	// reconciler goroutine; not protected by a lock.
+	dynamicAppNames map[string]struct{}
 }
 
 // New returns a new application server.
@@ -232,18 +204,14 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c:             c,
-		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
-		heartbeats:    make(map[string]srv.HeartbeatI),
-		dynamicLabels: make(map[string]*labels.Dynamic),
-		apps:          make(map[string]types.Application),
-		monitoredApps: monitoredApps{
-			static: c.Apps,
-		},
-		reconcileCh:   make(chan struct{}),
-		reconcileDone: make(chan struct{}),
-		closeFunc:     closeFunc,
-		closeContext:  closeContext,
+		c:               c,
+		log:             slog.With(teleport.ComponentKey, teleport.ComponentApp),
+		heartbeats:      make(map[string]srv.HeartbeatI),
+		dynamicLabels:   make(map[string]*labels.Dynamic),
+		apps:            make(map[string]types.Application),
+		dynamicAppNames: make(map[string]struct{}),
+		closeFunc:       closeFunc,
+		closeContext:    closeContext,
 	}
 
 	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetApp)
@@ -495,20 +463,18 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Initialize watcher that will be dynamically (un-)registering
-	// proxied apps based on the application resources.
-	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// App uses heartbeat v2, which heartbeats resources but not the server itself
 	// If there are no resources, we will never report ready.
-	// We workaround by reporting ready after the first successful watcher init.
-	// We only need to do this if the watcher is non-nil, because if
-	// it's nil we are advertising some static app and will heartbeat.
-	if s.watcher != nil && s.c.OnHeartbeat != nil {
+	// We workaround by reporting ready after the first reconciliation cycle.
+	// We only need to do this when dynamic registration is active, because
+	// otherwise we are advertising some static app and will heartbeat.
+	if s.dynamicRegistrationActive() && s.c.OnHeartbeat != nil {
 		go func() {
-			s.c.OnHeartbeat(s.watcher.WaitInitialization())
+			select {
+			case <-s.reconciler.Initialized():
+				s.c.OnHeartbeat(nil)
+			case <-s.closeContext.Done():
+			}
 		}()
 	}
 
@@ -540,11 +506,11 @@ func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
 	// Bail out if reconciliation does not complete within a
 	// reasonable time. Without a full picture of dynamic apps
 	// we could mistakenly delete valid records.
-	if s.watcher != nil {
+	if s.dynamicRegistrationActive() {
 		timer := time.NewTimer(2 * time.Minute)
 		defer timer.Stop()
 		select {
-		case <-s.reconcileDone:
+		case <-s.reconciler.Initialized():
 		case <-timer.C:
 			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation, skipping orphan cleanup.")
 			return
@@ -681,11 +647,6 @@ func (s *Server) close(ctx context.Context) error {
 
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
-
-	// Stop the application resource watcher.
-	if s.watcher != nil {
-		s.watcher.Close()
-	}
 
 	return trace.NewAggregate(errs...)
 }

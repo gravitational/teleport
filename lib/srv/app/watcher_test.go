@@ -20,6 +20,7 @@ package app
 
 import (
 	"cmp"
+	"context"
 	"maps"
 	"slices"
 	"testing"
@@ -29,6 +30,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -36,26 +38,14 @@ import (
 func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	t.Parallel()
 
-	reconcileCh := make(chan types.Apps)
-
 	s := SetUpSuiteWithConfig(t, suiteConfig{
 		ResourceMatchers: []services.ResourceMatcher{
 			{Labels: types.Labels{"group": []string{"a"}}},
 		},
-		OnReconcile: func(a types.Apps) {
-			reconcileCh <- a
-		},
+		IgnoreAppsWithCommandLabels: true,
 	})
 
-	s.appServer.c.IgnoreAppsWithCommandLabels = true
-
-	// Drain the initial event that fires when the watcher starts up
-	// (before we create any dynamic apps).
-	select {
-	case <-reconcileCh:
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive initial reconcile event after 1s.")
-	}
+	w := newBackendAppWatcher(t.Context(), t, s)
 
 	// Create app with label group=a and dynamic labels.
 	app, err := makeDynamicApp("app-with-dynamic-labels", map[string]string{"group": "a"})
@@ -70,12 +60,7 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	// It should not have been registered.
-	select {
-	case apps := <-reconcileCh:
-		require.Nil(t, apps.Find(app.GetName()), "app with dynamic labels should not have been registered")
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitAppPresence(app.GetName(), false)
 
 	// Remove the dynamic labels
 	app.SetDynamicLabels(make(map[string]types.CommandLabel))
@@ -83,12 +68,7 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	// It should now be registered.
-	select {
-	case apps := <-reconcileCh:
-		require.NotNil(t, apps.Find(app.GetName()))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitAppPresence(app.GetName(), true)
 }
 
 // TestWatcher verifies that app agent properly detects and applies
@@ -100,10 +80,6 @@ func TestWatcher(t *testing.T) {
 	app0, err := makeStaticApp("app0", nil)
 	require.NoError(t, err)
 
-	// This channel will receive new set of apps the server proxies
-	// after each reconciliation.
-	reconcileCh := make(chan types.Apps)
-
 	// Setup app server that proxies one static app and
 	// watches for apps with label group=a.
 	s := SetUpSuiteWithConfig(t, suiteConfig{
@@ -113,10 +89,10 @@ func TestWatcher(t *testing.T) {
 				"group": []string{"a"},
 			}},
 		},
-		OnReconcile: func(a types.Apps) {
-			reconcileCh <- a
-		},
 	})
+
+	// Observe what the agent publishes to the cluster.
+	w := newBackendAppWatcher(ctx, t, s)
 
 	// Create a single Proxy with a PublicAddr to exercise that
 	// apps without a PublicAddr automatically get one specified
@@ -134,17 +110,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only app0 should be registered initially.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0})
 
 	// Create app with label group=a.
 	app1, err := makeDynamicApp("app1", map[string]string{"group": "a"})
@@ -158,17 +124,7 @@ func TestWatcher(t *testing.T) {
 	app1.SetPublicAddr("app1.test.example.com")
 
 	// It should be registered.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app1})
 
 	// Try to update app0 which is registered statically.
 	app0Updated, err := makeDynamicApp("app0", map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
@@ -177,17 +133,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// It should not be registered, old app0 should remain.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app1})
 
 	// Create app with label group=b.
 	app2, err := makeDynamicApp("app2", map[string]string{"group": "b"})
@@ -201,17 +147,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// It shouldn't be registered.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app1})
 
 	// Update app2 labels so it matches.
 	app2.SetStaticLabels(map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
@@ -219,17 +155,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Both should be registered now.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app1, app2})
 
 	// Update app2 URI so it gets re-registered.
 	app2.SetURI("localhost:2345")
@@ -237,17 +163,7 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// app2 should get updated.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app1, app2})
 
 	// Update app1 labels so it doesn't match.
 	app1.SetStaticLabels(map[string]string{"group": "c", types.OriginLabel: types.OriginDynamic})
@@ -255,30 +171,152 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Only app0 and app2 should remain registered.
-	select {
-	case a := <-reconcileCh:
-		slices.SortFunc(a, func(a, b types.Application) int {
-			return cmp.Compare(a.GetName(), b.GetName())
-		})
-		require.Empty(t, gocmp.Diff(types.Apps{app0, app2}, a,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
-	}
+	w.awaitApps(types.Apps{app0, app2})
 
 	// Remove app2.
 	err = s.authServer.AuthServer.DeleteApp(ctx, app2.GetName())
 	require.NoError(t, err)
 
 	// Only static app should remain.
+	w.awaitApps(types.Apps{app0})
+}
+
+// awaitAppPresence consumes AppServer events until the named app's presence
+// in the published set matches want, then briefly drains to catch a change
+// that should not have happened.
+func (w *backendAppWatcher) awaitAppPresence(name string, want bool) {
+	w.t.Helper()
+
+	present := func() bool {
+		_, ok := w.state[name]
+		return ok
+	}
+
+	deadline := time.After(10 * time.Second)
+	for present() != want {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-deadline:
+			w.t.Fatalf("timed out waiting for app %q presence to become %v", name, want)
+		}
+	}
+
+	settle := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+			if present() != want {
+				w.t.Fatalf("app %q presence diverged from %v after converging", name, want)
+			}
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-settle:
+			return
+		}
+	}
+}
+
+// backendAppWatcher observes the applications the agent publishes to the
+// cluster: registrations arrive as AppServer heartbeats (OpPut) and
+// unregistrations as OpDelete. Tests assert against this externally visible
+// contract instead of internal reconciler state.
+type backendAppWatcher struct {
+	t       *testing.T
+	watcher types.Watcher
+	state   map[string]types.Application
+}
+
+func newBackendAppWatcher(ctx context.Context, t *testing.T, s *Suite) *backendAppWatcher {
+	t.Helper()
+
+	watcher, err := s.authServer.AuthServer.NewWatcher(ctx, types.Watch{
+		Name:  "lib/srv/app.watcher_test",
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
+
 	select {
-	case a := <-reconcileCh:
-		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
+	case event := <-watcher.Events():
+		require.Equal(t, types.OpInit, event.Type)
+	case <-watcher.Done():
+		t.Fatalf("watcher closed: %v", watcher.Error())
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for OpInit")
+	}
+
+	// Seed from a list so that heartbeats which landed before the watcher
+	// was established are observed too.
+	w := &backendAppWatcher{t: t, watcher: watcher, state: make(map[string]types.Application)}
+	servers, err := s.authServer.AuthServer.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	for _, server := range servers {
+		w.state[server.GetApp().GetName()] = server.GetApp()
+	}
+	return w
+}
+
+func (w *backendAppWatcher) apply(event types.Event) {
+	switch event.Type {
+	case types.OpPut:
+		server, ok := event.Resource.(types.AppServer)
+		require.True(w.t, ok, "unexpected resource type %T", event.Resource)
+		w.state[server.GetApp().GetName()] = server.GetApp()
+	case types.OpDelete:
+		delete(w.state, event.Resource.GetName())
+	}
+}
+
+// awaitApps consumes AppServer events until the set of published apps matches
+// want, then briefly continues draining to catch registrations that should
+// not have happened (the "no change" assertions).
+func (w *backendAppWatcher) awaitApps(want types.Apps) {
+	w.t.Helper()
+
+	compare := func() string {
+		published := make(types.Apps, 0, len(w.state))
+		for _, app := range w.state {
+			published = append(published, app)
+		}
+		slices.SortFunc(published, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		return gocmp.Diff(want, published,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		))
-	case <-time.After(time.Second):
-		t.Fatal("Didn't receive reconcile event after 1s.")
+		)
+	}
+
+	deadline := time.After(10 * time.Second)
+	for compare() != "" {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-deadline:
+			w.t.Fatalf("timed out waiting for published apps to converge: %v", compare())
+		}
+	}
+
+	// Settle: surface any event that contradicts the expected state, e.g. a
+	// registration that must not have happened.
+	settle := time.After(500 * time.Millisecond)
+	for {
+		select {
+		case event := <-w.watcher.Events():
+			w.apply(event)
+			if diff := compare(); diff != "" {
+				w.t.Fatalf("published apps diverged after converging: %v", diff)
+			}
+		case <-w.watcher.Done():
+			w.t.Fatalf("watcher closed: %v", w.watcher.Error())
+		case <-settle:
+			return
+		}
 	}
 }
 

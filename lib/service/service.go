@@ -3441,22 +3441,23 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.Clien
 	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for a remote proxy.
-func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName string) (authclient.AppsAccessPoint, error) {
+// newLocalCacheForApps returns new instance of access point configured for an
+// app service, along with the concrete app topology cache backing it. The
+// concrete cache is nil when caching is disabled.
+func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName string) (authclient.AppsAccessPoint, *cache.AppsCache, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
-		return clt, nil
+		return clt, nil, nil
 	}
 
-	cache, err := process.newAccessCacheForClient(accesspoint.Config{
-		Setup:     cache.ForApps,
+	appsCache, err := accesspoint.NewAppsCache(process.accessPointConfigForClient(accesspoint.Config{
 		CacheName: cacheName,
-	}, clt)
+	}, clt))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return authclient.NewAppsWrapper(clt, cache), nil
+	return authclient.NewAppsWrapper(clt, appsCache), appsCache, nil
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
@@ -6973,7 +6974,7 @@ func (process *TeleportProcess) initApps() {
 
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
-		accessPoint, err := process.newLocalCacheForApps(conn.Client, component)
+		accessPoint, appsCache, err := process.newLocalCacheForApps(conn.Client, component)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -7212,6 +7213,7 @@ func (process *TeleportProcess) initApps() {
 			Clock:                       process.Config.Clock,
 			AuthClient:                  conn.Client,
 			AccessPoint:                 accessPoint,
+			AppsCache:                   appsCache,
 			HostID:                      conn.HostUUID(),
 			Hostname:                    process.Config.Hostname,
 			GetRotation:                 process.GetRotation,

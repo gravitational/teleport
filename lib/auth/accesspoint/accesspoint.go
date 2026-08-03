@@ -172,6 +172,20 @@ func NewDatabasesCache(cfg Config) (*cache.DatabasesCache, error) {
 	return cache.NewDatabasesCache(cfg.cacheConfig())
 }
 
+// NewAppsCache assembles the app service topology cache from the provided
+// dependencies. Unlike [NewCache], no Setup function is used: the app watch
+// set is owned by [cache.NewAppsCache].
+func NewAppsCache(cfg Config) (*cache.AppsCache, error) {
+	if cfg.CacheName == "" {
+		return nil, trace.BadParameter("missing parameter CacheName")
+	}
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
+	}
+
+	return cache.NewAppsCache(cfg.cacheConfig())
+}
+
 // cacheConfig converts the access point dependencies into a cache
 // configuration.
 func (cfg Config) cacheConfig() cache.Config {

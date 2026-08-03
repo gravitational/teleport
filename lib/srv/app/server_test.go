@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
@@ -142,8 +143,6 @@ func (s *Suite) TearDown(t *testing.T) {
 type suiteConfig struct {
 	// ResourceMatchers are resource watcher matchers.
 	ResourceMatchers []services.ResourceMatcher
-	// OnReconcile sets app resource reconciliation callback.
-	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
 	// ServerStreamer is the auth server session events streamer.
@@ -172,6 +171,9 @@ type suiteConfig struct {
 	InsecureMode bool
 	// TargetHostPolicy restricts application target dials by resolved IP.
 	TargetHostPolicy common.TargetHostPolicy
+	// IgnoreAppsWithCommandLabels configures the server to reject dynamic
+	// apps that carry command labels.
+	IgnoreAppsWithCommandLabels bool
 }
 
 type fakeConnMonitor struct{}
@@ -420,21 +422,39 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
+	// Build the app topology cache over the test auth client; it provides
+	// the dynamic application resources and the change pulse that drive
+	// reconciliation.
+	appsCache, err := accesspoint.NewAppsCache(accesspoint.Config{
+		Context:       s.closeContext,
+		CacheName:     teleport.ComponentApp,
+		Access:        s.authClient,
+		Applications:  s.authClient,
+		ClusterConfig: s.authClient,
+		Events:        s.authClient,
+		Presence:      s.authClient,
+		Trust:         s.authClient,
+		Users:         s.authClient,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, appsCache.Close()) })
+
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:                s.clock,
-		AccessPoint:          s.authClient,
-		AuthClient:           s.authClient,
-		HostID:               s.hostUUID,
-		Hostname:             "test",
-		GetRotation:          testRotationGetter,
-		Apps:                 apps,
-		OnHeartbeat:          func(err error) {},
-		ResourceMatchers:     config.ResourceMatchers,
-		OnReconcile:          config.OnReconcile,
-		CloudLabels:          config.CloudImporter,
-		ConnectionsHandler:   connectionsHandler,
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
+		Clock:                       s.clock,
+		AccessPoint:                 s.authClient,
+		AppsCache:                   appsCache,
+		AuthClient:                  s.authClient,
+		HostID:                      s.hostUUID,
+		Hostname:                    "test",
+		GetRotation:                 testRotationGetter,
+		Apps:                        apps,
+		OnHeartbeat:                 func(err error) {},
+		ResourceMatchers:            config.ResourceMatchers,
+		IgnoreAppsWithCommandLabels: config.IgnoreAppsWithCommandLabels,
+		CloudLabels:                 config.CloudImporter,
+		ConnectionsHandler:          connectionsHandler,
+		InventoryHandle:             inventoryHandle,
+		ConnectedProxyGetter:        reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
 
