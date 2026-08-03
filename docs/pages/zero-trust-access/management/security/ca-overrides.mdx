@@ -83,9 +83,11 @@ The `cert_authority_override` resource targets a CA with the following fields:
   CA overrides.
 
 - Only the following CAs are currently supported: `db_client` and `windows`.
+
 - All Auth Service instances and related services, such as Windows Desktop
   Service and Database Service instances, must be upgraded to the same CA
   override-aware Teleport version.
+
 - For safety, back up your cluster state before starting and retain downstream
   trust to the self-signed CA certificates until the upgrade is fully verified.
 
