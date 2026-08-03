@@ -16,23 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package skills embeds the published Teleport agent skills so tools like tsh
-// can list and install them without network access.
-//
-// Only the installable payload of each skill is embedded: its SKILL.md and
-// references/ directory. Development-only artifacts such as evals/ (test
-// fixtures and mock binaries) are deliberately excluded.
-package skills
+package teleport
 
 import "embed"
 
-//go:embed teleport-*/SKILL.md
-//go:embed teleport-*/references
+//go:embed skills/teleport-*/SKILL.md
+//go:embed skills/teleport-*/references
 var fsys embed.FS
 
-// FS returns the embedded skills filesystem. Its top-level entries are skill
-// directories (e.g. "teleport-discovery"), each containing a SKILL.md and a
-// references/ directory.
-func FS() embed.FS {
+// NewSkillsFilesystem returns embedded filesystem containing Teleport agent
+// skills.
+func NewSkillsFilesystem() embed.FS {
 	return fsys
 }

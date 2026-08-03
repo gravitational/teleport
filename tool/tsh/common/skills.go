@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -32,15 +31,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/skills"
+	"github.com/gravitational/teleport/tool/common"
 )
 
-const claudeSkillsDir = "~/.claude/skills"
-
-// skillsCommands groups the `tsh skills` subcommands.
+// skillsCommands groups the "tsh skills" subcommands.
 type skillsCommands struct {
 	ls      *skillsListCommand
 	install *skillsInstallCommand
@@ -54,7 +52,8 @@ func newSkillsCommands(app *kingpin.Application) skillsCommands {
 	}
 }
 
-// skillsListCommand implements `tsh skills ls`.
+// skillsListCommand implements "tsh skills ls" command that shows available
+// skills embedded in the tsh binary.
 type skillsListCommand struct {
 	*kingpin.CmdClause
 	format string
@@ -62,17 +61,15 @@ type skillsListCommand struct {
 
 func newSkillsListCommand(parent *kingpin.CmdClause) *skillsListCommand {
 	cmd := &skillsListCommand{
-		CmdClause: parent.Command("ls", "List available Teleport agent skills.").Default(),
+		CmdClause: parent.Command("ls", "List available Teleport agent skills."),
 	}
 	cmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).
-		Short('f').
-		Default(teleport.Text).
-		EnumVar(&cmd.format, defaults.DefaultFormats...)
+		Short('f').Default(teleport.Text).EnumVar(&cmd.format, defaults.DefaultFormats...)
 	return cmd
 }
 
 func (c *skillsListCommand) run(cf *CLIConf) error {
-	catalog, err := loadSkills()
+	skills, err := loadSkillsMetadata(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -80,45 +77,28 @@ func (c *skillsListCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		return printSkillsAsText(cf, catalog)
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeSkills(catalog, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintln(cf.Stdout(), out)
-		return nil
+		return printSkills(cf, skills)
+	case teleport.JSON:
+		return common.PrintJSONIndent(cf.Stdout(), skills)
+	case teleport.YAML:
+		return common.PrintYAML(cf.Stdout(), skills)
 	default:
-		return trace.BadParameter("unsupported format %q", format)
+		return trace.BadParameter("unsupported output format %q", format)
 	}
 }
 
-func printSkillsAsText(cf *CLIConf, catalog []skill) error {
-	var rows [][]string
-	for _, s := range catalog {
-		rows = append(rows, []string{s.Name, s.ShortDescription, fmt.Sprintf("tsh skills install %s", s.Name)})
+func printSkills(cf *CLIConf, skills []skillMetadata) error {
+	t := asciitable.MakeTable([]string{"Name", "Description"})
+	for _, s := range skills {
+		t.AddRow([]string{s.Name, s.ShortDescription})
 	}
-	t := asciitable.MakeTable([]string{"Name", "Description", "Install"}, rows...)
 	fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
-	fmt.Fprint(cf.Stdout(), skillsListHint)
+	fmt.Fprintln(cf.Stdout(), "hint: install a skill for your AI agent using 'tsh skills install <name>' command")
 	return nil
 }
 
-func serializeSkills(catalog []skill, format string) (string, error) {
-	if catalog == nil {
-		catalog = []skill{}
-	}
-	var out []byte
-	var err error
-	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(catalog, "", "  ")
-	} else {
-		out, err = yaml.Marshal(catalog)
-	}
-	return string(out), trace.Wrap(err)
-}
-
-// skillsInstallCommand implements `tsh skills install <name>`.
+// skillsInstallCommand implements "tsh skills install" command that installs
+// skills to the user's local environment.
 type skillsInstallCommand struct {
 	*kingpin.CmdClause
 	name  string
@@ -128,38 +108,34 @@ type skillsInstallCommand struct {
 
 func newSkillsInstallCommand(parent *kingpin.CmdClause) *skillsInstallCommand {
 	cmd := &skillsInstallCommand{
-		CmdClause: parent.Command("install", "Install an embedded Teleport agent skill into your AI agent."),
+		CmdClause: parent.Command("install", "Install Teleport agent skills."),
 	}
 	cmd.Arg("name", "Name of the skill to install (see 'tsh skills ls').").Required().StringVar(&cmd.name)
-	cmd.Flag("dir", fmt.Sprintf("Skills directory to install into (default %q).", claudeSkillsDir)).
-		StringVar(&cmd.dir)
+	cmd.Flag("dir", "Skills directory to install into (defaults to ~/.claude/skills).").StringVar(&cmd.dir)
 	cmd.Flag("force", "Overwrite the skill if it is already installed.").BoolVar(&cmd.force)
 	return cmd
 }
 
 func (c *skillsInstallCommand) run(cf *CLIConf) error {
-	catalog, err := loadSkills()
+	skills, err := loadSkillsMetadata(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !slices.ContainsFunc(catalog, func(s skill) bool { return s.Name == c.name }) {
-		var names []string
-		for _, s := range catalog {
-			names = append(names, s.Name)
-		}
-		return trace.NotFound("unknown skill %q; available skills: %s",
-			c.name, strings.Join(names, ", "))
+
+	if !slices.ContainsFunc(skills, func(s skillMetadata) bool { return s.Name == c.name }) {
+		return trace.NotFound("unknown skill %q, use 'tsh skills ls' to list available skills",
+			c.name)
 	}
 
-	baseDir, err := resolveSkillsDir(c.dir)
+	skillsDir, err := resolveSkillsDir(c.dir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	dest := filepath.Join(baseDir, c.name)
 
+	dest := filepath.Join(skillsDir, c.name)
 	if _, err := os.Stat(dest); err == nil {
 		if !c.force {
-			return trace.AlreadyExists("skill %q is already installed at %s; use --force to overwrite",
+			return trace.AlreadyExists("skill %q is already installed at %s, use --force to overwrite",
 				c.name, dest)
 		}
 		if err := os.RemoveAll(dest); err != nil {
@@ -167,7 +143,7 @@ func (c *skillsInstallCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	if err := extractSkill(c.name, baseDir); err != nil {
+	if err := installSkill(c.name, skillsDir); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -175,73 +151,119 @@ func (c *skillsInstallCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-// skill describes a single embedded Teleport agent skill.
-type skill struct {
+// skillMetadata is a single Teleport agent skill embedded in the tsh binary.
+type skillMetadata struct {
 	// Name is the skill identifier, matching its directory under skills/.
 	Name string `json:"name"`
-	// ShortDescription is the one-line SKILL.md frontmatter short-description,
-	// used for the ls table. Falls back to the first sentence of Description
-	// when absent.
-	ShortDescription string `json:"short_description"`
+	// ShortDescription is the one-liner SKILL.md frontmatter short description.
+	ShortDescription string `json:"short-description"`
 }
 
-// loadSkills reads the embedded skills catalog, parsing each skill's SKILL.md
-// frontmatter for its description.
-func loadSkills() ([]skill, error) {
-	fsys := skills.FS()
-	entries, err := fs.ReadDir(fsys, ".")
+// loadSkillsMetadata reads the skills embedded in the tsh binary and parses
+// each skill's SKILL.md frontmatter.
+func loadSkillsMetadata(cf *CLIConf) ([]skillMetadata, error) {
+	skillsFs := teleport.NewSkillsFilesystem()
+	entries, err := fs.ReadDir(skillsFs, skillsDirName)
 	if err != nil {
+		fmt.Println("adasd")
 		return nil, trace.Wrap(err)
 	}
 
-	var out []skill
+	var out []skillMetadata
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		name := e.Name()
-		data, err := fs.ReadFile(fsys, path.Join(name, "SKILL.md"))
+		data, err := fs.ReadFile(skillsFs, filepath.Join(skillsDirName, e.Name(), "SKILL.md"))
 		if err != nil {
-			return nil, trace.Wrap(err, "reading SKILL.md for %q", name)
+			return nil, trace.ConvertSystemError(err)
 		}
-		fm := parseSkillFrontmatter(data)
-		out = append(out, skill{
-			Name:             name,
-			ShortDescription: fm.ShortDescription,
-		})
+		skill, err := parseSkillFrontmatter(string(data))
+		if err != nil {
+			logger.WarnContext(cf.Context, "Failed to parse skill frontmatter, skipping.",
+				"name", e.Name())
+			continue
+		}
+		out = append(out, *skill)
 	}
-	slices.SortFunc(out, func(a, b skill) int {
+
+	// Sort the skills by name just to ensure stable output order.
+	slices.SortFunc(out, func(a, b skillMetadata) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+
 	return out, nil
 }
 
-// skillFrontmatter holds the SKILL.md frontmatter fields tsh cares about.
-type skillFrontmatter struct {
-	ShortDescription string `json:"short-description"`
-}
-
-// parseSkillFrontmatter parses the YAML frontmatter (the block delimited by
-// "---") at the top of a SKILL.md file. Missing or malformed frontmatter yields
-// a zero value rather than an error.
-func parseSkillFrontmatter(content []byte) skillFrontmatter {
-	text := string(content)
-	if !strings.HasPrefix(text, "---") {
-		return skillFrontmatter{}
-	}
-	rest := strings.TrimPrefix(text, "---")
-	end := strings.Index(rest, "\n---")
-	if end < 0 {
-		return skillFrontmatter{}
+// parseSkillFrontmatter parses the skill's YAML frontmatter.
+func parseSkillFrontmatter(content string) (*skillMetadata, error) {
+	// Expect the skill's SKILL.md to start with a valid frontmatter block.
+	posStart := strings.Index(content, "---")
+	if posStart != 0 {
+		fmt.Println("adasd")
+		return nil, trace.BadParameter("no valid frontmatter block")
 	}
 
-	var fm skillFrontmatter
-	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
-		return skillFrontmatter{}
+	// Strip the leading "---" and find the end of the frontmatter block.
+	content = strings.TrimPrefix(content, "---")
+	posEnd := strings.Index(content, "\n---")
+	if posEnd < 0 {
+		return nil, trace.BadParameter("no valid frontmatter block")
 	}
-	fm.ShortDescription = strings.TrimSpace(fm.ShortDescription)
-	return fm
+
+	// Parse the frontmatter YAML.
+	var skill skillMetadata
+	if err := yaml.Unmarshal([]byte(content[:posEnd]), &skill); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &skill, nil
 }
+
+// resolveSkillsDir returns the target directory to install skills into.
+func resolveSkillsDir(dir string) (string, error) {
+	if dir != "" {
+		return dir, nil
+	}
+	userHome, ok := profile.UserHomeDir()
+	if !ok {
+		return "", trace.NotFound("couldn't determine user's home directory, use --dir flag to specify directory to install skills into")
+	}
+	return filepath.Join(userHome, ".claude", "skills"), nil
+}
+
+// installSkill installs the specified skill by copying its files from the
+// embedded filesystem into the specified skills directory.
+//
+// Target directory will be created if it does not exist. The files in the
+// target directory will be overwriten if they already exist.
+func installSkill(name, skillsDir string) error {
+	skillsFs := teleport.NewSkillsFilesystem()
+	return fs.WalkDir(skillsFs, filepath.Join(skillsDirName, name), func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		target := filepath.Join(skillsDir, filepath.FromSlash(path))
+		if dirEntry.IsDir() {
+			return trace.ConvertSystemError(os.MkdirAll(target, defaults.DirectoryPermissions))
+		}
+		data, err := fs.ReadFile(skillsFs, path)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		err = os.MkdirAll(filepath.Dir(target), defaults.DirectoryPermissions)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		return trace.ConvertSystemError(os.WriteFile(target, data, defaults.FilePermissions))
+	})
+}
+
+const (
+	// skillsDirName is the name of the directory in the embedded filesystem
+	// that contains Teleport agent skills.
+	skillsDirName = "skills"
+)
 
 // skillsAgentHint points the reader at the skills command. It is shown by
 // commands like `tsh status` only to non-interactive callers (see
@@ -263,47 +285,4 @@ func maybeShowSkillsHint(cf *CLIConf) {
 		return
 	}
 	fmt.Fprint(cf.Stderr(), skillsAgentHint)
-}
-
-const skillsListHint = "" +
-	"hint: install a skill into your AI agent with 'tsh skills install <name>'\n" +
-	"      run 'tsh skills ls --format json' for machine-readable output\n\n"
-
-// resolveSkillsDir determines the target skills directory, expanding a leading
-// "~" and falling back to the per-user default.
-func resolveSkillsDir(dir string) (string, error) {
-	if dir == "" {
-		dir = claudeSkillsDir
-	}
-	if after, ok := strings.CutPrefix(dir, "~"); ok {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		dir = filepath.Join(home, after)
-	}
-	return dir, nil
-}
-
-// extractSkill copies the embedded files for the named skill into
-// baseDir/<name>, recreating the directory structure.
-func extractSkill(name, baseDir string) error {
-	fsys := skills.FS()
-	return fs.WalkDir(fsys, name, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		target := filepath.Join(baseDir, filepath.FromSlash(p))
-		if d.IsDir() {
-			return trace.Wrap(os.MkdirAll(target, 0o755))
-		}
-		data, err := fs.ReadFile(fsys, p)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(os.WriteFile(target, data, 0o644))
-	})
 }
