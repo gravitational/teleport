@@ -4892,6 +4892,25 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	return tc, nil
 }
 
+// dropScopeFromSSHHost strips the scope from any hosts provided
+// to tsh ssh as an SQN, i.e. tsh ssh user@/foo/bar::baz uptime.
+// This improves the UX for scoped users while Teleport transitions
+// to honoring SQNs everywhere.
+//
+// TODO(scopes): Remove this once SQN SSH routing is supported.
+func dropScopeFromSSHHost(host string) (string, error) {
+	if !scopes.MaybeSQN(host) {
+		return host, nil
+	}
+
+	qualifiedName, err := scopes.ParseQualifiedName(host)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return qualifiedName.Name, nil
+}
+
 func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, error) {
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
@@ -4918,6 +4937,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			hostLogin = strings.Join(parts[:partsLength-1], "@")
 			hostUser = parts[partsLength-1]
 		}
+		hostUser, err = dropScopeFromSSHHost(hostUser)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(hostUser, "=") {
 			labels, err = parse.LabelSelectorSpec(hostUser)
@@ -4939,6 +4962,10 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 				hostUser = hostname
 			} else {
 				hostUser = userHost
+			}
+			hostUser, err = dropScopeFromSSHHost(hostUser)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
 			break
 
