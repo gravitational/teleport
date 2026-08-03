@@ -213,19 +213,3 @@ func populateStore(ctx context.Context, store *clusterStore, contexts map[string
 	}
 	return nil
 }
-
-// newUpstreamResolver returns a resolver matching the given service type
-// string. Internal helper used by tests that drive Forwarder behavior off the
-// legacy KubeServiceType string.
-func newUpstreamResolver(svc KubeServiceType) (UpstreamResolver, error) {
-	switch svc {
-	case KubeService:
-		return NewKubeServiceUpstream(), nil
-	case ProxyService:
-		return NewProxyServiceUpstream(), nil
-	case LegacyProxyService:
-		return NewLegacyProxyUpstream(), nil
-	default:
-		return nil, trace.BadParameter("unknown KubeServiceType %q", svc)
-	}
-}

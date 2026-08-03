@@ -44,6 +44,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -366,4 +367,20 @@ func mustCreateKubernetesClusterV3(t *testing.T, name string) *types.KubernetesC
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 	return kubeCluster
+}
+
+// newUpstreamResolver returns a resolver matching the given service type
+// string. Internal helper used by tests that drive Forwarder behavior off the
+// legacy KubeServiceType string.
+func newUpstreamResolver(svc KubeServiceType) (UpstreamResolver, error) {
+	switch svc {
+	case KubeService:
+		return NewKubeServiceUpstream(), nil
+	case ProxyService:
+		return NewProxyServiceUpstream(), nil
+	case LegacyProxyService:
+		return NewLegacyProxyUpstream(), nil
+	default:
+		return nil, trace.BadParameter("unknown KubeServiceType %q", svc)
+	}
 }
