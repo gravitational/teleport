@@ -249,7 +249,7 @@ variable "teleport_container_image" {
 }
 
 variable "teleport_provision_token_name" {
-  default     = "db-agent"
+  default     = "iam-db-agent"
   description = "Name for the Teleport provision token resource."
   type        = string
   nullable    = false
