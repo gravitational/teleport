@@ -146,6 +146,7 @@ export interface Acl {
   inferenceSecret: Access;
   classifier: Access;
   beam: Access;
+  beamsConfig: Access;
   mobileDevice: MobileDeviceAccess;
 }
 

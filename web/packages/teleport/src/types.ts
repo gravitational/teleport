@@ -253,6 +253,7 @@ export interface FeatureFlags {
   sessionSummaries: boolean;
   listBeam: boolean;
   readBeam: boolean;
+  readBeamsConfig: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

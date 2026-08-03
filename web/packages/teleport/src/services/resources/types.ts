@@ -263,6 +263,8 @@ export enum ResourceKind {
   AutoUpdateVersion = 'autoupdate_version',
   Bot = 'bot',
   BotInstance = 'bot_instance',
+  Beam = 'beam',
+  BeamsConfig = 'beams_config',
   CertAuthority = 'cert_authority',
   ClusterAlert = 'cluster_alert',
   ClusterAuditConfig = 'cluster_audit_config',

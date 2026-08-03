@@ -159,6 +159,8 @@ type UserACL struct {
 	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
 	// Beam defines access to Beams
 	Beam ResourceAccess `json:"beam"`
+	// BeamsConfig defines access to Beams config
+	BeamsConfig ResourceAccess `json:"beamsConfig"`
 	// MobileDevice defines permissions for the mobile_device resource.
 	MobileDevice MobileDeviceAccess `json:"mobileDevice"`
 }
@@ -280,8 +282,10 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 
 	beamsEntitlement := modules.GetProtoEntitlement(&features, entitlements.Beams)
 	var beam ResourceAccess
+	var beamsConfig ResourceAccess
 	if beamsEntitlement.Enabled {
 		beam = newAccess(userRoles, ctx, types.KindBeam)
+		beamsConfig = newAccess(userRoles, ctx, types.KindBeamsConfig)
 	}
 
 	mobileDevice := MobileDeviceAccess{
@@ -345,6 +349,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AutoUpdateAgentRollout:   autoUpdateAgentRollout,
 		AutoUpdateAgentReport:    autoUpdateAgentReport,
 		Beam:                     beam,
+		BeamsConfig:              beamsConfig,
 		MobileDevice:             mobileDevice,
 	}
 }
