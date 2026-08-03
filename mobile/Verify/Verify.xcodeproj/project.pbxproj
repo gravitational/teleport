@@ -296,6 +296,8 @@
 				CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
 				CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */,
 				CDAA8BB32FFD5A1200E6CA87 /* XCRemoteSwiftPackageReference "sqlite-data" */,
+				CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */,
+				CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0C94C8532FA232E600C13C9A /* Products */;
@@ -842,6 +844,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../TeleportKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD65C7FF2FF711CE002FB1CD /* XCRemoteSwiftPackageReference "swift-identified-collections" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -866,6 +875,16 @@
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.8.0;
 			};
+		};
+		CD920CEE301D13500027C579 /* XCRemoteSwiftPackageReference "swift-sharing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-sharing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.1;
+			};
+			traits = (
+			);
 		};
 		CDAA8BB02FFD55CC00E6CA87 /* XCRemoteSwiftPackageReference "GRDB" */ = {
 			isa = XCRemoteSwiftPackageReference;
