@@ -792,7 +792,7 @@ Flags:
 |---|---|---|
 |`--[no-]disabled`|`false`|If true creates a disabled override|
 |`--[no-]force`|`false`|If true attempts to force creation, ignoring select state validation|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 Arguments:
 
@@ -819,7 +819,7 @@ Flags:
 |`--out`|*no default*|If set writes CSRs to files using --out as the path prefix|
 |`--public-key`|*no default*|Public key hash of CA certificate to be targeted|
 |`--subject`|*no default*|Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl auth crl
 
@@ -855,7 +855,7 @@ Flags:
 |---|---|---|
 |`--[no-]force`|`false`|If true attempts to force deletion. May be used to delete live overrides.|
 |`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl auth export
 
@@ -986,7 +986,7 @@ Flags:
 |`--set-cert`|*no default*|CA override certificate file in PEM form|
 |`--set-chain`|*no default*|CA override trust chain files in PEM form|
 |`--set-disabled`|*no default* (one of: `true`, `false`)|If true disables the override, if false enables it|
-|`--type`|*no default*|CA type (db-client, windows)|
+|`--type`|*no default*|CA type (db-client, spiffe-tls, windows)|
 
 ## tctl autoupdate agents mark-done
 
