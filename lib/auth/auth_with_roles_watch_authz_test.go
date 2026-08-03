@@ -197,6 +197,38 @@ func TestScopedWatchKindAuthz(t *testing.T) {
 			assertErr: requireAccessDenied,
 		},
 		{
+			// bot_instance is namespaced and carries its scope on delete events, so it is
+			// whitelisted for scope-targeting watch filters.
+			name:      "bot_instance default resolves to EXACT at pin",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
+			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_DESCENDANTS, pinScope),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
+			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance ALL rewritten to DESCENDANTS at pin",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_ALL, ""),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_DESCENDANTS,
+			wantScope: pinScope,
+		},
+		{
+			name:      "bot_instance EXACT at orthogonal scope denied by pin enforcement",
+			kind:      types.KindBotInstance,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/bar"),
+			assertErr: requireAccessDenied,
+		},
+		{
 			// scoped-kind-whitelist: this test case and associated behaviore can be removed once all scoped
 			// kinds are namespaced.
 			name:      "non-namespaced kind EXACT denied by whitelist",
@@ -395,6 +427,20 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 		{
 			name:      "scoped_role EXACT allowed for unscoped caller",
 			kind:      scopedaccess.KindScopedRole,
+			filter:    filter(scopesv1.Mode_MODE_EXACT, "/foo"),
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_EXACT,
+		},
+		{
+			name:      "bot_instance defaults to UNSCOPED for unscoped caller",
+			kind:      types.KindBotInstance,
+			filter:    nil,
+			assertErr: require.NoError,
+			wantMode:  scopesv1.Mode_MODE_UNSCOPED,
+		},
+		{
+			name:      "bot_instance EXACT allowed for unscoped caller",
+			kind:      types.KindBotInstance,
 			filter:    filter(scopesv1.Mode_MODE_EXACT, "/foo"),
 			assertErr: require.NoError,
 			wantMode:  scopesv1.Mode_MODE_EXACT,

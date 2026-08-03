@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -218,14 +219,23 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		sortField = req.GetSort().Field
 		sortDesc = req.GetSort().IsDesc
 	}
+	// V1 cannot express a scope filter, so pin it to mode ALL rather than letting it
+	// inherit the identity-based default and silently hide scoped instances. Left
+	// unset alongside a bot filter, which V2 rejects the combination of.
+	var scopeFilter *scopesv1.Filter
+	if req.GetFilterBotName() == "" {
+		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
+	}
+
 	return b.ListBotInstancesV2(ctx, pb.ListBotInstancesV2Request_builder{
 		PageSize:  req.GetPageSize(),
 		PageToken: req.GetPageToken(),
 		SortField: sortField,
 		SortDesc:  sortDesc,
 		Filter: pb.ListBotInstancesV2Request_Filters_builder{
-			BotName:    req.GetFilterBotName(),
-			SearchTerm: req.GetFilterSearchTerm(),
+			BotName:     req.GetFilterBotName(),
+			SearchTerm:  req.GetFilterSearchTerm(),
+			ScopeFilter: scopeFilter,
 		}.Build(),
 	}.Build())
 }
@@ -246,19 +256,34 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	if filterBotScope := req.GetFilter().GetBotScope(); filterBotScope != "" {
-		// bot_scope is only designed to scope-qualify bot_name. If we want to
-		// introduce actual scope-filtering down the line, we'll introduce a
-		// new field with more control (i.e. exact, descendent)
-		if req.GetFilter().GetBotName() == "" {
+	f := req.GetFilter()
+	if err := scopes.ValidateFilter(f.GetScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var scopeFilter *scopesv1.Filter
+	if f.GetBotName() != "" {
+		// By-bot listing: bot_scope qualifies bot_name, which already pins the
+		// scope, so a scope_filter is meaningless and rejected.
+		if f.GetScopeFilter().GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
+			return nil, trace.BadParameter(
+				"scope_filter cannot be combined with a bot_name filter",
+			)
+		}
+		if f.GetBotScope() != "" {
+			if err := scopes.StrongValidate(f.GetBotScope()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	} else {
+		// Cross-bot listing: scope_filter selects the scopes, with identity-based
+		// defaults per RFD 0229i; bot_scope only exists to qualify bot_name.
+		if f.GetBotScope() != "" {
 			return nil, trace.BadParameter(
 				"bot_scope filter requires bot_name",
 			)
 		}
-
-		if err := scopes.StrongValidate(filterBotScope); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		scopeFilter = authCtx.CheckerContext.ResolveScopeFilter(f.GetScopeFilter())
 	}
 
 	botInstances, nextToken, err := b.cache.ListBotInstances(
@@ -268,10 +293,11 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		&services.ListBotInstancesRequestOptions{
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
-			FilterBotName:    req.GetFilter().GetBotName(),
-			FilterBotScope:   req.GetFilter().GetBotScope(),
-			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
-			FilterQuery:      req.GetFilter().GetQuery(),
+			FilterBotName:    f.GetBotName(),
+			FilterBotScope:   f.GetBotScope(),
+			ScopeFilter:      scopeFilter,
+			FilterSearchTerm: f.GetSearchTerm(),
+			FilterQuery:      f.GetQuery(),
 			FilterFn: func(botInstance *pb.BotInstance) bool {
 				ruleCtx := authCtx.RuleContext()
 				ruleCtx.Resource153 = botInstance
