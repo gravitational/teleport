@@ -784,7 +784,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			botName: "/staging::test-bot-1",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, client))
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -801,7 +801,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			botName: "test-bot-1",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, client))
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
 
 		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
 		require.NoError(t, err)
@@ -817,7 +817,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			format: teleport.Text,
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, client))
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
 
 		out := buf.String()
 		require.Contains(t, out, "/staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
@@ -832,7 +832,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			botName: "/staging::test-bot-1",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, client))
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
 
 		require.NotContains(t, buf.String(), "bots instances add")
 	})
@@ -845,7 +845,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			botName: "test-bot-1",
 		}
 
-		require.NoError(t, cmd.ListBotInstances(ctx, client))
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
 
 		require.Contains(t, buf.String(), "bots instances add test-bot-1")
 	})
@@ -857,7 +857,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			instanceID: "/staging::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 
-		require.NoError(t, cmd.ShowBotInstance(ctx, client))
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
 
 		out := buf.String()
 		require.Contains(t, out, "Scope:  /staging")
@@ -874,7 +874,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			instanceID: "test-bot-1/" + unscopedInstance.GetSpec().GetInstanceId(),
 		}
 
-		require.NoError(t, cmd.ShowBotInstance(ctx, client))
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
 
 		out := buf.String()
 		require.NotContains(t, out, "Scope:")
@@ -889,7 +889,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			instanceID: "test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 
-		err := cmd.ShowBotInstance(ctx, client)
+		err := cmd.ShowBotInstance(t.Context(), client)
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
 	})
 
@@ -899,8 +899,29 @@ func TestBotInstancesScoped(t *testing.T) {
 			instanceID: "/prod::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
 		}
 
-		err := cmd.ShowBotInstance(ctx, client)
+		err := cmd.ShowBotInstance(t.Context(), client)
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("list filter with scope prefix but no separator is rejected", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:  &strings.Builder{},
+			format:  teleport.JSON,
+			botName: "/staging",
+		}
+
+		err := cmd.ListBotInstances(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+	})
+
+	t.Run("show with scope prefix but no separator is rejected", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "/staging/test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
 	})
 }
 

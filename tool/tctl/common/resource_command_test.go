@@ -1164,7 +1164,6 @@ func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
 func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{DataDir: t.TempDir()},
@@ -1183,7 +1182,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	// Bot instances are created server-side on join and have no create RPC, so
 	// seed them directly through the auth server's backend service.
 	makeInstance := func(scope, botName string) *machineidv1pb.BotInstance {
-		instance, err := auth.GetAuthServer().CreateBotInstance(ctx, machineidv1pb.BotInstance_builder{
+		instance, err := auth.GetAuthServer().CreateBotInstance(t.Context(), machineidv1pb.BotInstance_builder{
 			Scope: scope,
 			Spec: machineidv1pb.BotInstanceSpec_builder{
 				BotName:    botName,
@@ -1244,7 +1243,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Run("single-arg unscoped get", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{
 			"get",
-			fmt.Sprintf("%s/classic-bot/%s", types.KindBotInstance, classicInstance.GetSpec().GetInstanceId()),
+			types.KindBotInstance + "/classic-bot/" + classicInstance.GetSpec().GetInstanceId(),
 			"--format=json",
 		})
 		require.NoError(t, err)
@@ -1254,7 +1253,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Run("two-arg unscoped get is equivalent to the single-arg form", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{
 			"get", types.KindBotInstance,
-			fmt.Sprintf("classic-bot/%s", classicInstance.GetSpec().GetInstanceId()),
+			"classic-bot/" + classicInstance.GetSpec().GetInstanceId(),
 			"--format=json",
 		})
 		require.NoError(t, err)
@@ -1272,7 +1271,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Run("scope-qualified get", func(t *testing.T) {
 		buf, err := runResourceCommand(t, clt, []string{
 			"get", types.KindBotInstance,
-			fmt.Sprintf("/staging::staging-bot/%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"/staging::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
 			"--format=json",
 		})
 		require.NoError(t, err)
@@ -1282,7 +1281,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
 		_, err := runResourceCommand(t, clt, []string{
 			"get", types.KindBotInstance,
-			fmt.Sprintf("/prod::staging-bot/%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"/prod::staging-bot/" + stagingInstance0.GetSpec().GetInstanceId(),
 			"--format=json",
 		})
 		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
@@ -1310,7 +1309,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 	t.Run("sub-kind with SQN is rejected with a hint", func(t *testing.T) {
 		_, err := runResourceCommand(t, clt, []string{
 			"get", types.KindBotInstance + "/staging-bot",
-			fmt.Sprintf("/staging::%s", stagingInstance0.GetSpec().GetInstanceId()),
+			"/staging::" + stagingInstance0.GetSpec().GetInstanceId(),
 			"--format=json",
 		})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)

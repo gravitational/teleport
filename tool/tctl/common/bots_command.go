@@ -746,7 +746,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 	// unscoped bot.
 	botName := c.botName
 	var botScope string
-	if strings.Contains(botName, scopes.QualifiedNameSeparator) {
+	if scopes.MaybeSQN(botName) {
 		qn, err := scopes.ParseQualifiedName(botName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -897,7 +897,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		// name; instances of unscoped bots by the bot's bare name.
 		id := scopes.QualifiedName{
 			Scope: i.GetScope(),
-			Name:  fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId()),
+			Name:  i.GetSpec().GetBotName() + "/" + i.GetSpec().GetInstanceId(),
 		}.String()
 
 		t.AddRow([]string{
@@ -1066,11 +1066,11 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 
 	// Only the two-argument form of 'tctl get' can carry a scope, so use it for
 	// scoped and unscoped alike rather than changing shape between them.
-	instanceRef := fmt.Sprintf("%s/%s", instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId())
+	instanceRef := instance.GetSpec().GetBotName() + "/" + instance.GetSpec().GetInstanceId()
 	if scope := instance.GetScope(); scope != "" {
 		instanceRef = scopes.QualifiedName{Scope: scope, Name: instanceRef}.String()
 	}
-	getRef := fmt.Sprintf("%s %s", types.KindBotInstance, instanceRef)
+	getRef := types.KindBotInstance + " " + instanceRef
 
 	templateData := map[string]any{
 		"executable": os.Args[0],
@@ -1363,6 +1363,8 @@ func parseInstanceID(s string) (scope string, name string, uuid string, err erro
 			return "", "", "", trace.Wrap(err)
 		}
 		scope, s = before, after
+	} else if scopes.MaybeSQN(s) {
+		return "", "", "", trace.BadParameter("invalid bot instance syntax, must be: [scope::][bot name]/[uuid]")
 	}
 
 	name, uuid, ok := strings.Cut(s, "/")
