@@ -116,6 +116,54 @@ func TestMFACeremony(t *testing.T) {
 				assert.ErrorContains(t, err, "prompt mfa failure")
 				assert.Nil(t, mr)
 			},
+		}, {
+			name: "OK ErrMFANotSupportedContextUser maps to ErrMFANotSupported",
+			ceremony: &mfa.Ceremony{
+				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+					return nil, trace.Wrap(&mfa.ErrMFANotSupportedContextUser)
+				},
+				PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.BadParameter("prompt should not be reached")
+					})
+				},
+			},
+			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
+				assert.ErrorIs(t, err, &mfa.ErrMFANotSupported)
+				assert.Nil(t, mr)
+			},
+		}, {
+			name: "OK ErrMFANotSupportedMFARequiredCheck maps to ErrMFANotSupported",
+			ceremony: &mfa.Ceremony{
+				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+					return nil, trace.Wrap(&mfa.ErrMFANotSupportedMFARequiredCheck)
+				},
+				PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.BadParameter("prompt should not be reached")
+					})
+				},
+			},
+			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
+				assert.ErrorIs(t, err, &mfa.ErrMFANotSupported)
+				assert.Nil(t, mr)
+			},
+		}, {
+			name: "OK unrelated bad parameter is surfaced",
+			ceremony: &mfa.Ceremony{
+				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+					return nil, trace.BadParameter("stored session lacks challenge extensions")
+				},
+				PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return nil, trace.BadParameter("prompt should not be reached")
+					})
+				},
+			},
+			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
+				assert.ErrorContains(t, err, "stored session lacks challenge extensions")
+				assert.Nil(t, mr)
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

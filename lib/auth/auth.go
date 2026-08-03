@@ -4041,6 +4041,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		return nil
 	}
 
+	if err := mfa.ValidateChallengeScope(challengeExtensions.Scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
