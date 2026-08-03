@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -44,6 +45,9 @@ type ReconfigureRequest struct {
 	CAPins []string
 	// Token sets join_params.token_name and clears the legacy auth_token.
 	Token string
+	// JoinMethod sets join_params.method. It is never inferred from the
+	// other join fields.
+	JoinMethod string
 	// RegistrationSecret sets the bound_keypair registration secret value
 	// and clears the incompatible registration_secret_path.
 	RegistrationSecret string
@@ -69,60 +73,88 @@ type ReconfigureRequest struct {
 }
 
 // Reconfigure applies req to fc in place, leaving everything not named by a
-// request field untouched. It returns warnings for values kept from the
-// input that would collide with a second agent on the same host.
-func Reconfigure(fc *FileConfig, req ReconfigureRequest) ([]string, error) {
+// request field untouched. It rejects cases where an unspecified request
+// field would cause a collision with a second agent on the same host.
+func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	if req.Proxy != "" && req.AuthServer != "" {
-		return nil, trace.BadParameter("--proxy and --auth-server are mutually exclusive")
+		return trace.BadParameter("--proxy and --auth-server are mutually exclusive")
 	}
 	if req.RegistrationSecret != "" && req.RegistrationSecretPath != "" {
-		return nil, trace.BadParameter("--registration-secret and --registration-secret-path are mutually exclusive")
+		return trace.BadParameter("--registration-secret and --registration-secret-path are mutually exclusive")
 	}
 	if req.Proxy != "" && fc.Version != defaults.TeleportConfigVersionV3 {
-		return nil, trace.BadParameter("--proxy requires a v3 config; use --auth-server for v1/v2 configs")
+		return trace.BadParameter("--proxy requires a v3 config; use --auth-server for v1/v2 configs")
 	}
 	if req.Proxy != "" && fc.Proxy.Enabled() {
-		return nil, trace.BadParameter("--proxy requires a config with proxy_service disabled; the agent rejects proxy_server when the proxy service is enabled")
+		return trace.BadParameter("--proxy requires a config with proxy_service disabled; the agent rejects proxy_server when the proxy service is enabled")
 	}
 	// Mirror the parsers the agent runs at start (applyConfig and the
 	// per-service apply functions), or the tool writes a config the agent rejects.
 	if req.Proxy != "" {
 		if _, err := utils.ParseHostPortAddr(req.Proxy, defaults.HTTPListenPort); err != nil {
-			return nil, trace.Wrap(err, "parsing --proxy")
+			return trace.Wrap(err, "parsing --proxy")
 		}
 	}
 	if req.AuthServer != "" {
 		if _, err := utils.ParseHostPortAddr(req.AuthServer, defaults.AuthListenPort); err != nil {
-			return nil, trace.Wrap(err, "parsing --auth-server")
+			return trace.Wrap(err, "parsing --auth-server")
 		}
 	}
 	if len(req.CAPins) > 0 {
 		// Nil certs: format check only; the pins are verified against the
 		// target cluster's CA when the agent joins.
 		if err := utils.CheckSPKI(req.CAPins, nil); err != nil {
-			return nil, trace.Wrap(err, "parsing --ca-pin")
+			return trace.Wrap(err, "parsing --ca-pin")
+		}
+	}
+	if req.JoinMethod != "" {
+		if err := types.ValidateJoinMethod(types.JoinMethod(req.JoinMethod)); err != nil {
+			return trace.Wrap(err, "parsing --join-method")
 		}
 	}
 	if req.DiagAddr != "" {
 		if _, err := utils.ParseAddr(req.DiagAddr); err != nil {
-			return nil, trace.Wrap(err, "parsing --diag-addr")
+			return trace.Wrap(err, "parsing --diag-addr")
 		}
 	}
 	if req.SSHListenAddr != "" {
 		if _, err := utils.ParseHostPortAddr(req.SSHListenAddr, defaults.SSHServerListenPort); err != nil {
-			return nil, trace.Wrap(err, "parsing --ssh-listen-addr")
+			return trace.Wrap(err, "parsing --ssh-listen-addr")
 		}
 	}
 	if req.KubeListenAddr != "" {
 		// Not a typo: applyKubeConfig uses the SSH proxy port as kube's default.
 		if _, err := utils.ParseHostPortAddr(req.KubeListenAddr, defaults.SSHProxyListenPort); err != nil {
-			return nil, trace.Wrap(err, "parsing --kube-listen-addr")
+			return trace.Wrap(err, "parsing --kube-listen-addr")
 		}
 	}
 	if req.MetricsListenAddr != "" {
 		if _, err := utils.ParseHostPortAddr(req.MetricsListenAddr, defaults.MetricsListenPort); err != nil {
-			return nil, trace.Wrap(err, "parsing --metrics-listen-addr")
+			return trace.Wrap(err, "parsing --metrics-listen-addr")
 		}
+	}
+
+	// The join method comes from the request or the config, never inference.
+	// Reject what the agent would reject at startup (join_params without a
+	// method) or silently ignore (a registration secret without bound_keypair).
+	joinMethod := fc.JoinParams.Method
+	if req.JoinMethod != "" {
+		joinMethod = types.JoinMethod(req.JoinMethod)
+	}
+	if (req.RegistrationSecret != "" || req.RegistrationSecretPath != "") && joinMethod != types.JoinMethodBoundKeypair {
+		flag := "--registration-secret"
+		if req.RegistrationSecretPath != "" {
+			flag = "--registration-secret-path"
+		}
+		return trace.BadParameter("%s requires the %s join method; pass --join-method %s", flag, types.JoinMethodBoundKeypair, types.JoinMethodBoundKeypair)
+	}
+	joinParamsInUse := fc.JoinParams != (JoinParams{}) ||
+		req.Token != "" || req.RegistrationSecret != "" || req.RegistrationSecretPath != ""
+	if joinParamsInUse && joinMethod == "" {
+		return trace.BadParameter("the output config would set join_params without a join method, which the agent rejects at startup; pass --join-method")
+	}
+	if req.JoinMethod != "" && !joinParamsInUse && fc.AuthToken == "" {
+		return trace.BadParameter("--join-method would create join_params without a token name; pass --token as well")
 	}
 
 	if req.Proxy != "" {
@@ -157,22 +189,30 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) ([]string, error) {
 		fc.JoinParams.BoundKeypair.RegistrationSecretPath = req.RegistrationSecretPath
 		fc.JoinParams.BoundKeypair.RegistrationSecretValue = ""
 	}
-	if fc.JoinParams.Method == "" {
-		switch {
-		case req.RegistrationSecret != "" || req.RegistrationSecretPath != "":
-			fc.JoinParams.Method = types.JoinMethodBoundKeypair
-		case req.Token != "":
-			fc.JoinParams.Method = types.JoinMethodToken
+	if req.JoinMethod != "" {
+		fc.JoinParams.Method = types.JoinMethod(req.JoinMethod)
+		// Leaving the bound_keypair block under another method would carry a
+		// possibly live registration secret into the output.
+		if fc.JoinParams.Method != types.JoinMethodBoundKeypair {
+			fc.JoinParams.BoundKeypair = BoundKeypairParams{}
 		}
+	}
+	// The agent rejects a config that sets both join_params and the legacy
+	// auth_token.
+	if fc.JoinParams != (JoinParams{}) && fc.AuthToken != "" {
+		if fc.JoinParams.TokenName == "" {
+			fc.JoinParams.TokenName = fc.AuthToken
+		}
+		fc.AuthToken = ""
 	}
 
 	if req.NodeLabels != "" {
 		static, dynamic, err := parseLabels(req.NodeLabels)
 		if err != nil {
-			return nil, trace.Wrap(err, "parsing --node-labels")
+			return trace.Wrap(err, "parsing --node-labels")
 		}
 		if len(dynamic) > 0 {
-			return nil, trace.BadParameter("--node-labels only accepts static labels")
+			return trace.BadParameter("--node-labels only accepts static labels")
 		}
 		if fc.SSH.Labels == nil {
 			fc.SSH.Labels = make(map[string]string, len(static))
@@ -199,35 +239,39 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) ([]string, error) {
 		fc.Metrics.ListenAddress = req.MetricsListenAddr
 	}
 
-	return collisionWarnings(fc, req), nil
+	return trace.Wrap(collisionError(fc, req))
 }
 
-// collisionWarnings reports input values the caller kept that a second agent
-// on the same host would contend for. Only explicitly set values are checked;
-// implicit defaults (like SSH's 3022) cannot be detected here.
-func collisionWarnings(fc *FileConfig, req ReconfigureRequest) []string {
-	var warnings []string
-	warn := func(field, value, flag string) {
-		warnings = append(warnings, fmt.Sprintf(
-			"output keeps %s %q from the input; two agents on one host will collide — pass %s to change it",
-			field, value, flag))
+// collisionError rejects values kept from the input that a second agent on
+// the same host would contend for; any explicitly requested value passes.
+// Only values the input sets are checked; implicit defaults (like SSH's
+// 3022) cannot be detected here.
+func collisionError(fc *FileConfig, req ReconfigureRequest) error {
+	var collisions []string
+	add := func(field, value, flag string) {
+		collisions = append(collisions, fmt.Sprintf("%s %q (%s)", field, value, flag))
 	}
 	if req.PIDFile == "" && fc.PIDFile != "" {
-		warn("pid_file", fc.PIDFile, "--pid-file")
+		add("pid_file", fc.PIDFile, "--pid-file")
 	}
 	if req.DiagAddr == "" && fc.DiagAddr != "" {
-		warn("diag_addr", fc.DiagAddr, "--diag-addr")
+		add("diag_addr", fc.DiagAddr, "--diag-addr")
 	}
 	if req.SSHListenAddr == "" && listenAddrCollides(fc.SSH.Service) {
-		warn("ssh_service.listen_addr", fc.SSH.ListenAddress, "--ssh-listen-addr")
+		add("ssh_service.listen_addr", fc.SSH.ListenAddress, "--ssh-listen-addr")
 	}
 	if req.KubeListenAddr == "" && listenAddrCollides(fc.Kube.Service) {
-		warn("kubernetes_service.listen_addr", fc.Kube.ListenAddress, "--kube-listen-addr")
+		add("kubernetes_service.listen_addr", fc.Kube.ListenAddress, "--kube-listen-addr")
 	}
 	if req.MetricsListenAddr == "" && listenAddrCollides(fc.Metrics.Service) {
-		warn("metrics_service.listen_addr", fc.Metrics.ListenAddress, "--metrics-listen-addr")
+		add("metrics_service.listen_addr", fc.Metrics.ListenAddress, "--metrics-listen-addr")
 	}
-	return warnings
+	if len(collisions) == 0 {
+		return nil
+	}
+	return trace.BadParameter(
+		"the output would keep these values from the input, and two agents on one host would collide on them:\n\t%s\npass each listed flag with a new value, or repeat the current value to keep it",
+		strings.Join(collisions, "\n\t"))
 }
 
 // listenAddrCollides reports whether a service pins a listen address a second

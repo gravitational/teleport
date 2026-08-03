@@ -108,9 +108,8 @@ const proxyEnabledGuardMessage = "--proxy requires a config with proxy_service d
 func TestReconfigureRetargeting(t *testing.T) {
 	t.Run("proxy retargets v3 and clears stale fields", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.NoError(t, err)
-		require.Empty(t, warnings)
 		require.Equal(t, "new.example.com:443", fc.ProxyServer)
 		require.Empty(t, fc.AuthServer)
 		require.Empty(t, fc.AuthServers)
@@ -120,7 +119,7 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("proxy with ca-pin sets the new pins", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{
+		err := Reconfigure(fc, ReconfigureRequest{
 			Proxy:  "new.example.com:443",
 			CAPins: []string{"sha256:bbb", "sha256:ccc"},
 		})
@@ -131,7 +130,7 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("ca-pin alone replaces pins and preserves addressing", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{CAPins: []string{"sha256:bbb"}})
+		err := Reconfigure(fc, ReconfigureRequest{CAPins: []string{"sha256:bbb"}})
 		require.NoError(t, err)
 		require.Equal(t, apiutils.Strings{"sha256:bbb"}, fc.CAPin)
 		require.Equal(t, "old.example.com:443", fc.ProxyServer)
@@ -140,7 +139,7 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("auth-server on v3 sets auth_server and clears proxy_server", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
 		require.NoError(t, err)
 		require.Equal(t, "new.example.com:3025", fc.AuthServer)
 		require.Empty(t, fc.ProxyServer)
@@ -151,7 +150,7 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("auth-server on v2 replaces auth_servers with the single address", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV2)
-		_, err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
 		require.NoError(t, err)
 		require.Equal(t, []string{"new.example.com:3025"}, fc.AuthServers)
 		require.Empty(t, fc.CAPin)
@@ -160,7 +159,7 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("config without a version takes auth-server as v1", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoVersion)
-		_, err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
 		require.NoError(t, err)
 		require.Equal(t, []string{"new.example.com:3025"}, fc.AuthServers)
 		requireRoundTrips(t, fc)
@@ -168,31 +167,31 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("proxy on v2 errors and points at auth-server", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV2)
-		_, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.ErrorContains(t, err, "--proxy requires a v3 config; use --auth-server for v1/v2 configs")
 	})
 
 	t.Run("config without a version rejects --proxy", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoVersion)
-		_, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.ErrorContains(t, err, "--proxy requires a v3 config; use --auth-server for v1/v2 configs")
 	})
 
 	t.Run("proxy on a config with proxy_service enabled errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureProxyServiceEnabled)
-		_, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.ErrorContains(t, err, proxyEnabledGuardMessage)
 	})
 
 	t.Run("proxy on a config with no proxy_service section errors (default enabled)", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoProxyServiceSection)
-		_, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.ErrorContains(t, err, proxyEnabledGuardMessage)
 	})
 
 	t.Run("proxy and auth-server are mutually exclusive", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{
+		err := Reconfigure(fc, ReconfigureRequest{
 			Proxy:      "new.example.com:443",
 			AuthServer: "new.example.com:3025",
 		})
@@ -240,9 +239,9 @@ teleport:
 `
 
 func TestReconfigureJoinParams(t *testing.T) {
-	t.Run("token sets token_name, clears legacy auth_token, infers method token", func(t *testing.T) {
+	t.Run("token with join-method replaces legacy auth_token", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureLegacyToken)
-		_, err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token", JoinMethod: "token"})
 		require.NoError(t, err)
 		require.Equal(t, "new-token", fc.JoinParams.TokenName)
 		require.Empty(t, fc.AuthToken)
@@ -250,17 +249,66 @@ func TestReconfigureJoinParams(t *testing.T) {
 		requireRoundTrips(t, fc)
 	})
 
-	t.Run("non-empty method is preserved", func(t *testing.T) {
+	t.Run("token without a method to keep or set errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureLegacyToken)
+		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		require.ErrorContains(t, err, "--join-method")
+	})
+
+	t.Run("join-method omitted keeps the existing method", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureEC2Method)
-		_, err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
 		require.NoError(t, err)
 		require.Equal(t, types.JoinMethodEC2, fc.JoinParams.Method)
+		require.Equal(t, "new-token", fc.JoinParams.TokenName)
 		requireRoundTrips(t, fc)
+	})
+
+	t.Run("join-method replaces the existing method", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureEC2Method)
+		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token", JoinMethod: "token"})
+		require.NoError(t, err)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+		requireRoundTrips(t, fc)
+	})
+
+	t.Run("join-method alone moves legacy auth_token into join_params", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureLegacyToken)
+		err := Reconfigure(fc, ReconfigureRequest{JoinMethod: "token"})
+		require.NoError(t, err)
+		require.Equal(t, "legacy-token", fc.JoinParams.TokenName)
+		require.Empty(t, fc.AuthToken)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+		requireRoundTrips(t, fc)
+	})
+
+	t.Run("join-method on a config with nothing to join with errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureNoProxyServiceSection) // no join_params, no auth_token
+		err := Reconfigure(fc, ReconfigureRequest{JoinMethod: "ec2"})
+		require.ErrorContains(t, err, "--token")
+	})
+
+	// A method change away from bound_keypair must not carry the bound_keypair
+	// block, and possibly a live secret, into the output.
+	t.Run("join-method away from bound_keypair clears the bound_keypair block", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBoundKeypairValue)
+		err := Reconfigure(fc, ReconfigureRequest{JoinMethod: "token"})
+		require.NoError(t, err)
+		require.Equal(t, types.JoinMethodToken, fc.JoinParams.Method)
+		require.Equal(t, BoundKeypairParams{}, fc.JoinParams.BoundKeypair)
+		require.Equal(t, "bk-token", fc.JoinParams.TokenName)
+		requireRoundTrips(t, fc)
+	})
+
+	t.Run("unknown join-method errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{JoinMethod: "bogus"})
+		require.ErrorContains(t, err, "parsing --join-method")
 	})
 
 	t.Run("registration-secret sets value and clears path", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBoundKeypairPath)
-		_, err := Reconfigure(fc, ReconfigureRequest{RegistrationSecret: "s3cret"})
+		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecret: "s3cret"})
 		require.NoError(t, err)
 		require.Equal(t, "s3cret", fc.JoinParams.BoundKeypair.RegistrationSecretValue)
 		require.Empty(t, fc.JoinParams.BoundKeypair.RegistrationSecretPath)
@@ -268,34 +316,52 @@ func TestReconfigureJoinParams(t *testing.T) {
 		requireRoundTrips(t, fc)
 	})
 
-	t.Run("registration-secret wins method inference over token", func(t *testing.T) {
-		fc := parseTestConfig(t, reconfigureNoMethod)
-		_, err := Reconfigure(fc, ReconfigureRequest{Token: "bk-token", RegistrationSecret: "s3cret"})
-		require.NoError(t, err)
-		require.Equal(t, types.JoinMethodBoundKeypair, fc.JoinParams.Method)
-		requireRoundTrips(t, fc)
-	})
-
 	t.Run("registration-secret-path sets path and clears value", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBoundKeypairValue)
-		_, err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
+		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
 		require.NoError(t, err)
 		require.Equal(t, "/etc/teleport-secret", fc.JoinParams.BoundKeypair.RegistrationSecretPath)
 		require.Empty(t, fc.JoinParams.BoundKeypair.RegistrationSecretValue)
 		requireRoundTrips(t, fc)
 	})
 
-	t.Run("registration-secret-path infers bound_keypair method", func(t *testing.T) {
+	t.Run("registration-secret on a token-method config errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecret: "s3cret"})
+		require.ErrorContains(t, err, "--join-method bound_keypair")
+	})
+
+	t.Run("registration-secret-path on a method-less config errors", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureNoMethod)
-		_, err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
+		err := Reconfigure(fc, ReconfigureRequest{RegistrationSecretPath: "/etc/teleport-secret"})
+		require.ErrorContains(t, err, "--join-method bound_keypair")
+	})
+
+	t.Run("registration-secret with join-method bound_keypair retargets a token config", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{
+			Token:              "bk-token",
+			RegistrationSecret: "s3cret",
+			JoinMethod:         "bound_keypair",
+		})
 		require.NoError(t, err)
 		require.Equal(t, types.JoinMethodBoundKeypair, fc.JoinParams.Method)
+		require.Equal(t, "bk-token", fc.JoinParams.TokenName)
+		require.Equal(t, "s3cret", fc.JoinParams.BoundKeypair.RegistrationSecretValue)
 		requireRoundTrips(t, fc)
+	})
+
+	// The agent rejects join_params without a method, so the tool must not
+	// write one even when the request does not touch joining.
+	t.Run("input join_params without a method errors on any edit", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureNoMethod)
+		err := Reconfigure(fc, ReconfigureRequest{DataDir: "/var/lib/teleport_new"})
+		require.ErrorContains(t, err, "--join-method")
 	})
 
 	t.Run("registration-secret and registration-secret-path are mutually exclusive", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{
+		err := Reconfigure(fc, ReconfigureRequest{
 			RegistrationSecret:     "s3cret",
 			RegistrationSecretPath: "/etc/teleport-secret",
 		})
@@ -306,7 +372,7 @@ func TestReconfigureJoinParams(t *testing.T) {
 func TestReconfigureLabelsAndFields(t *testing.T) {
 	t.Run("node-labels merge additively, new value wins", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3) // ssh_service has labels: {env: prod}
-		_, err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "team=a,env=dev"})
+		err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "team=a,env=dev"})
 		require.NoError(t, err)
 		require.Equal(t, map[string]string{"env": "dev", "team": "a"}, fc.SSH.Labels)
 		requireRoundTrips(t, fc)
@@ -314,7 +380,7 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 
 	t.Run("node-labels merge into a config with no labels", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureLegacyToken) // no ssh_service section
-		_, err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "team=a"})
+		err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "team=a"})
 		require.NoError(t, err)
 		require.Equal(t, map[string]string{"team": "a"}, fc.SSH.Labels)
 		requireRoundTrips(t, fc)
@@ -322,19 +388,19 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 
 	t.Run("malformed node-labels error", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "not-a-pair"})
+		err := Reconfigure(fc, ReconfigureRequest{NodeLabels: "not-a-pair"})
 		require.Error(t, err)
 	})
 
 	t.Run("dynamic labels are rejected", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{NodeLabels: `up=[1m:"uptime"]`})
+		err := Reconfigure(fc, ReconfigureRequest{NodeLabels: `up=[1m:"uptime"]`})
 		require.ErrorContains(t, err, "--node-labels only accepts static labels")
 	})
 
 	t.Run("plain fields set only when requested", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{
+		err := Reconfigure(fc, ReconfigureRequest{
 			DataDir:           "/var/lib/teleport_new",
 			PIDFile:           "/run/teleport_new.pid",
 			DiagAddr:          "127.0.0.1:3001",
@@ -354,7 +420,7 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 
 	t.Run("untouched fields carry through unchanged", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
 		require.NoError(t, err)
 		require.Equal(t, "node-04", fc.NodeName)
 		require.Equal(t, "/var/lib/teleport", fc.DataDir)
@@ -366,9 +432,8 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 func TestReconfigureNoOpAndIdempotency(t *testing.T) {
 	t.Run("empty request is a no-op", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{})
+		err := Reconfigure(fc, ReconfigureRequest{})
 		require.NoError(t, err)
-		require.Empty(t, warnings)
 		require.Equal(t, "old.example.com:443", fc.ProxyServer)
 		require.Equal(t, apiutils.Strings{"sha256:aaa"}, fc.CAPin)
 		require.Equal(t, "old-token", fc.JoinParams.TokenName)
@@ -387,19 +452,16 @@ func TestReconfigureNoOpAndIdempotency(t *testing.T) {
 			PIDFile:    "/run/teleport_new.pid",
 		}
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		warnings1, err := Reconfigure(fc, req)
-		require.NoError(t, err)
+		require.NoError(t, Reconfigure(fc, req))
 		out1, err := fc.YAMLString()
 		require.NoError(t, err)
 
 		fc2 := parseTestConfig(t, out1)
-		warnings2, err := Reconfigure(fc2, req)
-		require.NoError(t, err)
+		require.NoError(t, Reconfigure(fc2, req))
 		out2, err := fc2.YAMLString()
 		require.NoError(t, err)
 
 		require.Equal(t, out1, out2)
-		require.Equal(t, warnings1, warnings2)
 	})
 }
 
@@ -447,23 +509,25 @@ kubernetes_service:
   kube_cluster_name: prod
 `
 
-func TestReconfigureCollisionWarnings(t *testing.T) {
-	t.Run("all colliding fields kept from input warn", func(t *testing.T) {
+func TestReconfigureCollisionErrors(t *testing.T) {
+	t.Run("colliding fields kept from the input error, all listed", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureCollisions)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.NoError(t, err)
-		require.Equal(t, []string{
-			`output keeps pid_file "/var/run/teleport.pid" from the input; two agents on one host will collide — pass --pid-file to change it`,
-			`output keeps diag_addr "127.0.0.1:3000" from the input; two agents on one host will collide — pass --diag-addr to change it`,
-			`output keeps ssh_service.listen_addr "0.0.0.0:3022" from the input; two agents on one host will collide — pass --ssh-listen-addr to change it`,
-			`output keeps kubernetes_service.listen_addr "0.0.0.0:3027" from the input; two agents on one host will collide — pass --kube-listen-addr to change it`,
-			`output keeps metrics_service.listen_addr "127.0.0.1:3080" from the input; two agents on one host will collide — pass --metrics-listen-addr to change it`,
-		}, warnings)
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		require.ErrorContains(t, err, "two agents on one host would collide")
+		for _, want := range []string{
+			`pid_file "/var/run/teleport.pid" (--pid-file)`,
+			`diag_addr "127.0.0.1:3000" (--diag-addr)`,
+			`ssh_service.listen_addr "0.0.0.0:3022" (--ssh-listen-addr)`,
+			`kubernetes_service.listen_addr "0.0.0.0:3027" (--kube-listen-addr)`,
+			`metrics_service.listen_addr "127.0.0.1:3080" (--metrics-listen-addr)`,
+		} {
+			require.ErrorContains(t, err, want)
+		}
 	})
 
-	t.Run("overridden fields do not warn", func(t *testing.T) {
+	t.Run("new values for every colliding field clear the error", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureCollisions)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{
+		err := Reconfigure(fc, ReconfigureRequest{
 			PIDFile:           "/run/teleport_new.pid",
 			DiagAddr:          "127.0.0.1:3001",
 			SSHListenAddr:     "0.0.0.0:3122",
@@ -471,46 +535,45 @@ func TestReconfigureCollisionWarnings(t *testing.T) {
 			MetricsListenAddr: "127.0.0.1:3081",
 		})
 		require.NoError(t, err)
-		require.Empty(t, warnings)
 	})
 
-	t.Run("explicitly disabled service does not warn on listen_addr", func(t *testing.T) {
-		fc := parseTestConfig(t, reconfigureDisabledSSHListen)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.NoError(t, err)
-		require.Empty(t, warnings)
-	})
-
-	t.Run("default-disabled service does not warn on listen_addr", func(t *testing.T) {
-		fc := parseTestConfig(t, reconfigureDefaultDisabledKubeListen)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.NoError(t, err)
-		require.Empty(t, warnings)
-	})
-
-	t.Run("config with no colliding fields does not warn", func(t *testing.T) {
-		fc := parseTestConfig(t, reconfigureBaseV3)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
-		require.NoError(t, err)
-		require.Empty(t, warnings)
-	})
-
-	// Exact warning texts are pinned above; here we only care that the kind
-	// of mutation does not gate the warnings.
-	t.Run("warnings fire when only unrelated fields change", func(t *testing.T) {
+	// Repeating the input's value keeps it on purpose, for configs that
+	// replace the input agent rather than run beside it.
+	t.Run("repeating the current values clears the error", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureCollisions)
-		warnings, err := Reconfigure(fc, ReconfigureRequest{DataDir: "/var/lib/teleport_new"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			PIDFile:           "/var/run/teleport.pid",
+			DiagAddr:          "127.0.0.1:3000",
+			SSHListenAddr:     "0.0.0.0:3022",
+			KubeListenAddr:    "0.0.0.0:3027",
+			MetricsListenAddr: "127.0.0.1:3080",
+		})
 		require.NoError(t, err)
-		require.Len(t, warnings, 5)
-		for i, field := range []string{
-			"pid_file",
-			"diag_addr",
-			"ssh_service.listen_addr",
-			"kubernetes_service.listen_addr",
-			"metrics_service.listen_addr",
-		} {
-			require.Contains(t, warnings[i], field)
-		}
+	})
+
+	t.Run("explicitly disabled service does not collide on listen_addr", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureDisabledSSHListen)
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		require.NoError(t, err)
+	})
+
+	t.Run("default-disabled service does not collide on listen_addr", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureDefaultDisabledKubeListen)
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		require.NoError(t, err)
+	})
+
+	t.Run("config with no colliding fields does not error", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		require.NoError(t, err)
+	})
+
+	// The kind of mutation must not gate the collision check.
+	t.Run("collisions error when only unrelated fields change", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureCollisions)
+		err := Reconfigure(fc, ReconfigureRequest{DataDir: "/var/lib/teleport_new"})
+		require.ErrorContains(t, err, "pid_file")
 	})
 }
 
@@ -560,14 +623,14 @@ func TestReconfigureAddressValidation(t *testing.T) {
 	} {
 		t.Run("invalid "+tc.name+" errors", func(t *testing.T) {
 			fc := parseTestConfig(t, reconfigureBaseV3)
-			_, err := Reconfigure(fc, tc.req)
+			err := Reconfigure(fc, tc.req)
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
 
 	t.Run("diag-addr without a port is accepted", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		_, err := Reconfigure(fc, ReconfigureRequest{DiagAddr: "127.0.0.1"})
+		err := Reconfigure(fc, ReconfigureRequest{DiagAddr: "127.0.0.1"})
 		require.NoError(t, err)
 		require.Equal(t, "127.0.0.1", fc.DiagAddr)
 		requireRoundTrips(t, fc)

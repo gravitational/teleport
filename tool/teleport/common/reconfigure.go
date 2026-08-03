@@ -40,6 +40,7 @@ type reconfigureFlags struct {
 	authServer             string
 	caPins                 []string
 	token                  string
+	joinMethod             string
 	registrationSecret     string
 	registrationSecretPath string
 	nodeLabels             string
@@ -53,10 +54,10 @@ type reconfigureFlags struct {
 
 // onReconfigure is the handler for the "reconfigure" CLI command.
 func onReconfigure(flags reconfigureFlags) error {
-	return trace.Wrap(runReconfigure(flags, os.Stdout, os.Stderr))
+	return trace.Wrap(runReconfigure(flags, os.Stdout))
 }
 
-func runReconfigure(flags reconfigureFlags, stdout, stderr io.Writer) error {
+func runReconfigure(flags reconfigureFlags, stdout io.Writer) error {
 	if flags.overwrite && flags.output == "" {
 		return trace.BadParameter("--overwrite requires --output")
 	}
@@ -64,11 +65,12 @@ func runReconfigure(flags reconfigureFlags, stdout, stderr io.Writer) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	warnings, err := config.Reconfigure(fc, config.ReconfigureRequest{
+	if err := config.Reconfigure(fc, config.ReconfigureRequest{
 		Proxy:                  flags.proxy,
 		AuthServer:             flags.authServer,
 		CAPins:                 flags.caPins,
 		Token:                  flags.token,
+		JoinMethod:             flags.joinMethod,
 		RegistrationSecret:     flags.registrationSecret,
 		RegistrationSecretPath: flags.registrationSecretPath,
 		NodeLabels:             flags.nodeLabels,
@@ -78,12 +80,8 @@ func runReconfigure(flags reconfigureFlags, stdout, stderr io.Writer) error {
 		SSHListenAddr:          flags.sshListenAddr,
 		KubeListenAddr:         flags.kubeListenAddr,
 		MetricsListenAddr:      flags.metricsListenAddr,
-	})
-	if err != nil {
+	}); err != nil {
 		return trace.Wrap(err)
-	}
-	for _, w := range warnings {
-		fmt.Fprintf(stderr, "warning: %s\n", w)
 	}
 	out, err := fc.YAMLString()
 	if err != nil {

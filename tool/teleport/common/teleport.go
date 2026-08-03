@@ -468,6 +468,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	reconf.Flag("auth-server", "Auth server address of the target cluster; sets auth_server (v3) or auth_servers (v1/v2).").StringVar(&reconfigureFlags.authServer)
 	reconf.Flag("ca-pin", "CA pin of the target cluster (can be repeated for multiple pins).").StringsVar(&reconfigureFlags.caPins)
 	reconf.Flag("token", "Name of the join token to register with the target cluster.").StringVar(&reconfigureFlags.token)
+	reconf.Flag("join-method", "Join method to set in join_params. Defaults to the method already in the config.").EnumVar(&reconfigureFlags.joinMethod, joinMethods...)
 	reconf.Flag("registration-secret", "Bound keypair registration secret. Prefer --registration-secret-path, which keeps the secret off the command line.").StringVar(&reconfigureFlags.registrationSecret)
 	reconf.Flag("registration-secret-path", "Path to a file containing the bound keypair registration secret; the agent reads it at join time.").StringVar(&reconfigureFlags.registrationSecretPath)
 	reconf.Flag("node-labels", "Comma-separated labels to merge into ssh_service labels, for example env=dev,team=a; new values win on conflict.").StringVar(&reconfigureFlags.nodeLabels)
