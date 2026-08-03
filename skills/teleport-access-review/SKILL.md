@@ -98,6 +98,10 @@ see [QUERY.md](references/QUERY.md).
 - **Level** is `standing`, `impersonate`, `request`, or `denied`, resolved by
   priority `denied > standing > impersonate > request`. A trailing `*` marks
   **temporary** access (granted by an access request; self-expiring).
+- **A level is a grant, not connectability.** Access Graph does not currently
+  resolve traits, so an identity that holds a grant but lacks the principals to
+  authenticate (`logins`, `db_users`, …) still shows `level: standing`, with no
+  field marking the gap. Report holding a grant, not the ability to exercise it.
 - **Results are scoped to your query.** A query through an access list shows only
   paths that flow through that list — not every path each member has. To see a
   user's _complete_ access to a resource, scope by the user and resource

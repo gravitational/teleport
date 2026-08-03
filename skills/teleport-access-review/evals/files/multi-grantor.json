@@ -15,12 +15,12 @@
             "id": "57a91d00-1111-4111-8111-111111111111",
             "name": "staging-db",
             "kind": "resource",
-            "sub_kind": "db",
+            "sub_kind": "database",
             "source": "TELEPORT",
-            "origin": "teleport_db"
+            "origin": "teleport_database"
           },
           "level": "standing",
-          "grant_counts": {"standing": 1, "impersonate": 0, "request": 1},
+          "grant_counts": {"standing": 2, "impersonate": 0, "request": 1},
           "granted_by": [
             {
               "node": {
@@ -35,13 +35,25 @@
             },
             {
               "node": {
-                "id": "5f4e3d2c-1b0a-4987-8654-3210fedcba98",
-                "name": "jit-staging",
+                "id": "2477c76d-d681-4b32-9055-51638cd285d9",
+                "name": "ar_user_group_019fc969-3cb3-77d5-b04a-7beb1a6ec1b1",
                 "kind": "identity_group",
-                "sub_kind": "access_request",
+                "sub_kind": "role",
                 "source": "TELEPORT",
                 "origin": "teleport_access_request",
                 "temporary": true
+              },
+              "level": "standing"
+            },
+            {
+              "node": {
+                "id": "5f4e3d2c-1b0a-4987-8654-3210fedcba98",
+                "name": "staging-db-jit",
+                "alias": "Staging DB (just-in-time request)",
+                "kind": "identity_group",
+                "sub_kind": "access_list",
+                "source": "TELEPORT",
+                "origin": "teleport_access_list"
               },
               "level": "request"
             }

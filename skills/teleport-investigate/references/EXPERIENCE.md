@@ -64,7 +64,7 @@ carry the activity, then filter to all of them:
 ```sh
 $TCTL investigate --status failure --from 7d --facets-only --format json \
   | jq '[.facets[] | select(.name=="event-type").values[]]'
-# failed "logins" surface as BOTH user.login and auth — so filter on both.
+# e.g. "database access" spans db.session.start, db.session.end, db.session.query.
 ```
 
 The sweep cuts both ways: a bare `--status failure` also catches failures that
@@ -82,12 +82,11 @@ abbreviated.
 
 ### "Were there any failed authentications from India in the last 7 days?"
 
-Failed logins span two event types — `user.login` and `auth`, both with
-`status:failure` — so query both (see happy path 4). From India →
-`--country India`. Facets answer it without pulling events:
+Login failures are `user.login` with `status:failure` (local and SSO both). From
+India → `--country India`. Facets answer it without pulling events:
 
 ```sh
-$TCTL investigate --event-type auth --event-type user.login --status failure --country India \
+$TCTL investigate --event-type user.login --status failure --country India \
   --from 7d --facets-only --format json \
   | jq '{total, who: [.facets[] | select(.name=="user").values[]]}'
 ```
@@ -95,6 +94,10 @@ $TCTL investigate --event-type auth --event-type user.login --status failure --c
 ```
 { "total": 1, "who": [{ "value": "alice", "count": 1 }] }
 ```
+
+Don't add `--event-type auth`: `auth` is an **authorization**-attempt failure —
+most often an SSH certificate lacking the requested principal — not a failed
+authentication. Mixing the two inflates any brute-force signal.
 
 ### "What did bot CI-deployer do yesterday?"
 
@@ -144,9 +147,14 @@ $TCTL investigate --resource production-database --event-type db.session.end \
 }
 ```
 
-Manually exclude Teleport automation from the `who` facet — `system` (e.g.
-`session.summarized`), `Instance` (`instance.join`), and `UNKNOWN` are not human
-accessors.
+Manually exclude Teleport automation from the `who` facet — `Instance`
+(`instance.join`), an agent's `<host-uuid>.<cluster-name>`, and `UNKNOWN` are not
+human accessors.
+
+**Don't use `--exclude-user-kind system` for this.** `identity.kind` is derived
+per **event**, not per identity — the same human is `system` on `mfa.add` and
+`user` on `mfa_auth_challenge.*` — so excluding the kind drops real human
+activity. Filter by identity name or event type instead.
 
 ### "Show me what activity was performed during the following access request `<uuid>`"
 
