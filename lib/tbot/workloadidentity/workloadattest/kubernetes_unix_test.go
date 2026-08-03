@@ -56,11 +56,18 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 	mockPodID := "61c266b0-6f75-4490-8d92-3c9ae4d02787"
 	mockContainerID := "9da25af0b548c8c60aa60f77f299ba727bf72d58248bd7528eb5390ffcce555a"
 
+	restartPolicy := func(s v1.ContainerRestartPolicy) *v1.ContainerRestartPolicy {
+		return &s
+	}
+
 	testCases := map[string]struct {
 		containerStatusFunc     func(callCount int) []v1.ContainerStatus
 		initContainerStatusFunc func(callCount int) []v1.ContainerStatus
-		wantRequests            int
-		wantType                workloadidentityv1pb.WorkloadAttrsKubernetesContainer_Type
+		initContainerSpecsFunc  func(callCount int) []v1.Container
+
+		wantRequests int
+		wantType     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_Type
+		wantError    string
 	}{
 		"regular container": {
 			wantRequests: 2,
@@ -96,9 +103,18 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 					},
 				}
 			},
+
+			initContainerSpecsFunc: func(_ int) []v1.Container {
+				return []v1.Container{
+					{
+						Name:          "another-container-1",
+						RestartPolicy: restartPolicy(v1.ContainerRestartPolicyAlways),
+					},
+				}
+			},
 		},
 
-		"init container": {
+		"init container: native sidecar": {
 			wantRequests: 1,
 			wantType:     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT,
 			containerStatusFunc: func(_ int) []v1.ContainerStatus {
@@ -119,6 +135,87 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 						Name:        "container-1",
 						Image:       "my.registry.io/my-app:v1",
 						ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					},
+				}
+			},
+
+			initContainerSpecsFunc: func(_ int) []v1.Container {
+				return []v1.Container{
+					{
+						Name:          "container-1",
+						RestartPolicy: restartPolicy(v1.ContainerRestartPolicyAlways),
+					},
+				}
+			},
+		},
+
+		"init container: not a native sidecar": {
+			wantRequests: 1,
+			wantType:     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT,
+			wantError:    `"container-1" is not a native sidecar`,
+			containerStatusFunc: func(_ int) []v1.ContainerStatus {
+				return []v1.ContainerStatus{
+					{
+						ContainerID: "docker://1231455ksasdffgdk923klsklsdghkld0235wehlsdgjsd3i50sekfgort0235ui",
+						Name:        "another-container-1",
+						Image:       "my.registry.io/my-other-app:v1",
+						ImageID:     "docker-pullable://my.registry.io/my-other-app:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					},
+				}
+			},
+
+			initContainerStatusFunc: func(_ int) []v1.ContainerStatus {
+				return []v1.ContainerStatus{
+					{
+						ContainerID: "docker://" + mockContainerID,
+						Name:        "container-1",
+						Image:       "my.registry.io/my-app:v1",
+						ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					},
+				}
+			},
+
+			initContainerSpecsFunc: func(_ int) []v1.Container {
+				return []v1.Container{
+					{
+						Name:          "container-1",
+						RestartPolicy: restartPolicy(v1.ContainerRestartPolicyOnFailure),
+					},
+				}
+			},
+		},
+
+		"init container: spec not found": {
+			wantRequests: 1,
+			wantType:     workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT,
+			wantError:    `"container-1" is not a native sidecar`,
+			containerStatusFunc: func(_ int) []v1.ContainerStatus {
+				return []v1.ContainerStatus{
+					{
+						ContainerID: "docker://1231455ksasdffgdk923klsklsdghkld0235wehlsdgjsd3i50sekfgort0235ui",
+						Name:        "another-container-1",
+						Image:       "my.registry.io/my-other-app:v1",
+						ImageID:     "docker-pullable://my.registry.io/my-other-app:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					},
+				}
+			},
+
+			initContainerStatusFunc: func(_ int) []v1.ContainerStatus {
+				return []v1.ContainerStatus{
+					{
+						ContainerID: "docker://" + mockContainerID,
+						Name:        "container-1",
+						Image:       "my.registry.io/my-app:v1",
+						ImageID:     "docker-pullable://my.registry.io/my-app@sha256:84c998f7610b356a5eed24f801c01b273cf3e83f081f25c9b16aa8136c2cafb1",
+					},
+				}
+			},
+
+			initContainerSpecsFunc: func(_ int) []v1.Container {
+				return []v1.Container{
+					{
+						Name:          "container-2",
+						RestartPolicy: restartPolicy(v1.ContainerRestartPolicyAlways),
 					},
 				}
 			},
@@ -153,6 +250,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 							},
 							Spec: v1.PodSpec{
 								ServiceAccountName: "my-service-account",
+								InitContainers:     tc.initContainerSpecsFunc(int(requests.Load())),
 							},
 							Status: v1.PodStatus{
 								ContainerStatuses:     tc.containerStatusFunc(int(requests.Load())),
@@ -207,6 +305,12 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 			defer cancel()
 
 			att, err := attestor.Attest(ctx, mockPID)
+			if tc.wantError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.wantError)
+				return
+			}
+
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(workloadidentityv1pb.WorkloadAttrsKubernetes_builder{
 				Attested:       true,

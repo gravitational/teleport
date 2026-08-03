@@ -213,11 +213,32 @@ func (a *KubernetesAttestor) tryGetPodAndContainerStatus(ctx context.Context, po
 	for _, status := range pod.Status.InitContainerStatuses {
 		// Kubelet returns the container ID prefixed by `<type>://`.
 		if _, id, _ := strings.Cut(status.ContainerID, "://"); id == containerID {
+			// Accept only native sidecars (RestartPolicy == Always)
+			if !isNativeSidecarContainer(pod, status.Name) {
+				return nil, nil, trace.AccessDenied("container %q is not a native sidecar", status.Name)
+			}
+
 			return pod, &containerStatus{Status: status, Type: workloadidentityv1pb.WorkloadAttrsKubernetesContainer_TYPE_INIT}, nil
 		}
 	}
 
 	return pod, nil, nil
+}
+
+// getInitContainerSpec returns the Spec of the container in the Pod based on its name.
+func isNativeSidecarContainer(pod *v1.Pod, name string) bool {
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == name {
+			// Native containers have RestartPolicy == Always.
+			if c.RestartPolicy != nil && *c.RestartPolicy == v1.ContainerRestartPolicyAlways {
+				return true
+			}
+
+			break
+		}
+	}
+
+	return false
 }
 
 // kubeletClient is a HTTP client for the Kubelet API
