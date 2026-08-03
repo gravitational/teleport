@@ -115,5 +115,6 @@ No modules.
 | ecs\_task\_role\_arn | The ARN of the task IAM role for the Teleport agent ECS task. |
 | ecs\_task\_role\_name | The name of the task IAM role for the Teleport agent ECS task. |
 | security\_group\_id | Security group ID created for the Teleport agent ECS service. |
+| teleport\_config | Teleport configuration used by the ECS task. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
 <!-- END_TF_DOCS -->

@@ -73,3 +73,8 @@ EOF
     : null
   )
 }
+
+output "teleport_config" {
+  description = "Teleport configuration used by the ECS task."
+  value       = var.create ? var.teleport_config : null
+}
