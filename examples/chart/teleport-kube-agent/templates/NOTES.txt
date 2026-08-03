@@ -20,15 +20,6 @@ You will face compatibility issues trying to run a different Teleport version wi
 If you want to run Teleport version {{.Values.teleportVersionOverride}},
 you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
 {{- end }}
-{{- if and (not (has .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy (list "auto" ""))) (semverCompare "<1.27.0-0" .Capabilities.KubeVersion.Version) }}
-
-WARNING: `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` is
-configured, but Kubernetes {{ .Capabilities.KubeVersion.Version }} may not
-support `unhealthyPodEvictionPolicy`. The PodDisruptionBudget may be rejected or
-ignored.
-See https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it
-for compatibility details.
-{{- end }}
 {{- if contains "-gke." .Capabilities.KubeVersion.Version -}}
 {{- $groupName := (coalesce .Values.adminClusterRoleBinding.name "cluster-admin") }}
 

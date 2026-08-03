@@ -18,11 +18,13 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
-{{- $unhealthyPodEvictionPolicy := .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
-{{- if not (has $unhealthyPodEvictionPolicy (list "" "auto" "AlwaysAllow" "IfHealthyBudget")) }}
-{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy must be one of: \"\", \"auto\", \"AlwaysAllow\", \"IfHealthyBudget\"" }}
+{{- if not (has .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy (list "" "AlwaysAllow" "IfHealthyBudget")) }}
+{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy must be one of: \"\", \"AlwaysAllow\", \"IfHealthyBudget\"" }}
 {{- end }}
-{{- if or (has $unhealthyPodEvictionPolicy (list "AlwaysAllow" "IfHealthyBudget")) (and (eq $unhealthyPodEvictionPolicy "auto") (semverCompare ">=1.27.0-0" .Capabilities.KubeVersion.Version)) }}
-  unhealthyPodEvictionPolicy: {{ ternary "AlwaysAllow" $unhealthyPodEvictionPolicy (eq $unhealthyPodEvictionPolicy "auto") }}
+{{- if (not (empty .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy)) }}
+{{- if (semverCompare "<1.27.0-0" .Capabilities.KubeVersion.Version) }}
+{{- fail "highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy is not supported on Kubernetes <1.27.0-0. Set value to \"\" to omit." }}
+{{- end }}
+  unhealthyPodEvictionPolicy: {{ .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
 {{- end }}
 {{- end }}

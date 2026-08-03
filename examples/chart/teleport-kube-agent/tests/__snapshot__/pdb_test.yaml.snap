@@ -1,4 +1,4 @@
-enables unhealthyPodEvictionPolicy automatically for k8s = 1.27:
+Defaults unhealthyPodEvictionPolicy to AlwaysAllow:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget
@@ -28,7 +28,7 @@ honors user-provided unhealthyPodEvictionPolicy:
         matchLabels:
           app: RELEASE-NAME
       unhealthyPodEvictionPolicy: IfHealthyBudget
-omits unhealthyPodEvictionPolicy for k8s < 1.27:
+omits unhealthyPodEvictionPolicy when empty:
   1: |
     apiVersion: policy/v1beta1
     kind: PodDisruptionBudget
@@ -42,21 +42,6 @@ omits unhealthyPodEvictionPolicy for k8s < 1.27:
       selector:
         matchLabels:
           app: RELEASE-NAME
-renders an explicit unhealthyPodEvictionPolicy on k8s < 1.27:
-  1: |
-    apiVersion: policy/v1beta1
-    kind: PodDisruptionBudget
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      minAvailable: 2
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      unhealthyPodEvictionPolicy: IfHealthyBudget
 sets PodDisruptionBudget labels when specified:
   1: |
     apiVersion: policy/v1beta1
@@ -73,6 +58,7 @@ sets PodDisruptionBudget labels when specified:
       selector:
         matchLabels:
           app: RELEASE-NAME
+      unhealthyPodEvictionPolicy: AlwaysAllow
 should create a PDB when enabled in values (pdb.yaml):
   1: |
     apiVersion: policy/v1beta1
@@ -87,3 +73,4 @@ should create a PDB when enabled in values (pdb.yaml):
       selector:
         matchLabels:
           app: RELEASE-NAME
+      unhealthyPodEvictionPolicy: AlwaysAllow
