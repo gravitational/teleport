@@ -9,6 +9,7 @@ package v1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -257,6 +258,14 @@ const (
 	// CLIENT_IP_RESTRICTION_STATUS_ACTIVE means the restriction is applied and
 	// only IPs within the allowlist can reach the tenant.
 	ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE ClientIPRestrictionStatus = 2
+	// CLIENT_IP_RESTRICTION_STATUS_DRAFT means the allowlist is saved but not
+	// enforced (mode is draft), so all IPs can reach the tenant.
+	ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT ClientIPRestrictionStatus = 3
+	// CLIENT_IP_RESTRICTION_STATUS_EXPIRED means the allowlist is saved but no
+	// longer enforced because the expires deadline elapsed, so all IPs can reach
+	// the tenant. Mode still reads enforced and expires keeps its value; see the
+	// expires field.
+	ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_EXPIRED ClientIPRestrictionStatus = 4
 )
 
 // Enum value maps for ClientIPRestrictionStatus.
@@ -265,11 +274,15 @@ var (
 		0: "CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED",
 		1: "CLIENT_IP_RESTRICTION_STATUS_PENDING",
 		2: "CLIENT_IP_RESTRICTION_STATUS_ACTIVE",
+		3: "CLIENT_IP_RESTRICTION_STATUS_DRAFT",
+		4: "CLIENT_IP_RESTRICTION_STATUS_EXPIRED",
 	}
 	ClientIPRestrictionStatus_value = map[string]int32{
 		"CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED": 0,
 		"CLIENT_IP_RESTRICTION_STATUS_PENDING":     1,
 		"CLIENT_IP_RESTRICTION_STATUS_ACTIVE":      2,
+		"CLIENT_IP_RESTRICTION_STATUS_DRAFT":       3,
+		"CLIENT_IP_RESTRICTION_STATUS_EXPIRED":     4,
 	}
 )
 
@@ -298,6 +311,62 @@ func (x ClientIPRestrictionStatus) Number() protoreflect.EnumNumber {
 // Deprecated: Use ClientIPRestrictionStatus.Descriptor instead.
 func (ClientIPRestrictionStatus) EnumDescriptor() ([]byte, []int) {
 	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{4}
+}
+
+// ClientIPRestrictionMode is the user-controlled operational mode of a
+// ClientIPRestriction. It denotes intent; the actual enforcement state is
+// reported by ClientIPRestrictionStatus.
+type ClientIPRestrictionMode int32
+
+const (
+	ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED ClientIPRestrictionMode = 0
+	// CLIENT_IP_RESTRICTION_MODE_DRAFT means the restriction is configured but
+	// not enforced by the Cloud platform.
+	ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT ClientIPRestrictionMode = 1
+	// CLIENT_IP_RESTRICTION_MODE_ENFORCED means the restriction should be
+	// enforced by the Cloud platform.
+	ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED ClientIPRestrictionMode = 2
+)
+
+// Enum value maps for ClientIPRestrictionMode.
+var (
+	ClientIPRestrictionMode_name = map[int32]string{
+		0: "CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED",
+		1: "CLIENT_IP_RESTRICTION_MODE_DRAFT",
+		2: "CLIENT_IP_RESTRICTION_MODE_ENFORCED",
+	}
+	ClientIPRestrictionMode_value = map[string]int32{
+		"CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED": 0,
+		"CLIENT_IP_RESTRICTION_MODE_DRAFT":       1,
+		"CLIENT_IP_RESTRICTION_MODE_ENFORCED":    2,
+	}
+)
+
+func (x ClientIPRestrictionMode) Enum() *ClientIPRestrictionMode {
+	p := new(ClientIPRestrictionMode)
+	*p = x
+	return p
+}
+
+func (x ClientIPRestrictionMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClientIPRestrictionMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_tenants_v1_tenants_proto_enumTypes[5].Descriptor()
+}
+
+func (ClientIPRestrictionMode) Type() protoreflect.EnumType {
+	return &file_api_tenants_v1_tenants_proto_enumTypes[5]
+}
+
+func (x ClientIPRestrictionMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ClientIPRestrictionMode.Descriptor instead.
+func (ClientIPRestrictionMode) EnumDescriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{5}
 }
 
 // UpdateStripeBillingAddress is the stripe billing address request for updates
@@ -450,6 +519,352 @@ func (x *StripeBillingAddress) GetAddressState() string {
 	return ""
 }
 
+// StripeAddress is the billing address associated with a Stripe account.
+type StripeAddress struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// address_city is the Stripe address city
+	AddressCity string `protobuf:"bytes,1,opt,name=address_city,json=addressCity,proto3" json:"address_city,omitempty"`
+	// address_country is the Stripe address country
+	AddressCountry string `protobuf:"bytes,2,opt,name=address_country,json=addressCountry,proto3" json:"address_country,omitempty"`
+	// address_line1 is the Stripe address line1
+	AddressLine1 string `protobuf:"bytes,3,opt,name=address_line1,json=addressLine1,proto3" json:"address_line1,omitempty"`
+	// address_line2 is the Stripe address line2
+	AddressLine2 string `protobuf:"bytes,4,opt,name=address_line2,json=addressLine2,proto3" json:"address_line2,omitempty"`
+	// address_postal_code is the Stripe address postal code
+	AddressPostalCode string `protobuf:"bytes,5,opt,name=address_postal_code,json=addressPostalCode,proto3" json:"address_postal_code,omitempty"`
+	// address_state is the Stripe address state
+	AddressState  string `protobuf:"bytes,6,opt,name=address_state,json=addressState,proto3" json:"address_state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeAddress) Reset() {
+	*x = StripeAddress{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeAddress) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeAddress) ProtoMessage() {}
+
+func (x *StripeAddress) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeAddress.ProtoReflect.Descriptor instead.
+func (*StripeAddress) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *StripeAddress) GetAddressCity() string {
+	if x != nil {
+		return x.AddressCity
+	}
+	return ""
+}
+
+func (x *StripeAddress) GetAddressCountry() string {
+	if x != nil {
+		return x.AddressCountry
+	}
+	return ""
+}
+
+func (x *StripeAddress) GetAddressLine1() string {
+	if x != nil {
+		return x.AddressLine1
+	}
+	return ""
+}
+
+func (x *StripeAddress) GetAddressLine2() string {
+	if x != nil {
+		return x.AddressLine2
+	}
+	return ""
+}
+
+func (x *StripeAddress) GetAddressPostalCode() string {
+	if x != nil {
+		return x.AddressPostalCode
+	}
+	return ""
+}
+
+func (x *StripeAddress) GetAddressState() string {
+	if x != nil {
+		return x.AddressState
+	}
+	return ""
+}
+
+// StripeCard describes a customer credit card in Stripe.
+type StripeCard struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id is the card id
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// last4 is the last 4 digits of the card's number
+	Last4 string `protobuf:"bytes,2,opt,name=last4,proto3" json:"last4,omitempty"`
+	// address_line1 is the AddressLine1 of the card
+	AddressLine1 string `protobuf:"bytes,3,opt,name=address_line1,json=addressLine1,proto3" json:"address_line1,omitempty"`
+	// address_line2 is the AddressLine2 of the card
+	AddressLine2 string `protobuf:"bytes,4,opt,name=address_line2,json=addressLine2,proto3" json:"address_line2,omitempty"`
+	// city is the City of the card
+	City string `protobuf:"bytes,5,opt,name=city,proto3" json:"city,omitempty"`
+	// country is the Country of the card
+	Country string `protobuf:"bytes,6,opt,name=country,proto3" json:"country,omitempty"`
+	// state is the State of the card
+	State string `protobuf:"bytes,7,opt,name=state,proto3" json:"state,omitempty"`
+	// name is the Name of the card
+	Name string `protobuf:"bytes,8,opt,name=name,proto3" json:"name,omitempty"`
+	// zip is the Zip of the card
+	Zip string `protobuf:"bytes,9,opt,name=zip,proto3" json:"zip,omitempty"`
+	// brand is the brand of the payment card
+	Brand string `protobuf:"bytes,10,opt,name=brand,proto3" json:"brand,omitempty"`
+	// expiration_month is the month during which the payment card will expire
+	ExpirationMonth int64 `protobuf:"varint,11,opt,name=expiration_month,json=expirationMonth,proto3" json:"expiration_month,omitempty"`
+	// expiration_year is the year during which the payment card will expire
+	ExpirationYear int64 `protobuf:"varint,12,opt,name=expiration_year,json=expirationYear,proto3" json:"expiration_year,omitempty"`
+	// created_at is time when the card has been added
+	CreatedAt     int64 `protobuf:"varint,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCard) Reset() {
+	*x = StripeCard{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCard) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCard) ProtoMessage() {}
+
+func (x *StripeCard) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCard.ProtoReflect.Descriptor instead.
+func (*StripeCard) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *StripeCard) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *StripeCard) GetLast4() string {
+	if x != nil {
+		return x.Last4
+	}
+	return ""
+}
+
+func (x *StripeCard) GetAddressLine1() string {
+	if x != nil {
+		return x.AddressLine1
+	}
+	return ""
+}
+
+func (x *StripeCard) GetAddressLine2() string {
+	if x != nil {
+		return x.AddressLine2
+	}
+	return ""
+}
+
+func (x *StripeCard) GetCity() string {
+	if x != nil {
+		return x.City
+	}
+	return ""
+}
+
+func (x *StripeCard) GetCountry() string {
+	if x != nil {
+		return x.Country
+	}
+	return ""
+}
+
+func (x *StripeCard) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *StripeCard) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *StripeCard) GetZip() string {
+	if x != nil {
+		return x.Zip
+	}
+	return ""
+}
+
+func (x *StripeCard) GetBrand() string {
+	if x != nil {
+		return x.Brand
+	}
+	return ""
+}
+
+func (x *StripeCard) GetExpirationMonth() int64 {
+	if x != nil {
+		return x.ExpirationMonth
+	}
+	return 0
+}
+
+func (x *StripeCard) GetExpirationYear() int64 {
+	if x != nil {
+		return x.ExpirationYear
+	}
+	return 0
+}
+
+func (x *StripeCard) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+// StripeInvoice describes a customer invoice in Stripe.
+type StripeInvoice struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// invoice_id is "Number"; a unique, identifying string that appears to the customer for this invoice.
+	// This starts with the customer's unique invoice_prefix if it is specified.
+	InvoiceId string `protobuf:"bytes,1,opt,name=invoice_id,json=invoiceId,proto3" json:"invoice_id,omitempty"`
+	// status is the invoice status
+	Status string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	// amount_due is the amount due on the invoice
+	AmountDue int64 `protobuf:"varint,3,opt,name=amount_due,json=amountDue,proto3" json:"amount_due,omitempty"`
+	// amount_paid is the amount paid on the invoice
+	AmountPaid int64 `protobuf:"varint,4,opt,name=amount_paid,json=amountPaid,proto3" json:"amount_paid,omitempty"`
+	// period_end is the invoice period end date
+	PeriodEnd int64 `protobuf:"varint,5,opt,name=period_end,json=periodEnd,proto3" json:"period_end,omitempty"`
+	// period_start is the invoice period start date
+	PeriodStart int64 `protobuf:"varint,6,opt,name=period_start,json=periodStart,proto3" json:"period_start,omitempty"`
+	// invoice_pdf is the URL of the invoice PDF
+	InvoicePdf    string `protobuf:"bytes,7,opt,name=invoice_pdf,json=invoicePdf,proto3" json:"invoice_pdf,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeInvoice) Reset() {
+	*x = StripeInvoice{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeInvoice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeInvoice) ProtoMessage() {}
+
+func (x *StripeInvoice) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeInvoice.ProtoReflect.Descriptor instead.
+func (*StripeInvoice) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *StripeInvoice) GetInvoiceId() string {
+	if x != nil {
+		return x.InvoiceId
+	}
+	return ""
+}
+
+func (x *StripeInvoice) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *StripeInvoice) GetAmountDue() int64 {
+	if x != nil {
+		return x.AmountDue
+	}
+	return 0
+}
+
+func (x *StripeInvoice) GetAmountPaid() int64 {
+	if x != nil {
+		return x.AmountPaid
+	}
+	return 0
+}
+
+func (x *StripeInvoice) GetPeriodEnd() int64 {
+	if x != nil {
+		return x.PeriodEnd
+	}
+	return 0
+}
+
+func (x *StripeInvoice) GetPeriodStart() int64 {
+	if x != nil {
+		return x.PeriodStart
+	}
+	return 0
+}
+
+func (x *StripeInvoice) GetInvoicePdf() string {
+	if x != nil {
+		return x.InvoicePdf
+	}
+	return ""
+}
+
 // UpdateEmailRequest describes the update email request
 //
 // Deprecated: Marked as deprecated in api/tenants/v1/tenants.proto.
@@ -462,7 +877,7 @@ type UpdateEmailRequest struct {
 
 func (x *UpdateEmailRequest) Reset() {
 	*x = UpdateEmailRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[2]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +889,7 @@ func (x *UpdateEmailRequest) String() string {
 func (*UpdateEmailRequest) ProtoMessage() {}
 
 func (x *UpdateEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[2]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +902,7 @@ func (x *UpdateEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateEmailRequest.ProtoReflect.Descriptor instead.
 func (*UpdateEmailRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{2}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpdateEmailRequest) GetEmail() string {
@@ -509,7 +924,7 @@ type UpdatePurchaseOrderPrefixRequest struct {
 
 func (x *UpdatePurchaseOrderPrefixRequest) Reset() {
 	*x = UpdatePurchaseOrderPrefixRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[3]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -521,7 +936,7 @@ func (x *UpdatePurchaseOrderPrefixRequest) String() string {
 func (*UpdatePurchaseOrderPrefixRequest) ProtoMessage() {}
 
 func (x *UpdatePurchaseOrderPrefixRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[3]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -534,7 +949,7 @@ func (x *UpdatePurchaseOrderPrefixRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdatePurchaseOrderPrefixRequest.ProtoReflect.Descriptor instead.
 func (*UpdatePurchaseOrderPrefixRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{3}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UpdatePurchaseOrderPrefixRequest) GetPo() string {
@@ -579,7 +994,7 @@ type Card struct {
 
 func (x *Card) Reset() {
 	*x = Card{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[4]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -591,7 +1006,7 @@ func (x *Card) String() string {
 func (*Card) ProtoMessage() {}
 
 func (x *Card) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[4]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -604,7 +1019,7 @@ func (x *Card) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Card.ProtoReflect.Descriptor instead.
 func (*Card) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{4}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Card) GetId() string {
@@ -719,7 +1134,7 @@ type GetBillingInformationResponse struct {
 
 func (x *GetBillingInformationResponse) Reset() {
 	*x = GetBillingInformationResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[5]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +1146,7 @@ func (x *GetBillingInformationResponse) String() string {
 func (*GetBillingInformationResponse) ProtoMessage() {}
 
 func (x *GetBillingInformationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[5]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +1159,7 @@ func (x *GetBillingInformationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBillingInformationResponse.ProtoReflect.Descriptor instead.
 func (*GetBillingInformationResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{5}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetBillingInformationResponse) GetProductName() string {
@@ -794,7 +1209,7 @@ type CreateSetupIntentResponse struct {
 
 func (x *CreateSetupIntentResponse) Reset() {
 	*x = CreateSetupIntentResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[6]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -806,7 +1221,7 @@ func (x *CreateSetupIntentResponse) String() string {
 func (*CreateSetupIntentResponse) ProtoMessage() {}
 
 func (x *CreateSetupIntentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[6]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -819,12 +1234,108 @@ func (x *CreateSetupIntentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSetupIntentResponse.ProtoReflect.Descriptor instead.
 func (*CreateSetupIntentResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{6}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreateSetupIntentResponse) GetClientSecret() string {
 	if x != nil {
 		return x.ClientSecret
+	}
+	return ""
+}
+
+// GetStripeConfigRequest is the request for GetStripeConfig
+type GetStripeConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetStripeConfigRequest) Reset() {
+	*x = GetStripeConfigRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetStripeConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetStripeConfigRequest) ProtoMessage() {}
+
+func (x *GetStripeConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetStripeConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetStripeConfigRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{10}
+}
+
+// GetStripeConfigResponse is the client-facing Stripe configuration served to the UI
+// so it can initialize Stripe.js / Elements. An empty public_key indicates Stripe is
+// not configured for this environment; the client should not render Elements in that case.
+type GetStripeConfigResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// public_key is the Stripe publishable key for the current environment.
+	// Safe to embed in client bundles.
+	PublicKey string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// stripe_customer_id is the Stripe customer ID for the requesting cloud
+	// customer, or empty if the customer has no Stripe customer yet.
+	StripeCustomerId string `protobuf:"bytes,2,opt,name=stripe_customer_id,json=stripeCustomerId,proto3" json:"stripe_customer_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetStripeConfigResponse) Reset() {
+	*x = GetStripeConfigResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetStripeConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetStripeConfigResponse) ProtoMessage() {}
+
+func (x *GetStripeConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetStripeConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetStripeConfigResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetStripeConfigResponse) GetPublicKey() string {
+	if x != nil {
+		return x.PublicKey
+	}
+	return ""
+}
+
+func (x *GetStripeConfigResponse) GetStripeCustomerId() string {
+	if x != nil {
+		return x.StripeCustomerId
 	}
 	return ""
 }
@@ -857,7 +1368,7 @@ type Invoice struct {
 
 func (x *Invoice) Reset() {
 	*x = Invoice{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[7]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -869,7 +1380,7 @@ func (x *Invoice) String() string {
 func (*Invoice) ProtoMessage() {}
 
 func (x *Invoice) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[7]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -882,7 +1393,7 @@ func (x *Invoice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Invoice.ProtoReflect.Descriptor instead.
 func (*Invoice) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{7}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Invoice) GetInvoiceId() string {
@@ -952,7 +1463,7 @@ type SubmitUsageReportsRequest struct {
 
 func (x *SubmitUsageReportsRequest) Reset() {
 	*x = SubmitUsageReportsRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[8]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -964,7 +1475,7 @@ func (x *SubmitUsageReportsRequest) String() string {
 func (*SubmitUsageReportsRequest) ProtoMessage() {}
 
 func (x *SubmitUsageReportsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[8]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -977,7 +1488,7 @@ func (x *SubmitUsageReportsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitUsageReportsRequest.ProtoReflect.Descriptor instead.
 func (*SubmitUsageReportsRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{8}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SubmitUsageReportsRequest) GetReports() []*UsageReport {
@@ -1002,7 +1513,7 @@ type UsageReport struct {
 
 func (x *UsageReport) Reset() {
 	*x = UsageReport{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[9]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1014,7 +1525,7 @@ func (x *UsageReport) String() string {
 func (*UsageReport) ProtoMessage() {}
 
 func (x *UsageReport) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[9]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1027,7 +1538,7 @@ func (x *UsageReport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageReport.ProtoReflect.Descriptor instead.
 func (*UsageReport) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{9}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UsageReport) GetPeriodStart() int64 {
@@ -1064,7 +1575,7 @@ type UsageReportItem struct {
 
 func (x *UsageReportItem) Reset() {
 	*x = UsageReportItem{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[10]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1076,7 +1587,7 @@ func (x *UsageReportItem) String() string {
 func (*UsageReportItem) ProtoMessage() {}
 
 func (x *UsageReportItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[10]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1089,7 +1600,7 @@ func (x *UsageReportItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageReportItem.ProtoReflect.Descriptor instead.
 func (*UsageReportItem) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{10}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UsageReportItem) GetResource() UsageResourceType {
@@ -1119,7 +1630,7 @@ type RemoveCardRequest struct {
 
 func (x *RemoveCardRequest) Reset() {
 	*x = RemoveCardRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[11]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1131,7 +1642,7 @@ func (x *RemoveCardRequest) String() string {
 func (*RemoveCardRequest) ProtoMessage() {}
 
 func (x *RemoveCardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[11]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1144,7 +1655,7 @@ func (x *RemoveCardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveCardRequest.ProtoReflect.Descriptor instead.
 func (*RemoveCardRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{11}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *RemoveCardRequest) GetCardId() string {
@@ -1169,7 +1680,7 @@ type AddCardRequest struct {
 
 func (x *AddCardRequest) Reset() {
 	*x = AddCardRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[12]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1181,7 +1692,7 @@ func (x *AddCardRequest) String() string {
 func (*AddCardRequest) ProtoMessage() {}
 
 func (x *AddCardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[12]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1194,7 +1705,7 @@ func (x *AddCardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddCardRequest.ProtoReflect.Descriptor instead.
 func (*AddCardRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{12}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AddCardRequest) GetCardId() string {
@@ -1228,7 +1739,7 @@ type UpdateCardRequest struct {
 
 func (x *UpdateCardRequest) Reset() {
 	*x = UpdateCardRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[13]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1240,7 +1751,7 @@ func (x *UpdateCardRequest) String() string {
 func (*UpdateCardRequest) ProtoMessage() {}
 
 func (x *UpdateCardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[13]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1253,7 +1764,7 @@ func (x *UpdateCardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCardRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCardRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{13}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *UpdateCardRequest) GetPrevCardId() string {
@@ -1288,7 +1799,7 @@ type GetAccountUpgradeWindowStartHourResponse struct {
 
 func (x *GetAccountUpgradeWindowStartHourResponse) Reset() {
 	*x = GetAccountUpgradeWindowStartHourResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[14]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +1811,7 @@ func (x *GetAccountUpgradeWindowStartHourResponse) String() string {
 func (*GetAccountUpgradeWindowStartHourResponse) ProtoMessage() {}
 
 func (x *GetAccountUpgradeWindowStartHourResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[14]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +1824,7 @@ func (x *GetAccountUpgradeWindowStartHourResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use GetAccountUpgradeWindowStartHourResponse.ProtoReflect.Descriptor instead.
 func (*GetAccountUpgradeWindowStartHourResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{14}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetAccountUpgradeWindowStartHourResponse) GetUpgradeWindowStartHour() int64 {
@@ -1334,7 +1845,7 @@ type UpdateAccountUpgradeWindowStartHourRequest struct {
 
 func (x *UpdateAccountUpgradeWindowStartHourRequest) Reset() {
 	*x = UpdateAccountUpgradeWindowStartHourRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[15]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1346,7 +1857,7 @@ func (x *UpdateAccountUpgradeWindowStartHourRequest) String() string {
 func (*UpdateAccountUpgradeWindowStartHourRequest) ProtoMessage() {}
 
 func (x *UpdateAccountUpgradeWindowStartHourRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[15]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1359,7 +1870,7 @@ func (x *UpdateAccountUpgradeWindowStartHourRequest) ProtoReflect() protoreflect
 
 // Deprecated: Use UpdateAccountUpgradeWindowStartHourRequest.ProtoReflect.Descriptor instead.
 func (*UpdateAccountUpgradeWindowStartHourRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{15}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UpdateAccountUpgradeWindowStartHourRequest) GetUpgradeWindowStartHour() int64 {
@@ -1377,7 +1888,7 @@ type GetEnvironmentProfileRequest struct {
 
 func (x *GetEnvironmentProfileRequest) Reset() {
 	*x = GetEnvironmentProfileRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[16]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1389,7 +1900,7 @@ func (x *GetEnvironmentProfileRequest) String() string {
 func (*GetEnvironmentProfileRequest) ProtoMessage() {}
 
 func (x *GetEnvironmentProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[16]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1402,7 +1913,7 @@ func (x *GetEnvironmentProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEnvironmentProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetEnvironmentProfileRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{16}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{21}
 }
 
 // GetEnvironmentProfileResponse describes environment profile response
@@ -1416,7 +1927,7 @@ type GetEnvironmentProfileResponse struct {
 
 func (x *GetEnvironmentProfileResponse) Reset() {
 	*x = GetEnvironmentProfileResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[17]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1428,7 +1939,7 @@ func (x *GetEnvironmentProfileResponse) String() string {
 func (*GetEnvironmentProfileResponse) ProtoMessage() {}
 
 func (x *GetEnvironmentProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[17]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1441,7 +1952,7 @@ func (x *GetEnvironmentProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetEnvironmentProfileResponse.ProtoReflect.Descriptor instead.
 func (*GetEnvironmentProfileResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{17}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetEnvironmentProfileResponse) GetEnvironmentProfile() string {
@@ -1462,7 +1973,7 @@ type UpdateEnvironmentProfileRequest struct {
 
 func (x *UpdateEnvironmentProfileRequest) Reset() {
 	*x = UpdateEnvironmentProfileRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[18]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1474,7 +1985,7 @@ func (x *UpdateEnvironmentProfileRequest) String() string {
 func (*UpdateEnvironmentProfileRequest) ProtoMessage() {}
 
 func (x *UpdateEnvironmentProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[18]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1487,7 +1998,7 @@ func (x *UpdateEnvironmentProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateEnvironmentProfileRequest.ProtoReflect.Descriptor instead.
 func (*UpdateEnvironmentProfileRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{18}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *UpdateEnvironmentProfileRequest) GetEnvironmentProfile() string {
@@ -1518,7 +2029,7 @@ type SendAccountRecoveryLinkRequest struct {
 
 func (x *SendAccountRecoveryLinkRequest) Reset() {
 	*x = SendAccountRecoveryLinkRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[19]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1530,7 +2041,7 @@ func (x *SendAccountRecoveryLinkRequest) String() string {
 func (*SendAccountRecoveryLinkRequest) ProtoMessage() {}
 
 func (x *SendAccountRecoveryLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[19]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1543,7 +2054,7 @@ func (x *SendAccountRecoveryLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendAccountRecoveryLinkRequest.ProtoReflect.Descriptor instead.
 func (*SendAccountRecoveryLinkRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{19}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *SendAccountRecoveryLinkRequest) GetEmail() string {
@@ -1598,7 +2109,7 @@ type SendAccountLockedRequest struct {
 
 func (x *SendAccountLockedRequest) Reset() {
 	*x = SendAccountLockedRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[20]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1610,7 +2121,7 @@ func (x *SendAccountLockedRequest) String() string {
 func (*SendAccountLockedRequest) ProtoMessage() {}
 
 func (x *SendAccountLockedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[20]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1623,7 +2134,7 @@ func (x *SendAccountLockedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendAccountLockedRequest.ProtoReflect.Descriptor instead.
 func (*SendAccountLockedRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{20}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SendAccountLockedRequest) GetEmail() string {
@@ -1666,7 +2177,7 @@ type SendAccountRecoveredRequest struct {
 
 func (x *SendAccountRecoveredRequest) Reset() {
 	*x = SendAccountRecoveredRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[21]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1678,7 +2189,7 @@ func (x *SendAccountRecoveredRequest) String() string {
 func (*SendAccountRecoveredRequest) ProtoMessage() {}
 
 func (x *SendAccountRecoveredRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[21]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1691,7 +2202,7 @@ func (x *SendAccountRecoveredRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendAccountRecoveredRequest.ProtoReflect.Descriptor instead.
 func (*SendAccountRecoveredRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{21}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SendAccountRecoveredRequest) GetEmail() string {
@@ -1810,7 +2321,7 @@ type GetFeaturesResponse struct {
 
 func (x *GetFeaturesResponse) Reset() {
 	*x = GetFeaturesResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[22]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1822,7 +2333,7 @@ func (x *GetFeaturesResponse) String() string {
 func (*GetFeaturesResponse) ProtoMessage() {}
 
 func (x *GetFeaturesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[22]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1835,7 +2346,7 @@ func (x *GetFeaturesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFeaturesResponse.ProtoReflect.Descriptor instead.
 func (*GetFeaturesResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{22}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *GetFeaturesResponse) GetKubernetes() bool {
@@ -2054,7 +2565,7 @@ type EntitlementInfo struct {
 
 func (x *EntitlementInfo) Reset() {
 	*x = EntitlementInfo{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[23]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2066,7 +2577,7 @@ func (x *EntitlementInfo) String() string {
 func (*EntitlementInfo) ProtoMessage() {}
 
 func (x *EntitlementInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[23]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2079,7 +2590,7 @@ func (x *EntitlementInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntitlementInfo.ProtoReflect.Descriptor instead.
 func (*EntitlementInfo) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{23}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *EntitlementInfo) GetEnabled() bool {
@@ -2119,7 +2630,7 @@ type StripeUsage struct {
 
 func (x *StripeUsage) Reset() {
 	*x = StripeUsage{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[24]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2131,7 +2642,7 @@ func (x *StripeUsage) String() string {
 func (*StripeUsage) ProtoMessage() {}
 
 func (x *StripeUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[24]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2144,7 +2655,7 @@ func (x *StripeUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StripeUsage.ProtoReflect.Descriptor instead.
 func (*StripeUsage) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{24}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *StripeUsage) GetInvoiceId() string {
@@ -2201,7 +2712,7 @@ type GetUsageRequest struct {
 
 func (x *GetUsageRequest) Reset() {
 	*x = GetUsageRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[25]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2213,7 +2724,7 @@ func (x *GetUsageRequest) String() string {
 func (*GetUsageRequest) ProtoMessage() {}
 
 func (x *GetUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[25]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2226,7 +2737,7 @@ func (x *GetUsageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageRequest.ProtoReflect.Descriptor instead.
 func (*GetUsageRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{25}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *GetUsageRequest) GetTenants() []string {
@@ -2257,7 +2768,7 @@ type GetUsageResponse struct {
 
 func (x *GetUsageResponse) Reset() {
 	*x = GetUsageResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[26]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2269,7 +2780,7 @@ func (x *GetUsageResponse) String() string {
 func (*GetUsageResponse) ProtoMessage() {}
 
 func (x *GetUsageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[26]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2282,7 +2793,7 @@ func (x *GetUsageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUsageResponse.ProtoReflect.Descriptor instead.
 func (*GetUsageResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{26}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetUsageResponse) GetUsageHistory() []*UsageCycle {
@@ -2340,7 +2851,7 @@ type PricingModel struct {
 
 func (x *PricingModel) Reset() {
 	*x = PricingModel{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[27]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2352,7 +2863,7 @@ func (x *PricingModel) String() string {
 func (*PricingModel) ProtoMessage() {}
 
 func (x *PricingModel) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[27]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2365,7 +2876,7 @@ func (x *PricingModel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PricingModel.ProtoReflect.Descriptor instead.
 func (*PricingModel) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{27}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *PricingModel) GetVersion() string {
@@ -2426,7 +2937,7 @@ type Alert struct {
 
 func (x *Alert) Reset() {
 	*x = Alert{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[28]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2438,7 +2949,7 @@ func (x *Alert) String() string {
 func (*Alert) ProtoMessage() {}
 
 func (x *Alert) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[28]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2451,7 +2962,7 @@ func (x *Alert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Alert.ProtoReflect.Descriptor instead.
 func (*Alert) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{28}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Alert) GetKind() string {
@@ -2532,7 +3043,7 @@ type UsageCycle struct {
 
 func (x *UsageCycle) Reset() {
 	*x = UsageCycle{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[29]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2544,7 +3055,7 @@ func (x *UsageCycle) String() string {
 func (*UsageCycle) ProtoMessage() {}
 
 func (x *UsageCycle) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[29]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2557,7 +3068,7 @@ func (x *UsageCycle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageCycle.ProtoReflect.Descriptor instead.
 func (*UsageCycle) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{29}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *UsageCycle) GetUsage() *Usage {
@@ -2641,7 +3152,7 @@ type Usage struct {
 
 func (x *Usage) Reset() {
 	*x = Usage{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[30]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2653,7 +3164,7 @@ func (x *Usage) String() string {
 func (*Usage) ProtoMessage() {}
 
 func (x *Usage) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[30]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2666,7 +3177,7 @@ func (x *Usage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Usage.ProtoReflect.Descriptor instead.
 func (*Usage) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{30}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *Usage) GetIgmau() int64 {
@@ -2714,7 +3225,7 @@ type UsageLimits struct {
 
 func (x *UsageLimits) Reset() {
 	*x = UsageLimits{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[31]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2726,7 +3237,7 @@ func (x *UsageLimits) String() string {
 func (*UsageLimits) ProtoMessage() {}
 
 func (x *UsageLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[31]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2739,7 +3250,7 @@ func (x *UsageLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageLimits.ProtoReflect.Descriptor instead.
 func (*UsageLimits) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{31}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *UsageLimits) GetIgmau() int64 {
@@ -2796,7 +3307,7 @@ type GetBillingSummaryInformationResponse struct {
 
 func (x *GetBillingSummaryInformationResponse) Reset() {
 	*x = GetBillingSummaryInformationResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[32]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2808,7 +3319,7 @@ func (x *GetBillingSummaryInformationResponse) String() string {
 func (*GetBillingSummaryInformationResponse) ProtoMessage() {}
 
 func (x *GetBillingSummaryInformationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[32]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2821,7 +3332,7 @@ func (x *GetBillingSummaryInformationResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use GetBillingSummaryInformationResponse.ProtoReflect.Descriptor instead.
 func (*GetBillingSummaryInformationResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{32}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *GetBillingSummaryInformationResponse) GetUsageBasedBilling() bool {
@@ -2922,7 +3433,7 @@ type UsageSummary struct {
 
 func (x *UsageSummary) Reset() {
 	*x = UsageSummary{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[33]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2934,7 +3445,7 @@ func (x *UsageSummary) String() string {
 func (*UsageSummary) ProtoMessage() {}
 
 func (x *UsageSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[33]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2947,7 +3458,7 @@ func (x *UsageSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageSummary.ProtoReflect.Descriptor instead.
 func (*UsageSummary) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{33}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *UsageSummary) GetCycleStart() int64 {
@@ -3098,7 +3609,7 @@ type UsageHistoryItem struct {
 
 func (x *UsageHistoryItem) Reset() {
 	*x = UsageHistoryItem{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[34]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3110,7 +3621,7 @@ func (x *UsageHistoryItem) String() string {
 func (*UsageHistoryItem) ProtoMessage() {}
 
 func (x *UsageHistoryItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[34]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3123,7 +3634,7 @@ func (x *UsageHistoryItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageHistoryItem.ProtoReflect.Descriptor instead.
 func (*UsageHistoryItem) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{34}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *UsageHistoryItem) GetMau() int64 {
@@ -3229,7 +3740,7 @@ type UsageMetricPerCycle struct {
 
 func (x *UsageMetricPerCycle) Reset() {
 	*x = UsageMetricPerCycle{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[35]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3241,7 +3752,7 @@ func (x *UsageMetricPerCycle) String() string {
 func (*UsageMetricPerCycle) ProtoMessage() {}
 
 func (x *UsageMetricPerCycle) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[35]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3254,7 +3765,7 @@ func (x *UsageMetricPerCycle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageMetricPerCycle.ProtoReflect.Descriptor instead.
 func (*UsageMetricPerCycle) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{35}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *UsageMetricPerCycle) GetMaximum() int64 {
@@ -3314,7 +3825,7 @@ type UsageQuota struct {
 
 func (x *UsageQuota) Reset() {
 	*x = UsageQuota{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[36]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3326,7 +3837,7 @@ func (x *UsageQuota) String() string {
 func (*UsageQuota) ProtoMessage() {}
 
 func (x *UsageQuota) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[36]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3339,7 +3850,7 @@ func (x *UsageQuota) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UsageQuota.ProtoReflect.Descriptor instead.
 func (*UsageQuota) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{36}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *UsageQuota) GetMauMax() int64 {
@@ -3409,7 +3920,7 @@ type Quota struct {
 
 func (x *Quota) Reset() {
 	*x = Quota{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[37]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3421,7 +3932,7 @@ func (x *Quota) String() string {
 func (*Quota) ProtoMessage() {}
 
 func (x *Quota) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[37]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3434,7 +3945,7 @@ func (x *Quota) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Quota.ProtoReflect.Descriptor instead.
 func (*Quota) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{37}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Quota) GetMax() int64 {
@@ -3480,7 +3991,7 @@ type GetPaymentsInvoicesInformationResponse struct {
 
 func (x *GetPaymentsInvoicesInformationResponse) Reset() {
 	*x = GetPaymentsInvoicesInformationResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[38]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3492,7 +4003,7 @@ func (x *GetPaymentsInvoicesInformationResponse) String() string {
 func (*GetPaymentsInvoicesInformationResponse) ProtoMessage() {}
 
 func (x *GetPaymentsInvoicesInformationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[38]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3505,7 +4016,7 @@ func (x *GetPaymentsInvoicesInformationResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetPaymentsInvoicesInformationResponse.ProtoReflect.Descriptor instead.
 func (*GetPaymentsInvoicesInformationResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{38}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *GetPaymentsInvoicesInformationResponse) GetUsageBasedBilling() bool {
@@ -3619,7 +4130,7 @@ type GetInvoiceSettingsInformationResponse struct {
 
 func (x *GetInvoiceSettingsInformationResponse) Reset() {
 	*x = GetInvoiceSettingsInformationResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[39]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3631,7 +4142,7 @@ func (x *GetInvoiceSettingsInformationResponse) String() string {
 func (*GetInvoiceSettingsInformationResponse) ProtoMessage() {}
 
 func (x *GetInvoiceSettingsInformationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[39]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3644,7 +4155,7 @@ func (x *GetInvoiceSettingsInformationResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetInvoiceSettingsInformationResponse.ProtoReflect.Descriptor instead.
 func (*GetInvoiceSettingsInformationResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{39}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *GetInvoiceSettingsInformationResponse) GetUsageBasedBilling() bool {
@@ -3720,7 +4231,7 @@ type MarketingParamData struct {
 
 func (x *MarketingParamData) Reset() {
 	*x = MarketingParamData{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[40]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3732,7 +4243,7 @@ func (x *MarketingParamData) String() string {
 func (*MarketingParamData) ProtoMessage() {}
 
 func (x *MarketingParamData) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[40]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3745,7 +4256,7 @@ func (x *MarketingParamData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarketingParamData.ProtoReflect.Descriptor instead.
 func (*MarketingParamData) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{40}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *MarketingParamData) GetCampaign() string {
@@ -3788,7 +4299,7 @@ type SurveyCompanyResponse struct {
 
 func (x *SurveyCompanyResponse) Reset() {
 	*x = SurveyCompanyResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[41]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3800,7 +4311,7 @@ func (x *SurveyCompanyResponse) String() string {
 func (*SurveyCompanyResponse) ProtoMessage() {}
 
 func (x *SurveyCompanyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[41]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3813,7 +4324,7 @@ func (x *SurveyCompanyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SurveyCompanyResponse.ProtoReflect.Descriptor instead.
 func (*SurveyCompanyResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{41}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *SurveyCompanyResponse) GetMarketingParams() *MarketingParamData {
@@ -3844,7 +4355,7 @@ type SetSurveyResultsRequest struct {
 
 func (x *SetSurveyResultsRequest) Reset() {
 	*x = SetSurveyResultsRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[42]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3856,7 +4367,7 @@ func (x *SetSurveyResultsRequest) String() string {
 func (*SetSurveyResultsRequest) ProtoMessage() {}
 
 func (x *SetSurveyResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[42]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3869,7 +4380,7 @@ func (x *SetSurveyResultsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSurveyResultsRequest.ProtoReflect.Descriptor instead.
 func (*SetSurveyResultsRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{42}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *SetSurveyResultsRequest) GetCompanyName() string {
@@ -3926,7 +4437,7 @@ type SendTeleportInviteRequest struct {
 
 func (x *SendTeleportInviteRequest) Reset() {
 	*x = SendTeleportInviteRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[43]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3938,7 +4449,7 @@ func (x *SendTeleportInviteRequest) String() string {
 func (*SendTeleportInviteRequest) ProtoMessage() {}
 
 func (x *SendTeleportInviteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[43]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3951,7 +4462,7 @@ func (x *SendTeleportInviteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendTeleportInviteRequest.ProtoReflect.Descriptor instead.
 func (*SendTeleportInviteRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{43}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *SendTeleportInviteRequest) GetRecipient() string {
@@ -3984,7 +4495,7 @@ type ClusterAlertInfoResponse struct {
 
 func (x *ClusterAlertInfoResponse) Reset() {
 	*x = ClusterAlertInfoResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[44]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3996,7 +4507,7 @@ func (x *ClusterAlertInfoResponse) String() string {
 func (*ClusterAlertInfoResponse) ProtoMessage() {}
 
 func (x *ClusterAlertInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[44]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4009,7 +4520,7 @@ func (x *ClusterAlertInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterAlertInfoResponse.ProtoReflect.Descriptor instead.
 func (*ClusterAlertInfoResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{44}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ClusterAlertInfoResponse) GetTrial() bool {
@@ -4046,7 +4557,7 @@ type GetUpdatedLicenseRequest struct {
 
 func (x *GetUpdatedLicenseRequest) Reset() {
 	*x = GetUpdatedLicenseRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[45]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4058,7 +4569,7 @@ func (x *GetUpdatedLicenseRequest) String() string {
 func (*GetUpdatedLicenseRequest) ProtoMessage() {}
 
 func (x *GetUpdatedLicenseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[45]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4071,7 +4582,7 @@ func (x *GetUpdatedLicenseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUpdatedLicenseRequest.ProtoReflect.Descriptor instead.
 func (*GetUpdatedLicenseRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{45}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *GetUpdatedLicenseRequest) GetAuthVersion() string {
@@ -4099,7 +4610,7 @@ type GetUpdatedLicenseResponse struct {
 
 func (x *GetUpdatedLicenseResponse) Reset() {
 	*x = GetUpdatedLicenseResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[46]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4111,7 +4622,7 @@ func (x *GetUpdatedLicenseResponse) String() string {
 func (*GetUpdatedLicenseResponse) ProtoMessage() {}
 
 func (x *GetUpdatedLicenseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[46]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4124,7 +4635,7 @@ func (x *GetUpdatedLicenseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUpdatedLicenseResponse.ProtoReflect.Descriptor instead.
 func (*GetUpdatedLicenseResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{46}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetUpdatedLicenseResponse) GetPem() string {
@@ -4145,7 +4656,7 @@ type GetContactsResponse struct {
 
 func (x *GetContactsResponse) Reset() {
 	*x = GetContactsResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[47]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4157,7 +4668,7 @@ func (x *GetContactsResponse) String() string {
 func (*GetContactsResponse) ProtoMessage() {}
 
 func (x *GetContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[47]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4170,7 +4681,7 @@ func (x *GetContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactsResponse.ProtoReflect.Descriptor instead.
 func (*GetContactsResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{47}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *GetContactsResponse) GetContacts() []*Contact {
@@ -4193,7 +4704,7 @@ type CreateContactRequest struct {
 
 func (x *CreateContactRequest) Reset() {
 	*x = CreateContactRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[48]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4205,7 +4716,7 @@ func (x *CreateContactRequest) String() string {
 func (*CreateContactRequest) ProtoMessage() {}
 
 func (x *CreateContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[48]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4218,7 +4729,7 @@ func (x *CreateContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateContactRequest.ProtoReflect.Descriptor instead.
 func (*CreateContactRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{48}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CreateContactRequest) GetEmail() string {
@@ -4246,7 +4757,7 @@ type CreateContactResponse struct {
 
 func (x *CreateContactResponse) Reset() {
 	*x = CreateContactResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4258,7 +4769,7 @@ func (x *CreateContactResponse) String() string {
 func (*CreateContactResponse) ProtoMessage() {}
 
 func (x *CreateContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[49]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4271,7 +4782,7 @@ func (x *CreateContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateContactResponse.ProtoReflect.Descriptor instead.
 func (*CreateContactResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{49}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CreateContactResponse) GetContact() *Contact {
@@ -4294,7 +4805,7 @@ type RemoveContactRequest struct {
 
 func (x *RemoveContactRequest) Reset() {
 	*x = RemoveContactRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4306,7 +4817,7 @@ func (x *RemoveContactRequest) String() string {
 func (*RemoveContactRequest) ProtoMessage() {}
 
 func (x *RemoveContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[50]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4319,7 +4830,7 @@ func (x *RemoveContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContactRequest.ProtoReflect.Descriptor instead.
 func (*RemoveContactRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{50}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *RemoveContactRequest) GetVerifyToken() string {
@@ -4336,6 +4847,1019 @@ func (x *RemoveContactRequest) GetContactType() int32 {
 	return 0
 }
 
+// StripeCancelRequest is the request for StripeCancel.
+type StripeCancelRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCancelRequest) Reset() {
+	*x = StripeCancelRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCancelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCancelRequest) ProtoMessage() {}
+
+func (x *StripeCancelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCancelRequest.ProtoReflect.Descriptor instead.
+func (*StripeCancelRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{56}
+}
+
+// StripeCancelResponse is the response for StripeCancel.
+type StripeCancelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCancelResponse) Reset() {
+	*x = StripeCancelResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCancelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCancelResponse) ProtoMessage() {}
+
+func (x *StripeCancelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCancelResponse.ProtoReflect.Descriptor instead.
+func (*StripeCancelResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{57}
+}
+
+// StripeCreateCardRequest is the request for StripeCreateCard.
+type StripeCreateCardRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// card_id is the card payment method ID
+	CardId string `protobuf:"bytes,1,opt,name=card_id,json=cardId,proto3" json:"card_id,omitempty"`
+	// is_default tells if this card is a default payment method
+	IsDefault     bool `protobuf:"varint,2,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCreateCardRequest) Reset() {
+	*x = StripeCreateCardRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCreateCardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCreateCardRequest) ProtoMessage() {}
+
+func (x *StripeCreateCardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCreateCardRequest.ProtoReflect.Descriptor instead.
+func (*StripeCreateCardRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *StripeCreateCardRequest) GetCardId() string {
+	if x != nil {
+		return x.CardId
+	}
+	return ""
+}
+
+func (x *StripeCreateCardRequest) GetIsDefault() bool {
+	if x != nil {
+		return x.IsDefault
+	}
+	return false
+}
+
+// StripeCreateCardResponse is the response for StripeCreateCard.
+type StripeCreateCardResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCreateCardResponse) Reset() {
+	*x = StripeCreateCardResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCreateCardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCreateCardResponse) ProtoMessage() {}
+
+func (x *StripeCreateCardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCreateCardResponse.ProtoReflect.Descriptor instead.
+func (*StripeCreateCardResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{59}
+}
+
+// StripeCreateSetupIntentRequest is the request for StripeCreateSetupIntent.
+type StripeCreateSetupIntentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCreateSetupIntentRequest) Reset() {
+	*x = StripeCreateSetupIntentRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCreateSetupIntentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCreateSetupIntentRequest) ProtoMessage() {}
+
+func (x *StripeCreateSetupIntentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCreateSetupIntentRequest.ProtoReflect.Descriptor instead.
+func (*StripeCreateSetupIntentRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{60}
+}
+
+// StripeCreateSetupIntentResponse is the response for StripeCreateSetupIntent; carries the SetupIntent client secret used by the UI to complete card entry.
+type StripeCreateSetupIntentResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// client_secret is the Stripe SetupIntent client secret used by the UI to complete card entry
+	ClientSecret  string `protobuf:"bytes,1,opt,name=client_secret,json=clientSecret,proto3" json:"client_secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeCreateSetupIntentResponse) Reset() {
+	*x = StripeCreateSetupIntentResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeCreateSetupIntentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeCreateSetupIntentResponse) ProtoMessage() {}
+
+func (x *StripeCreateSetupIntentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeCreateSetupIntentResponse.ProtoReflect.Descriptor instead.
+func (*StripeCreateSetupIntentResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *StripeCreateSetupIntentResponse) GetClientSecret() string {
+	if x != nil {
+		return x.ClientSecret
+	}
+	return ""
+}
+
+// StripeDeleteCardRequest is the request for StripeDeleteCard.
+type StripeDeleteCardRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// card_id is the card payment method ID
+	CardId        string `protobuf:"bytes,1,opt,name=card_id,json=cardId,proto3" json:"card_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeDeleteCardRequest) Reset() {
+	*x = StripeDeleteCardRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeDeleteCardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeDeleteCardRequest) ProtoMessage() {}
+
+func (x *StripeDeleteCardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeDeleteCardRequest.ProtoReflect.Descriptor instead.
+func (*StripeDeleteCardRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *StripeDeleteCardRequest) GetCardId() string {
+	if x != nil {
+		return x.CardId
+	}
+	return ""
+}
+
+// StripeDeleteCardResponse is the response for StripeDeleteCard.
+type StripeDeleteCardResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeDeleteCardResponse) Reset() {
+	*x = StripeDeleteCardResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeDeleteCardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeDeleteCardResponse) ProtoMessage() {}
+
+func (x *StripeDeleteCardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeDeleteCardResponse.ProtoReflect.Descriptor instead.
+func (*StripeDeleteCardResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{63}
+}
+
+// StripeGetSettingsRequest is the request for StripeGetSettings.
+type StripeGetSettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeGetSettingsRequest) Reset() {
+	*x = StripeGetSettingsRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeGetSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeGetSettingsRequest) ProtoMessage() {}
+
+func (x *StripeGetSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeGetSettingsRequest.ProtoReflect.Descriptor instead.
+func (*StripeGetSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{64}
+}
+
+// StripeGetSettingsResponse is the response for StripeGetSettings; carries billing email, PO prefix, and customer name.
+type StripeGetSettingsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// stripe_invoice_billing_address is the billing address associated to the invoice on the Stripe account (optional)
+	StripeInvoiceBillingAddress *StripeAddress `protobuf:"bytes,1,opt,name=stripe_invoice_billing_address,json=stripeInvoiceBillingAddress,proto3" json:"stripe_invoice_billing_address,omitempty"`
+	// stripe_invoice_email is the email set in Stripe for invoice communication (optional)
+	StripeInvoiceEmail string `protobuf:"bytes,2,opt,name=stripe_invoice_email,json=stripeInvoiceEmail,proto3" json:"stripe_invoice_email,omitempty"`
+	// stripe_invoice_prefix is a prefix set on invoices (optional)
+	StripeInvoicePrefix string `protobuf:"bytes,3,opt,name=stripe_invoice_prefix,json=stripeInvoicePrefix,proto3" json:"stripe_invoice_prefix,omitempty"`
+	// stripe_customer_name is the Stripe Customer name
+	StripeCustomerName string `protobuf:"bytes,4,opt,name=stripe_customer_name,json=stripeCustomerName,proto3" json:"stripe_customer_name,omitempty"`
+	// stripe_subscription_status is the subscription status; one of: incomplete, incomplete_expired, trialing, active, past_due, canceled, or unpaid
+	StripeSubscriptionStatus string `protobuf:"bytes,5,opt,name=stripe_subscription_status,json=stripeSubscriptionStatus,proto3" json:"stripe_subscription_status,omitempty"`
+	// plan_name is the subscription plan name shown to the customer
+	PlanName string `protobuf:"bytes,6,opt,name=plan_name,json=planName,proto3" json:"plan_name,omitempty"`
+	// stripe_trial_end is the trial end date
+	StripeTrialEnd int64 `protobuf:"varint,7,opt,name=stripe_trial_end,json=stripeTrialEnd,proto3" json:"stripe_trial_end,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StripeGetSettingsResponse) Reset() {
+	*x = StripeGetSettingsResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeGetSettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeGetSettingsResponse) ProtoMessage() {}
+
+func (x *StripeGetSettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeGetSettingsResponse.ProtoReflect.Descriptor instead.
+func (*StripeGetSettingsResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *StripeGetSettingsResponse) GetStripeInvoiceBillingAddress() *StripeAddress {
+	if x != nil {
+		return x.StripeInvoiceBillingAddress
+	}
+	return nil
+}
+
+func (x *StripeGetSettingsResponse) GetStripeInvoiceEmail() string {
+	if x != nil {
+		return x.StripeInvoiceEmail
+	}
+	return ""
+}
+
+func (x *StripeGetSettingsResponse) GetStripeInvoicePrefix() string {
+	if x != nil {
+		return x.StripeInvoicePrefix
+	}
+	return ""
+}
+
+func (x *StripeGetSettingsResponse) GetStripeCustomerName() string {
+	if x != nil {
+		return x.StripeCustomerName
+	}
+	return ""
+}
+
+func (x *StripeGetSettingsResponse) GetStripeSubscriptionStatus() string {
+	if x != nil {
+		return x.StripeSubscriptionStatus
+	}
+	return ""
+}
+
+func (x *StripeGetSettingsResponse) GetPlanName() string {
+	if x != nil {
+		return x.PlanName
+	}
+	return ""
+}
+
+func (x *StripeGetSettingsResponse) GetStripeTrialEnd() int64 {
+	if x != nil {
+		return x.StripeTrialEnd
+	}
+	return 0
+}
+
+// StripeListCardsRequest is the request for StripeListCards.
+type StripeListCardsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeListCardsRequest) Reset() {
+	*x = StripeListCardsRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeListCardsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeListCardsRequest) ProtoMessage() {}
+
+func (x *StripeListCardsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeListCardsRequest.ProtoReflect.Descriptor instead.
+func (*StripeListCardsRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{66}
+}
+
+// StripeListCardsResponse is the response for StripeListCards; carries the customer's Stripe credit cards.
+type StripeListCardsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// stripe_cards is the list of credit cards the customer has set up in Stripe
+	StripeCards []*StripeCard `protobuf:"bytes,1,rep,name=stripe_cards,json=stripeCards,proto3" json:"stripe_cards,omitempty"`
+	// stripe_default_source_id is the default payment source ID for the customer
+	StripeDefaultSourceId string `protobuf:"bytes,2,opt,name=stripe_default_source_id,json=stripeDefaultSourceId,proto3" json:"stripe_default_source_id,omitempty"`
+	// stripe_missing_payment_method indicates whether the customer has a payment method attached in Stripe;
+	// only meaningful during a Stripe trial period, since a payment method is always required after upgrading.
+	StripeMissingPaymentMethod bool `protobuf:"varint,3,opt,name=stripe_missing_payment_method,json=stripeMissingPaymentMethod,proto3" json:"stripe_missing_payment_method,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
+}
+
+func (x *StripeListCardsResponse) Reset() {
+	*x = StripeListCardsResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeListCardsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeListCardsResponse) ProtoMessage() {}
+
+func (x *StripeListCardsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeListCardsResponse.ProtoReflect.Descriptor instead.
+func (*StripeListCardsResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *StripeListCardsResponse) GetStripeCards() []*StripeCard {
+	if x != nil {
+		return x.StripeCards
+	}
+	return nil
+}
+
+func (x *StripeListCardsResponse) GetStripeDefaultSourceId() string {
+	if x != nil {
+		return x.StripeDefaultSourceId
+	}
+	return ""
+}
+
+func (x *StripeListCardsResponse) GetStripeMissingPaymentMethod() bool {
+	if x != nil {
+		return x.StripeMissingPaymentMethod
+	}
+	return false
+}
+
+// StripeListInvoicesRequest is the request for StripeListInvoices.
+type StripeListInvoicesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeListInvoicesRequest) Reset() {
+	*x = StripeListInvoicesRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeListInvoicesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeListInvoicesRequest) ProtoMessage() {}
+
+func (x *StripeListInvoicesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeListInvoicesRequest.ProtoReflect.Descriptor instead.
+func (*StripeListInvoicesRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{68}
+}
+
+// StripeListInvoicesResponse is the response for StripeListInvoices; carries the customer's Stripe invoice history.
+type StripeListInvoicesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// stripe_invoices is the list of invoices from Stripe
+	StripeInvoices []*StripeInvoice `protobuf:"bytes,1,rep,name=stripe_invoices,json=stripeInvoices,proto3" json:"stripe_invoices,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *StripeListInvoicesResponse) Reset() {
+	*x = StripeListInvoicesResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeListInvoicesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeListInvoicesResponse) ProtoMessage() {}
+
+func (x *StripeListInvoicesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeListInvoicesResponse.ProtoReflect.Descriptor instead.
+func (*StripeListInvoicesResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *StripeListInvoicesResponse) GetStripeInvoices() []*StripeInvoice {
+	if x != nil {
+		return x.StripeInvoices
+	}
+	return nil
+}
+
+// StripeUpdateCardRequest is the request for StripeUpdateCard.
+type StripeUpdateCardRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// prev_card_id is the previous card id
+	PrevCardId string `protobuf:"bytes,1,opt,name=prev_card_id,json=prevCardId,proto3" json:"prev_card_id,omitempty"`
+	// next_card_id is the updated card id
+	NextCardId string `protobuf:"bytes,2,opt,name=next_card_id,json=nextCardId,proto3" json:"next_card_id,omitempty"`
+	// is_default tells if this card is a default payment method
+	IsDefault     bool `protobuf:"varint,3,opt,name=is_default,json=isDefault,proto3" json:"is_default,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateCardRequest) Reset() {
+	*x = StripeUpdateCardRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateCardRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateCardRequest) ProtoMessage() {}
+
+func (x *StripeUpdateCardRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateCardRequest.ProtoReflect.Descriptor instead.
+func (*StripeUpdateCardRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *StripeUpdateCardRequest) GetPrevCardId() string {
+	if x != nil {
+		return x.PrevCardId
+	}
+	return ""
+}
+
+func (x *StripeUpdateCardRequest) GetNextCardId() string {
+	if x != nil {
+		return x.NextCardId
+	}
+	return ""
+}
+
+func (x *StripeUpdateCardRequest) GetIsDefault() bool {
+	if x != nil {
+		return x.IsDefault
+	}
+	return false
+}
+
+// StripeUpdateCardResponse is the response for StripeUpdateCard.
+type StripeUpdateCardResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateCardResponse) Reset() {
+	*x = StripeUpdateCardResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateCardResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateCardResponse) ProtoMessage() {}
+
+func (x *StripeUpdateCardResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateCardResponse.ProtoReflect.Descriptor instead.
+func (*StripeUpdateCardResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{71}
+}
+
+// StripeUpdateEmailRequest is the request for StripeUpdateEmail.
+type StripeUpdateEmailRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// email is the invoice email address to set in Stripe
+	Email         string `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateEmailRequest) Reset() {
+	*x = StripeUpdateEmailRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateEmailRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateEmailRequest) ProtoMessage() {}
+
+func (x *StripeUpdateEmailRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateEmailRequest.ProtoReflect.Descriptor instead.
+func (*StripeUpdateEmailRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *StripeUpdateEmailRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+// StripeUpdateEmailResponse is the response for StripeUpdateEmail.
+type StripeUpdateEmailResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateEmailResponse) Reset() {
+	*x = StripeUpdateEmailResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateEmailResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateEmailResponse) ProtoMessage() {}
+
+func (x *StripeUpdateEmailResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateEmailResponse.ProtoReflect.Descriptor instead.
+func (*StripeUpdateEmailResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{73}
+}
+
+// StripeUpdatePOPrefixRequest is the request for StripeUpdatePOPrefix.
+type StripeUpdatePOPrefixRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// po is the purchase order prefix to set in Stripe
+	Po            string `protobuf:"bytes,1,opt,name=po,proto3" json:"po,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdatePOPrefixRequest) Reset() {
+	*x = StripeUpdatePOPrefixRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdatePOPrefixRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdatePOPrefixRequest) ProtoMessage() {}
+
+func (x *StripeUpdatePOPrefixRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdatePOPrefixRequest.ProtoReflect.Descriptor instead.
+func (*StripeUpdatePOPrefixRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *StripeUpdatePOPrefixRequest) GetPo() string {
+	if x != nil {
+		return x.Po
+	}
+	return ""
+}
+
+// StripeUpdatePOPrefixResponse is the response for StripeUpdatePOPrefix.
+type StripeUpdatePOPrefixResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdatePOPrefixResponse) Reset() {
+	*x = StripeUpdatePOPrefixResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdatePOPrefixResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdatePOPrefixResponse) ProtoMessage() {}
+
+func (x *StripeUpdatePOPrefixResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdatePOPrefixResponse.ProtoReflect.Descriptor instead.
+func (*StripeUpdatePOPrefixResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{75}
+}
+
+// StripeUpdateStripeAddressRequest is the request for StripeUpdateStripeAddress.
+type StripeUpdateStripeAddressRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name is the Stripe customer name
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// address is the Stripe customer address
+	Address       *StripeAddress `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateStripeAddressRequest) Reset() {
+	*x = StripeUpdateStripeAddressRequest{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateStripeAddressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateStripeAddressRequest) ProtoMessage() {}
+
+func (x *StripeUpdateStripeAddressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateStripeAddressRequest.ProtoReflect.Descriptor instead.
+func (*StripeUpdateStripeAddressRequest) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *StripeUpdateStripeAddressRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *StripeUpdateStripeAddressRequest) GetAddress() *StripeAddress {
+	if x != nil {
+		return x.Address
+	}
+	return nil
+}
+
+// StripeUpdateStripeAddressResponse is the response for StripeUpdateStripeAddress.
+type StripeUpdateStripeAddressResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StripeUpdateStripeAddressResponse) Reset() {
+	*x = StripeUpdateStripeAddressResponse{}
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StripeUpdateStripeAddressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StripeUpdateStripeAddressResponse) ProtoMessage() {}
+
+func (x *StripeUpdateStripeAddressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StripeUpdateStripeAddressResponse.ProtoReflect.Descriptor instead.
+func (*StripeUpdateStripeAddressResponse) Descriptor() ([]byte, []int) {
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{77}
+}
+
 // RemoveContactResponse is the response of RemoveContact
 type RemoveContactResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4347,7 +5871,7 @@ type RemoveContactResponse struct {
 
 func (x *RemoveContactResponse) Reset() {
 	*x = RemoveContactResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4359,7 +5883,7 @@ func (x *RemoveContactResponse) String() string {
 func (*RemoveContactResponse) ProtoMessage() {}
 
 func (x *RemoveContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[51]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4372,7 +5896,7 @@ func (x *RemoveContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContactResponse.ProtoReflect.Descriptor instead.
 func (*RemoveContactResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{51}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *RemoveContactResponse) GetContact() *Contact {
@@ -4407,7 +5931,7 @@ type Contact struct {
 
 func (x *Contact) Reset() {
 	*x = Contact{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4419,7 +5943,7 @@ func (x *Contact) String() string {
 func (*Contact) ProtoMessage() {}
 
 func (x *Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[52]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4432,7 +5956,7 @@ func (x *Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Contact.ProtoReflect.Descriptor instead.
 func (*Contact) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{52}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *Contact) GetName() string {
@@ -4500,7 +6024,7 @@ type CIDR struct {
 
 func (x *CIDR) Reset() {
 	*x = CIDR{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4512,7 +6036,7 @@ func (x *CIDR) String() string {
 func (*CIDR) ProtoMessage() {}
 
 func (x *CIDR) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[53]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4525,7 +6049,7 @@ func (x *CIDR) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CIDR.ProtoReflect.Descriptor instead.
 func (*CIDR) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{53}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *CIDR) GetCidr() string {
@@ -4543,14 +6067,21 @@ type ClientIPRestriction struct {
 	// revision is the resource revision UUID, changes on every write.
 	Revision string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	// status is the current status of the restriction.
-	Status        ClientIPRestrictionStatus `protobuf:"varint,3,opt,name=status,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionStatus" json:"status,omitempty"`
+	Status ClientIPRestrictionStatus `protobuf:"varint,3,opt,name=status,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionStatus" json:"status,omitempty"`
+	// mode is the user-controlled operational mode. An unspecified mode is
+	// treated as enforced for backward compatibility.
+	Mode ClientIPRestrictionMode `protobuf:"varint,4,opt,name=mode,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionMode" json:"mode,omitempty"`
+	// expires is the deadline on enforcement: the allowlist is enforced until this
+	// time and not after it. Unset means enforcement never lapses. It keeps the
+	// value the user wrote even after it elapses; status reports EXPIRED then.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=expires,proto3" json:"expires,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClientIPRestriction) Reset() {
 	*x = ClientIPRestriction{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4562,7 +6093,7 @@ func (x *ClientIPRestriction) String() string {
 func (*ClientIPRestriction) ProtoMessage() {}
 
 func (x *ClientIPRestriction) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[54]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4575,7 +6106,7 @@ func (x *ClientIPRestriction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClientIPRestriction.ProtoReflect.Descriptor instead.
 func (*ClientIPRestriction) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{54}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *ClientIPRestriction) GetCidrs() []string {
@@ -4599,6 +6130,20 @@ func (x *ClientIPRestriction) GetStatus() ClientIPRestrictionStatus {
 	return ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED
 }
 
+func (x *ClientIPRestriction) GetMode() ClientIPRestrictionMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED
+}
+
+func (x *ClientIPRestriction) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
+	}
+	return nil
+}
+
 // GetClientIPRestrictionRequest is the request for GetClientIPRestriction.
 type GetClientIPRestrictionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -4608,7 +6153,7 @@ type GetClientIPRestrictionRequest struct {
 
 func (x *GetClientIPRestrictionRequest) Reset() {
 	*x = GetClientIPRestrictionRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4620,7 +6165,7 @@ func (x *GetClientIPRestrictionRequest) String() string {
 func (*GetClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *GetClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[55]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4633,7 +6178,7 @@ func (x *GetClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClientIPRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*GetClientIPRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{55}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{82}
 }
 
 // GetClientIPRestrictionResponse is the response from GetClientIPRestriction.
@@ -4647,7 +6192,7 @@ type GetClientIPRestrictionResponse struct {
 
 func (x *GetClientIPRestrictionResponse) Reset() {
 	*x = GetClientIPRestrictionResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[56]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4659,7 +6204,7 @@ func (x *GetClientIPRestrictionResponse) String() string {
 func (*GetClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *GetClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[56]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4672,7 +6217,7 @@ func (x *GetClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClientIPRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*GetClientIPRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{56}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *GetClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
@@ -4686,14 +6231,29 @@ func (x *GetClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestr
 type CreateClientIPRestrictionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// cidrs is the list of allowed ingress CIDR blocks.
-	Cidrs         []string `protobuf:"bytes,1,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
+	Cidrs []string `protobuf:"bytes,1,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
+	// mode is the user-controlled operational mode. An unspecified mode is
+	// treated as enforced for backward compatibility.
+	Mode ClientIPRestrictionMode `protobuf:"varint,2,opt,name=mode,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionMode" json:"mode,omitempty"`
+	// expires is the deadline on enforcement: the allowlist is enforced until this
+	// time and not after it. Unset means enforcement never lapses. When set, it
+	// must be at least 20 minutes in the future.
+	//
+	// Once it elapses the restrictions stop being enforced and status becomes
+	// EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+	// still reads "enforced until <past>"; enforcing again takes a new write.
+	//
+	// Writes fully replace the resource, so a client editing other fields must
+	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
+	// back unchanged can be rejected once it is under 20 minutes away.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires,proto3" json:"expires,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateClientIPRestrictionRequest) Reset() {
 	*x = CreateClientIPRestrictionRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[57]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4705,7 +6265,7 @@ func (x *CreateClientIPRestrictionRequest) String() string {
 func (*CreateClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *CreateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[57]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4718,12 +6278,26 @@ func (x *CreateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateClientIPRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*CreateClientIPRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{57}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *CreateClientIPRestrictionRequest) GetCidrs() []string {
 	if x != nil {
 		return x.Cidrs
+	}
+	return nil
+}
+
+func (x *CreateClientIPRestrictionRequest) GetMode() ClientIPRestrictionMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED
+}
+
+func (x *CreateClientIPRestrictionRequest) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
 	}
 	return nil
 }
@@ -4739,7 +6313,7 @@ type CreateClientIPRestrictionResponse struct {
 
 func (x *CreateClientIPRestrictionResponse) Reset() {
 	*x = CreateClientIPRestrictionResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[58]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4751,7 +6325,7 @@ func (x *CreateClientIPRestrictionResponse) String() string {
 func (*CreateClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *CreateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[58]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4764,7 +6338,7 @@ func (x *CreateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use CreateClientIPRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*CreateClientIPRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{58}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *CreateClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
@@ -4780,14 +6354,29 @@ type UpdateClientIPRestrictionRequest struct {
 	// cidrs is the list of allowed ingress CIDR blocks.
 	Cidrs []string `protobuf:"bytes,1,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
 	// revision must match the current resource revision.
-	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	// mode is the user-controlled operational mode. An unspecified mode is
+	// treated as enforced for backward compatibility.
+	Mode ClientIPRestrictionMode `protobuf:"varint,3,opt,name=mode,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionMode" json:"mode,omitempty"`
+	// expires is the deadline on enforcement: the allowlist is enforced until this
+	// time and not after it. Unset means enforcement never lapses. When set, it
+	// must be at least 20 minutes in the future.
+	//
+	// Once it elapses the restrictions stop being enforced and status becomes
+	// EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+	// still reads "enforced until <past>"; enforcing again takes a new write.
+	//
+	// Writes fully replace the resource, so a client editing other fields must
+	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
+	// back unchanged can be rejected once it is under 20 minutes away.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateClientIPRestrictionRequest) Reset() {
 	*x = UpdateClientIPRestrictionRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[59]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4799,7 +6388,7 @@ func (x *UpdateClientIPRestrictionRequest) String() string {
 func (*UpdateClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *UpdateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[59]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4812,7 +6401,7 @@ func (x *UpdateClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateClientIPRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateClientIPRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{59}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *UpdateClientIPRestrictionRequest) GetCidrs() []string {
@@ -4829,6 +6418,20 @@ func (x *UpdateClientIPRestrictionRequest) GetRevision() string {
 	return ""
 }
 
+func (x *UpdateClientIPRestrictionRequest) GetMode() ClientIPRestrictionMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED
+}
+
+func (x *UpdateClientIPRestrictionRequest) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
+	}
+	return nil
+}
+
 // UpdateClientIPRestrictionResponse is the response from UpdateClientIPRestriction.
 type UpdateClientIPRestrictionResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4840,7 +6443,7 @@ type UpdateClientIPRestrictionResponse struct {
 
 func (x *UpdateClientIPRestrictionResponse) Reset() {
 	*x = UpdateClientIPRestrictionResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[60]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4852,7 +6455,7 @@ func (x *UpdateClientIPRestrictionResponse) String() string {
 func (*UpdateClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *UpdateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[60]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4865,7 +6468,7 @@ func (x *UpdateClientIPRestrictionResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UpdateClientIPRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*UpdateClientIPRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{60}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *UpdateClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
@@ -4879,14 +6482,29 @@ func (x *UpdateClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRe
 type UpsertClientIPRestrictionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// cidrs is the list of allowed ingress CIDR blocks.
-	Cidrs         []string `protobuf:"bytes,1,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
+	Cidrs []string `protobuf:"bytes,1,rep,name=cidrs,proto3" json:"cidrs,omitempty"`
+	// mode is the user-controlled operational mode. An unspecified mode is
+	// treated as enforced for backward compatibility.
+	Mode ClientIPRestrictionMode `protobuf:"varint,2,opt,name=mode,proto3,enum=gravitational.cloud.tenants.v1.ClientIPRestrictionMode" json:"mode,omitempty"`
+	// expires is the deadline on enforcement: the allowlist is enforced until this
+	// time and not after it. Unset means enforcement never lapses. When set, it
+	// must be at least 20 minutes in the future.
+	//
+	// Once it elapses the restrictions stop being enforced and status becomes
+	// EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+	// still reads "enforced until <past>"; enforcing again takes a new write.
+	//
+	// Writes fully replace the resource, so a client editing other fields must
+	// re-send a still-valid expiry or clear it. An expiry read earlier and passed
+	// back unchanged can be rejected once it is under 20 minutes away.
+	Expires       *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires,proto3" json:"expires,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpsertClientIPRestrictionRequest) Reset() {
 	*x = UpsertClientIPRestrictionRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[61]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4898,7 +6516,7 @@ func (x *UpsertClientIPRestrictionRequest) String() string {
 func (*UpsertClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *UpsertClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[61]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4911,12 +6529,26 @@ func (x *UpsertClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertClientIPRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*UpsertClientIPRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{61}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *UpsertClientIPRestrictionRequest) GetCidrs() []string {
 	if x != nil {
 		return x.Cidrs
+	}
+	return nil
+}
+
+func (x *UpsertClientIPRestrictionRequest) GetMode() ClientIPRestrictionMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED
+}
+
+func (x *UpsertClientIPRestrictionRequest) GetExpires() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Expires
 	}
 	return nil
 }
@@ -4932,7 +6564,7 @@ type UpsertClientIPRestrictionResponse struct {
 
 func (x *UpsertClientIPRestrictionResponse) Reset() {
 	*x = UpsertClientIPRestrictionResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[62]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4944,7 +6576,7 @@ func (x *UpsertClientIPRestrictionResponse) String() string {
 func (*UpsertClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *UpsertClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[62]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4957,7 +6589,7 @@ func (x *UpsertClientIPRestrictionResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UpsertClientIPRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*UpsertClientIPRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{62}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *UpsertClientIPRestrictionResponse) GetClientIpRestriction() *ClientIPRestriction {
@@ -4976,7 +6608,7 @@ type DeleteClientIPRestrictionRequest struct {
 
 func (x *DeleteClientIPRestrictionRequest) Reset() {
 	*x = DeleteClientIPRestrictionRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[63]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4988,7 +6620,7 @@ func (x *DeleteClientIPRestrictionRequest) String() string {
 func (*DeleteClientIPRestrictionRequest) ProtoMessage() {}
 
 func (x *DeleteClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[63]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5001,7 +6633,7 @@ func (x *DeleteClientIPRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteClientIPRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*DeleteClientIPRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{63}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{90}
 }
 
 // DeleteClientIPRestrictionResponse is the response from DeleteClientIPRestriction.
@@ -5013,7 +6645,7 @@ type DeleteClientIPRestrictionResponse struct {
 
 func (x *DeleteClientIPRestrictionResponse) Reset() {
 	*x = DeleteClientIPRestrictionResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[64]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5025,7 +6657,7 @@ func (x *DeleteClientIPRestrictionResponse) String() string {
 func (*DeleteClientIPRestrictionResponse) ProtoMessage() {}
 
 func (x *DeleteClientIPRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[64]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5038,7 +6670,7 @@ func (x *DeleteClientIPRestrictionResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use DeleteClientIPRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*DeleteClientIPRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{64}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{91}
 }
 
 type PutClientIPRestrictionsRequest struct {
@@ -5050,7 +6682,7 @@ type PutClientIPRestrictionsRequest struct {
 
 func (x *PutClientIPRestrictionsRequest) Reset() {
 	*x = PutClientIPRestrictionsRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[65]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5062,7 +6694,7 @@ func (x *PutClientIPRestrictionsRequest) String() string {
 func (*PutClientIPRestrictionsRequest) ProtoMessage() {}
 
 func (x *PutClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[65]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5075,7 +6707,7 @@ func (x *PutClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutClientIPRestrictionsRequest.ProtoReflect.Descriptor instead.
 func (*PutClientIPRestrictionsRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{65}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *PutClientIPRestrictionsRequest) GetClientIpRestrictions() []*CIDR {
@@ -5094,7 +6726,7 @@ type PutClientIPRestrictionsResponse struct {
 
 func (x *PutClientIPRestrictionsResponse) Reset() {
 	*x = PutClientIPRestrictionsResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[66]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5106,7 +6738,7 @@ func (x *PutClientIPRestrictionsResponse) String() string {
 func (*PutClientIPRestrictionsResponse) ProtoMessage() {}
 
 func (x *PutClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[66]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5119,7 +6751,7 @@ func (x *PutClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutClientIPRestrictionsResponse.ProtoReflect.Descriptor instead.
 func (*PutClientIPRestrictionsResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{66}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *PutClientIPRestrictionsResponse) GetClientIpRestrictions() []*CIDR {
@@ -5137,7 +6769,7 @@ type GetClientIPRestrictionsRequest struct {
 
 func (x *GetClientIPRestrictionsRequest) Reset() {
 	*x = GetClientIPRestrictionsRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[67]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5149,7 +6781,7 @@ func (x *GetClientIPRestrictionsRequest) String() string {
 func (*GetClientIPRestrictionsRequest) ProtoMessage() {}
 
 func (x *GetClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[67]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5162,7 +6794,7 @@ func (x *GetClientIPRestrictionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClientIPRestrictionsRequest.ProtoReflect.Descriptor instead.
 func (*GetClientIPRestrictionsRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{67}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{94}
 }
 
 type GetClientIPRestrictionsResponse struct {
@@ -5174,7 +6806,7 @@ type GetClientIPRestrictionsResponse struct {
 
 func (x *GetClientIPRestrictionsResponse) Reset() {
 	*x = GetClientIPRestrictionsResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[68]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5186,7 +6818,7 @@ func (x *GetClientIPRestrictionsResponse) String() string {
 func (*GetClientIPRestrictionsResponse) ProtoMessage() {}
 
 func (x *GetClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[68]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5199,7 +6831,7 @@ func (x *GetClientIPRestrictionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetClientIPRestrictionsResponse.ProtoReflect.Descriptor instead.
 func (*GetClientIPRestrictionsResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{68}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *GetClientIPRestrictionsResponse) GetClientIpRestrictions() []*CIDR {
@@ -5217,7 +6849,7 @@ type EmptyResponse struct {
 
 func (x *EmptyResponse) Reset() {
 	*x = EmptyResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[69]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5229,7 +6861,7 @@ func (x *EmptyResponse) String() string {
 func (*EmptyResponse) ProtoMessage() {}
 
 func (x *EmptyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[69]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5242,7 +6874,7 @@ func (x *EmptyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmptyResponse.ProtoReflect.Descriptor instead.
 func (*EmptyResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{69}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{96}
 }
 
 type EmptyRequest struct {
@@ -5253,7 +6885,7 @@ type EmptyRequest struct {
 
 func (x *EmptyRequest) Reset() {
 	*x = EmptyRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[70]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5265,7 +6897,7 @@ func (x *EmptyRequest) String() string {
 func (*EmptyRequest) ProtoMessage() {}
 
 func (x *EmptyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[70]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5278,7 +6910,7 @@ func (x *EmptyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EmptyRequest.ProtoReflect.Descriptor instead.
 func (*EmptyRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{70}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{97}
 }
 
 // Request for ChildCluster
@@ -5302,7 +6934,7 @@ type ChildClusterRequest struct {
 
 func (x *ChildClusterRequest) Reset() {
 	*x = ChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[71]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5314,7 +6946,7 @@ func (x *ChildClusterRequest) String() string {
 func (*ChildClusterRequest) ProtoMessage() {}
 
 func (x *ChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[71]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5327,7 +6959,7 @@ func (x *ChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*ChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{71}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *ChildClusterRequest) GetAction() string {
@@ -5383,7 +7015,7 @@ type Region struct {
 
 func (x *Region) Reset() {
 	*x = Region{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[72]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5395,7 +7027,7 @@ func (x *Region) String() string {
 func (*Region) ProtoMessage() {}
 
 func (x *Region) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[72]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5408,7 +7040,7 @@ func (x *Region) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Region.ProtoReflect.Descriptor instead.
 func (*Region) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{72}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *Region) GetName() string {
@@ -5431,7 +7063,7 @@ type Allow struct {
 
 func (x *Allow) Reset() {
 	*x = Allow{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[73]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5443,7 +7075,7 @@ func (x *Allow) String() string {
 func (*Allow) ProtoMessage() {}
 
 func (x *Allow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[73]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5456,7 +7088,7 @@ func (x *Allow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Allow.ProtoReflect.Descriptor instead.
 func (*Allow) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{73}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *Allow) GetAwsAccount() string {
@@ -5486,7 +7118,7 @@ type ChildClusterResponse struct {
 
 func (x *ChildClusterResponse) Reset() {
 	*x = ChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[74]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5498,7 +7130,7 @@ func (x *ChildClusterResponse) String() string {
 func (*ChildClusterResponse) ProtoMessage() {}
 
 func (x *ChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[74]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5511,7 +7143,7 @@ func (x *ChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*ChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{74}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *ChildClusterResponse) GetState() string {
@@ -5539,7 +7171,7 @@ type GetFileRequest struct {
 
 func (x *GetFileRequest) Reset() {
 	*x = GetFileRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[75]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5551,7 +7183,7 @@ func (x *GetFileRequest) String() string {
 func (*GetFileRequest) ProtoMessage() {}
 
 func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[75]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5564,7 +7196,7 @@ func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
 func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{75}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *GetFileRequest) GetFilepath() string {
@@ -5589,7 +7221,7 @@ type GetFileResponse struct {
 
 func (x *GetFileResponse) Reset() {
 	*x = GetFileResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[76]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5601,7 +7233,7 @@ func (x *GetFileResponse) String() string {
 func (*GetFileResponse) ProtoMessage() {}
 
 func (x *GetFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[76]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5614,7 +7246,7 @@ func (x *GetFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetFileResponse.ProtoReflect.Descriptor instead.
 func (*GetFileResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{76}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *GetFileResponse) GetData() []byte {
@@ -5648,7 +7280,7 @@ type ChildCluster struct {
 
 func (x *ChildCluster) Reset() {
 	*x = ChildCluster{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[77]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5660,7 +7292,7 @@ func (x *ChildCluster) String() string {
 func (*ChildCluster) ProtoMessage() {}
 
 func (x *ChildCluster) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[77]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5673,7 +7305,7 @@ func (x *ChildCluster) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildCluster.ProtoReflect.Descriptor instead.
 func (*ChildCluster) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{77}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *ChildCluster) GetName() string {
@@ -5721,7 +7353,7 @@ type ChildClusterSpec struct {
 
 func (x *ChildClusterSpec) Reset() {
 	*x = ChildClusterSpec{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[78]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5733,7 +7365,7 @@ func (x *ChildClusterSpec) String() string {
 func (*ChildClusterSpec) ProtoMessage() {}
 
 func (x *ChildClusterSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[78]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5746,7 +7378,7 @@ func (x *ChildClusterSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildClusterSpec.ProtoReflect.Descriptor instead.
 func (*ChildClusterSpec) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{78}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *ChildClusterSpec) GetRegions() []*Region {
@@ -5790,7 +7422,7 @@ type ChildClusterStatus struct {
 
 func (x *ChildClusterStatus) Reset() {
 	*x = ChildClusterStatus{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[79]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5802,7 +7434,7 @@ func (x *ChildClusterStatus) String() string {
 func (*ChildClusterStatus) ProtoMessage() {}
 
 func (x *ChildClusterStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[79]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5815,7 +7447,7 @@ func (x *ChildClusterStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChildClusterStatus.ProtoReflect.Descriptor instead.
 func (*ChildClusterStatus) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{79}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *ChildClusterStatus) GetState() string {
@@ -5851,7 +7483,7 @@ type CreateChildClusterRequest struct {
 
 func (x *CreateChildClusterRequest) Reset() {
 	*x = CreateChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[80]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5863,7 +7495,7 @@ func (x *CreateChildClusterRequest) String() string {
 func (*CreateChildClusterRequest) ProtoMessage() {}
 
 func (x *CreateChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[80]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5876,7 +7508,7 @@ func (x *CreateChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*CreateChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{80}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *CreateChildClusterRequest) GetName() string {
@@ -5925,7 +7557,7 @@ type CreateChildClusterResponse struct {
 
 func (x *CreateChildClusterResponse) Reset() {
 	*x = CreateChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[81]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5937,7 +7569,7 @@ func (x *CreateChildClusterResponse) String() string {
 func (*CreateChildClusterResponse) ProtoMessage() {}
 
 func (x *CreateChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[81]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5950,7 +7582,7 @@ func (x *CreateChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*CreateChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{81}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *CreateChildClusterResponse) GetCluster() *ChildCluster {
@@ -5971,7 +7603,7 @@ type GetChildClusterRequest struct {
 
 func (x *GetChildClusterRequest) Reset() {
 	*x = GetChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[82]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5983,7 +7615,7 @@ func (x *GetChildClusterRequest) String() string {
 func (*GetChildClusterRequest) ProtoMessage() {}
 
 func (x *GetChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[82]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5996,7 +7628,7 @@ func (x *GetChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*GetChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{82}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *GetChildClusterRequest) GetName() string {
@@ -6017,7 +7649,7 @@ type GetChildClusterResponse struct {
 
 func (x *GetChildClusterResponse) Reset() {
 	*x = GetChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[83]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6029,7 +7661,7 @@ func (x *GetChildClusterResponse) String() string {
 func (*GetChildClusterResponse) ProtoMessage() {}
 
 func (x *GetChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[83]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6042,7 +7674,7 @@ func (x *GetChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*GetChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{83}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *GetChildClusterResponse) GetCluster() *ChildCluster {
@@ -6073,7 +7705,7 @@ type UpdateChildClusterRequest struct {
 
 func (x *UpdateChildClusterRequest) Reset() {
 	*x = UpdateChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[84]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6085,7 +7717,7 @@ func (x *UpdateChildClusterRequest) String() string {
 func (*UpdateChildClusterRequest) ProtoMessage() {}
 
 func (x *UpdateChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[84]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6098,7 +7730,7 @@ func (x *UpdateChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*UpdateChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{84}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *UpdateChildClusterRequest) GetName() string {
@@ -6154,7 +7786,7 @@ type UpdateChildClusterResponse struct {
 
 func (x *UpdateChildClusterResponse) Reset() {
 	*x = UpdateChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[85]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6166,7 +7798,7 @@ func (x *UpdateChildClusterResponse) String() string {
 func (*UpdateChildClusterResponse) ProtoMessage() {}
 
 func (x *UpdateChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[85]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6179,7 +7811,7 @@ func (x *UpdateChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*UpdateChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{85}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *UpdateChildClusterResponse) GetCluster() *ChildCluster {
@@ -6208,7 +7840,7 @@ type UpsertChildClusterRequest struct {
 
 func (x *UpsertChildClusterRequest) Reset() {
 	*x = UpsertChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[86]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6220,7 +7852,7 @@ func (x *UpsertChildClusterRequest) String() string {
 func (*UpsertChildClusterRequest) ProtoMessage() {}
 
 func (x *UpsertChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[86]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6233,7 +7865,7 @@ func (x *UpsertChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*UpsertChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{86}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *UpsertChildClusterRequest) GetName() string {
@@ -6282,7 +7914,7 @@ type UpsertChildClusterResponse struct {
 
 func (x *UpsertChildClusterResponse) Reset() {
 	*x = UpsertChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[87]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6294,7 +7926,7 @@ func (x *UpsertChildClusterResponse) String() string {
 func (*UpsertChildClusterResponse) ProtoMessage() {}
 
 func (x *UpsertChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[87]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6307,7 +7939,7 @@ func (x *UpsertChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*UpsertChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{87}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *UpsertChildClusterResponse) GetCluster() *ChildCluster {
@@ -6328,7 +7960,7 @@ type SuspendChildClusterRequest struct {
 
 func (x *SuspendChildClusterRequest) Reset() {
 	*x = SuspendChildClusterRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[88]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6340,7 +7972,7 @@ func (x *SuspendChildClusterRequest) String() string {
 func (*SuspendChildClusterRequest) ProtoMessage() {}
 
 func (x *SuspendChildClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[88]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6353,7 +7985,7 @@ func (x *SuspendChildClusterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuspendChildClusterRequest.ProtoReflect.Descriptor instead.
 func (*SuspendChildClusterRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{88}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *SuspendChildClusterRequest) GetName() string {
@@ -6374,7 +8006,7 @@ type SuspendChildClusterResponse struct {
 
 func (x *SuspendChildClusterResponse) Reset() {
 	*x = SuspendChildClusterResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[89]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6386,7 +8018,7 @@ func (x *SuspendChildClusterResponse) String() string {
 func (*SuspendChildClusterResponse) ProtoMessage() {}
 
 func (x *SuspendChildClusterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[89]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6399,7 +8031,7 @@ func (x *SuspendChildClusterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SuspendChildClusterResponse.ProtoReflect.Descriptor instead.
 func (*SuspendChildClusterResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{89}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *SuspendChildClusterResponse) GetCluster() *ChildCluster {
@@ -6422,7 +8054,7 @@ type ListChildClustersRequest struct {
 
 func (x *ListChildClustersRequest) Reset() {
 	*x = ListChildClustersRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[90]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6434,7 +8066,7 @@ func (x *ListChildClustersRequest) String() string {
 func (*ListChildClustersRequest) ProtoMessage() {}
 
 func (x *ListChildClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[90]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6447,7 +8079,7 @@ func (x *ListChildClustersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChildClustersRequest.ProtoReflect.Descriptor instead.
 func (*ListChildClustersRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{90}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *ListChildClustersRequest) GetPageSize() int32 {
@@ -6477,7 +8109,7 @@ type ListChildClustersResponse struct {
 
 func (x *ListChildClustersResponse) Reset() {
 	*x = ListChildClustersResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[91]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6489,7 +8121,7 @@ func (x *ListChildClustersResponse) String() string {
 func (*ListChildClustersResponse) ProtoMessage() {}
 
 func (x *ListChildClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[91]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6502,7 +8134,7 @@ func (x *ListChildClustersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListChildClustersResponse.ProtoReflect.Descriptor instead.
 func (*ListChildClustersResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{91}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *ListChildClustersResponse) GetClusters() []*ChildCluster {
@@ -6532,7 +8164,7 @@ type DateRange struct {
 
 func (x *DateRange) Reset() {
 	*x = DateRange{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[92]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6544,7 +8176,7 @@ func (x *DateRange) String() string {
 func (*DateRange) ProtoMessage() {}
 
 func (x *DateRange) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[92]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6557,7 +8189,7 @@ func (x *DateRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DateRange.ProtoReflect.Descriptor instead.
 func (*DateRange) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{92}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *DateRange) GetStart() int64 {
@@ -6589,7 +8221,7 @@ type DailyBreakdownWindow struct {
 
 func (x *DailyBreakdownWindow) Reset() {
 	*x = DailyBreakdownWindow{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[93]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6601,7 +8233,7 @@ func (x *DailyBreakdownWindow) String() string {
 func (*DailyBreakdownWindow) ProtoMessage() {}
 
 func (x *DailyBreakdownWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[93]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6614,7 +8246,7 @@ func (x *DailyBreakdownWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DailyBreakdownWindow.ProtoReflect.Descriptor instead.
 func (*DailyBreakdownWindow) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{93}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *DailyBreakdownWindow) GetWindow() isDailyBreakdownWindow_Window {
@@ -6675,7 +8307,7 @@ type GetMAUDailyBreakdownRequest struct {
 
 func (x *GetMAUDailyBreakdownRequest) Reset() {
 	*x = GetMAUDailyBreakdownRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[94]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6687,7 +8319,7 @@ func (x *GetMAUDailyBreakdownRequest) String() string {
 func (*GetMAUDailyBreakdownRequest) ProtoMessage() {}
 
 func (x *GetMAUDailyBreakdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[94]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6700,7 +8332,7 @@ func (x *GetMAUDailyBreakdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMAUDailyBreakdownRequest.ProtoReflect.Descriptor instead.
 func (*GetMAUDailyBreakdownRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{94}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *GetMAUDailyBreakdownRequest) GetTenants() []string {
@@ -6735,7 +8367,7 @@ type GetMAUDailyBreakdownResponse struct {
 
 func (x *GetMAUDailyBreakdownResponse) Reset() {
 	*x = GetMAUDailyBreakdownResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[95]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6747,7 +8379,7 @@ func (x *GetMAUDailyBreakdownResponse) String() string {
 func (*GetMAUDailyBreakdownResponse) ProtoMessage() {}
 
 func (x *GetMAUDailyBreakdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[95]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6760,7 +8392,7 @@ func (x *GetMAUDailyBreakdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMAUDailyBreakdownResponse.ProtoReflect.Descriptor instead.
 func (*GetMAUDailyBreakdownResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{95}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *GetMAUDailyBreakdownResponse) GetDays() []*MAUDailyPoint {
@@ -6809,7 +8441,7 @@ type MAUDailyPoint struct {
 
 func (x *MAUDailyPoint) Reset() {
 	*x = MAUDailyPoint{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[96]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6821,7 +8453,7 @@ func (x *MAUDailyPoint) String() string {
 func (*MAUDailyPoint) ProtoMessage() {}
 
 func (x *MAUDailyPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[96]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6834,7 +8466,7 @@ func (x *MAUDailyPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MAUDailyPoint.ProtoReflect.Descriptor instead.
 func (*MAUDailyPoint) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{96}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *MAUDailyPoint) GetDay() int64 {
@@ -6879,7 +8511,7 @@ type GetTPRDailyBreakdownRequest struct {
 
 func (x *GetTPRDailyBreakdownRequest) Reset() {
 	*x = GetTPRDailyBreakdownRequest{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[97]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6891,7 +8523,7 @@ func (x *GetTPRDailyBreakdownRequest) String() string {
 func (*GetTPRDailyBreakdownRequest) ProtoMessage() {}
 
 func (x *GetTPRDailyBreakdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[97]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6904,7 +8536,7 @@ func (x *GetTPRDailyBreakdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTPRDailyBreakdownRequest.ProtoReflect.Descriptor instead.
 func (*GetTPRDailyBreakdownRequest) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{97}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *GetTPRDailyBreakdownRequest) GetTenants() []string {
@@ -6939,7 +8571,7 @@ type GetTPRDailyBreakdownResponse struct {
 
 func (x *GetTPRDailyBreakdownResponse) Reset() {
 	*x = GetTPRDailyBreakdownResponse{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[98]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6951,7 +8583,7 @@ func (x *GetTPRDailyBreakdownResponse) String() string {
 func (*GetTPRDailyBreakdownResponse) ProtoMessage() {}
 
 func (x *GetTPRDailyBreakdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[98]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6964,7 +8596,7 @@ func (x *GetTPRDailyBreakdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTPRDailyBreakdownResponse.ProtoReflect.Descriptor instead.
 func (*GetTPRDailyBreakdownResponse) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{98}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *GetTPRDailyBreakdownResponse) GetDays() []*TPRDailyPoint {
@@ -7014,7 +8646,7 @@ type TPRDailyPoint struct {
 
 func (x *TPRDailyPoint) Reset() {
 	*x = TPRDailyPoint{}
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[99]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7026,7 +8658,7 @@ func (x *TPRDailyPoint) String() string {
 func (*TPRDailyPoint) ProtoMessage() {}
 
 func (x *TPRDailyPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_tenants_v1_tenants_proto_msgTypes[99]
+	mi := &file_api_tenants_v1_tenants_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7039,7 +8671,7 @@ func (x *TPRDailyPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TPRDailyPoint.ProtoReflect.Descriptor instead.
 func (*TPRDailyPoint) Descriptor() ([]byte, []int) {
-	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{99}
+	return file_api_tenants_v1_tenants_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *TPRDailyPoint) GetDay() int64 {
@@ -7074,7 +8706,7 @@ var File_api_tenants_v1_tenants_proto protoreflect.FileDescriptor
 
 const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\n" +
-	"\x1capi/tenants/v1/tenants.proto\x12\x1egravitational.cloud.tenants.v1\"\x85\x01\n" +
+	"\x1capi/tenants/v1/tenants.proto\x12\x1egravitational.cloud.tenants.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x85\x01\n" +
 	"\x1bStripeBillingAddressRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12N\n" +
 	"\aaddress\x18\x02 \x01(\v24.gravitational.cloud.tenants.v1.StripeBillingAddressR\aaddress:\x02\x18\x01\"\x85\x02\n" +
@@ -7084,7 +8716,44 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\raddress_line1\x18\x03 \x01(\tR\faddressLine1\x12#\n" +
 	"\raddress_line2\x18\x04 \x01(\tR\faddressLine2\x12.\n" +
 	"\x13address_postal_code\x18\x05 \x01(\tR\x11addressPostalCode\x12#\n" +
-	"\raddress_state\x18\x06 \x01(\tR\faddressState:\x02\x18\x01\".\n" +
+	"\raddress_state\x18\x06 \x01(\tR\faddressState:\x02\x18\x01\"\xfa\x01\n" +
+	"\rStripeAddress\x12!\n" +
+	"\faddress_city\x18\x01 \x01(\tR\vaddressCity\x12'\n" +
+	"\x0faddress_country\x18\x02 \x01(\tR\x0eaddressCountry\x12#\n" +
+	"\raddress_line1\x18\x03 \x01(\tR\faddressLine1\x12#\n" +
+	"\raddress_line2\x18\x04 \x01(\tR\faddressLine2\x12.\n" +
+	"\x13address_postal_code\x18\x05 \x01(\tR\x11addressPostalCode\x12#\n" +
+	"\raddress_state\x18\x06 \x01(\tR\faddressState\"\xef\x02\n" +
+	"\n" +
+	"StripeCard\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05last4\x18\x02 \x01(\tR\x05last4\x12#\n" +
+	"\raddress_line1\x18\x03 \x01(\tR\faddressLine1\x12#\n" +
+	"\raddress_line2\x18\x04 \x01(\tR\faddressLine2\x12\x12\n" +
+	"\x04city\x18\x05 \x01(\tR\x04city\x12\x18\n" +
+	"\acountry\x18\x06 \x01(\tR\acountry\x12\x14\n" +
+	"\x05state\x18\a \x01(\tR\x05state\x12\x12\n" +
+	"\x04name\x18\b \x01(\tR\x04name\x12\x10\n" +
+	"\x03zip\x18\t \x01(\tR\x03zip\x12\x14\n" +
+	"\x05brand\x18\n" +
+	" \x01(\tR\x05brand\x12)\n" +
+	"\x10expiration_month\x18\v \x01(\x03R\x0fexpirationMonth\x12'\n" +
+	"\x0fexpiration_year\x18\f \x01(\x03R\x0eexpirationYear\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\r \x01(\x03R\tcreatedAt\"\xe9\x01\n" +
+	"\rStripeInvoice\x12\x1d\n" +
+	"\n" +
+	"invoice_id\x18\x01 \x01(\tR\tinvoiceId\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x1d\n" +
+	"\n" +
+	"amount_due\x18\x03 \x01(\x03R\tamountDue\x12\x1f\n" +
+	"\vamount_paid\x18\x04 \x01(\x03R\n" +
+	"amountPaid\x12\x1d\n" +
+	"\n" +
+	"period_end\x18\x05 \x01(\x03R\tperiodEnd\x12!\n" +
+	"\fperiod_start\x18\x06 \x01(\x03R\vperiodStart\x12\x1f\n" +
+	"\vinvoice_pdf\x18\a \x01(\tR\n" +
+	"invoicePdf\".\n" +
 	"\x12UpdateEmailRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email:\x02\x18\x01\"6\n" +
 	" UpdatePurchaseOrderPrefixRequest\x12\x0e\n" +
@@ -7113,7 +8782,12 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x13usage_based_billing\x18\n" +
 	" \x01(\bR\x11usageBasedBillingJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\v\x10\fJ\x04\b\f\x10\rJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12R\aaccountR\x19default_payment_method_idR\x05cardsR\x10bankAccountsListR\x11stripe_public_keyR\fstripe_trialR\x10stripe_trial_endR\x1dstripe_missing_payment_methodR\x12stripe_customer_idR\x1astripe_subscription_statusR\x1dstripe_subscription_cancel_atR\x1fstripe_subscription_canceled_at\"D\n" +
 	"\x19CreateSetupIntentResponse\x12#\n" +
-	"\rclient_secret\x18\x01 \x01(\tR\fclientSecret:\x02\x18\x01\"\x84\x02\n" +
+	"\rclient_secret\x18\x01 \x01(\tR\fclientSecret:\x02\x18\x01\"\x18\n" +
+	"\x16GetStripeConfigRequest\"f\n" +
+	"\x17GetStripeConfigResponse\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x01 \x01(\tR\tpublicKey\x12,\n" +
+	"\x12stripe_customer_id\x18\x02 \x01(\tR\x10stripeCustomerId\"\x84\x02\n" +
 	"\aInvoice\x12\x1d\n" +
 	"\n" +
 	"invoice_id\x18\x01 \x01(\tR\tinvoiceId\x12\x16\n" +
@@ -7402,7 +9076,55 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\acontact\x18\x01 \x01(\v2'.gravitational.cloud.tenants.v1.ContactR\acontact\"^\n" +
 	"\x14RemoveContactRequest\x12\"\n" +
 	"\fverify_token\x18\x01 \x01(\tR\fverify_token\x12\"\n" +
-	"\fcontact_type\x18\x02 \x01(\x05R\fcontact_type\"Z\n" +
+	"\fcontact_type\x18\x02 \x01(\x05R\fcontact_type\"\x15\n" +
+	"\x13StripeCancelRequest\"\x16\n" +
+	"\x14StripeCancelResponse\"Q\n" +
+	"\x17StripeCreateCardRequest\x12\x17\n" +
+	"\acard_id\x18\x01 \x01(\tR\x06cardId\x12\x1d\n" +
+	"\n" +
+	"is_default\x18\x02 \x01(\bR\tisDefault\"\x1a\n" +
+	"\x18StripeCreateCardResponse\" \n" +
+	"\x1eStripeCreateSetupIntentRequest\"F\n" +
+	"\x1fStripeCreateSetupIntentResponse\x12#\n" +
+	"\rclient_secret\x18\x01 \x01(\tR\fclientSecret\"2\n" +
+	"\x17StripeDeleteCardRequest\x12\x17\n" +
+	"\acard_id\x18\x01 \x01(\tR\x06cardId\"\x1a\n" +
+	"\x18StripeDeleteCardResponse\"\x1a\n" +
+	"\x18StripeGetSettingsRequest\"\xac\x03\n" +
+	"\x19StripeGetSettingsResponse\x12r\n" +
+	"\x1estripe_invoice_billing_address\x18\x01 \x01(\v2-.gravitational.cloud.tenants.v1.StripeAddressR\x1bstripeInvoiceBillingAddress\x120\n" +
+	"\x14stripe_invoice_email\x18\x02 \x01(\tR\x12stripeInvoiceEmail\x122\n" +
+	"\x15stripe_invoice_prefix\x18\x03 \x01(\tR\x13stripeInvoicePrefix\x120\n" +
+	"\x14stripe_customer_name\x18\x04 \x01(\tR\x12stripeCustomerName\x12<\n" +
+	"\x1astripe_subscription_status\x18\x05 \x01(\tR\x18stripeSubscriptionStatus\x12\x1b\n" +
+	"\tplan_name\x18\x06 \x01(\tR\bplanName\x12(\n" +
+	"\x10stripe_trial_end\x18\a \x01(\x03R\x0estripeTrialEnd\"\x18\n" +
+	"\x16StripeListCardsRequest\"\xe4\x01\n" +
+	"\x17StripeListCardsResponse\x12M\n" +
+	"\fstripe_cards\x18\x01 \x03(\v2*.gravitational.cloud.tenants.v1.StripeCardR\vstripeCards\x127\n" +
+	"\x18stripe_default_source_id\x18\x02 \x01(\tR\x15stripeDefaultSourceId\x12A\n" +
+	"\x1dstripe_missing_payment_method\x18\x03 \x01(\bR\x1astripeMissingPaymentMethod\"\x1b\n" +
+	"\x19StripeListInvoicesRequest\"t\n" +
+	"\x1aStripeListInvoicesResponse\x12V\n" +
+	"\x0fstripe_invoices\x18\x01 \x03(\v2-.gravitational.cloud.tenants.v1.StripeInvoiceR\x0estripeInvoices\"|\n" +
+	"\x17StripeUpdateCardRequest\x12 \n" +
+	"\fprev_card_id\x18\x01 \x01(\tR\n" +
+	"prevCardId\x12 \n" +
+	"\fnext_card_id\x18\x02 \x01(\tR\n" +
+	"nextCardId\x12\x1d\n" +
+	"\n" +
+	"is_default\x18\x03 \x01(\bR\tisDefault\"\x1a\n" +
+	"\x18StripeUpdateCardResponse\"0\n" +
+	"\x18StripeUpdateEmailRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\"\x1b\n" +
+	"\x19StripeUpdateEmailResponse\"-\n" +
+	"\x1bStripeUpdatePOPrefixRequest\x12\x0e\n" +
+	"\x02po\x18\x01 \x01(\tR\x02po\"\x1e\n" +
+	"\x1cStripeUpdatePOPrefixResponse\"\x7f\n" +
+	" StripeUpdateStripeAddressRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12G\n" +
+	"\aaddress\x18\x02 \x01(\v2-.gravitational.cloud.tenants.v1.StripeAddressR\aaddress\"#\n" +
+	"!StripeUpdateStripeAddressResponse\"Z\n" +
 	"\x15RemoveContactResponse\x12A\n" +
 	"\acontact\x18\x01 \x01(\v2'.gravitational.cloud.tenants.v1.ContactR\acontact\"\xab\x02\n" +
 	"\aContact\x12\x12\n" +
@@ -7416,25 +9138,33 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x11verify_expires_at\x18\a \x01(\x03R\x0fverifyExpiresAt\x12I\n" +
 	"\x05state\x18\b \x01(\x0e2,.gravitational.cloud.tenants.v1.ContactStateR\fcontactState\"\x1a\n" +
 	"\x04CIDR\x12\x12\n" +
-	"\x04cidr\x18\x01 \x01(\tR\x04cidr\"\x9a\x01\n" +
+	"\x04cidr\x18\x01 \x01(\tR\x04cidr\"\x9d\x02\n" +
 	"\x13ClientIPRestriction\x12\x14\n" +
 	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\x12Q\n" +
-	"\x06status\x18\x03 \x01(\x0e29.gravitational.cloud.tenants.v1.ClientIPRestrictionStatusR\x06status\"\x1f\n" +
+	"\x06status\x18\x03 \x01(\x0e29.gravitational.cloud.tenants.v1.ClientIPRestrictionStatusR\x06status\x12K\n" +
+	"\x04mode\x18\x04 \x01(\x0e27.gravitational.cloud.tenants.v1.ClientIPRestrictionModeR\x04mode\x124\n" +
+	"\aexpires\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"\x1f\n" +
 	"\x1dGetClientIPRestrictionRequest\"\x89\x01\n" +
 	"\x1eGetClientIPRestrictionResponse\x12g\n" +
-	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"8\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"\xbb\x01\n" +
 	" CreateClientIPRestrictionRequest\x12\x14\n" +
-	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\"\x8c\x01\n" +
+	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\x12K\n" +
+	"\x04mode\x18\x02 \x01(\x0e27.gravitational.cloud.tenants.v1.ClientIPRestrictionModeR\x04mode\x124\n" +
+	"\aexpires\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"\x8c\x01\n" +
 	"!CreateClientIPRestrictionResponse\x12g\n" +
-	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"T\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"\xd7\x01\n" +
 	" UpdateClientIPRestrictionRequest\x12\x14\n" +
 	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\x8c\x01\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\x12K\n" +
+	"\x04mode\x18\x03 \x01(\x0e27.gravitational.cloud.tenants.v1.ClientIPRestrictionModeR\x04mode\x124\n" +
+	"\aexpires\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"\x8c\x01\n" +
 	"!UpdateClientIPRestrictionResponse\x12g\n" +
-	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"8\n" +
+	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"\xbb\x01\n" +
 	" UpsertClientIPRestrictionRequest\x12\x14\n" +
-	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\"\x8c\x01\n" +
+	"\x05cidrs\x18\x01 \x03(\tR\x05cidrs\x12K\n" +
+	"\x04mode\x18\x02 \x01(\x0e27.gravitational.cloud.tenants.v1.ClientIPRestrictionModeR\x04mode\x124\n" +
+	"\aexpires\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\aexpires\"\x8c\x01\n" +
 	"!UpsertClientIPRestrictionResponse\x12g\n" +
 	"\x15client_ip_restriction\x18\x01 \x01(\v23.gravitational.cloud.tenants.v1.ClientIPRestrictionR\x13clientIpRestriction\"\"\n" +
 	" DeleteClientIPRestrictionRequest\"#\n" +
@@ -7589,11 +9319,17 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x19CONTACT_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CONTACT_STATE_ACTIVE\x10\x01\x12\x19\n" +
 	"\x15CONTACT_STATE_PENDING\x10\x02\x12\x19\n" +
-	"\x15CONTACT_STATE_EXPIRED\x10\x03*\x9c\x01\n" +
+	"\x15CONTACT_STATE_EXPIRED\x10\x03*\xee\x01\n" +
 	"\x19ClientIPRestrictionStatus\x12,\n" +
 	"(CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED\x10\x00\x12(\n" +
 	"$CLIENT_IP_RESTRICTION_STATUS_PENDING\x10\x01\x12'\n" +
-	"#CLIENT_IP_RESTRICTION_STATUS_ACTIVE\x10\x022\xdd2\n" +
+	"#CLIENT_IP_RESTRICTION_STATUS_ACTIVE\x10\x02\x12&\n" +
+	"\"CLIENT_IP_RESTRICTION_STATUS_DRAFT\x10\x03\x12(\n" +
+	"$CLIENT_IP_RESTRICTION_STATUS_EXPIRED\x10\x04*\x94\x01\n" +
+	"\x17ClientIPRestrictionMode\x12*\n" +
+	"&CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED\x10\x00\x12$\n" +
+	" CLIENT_IP_RESTRICTION_MODE_DRAFT\x10\x01\x12'\n" +
+	"#CLIENT_IP_RESTRICTION_MODE_ENFORCED\x10\x022\xf2?\n" +
 	"\x0eTenantsService\x12\x84\x01\n" +
 	"\x15GetBillingInformation\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a=.gravitational.cloud.tenants.v1.GetBillingInformationResponse\x12\x9a\x01\n" +
 	" GetAccountUpgradeWindowStartHour\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1aH.gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse\x12\xa0\x01\n" +
@@ -7604,7 +9340,8 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x11SendAccountLocked\x128.gravitational.cloud.tenants.v1.SendAccountLockedRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\x12\x82\x01\n" +
 	"\x14SendAccountRecovered\x12;.gravitational.cloud.tenants.v1.SendAccountRecoveredRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\x12p\n" +
 	"\vGetFeatures\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a3.gravitational.cloud.tenants.v1.GetFeaturesResponse\x12\x92\x01\n" +
-	"\x1cGetBillingSummaryInformation\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1aD.gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse\x12w\n" +
+	"\x1cGetBillingSummaryInformation\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1aD.gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse\x12\x82\x01\n" +
+	"\x0fGetStripeConfig\x126.gravitational.cloud.tenants.v1.GetStripeConfigRequest\x1a7.gravitational.cloud.tenants.v1.GetStripeConfigResponse\x12w\n" +
 	"\x10GetSurveyCompany\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a5.gravitational.cloud.tenants.v1.SurveyCompanyResponse\x12m\n" +
 	"\bGetUsage\x12/.gravitational.cloud.tenants.v1.GetUsageRequest\x1a0.gravitational.cloud.tenants.v1.GetUsageResponse\x12\x91\x01\n" +
 	"\x14GetMAUDailyBreakdown\x12;.gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest\x1a<.gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse\x12\x91\x01\n" +
@@ -7615,7 +9352,18 @@ const file_api_tenants_v1_tenants_proto_rawDesc = "" +
 	"\x11GetUpdatedLicense\x128.gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest\x1a9.gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse\x12p\n" +
 	"\vGetContacts\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a3.gravitational.cloud.tenants.v1.GetContactsResponse\x12|\n" +
 	"\rCreateContact\x124.gravitational.cloud.tenants.v1.CreateContactRequest\x1a5.gravitational.cloud.tenants.v1.CreateContactResponse\x12|\n" +
-	"\rRemoveContact\x124.gravitational.cloud.tenants.v1.RemoveContactRequest\x1a5.gravitational.cloud.tenants.v1.RemoveContactResponse\x12~\n" +
+	"\rRemoveContact\x124.gravitational.cloud.tenants.v1.RemoveContactRequest\x1a5.gravitational.cloud.tenants.v1.RemoveContactResponse\x12y\n" +
+	"\fStripeCancel\x123.gravitational.cloud.tenants.v1.StripeCancelRequest\x1a4.gravitational.cloud.tenants.v1.StripeCancelResponse\x12\x85\x01\n" +
+	"\x10StripeCreateCard\x127.gravitational.cloud.tenants.v1.StripeCreateCardRequest\x1a8.gravitational.cloud.tenants.v1.StripeCreateCardResponse\x12\x9a\x01\n" +
+	"\x17StripeCreateSetupIntent\x12>.gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest\x1a?.gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse\x12\x85\x01\n" +
+	"\x10StripeDeleteCard\x127.gravitational.cloud.tenants.v1.StripeDeleteCardRequest\x1a8.gravitational.cloud.tenants.v1.StripeDeleteCardResponse\x12\x88\x01\n" +
+	"\x11StripeGetSettings\x128.gravitational.cloud.tenants.v1.StripeGetSettingsRequest\x1a9.gravitational.cloud.tenants.v1.StripeGetSettingsResponse\x12\x82\x01\n" +
+	"\x0fStripeListCards\x126.gravitational.cloud.tenants.v1.StripeListCardsRequest\x1a7.gravitational.cloud.tenants.v1.StripeListCardsResponse\x12\x8b\x01\n" +
+	"\x12StripeListInvoices\x129.gravitational.cloud.tenants.v1.StripeListInvoicesRequest\x1a:.gravitational.cloud.tenants.v1.StripeListInvoicesResponse\x12\x85\x01\n" +
+	"\x10StripeUpdateCard\x127.gravitational.cloud.tenants.v1.StripeUpdateCardRequest\x1a8.gravitational.cloud.tenants.v1.StripeUpdateCardResponse\x12\x88\x01\n" +
+	"\x11StripeUpdateEmail\x128.gravitational.cloud.tenants.v1.StripeUpdateEmailRequest\x1a9.gravitational.cloud.tenants.v1.StripeUpdateEmailResponse\x12\x91\x01\n" +
+	"\x14StripeUpdatePOPrefix\x12;.gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest\x1a<.gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse\x12\xa0\x01\n" +
+	"\x19StripeUpdateStripeAddress\x12@.gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest\x1aA.gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse\x12~\n" +
 	"\x12SubmitUsageReports\x129.gravitational.cloud.tenants.v1.SubmitUsageReportsRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\x12\x81\x01\n" +
 	"\x11CreateSetupIntent\x12,.gravitational.cloud.tenants.v1.EmptyRequest\x1a9.gravitational.cloud.tenants.v1.CreateSetupIntentResponse\"\x03\x88\x02\x01\x12m\n" +
 	"\aAddCard\x12..gravitational.cloud.tenants.v1.AddCardRequest\x1a-.gravitational.cloud.tenants.v1.EmptyResponse\"\x03\x88\x02\x01\x12s\n" +
@@ -7657,286 +9405,351 @@ func file_api_tenants_v1_tenants_proto_rawDescGZIP() []byte {
 	return file_api_tenants_v1_tenants_proto_rawDescData
 }
 
-var file_api_tenants_v1_tenants_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_api_tenants_v1_tenants_proto_msgTypes = make([]protoimpl.MessageInfo, 103)
+var file_api_tenants_v1_tenants_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
+var file_api_tenants_v1_tenants_proto_msgTypes = make([]protoimpl.MessageInfo, 130)
 var file_api_tenants_v1_tenants_proto_goTypes = []any{
 	(UsageResourceType)(0),                             // 0: gravitational.cloud.tenants.v1.UsageResourceType
 	(ProductType)(0),                                   // 1: gravitational.cloud.tenants.v1.ProductType
 	(SupportType)(0),                                   // 2: gravitational.cloud.tenants.v1.SupportType
 	(ContactState)(0),                                  // 3: gravitational.cloud.tenants.v1.ContactState
 	(ClientIPRestrictionStatus)(0),                     // 4: gravitational.cloud.tenants.v1.ClientIPRestrictionStatus
-	(*StripeBillingAddressRequest)(nil),                // 5: gravitational.cloud.tenants.v1.StripeBillingAddressRequest
-	(*StripeBillingAddress)(nil),                       // 6: gravitational.cloud.tenants.v1.StripeBillingAddress
-	(*UpdateEmailRequest)(nil),                         // 7: gravitational.cloud.tenants.v1.UpdateEmailRequest
-	(*UpdatePurchaseOrderPrefixRequest)(nil),           // 8: gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
-	(*Card)(nil),                                       // 9: gravitational.cloud.tenants.v1.Card
-	(*GetBillingInformationResponse)(nil),              // 10: gravitational.cloud.tenants.v1.GetBillingInformationResponse
-	(*CreateSetupIntentResponse)(nil),                  // 11: gravitational.cloud.tenants.v1.CreateSetupIntentResponse
-	(*Invoice)(nil),                                    // 12: gravitational.cloud.tenants.v1.Invoice
-	(*SubmitUsageReportsRequest)(nil),                  // 13: gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
-	(*UsageReport)(nil),                                // 14: gravitational.cloud.tenants.v1.UsageReport
-	(*UsageReportItem)(nil),                            // 15: gravitational.cloud.tenants.v1.UsageReportItem
-	(*RemoveCardRequest)(nil),                          // 16: gravitational.cloud.tenants.v1.RemoveCardRequest
-	(*AddCardRequest)(nil),                             // 17: gravitational.cloud.tenants.v1.AddCardRequest
-	(*UpdateCardRequest)(nil),                          // 18: gravitational.cloud.tenants.v1.UpdateCardRequest
-	(*GetAccountUpgradeWindowStartHourResponse)(nil),   // 19: gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
-	(*UpdateAccountUpgradeWindowStartHourRequest)(nil), // 20: gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
-	(*GetEnvironmentProfileRequest)(nil),               // 21: gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
-	(*GetEnvironmentProfileResponse)(nil),              // 22: gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
-	(*UpdateEnvironmentProfileRequest)(nil),            // 23: gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
-	(*SendAccountRecoveryLinkRequest)(nil),             // 24: gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
-	(*SendAccountLockedRequest)(nil),                   // 25: gravitational.cloud.tenants.v1.SendAccountLockedRequest
-	(*SendAccountRecoveredRequest)(nil),                // 26: gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
-	(*GetFeaturesResponse)(nil),                        // 27: gravitational.cloud.tenants.v1.GetFeaturesResponse
-	(*EntitlementInfo)(nil),                            // 28: gravitational.cloud.tenants.v1.EntitlementInfo
-	(*StripeUsage)(nil),                                // 29: gravitational.cloud.tenants.v1.StripeUsage
-	(*GetUsageRequest)(nil),                            // 30: gravitational.cloud.tenants.v1.GetUsageRequest
-	(*GetUsageResponse)(nil),                           // 31: gravitational.cloud.tenants.v1.GetUsageResponse
-	(*PricingModel)(nil),                               // 32: gravitational.cloud.tenants.v1.PricingModel
-	(*Alert)(nil),                                      // 33: gravitational.cloud.tenants.v1.Alert
-	(*UsageCycle)(nil),                                 // 34: gravitational.cloud.tenants.v1.UsageCycle
-	(*Usage)(nil),                                      // 35: gravitational.cloud.tenants.v1.Usage
-	(*UsageLimits)(nil),                                // 36: gravitational.cloud.tenants.v1.UsageLimits
-	(*GetBillingSummaryInformationResponse)(nil),       // 37: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
-	(*UsageSummary)(nil),                               // 38: gravitational.cloud.tenants.v1.UsageSummary
-	(*UsageHistoryItem)(nil),                           // 39: gravitational.cloud.tenants.v1.UsageHistoryItem
-	(*UsageMetricPerCycle)(nil),                        // 40: gravitational.cloud.tenants.v1.UsageMetricPerCycle
-	(*UsageQuota)(nil),                                 // 41: gravitational.cloud.tenants.v1.UsageQuota
-	(*Quota)(nil),                                      // 42: gravitational.cloud.tenants.v1.Quota
-	(*GetPaymentsInvoicesInformationResponse)(nil),     // 43: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
-	(*GetInvoiceSettingsInformationResponse)(nil),      // 44: gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
-	(*MarketingParamData)(nil),                         // 45: gravitational.cloud.tenants.v1.MarketingParamData
-	(*SurveyCompanyResponse)(nil),                      // 46: gravitational.cloud.tenants.v1.SurveyCompanyResponse
-	(*SetSurveyResultsRequest)(nil),                    // 47: gravitational.cloud.tenants.v1.SetSurveyResultsRequest
-	(*SendTeleportInviteRequest)(nil),                  // 48: gravitational.cloud.tenants.v1.SendTeleportInviteRequest
-	(*ClusterAlertInfoResponse)(nil),                   // 49: gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
-	(*GetUpdatedLicenseRequest)(nil),                   // 50: gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
-	(*GetUpdatedLicenseResponse)(nil),                  // 51: gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
-	(*GetContactsResponse)(nil),                        // 52: gravitational.cloud.tenants.v1.GetContactsResponse
-	(*CreateContactRequest)(nil),                       // 53: gravitational.cloud.tenants.v1.CreateContactRequest
-	(*CreateContactResponse)(nil),                      // 54: gravitational.cloud.tenants.v1.CreateContactResponse
-	(*RemoveContactRequest)(nil),                       // 55: gravitational.cloud.tenants.v1.RemoveContactRequest
-	(*RemoveContactResponse)(nil),                      // 56: gravitational.cloud.tenants.v1.RemoveContactResponse
-	(*Contact)(nil),                                    // 57: gravitational.cloud.tenants.v1.Contact
-	(*CIDR)(nil),                                       // 58: gravitational.cloud.tenants.v1.CIDR
-	(*ClientIPRestriction)(nil),                        // 59: gravitational.cloud.tenants.v1.ClientIPRestriction
-	(*GetClientIPRestrictionRequest)(nil),              // 60: gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
-	(*GetClientIPRestrictionResponse)(nil),             // 61: gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
-	(*CreateClientIPRestrictionRequest)(nil),           // 62: gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
-	(*CreateClientIPRestrictionResponse)(nil),          // 63: gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
-	(*UpdateClientIPRestrictionRequest)(nil),           // 64: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
-	(*UpdateClientIPRestrictionResponse)(nil),          // 65: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
-	(*UpsertClientIPRestrictionRequest)(nil),           // 66: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
-	(*UpsertClientIPRestrictionResponse)(nil),          // 67: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
-	(*DeleteClientIPRestrictionRequest)(nil),           // 68: gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
-	(*DeleteClientIPRestrictionResponse)(nil),          // 69: gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
-	(*PutClientIPRestrictionsRequest)(nil),             // 70: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
-	(*PutClientIPRestrictionsResponse)(nil),            // 71: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
-	(*GetClientIPRestrictionsRequest)(nil),             // 72: gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
-	(*GetClientIPRestrictionsResponse)(nil),            // 73: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
-	(*EmptyResponse)(nil),                              // 74: gravitational.cloud.tenants.v1.EmptyResponse
-	(*EmptyRequest)(nil),                               // 75: gravitational.cloud.tenants.v1.EmptyRequest
-	(*ChildClusterRequest)(nil),                        // 76: gravitational.cloud.tenants.v1.ChildClusterRequest
-	(*Region)(nil),                                     // 77: gravitational.cloud.tenants.v1.Region
-	(*Allow)(nil),                                      // 78: gravitational.cloud.tenants.v1.Allow
-	(*ChildClusterResponse)(nil),                       // 79: gravitational.cloud.tenants.v1.ChildClusterResponse
-	(*GetFileRequest)(nil),                             // 80: gravitational.cloud.tenants.v1.GetFileRequest
-	(*GetFileResponse)(nil),                            // 81: gravitational.cloud.tenants.v1.GetFileResponse
-	(*ChildCluster)(nil),                               // 82: gravitational.cloud.tenants.v1.ChildCluster
-	(*ChildClusterSpec)(nil),                           // 83: gravitational.cloud.tenants.v1.ChildClusterSpec
-	(*ChildClusterStatus)(nil),                         // 84: gravitational.cloud.tenants.v1.ChildClusterStatus
-	(*CreateChildClusterRequest)(nil),                  // 85: gravitational.cloud.tenants.v1.CreateChildClusterRequest
-	(*CreateChildClusterResponse)(nil),                 // 86: gravitational.cloud.tenants.v1.CreateChildClusterResponse
-	(*GetChildClusterRequest)(nil),                     // 87: gravitational.cloud.tenants.v1.GetChildClusterRequest
-	(*GetChildClusterResponse)(nil),                    // 88: gravitational.cloud.tenants.v1.GetChildClusterResponse
-	(*UpdateChildClusterRequest)(nil),                  // 89: gravitational.cloud.tenants.v1.UpdateChildClusterRequest
-	(*UpdateChildClusterResponse)(nil),                 // 90: gravitational.cloud.tenants.v1.UpdateChildClusterResponse
-	(*UpsertChildClusterRequest)(nil),                  // 91: gravitational.cloud.tenants.v1.UpsertChildClusterRequest
-	(*UpsertChildClusterResponse)(nil),                 // 92: gravitational.cloud.tenants.v1.UpsertChildClusterResponse
-	(*SuspendChildClusterRequest)(nil),                 // 93: gravitational.cloud.tenants.v1.SuspendChildClusterRequest
-	(*SuspendChildClusterResponse)(nil),                // 94: gravitational.cloud.tenants.v1.SuspendChildClusterResponse
-	(*ListChildClustersRequest)(nil),                   // 95: gravitational.cloud.tenants.v1.ListChildClustersRequest
-	(*ListChildClustersResponse)(nil),                  // 96: gravitational.cloud.tenants.v1.ListChildClustersResponse
-	(*DateRange)(nil),                                  // 97: gravitational.cloud.tenants.v1.DateRange
-	(*DailyBreakdownWindow)(nil),                       // 98: gravitational.cloud.tenants.v1.DailyBreakdownWindow
-	(*GetMAUDailyBreakdownRequest)(nil),                // 99: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
-	(*GetMAUDailyBreakdownResponse)(nil),               // 100: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
-	(*MAUDailyPoint)(nil),                              // 101: gravitational.cloud.tenants.v1.MAUDailyPoint
-	(*GetTPRDailyBreakdownRequest)(nil),                // 102: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
-	(*GetTPRDailyBreakdownResponse)(nil),               // 103: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
-	(*TPRDailyPoint)(nil),                              // 104: gravitational.cloud.tenants.v1.TPRDailyPoint
-	nil,                                                // 105: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
-	nil,                                                // 106: gravitational.cloud.tenants.v1.Alert.TagsEntry
-	nil,                                                // 107: gravitational.cloud.tenants.v1.TPRDailyPoint.MetricsEntry
+	(ClientIPRestrictionMode)(0),                       // 5: gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+	(*StripeBillingAddressRequest)(nil),                // 6: gravitational.cloud.tenants.v1.StripeBillingAddressRequest
+	(*StripeBillingAddress)(nil),                       // 7: gravitational.cloud.tenants.v1.StripeBillingAddress
+	(*StripeAddress)(nil),                              // 8: gravitational.cloud.tenants.v1.StripeAddress
+	(*StripeCard)(nil),                                 // 9: gravitational.cloud.tenants.v1.StripeCard
+	(*StripeInvoice)(nil),                              // 10: gravitational.cloud.tenants.v1.StripeInvoice
+	(*UpdateEmailRequest)(nil),                         // 11: gravitational.cloud.tenants.v1.UpdateEmailRequest
+	(*UpdatePurchaseOrderPrefixRequest)(nil),           // 12: gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
+	(*Card)(nil),                                       // 13: gravitational.cloud.tenants.v1.Card
+	(*GetBillingInformationResponse)(nil),              // 14: gravitational.cloud.tenants.v1.GetBillingInformationResponse
+	(*CreateSetupIntentResponse)(nil),                  // 15: gravitational.cloud.tenants.v1.CreateSetupIntentResponse
+	(*GetStripeConfigRequest)(nil),                     // 16: gravitational.cloud.tenants.v1.GetStripeConfigRequest
+	(*GetStripeConfigResponse)(nil),                    // 17: gravitational.cloud.tenants.v1.GetStripeConfigResponse
+	(*Invoice)(nil),                                    // 18: gravitational.cloud.tenants.v1.Invoice
+	(*SubmitUsageReportsRequest)(nil),                  // 19: gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
+	(*UsageReport)(nil),                                // 20: gravitational.cloud.tenants.v1.UsageReport
+	(*UsageReportItem)(nil),                            // 21: gravitational.cloud.tenants.v1.UsageReportItem
+	(*RemoveCardRequest)(nil),                          // 22: gravitational.cloud.tenants.v1.RemoveCardRequest
+	(*AddCardRequest)(nil),                             // 23: gravitational.cloud.tenants.v1.AddCardRequest
+	(*UpdateCardRequest)(nil),                          // 24: gravitational.cloud.tenants.v1.UpdateCardRequest
+	(*GetAccountUpgradeWindowStartHourResponse)(nil),   // 25: gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
+	(*UpdateAccountUpgradeWindowStartHourRequest)(nil), // 26: gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
+	(*GetEnvironmentProfileRequest)(nil),               // 27: gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
+	(*GetEnvironmentProfileResponse)(nil),              // 28: gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
+	(*UpdateEnvironmentProfileRequest)(nil),            // 29: gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
+	(*SendAccountRecoveryLinkRequest)(nil),             // 30: gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
+	(*SendAccountLockedRequest)(nil),                   // 31: gravitational.cloud.tenants.v1.SendAccountLockedRequest
+	(*SendAccountRecoveredRequest)(nil),                // 32: gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
+	(*GetFeaturesResponse)(nil),                        // 33: gravitational.cloud.tenants.v1.GetFeaturesResponse
+	(*EntitlementInfo)(nil),                            // 34: gravitational.cloud.tenants.v1.EntitlementInfo
+	(*StripeUsage)(nil),                                // 35: gravitational.cloud.tenants.v1.StripeUsage
+	(*GetUsageRequest)(nil),                            // 36: gravitational.cloud.tenants.v1.GetUsageRequest
+	(*GetUsageResponse)(nil),                           // 37: gravitational.cloud.tenants.v1.GetUsageResponse
+	(*PricingModel)(nil),                               // 38: gravitational.cloud.tenants.v1.PricingModel
+	(*Alert)(nil),                                      // 39: gravitational.cloud.tenants.v1.Alert
+	(*UsageCycle)(nil),                                 // 40: gravitational.cloud.tenants.v1.UsageCycle
+	(*Usage)(nil),                                      // 41: gravitational.cloud.tenants.v1.Usage
+	(*UsageLimits)(nil),                                // 42: gravitational.cloud.tenants.v1.UsageLimits
+	(*GetBillingSummaryInformationResponse)(nil),       // 43: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
+	(*UsageSummary)(nil),                               // 44: gravitational.cloud.tenants.v1.UsageSummary
+	(*UsageHistoryItem)(nil),                           // 45: gravitational.cloud.tenants.v1.UsageHistoryItem
+	(*UsageMetricPerCycle)(nil),                        // 46: gravitational.cloud.tenants.v1.UsageMetricPerCycle
+	(*UsageQuota)(nil),                                 // 47: gravitational.cloud.tenants.v1.UsageQuota
+	(*Quota)(nil),                                      // 48: gravitational.cloud.tenants.v1.Quota
+	(*GetPaymentsInvoicesInformationResponse)(nil),     // 49: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
+	(*GetInvoiceSettingsInformationResponse)(nil),      // 50: gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
+	(*MarketingParamData)(nil),                         // 51: gravitational.cloud.tenants.v1.MarketingParamData
+	(*SurveyCompanyResponse)(nil),                      // 52: gravitational.cloud.tenants.v1.SurveyCompanyResponse
+	(*SetSurveyResultsRequest)(nil),                    // 53: gravitational.cloud.tenants.v1.SetSurveyResultsRequest
+	(*SendTeleportInviteRequest)(nil),                  // 54: gravitational.cloud.tenants.v1.SendTeleportInviteRequest
+	(*ClusterAlertInfoResponse)(nil),                   // 55: gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
+	(*GetUpdatedLicenseRequest)(nil),                   // 56: gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
+	(*GetUpdatedLicenseResponse)(nil),                  // 57: gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
+	(*GetContactsResponse)(nil),                        // 58: gravitational.cloud.tenants.v1.GetContactsResponse
+	(*CreateContactRequest)(nil),                       // 59: gravitational.cloud.tenants.v1.CreateContactRequest
+	(*CreateContactResponse)(nil),                      // 60: gravitational.cloud.tenants.v1.CreateContactResponse
+	(*RemoveContactRequest)(nil),                       // 61: gravitational.cloud.tenants.v1.RemoveContactRequest
+	(*StripeCancelRequest)(nil),                        // 62: gravitational.cloud.tenants.v1.StripeCancelRequest
+	(*StripeCancelResponse)(nil),                       // 63: gravitational.cloud.tenants.v1.StripeCancelResponse
+	(*StripeCreateCardRequest)(nil),                    // 64: gravitational.cloud.tenants.v1.StripeCreateCardRequest
+	(*StripeCreateCardResponse)(nil),                   // 65: gravitational.cloud.tenants.v1.StripeCreateCardResponse
+	(*StripeCreateSetupIntentRequest)(nil),             // 66: gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest
+	(*StripeCreateSetupIntentResponse)(nil),            // 67: gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse
+	(*StripeDeleteCardRequest)(nil),                    // 68: gravitational.cloud.tenants.v1.StripeDeleteCardRequest
+	(*StripeDeleteCardResponse)(nil),                   // 69: gravitational.cloud.tenants.v1.StripeDeleteCardResponse
+	(*StripeGetSettingsRequest)(nil),                   // 70: gravitational.cloud.tenants.v1.StripeGetSettingsRequest
+	(*StripeGetSettingsResponse)(nil),                  // 71: gravitational.cloud.tenants.v1.StripeGetSettingsResponse
+	(*StripeListCardsRequest)(nil),                     // 72: gravitational.cloud.tenants.v1.StripeListCardsRequest
+	(*StripeListCardsResponse)(nil),                    // 73: gravitational.cloud.tenants.v1.StripeListCardsResponse
+	(*StripeListInvoicesRequest)(nil),                  // 74: gravitational.cloud.tenants.v1.StripeListInvoicesRequest
+	(*StripeListInvoicesResponse)(nil),                 // 75: gravitational.cloud.tenants.v1.StripeListInvoicesResponse
+	(*StripeUpdateCardRequest)(nil),                    // 76: gravitational.cloud.tenants.v1.StripeUpdateCardRequest
+	(*StripeUpdateCardResponse)(nil),                   // 77: gravitational.cloud.tenants.v1.StripeUpdateCardResponse
+	(*StripeUpdateEmailRequest)(nil),                   // 78: gravitational.cloud.tenants.v1.StripeUpdateEmailRequest
+	(*StripeUpdateEmailResponse)(nil),                  // 79: gravitational.cloud.tenants.v1.StripeUpdateEmailResponse
+	(*StripeUpdatePOPrefixRequest)(nil),                // 80: gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest
+	(*StripeUpdatePOPrefixResponse)(nil),               // 81: gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse
+	(*StripeUpdateStripeAddressRequest)(nil),           // 82: gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest
+	(*StripeUpdateStripeAddressResponse)(nil),          // 83: gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse
+	(*RemoveContactResponse)(nil),                      // 84: gravitational.cloud.tenants.v1.RemoveContactResponse
+	(*Contact)(nil),                                    // 85: gravitational.cloud.tenants.v1.Contact
+	(*CIDR)(nil),                                       // 86: gravitational.cloud.tenants.v1.CIDR
+	(*ClientIPRestriction)(nil),                        // 87: gravitational.cloud.tenants.v1.ClientIPRestriction
+	(*GetClientIPRestrictionRequest)(nil),              // 88: gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
+	(*GetClientIPRestrictionResponse)(nil),             // 89: gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
+	(*CreateClientIPRestrictionRequest)(nil),           // 90: gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
+	(*CreateClientIPRestrictionResponse)(nil),          // 91: gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
+	(*UpdateClientIPRestrictionRequest)(nil),           // 92: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
+	(*UpdateClientIPRestrictionResponse)(nil),          // 93: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
+	(*UpsertClientIPRestrictionRequest)(nil),           // 94: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
+	(*UpsertClientIPRestrictionResponse)(nil),          // 95: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
+	(*DeleteClientIPRestrictionRequest)(nil),           // 96: gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
+	(*DeleteClientIPRestrictionResponse)(nil),          // 97: gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
+	(*PutClientIPRestrictionsRequest)(nil),             // 98: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+	(*PutClientIPRestrictionsResponse)(nil),            // 99: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+	(*GetClientIPRestrictionsRequest)(nil),             // 100: gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+	(*GetClientIPRestrictionsResponse)(nil),            // 101: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+	(*EmptyResponse)(nil),                              // 102: gravitational.cloud.tenants.v1.EmptyResponse
+	(*EmptyRequest)(nil),                               // 103: gravitational.cloud.tenants.v1.EmptyRequest
+	(*ChildClusterRequest)(nil),                        // 104: gravitational.cloud.tenants.v1.ChildClusterRequest
+	(*Region)(nil),                                     // 105: gravitational.cloud.tenants.v1.Region
+	(*Allow)(nil),                                      // 106: gravitational.cloud.tenants.v1.Allow
+	(*ChildClusterResponse)(nil),                       // 107: gravitational.cloud.tenants.v1.ChildClusterResponse
+	(*GetFileRequest)(nil),                             // 108: gravitational.cloud.tenants.v1.GetFileRequest
+	(*GetFileResponse)(nil),                            // 109: gravitational.cloud.tenants.v1.GetFileResponse
+	(*ChildCluster)(nil),                               // 110: gravitational.cloud.tenants.v1.ChildCluster
+	(*ChildClusterSpec)(nil),                           // 111: gravitational.cloud.tenants.v1.ChildClusterSpec
+	(*ChildClusterStatus)(nil),                         // 112: gravitational.cloud.tenants.v1.ChildClusterStatus
+	(*CreateChildClusterRequest)(nil),                  // 113: gravitational.cloud.tenants.v1.CreateChildClusterRequest
+	(*CreateChildClusterResponse)(nil),                 // 114: gravitational.cloud.tenants.v1.CreateChildClusterResponse
+	(*GetChildClusterRequest)(nil),                     // 115: gravitational.cloud.tenants.v1.GetChildClusterRequest
+	(*GetChildClusterResponse)(nil),                    // 116: gravitational.cloud.tenants.v1.GetChildClusterResponse
+	(*UpdateChildClusterRequest)(nil),                  // 117: gravitational.cloud.tenants.v1.UpdateChildClusterRequest
+	(*UpdateChildClusterResponse)(nil),                 // 118: gravitational.cloud.tenants.v1.UpdateChildClusterResponse
+	(*UpsertChildClusterRequest)(nil),                  // 119: gravitational.cloud.tenants.v1.UpsertChildClusterRequest
+	(*UpsertChildClusterResponse)(nil),                 // 120: gravitational.cloud.tenants.v1.UpsertChildClusterResponse
+	(*SuspendChildClusterRequest)(nil),                 // 121: gravitational.cloud.tenants.v1.SuspendChildClusterRequest
+	(*SuspendChildClusterResponse)(nil),                // 122: gravitational.cloud.tenants.v1.SuspendChildClusterResponse
+	(*ListChildClustersRequest)(nil),                   // 123: gravitational.cloud.tenants.v1.ListChildClustersRequest
+	(*ListChildClustersResponse)(nil),                  // 124: gravitational.cloud.tenants.v1.ListChildClustersResponse
+	(*DateRange)(nil),                                  // 125: gravitational.cloud.tenants.v1.DateRange
+	(*DailyBreakdownWindow)(nil),                       // 126: gravitational.cloud.tenants.v1.DailyBreakdownWindow
+	(*GetMAUDailyBreakdownRequest)(nil),                // 127: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
+	(*GetMAUDailyBreakdownResponse)(nil),               // 128: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
+	(*MAUDailyPoint)(nil),                              // 129: gravitational.cloud.tenants.v1.MAUDailyPoint
+	(*GetTPRDailyBreakdownRequest)(nil),                // 130: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
+	(*GetTPRDailyBreakdownResponse)(nil),               // 131: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
+	(*TPRDailyPoint)(nil),                              // 132: gravitational.cloud.tenants.v1.TPRDailyPoint
+	nil,                                                // 133: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
+	nil,                                                // 134: gravitational.cloud.tenants.v1.Alert.TagsEntry
+	nil,                                                // 135: gravitational.cloud.tenants.v1.TPRDailyPoint.MetricsEntry
+	(*timestamppb.Timestamp)(nil),                      // 136: google.protobuf.Timestamp
 }
 var file_api_tenants_v1_tenants_proto_depIdxs = []int32{
-	6,   // 0: gravitational.cloud.tenants.v1.StripeBillingAddressRequest.address:type_name -> gravitational.cloud.tenants.v1.StripeBillingAddress
-	14,  // 1: gravitational.cloud.tenants.v1.SubmitUsageReportsRequest.reports:type_name -> gravitational.cloud.tenants.v1.UsageReport
-	15,  // 2: gravitational.cloud.tenants.v1.UsageReport.items:type_name -> gravitational.cloud.tenants.v1.UsageReportItem
+	7,   // 0: gravitational.cloud.tenants.v1.StripeBillingAddressRequest.address:type_name -> gravitational.cloud.tenants.v1.StripeBillingAddress
+	20,  // 1: gravitational.cloud.tenants.v1.SubmitUsageReportsRequest.reports:type_name -> gravitational.cloud.tenants.v1.UsageReport
+	21,  // 2: gravitational.cloud.tenants.v1.UsageReport.items:type_name -> gravitational.cloud.tenants.v1.UsageReportItem
 	0,   // 3: gravitational.cloud.tenants.v1.UsageReportItem.resource:type_name -> gravitational.cloud.tenants.v1.UsageResourceType
 	1,   // 4: gravitational.cloud.tenants.v1.GetFeaturesResponse.product_type:type_name -> gravitational.cloud.tenants.v1.ProductType
 	2,   // 5: gravitational.cloud.tenants.v1.GetFeaturesResponse.support_type:type_name -> gravitational.cloud.tenants.v1.SupportType
-	105, // 6: gravitational.cloud.tenants.v1.GetFeaturesResponse.entitlements:type_name -> gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
-	34,  // 7: gravitational.cloud.tenants.v1.GetUsageResponse.usage_history:type_name -> gravitational.cloud.tenants.v1.UsageCycle
-	33,  // 8: gravitational.cloud.tenants.v1.GetUsageResponse.alerts:type_name -> gravitational.cloud.tenants.v1.Alert
-	106, // 9: gravitational.cloud.tenants.v1.Alert.tags:type_name -> gravitational.cloud.tenants.v1.Alert.TagsEntry
-	35,  // 10: gravitational.cloud.tenants.v1.UsageCycle.usage:type_name -> gravitational.cloud.tenants.v1.Usage
-	36,  // 11: gravitational.cloud.tenants.v1.UsageCycle.usage_limits:type_name -> gravitational.cloud.tenants.v1.UsageLimits
-	32,  // 12: gravitational.cloud.tenants.v1.UsageCycle.pricing_model:type_name -> gravitational.cloud.tenants.v1.PricingModel
-	29,  // 13: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.stripe_current_usage:type_name -> gravitational.cloud.tenants.v1.StripeUsage
-	41,  // 14: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.usage_quota:type_name -> gravitational.cloud.tenants.v1.UsageQuota
-	38,  // 15: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.usage_summary:type_name -> gravitational.cloud.tenants.v1.UsageSummary
-	40,  // 16: gravitational.cloud.tenants.v1.UsageSummary.mau:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
-	40,  // 17: gravitational.cloud.tenants.v1.UsageSummary.tpr:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
-	39,  // 18: gravitational.cloud.tenants.v1.UsageSummary.usage_history:type_name -> gravitational.cloud.tenants.v1.UsageHistoryItem
-	40,  // 19: gravitational.cloud.tenants.v1.UsageSummary.mwi:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
-	40,  // 20: gravitational.cloud.tenants.v1.UsageSummary.igmau:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
-	41,  // 21: gravitational.cloud.tenants.v1.UsageHistoryItem.usage_quota:type_name -> gravitational.cloud.tenants.v1.UsageQuota
-	32,  // 22: gravitational.cloud.tenants.v1.UsageHistoryItem.pricing_model:type_name -> gravitational.cloud.tenants.v1.PricingModel
-	42,  // 23: gravitational.cloud.tenants.v1.UsageQuota.ig_mau:type_name -> gravitational.cloud.tenants.v1.Quota
-	42,  // 24: gravitational.cloud.tenants.v1.UsageQuota.zta_mau:type_name -> gravitational.cloud.tenants.v1.Quota
-	42,  // 25: gravitational.cloud.tenants.v1.UsageQuota.mwi:type_name -> gravitational.cloud.tenants.v1.Quota
-	42,  // 26: gravitational.cloud.tenants.v1.UsageQuota.tpr:type_name -> gravitational.cloud.tenants.v1.Quota
-	9,   // 27: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse.stripe_cards:type_name -> gravitational.cloud.tenants.v1.Card
-	12,  // 28: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse.stripe_invoices:type_name -> gravitational.cloud.tenants.v1.Invoice
-	6,   // 29: gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse.stripe_invoice_billing_address:type_name -> gravitational.cloud.tenants.v1.StripeBillingAddress
-	45,  // 30: gravitational.cloud.tenants.v1.SurveyCompanyResponse.marketing_params:type_name -> gravitational.cloud.tenants.v1.MarketingParamData
-	57,  // 31: gravitational.cloud.tenants.v1.GetContactsResponse.contacts:type_name -> gravitational.cloud.tenants.v1.Contact
-	57,  // 32: gravitational.cloud.tenants.v1.CreateContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
-	57,  // 33: gravitational.cloud.tenants.v1.RemoveContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
-	3,   // 34: gravitational.cloud.tenants.v1.Contact.state:type_name -> gravitational.cloud.tenants.v1.ContactState
-	4,   // 35: gravitational.cloud.tenants.v1.ClientIPRestriction.status:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionStatus
-	59,  // 36: gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
-	59,  // 37: gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
-	59,  // 38: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
-	59,  // 39: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
-	58,  // 40: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
-	58,  // 41: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
-	58,  // 42: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
-	77,  // 43: gravitational.cloud.tenants.v1.ChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
-	78,  // 44: gravitational.cloud.tenants.v1.ChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
-	83,  // 45: gravitational.cloud.tenants.v1.ChildCluster.spec:type_name -> gravitational.cloud.tenants.v1.ChildClusterSpec
-	84,  // 46: gravitational.cloud.tenants.v1.ChildCluster.status:type_name -> gravitational.cloud.tenants.v1.ChildClusterStatus
-	77,  // 47: gravitational.cloud.tenants.v1.ChildClusterSpec.regions:type_name -> gravitational.cloud.tenants.v1.Region
-	78,  // 48: gravitational.cloud.tenants.v1.ChildClusterSpec.allow:type_name -> gravitational.cloud.tenants.v1.Allow
-	77,  // 49: gravitational.cloud.tenants.v1.CreateChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
-	78,  // 50: gravitational.cloud.tenants.v1.CreateChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
-	82,  // 51: gravitational.cloud.tenants.v1.CreateChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	82,  // 52: gravitational.cloud.tenants.v1.GetChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	77,  // 53: gravitational.cloud.tenants.v1.UpdateChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
-	78,  // 54: gravitational.cloud.tenants.v1.UpdateChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
-	82,  // 55: gravitational.cloud.tenants.v1.UpdateChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	77,  // 56: gravitational.cloud.tenants.v1.UpsertChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
-	78,  // 57: gravitational.cloud.tenants.v1.UpsertChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
-	82,  // 58: gravitational.cloud.tenants.v1.UpsertChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	82,  // 59: gravitational.cloud.tenants.v1.SuspendChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	82,  // 60: gravitational.cloud.tenants.v1.ListChildClustersResponse.clusters:type_name -> gravitational.cloud.tenants.v1.ChildCluster
-	97,  // 61: gravitational.cloud.tenants.v1.DailyBreakdownWindow.range:type_name -> gravitational.cloud.tenants.v1.DateRange
-	98,  // 62: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest.window:type_name -> gravitational.cloud.tenants.v1.DailyBreakdownWindow
-	101, // 63: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse.days:type_name -> gravitational.cloud.tenants.v1.MAUDailyPoint
-	98,  // 64: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest.window:type_name -> gravitational.cloud.tenants.v1.DailyBreakdownWindow
-	104, // 65: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse.days:type_name -> gravitational.cloud.tenants.v1.TPRDailyPoint
-	107, // 66: gravitational.cloud.tenants.v1.TPRDailyPoint.metrics:type_name -> gravitational.cloud.tenants.v1.TPRDailyPoint.MetricsEntry
-	28,  // 67: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry.value:type_name -> gravitational.cloud.tenants.v1.EntitlementInfo
-	75,  // 68: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	75,  // 69: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	20,  // 70: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
-	21,  // 71: gravitational.cloud.tenants.v1.TenantsService.GetEnvironmentProfile:input_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
-	23,  // 72: gravitational.cloud.tenants.v1.TenantsService.UpdateEnvironmentProfile:input_type -> gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
-	24,  // 73: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
-	25,  // 74: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:input_type -> gravitational.cloud.tenants.v1.SendAccountLockedRequest
-	26,  // 75: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
-	75,  // 76: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	75,  // 77: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	75,  // 78: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	30,  // 79: gravitational.cloud.tenants.v1.TenantsService.GetUsage:input_type -> gravitational.cloud.tenants.v1.GetUsageRequest
-	99,  // 80: gravitational.cloud.tenants.v1.TenantsService.GetMAUDailyBreakdown:input_type -> gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
-	102, // 81: gravitational.cloud.tenants.v1.TenantsService.GetTPRDailyBreakdown:input_type -> gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
-	47,  // 82: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:input_type -> gravitational.cloud.tenants.v1.SetSurveyResultsRequest
-	48,  // 83: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:input_type -> gravitational.cloud.tenants.v1.SendTeleportInviteRequest
-	75,  // 84: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	50,  // 85: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:input_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
-	75,  // 86: gravitational.cloud.tenants.v1.TenantsService.GetContacts:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	53,  // 87: gravitational.cloud.tenants.v1.TenantsService.CreateContact:input_type -> gravitational.cloud.tenants.v1.CreateContactRequest
-	55,  // 88: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:input_type -> gravitational.cloud.tenants.v1.RemoveContactRequest
-	13,  // 89: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:input_type -> gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
-	75,  // 90: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	17,  // 91: gravitational.cloud.tenants.v1.TenantsService.AddCard:input_type -> gravitational.cloud.tenants.v1.AddCardRequest
-	16,  // 92: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:input_type -> gravitational.cloud.tenants.v1.RemoveCardRequest
-	18,  // 93: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:input_type -> gravitational.cloud.tenants.v1.UpdateCardRequest
-	75,  // 94: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	75,  // 95: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	5,   // 96: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:input_type -> gravitational.cloud.tenants.v1.StripeBillingAddressRequest
-	7,   // 97: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:input_type -> gravitational.cloud.tenants.v1.UpdateEmailRequest
-	8,   // 98: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:input_type -> gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
-	75,  // 99: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
-	72,  // 100: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
-	70,  // 101: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
-	60,  // 102: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
-	62,  // 103: gravitational.cloud.tenants.v1.TenantsService.CreateClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
-	64,  // 104: gravitational.cloud.tenants.v1.TenantsService.UpdateClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
-	66,  // 105: gravitational.cloud.tenants.v1.TenantsService.UpsertClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
-	68,  // 106: gravitational.cloud.tenants.v1.TenantsService.DeleteClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
-	76,  // 107: gravitational.cloud.tenants.v1.TenantsService.ChildCluster:input_type -> gravitational.cloud.tenants.v1.ChildClusterRequest
-	80,  // 108: gravitational.cloud.tenants.v1.TenantsService.GetFile:input_type -> gravitational.cloud.tenants.v1.GetFileRequest
-	85,  // 109: gravitational.cloud.tenants.v1.TenantsService.CreateChildCluster:input_type -> gravitational.cloud.tenants.v1.CreateChildClusterRequest
-	87,  // 110: gravitational.cloud.tenants.v1.TenantsService.GetChildCluster:input_type -> gravitational.cloud.tenants.v1.GetChildClusterRequest
-	89,  // 111: gravitational.cloud.tenants.v1.TenantsService.UpdateChildCluster:input_type -> gravitational.cloud.tenants.v1.UpdateChildClusterRequest
-	91,  // 112: gravitational.cloud.tenants.v1.TenantsService.UpsertChildCluster:input_type -> gravitational.cloud.tenants.v1.UpsertChildClusterRequest
-	93,  // 113: gravitational.cloud.tenants.v1.TenantsService.SuspendChildCluster:input_type -> gravitational.cloud.tenants.v1.SuspendChildClusterRequest
-	95,  // 114: gravitational.cloud.tenants.v1.TenantsService.ListChildClusters:input_type -> gravitational.cloud.tenants.v1.ListChildClustersRequest
-	10,  // 115: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingInformationResponse
-	19,  // 116: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
-	74,  // 117: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	22,  // 118: gravitational.cloud.tenants.v1.TenantsService.GetEnvironmentProfile:output_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
-	22,  // 119: gravitational.cloud.tenants.v1.TenantsService.UpdateEnvironmentProfile:output_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
-	74,  // 120: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 121: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 122: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	27,  // 123: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:output_type -> gravitational.cloud.tenants.v1.GetFeaturesResponse
-	37,  // 124: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
-	46,  // 125: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:output_type -> gravitational.cloud.tenants.v1.SurveyCompanyResponse
-	31,  // 126: gravitational.cloud.tenants.v1.TenantsService.GetUsage:output_type -> gravitational.cloud.tenants.v1.GetUsageResponse
-	100, // 127: gravitational.cloud.tenants.v1.TenantsService.GetMAUDailyBreakdown:output_type -> gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
-	103, // 128: gravitational.cloud.tenants.v1.TenantsService.GetTPRDailyBreakdown:output_type -> gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
-	74,  // 129: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 130: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	49,  // 131: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:output_type -> gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
-	51,  // 132: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:output_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
-	52,  // 133: gravitational.cloud.tenants.v1.TenantsService.GetContacts:output_type -> gravitational.cloud.tenants.v1.GetContactsResponse
-	54,  // 134: gravitational.cloud.tenants.v1.TenantsService.CreateContact:output_type -> gravitational.cloud.tenants.v1.CreateContactResponse
-	56,  // 135: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:output_type -> gravitational.cloud.tenants.v1.RemoveContactResponse
-	74,  // 136: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	11,  // 137: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:output_type -> gravitational.cloud.tenants.v1.CreateSetupIntentResponse
-	74,  // 138: gravitational.cloud.tenants.v1.TenantsService.AddCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 139: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 140: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	43,  // 141: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:output_type -> gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
-	44,  // 142: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:output_type -> gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
-	74,  // 143: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 144: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 145: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	74,  // 146: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
-	73,  // 147: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
-	71,  // 148: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
-	61,  // 149: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
-	63,  // 150: gravitational.cloud.tenants.v1.TenantsService.CreateClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
-	65,  // 151: gravitational.cloud.tenants.v1.TenantsService.UpdateClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
-	67,  // 152: gravitational.cloud.tenants.v1.TenantsService.UpsertClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
-	69,  // 153: gravitational.cloud.tenants.v1.TenantsService.DeleteClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
-	79,  // 154: gravitational.cloud.tenants.v1.TenantsService.ChildCluster:output_type -> gravitational.cloud.tenants.v1.ChildClusterResponse
-	81,  // 155: gravitational.cloud.tenants.v1.TenantsService.GetFile:output_type -> gravitational.cloud.tenants.v1.GetFileResponse
-	86,  // 156: gravitational.cloud.tenants.v1.TenantsService.CreateChildCluster:output_type -> gravitational.cloud.tenants.v1.CreateChildClusterResponse
-	88,  // 157: gravitational.cloud.tenants.v1.TenantsService.GetChildCluster:output_type -> gravitational.cloud.tenants.v1.GetChildClusterResponse
-	90,  // 158: gravitational.cloud.tenants.v1.TenantsService.UpdateChildCluster:output_type -> gravitational.cloud.tenants.v1.UpdateChildClusterResponse
-	92,  // 159: gravitational.cloud.tenants.v1.TenantsService.UpsertChildCluster:output_type -> gravitational.cloud.tenants.v1.UpsertChildClusterResponse
-	94,  // 160: gravitational.cloud.tenants.v1.TenantsService.SuspendChildCluster:output_type -> gravitational.cloud.tenants.v1.SuspendChildClusterResponse
-	96,  // 161: gravitational.cloud.tenants.v1.TenantsService.ListChildClusters:output_type -> gravitational.cloud.tenants.v1.ListChildClustersResponse
-	115, // [115:162] is the sub-list for method output_type
-	68,  // [68:115] is the sub-list for method input_type
-	68,  // [68:68] is the sub-list for extension type_name
-	68,  // [68:68] is the sub-list for extension extendee
-	0,   // [0:68] is the sub-list for field type_name
+	133, // 6: gravitational.cloud.tenants.v1.GetFeaturesResponse.entitlements:type_name -> gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry
+	40,  // 7: gravitational.cloud.tenants.v1.GetUsageResponse.usage_history:type_name -> gravitational.cloud.tenants.v1.UsageCycle
+	39,  // 8: gravitational.cloud.tenants.v1.GetUsageResponse.alerts:type_name -> gravitational.cloud.tenants.v1.Alert
+	134, // 9: gravitational.cloud.tenants.v1.Alert.tags:type_name -> gravitational.cloud.tenants.v1.Alert.TagsEntry
+	41,  // 10: gravitational.cloud.tenants.v1.UsageCycle.usage:type_name -> gravitational.cloud.tenants.v1.Usage
+	42,  // 11: gravitational.cloud.tenants.v1.UsageCycle.usage_limits:type_name -> gravitational.cloud.tenants.v1.UsageLimits
+	38,  // 12: gravitational.cloud.tenants.v1.UsageCycle.pricing_model:type_name -> gravitational.cloud.tenants.v1.PricingModel
+	35,  // 13: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.stripe_current_usage:type_name -> gravitational.cloud.tenants.v1.StripeUsage
+	47,  // 14: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.usage_quota:type_name -> gravitational.cloud.tenants.v1.UsageQuota
+	44,  // 15: gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse.usage_summary:type_name -> gravitational.cloud.tenants.v1.UsageSummary
+	46,  // 16: gravitational.cloud.tenants.v1.UsageSummary.mau:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
+	46,  // 17: gravitational.cloud.tenants.v1.UsageSummary.tpr:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
+	45,  // 18: gravitational.cloud.tenants.v1.UsageSummary.usage_history:type_name -> gravitational.cloud.tenants.v1.UsageHistoryItem
+	46,  // 19: gravitational.cloud.tenants.v1.UsageSummary.mwi:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
+	46,  // 20: gravitational.cloud.tenants.v1.UsageSummary.igmau:type_name -> gravitational.cloud.tenants.v1.UsageMetricPerCycle
+	47,  // 21: gravitational.cloud.tenants.v1.UsageHistoryItem.usage_quota:type_name -> gravitational.cloud.tenants.v1.UsageQuota
+	38,  // 22: gravitational.cloud.tenants.v1.UsageHistoryItem.pricing_model:type_name -> gravitational.cloud.tenants.v1.PricingModel
+	48,  // 23: gravitational.cloud.tenants.v1.UsageQuota.ig_mau:type_name -> gravitational.cloud.tenants.v1.Quota
+	48,  // 24: gravitational.cloud.tenants.v1.UsageQuota.zta_mau:type_name -> gravitational.cloud.tenants.v1.Quota
+	48,  // 25: gravitational.cloud.tenants.v1.UsageQuota.mwi:type_name -> gravitational.cloud.tenants.v1.Quota
+	48,  // 26: gravitational.cloud.tenants.v1.UsageQuota.tpr:type_name -> gravitational.cloud.tenants.v1.Quota
+	13,  // 27: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse.stripe_cards:type_name -> gravitational.cloud.tenants.v1.Card
+	18,  // 28: gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse.stripe_invoices:type_name -> gravitational.cloud.tenants.v1.Invoice
+	7,   // 29: gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse.stripe_invoice_billing_address:type_name -> gravitational.cloud.tenants.v1.StripeBillingAddress
+	51,  // 30: gravitational.cloud.tenants.v1.SurveyCompanyResponse.marketing_params:type_name -> gravitational.cloud.tenants.v1.MarketingParamData
+	85,  // 31: gravitational.cloud.tenants.v1.GetContactsResponse.contacts:type_name -> gravitational.cloud.tenants.v1.Contact
+	85,  // 32: gravitational.cloud.tenants.v1.CreateContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
+	8,   // 33: gravitational.cloud.tenants.v1.StripeGetSettingsResponse.stripe_invoice_billing_address:type_name -> gravitational.cloud.tenants.v1.StripeAddress
+	9,   // 34: gravitational.cloud.tenants.v1.StripeListCardsResponse.stripe_cards:type_name -> gravitational.cloud.tenants.v1.StripeCard
+	10,  // 35: gravitational.cloud.tenants.v1.StripeListInvoicesResponse.stripe_invoices:type_name -> gravitational.cloud.tenants.v1.StripeInvoice
+	8,   // 36: gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest.address:type_name -> gravitational.cloud.tenants.v1.StripeAddress
+	85,  // 37: gravitational.cloud.tenants.v1.RemoveContactResponse.contact:type_name -> gravitational.cloud.tenants.v1.Contact
+	3,   // 38: gravitational.cloud.tenants.v1.Contact.state:type_name -> gravitational.cloud.tenants.v1.ContactState
+	4,   // 39: gravitational.cloud.tenants.v1.ClientIPRestriction.status:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionStatus
+	5,   // 40: gravitational.cloud.tenants.v1.ClientIPRestriction.mode:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+	136, // 41: gravitational.cloud.tenants.v1.ClientIPRestriction.expires:type_name -> google.protobuf.Timestamp
+	87,  // 42: gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
+	5,   // 43: gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest.mode:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+	136, // 44: gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest.expires:type_name -> google.protobuf.Timestamp
+	87,  // 45: gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
+	5,   // 46: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest.mode:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+	136, // 47: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest.expires:type_name -> google.protobuf.Timestamp
+	87,  // 48: gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
+	5,   // 49: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest.mode:type_name -> gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+	136, // 50: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest.expires:type_name -> google.protobuf.Timestamp
+	87,  // 51: gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse.client_ip_restriction:type_name -> gravitational.cloud.tenants.v1.ClientIPRestriction
+	86,  // 52: gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	86,  // 53: gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	86,  // 54: gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse.client_ip_restrictions:type_name -> gravitational.cloud.tenants.v1.CIDR
+	105, // 55: gravitational.cloud.tenants.v1.ChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
+	106, // 56: gravitational.cloud.tenants.v1.ChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
+	111, // 57: gravitational.cloud.tenants.v1.ChildCluster.spec:type_name -> gravitational.cloud.tenants.v1.ChildClusterSpec
+	112, // 58: gravitational.cloud.tenants.v1.ChildCluster.status:type_name -> gravitational.cloud.tenants.v1.ChildClusterStatus
+	105, // 59: gravitational.cloud.tenants.v1.ChildClusterSpec.regions:type_name -> gravitational.cloud.tenants.v1.Region
+	106, // 60: gravitational.cloud.tenants.v1.ChildClusterSpec.allow:type_name -> gravitational.cloud.tenants.v1.Allow
+	105, // 61: gravitational.cloud.tenants.v1.CreateChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
+	106, // 62: gravitational.cloud.tenants.v1.CreateChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
+	110, // 63: gravitational.cloud.tenants.v1.CreateChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	110, // 64: gravitational.cloud.tenants.v1.GetChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	105, // 65: gravitational.cloud.tenants.v1.UpdateChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
+	106, // 66: gravitational.cloud.tenants.v1.UpdateChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
+	110, // 67: gravitational.cloud.tenants.v1.UpdateChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	105, // 68: gravitational.cloud.tenants.v1.UpsertChildClusterRequest.regions:type_name -> gravitational.cloud.tenants.v1.Region
+	106, // 69: gravitational.cloud.tenants.v1.UpsertChildClusterRequest.allow:type_name -> gravitational.cloud.tenants.v1.Allow
+	110, // 70: gravitational.cloud.tenants.v1.UpsertChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	110, // 71: gravitational.cloud.tenants.v1.SuspendChildClusterResponse.cluster:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	110, // 72: gravitational.cloud.tenants.v1.ListChildClustersResponse.clusters:type_name -> gravitational.cloud.tenants.v1.ChildCluster
+	125, // 73: gravitational.cloud.tenants.v1.DailyBreakdownWindow.range:type_name -> gravitational.cloud.tenants.v1.DateRange
+	126, // 74: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest.window:type_name -> gravitational.cloud.tenants.v1.DailyBreakdownWindow
+	129, // 75: gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse.days:type_name -> gravitational.cloud.tenants.v1.MAUDailyPoint
+	126, // 76: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest.window:type_name -> gravitational.cloud.tenants.v1.DailyBreakdownWindow
+	132, // 77: gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse.days:type_name -> gravitational.cloud.tenants.v1.TPRDailyPoint
+	135, // 78: gravitational.cloud.tenants.v1.TPRDailyPoint.metrics:type_name -> gravitational.cloud.tenants.v1.TPRDailyPoint.MetricsEntry
+	34,  // 79: gravitational.cloud.tenants.v1.GetFeaturesResponse.EntitlementsEntry.value:type_name -> gravitational.cloud.tenants.v1.EntitlementInfo
+	103, // 80: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	103, // 81: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	26,  // 82: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:input_type -> gravitational.cloud.tenants.v1.UpdateAccountUpgradeWindowStartHourRequest
+	27,  // 83: gravitational.cloud.tenants.v1.TenantsService.GetEnvironmentProfile:input_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileRequest
+	29,  // 84: gravitational.cloud.tenants.v1.TenantsService.UpdateEnvironmentProfile:input_type -> gravitational.cloud.tenants.v1.UpdateEnvironmentProfileRequest
+	30,  // 85: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveryLinkRequest
+	31,  // 86: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:input_type -> gravitational.cloud.tenants.v1.SendAccountLockedRequest
+	32,  // 87: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:input_type -> gravitational.cloud.tenants.v1.SendAccountRecoveredRequest
+	103, // 88: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	103, // 89: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	16,  // 90: gravitational.cloud.tenants.v1.TenantsService.GetStripeConfig:input_type -> gravitational.cloud.tenants.v1.GetStripeConfigRequest
+	103, // 91: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	36,  // 92: gravitational.cloud.tenants.v1.TenantsService.GetUsage:input_type -> gravitational.cloud.tenants.v1.GetUsageRequest
+	127, // 93: gravitational.cloud.tenants.v1.TenantsService.GetMAUDailyBreakdown:input_type -> gravitational.cloud.tenants.v1.GetMAUDailyBreakdownRequest
+	130, // 94: gravitational.cloud.tenants.v1.TenantsService.GetTPRDailyBreakdown:input_type -> gravitational.cloud.tenants.v1.GetTPRDailyBreakdownRequest
+	53,  // 95: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:input_type -> gravitational.cloud.tenants.v1.SetSurveyResultsRequest
+	54,  // 96: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:input_type -> gravitational.cloud.tenants.v1.SendTeleportInviteRequest
+	103, // 97: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	56,  // 98: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:input_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseRequest
+	103, // 99: gravitational.cloud.tenants.v1.TenantsService.GetContacts:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	59,  // 100: gravitational.cloud.tenants.v1.TenantsService.CreateContact:input_type -> gravitational.cloud.tenants.v1.CreateContactRequest
+	61,  // 101: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:input_type -> gravitational.cloud.tenants.v1.RemoveContactRequest
+	62,  // 102: gravitational.cloud.tenants.v1.TenantsService.StripeCancel:input_type -> gravitational.cloud.tenants.v1.StripeCancelRequest
+	64,  // 103: gravitational.cloud.tenants.v1.TenantsService.StripeCreateCard:input_type -> gravitational.cloud.tenants.v1.StripeCreateCardRequest
+	66,  // 104: gravitational.cloud.tenants.v1.TenantsService.StripeCreateSetupIntent:input_type -> gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest
+	68,  // 105: gravitational.cloud.tenants.v1.TenantsService.StripeDeleteCard:input_type -> gravitational.cloud.tenants.v1.StripeDeleteCardRequest
+	70,  // 106: gravitational.cloud.tenants.v1.TenantsService.StripeGetSettings:input_type -> gravitational.cloud.tenants.v1.StripeGetSettingsRequest
+	72,  // 107: gravitational.cloud.tenants.v1.TenantsService.StripeListCards:input_type -> gravitational.cloud.tenants.v1.StripeListCardsRequest
+	74,  // 108: gravitational.cloud.tenants.v1.TenantsService.StripeListInvoices:input_type -> gravitational.cloud.tenants.v1.StripeListInvoicesRequest
+	76,  // 109: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateCard:input_type -> gravitational.cloud.tenants.v1.StripeUpdateCardRequest
+	78,  // 110: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateEmail:input_type -> gravitational.cloud.tenants.v1.StripeUpdateEmailRequest
+	80,  // 111: gravitational.cloud.tenants.v1.TenantsService.StripeUpdatePOPrefix:input_type -> gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest
+	82,  // 112: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateStripeAddress:input_type -> gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest
+	19,  // 113: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:input_type -> gravitational.cloud.tenants.v1.SubmitUsageReportsRequest
+	103, // 114: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	23,  // 115: gravitational.cloud.tenants.v1.TenantsService.AddCard:input_type -> gravitational.cloud.tenants.v1.AddCardRequest
+	22,  // 116: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:input_type -> gravitational.cloud.tenants.v1.RemoveCardRequest
+	24,  // 117: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:input_type -> gravitational.cloud.tenants.v1.UpdateCardRequest
+	103, // 118: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	103, // 119: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	6,   // 120: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:input_type -> gravitational.cloud.tenants.v1.StripeBillingAddressRequest
+	11,  // 121: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:input_type -> gravitational.cloud.tenants.v1.UpdateEmailRequest
+	12,  // 122: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:input_type -> gravitational.cloud.tenants.v1.UpdatePurchaseOrderPrefixRequest
+	103, // 123: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:input_type -> gravitational.cloud.tenants.v1.EmptyRequest
+	100, // 124: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsRequest
+	98,  // 125: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:input_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsRequest
+	88,  // 126: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionRequest
+	90,  // 127: gravitational.cloud.tenants.v1.TenantsService.CreateClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest
+	92,  // 128: gravitational.cloud.tenants.v1.TenantsService.UpdateClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest
+	94,  // 129: gravitational.cloud.tenants.v1.TenantsService.UpsertClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest
+	96,  // 130: gravitational.cloud.tenants.v1.TenantsService.DeleteClientIPRestriction:input_type -> gravitational.cloud.tenants.v1.DeleteClientIPRestrictionRequest
+	104, // 131: gravitational.cloud.tenants.v1.TenantsService.ChildCluster:input_type -> gravitational.cloud.tenants.v1.ChildClusterRequest
+	108, // 132: gravitational.cloud.tenants.v1.TenantsService.GetFile:input_type -> gravitational.cloud.tenants.v1.GetFileRequest
+	113, // 133: gravitational.cloud.tenants.v1.TenantsService.CreateChildCluster:input_type -> gravitational.cloud.tenants.v1.CreateChildClusterRequest
+	115, // 134: gravitational.cloud.tenants.v1.TenantsService.GetChildCluster:input_type -> gravitational.cloud.tenants.v1.GetChildClusterRequest
+	117, // 135: gravitational.cloud.tenants.v1.TenantsService.UpdateChildCluster:input_type -> gravitational.cloud.tenants.v1.UpdateChildClusterRequest
+	119, // 136: gravitational.cloud.tenants.v1.TenantsService.UpsertChildCluster:input_type -> gravitational.cloud.tenants.v1.UpsertChildClusterRequest
+	121, // 137: gravitational.cloud.tenants.v1.TenantsService.SuspendChildCluster:input_type -> gravitational.cloud.tenants.v1.SuspendChildClusterRequest
+	123, // 138: gravitational.cloud.tenants.v1.TenantsService.ListChildClusters:input_type -> gravitational.cloud.tenants.v1.ListChildClustersRequest
+	14,  // 139: gravitational.cloud.tenants.v1.TenantsService.GetBillingInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingInformationResponse
+	25,  // 140: gravitational.cloud.tenants.v1.TenantsService.GetAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.GetAccountUpgradeWindowStartHourResponse
+	102, // 141: gravitational.cloud.tenants.v1.TenantsService.UpdateAccountUpgradeWindowStartHour:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	28,  // 142: gravitational.cloud.tenants.v1.TenantsService.GetEnvironmentProfile:output_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
+	28,  // 143: gravitational.cloud.tenants.v1.TenantsService.UpdateEnvironmentProfile:output_type -> gravitational.cloud.tenants.v1.GetEnvironmentProfileResponse
+	102, // 144: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecoveryLink:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 145: gravitational.cloud.tenants.v1.TenantsService.SendAccountLocked:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 146: gravitational.cloud.tenants.v1.TenantsService.SendAccountRecovered:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	33,  // 147: gravitational.cloud.tenants.v1.TenantsService.GetFeatures:output_type -> gravitational.cloud.tenants.v1.GetFeaturesResponse
+	43,  // 148: gravitational.cloud.tenants.v1.TenantsService.GetBillingSummaryInformation:output_type -> gravitational.cloud.tenants.v1.GetBillingSummaryInformationResponse
+	17,  // 149: gravitational.cloud.tenants.v1.TenantsService.GetStripeConfig:output_type -> gravitational.cloud.tenants.v1.GetStripeConfigResponse
+	52,  // 150: gravitational.cloud.tenants.v1.TenantsService.GetSurveyCompany:output_type -> gravitational.cloud.tenants.v1.SurveyCompanyResponse
+	37,  // 151: gravitational.cloud.tenants.v1.TenantsService.GetUsage:output_type -> gravitational.cloud.tenants.v1.GetUsageResponse
+	128, // 152: gravitational.cloud.tenants.v1.TenantsService.GetMAUDailyBreakdown:output_type -> gravitational.cloud.tenants.v1.GetMAUDailyBreakdownResponse
+	131, // 153: gravitational.cloud.tenants.v1.TenantsService.GetTPRDailyBreakdown:output_type -> gravitational.cloud.tenants.v1.GetTPRDailyBreakdownResponse
+	102, // 154: gravitational.cloud.tenants.v1.TenantsService.SetSurveyResults:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 155: gravitational.cloud.tenants.v1.TenantsService.SendTeleportInvite:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	55,  // 156: gravitational.cloud.tenants.v1.TenantsService.ClusterAlertInfo:output_type -> gravitational.cloud.tenants.v1.ClusterAlertInfoResponse
+	57,  // 157: gravitational.cloud.tenants.v1.TenantsService.GetUpdatedLicense:output_type -> gravitational.cloud.tenants.v1.GetUpdatedLicenseResponse
+	58,  // 158: gravitational.cloud.tenants.v1.TenantsService.GetContacts:output_type -> gravitational.cloud.tenants.v1.GetContactsResponse
+	60,  // 159: gravitational.cloud.tenants.v1.TenantsService.CreateContact:output_type -> gravitational.cloud.tenants.v1.CreateContactResponse
+	84,  // 160: gravitational.cloud.tenants.v1.TenantsService.RemoveContact:output_type -> gravitational.cloud.tenants.v1.RemoveContactResponse
+	63,  // 161: gravitational.cloud.tenants.v1.TenantsService.StripeCancel:output_type -> gravitational.cloud.tenants.v1.StripeCancelResponse
+	65,  // 162: gravitational.cloud.tenants.v1.TenantsService.StripeCreateCard:output_type -> gravitational.cloud.tenants.v1.StripeCreateCardResponse
+	67,  // 163: gravitational.cloud.tenants.v1.TenantsService.StripeCreateSetupIntent:output_type -> gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse
+	69,  // 164: gravitational.cloud.tenants.v1.TenantsService.StripeDeleteCard:output_type -> gravitational.cloud.tenants.v1.StripeDeleteCardResponse
+	71,  // 165: gravitational.cloud.tenants.v1.TenantsService.StripeGetSettings:output_type -> gravitational.cloud.tenants.v1.StripeGetSettingsResponse
+	73,  // 166: gravitational.cloud.tenants.v1.TenantsService.StripeListCards:output_type -> gravitational.cloud.tenants.v1.StripeListCardsResponse
+	75,  // 167: gravitational.cloud.tenants.v1.TenantsService.StripeListInvoices:output_type -> gravitational.cloud.tenants.v1.StripeListInvoicesResponse
+	77,  // 168: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateCard:output_type -> gravitational.cloud.tenants.v1.StripeUpdateCardResponse
+	79,  // 169: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateEmail:output_type -> gravitational.cloud.tenants.v1.StripeUpdateEmailResponse
+	81,  // 170: gravitational.cloud.tenants.v1.TenantsService.StripeUpdatePOPrefix:output_type -> gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse
+	83,  // 171: gravitational.cloud.tenants.v1.TenantsService.StripeUpdateStripeAddress:output_type -> gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse
+	102, // 172: gravitational.cloud.tenants.v1.TenantsService.SubmitUsageReports:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	15,  // 173: gravitational.cloud.tenants.v1.TenantsService.CreateSetupIntent:output_type -> gravitational.cloud.tenants.v1.CreateSetupIntentResponse
+	102, // 174: gravitational.cloud.tenants.v1.TenantsService.AddCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 175: gravitational.cloud.tenants.v1.TenantsService.RemoveCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 176: gravitational.cloud.tenants.v1.TenantsService.UpdateCard:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	49,  // 177: gravitational.cloud.tenants.v1.TenantsService.GetPaymentsInvoicesInformation:output_type -> gravitational.cloud.tenants.v1.GetPaymentsInvoicesInformationResponse
+	50,  // 178: gravitational.cloud.tenants.v1.TenantsService.GetInvoiceSettingsInformation:output_type -> gravitational.cloud.tenants.v1.GetInvoiceSettingsInformationResponse
+	102, // 179: gravitational.cloud.tenants.v1.TenantsService.UpdateStripeAddress:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 180: gravitational.cloud.tenants.v1.TenantsService.UpdateEmail:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 181: gravitational.cloud.tenants.v1.TenantsService.UpdatePurchaseOrderPrefix:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	102, // 182: gravitational.cloud.tenants.v1.TenantsService.CancelSubscription:output_type -> gravitational.cloud.tenants.v1.EmptyResponse
+	101, // 183: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionsResponse
+	99,  // 184: gravitational.cloud.tenants.v1.TenantsService.PutClientIPRestrictions:output_type -> gravitational.cloud.tenants.v1.PutClientIPRestrictionsResponse
+	89,  // 185: gravitational.cloud.tenants.v1.TenantsService.GetClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.GetClientIPRestrictionResponse
+	91,  // 186: gravitational.cloud.tenants.v1.TenantsService.CreateClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.CreateClientIPRestrictionResponse
+	93,  // 187: gravitational.cloud.tenants.v1.TenantsService.UpdateClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.UpdateClientIPRestrictionResponse
+	95,  // 188: gravitational.cloud.tenants.v1.TenantsService.UpsertClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.UpsertClientIPRestrictionResponse
+	97,  // 189: gravitational.cloud.tenants.v1.TenantsService.DeleteClientIPRestriction:output_type -> gravitational.cloud.tenants.v1.DeleteClientIPRestrictionResponse
+	107, // 190: gravitational.cloud.tenants.v1.TenantsService.ChildCluster:output_type -> gravitational.cloud.tenants.v1.ChildClusterResponse
+	109, // 191: gravitational.cloud.tenants.v1.TenantsService.GetFile:output_type -> gravitational.cloud.tenants.v1.GetFileResponse
+	114, // 192: gravitational.cloud.tenants.v1.TenantsService.CreateChildCluster:output_type -> gravitational.cloud.tenants.v1.CreateChildClusterResponse
+	116, // 193: gravitational.cloud.tenants.v1.TenantsService.GetChildCluster:output_type -> gravitational.cloud.tenants.v1.GetChildClusterResponse
+	118, // 194: gravitational.cloud.tenants.v1.TenantsService.UpdateChildCluster:output_type -> gravitational.cloud.tenants.v1.UpdateChildClusterResponse
+	120, // 195: gravitational.cloud.tenants.v1.TenantsService.UpsertChildCluster:output_type -> gravitational.cloud.tenants.v1.UpsertChildClusterResponse
+	122, // 196: gravitational.cloud.tenants.v1.TenantsService.SuspendChildCluster:output_type -> gravitational.cloud.tenants.v1.SuspendChildClusterResponse
+	124, // 197: gravitational.cloud.tenants.v1.TenantsService.ListChildClusters:output_type -> gravitational.cloud.tenants.v1.ListChildClustersResponse
+	139, // [139:198] is the sub-list for method output_type
+	80,  // [80:139] is the sub-list for method input_type
+	80,  // [80:80] is the sub-list for extension type_name
+	80,  // [80:80] is the sub-list for extension extendee
+	0,   // [0:80] is the sub-list for field type_name
 }
 
 func init() { file_api_tenants_v1_tenants_proto_init() }
@@ -7944,7 +9757,7 @@ func file_api_tenants_v1_tenants_proto_init() {
 	if File_api_tenants_v1_tenants_proto != nil {
 		return
 	}
-	file_api_tenants_v1_tenants_proto_msgTypes[93].OneofWrappers = []any{
+	file_api_tenants_v1_tenants_proto_msgTypes[120].OneofWrappers = []any{
 		(*DailyBreakdownWindow_Cycle)(nil),
 		(*DailyBreakdownWindow_Range)(nil),
 	}
@@ -7953,8 +9766,8 @@ func file_api_tenants_v1_tenants_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_tenants_v1_tenants_proto_rawDesc), len(file_api_tenants_v1_tenants_proto_rawDesc)),
-			NumEnums:      5,
-			NumMessages:   103,
+			NumEnums:      6,
+			NumMessages:   130,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

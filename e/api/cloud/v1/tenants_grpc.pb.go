@@ -43,6 +43,11 @@ type TenantsServiceClient interface {
 	// GetBillingSummaryInformation returns the tenant-level Billing Summary Information
 	// TODO(michellescripts) last used in Teleport v18; safe to deprecate in v21; use GetUsage rpc
 	GetBillingSummaryInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingSummaryInformationResponse, error)
+	// GetStripeConfig returns the Stripe publishable key + the customer's Stripe customer ID
+	// so the Teleport UI can initialize Stripe Elements. Returns empty values when Stripe is
+	// not configured for this environment, letting the client detect a non-Stripe environment
+	// without treating it as an error.
+	GetStripeConfig(ctx context.Context, in *GetStripeConfigRequest, opts ...grpc.CallOption) (*GetStripeConfigResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error)
@@ -71,6 +76,28 @@ type TenantsServiceClient interface {
 	// RemoveContact removes a contact type from a contact. If the contact has no other
 	// flags set, the contact itself will be removed.
 	RemoveContact(ctx context.Context, in *RemoveContactRequest, opts ...grpc.CallOption) (*RemoveContactResponse, error)
+	// StripeCancel marks the customer's Stripe subscription for cancellation at the end of the current billing cycle.
+	StripeCancel(ctx context.Context, in *StripeCancelRequest, opts ...grpc.CallOption) (*StripeCancelResponse, error)
+	// StripeCreateCard attaches a new credit card to the customer's Stripe account after a SetupIntent completes on the client.
+	StripeCreateCard(ctx context.Context, in *StripeCreateCardRequest, opts ...grpc.CallOption) (*StripeCreateCardResponse, error)
+	// StripeCreateSetupIntent creates a Stripe SetupIntent and returns its client secret so the UI can collect card details.
+	StripeCreateSetupIntent(ctx context.Context, in *StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*StripeCreateSetupIntentResponse, error)
+	// StripeDeleteCard detaches a credit card from the customer's Stripe account.
+	StripeDeleteCard(ctx context.Context, in *StripeDeleteCardRequest, opts ...grpc.CallOption) (*StripeDeleteCardResponse, error)
+	// StripeGetSettings returns the customer's invoice-related settings from Stripe: billing email, PO prefix, and customer name.
+	StripeGetSettings(ctx context.Context, in *StripeGetSettingsRequest, opts ...grpc.CallOption) (*StripeGetSettingsResponse, error)
+	// StripeListCards returns the customer's Stripe credit cards for the payments-and-invoices UI.
+	StripeListCards(ctx context.Context, in *StripeListCardsRequest, opts ...grpc.CallOption) (*StripeListCardsResponse, error)
+	// StripeListInvoices returns the customer's Stripe invoice history for the payments-and-invoices UI.
+	StripeListInvoices(ctx context.Context, in *StripeListInvoicesRequest, opts ...grpc.CallOption) (*StripeListInvoicesResponse, error)
+	// StripeUpdateCard updates an existing card on the customer's Stripe account (for example, changing the default card).
+	StripeUpdateCard(ctx context.Context, in *StripeUpdateCardRequest, opts ...grpc.CallOption) (*StripeUpdateCardResponse, error)
+	// StripeUpdateEmail updates the email address Stripe uses when delivering invoices.
+	StripeUpdateEmail(ctx context.Context, in *StripeUpdateEmailRequest, opts ...grpc.CallOption) (*StripeUpdateEmailResponse, error)
+	// StripeUpdatePOPrefix updates the purchase order prefix Stripe adds to the customer's invoices.
+	StripeUpdatePOPrefix(ctx context.Context, in *StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*StripeUpdatePOPrefixResponse, error)
+	// StripeUpdateStripeAddress updates the customer's billing address on their Stripe account.
+	StripeUpdateStripeAddress(ctx context.Context, in *StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*StripeUpdateStripeAddressResponse, error)
 	// SubmitUsageReports reports usage
 	// Deprecated; implementation for backwards compatibility and potentially capturing old running instances of Teleport E
 	SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
@@ -237,6 +264,15 @@ func (c *tenantsServiceClient) GetBillingSummaryInformation(ctx context.Context,
 	return out, nil
 }
 
+func (c *tenantsServiceClient) GetStripeConfig(ctx context.Context, in *GetStripeConfigRequest, opts ...grpc.CallOption) (*GetStripeConfigResponse, error) {
+	out := new(GetStripeConfigResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetStripeConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *tenantsServiceClient) GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error) {
 	out := new(SurveyCompanyResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetSurveyCompany", in, out, opts...)
@@ -330,6 +366,105 @@ func (c *tenantsServiceClient) CreateContact(ctx context.Context, in *CreateCont
 func (c *tenantsServiceClient) RemoveContact(ctx context.Context, in *RemoveContactRequest, opts ...grpc.CallOption) (*RemoveContactResponse, error) {
 	out := new(RemoveContactResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/RemoveContact", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeCancel(ctx context.Context, in *StripeCancelRequest, opts ...grpc.CallOption) (*StripeCancelResponse, error) {
+	out := new(StripeCancelResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeCancel", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeCreateCard(ctx context.Context, in *StripeCreateCardRequest, opts ...grpc.CallOption) (*StripeCreateCardResponse, error) {
+	out := new(StripeCreateCardResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeCreateCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeCreateSetupIntent(ctx context.Context, in *StripeCreateSetupIntentRequest, opts ...grpc.CallOption) (*StripeCreateSetupIntentResponse, error) {
+	out := new(StripeCreateSetupIntentResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeCreateSetupIntent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeDeleteCard(ctx context.Context, in *StripeDeleteCardRequest, opts ...grpc.CallOption) (*StripeDeleteCardResponse, error) {
+	out := new(StripeDeleteCardResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeDeleteCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeGetSettings(ctx context.Context, in *StripeGetSettingsRequest, opts ...grpc.CallOption) (*StripeGetSettingsResponse, error) {
+	out := new(StripeGetSettingsResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeGetSettings", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeListCards(ctx context.Context, in *StripeListCardsRequest, opts ...grpc.CallOption) (*StripeListCardsResponse, error) {
+	out := new(StripeListCardsResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeListCards", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeListInvoices(ctx context.Context, in *StripeListInvoicesRequest, opts ...grpc.CallOption) (*StripeListInvoicesResponse, error) {
+	out := new(StripeListInvoicesResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeListInvoices", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeUpdateCard(ctx context.Context, in *StripeUpdateCardRequest, opts ...grpc.CallOption) (*StripeUpdateCardResponse, error) {
+	out := new(StripeUpdateCardResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeUpdateEmail(ctx context.Context, in *StripeUpdateEmailRequest, opts ...grpc.CallOption) (*StripeUpdateEmailResponse, error) {
+	out := new(StripeUpdateEmailResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateEmail", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeUpdatePOPrefix(ctx context.Context, in *StripeUpdatePOPrefixRequest, opts ...grpc.CallOption) (*StripeUpdatePOPrefixResponse, error) {
+	out := new(StripeUpdatePOPrefixResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdatePOPrefix", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tenantsServiceClient) StripeUpdateStripeAddress(ctx context.Context, in *StripeUpdateStripeAddressRequest, opts ...grpc.CallOption) (*StripeUpdateStripeAddressResponse, error) {
+	out := new(StripeUpdateStripeAddressResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateStripeAddress", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -629,6 +764,11 @@ type TenantsServiceServer interface {
 	// GetBillingSummaryInformation returns the tenant-level Billing Summary Information
 	// TODO(michellescripts) last used in Teleport v18; safe to deprecate in v21; use GetUsage rpc
 	GetBillingSummaryInformation(context.Context, *EmptyRequest) (*GetBillingSummaryInformationResponse, error)
+	// GetStripeConfig returns the Stripe publishable key + the customer's Stripe customer ID
+	// so the Teleport UI can initialize Stripe Elements. Returns empty values when Stripe is
+	// not configured for this environment, letting the client detect a non-Stripe environment
+	// without treating it as an error.
+	GetStripeConfig(context.Context, *GetStripeConfigRequest) (*GetStripeConfigResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error)
@@ -657,6 +797,28 @@ type TenantsServiceServer interface {
 	// RemoveContact removes a contact type from a contact. If the contact has no other
 	// flags set, the contact itself will be removed.
 	RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error)
+	// StripeCancel marks the customer's Stripe subscription for cancellation at the end of the current billing cycle.
+	StripeCancel(context.Context, *StripeCancelRequest) (*StripeCancelResponse, error)
+	// StripeCreateCard attaches a new credit card to the customer's Stripe account after a SetupIntent completes on the client.
+	StripeCreateCard(context.Context, *StripeCreateCardRequest) (*StripeCreateCardResponse, error)
+	// StripeCreateSetupIntent creates a Stripe SetupIntent and returns its client secret so the UI can collect card details.
+	StripeCreateSetupIntent(context.Context, *StripeCreateSetupIntentRequest) (*StripeCreateSetupIntentResponse, error)
+	// StripeDeleteCard detaches a credit card from the customer's Stripe account.
+	StripeDeleteCard(context.Context, *StripeDeleteCardRequest) (*StripeDeleteCardResponse, error)
+	// StripeGetSettings returns the customer's invoice-related settings from Stripe: billing email, PO prefix, and customer name.
+	StripeGetSettings(context.Context, *StripeGetSettingsRequest) (*StripeGetSettingsResponse, error)
+	// StripeListCards returns the customer's Stripe credit cards for the payments-and-invoices UI.
+	StripeListCards(context.Context, *StripeListCardsRequest) (*StripeListCardsResponse, error)
+	// StripeListInvoices returns the customer's Stripe invoice history for the payments-and-invoices UI.
+	StripeListInvoices(context.Context, *StripeListInvoicesRequest) (*StripeListInvoicesResponse, error)
+	// StripeUpdateCard updates an existing card on the customer's Stripe account (for example, changing the default card).
+	StripeUpdateCard(context.Context, *StripeUpdateCardRequest) (*StripeUpdateCardResponse, error)
+	// StripeUpdateEmail updates the email address Stripe uses when delivering invoices.
+	StripeUpdateEmail(context.Context, *StripeUpdateEmailRequest) (*StripeUpdateEmailResponse, error)
+	// StripeUpdatePOPrefix updates the purchase order prefix Stripe adds to the customer's invoices.
+	StripeUpdatePOPrefix(context.Context, *StripeUpdatePOPrefixRequest) (*StripeUpdatePOPrefixResponse, error)
+	// StripeUpdateStripeAddress updates the customer's billing address on their Stripe account.
+	StripeUpdateStripeAddress(context.Context, *StripeUpdateStripeAddressRequest) (*StripeUpdateStripeAddressResponse, error)
 	// SubmitUsageReports reports usage
 	// Deprecated; implementation for backwards compatibility and potentially capturing old running instances of Teleport E
 	SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error)
@@ -760,6 +922,9 @@ func (UnimplementedTenantsServiceServer) GetFeatures(context.Context, *EmptyRequ
 func (UnimplementedTenantsServiceServer) GetBillingSummaryInformation(context.Context, *EmptyRequest) (*GetBillingSummaryInformationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBillingSummaryInformation not implemented")
 }
+func (UnimplementedTenantsServiceServer) GetStripeConfig(context.Context, *GetStripeConfigRequest) (*GetStripeConfigResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetStripeConfig not implemented")
+}
 func (UnimplementedTenantsServiceServer) GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSurveyCompany not implemented")
 }
@@ -792,6 +957,39 @@ func (UnimplementedTenantsServiceServer) CreateContact(context.Context, *CreateC
 }
 func (UnimplementedTenantsServiceServer) RemoveContact(context.Context, *RemoveContactRequest) (*RemoveContactResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveContact not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeCancel(context.Context, *StripeCancelRequest) (*StripeCancelResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeCancel not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeCreateCard(context.Context, *StripeCreateCardRequest) (*StripeCreateCardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeCreateCard not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeCreateSetupIntent(context.Context, *StripeCreateSetupIntentRequest) (*StripeCreateSetupIntentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeCreateSetupIntent not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeDeleteCard(context.Context, *StripeDeleteCardRequest) (*StripeDeleteCardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeDeleteCard not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeGetSettings(context.Context, *StripeGetSettingsRequest) (*StripeGetSettingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeGetSettings not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeListCards(context.Context, *StripeListCardsRequest) (*StripeListCardsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeListCards not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeListInvoices(context.Context, *StripeListInvoicesRequest) (*StripeListInvoicesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeListInvoices not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeUpdateCard(context.Context, *StripeUpdateCardRequest) (*StripeUpdateCardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeUpdateCard not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeUpdateEmail(context.Context, *StripeUpdateEmailRequest) (*StripeUpdateEmailResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeUpdateEmail not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeUpdatePOPrefix(context.Context, *StripeUpdatePOPrefixRequest) (*StripeUpdatePOPrefixResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeUpdatePOPrefix not implemented")
+}
+func (UnimplementedTenantsServiceServer) StripeUpdateStripeAddress(context.Context, *StripeUpdateStripeAddressRequest) (*StripeUpdateStripeAddressResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StripeUpdateStripeAddress not implemented")
 }
 func (UnimplementedTenantsServiceServer) SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SubmitUsageReports not implemented")
@@ -1064,6 +1262,24 @@ func _TenantsService_GetBillingSummaryInformation_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetStripeConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStripeConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetStripeConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetStripeConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetStripeConfig(ctx, req.(*GetStripeConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_GetSurveyCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EmptyRequest)
 	if err := dec(in); err != nil {
@@ -1258,6 +1474,204 @@ func _TenantsService_RemoveContact_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TenantsServiceServer).RemoveContact(ctx, req.(*RemoveContactRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeCancel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeCancelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeCancel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeCancel",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeCancel(ctx, req.(*StripeCancelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeCreateCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeCreateCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeCreateCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeCreateCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeCreateCard(ctx, req.(*StripeCreateCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeCreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeCreateSetupIntentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeCreateSetupIntent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeCreateSetupIntent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeCreateSetupIntent(ctx, req.(*StripeCreateSetupIntentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeDeleteCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeDeleteCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeDeleteCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeDeleteCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeDeleteCard(ctx, req.(*StripeDeleteCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeGetSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeGetSettingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeGetSettings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeGetSettings",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeGetSettings(ctx, req.(*StripeGetSettingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeListCards_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeListCardsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeListCards(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeListCards",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeListCards(ctx, req.(*StripeListCardsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeListInvoices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeListInvoicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeListInvoices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeListInvoices",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeListInvoices(ctx, req.(*StripeListInvoicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeUpdateCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeUpdateCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeUpdateCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeUpdateCard(ctx, req.(*StripeUpdateCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeUpdateEmail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeUpdateEmailRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeUpdateEmail(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateEmail",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeUpdateEmail(ctx, req.(*StripeUpdateEmailRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeUpdatePOPrefix_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeUpdatePOPrefixRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeUpdatePOPrefix(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdatePOPrefix",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeUpdatePOPrefix(ctx, req.(*StripeUpdatePOPrefixRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_StripeUpdateStripeAddress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StripeUpdateStripeAddressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).StripeUpdateStripeAddress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/StripeUpdateStripeAddress",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).StripeUpdateStripeAddress(ctx, req.(*StripeUpdateStripeAddressRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1781,6 +2195,10 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TenantsService_GetBillingSummaryInformation_Handler,
 		},
 		{
+			MethodName: "GetStripeConfig",
+			Handler:    _TenantsService_GetStripeConfig_Handler,
+		},
+		{
 			MethodName: "GetSurveyCompany",
 			Handler:    _TenantsService_GetSurveyCompany_Handler,
 		},
@@ -1823,6 +2241,50 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveContact",
 			Handler:    _TenantsService_RemoveContact_Handler,
+		},
+		{
+			MethodName: "StripeCancel",
+			Handler:    _TenantsService_StripeCancel_Handler,
+		},
+		{
+			MethodName: "StripeCreateCard",
+			Handler:    _TenantsService_StripeCreateCard_Handler,
+		},
+		{
+			MethodName: "StripeCreateSetupIntent",
+			Handler:    _TenantsService_StripeCreateSetupIntent_Handler,
+		},
+		{
+			MethodName: "StripeDeleteCard",
+			Handler:    _TenantsService_StripeDeleteCard_Handler,
+		},
+		{
+			MethodName: "StripeGetSettings",
+			Handler:    _TenantsService_StripeGetSettings_Handler,
+		},
+		{
+			MethodName: "StripeListCards",
+			Handler:    _TenantsService_StripeListCards_Handler,
+		},
+		{
+			MethodName: "StripeListInvoices",
+			Handler:    _TenantsService_StripeListInvoices_Handler,
+		},
+		{
+			MethodName: "StripeUpdateCard",
+			Handler:    _TenantsService_StripeUpdateCard_Handler,
+		},
+		{
+			MethodName: "StripeUpdateEmail",
+			Handler:    _TenantsService_StripeUpdateEmail_Handler,
+		},
+		{
+			MethodName: "StripeUpdatePOPrefix",
+			Handler:    _TenantsService_StripeUpdatePOPrefix_Handler,
+		},
+		{
+			MethodName: "StripeUpdateStripeAddress",
+			Handler:    _TenantsService_StripeUpdateStripeAddress_Handler,
 		},
 		{
 			MethodName: "SubmitUsageReports",

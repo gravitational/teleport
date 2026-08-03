@@ -3,6 +3,7 @@ package clientiprestrictionv1
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -18,6 +19,13 @@ import (
 )
 
 var errCloudClientNotReady = trace.Errorf("unable to communicate with the Teleport Cloud API")
+
+// Valid values for the ClientIPRestriction spec.mode field. An empty mode is
+// treated as enforced for backward compatibility.
+const (
+	clientIPRestrictionModeDraft    = "draft"
+	clientIPRestrictionModeEnforced = "enforced"
+)
 
 // CloudClientGetter retrieves a client for interacting with Teleport Cloud.
 type CloudClientGetter interface {
@@ -148,7 +156,9 @@ func (s *Service) CreateClientIPRestriction(ctx context.Context, req *clientipre
 		return nil, trace.Wrap(err)
 	}
 	resp, err := cc.CreateClientIPRestriction(ctx, &cloudv1.CreateClientIPRestrictionRequest{
-		Cidrs: req.GetClientIpRestriction().GetSpec().GetAllowedCidrs(),
+		Cidrs:   req.GetClientIpRestriction().GetSpec().GetAllowedCidrs(),
+		Mode:    modeToCloud(req.GetClientIpRestriction().GetSpec().GetMode()),
+		Expires: req.GetClientIpRestriction().GetSpec().GetExpires(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -186,6 +196,8 @@ func (s *Service) UpdateClientIPRestriction(ctx context.Context, req *clientipre
 	resp, err := cc.UpdateClientIPRestriction(ctx, &cloudv1.UpdateClientIPRestrictionRequest{
 		Cidrs:    req.GetClientIpRestriction().GetSpec().GetAllowedCidrs(),
 		Revision: req.GetClientIpRestriction().GetMetadata().GetRevision(),
+		Mode:     modeToCloud(req.GetClientIpRestriction().GetSpec().GetMode()),
+		Expires:  req.GetClientIpRestriction().GetSpec().GetExpires(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -221,7 +233,9 @@ func (s *Service) UpsertClientIPRestriction(ctx context.Context, req *clientipre
 		return nil, trace.Wrap(err)
 	}
 	resp, err := cc.UpsertClientIPRestriction(ctx, &cloudv1.UpsertClientIPRestrictionRequest{
-		Cidrs: req.GetClientIpRestriction().GetSpec().GetAllowedCidrs(),
+		Cidrs:   req.GetClientIpRestriction().GetSpec().GetAllowedCidrs(),
+		Mode:    modeToCloud(req.GetClientIpRestriction().GetSpec().GetMode()),
+		Expires: req.GetClientIpRestriction().GetSpec().GetExpires(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -272,8 +286,17 @@ func (s *Service) emitMutationEvent(ctx context.Context, authCtx *authz.Context,
 	}
 
 	var cidrs []string
+	var mode string
+	var enforcementExpires time.Time
 	if *errPtr == nil && cir != nil {
 		cidrs = cir.GetSpec().GetAllowedCidrs()
+		// Record mode and expiry exactly as accepted by the Cloud API, with no
+		// client-side normalization: an empty mode and a zero expiry mean the
+		// request did not set them.
+		mode = cir.GetSpec().GetMode()
+		if expires := cir.GetSpec().GetExpires(); expires != nil {
+			enforcementExpires = expires.AsTime()
+		}
 	}
 
 	userMetadata := authz.ClientUserMetadata(ctx)
@@ -289,6 +312,8 @@ func (s *Service) emitMutationEvent(ctx context.Context, authCtx *authz.Context,
 		},
 		ConnectionMetadata:   authz.ConnectionMetadata(ctx),
 		ClientIPRestrictions: cidrs,
+		Mode:                 mode,
+		EnforcementExpires:   enforcementExpires,
 		Status: apievents.Status{
 			Success: *errPtr == nil,
 			Error:   errMsg,
@@ -321,6 +346,8 @@ func fromCloud(in *cloudv1.ClientIPRestriction) *clientiprestrictionv1pb.ClientI
 		}.Build(),
 		Spec: clientiprestrictionv1pb.ClientIPRestrictionSpec_builder{
 			AllowedCidrs: in.GetCidrs(),
+			Mode:         cloudModeToString(in.GetMode()),
+			Expires:      in.GetExpires(),
 		}.Build(),
 		Status: clientiprestrictionv1pb.ClientIPRestrictionStatus_builder{
 			State: cloudStatusToString(in.GetStatus()),
@@ -346,6 +373,11 @@ func validateClientIPRestriction(cir *clientiprestrictionv1pb.ClientIPRestrictio
 		md.GetNamespace() != "":
 		return trace.BadParameter("only name and revision fields are supported on metadata for client_ip_restriction resources")
 	}
+	switch mode := cir.GetSpec().GetMode(); mode {
+	case "", clientIPRestrictionModeDraft, clientIPRestrictionModeEnforced:
+	default:
+		return trace.BadParameter("client_ip_restriction mode must be %q, %q, or empty, got %q", clientIPRestrictionModeDraft, clientIPRestrictionModeEnforced, mode)
+	}
 	return nil
 }
 
@@ -357,7 +389,39 @@ func cloudStatusToString(s cloudv1.ClientIPRestrictionStatus) string {
 		return "pending"
 	case cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE:
 		return "active"
+	case cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT:
+		return "draft"
+	case cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_EXPIRED:
+		return "expired"
 	default:
 		return "unknown"
+	}
+}
+
+// modeToCloud converts the Teleport proto spec.mode string to the Cloud API
+// ClientIPRestrictionMode enum. An empty mode maps to unspecified, which the
+// Cloud API treats as enforced for backward compatibility.
+func modeToCloud(mode string) cloudv1.ClientIPRestrictionMode {
+	switch mode {
+	case clientIPRestrictionModeDraft:
+		return cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT
+	case clientIPRestrictionModeEnforced:
+		return cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED
+	default:
+		return cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED
+	}
+}
+
+// cloudModeToString converts the Cloud API ClientIPRestrictionMode enum to the
+// string value used in the Teleport proto spec.mode field. Unspecified maps to
+// an empty string so the value round-trips cleanly.
+func cloudModeToString(m cloudv1.ClientIPRestrictionMode) string {
+	switch m {
+	case cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT:
+		return clientIPRestrictionModeDraft
+	case cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED:
+		return clientIPRestrictionModeEnforced
+	default:
+		return ""
 	}
 }

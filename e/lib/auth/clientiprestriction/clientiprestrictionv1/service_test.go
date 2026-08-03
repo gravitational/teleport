@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -51,6 +52,9 @@ func newTestService(t *testing.T, ma *mockAuthorizer, mccg *mockCloudClientGette
 	return svc
 }
 
+// testExpiry is a fixed future expiry timestamp used across tests.
+var testExpiry = timestamppb.New(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))
+
 func newCIR(cidrs []string) *clientiprestrictionv1pb.ClientIPRestriction {
 	return clientiprestrictionv1pb.ClientIPRestriction_builder{
 		Kind:    types.KindClientIPRestriction,
@@ -72,9 +76,43 @@ func newCloudCIR(cidrs []string, revision string, status cloudv1.ClientIPRestric
 	}
 }
 
+// newCloudCIRFull is like newCloudCIR but also sets the mode and expires fields.
+func newCloudCIRFull(cidrs []string, revision string, status cloudv1.ClientIPRestrictionStatus, mode cloudv1.ClientIPRestrictionMode, expires *timestamppb.Timestamp) *cloudv1.ClientIPRestriction {
+	return &cloudv1.ClientIPRestriction{
+		Cidrs:    cidrs,
+		Revision: revision,
+		Status:   status,
+		Mode:     mode,
+		Expires:  expires,
+	}
+}
+
+// newCIRWithMode builds a Teleport CIR request resource with the given cidrs,
+// mode, and expiry set on the spec.
+func newCIRWithMode(cidrs []string, mode string, expires *timestamppb.Timestamp) *clientiprestrictionv1pb.ClientIPRestriction {
+	return clientiprestrictionv1pb.ClientIPRestriction_builder{
+		Kind:    types.KindClientIPRestriction,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: types.MetaNameClientIPRestriction,
+		}.Build(),
+		Spec: clientiprestrictionv1pb.ClientIPRestrictionSpec_builder{
+			AllowedCidrs: cidrs,
+			Mode:         mode,
+			Expires:      expires,
+		}.Build(),
+	}.Build()
+}
+
 // expectedFromCloud builds the expected Teleport CIR from cloud response fields,
 // mirroring what fromCloud produces.
 func expectedFromCloud(cidrs []string, revision string, statusStr string) *clientiprestrictionv1pb.ClientIPRestriction {
+	return expectedFromCloudFull(cidrs, revision, statusStr, "", nil)
+}
+
+// expectedFromCloudFull is like expectedFromCloud but also sets the spec mode
+// and expires fields.
+func expectedFromCloudFull(cidrs []string, revision, statusStr, modeStr string, expires *timestamppb.Timestamp) *clientiprestrictionv1pb.ClientIPRestriction {
 	return clientiprestrictionv1pb.ClientIPRestriction_builder{
 		Kind:    types.KindClientIPRestriction,
 		Version: types.V1,
@@ -84,6 +122,8 @@ func expectedFromCloud(cidrs []string, revision string, statusStr string) *clien
 		}.Build(),
 		Spec: clientiprestrictionv1pb.ClientIPRestrictionSpec_builder{
 			AllowedCidrs: cidrs,
+			Mode:         modeStr,
+			Expires:      expires,
 		}.Build(),
 		Status: clientiprestrictionv1pb.ClientIPRestrictionStatus_builder{
 			State: statusStr,
@@ -188,6 +228,8 @@ func TestCreateClientIPRestriction(t *testing.T) {
 		expectedError        error
 		expectedCIR          *clientiprestrictionv1pb.ClientIPRestriction
 		expectedEventCIDRs   []string
+		expectedEventMode    string
+		expectedEventExpires *timestamppb.Timestamp
 	}{
 		{
 			description:   "nil resource is rejected",
@@ -243,6 +285,30 @@ func TestCreateClientIPRestriction(t *testing.T) {
 			expectedCIR:        expectedFromCloud([]string{"10.0.0.0/8", "172.16.0.0/12"}, "rev-1", "pending"),
 			expectedEventCIDRs: []string{"10.0.0.0/8", "172.16.0.0/12"},
 		},
+		{
+			description: "draft mode and expiry are forwarded and returned",
+			request: clientiprestrictionv1pb.CreateClientIPRestrictionRequest_builder{
+				ClientIpRestriction: newCIRWithMode([]string{"10.0.0.0/8"}, "draft", testExpiry),
+			}.Build(),
+			mockResponse: &cloudv1.CreateClientIPRestrictionResponse{
+				ClientIpRestriction: newCloudCIRFull(
+					[]string{"10.0.0.0/8"},
+					"rev-1",
+					cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT,
+					cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT,
+					testExpiry,
+				),
+			},
+			expectedCloudRequest: &cloudv1.CreateClientIPRestrictionRequest{
+				Cidrs:   []string{"10.0.0.0/8"},
+				Mode:    cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT,
+				Expires: testExpiry,
+			},
+			expectedCIR:          expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-1", "draft", "draft", testExpiry),
+			expectedEventCIDRs:   []string{"10.0.0.0/8"},
+			expectedEventMode:    clientIPRestrictionModeDraft,
+			expectedEventExpires: testExpiry,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -260,7 +326,7 @@ func TestCreateClientIPRestriction(t *testing.T) {
 
 			if tc.expectedError != nil {
 				require.ErrorIs(t, err, tc.expectedError)
-				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil)
+				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil, "", nil)
 				return
 			}
 
@@ -268,7 +334,7 @@ func TestCreateClientIPRestriction(t *testing.T) {
 			if diff := cmp.Diff(tc.expectedCIR, got.GetClientIpRestriction(), protocmp.Transform()); diff != "" {
 				t.Errorf("unexpected CIR returned (-want, +got):\n%s", diff)
 			}
-			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs)
+			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs, tc.expectedEventMode, tc.expectedEventExpires)
 		})
 	}
 }
@@ -292,6 +358,8 @@ func TestUpdateClientIPRestriction(t *testing.T) {
 		expectedError        error
 		expectedCIR          *clientiprestrictionv1pb.ClientIPRestriction
 		expectedEventCIDRs   []string
+		expectedEventMode    string
+		expectedEventExpires *timestamppb.Timestamp
 	}{
 		{
 			description:   "nil resource is rejected",
@@ -359,6 +427,35 @@ func TestUpdateClientIPRestriction(t *testing.T) {
 			expectedCIR:        expectedFromCloud([]string{"10.0.0.0/8"}, "new-rev", "active"),
 			expectedEventCIDRs: []string{"10.0.0.0/8"},
 		},
+		{
+			description: "mode and expiry are forwarded with revision",
+			request: func() *clientiprestrictionv1pb.UpdateClientIPRestrictionRequest {
+				cir := newCIRWithMode([]string{"10.0.0.0/8"}, "enforced", testExpiry)
+				cir.GetMetadata().SetRevision("old-rev")
+				return clientiprestrictionv1pb.UpdateClientIPRestrictionRequest_builder{
+					ClientIpRestriction: cir,
+				}.Build()
+			}(),
+			mockResponse: &cloudv1.UpdateClientIPRestrictionResponse{
+				ClientIpRestriction: newCloudCIRFull(
+					[]string{"10.0.0.0/8"},
+					"new-rev",
+					cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_PENDING,
+					cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED,
+					testExpiry,
+				),
+			},
+			expectedCloudRequest: &cloudv1.UpdateClientIPRestrictionRequest{
+				Cidrs:    []string{"10.0.0.0/8"},
+				Revision: "old-rev",
+				Mode:     cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED,
+				Expires:  testExpiry,
+			},
+			expectedCIR:          expectedFromCloudFull([]string{"10.0.0.0/8"}, "new-rev", "pending", "enforced", testExpiry),
+			expectedEventCIDRs:   []string{"10.0.0.0/8"},
+			expectedEventMode:    clientIPRestrictionModeEnforced,
+			expectedEventExpires: testExpiry,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -376,7 +473,7 @@ func TestUpdateClientIPRestriction(t *testing.T) {
 
 			if tc.expectedError != nil {
 				require.ErrorIs(t, err, tc.expectedError)
-				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil)
+				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil, "", nil)
 				return
 			}
 
@@ -384,7 +481,7 @@ func TestUpdateClientIPRestriction(t *testing.T) {
 			if diff := cmp.Diff(tc.expectedCIR, got.GetClientIpRestriction(), protocmp.Transform()); diff != "" {
 				t.Errorf("unexpected CIR returned (-want, +got):\n%s", diff)
 			}
-			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs)
+			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs, tc.expectedEventMode, tc.expectedEventExpires)
 		})
 	}
 }
@@ -408,6 +505,8 @@ func TestUpsertClientIPRestriction(t *testing.T) {
 		expectedError        error
 		expectedCIR          *clientiprestrictionv1pb.ClientIPRestriction
 		expectedEventCIDRs   []string
+		expectedEventMode    string
+		expectedEventExpires *timestamppb.Timestamp
 	}{
 		{
 			description:   "nil resource is rejected",
@@ -463,6 +562,30 @@ func TestUpsertClientIPRestriction(t *testing.T) {
 			expectedCIR:        expectedFromCloud([]string{"10.0.0.0/8", "192.168.0.0/16"}, "rev-1", "pending"),
 			expectedEventCIDRs: []string{"10.0.0.0/8", "192.168.0.0/16"},
 		},
+		{
+			description: "draft mode and expiry are forwarded",
+			request: clientiprestrictionv1pb.UpsertClientIPRestrictionRequest_builder{
+				ClientIpRestriction: newCIRWithMode([]string{"10.0.0.0/8"}, "draft", testExpiry),
+			}.Build(),
+			mockResponse: &cloudv1.UpsertClientIPRestrictionResponse{
+				ClientIpRestriction: newCloudCIRFull(
+					[]string{"10.0.0.0/8"},
+					"rev-1",
+					cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT,
+					cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT,
+					testExpiry,
+				),
+			},
+			expectedCloudRequest: &cloudv1.UpsertClientIPRestrictionRequest{
+				Cidrs:   []string{"10.0.0.0/8"},
+				Mode:    cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT,
+				Expires: testExpiry,
+			},
+			expectedCIR:          expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-1", "draft", "draft", testExpiry),
+			expectedEventCIDRs:   []string{"10.0.0.0/8"},
+			expectedEventMode:    clientIPRestrictionModeDraft,
+			expectedEventExpires: testExpiry,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -480,7 +603,7 @@ func TestUpsertClientIPRestriction(t *testing.T) {
 
 			if tc.expectedError != nil {
 				require.ErrorIs(t, err, tc.expectedError)
-				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil)
+				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil, "", nil)
 				return
 			}
 
@@ -488,7 +611,7 @@ func TestUpsertClientIPRestriction(t *testing.T) {
 			if diff := cmp.Diff(tc.expectedCIR, got.GetClientIpRestriction(), protocmp.Transform()); diff != "" {
 				t.Errorf("unexpected CIR returned (-want, +got):\n%s", diff)
 			}
-			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs)
+			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, tc.expectedEventCIDRs, tc.expectedEventMode, tc.expectedEventExpires)
 		})
 	}
 }
@@ -536,13 +659,13 @@ func TestDeleteClientIPRestriction(t *testing.T) {
 
 			if tc.expectedError != nil {
 				require.ErrorIs(t, err, tc.expectedError)
-				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil)
+				assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil, "", nil)
 				return
 			}
 
 			require.NoError(t, err)
-			// Delete passes nil cir to emitMutationEvent, so CIDRs are always absent.
-			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil)
+			// Delete passes nil cir to emitMutationEvent, so CIDRs, mode, and expiry are always absent.
+			assertCIREventMatches(t, mRE.Events(), events.ClientIPRestrictionsUpdateCode, nil, "", nil)
 		})
 	}
 }
@@ -721,6 +844,70 @@ func TestFromCloud(t *testing.T) {
 			expected: expectedFromCloud([]string{}, "rev-3", "unknown"),
 		},
 		{
+			description: "draft status maps to 'draft'",
+			input: newCloudCIR(
+				[]string{"10.0.0.0/8"},
+				"rev-draft",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT,
+			),
+			expected: expectedFromCloud([]string{"10.0.0.0/8"}, "rev-draft", "draft"),
+		},
+		{
+			description: "expired status maps to 'expired'",
+			input: newCloudCIR(
+				[]string{"10.0.0.0/8"},
+				"rev-expired",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_EXPIRED,
+			),
+			expected: expectedFromCloud([]string{"10.0.0.0/8"}, "rev-expired", "expired"),
+		},
+		{
+			// A lapsed test run: Cloud leaves mode enforced and keeps the elapsed expiry, so both must
+			// survive the conversion. The status is what tells the user it is no longer enforced.
+			description: "lapsed test run keeps enforced mode and the elapsed expiry",
+			input: newCloudCIRFull(
+				[]string{"10.0.0.0/8"},
+				"rev-lapsed",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_EXPIRED,
+				cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED,
+				testExpiry,
+			),
+			expected: expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-lapsed", "expired", "enforced", testExpiry),
+		},
+		{
+			description: "draft mode and expiry are preserved",
+			input: newCloudCIRFull(
+				[]string{"10.0.0.0/8"},
+				"rev-5",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT,
+				cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT,
+				testExpiry,
+			),
+			expected: expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-5", "draft", "draft", testExpiry),
+		},
+		{
+			description: "enforced mode maps to 'enforced'",
+			input: newCloudCIRFull(
+				[]string{"10.0.0.0/8"},
+				"rev-6",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE,
+				cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED,
+				nil,
+			),
+			expected: expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-6", "active", "enforced", nil),
+		},
+		{
+			description: "unspecified mode maps to empty string",
+			input: newCloudCIRFull(
+				[]string{"10.0.0.0/8"},
+				"rev-7",
+				cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE,
+				cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED,
+				nil,
+			),
+			expected: expectedFromCloudFull([]string{"10.0.0.0/8"}, "rev-7", "active", "", nil),
+		},
+		{
 			description: "multiple CIDRs preserved",
 			input: newCloudCIR(
 				[]string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"},
@@ -845,6 +1032,23 @@ func TestValidateClientIPRestriction(t *testing.T) {
 				return cir
 			}(),
 		},
+		{
+			description: "draft mode is accepted",
+			input:       newCIRWithMode([]string{"10.0.0.0/8"}, "draft", nil),
+		},
+		{
+			description: "enforced mode is accepted",
+			input:       newCIRWithMode([]string{"10.0.0.0/8"}, "enforced", nil),
+		},
+		{
+			description: "spec expires is accepted",
+			input:       newCIRWithMode([]string{"10.0.0.0/8"}, "draft", testExpiry),
+		},
+		{
+			description:   "invalid mode is rejected",
+			input:         newCIRWithMode([]string{"10.0.0.0/8"}, "bogus", nil),
+			expectedError: trace.BadParameter(`client_ip_restriction mode must be "draft", "enforced", or empty, got "bogus"`),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -863,20 +1067,80 @@ func TestCloudStatusToString(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
+		name     string
 		input    cloudv1.ClientIPRestrictionStatus
 		expected string
 	}{
-		{cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE, "active"},
-		{cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_PENDING, "pending"},
-		{cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED, "unknown"},
-		{cloudv1.ClientIPRestrictionStatus(99), "unknown"},
+		{"active", cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_ACTIVE, "active"},
+		{"pending", cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_PENDING, "pending"},
+		{"draft", cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_DRAFT, "draft"},
+		{"expired", cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_EXPIRED, "expired"},
+		{"unspecified", cloudv1.ClientIPRestrictionStatus_CLIENT_IP_RESTRICTION_STATUS_UNSPECIFIED, "unknown"},
+		{"out of range", cloudv1.ClientIPRestrictionStatus(99), "unknown"},
 	}
 
 	for _, tc := range testCases {
-		got := cloudStatusToString(tc.input)
-		if got != tc.expected {
-			t.Errorf("cloudStatusToString(%v) = %q, want %q", tc.input, got, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, cloudStatusToString(tc.input))
+		})
+	}
+}
+
+func TestModeToCloud(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected cloudv1.ClientIPRestrictionMode
+	}{
+		{"draft", "draft", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT},
+		{"enforced", "enforced", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED},
+		{"empty", "", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED},
+		{"bogus", "bogus", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, modeToCloud(tc.input))
+		})
+	}
+}
+
+func TestCloudModeToString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    cloudv1.ClientIPRestrictionMode
+		expected string
+	}{
+		{"draft", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_DRAFT, "draft"},
+		{"enforced", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_ENFORCED, "enforced"},
+		{"unspecified", cloudv1.ClientIPRestrictionMode_CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED, ""},
+		{"out of range", cloudv1.ClientIPRestrictionMode(99), ""},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, cloudModeToString(tc.input))
+		})
+	}
+}
+
+func TestModeCloudRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		mode string
+	}{
+		{"empty", ""},
+		{"draft", "draft"},
+		{"enforced", "enforced"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.mode, cloudModeToString(modeToCloud(tc.mode)))
+		})
 	}
 }
 
@@ -958,7 +1222,7 @@ func (ac *accessChecker) CheckAccessToRule(_ services.RuleContext, _, _, _ strin
 	return nil
 }
 
-func assertCIREventMatches(t *testing.T, emittedEvents []apievents.AuditEvent, expectedCode string, expectedCIDRs []string) {
+func assertCIREventMatches(t *testing.T, emittedEvents []apievents.AuditEvent, expectedCode string, expectedCIDRs []string, expectedMode string, expectedExpires *timestamppb.Timestamp) {
 	t.Helper()
 	if len(emittedEvents) != 1 {
 		t.Fatalf("expected 1 audit event, got %d", len(emittedEvents))
@@ -976,5 +1240,15 @@ func assertCIREventMatches(t *testing.T, emittedEvents []apievents.AuditEvent, e
 	}
 	if diff := cmp.Diff(expectedCIDRs, cirEvent.ClientIPRestrictions); diff != "" {
 		t.Errorf("unexpected CIDRs in audit event (-want, +got):\n%s", diff)
+	}
+	if cirEvent.Mode != expectedMode {
+		t.Errorf("expected mode %q in audit event, got %q", expectedMode, cirEvent.Mode)
+	}
+	var expectedExpiresTime time.Time
+	if expectedExpires != nil {
+		expectedExpiresTime = expectedExpires.AsTime()
+	}
+	if !cirEvent.EnforcementExpires.Equal(expectedExpiresTime) {
+		t.Errorf("expected enforcement expiry %v in audit event, got %v", expectedExpiresTime, cirEvent.EnforcementExpires)
 	}
 }

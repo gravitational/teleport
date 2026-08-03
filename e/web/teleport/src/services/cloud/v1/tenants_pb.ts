@@ -13,6 +13,7 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Timestamp } from "../../google/protobuf/timestamp_pb";
 /**
  * UpdateStripeBillingAddress is the stripe billing address request for updates
  *
@@ -76,6 +77,184 @@ export interface StripeBillingAddress {
      * @generated from protobuf field: string address_state = 6
      */
     addressState: string;
+}
+/**
+ * StripeAddress is the billing address associated with a Stripe account.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeAddress
+ */
+export interface StripeAddress {
+    /**
+     * address_city is the Stripe address city
+     *
+     * @generated from protobuf field: string address_city = 1
+     */
+    addressCity: string;
+    /**
+     * address_country is the Stripe address country
+     *
+     * @generated from protobuf field: string address_country = 2
+     */
+    addressCountry: string;
+    /**
+     * address_line1 is the Stripe address line1
+     *
+     * @generated from protobuf field: string address_line1 = 3
+     */
+    addressLine1: string;
+    /**
+     * address_line2 is the Stripe address line2
+     *
+     * @generated from protobuf field: string address_line2 = 4
+     */
+    addressLine2: string;
+    /**
+     * address_postal_code is the Stripe address postal code
+     *
+     * @generated from protobuf field: string address_postal_code = 5
+     */
+    addressPostalCode: string;
+    /**
+     * address_state is the Stripe address state
+     *
+     * @generated from protobuf field: string address_state = 6
+     */
+    addressState: string;
+}
+/**
+ * StripeCard describes a customer credit card in Stripe.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCard
+ */
+export interface StripeCard {
+    /**
+     * id is the card id
+     *
+     * @generated from protobuf field: string id = 1
+     */
+    id: string;
+    /**
+     * last4 is the last 4 digits of the card's number
+     *
+     * @generated from protobuf field: string last4 = 2
+     */
+    last4: string;
+    /**
+     * address_line1 is the AddressLine1 of the card
+     *
+     * @generated from protobuf field: string address_line1 = 3
+     */
+    addressLine1: string;
+    /**
+     * address_line2 is the AddressLine2 of the card
+     *
+     * @generated from protobuf field: string address_line2 = 4
+     */
+    addressLine2: string;
+    /**
+     * city is the City of the card
+     *
+     * @generated from protobuf field: string city = 5
+     */
+    city: string;
+    /**
+     * country is the Country of the card
+     *
+     * @generated from protobuf field: string country = 6
+     */
+    country: string;
+    /**
+     * state is the State of the card
+     *
+     * @generated from protobuf field: string state = 7
+     */
+    state: string;
+    /**
+     * name is the Name of the card
+     *
+     * @generated from protobuf field: string name = 8
+     */
+    name: string;
+    /**
+     * zip is the Zip of the card
+     *
+     * @generated from protobuf field: string zip = 9
+     */
+    zip: string;
+    /**
+     * brand is the brand of the payment card
+     *
+     * @generated from protobuf field: string brand = 10
+     */
+    brand: string;
+    /**
+     * expiration_month is the month during which the payment card will expire
+     *
+     * @generated from protobuf field: int64 expiration_month = 11
+     */
+    expirationMonth: number;
+    /**
+     * expiration_year is the year during which the payment card will expire
+     *
+     * @generated from protobuf field: int64 expiration_year = 12
+     */
+    expirationYear: number;
+    /**
+     * created_at is time when the card has been added
+     *
+     * @generated from protobuf field: int64 created_at = 13
+     */
+    createdAt: number;
+}
+/**
+ * StripeInvoice describes a customer invoice in Stripe.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeInvoice
+ */
+export interface StripeInvoice {
+    /**
+     * invoice_id is "Number"; a unique, identifying string that appears to the customer for this invoice.
+     * This starts with the customer's unique invoice_prefix if it is specified.
+     *
+     * @generated from protobuf field: string invoice_id = 1
+     */
+    invoiceId: string;
+    /**
+     * status is the invoice status
+     *
+     * @generated from protobuf field: string status = 2
+     */
+    status: string;
+    /**
+     * amount_due is the amount due on the invoice
+     *
+     * @generated from protobuf field: int64 amount_due = 3
+     */
+    amountDue: number;
+    /**
+     * amount_paid is the amount paid on the invoice
+     *
+     * @generated from protobuf field: int64 amount_paid = 4
+     */
+    amountPaid: number;
+    /**
+     * period_end is the invoice period end date
+     *
+     * @generated from protobuf field: int64 period_end = 5
+     */
+    periodEnd: number;
+    /**
+     * period_start is the invoice period start date
+     *
+     * @generated from protobuf field: int64 period_start = 6
+     */
+    periodStart: number;
+    /**
+     * invoice_pdf is the URL of the invoice PDF
+     *
+     * @generated from protobuf field: string invoice_pdf = 7
+     */
+    invoicePdf: string;
 }
 /**
  * UpdateEmailRequest describes the update email request
@@ -236,6 +415,36 @@ export interface CreateSetupIntentResponse {
      * @generated from protobuf field: string client_secret = 1
      */
     clientSecret: string;
+}
+/**
+ * GetStripeConfigRequest is the request for GetStripeConfig
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetStripeConfigRequest
+ */
+export interface GetStripeConfigRequest {
+}
+/**
+ * GetStripeConfigResponse is the client-facing Stripe configuration served to the UI
+ * so it can initialize Stripe.js / Elements. An empty public_key indicates Stripe is
+ * not configured for this environment; the client should not render Elements in that case.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.GetStripeConfigResponse
+ */
+export interface GetStripeConfigResponse {
+    /**
+     * public_key is the Stripe publishable key for the current environment.
+     * Safe to embed in client bundles.
+     *
+     * @generated from protobuf field: string public_key = 1
+     */
+    publicKey: string;
+    /**
+     * stripe_customer_id is the Stripe customer ID for the requesting cloud
+     * customer, or empty if the customer has no Stripe customer yet.
+     *
+     * @generated from protobuf field: string stripe_customer_id = 2
+     */
+    stripeCustomerId: string;
 }
 /**
  * Invoice describes customer invoice
@@ -1803,6 +2012,293 @@ export interface RemoveContactRequest {
     contactType: number;
 }
 /**
+ * StripeCancelRequest is the request for StripeCancel.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCancelRequest
+ */
+export interface StripeCancelRequest {
+}
+/**
+ * StripeCancelResponse is the response for StripeCancel.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCancelResponse
+ */
+export interface StripeCancelResponse {
+}
+/**
+ * StripeCreateCardRequest is the request for StripeCreateCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCreateCardRequest
+ */
+export interface StripeCreateCardRequest {
+    /**
+     * card_id is the card payment method ID
+     *
+     * @generated from protobuf field: string card_id = 1
+     */
+    cardId: string;
+    /**
+     * is_default tells if this card is a default payment method
+     *
+     * @generated from protobuf field: bool is_default = 2
+     */
+    isDefault: boolean;
+}
+/**
+ * StripeCreateCardResponse is the response for StripeCreateCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCreateCardResponse
+ */
+export interface StripeCreateCardResponse {
+}
+/**
+ * StripeCreateSetupIntentRequest is the request for StripeCreateSetupIntent.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest
+ */
+export interface StripeCreateSetupIntentRequest {
+}
+/**
+ * StripeCreateSetupIntentResponse is the response for StripeCreateSetupIntent; carries the SetupIntent client secret used by the UI to complete card entry.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse
+ */
+export interface StripeCreateSetupIntentResponse {
+    /**
+     * client_secret is the Stripe SetupIntent client secret used by the UI to complete card entry
+     *
+     * @generated from protobuf field: string client_secret = 1
+     */
+    clientSecret: string;
+}
+/**
+ * StripeDeleteCardRequest is the request for StripeDeleteCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeDeleteCardRequest
+ */
+export interface StripeDeleteCardRequest {
+    /**
+     * card_id is the card payment method ID
+     *
+     * @generated from protobuf field: string card_id = 1
+     */
+    cardId: string;
+}
+/**
+ * StripeDeleteCardResponse is the response for StripeDeleteCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeDeleteCardResponse
+ */
+export interface StripeDeleteCardResponse {
+}
+/**
+ * StripeGetSettingsRequest is the request for StripeGetSettings.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeGetSettingsRequest
+ */
+export interface StripeGetSettingsRequest {
+}
+/**
+ * StripeGetSettingsResponse is the response for StripeGetSettings; carries billing email, PO prefix, and customer name.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeGetSettingsResponse
+ */
+export interface StripeGetSettingsResponse {
+    /**
+     * stripe_invoice_billing_address is the billing address associated to the invoice on the Stripe account (optional)
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.StripeAddress stripe_invoice_billing_address = 1
+     */
+    stripeInvoiceBillingAddress?: StripeAddress;
+    /**
+     * stripe_invoice_email is the email set in Stripe for invoice communication (optional)
+     *
+     * @generated from protobuf field: string stripe_invoice_email = 2
+     */
+    stripeInvoiceEmail: string;
+    /**
+     * stripe_invoice_prefix is a prefix set on invoices (optional)
+     *
+     * @generated from protobuf field: string stripe_invoice_prefix = 3
+     */
+    stripeInvoicePrefix: string;
+    /**
+     * stripe_customer_name is the Stripe Customer name
+     *
+     * @generated from protobuf field: string stripe_customer_name = 4
+     */
+    stripeCustomerName: string;
+    /**
+     * stripe_subscription_status is the subscription status; one of: incomplete, incomplete_expired, trialing, active, past_due, canceled, or unpaid
+     *
+     * @generated from protobuf field: string stripe_subscription_status = 5
+     */
+    stripeSubscriptionStatus: string;
+    /**
+     * plan_name is the subscription plan name shown to the customer
+     *
+     * @generated from protobuf field: string plan_name = 6
+     */
+    planName: string;
+    /**
+     * stripe_trial_end is the trial end date
+     *
+     * @generated from protobuf field: int64 stripe_trial_end = 7
+     */
+    stripeTrialEnd: number;
+}
+/**
+ * StripeListCardsRequest is the request for StripeListCards.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeListCardsRequest
+ */
+export interface StripeListCardsRequest {
+}
+/**
+ * StripeListCardsResponse is the response for StripeListCards; carries the customer's Stripe credit cards.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeListCardsResponse
+ */
+export interface StripeListCardsResponse {
+    /**
+     * stripe_cards is the list of credit cards the customer has set up in Stripe
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.StripeCard stripe_cards = 1
+     */
+    stripeCards: StripeCard[];
+    /**
+     * stripe_default_source_id is the default payment source ID for the customer
+     *
+     * @generated from protobuf field: string stripe_default_source_id = 2
+     */
+    stripeDefaultSourceId: string;
+    /**
+     * stripe_missing_payment_method indicates whether the customer has a payment method attached in Stripe;
+     * only meaningful during a Stripe trial period, since a payment method is always required after upgrading.
+     *
+     * @generated from protobuf field: bool stripe_missing_payment_method = 3
+     */
+    stripeMissingPaymentMethod: boolean;
+}
+/**
+ * StripeListInvoicesRequest is the request for StripeListInvoices.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeListInvoicesRequest
+ */
+export interface StripeListInvoicesRequest {
+}
+/**
+ * StripeListInvoicesResponse is the response for StripeListInvoices; carries the customer's Stripe invoice history.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeListInvoicesResponse
+ */
+export interface StripeListInvoicesResponse {
+    /**
+     * stripe_invoices is the list of invoices from Stripe
+     *
+     * @generated from protobuf field: repeated gravitational.cloud.tenants.v1.StripeInvoice stripe_invoices = 1
+     */
+    stripeInvoices: StripeInvoice[];
+}
+/**
+ * StripeUpdateCardRequest is the request for StripeUpdateCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateCardRequest
+ */
+export interface StripeUpdateCardRequest {
+    /**
+     * prev_card_id is the previous card id
+     *
+     * @generated from protobuf field: string prev_card_id = 1
+     */
+    prevCardId: string;
+    /**
+     * next_card_id is the updated card id
+     *
+     * @generated from protobuf field: string next_card_id = 2
+     */
+    nextCardId: string;
+    /**
+     * is_default tells if this card is a default payment method
+     *
+     * @generated from protobuf field: bool is_default = 3
+     */
+    isDefault: boolean;
+}
+/**
+ * StripeUpdateCardResponse is the response for StripeUpdateCard.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateCardResponse
+ */
+export interface StripeUpdateCardResponse {
+}
+/**
+ * StripeUpdateEmailRequest is the request for StripeUpdateEmail.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateEmailRequest
+ */
+export interface StripeUpdateEmailRequest {
+    /**
+     * email is the invoice email address to set in Stripe
+     *
+     * @generated from protobuf field: string email = 1
+     */
+    email: string;
+}
+/**
+ * StripeUpdateEmailResponse is the response for StripeUpdateEmail.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateEmailResponse
+ */
+export interface StripeUpdateEmailResponse {
+}
+/**
+ * StripeUpdatePOPrefixRequest is the request for StripeUpdatePOPrefix.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest
+ */
+export interface StripeUpdatePOPrefixRequest {
+    /**
+     * po is the purchase order prefix to set in Stripe
+     *
+     * @generated from protobuf field: string po = 1
+     */
+    po: string;
+}
+/**
+ * StripeUpdatePOPrefixResponse is the response for StripeUpdatePOPrefix.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse
+ */
+export interface StripeUpdatePOPrefixResponse {
+}
+/**
+ * StripeUpdateStripeAddressRequest is the request for StripeUpdateStripeAddress.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest
+ */
+export interface StripeUpdateStripeAddressRequest {
+    /**
+     * name is the Stripe customer name
+     *
+     * @generated from protobuf field: string name = 1
+     */
+    name: string;
+    /**
+     * address is the Stripe customer address
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.StripeAddress address = 2
+     */
+    address?: StripeAddress;
+}
+/**
+ * StripeUpdateStripeAddressResponse is the response for StripeUpdateStripeAddress.
+ *
+ * @generated from protobuf message gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse
+ */
+export interface StripeUpdateStripeAddressResponse {
+}
+/**
  * RemoveContactResponse is the response of RemoveContact
  *
  * @generated from protobuf message gravitational.cloud.tenants.v1.RemoveContactResponse
@@ -1903,6 +2399,21 @@ export interface ClientIPRestriction {
      * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status = 3
      */
     status: ClientIPRestrictionStatus;
+    /**
+     * mode is the user-controlled operational mode. An unspecified mode is
+     * treated as enforced for backward compatibility.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 4
+     */
+    mode: ClientIPRestrictionMode;
+    /**
+     * expires is the deadline on enforcement: the allowlist is enforced until this
+     * time and not after it. Unset means enforcement never lapses. It keeps the
+     * value the user wrote even after it elapses; status reports EXPIRED then.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp expires = 5
+     */
+    expires?: Timestamp;
 }
 /**
  * GetClientIPRestrictionRequest is the request for GetClientIPRestriction.
@@ -1936,6 +2447,29 @@ export interface CreateClientIPRestrictionRequest {
      * @generated from protobuf field: repeated string cidrs = 1
      */
     cidrs: string[];
+    /**
+     * mode is the user-controlled operational mode. An unspecified mode is
+     * treated as enforced for backward compatibility.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 2
+     */
+    mode: ClientIPRestrictionMode;
+    /**
+     * expires is the deadline on enforcement: the allowlist is enforced until this
+     * time and not after it. Unset means enforcement never lapses. When set, it
+     * must be at least 20 minutes in the future.
+     *
+     * Once it elapses the restrictions stop being enforced and status becomes
+     * EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+     * still reads "enforced until <past>"; enforcing again takes a new write.
+     *
+     * Writes fully replace the resource, so a client editing other fields must
+     * re-send a still-valid expiry or clear it. An expiry read earlier and passed
+     * back unchanged can be rejected once it is under 20 minutes away.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp expires = 3
+     */
+    expires?: Timestamp;
 }
 /**
  * CreateClientIPRestrictionResponse is the response from CreateClientIPRestriction.
@@ -1968,6 +2502,29 @@ export interface UpdateClientIPRestrictionRequest {
      * @generated from protobuf field: string revision = 2
      */
     revision: string;
+    /**
+     * mode is the user-controlled operational mode. An unspecified mode is
+     * treated as enforced for backward compatibility.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 3
+     */
+    mode: ClientIPRestrictionMode;
+    /**
+     * expires is the deadline on enforcement: the allowlist is enforced until this
+     * time and not after it. Unset means enforcement never lapses. When set, it
+     * must be at least 20 minutes in the future.
+     *
+     * Once it elapses the restrictions stop being enforced and status becomes
+     * EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+     * still reads "enforced until <past>"; enforcing again takes a new write.
+     *
+     * Writes fully replace the resource, so a client editing other fields must
+     * re-send a still-valid expiry or clear it. An expiry read earlier and passed
+     * back unchanged can be rejected once it is under 20 minutes away.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp expires = 4
+     */
+    expires?: Timestamp;
 }
 /**
  * UpdateClientIPRestrictionResponse is the response from UpdateClientIPRestriction.
@@ -1994,6 +2551,29 @@ export interface UpsertClientIPRestrictionRequest {
      * @generated from protobuf field: repeated string cidrs = 1
      */
     cidrs: string[];
+    /**
+     * mode is the user-controlled operational mode. An unspecified mode is
+     * treated as enforced for backward compatibility.
+     *
+     * @generated from protobuf field: gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 2
+     */
+    mode: ClientIPRestrictionMode;
+    /**
+     * expires is the deadline on enforcement: the allowlist is enforced until this
+     * time and not after it. Unset means enforcement never lapses. When set, it
+     * must be at least 20 minutes in the future.
+     *
+     * Once it elapses the restrictions stop being enforced and status becomes
+     * EXPIRED. The server rewrites neither mode nor expires, so a lapsed resource
+     * still reads "enforced until <past>"; enforcing again takes a new write.
+     *
+     * Writes fully replace the resource, so a client editing other fields must
+     * re-send a still-valid expiry or clear it. An expiry read earlier and passed
+     * back unchanged can be rejected once it is under 20 minutes away.
+     *
+     * @generated from protobuf field: google.protobuf.Timestamp expires = 3
+     */
+    expires?: Timestamp;
 }
 /**
  * UpsertClientIPRestrictionResponse is the response from UpsertClientIPRestriction.
@@ -2875,7 +3455,50 @@ export enum ClientIPRestrictionStatus {
      *
      * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_ACTIVE = 2;
      */
-    CLIENT_IP_RESTRICTION_STATUS_ACTIVE = 2
+    CLIENT_IP_RESTRICTION_STATUS_ACTIVE = 2,
+    /**
+     * CLIENT_IP_RESTRICTION_STATUS_DRAFT means the allowlist is saved but not
+     * enforced (mode is draft), so all IPs can reach the tenant.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_DRAFT = 3;
+     */
+    CLIENT_IP_RESTRICTION_STATUS_DRAFT = 3,
+    /**
+     * CLIENT_IP_RESTRICTION_STATUS_EXPIRED means the allowlist is saved but no
+     * longer enforced because the expires deadline elapsed, so all IPs can reach
+     * the tenant. Mode still reads enforced and expires keeps its value; see the
+     * expires field.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_STATUS_EXPIRED = 4;
+     */
+    CLIENT_IP_RESTRICTION_STATUS_EXPIRED = 4
+}
+/**
+ * ClientIPRestrictionMode is the user-controlled operational mode of a
+ * ClientIPRestriction. It denotes intent; the actual enforcement state is
+ * reported by ClientIPRestrictionStatus.
+ *
+ * @generated from protobuf enum gravitational.cloud.tenants.v1.ClientIPRestrictionMode
+ */
+export enum ClientIPRestrictionMode {
+    /**
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED = 0;
+     */
+    CLIENT_IP_RESTRICTION_MODE_UNSPECIFIED = 0,
+    /**
+     * CLIENT_IP_RESTRICTION_MODE_DRAFT means the restriction is configured but
+     * not enforced by the Cloud platform.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_MODE_DRAFT = 1;
+     */
+    CLIENT_IP_RESTRICTION_MODE_DRAFT = 1,
+    /**
+     * CLIENT_IP_RESTRICTION_MODE_ENFORCED means the restriction should be
+     * enforced by the Cloud platform.
+     *
+     * @generated from protobuf enum value: CLIENT_IP_RESTRICTION_MODE_ENFORCED = 2;
+     */
+    CLIENT_IP_RESTRICTION_MODE_ENFORCED = 2
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class StripeBillingAddressRequest$Type extends MessageType<StripeBillingAddressRequest> {
@@ -3020,6 +3643,331 @@ class StripeBillingAddress$Type extends MessageType<StripeBillingAddress> {
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeBillingAddress
  */
 export const StripeBillingAddress = new StripeBillingAddress$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeAddress$Type extends MessageType<StripeAddress> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeAddress", [
+            { no: 1, name: "address_city", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "address_country", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "address_line1", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "address_line2", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "address_postal_code", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "address_state", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeAddress>): StripeAddress {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.addressCity = "";
+        message.addressCountry = "";
+        message.addressLine1 = "";
+        message.addressLine2 = "";
+        message.addressPostalCode = "";
+        message.addressState = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeAddress>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeAddress): StripeAddress {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string address_city */ 1:
+                    message.addressCity = reader.string();
+                    break;
+                case /* string address_country */ 2:
+                    message.addressCountry = reader.string();
+                    break;
+                case /* string address_line1 */ 3:
+                    message.addressLine1 = reader.string();
+                    break;
+                case /* string address_line2 */ 4:
+                    message.addressLine2 = reader.string();
+                    break;
+                case /* string address_postal_code */ 5:
+                    message.addressPostalCode = reader.string();
+                    break;
+                case /* string address_state */ 6:
+                    message.addressState = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeAddress, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string address_city = 1; */
+        if (message.addressCity !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.addressCity);
+        /* string address_country = 2; */
+        if (message.addressCountry !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.addressCountry);
+        /* string address_line1 = 3; */
+        if (message.addressLine1 !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.addressLine1);
+        /* string address_line2 = 4; */
+        if (message.addressLine2 !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.addressLine2);
+        /* string address_postal_code = 5; */
+        if (message.addressPostalCode !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.addressPostalCode);
+        /* string address_state = 6; */
+        if (message.addressState !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.addressState);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeAddress
+ */
+export const StripeAddress = new StripeAddress$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCard$Type extends MessageType<StripeCard> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCard", [
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "last4", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "address_line1", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "address_line2", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "city", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "country", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 8, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 9, name: "zip", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 10, name: "brand", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 11, name: "expiration_month", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 12, name: "expiration_year", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 13, name: "created_at", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeCard>): StripeCard {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.id = "";
+        message.last4 = "";
+        message.addressLine1 = "";
+        message.addressLine2 = "";
+        message.city = "";
+        message.country = "";
+        message.state = "";
+        message.name = "";
+        message.zip = "";
+        message.brand = "";
+        message.expirationMonth = 0;
+        message.expirationYear = 0;
+        message.createdAt = 0;
+        if (value !== undefined)
+            reflectionMergePartial<StripeCard>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCard): StripeCard {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string id */ 1:
+                    message.id = reader.string();
+                    break;
+                case /* string last4 */ 2:
+                    message.last4 = reader.string();
+                    break;
+                case /* string address_line1 */ 3:
+                    message.addressLine1 = reader.string();
+                    break;
+                case /* string address_line2 */ 4:
+                    message.addressLine2 = reader.string();
+                    break;
+                case /* string city */ 5:
+                    message.city = reader.string();
+                    break;
+                case /* string country */ 6:
+                    message.country = reader.string();
+                    break;
+                case /* string state */ 7:
+                    message.state = reader.string();
+                    break;
+                case /* string name */ 8:
+                    message.name = reader.string();
+                    break;
+                case /* string zip */ 9:
+                    message.zip = reader.string();
+                    break;
+                case /* string brand */ 10:
+                    message.brand = reader.string();
+                    break;
+                case /* int64 expiration_month */ 11:
+                    message.expirationMonth = reader.int64().toNumber();
+                    break;
+                case /* int64 expiration_year */ 12:
+                    message.expirationYear = reader.int64().toNumber();
+                    break;
+                case /* int64 created_at */ 13:
+                    message.createdAt = reader.int64().toNumber();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCard, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string id = 1; */
+        if (message.id !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.id);
+        /* string last4 = 2; */
+        if (message.last4 !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.last4);
+        /* string address_line1 = 3; */
+        if (message.addressLine1 !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.addressLine1);
+        /* string address_line2 = 4; */
+        if (message.addressLine2 !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.addressLine2);
+        /* string city = 5; */
+        if (message.city !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.city);
+        /* string country = 6; */
+        if (message.country !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.country);
+        /* string state = 7; */
+        if (message.state !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.state);
+        /* string name = 8; */
+        if (message.name !== "")
+            writer.tag(8, WireType.LengthDelimited).string(message.name);
+        /* string zip = 9; */
+        if (message.zip !== "")
+            writer.tag(9, WireType.LengthDelimited).string(message.zip);
+        /* string brand = 10; */
+        if (message.brand !== "")
+            writer.tag(10, WireType.LengthDelimited).string(message.brand);
+        /* int64 expiration_month = 11; */
+        if (message.expirationMonth !== 0)
+            writer.tag(11, WireType.Varint).int64(message.expirationMonth);
+        /* int64 expiration_year = 12; */
+        if (message.expirationYear !== 0)
+            writer.tag(12, WireType.Varint).int64(message.expirationYear);
+        /* int64 created_at = 13; */
+        if (message.createdAt !== 0)
+            writer.tag(13, WireType.Varint).int64(message.createdAt);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCard
+ */
+export const StripeCard = new StripeCard$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeInvoice$Type extends MessageType<StripeInvoice> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeInvoice", [
+            { no: 1, name: "invoice_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "status", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "amount_due", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 4, name: "amount_paid", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 5, name: "period_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 6, name: "period_start", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ },
+            { no: 7, name: "invoice_pdf", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeInvoice>): StripeInvoice {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.invoiceId = "";
+        message.status = "";
+        message.amountDue = 0;
+        message.amountPaid = 0;
+        message.periodEnd = 0;
+        message.periodStart = 0;
+        message.invoicePdf = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeInvoice>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeInvoice): StripeInvoice {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string invoice_id */ 1:
+                    message.invoiceId = reader.string();
+                    break;
+                case /* string status */ 2:
+                    message.status = reader.string();
+                    break;
+                case /* int64 amount_due */ 3:
+                    message.amountDue = reader.int64().toNumber();
+                    break;
+                case /* int64 amount_paid */ 4:
+                    message.amountPaid = reader.int64().toNumber();
+                    break;
+                case /* int64 period_end */ 5:
+                    message.periodEnd = reader.int64().toNumber();
+                    break;
+                case /* int64 period_start */ 6:
+                    message.periodStart = reader.int64().toNumber();
+                    break;
+                case /* string invoice_pdf */ 7:
+                    message.invoicePdf = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeInvoice, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string invoice_id = 1; */
+        if (message.invoiceId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.invoiceId);
+        /* string status = 2; */
+        if (message.status !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.status);
+        /* int64 amount_due = 3; */
+        if (message.amountDue !== 0)
+            writer.tag(3, WireType.Varint).int64(message.amountDue);
+        /* int64 amount_paid = 4; */
+        if (message.amountPaid !== 0)
+            writer.tag(4, WireType.Varint).int64(message.amountPaid);
+        /* int64 period_end = 5; */
+        if (message.periodEnd !== 0)
+            writer.tag(5, WireType.Varint).int64(message.periodEnd);
+        /* int64 period_start = 6; */
+        if (message.periodStart !== 0)
+            writer.tag(6, WireType.Varint).int64(message.periodStart);
+        /* string invoice_pdf = 7; */
+        if (message.invoicePdf !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.invoicePdf);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeInvoice
+ */
+export const StripeInvoice = new StripeInvoice$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UpdateEmailRequest$Type extends MessageType<UpdateEmailRequest> {
     constructor() {
@@ -3386,6 +4334,99 @@ class CreateSetupIntentResponse$Type extends MessageType<CreateSetupIntentRespon
  * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.CreateSetupIntentResponse
  */
 export const CreateSetupIntentResponse = new CreateSetupIntentResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetStripeConfigRequest$Type extends MessageType<GetStripeConfigRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetStripeConfigRequest", []);
+    }
+    create(value?: PartialMessage<GetStripeConfigRequest>): GetStripeConfigRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetStripeConfigRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStripeConfigRequest): GetStripeConfigRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStripeConfigRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetStripeConfigRequest
+ */
+export const GetStripeConfigRequest = new GetStripeConfigRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetStripeConfigResponse$Type extends MessageType<GetStripeConfigResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.GetStripeConfigResponse", [
+            { no: 1, name: "public_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "stripe_customer_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetStripeConfigResponse>): GetStripeConfigResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.publicKey = "";
+        message.stripeCustomerId = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetStripeConfigResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetStripeConfigResponse): GetStripeConfigResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string public_key */ 1:
+                    message.publicKey = reader.string();
+                    break;
+                case /* string stripe_customer_id */ 2:
+                    message.stripeCustomerId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetStripeConfigResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string public_key = 1; */
+        if (message.publicKey !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.publicKey);
+        /* string stripe_customer_id = 2; */
+        if (message.stripeCustomerId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.stripeCustomerId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.GetStripeConfigResponse
+ */
+export const GetStripeConfigResponse = new GetStripeConfigResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Invoice$Type extends MessageType<Invoice> {
     constructor() {
@@ -6742,6 +7783,1026 @@ class RemoveContactRequest$Type extends MessageType<RemoveContactRequest> {
  */
 export const RemoveContactRequest = new RemoveContactRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class StripeCancelRequest$Type extends MessageType<StripeCancelRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCancelRequest", []);
+    }
+    create(value?: PartialMessage<StripeCancelRequest>): StripeCancelRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeCancelRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCancelRequest): StripeCancelRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCancelRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCancelRequest
+ */
+export const StripeCancelRequest = new StripeCancelRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCancelResponse$Type extends MessageType<StripeCancelResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCancelResponse", []);
+    }
+    create(value?: PartialMessage<StripeCancelResponse>): StripeCancelResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeCancelResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCancelResponse): StripeCancelResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCancelResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCancelResponse
+ */
+export const StripeCancelResponse = new StripeCancelResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCreateCardRequest$Type extends MessageType<StripeCreateCardRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCreateCardRequest", [
+            { no: 1, name: "card_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "is_default", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeCreateCardRequest>): StripeCreateCardRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cardId = "";
+        message.isDefault = false;
+        if (value !== undefined)
+            reflectionMergePartial<StripeCreateCardRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCreateCardRequest): StripeCreateCardRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string card_id */ 1:
+                    message.cardId = reader.string();
+                    break;
+                case /* bool is_default */ 2:
+                    message.isDefault = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCreateCardRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string card_id = 1; */
+        if (message.cardId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.cardId);
+        /* bool is_default = 2; */
+        if (message.isDefault !== false)
+            writer.tag(2, WireType.Varint).bool(message.isDefault);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCreateCardRequest
+ */
+export const StripeCreateCardRequest = new StripeCreateCardRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCreateCardResponse$Type extends MessageType<StripeCreateCardResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCreateCardResponse", []);
+    }
+    create(value?: PartialMessage<StripeCreateCardResponse>): StripeCreateCardResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeCreateCardResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCreateCardResponse): StripeCreateCardResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCreateCardResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCreateCardResponse
+ */
+export const StripeCreateCardResponse = new StripeCreateCardResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCreateSetupIntentRequest$Type extends MessageType<StripeCreateSetupIntentRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest", []);
+    }
+    create(value?: PartialMessage<StripeCreateSetupIntentRequest>): StripeCreateSetupIntentRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeCreateSetupIntentRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCreateSetupIntentRequest): StripeCreateSetupIntentRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCreateSetupIntentRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCreateSetupIntentRequest
+ */
+export const StripeCreateSetupIntentRequest = new StripeCreateSetupIntentRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeCreateSetupIntentResponse$Type extends MessageType<StripeCreateSetupIntentResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse", [
+            { no: 1, name: "client_secret", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeCreateSetupIntentResponse>): StripeCreateSetupIntentResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clientSecret = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeCreateSetupIntentResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeCreateSetupIntentResponse): StripeCreateSetupIntentResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string client_secret */ 1:
+                    message.clientSecret = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeCreateSetupIntentResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string client_secret = 1; */
+        if (message.clientSecret !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clientSecret);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeCreateSetupIntentResponse
+ */
+export const StripeCreateSetupIntentResponse = new StripeCreateSetupIntentResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeDeleteCardRequest$Type extends MessageType<StripeDeleteCardRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeDeleteCardRequest", [
+            { no: 1, name: "card_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeDeleteCardRequest>): StripeDeleteCardRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.cardId = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeDeleteCardRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeDeleteCardRequest): StripeDeleteCardRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string card_id */ 1:
+                    message.cardId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeDeleteCardRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string card_id = 1; */
+        if (message.cardId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.cardId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeDeleteCardRequest
+ */
+export const StripeDeleteCardRequest = new StripeDeleteCardRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeDeleteCardResponse$Type extends MessageType<StripeDeleteCardResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeDeleteCardResponse", []);
+    }
+    create(value?: PartialMessage<StripeDeleteCardResponse>): StripeDeleteCardResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeDeleteCardResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeDeleteCardResponse): StripeDeleteCardResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeDeleteCardResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeDeleteCardResponse
+ */
+export const StripeDeleteCardResponse = new StripeDeleteCardResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeGetSettingsRequest$Type extends MessageType<StripeGetSettingsRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeGetSettingsRequest", []);
+    }
+    create(value?: PartialMessage<StripeGetSettingsRequest>): StripeGetSettingsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeGetSettingsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeGetSettingsRequest): StripeGetSettingsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeGetSettingsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeGetSettingsRequest
+ */
+export const StripeGetSettingsRequest = new StripeGetSettingsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeGetSettingsResponse$Type extends MessageType<StripeGetSettingsResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeGetSettingsResponse", [
+            { no: 1, name: "stripe_invoice_billing_address", kind: "message", T: () => StripeAddress },
+            { no: 2, name: "stripe_invoice_email", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "stripe_invoice_prefix", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "stripe_customer_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "stripe_subscription_status", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "plan_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "stripe_trial_end", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 2 /*LongType.NUMBER*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeGetSettingsResponse>): StripeGetSettingsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stripeInvoiceEmail = "";
+        message.stripeInvoicePrefix = "";
+        message.stripeCustomerName = "";
+        message.stripeSubscriptionStatus = "";
+        message.planName = "";
+        message.stripeTrialEnd = 0;
+        if (value !== undefined)
+            reflectionMergePartial<StripeGetSettingsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeGetSettingsResponse): StripeGetSettingsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* gravitational.cloud.tenants.v1.StripeAddress stripe_invoice_billing_address */ 1:
+                    message.stripeInvoiceBillingAddress = StripeAddress.internalBinaryRead(reader, reader.uint32(), options, message.stripeInvoiceBillingAddress);
+                    break;
+                case /* string stripe_invoice_email */ 2:
+                    message.stripeInvoiceEmail = reader.string();
+                    break;
+                case /* string stripe_invoice_prefix */ 3:
+                    message.stripeInvoicePrefix = reader.string();
+                    break;
+                case /* string stripe_customer_name */ 4:
+                    message.stripeCustomerName = reader.string();
+                    break;
+                case /* string stripe_subscription_status */ 5:
+                    message.stripeSubscriptionStatus = reader.string();
+                    break;
+                case /* string plan_name */ 6:
+                    message.planName = reader.string();
+                    break;
+                case /* int64 stripe_trial_end */ 7:
+                    message.stripeTrialEnd = reader.int64().toNumber();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeGetSettingsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* gravitational.cloud.tenants.v1.StripeAddress stripe_invoice_billing_address = 1; */
+        if (message.stripeInvoiceBillingAddress)
+            StripeAddress.internalBinaryWrite(message.stripeInvoiceBillingAddress, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string stripe_invoice_email = 2; */
+        if (message.stripeInvoiceEmail !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.stripeInvoiceEmail);
+        /* string stripe_invoice_prefix = 3; */
+        if (message.stripeInvoicePrefix !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.stripeInvoicePrefix);
+        /* string stripe_customer_name = 4; */
+        if (message.stripeCustomerName !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.stripeCustomerName);
+        /* string stripe_subscription_status = 5; */
+        if (message.stripeSubscriptionStatus !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.stripeSubscriptionStatus);
+        /* string plan_name = 6; */
+        if (message.planName !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.planName);
+        /* int64 stripe_trial_end = 7; */
+        if (message.stripeTrialEnd !== 0)
+            writer.tag(7, WireType.Varint).int64(message.stripeTrialEnd);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeGetSettingsResponse
+ */
+export const StripeGetSettingsResponse = new StripeGetSettingsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeListCardsRequest$Type extends MessageType<StripeListCardsRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeListCardsRequest", []);
+    }
+    create(value?: PartialMessage<StripeListCardsRequest>): StripeListCardsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeListCardsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeListCardsRequest): StripeListCardsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeListCardsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeListCardsRequest
+ */
+export const StripeListCardsRequest = new StripeListCardsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeListCardsResponse$Type extends MessageType<StripeListCardsResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeListCardsResponse", [
+            { no: 1, name: "stripe_cards", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => StripeCard },
+            { no: 2, name: "stripe_default_source_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "stripe_missing_payment_method", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeListCardsResponse>): StripeListCardsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stripeCards = [];
+        message.stripeDefaultSourceId = "";
+        message.stripeMissingPaymentMethod = false;
+        if (value !== undefined)
+            reflectionMergePartial<StripeListCardsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeListCardsResponse): StripeListCardsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.StripeCard stripe_cards */ 1:
+                    message.stripeCards.push(StripeCard.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string stripe_default_source_id */ 2:
+                    message.stripeDefaultSourceId = reader.string();
+                    break;
+                case /* bool stripe_missing_payment_method */ 3:
+                    message.stripeMissingPaymentMethod = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeListCardsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.StripeCard stripe_cards = 1; */
+        for (let i = 0; i < message.stripeCards.length; i++)
+            StripeCard.internalBinaryWrite(message.stripeCards[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string stripe_default_source_id = 2; */
+        if (message.stripeDefaultSourceId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.stripeDefaultSourceId);
+        /* bool stripe_missing_payment_method = 3; */
+        if (message.stripeMissingPaymentMethod !== false)
+            writer.tag(3, WireType.Varint).bool(message.stripeMissingPaymentMethod);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeListCardsResponse
+ */
+export const StripeListCardsResponse = new StripeListCardsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeListInvoicesRequest$Type extends MessageType<StripeListInvoicesRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeListInvoicesRequest", []);
+    }
+    create(value?: PartialMessage<StripeListInvoicesRequest>): StripeListInvoicesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeListInvoicesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeListInvoicesRequest): StripeListInvoicesRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeListInvoicesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeListInvoicesRequest
+ */
+export const StripeListInvoicesRequest = new StripeListInvoicesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeListInvoicesResponse$Type extends MessageType<StripeListInvoicesResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeListInvoicesResponse", [
+            { no: 1, name: "stripe_invoices", kind: "message", repeat: 2 /*RepeatType.UNPACKED*/, T: () => StripeInvoice }
+        ]);
+    }
+    create(value?: PartialMessage<StripeListInvoicesResponse>): StripeListInvoicesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.stripeInvoices = [];
+        if (value !== undefined)
+            reflectionMergePartial<StripeListInvoicesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeListInvoicesResponse): StripeListInvoicesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated gravitational.cloud.tenants.v1.StripeInvoice stripe_invoices */ 1:
+                    message.stripeInvoices.push(StripeInvoice.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeListInvoicesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated gravitational.cloud.tenants.v1.StripeInvoice stripe_invoices = 1; */
+        for (let i = 0; i < message.stripeInvoices.length; i++)
+            StripeInvoice.internalBinaryWrite(message.stripeInvoices[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeListInvoicesResponse
+ */
+export const StripeListInvoicesResponse = new StripeListInvoicesResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateCardRequest$Type extends MessageType<StripeUpdateCardRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateCardRequest", [
+            { no: 1, name: "prev_card_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "next_card_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "is_default", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeUpdateCardRequest>): StripeUpdateCardRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.prevCardId = "";
+        message.nextCardId = "";
+        message.isDefault = false;
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateCardRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateCardRequest): StripeUpdateCardRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string prev_card_id */ 1:
+                    message.prevCardId = reader.string();
+                    break;
+                case /* string next_card_id */ 2:
+                    message.nextCardId = reader.string();
+                    break;
+                case /* bool is_default */ 3:
+                    message.isDefault = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateCardRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string prev_card_id = 1; */
+        if (message.prevCardId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.prevCardId);
+        /* string next_card_id = 2; */
+        if (message.nextCardId !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextCardId);
+        /* bool is_default = 3; */
+        if (message.isDefault !== false)
+            writer.tag(3, WireType.Varint).bool(message.isDefault);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateCardRequest
+ */
+export const StripeUpdateCardRequest = new StripeUpdateCardRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateCardResponse$Type extends MessageType<StripeUpdateCardResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateCardResponse", []);
+    }
+    create(value?: PartialMessage<StripeUpdateCardResponse>): StripeUpdateCardResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateCardResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateCardResponse): StripeUpdateCardResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateCardResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateCardResponse
+ */
+export const StripeUpdateCardResponse = new StripeUpdateCardResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateEmailRequest$Type extends MessageType<StripeUpdateEmailRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateEmailRequest", [
+            { no: 1, name: "email", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeUpdateEmailRequest>): StripeUpdateEmailRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.email = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateEmailRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateEmailRequest): StripeUpdateEmailRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string email */ 1:
+                    message.email = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateEmailRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string email = 1; */
+        if (message.email !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.email);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateEmailRequest
+ */
+export const StripeUpdateEmailRequest = new StripeUpdateEmailRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateEmailResponse$Type extends MessageType<StripeUpdateEmailResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateEmailResponse", []);
+    }
+    create(value?: PartialMessage<StripeUpdateEmailResponse>): StripeUpdateEmailResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateEmailResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateEmailResponse): StripeUpdateEmailResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateEmailResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateEmailResponse
+ */
+export const StripeUpdateEmailResponse = new StripeUpdateEmailResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdatePOPrefixRequest$Type extends MessageType<StripeUpdatePOPrefixRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest", [
+            { no: 1, name: "po", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<StripeUpdatePOPrefixRequest>): StripeUpdatePOPrefixRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.po = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdatePOPrefixRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdatePOPrefixRequest): StripeUpdatePOPrefixRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string po */ 1:
+                    message.po = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdatePOPrefixRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string po = 1; */
+        if (message.po !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.po);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdatePOPrefixRequest
+ */
+export const StripeUpdatePOPrefixRequest = new StripeUpdatePOPrefixRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdatePOPrefixResponse$Type extends MessageType<StripeUpdatePOPrefixResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse", []);
+    }
+    create(value?: PartialMessage<StripeUpdatePOPrefixResponse>): StripeUpdatePOPrefixResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdatePOPrefixResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdatePOPrefixResponse): StripeUpdatePOPrefixResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdatePOPrefixResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdatePOPrefixResponse
+ */
+export const StripeUpdatePOPrefixResponse = new StripeUpdatePOPrefixResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateStripeAddressRequest$Type extends MessageType<StripeUpdateStripeAddressRequest> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "address", kind: "message", T: () => StripeAddress }
+        ]);
+    }
+    create(value?: PartialMessage<StripeUpdateStripeAddressRequest>): StripeUpdateStripeAddressRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateStripeAddressRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateStripeAddressRequest): StripeUpdateStripeAddressRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                case /* gravitational.cloud.tenants.v1.StripeAddress address */ 2:
+                    message.address = StripeAddress.internalBinaryRead(reader, reader.uint32(), options, message.address);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateStripeAddressRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        /* gravitational.cloud.tenants.v1.StripeAddress address = 2; */
+        if (message.address)
+            StripeAddress.internalBinaryWrite(message.address, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateStripeAddressRequest
+ */
+export const StripeUpdateStripeAddressRequest = new StripeUpdateStripeAddressRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class StripeUpdateStripeAddressResponse$Type extends MessageType<StripeUpdateStripeAddressResponse> {
+    constructor() {
+        super("gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse", []);
+    }
+    create(value?: PartialMessage<StripeUpdateStripeAddressResponse>): StripeUpdateStripeAddressResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<StripeUpdateStripeAddressResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: StripeUpdateStripeAddressResponse): StripeUpdateStripeAddressResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: StripeUpdateStripeAddressResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message gravitational.cloud.tenants.v1.StripeUpdateStripeAddressResponse
+ */
+export const StripeUpdateStripeAddressResponse = new StripeUpdateStripeAddressResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class RemoveContactResponse$Type extends MessageType<RemoveContactResponse> {
     constructor() {
         super("gravitational.cloud.tenants.v1.RemoveContactResponse", [
@@ -6943,7 +9004,9 @@ class ClientIPRestriction$Type extends MessageType<ClientIPRestriction> {
         super("gravitational.cloud.tenants.v1.ClientIPRestriction", [
             { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "status", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionStatus", ClientIPRestrictionStatus] }
+            { no: 3, name: "status", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionStatus", ClientIPRestrictionStatus] },
+            { no: 4, name: "mode", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionMode", ClientIPRestrictionMode] },
+            { no: 5, name: "expires", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<ClientIPRestriction>): ClientIPRestriction {
@@ -6951,6 +9014,7 @@ class ClientIPRestriction$Type extends MessageType<ClientIPRestriction> {
         message.cidrs = [];
         message.revision = "";
         message.status = 0;
+        message.mode = 0;
         if (value !== undefined)
             reflectionMergePartial<ClientIPRestriction>(this, message, value);
         return message;
@@ -6968,6 +9032,12 @@ class ClientIPRestriction$Type extends MessageType<ClientIPRestriction> {
                     break;
                 case /* gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status */ 3:
                     message.status = reader.int32();
+                    break;
+                case /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode */ 4:
+                    message.mode = reader.int32();
+                    break;
+                case /* google.protobuf.Timestamp expires */ 5:
+                    message.expires = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expires);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -6990,6 +9060,12 @@ class ClientIPRestriction$Type extends MessageType<ClientIPRestriction> {
         /* gravitational.cloud.tenants.v1.ClientIPRestrictionStatus status = 3; */
         if (message.status !== 0)
             writer.tag(3, WireType.Varint).int32(message.status);
+        /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 4; */
+        if (message.mode !== 0)
+            writer.tag(4, WireType.Varint).int32(message.mode);
+        /* google.protobuf.Timestamp expires = 5; */
+        if (message.expires)
+            Timestamp.internalBinaryWrite(message.expires, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7088,12 +9164,15 @@ export const GetClientIPRestrictionResponse = new GetClientIPRestrictionResponse
 class CreateClientIPRestrictionRequest$Type extends MessageType<CreateClientIPRestrictionRequest> {
     constructor() {
         super("gravitational.cloud.tenants.v1.CreateClientIPRestrictionRequest", [
-            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "mode", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionMode", ClientIPRestrictionMode] },
+            { no: 3, name: "expires", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<CreateClientIPRestrictionRequest>): CreateClientIPRestrictionRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.cidrs = [];
+        message.mode = 0;
         if (value !== undefined)
             reflectionMergePartial<CreateClientIPRestrictionRequest>(this, message, value);
         return message;
@@ -7105,6 +9184,12 @@ class CreateClientIPRestrictionRequest$Type extends MessageType<CreateClientIPRe
             switch (fieldNo) {
                 case /* repeated string cidrs */ 1:
                     message.cidrs.push(reader.string());
+                    break;
+                case /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode */ 2:
+                    message.mode = reader.int32();
+                    break;
+                case /* google.protobuf.Timestamp expires */ 3:
+                    message.expires = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expires);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7121,6 +9206,12 @@ class CreateClientIPRestrictionRequest$Type extends MessageType<CreateClientIPRe
         /* repeated string cidrs = 1; */
         for (let i = 0; i < message.cidrs.length; i++)
             writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 2; */
+        if (message.mode !== 0)
+            writer.tag(2, WireType.Varint).int32(message.mode);
+        /* google.protobuf.Timestamp expires = 3; */
+        if (message.expires)
+            Timestamp.internalBinaryWrite(message.expires, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7182,13 +9273,16 @@ class UpdateClientIPRestrictionRequest$Type extends MessageType<UpdateClientIPRe
     constructor() {
         super("gravitational.cloud.tenants.v1.UpdateClientIPRestrictionRequest", [
             { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 2, name: "revision", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "mode", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionMode", ClientIPRestrictionMode] },
+            { no: 4, name: "expires", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<UpdateClientIPRestrictionRequest>): UpdateClientIPRestrictionRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.cidrs = [];
         message.revision = "";
+        message.mode = 0;
         if (value !== undefined)
             reflectionMergePartial<UpdateClientIPRestrictionRequest>(this, message, value);
         return message;
@@ -7203,6 +9297,12 @@ class UpdateClientIPRestrictionRequest$Type extends MessageType<UpdateClientIPRe
                     break;
                 case /* string revision */ 2:
                     message.revision = reader.string();
+                    break;
+                case /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode */ 3:
+                    message.mode = reader.int32();
+                    break;
+                case /* google.protobuf.Timestamp expires */ 4:
+                    message.expires = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expires);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7222,6 +9322,12 @@ class UpdateClientIPRestrictionRequest$Type extends MessageType<UpdateClientIPRe
         /* string revision = 2; */
         if (message.revision !== "")
             writer.tag(2, WireType.LengthDelimited).string(message.revision);
+        /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 3; */
+        if (message.mode !== 0)
+            writer.tag(3, WireType.Varint).int32(message.mode);
+        /* google.protobuf.Timestamp expires = 4; */
+        if (message.expires)
+            Timestamp.internalBinaryWrite(message.expires, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -7282,12 +9388,15 @@ export const UpdateClientIPRestrictionResponse = new UpdateClientIPRestrictionRe
 class UpsertClientIPRestrictionRequest$Type extends MessageType<UpsertClientIPRestrictionRequest> {
     constructor() {
         super("gravitational.cloud.tenants.v1.UpsertClientIPRestrictionRequest", [
-            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "cidrs", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "mode", kind: "enum", T: () => ["gravitational.cloud.tenants.v1.ClientIPRestrictionMode", ClientIPRestrictionMode] },
+            { no: 3, name: "expires", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<UpsertClientIPRestrictionRequest>): UpsertClientIPRestrictionRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.cidrs = [];
+        message.mode = 0;
         if (value !== undefined)
             reflectionMergePartial<UpsertClientIPRestrictionRequest>(this, message, value);
         return message;
@@ -7299,6 +9408,12 @@ class UpsertClientIPRestrictionRequest$Type extends MessageType<UpsertClientIPRe
             switch (fieldNo) {
                 case /* repeated string cidrs */ 1:
                     message.cidrs.push(reader.string());
+                    break;
+                case /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode */ 2:
+                    message.mode = reader.int32();
+                    break;
+                case /* google.protobuf.Timestamp expires */ 3:
+                    message.expires = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.expires);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -7315,6 +9430,12 @@ class UpsertClientIPRestrictionRequest$Type extends MessageType<UpsertClientIPRe
         /* repeated string cidrs = 1; */
         for (let i = 0; i < message.cidrs.length; i++)
             writer.tag(1, WireType.LengthDelimited).string(message.cidrs[i]);
+        /* gravitational.cloud.tenants.v1.ClientIPRestrictionMode mode = 2; */
+        if (message.mode !== 0)
+            writer.tag(2, WireType.Varint).int32(message.mode);
+        /* google.protobuf.Timestamp expires = 3; */
+        if (message.expires)
+            Timestamp.internalBinaryWrite(message.expires, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -9459,6 +11580,7 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "SendAccountRecovered", options: {}, I: SendAccountRecoveredRequest, O: EmptyResponse },
     { name: "GetFeatures", options: {}, I: EmptyRequest, O: GetFeaturesResponse },
     { name: "GetBillingSummaryInformation", options: {}, I: EmptyRequest, O: GetBillingSummaryInformationResponse },
+    { name: "GetStripeConfig", options: {}, I: GetStripeConfigRequest, O: GetStripeConfigResponse },
     { name: "GetSurveyCompany", options: {}, I: EmptyRequest, O: SurveyCompanyResponse },
     { name: "GetUsage", options: {}, I: GetUsageRequest, O: GetUsageResponse },
     { name: "GetMAUDailyBreakdown", options: {}, I: GetMAUDailyBreakdownRequest, O: GetMAUDailyBreakdownResponse },
@@ -9470,6 +11592,17 @@ export const TenantsService = new ServiceType("gravitational.cloud.tenants.v1.Te
     { name: "GetContacts", options: {}, I: EmptyRequest, O: GetContactsResponse },
     { name: "CreateContact", options: {}, I: CreateContactRequest, O: CreateContactResponse },
     { name: "RemoveContact", options: {}, I: RemoveContactRequest, O: RemoveContactResponse },
+    { name: "StripeCancel", options: {}, I: StripeCancelRequest, O: StripeCancelResponse },
+    { name: "StripeCreateCard", options: {}, I: StripeCreateCardRequest, O: StripeCreateCardResponse },
+    { name: "StripeCreateSetupIntent", options: {}, I: StripeCreateSetupIntentRequest, O: StripeCreateSetupIntentResponse },
+    { name: "StripeDeleteCard", options: {}, I: StripeDeleteCardRequest, O: StripeDeleteCardResponse },
+    { name: "StripeGetSettings", options: {}, I: StripeGetSettingsRequest, O: StripeGetSettingsResponse },
+    { name: "StripeListCards", options: {}, I: StripeListCardsRequest, O: StripeListCardsResponse },
+    { name: "StripeListInvoices", options: {}, I: StripeListInvoicesRequest, O: StripeListInvoicesResponse },
+    { name: "StripeUpdateCard", options: {}, I: StripeUpdateCardRequest, O: StripeUpdateCardResponse },
+    { name: "StripeUpdateEmail", options: {}, I: StripeUpdateEmailRequest, O: StripeUpdateEmailResponse },
+    { name: "StripeUpdatePOPrefix", options: {}, I: StripeUpdatePOPrefixRequest, O: StripeUpdatePOPrefixResponse },
+    { name: "StripeUpdateStripeAddress", options: {}, I: StripeUpdateStripeAddressRequest, O: StripeUpdateStripeAddressResponse },
     { name: "SubmitUsageReports", options: {}, I: SubmitUsageReportsRequest, O: EmptyResponse },
     { name: "CreateSetupIntent", options: {}, I: EmptyRequest, O: CreateSetupIntentResponse },
     { name: "AddCard", options: {}, I: AddCardRequest, O: EmptyResponse },

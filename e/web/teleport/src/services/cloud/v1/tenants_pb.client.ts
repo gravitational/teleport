@@ -47,6 +47,28 @@ import type { RemoveCardRequest } from "./tenants_pb";
 import type { AddCardRequest } from "./tenants_pb";
 import type { CreateSetupIntentResponse } from "./tenants_pb";
 import type { SubmitUsageReportsRequest } from "./tenants_pb";
+import type { StripeUpdateStripeAddressResponse } from "./tenants_pb";
+import type { StripeUpdateStripeAddressRequest } from "./tenants_pb";
+import type { StripeUpdatePOPrefixResponse } from "./tenants_pb";
+import type { StripeUpdatePOPrefixRequest } from "./tenants_pb";
+import type { StripeUpdateEmailResponse } from "./tenants_pb";
+import type { StripeUpdateEmailRequest } from "./tenants_pb";
+import type { StripeUpdateCardResponse } from "./tenants_pb";
+import type { StripeUpdateCardRequest } from "./tenants_pb";
+import type { StripeListInvoicesResponse } from "./tenants_pb";
+import type { StripeListInvoicesRequest } from "./tenants_pb";
+import type { StripeListCardsResponse } from "./tenants_pb";
+import type { StripeListCardsRequest } from "./tenants_pb";
+import type { StripeGetSettingsResponse } from "./tenants_pb";
+import type { StripeGetSettingsRequest } from "./tenants_pb";
+import type { StripeDeleteCardResponse } from "./tenants_pb";
+import type { StripeDeleteCardRequest } from "./tenants_pb";
+import type { StripeCreateSetupIntentResponse } from "./tenants_pb";
+import type { StripeCreateSetupIntentRequest } from "./tenants_pb";
+import type { StripeCreateCardResponse } from "./tenants_pb";
+import type { StripeCreateCardRequest } from "./tenants_pb";
+import type { StripeCancelResponse } from "./tenants_pb";
+import type { StripeCancelRequest } from "./tenants_pb";
 import type { RemoveContactResponse } from "./tenants_pb";
 import type { RemoveContactRequest } from "./tenants_pb";
 import type { CreateContactResponse } from "./tenants_pb";
@@ -64,6 +86,8 @@ import type { GetMAUDailyBreakdownRequest } from "./tenants_pb";
 import type { GetUsageResponse } from "./tenants_pb";
 import type { GetUsageRequest } from "./tenants_pb";
 import type { SurveyCompanyResponse } from "./tenants_pb";
+import type { GetStripeConfigResponse } from "./tenants_pb";
+import type { GetStripeConfigRequest } from "./tenants_pb";
 import type { GetBillingSummaryInformationResponse } from "./tenants_pb";
 import type { GetFeaturesResponse } from "./tenants_pb";
 import type { SendAccountRecoveredRequest } from "./tenants_pb";
@@ -148,6 +172,15 @@ export interface ITenantsServiceClient {
      */
     getBillingSummaryInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetBillingSummaryInformationResponse>;
     /**
+     * GetStripeConfig returns the Stripe publishable key + the customer's Stripe customer ID
+     * so the Teleport UI can initialize Stripe Elements. Returns empty values when Stripe is
+     * not configured for this environment, letting the client detect a non-Stripe environment
+     * without treating it as an error.
+     *
+     * @generated from protobuf rpc: GetStripeConfig
+     */
+    getStripeConfig(input: GetStripeConfigRequest, options?: RpcOptions): UnaryCall<GetStripeConfigRequest, GetStripeConfigResponse>;
+    /**
      * GetSurveyCompany returns the company survey responses for the account associated with the current user.
      * These are answered by only the first user who completes the survey
      *
@@ -219,6 +252,72 @@ export interface ITenantsServiceClient {
      * @generated from protobuf rpc: RemoveContact
      */
     removeContact(input: RemoveContactRequest, options?: RpcOptions): UnaryCall<RemoveContactRequest, RemoveContactResponse>;
+    /**
+     * StripeCancel marks the customer's Stripe subscription for cancellation at the end of the current billing cycle.
+     *
+     * @generated from protobuf rpc: StripeCancel
+     */
+    stripeCancel(input: StripeCancelRequest, options?: RpcOptions): UnaryCall<StripeCancelRequest, StripeCancelResponse>;
+    /**
+     * StripeCreateCard attaches a new credit card to the customer's Stripe account after a SetupIntent completes on the client.
+     *
+     * @generated from protobuf rpc: StripeCreateCard
+     */
+    stripeCreateCard(input: StripeCreateCardRequest, options?: RpcOptions): UnaryCall<StripeCreateCardRequest, StripeCreateCardResponse>;
+    /**
+     * StripeCreateSetupIntent creates a Stripe SetupIntent and returns its client secret so the UI can collect card details.
+     *
+     * @generated from protobuf rpc: StripeCreateSetupIntent
+     */
+    stripeCreateSetupIntent(input: StripeCreateSetupIntentRequest, options?: RpcOptions): UnaryCall<StripeCreateSetupIntentRequest, StripeCreateSetupIntentResponse>;
+    /**
+     * StripeDeleteCard detaches a credit card from the customer's Stripe account.
+     *
+     * @generated from protobuf rpc: StripeDeleteCard
+     */
+    stripeDeleteCard(input: StripeDeleteCardRequest, options?: RpcOptions): UnaryCall<StripeDeleteCardRequest, StripeDeleteCardResponse>;
+    /**
+     * StripeGetSettings returns the customer's invoice-related settings from Stripe: billing email, PO prefix, and customer name.
+     *
+     * @generated from protobuf rpc: StripeGetSettings
+     */
+    stripeGetSettings(input: StripeGetSettingsRequest, options?: RpcOptions): UnaryCall<StripeGetSettingsRequest, StripeGetSettingsResponse>;
+    /**
+     * StripeListCards returns the customer's Stripe credit cards for the payments-and-invoices UI.
+     *
+     * @generated from protobuf rpc: StripeListCards
+     */
+    stripeListCards(input: StripeListCardsRequest, options?: RpcOptions): UnaryCall<StripeListCardsRequest, StripeListCardsResponse>;
+    /**
+     * StripeListInvoices returns the customer's Stripe invoice history for the payments-and-invoices UI.
+     *
+     * @generated from protobuf rpc: StripeListInvoices
+     */
+    stripeListInvoices(input: StripeListInvoicesRequest, options?: RpcOptions): UnaryCall<StripeListInvoicesRequest, StripeListInvoicesResponse>;
+    /**
+     * StripeUpdateCard updates an existing card on the customer's Stripe account (for example, changing the default card).
+     *
+     * @generated from protobuf rpc: StripeUpdateCard
+     */
+    stripeUpdateCard(input: StripeUpdateCardRequest, options?: RpcOptions): UnaryCall<StripeUpdateCardRequest, StripeUpdateCardResponse>;
+    /**
+     * StripeUpdateEmail updates the email address Stripe uses when delivering invoices.
+     *
+     * @generated from protobuf rpc: StripeUpdateEmail
+     */
+    stripeUpdateEmail(input: StripeUpdateEmailRequest, options?: RpcOptions): UnaryCall<StripeUpdateEmailRequest, StripeUpdateEmailResponse>;
+    /**
+     * StripeUpdatePOPrefix updates the purchase order prefix Stripe adds to the customer's invoices.
+     *
+     * @generated from protobuf rpc: StripeUpdatePOPrefix
+     */
+    stripeUpdatePOPrefix(input: StripeUpdatePOPrefixRequest, options?: RpcOptions): UnaryCall<StripeUpdatePOPrefixRequest, StripeUpdatePOPrefixResponse>;
+    /**
+     * StripeUpdateStripeAddress updates the customer's billing address on their Stripe account.
+     *
+     * @generated from protobuf rpc: StripeUpdateStripeAddress
+     */
+    stripeUpdateStripeAddress(input: StripeUpdateStripeAddressRequest, options?: RpcOptions): UnaryCall<StripeUpdateStripeAddressRequest, StripeUpdateStripeAddressResponse>;
     /**
      * SubmitUsageReports reports usage
      * Deprecated; implementation for backwards compatibility and potentially capturing old running instances of Teleport E
@@ -493,13 +592,25 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
         return stackIntercept<EmptyRequest, GetBillingSummaryInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
+     * GetStripeConfig returns the Stripe publishable key + the customer's Stripe customer ID
+     * so the Teleport UI can initialize Stripe Elements. Returns empty values when Stripe is
+     * not configured for this environment, letting the client detect a non-Stripe environment
+     * without treating it as an error.
+     *
+     * @generated from protobuf rpc: GetStripeConfig
+     */
+    getStripeConfig(input: GetStripeConfigRequest, options?: RpcOptions): UnaryCall<GetStripeConfigRequest, GetStripeConfigResponse> {
+        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetStripeConfigRequest, GetStripeConfigResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
      * GetSurveyCompany returns the company survey responses for the account associated with the current user.
      * These are answered by only the first user who completes the survey
      *
      * @generated from protobuf rpc: GetSurveyCompany
      */
     getSurveyCompany(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, SurveyCompanyResponse> {
-        const method = this.methods[10], opt = this._transport.mergeOptions(options);
+        const method = this.methods[11], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, SurveyCompanyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -508,7 +619,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetUsage
      */
     getUsage(input: GetUsageRequest, options?: RpcOptions): UnaryCall<GetUsageRequest, GetUsageResponse> {
-        const method = this.methods[11], opt = this._transport.mergeOptions(options);
+        const method = this.methods[12], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUsageRequest, GetUsageResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -518,7 +629,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetMAUDailyBreakdown
      */
     getMAUDailyBreakdown(input: GetMAUDailyBreakdownRequest, options?: RpcOptions): UnaryCall<GetMAUDailyBreakdownRequest, GetMAUDailyBreakdownResponse> {
-        const method = this.methods[12], opt = this._transport.mergeOptions(options);
+        const method = this.methods[13], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetMAUDailyBreakdownRequest, GetMAUDailyBreakdownResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -528,7 +639,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetTPRDailyBreakdown
      */
     getTPRDailyBreakdown(input: GetTPRDailyBreakdownRequest, options?: RpcOptions): UnaryCall<GetTPRDailyBreakdownRequest, GetTPRDailyBreakdownResponse> {
-        const method = this.methods[13], opt = this._transport.mergeOptions(options);
+        const method = this.methods[14], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetTPRDailyBreakdownRequest, GetTPRDailyBreakdownResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -537,7 +648,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SetSurveyResults
      */
     setSurveyResults(input: SetSurveyResultsRequest, options?: RpcOptions): UnaryCall<SetSurveyResultsRequest, EmptyResponse> {
-        const method = this.methods[14], opt = this._transport.mergeOptions(options);
+        const method = this.methods[15], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSurveyResultsRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -546,7 +657,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SendTeleportInvite
      */
     sendTeleportInvite(input: SendTeleportInviteRequest, options?: RpcOptions): UnaryCall<SendTeleportInviteRequest, EmptyResponse> {
-        const method = this.methods[15], opt = this._transport.mergeOptions(options);
+        const method = this.methods[16], opt = this._transport.mergeOptions(options);
         return stackIntercept<SendTeleportInviteRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -556,7 +667,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ClusterAlertInfo
      */
     clusterAlertInfo(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, ClusterAlertInfoResponse> {
-        const method = this.methods[16], opt = this._transport.mergeOptions(options);
+        const method = this.methods[17], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, ClusterAlertInfoResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -566,7 +677,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetUpdatedLicense
      */
     getUpdatedLicense(input: GetUpdatedLicenseRequest, options?: RpcOptions): UnaryCall<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse> {
-        const method = this.methods[17], opt = this._transport.mergeOptions(options);
+        const method = this.methods[18], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetUpdatedLicenseRequest, GetUpdatedLicenseResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -575,7 +686,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetContacts
      */
     getContacts(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetContactsResponse> {
-        const method = this.methods[18], opt = this._transport.mergeOptions(options);
+        const method = this.methods[19], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetContactsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -584,7 +695,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateContact
      */
     createContact(input: CreateContactRequest, options?: RpcOptions): UnaryCall<CreateContactRequest, CreateContactResponse> {
-        const method = this.methods[19], opt = this._transport.mergeOptions(options);
+        const method = this.methods[20], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateContactRequest, CreateContactResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -594,8 +705,107 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: RemoveContact
      */
     removeContact(input: RemoveContactRequest, options?: RpcOptions): UnaryCall<RemoveContactRequest, RemoveContactResponse> {
-        const method = this.methods[20], opt = this._transport.mergeOptions(options);
+        const method = this.methods[21], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveContactRequest, RemoveContactResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeCancel marks the customer's Stripe subscription for cancellation at the end of the current billing cycle.
+     *
+     * @generated from protobuf rpc: StripeCancel
+     */
+    stripeCancel(input: StripeCancelRequest, options?: RpcOptions): UnaryCall<StripeCancelRequest, StripeCancelResponse> {
+        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeCancelRequest, StripeCancelResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeCreateCard attaches a new credit card to the customer's Stripe account after a SetupIntent completes on the client.
+     *
+     * @generated from protobuf rpc: StripeCreateCard
+     */
+    stripeCreateCard(input: StripeCreateCardRequest, options?: RpcOptions): UnaryCall<StripeCreateCardRequest, StripeCreateCardResponse> {
+        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeCreateCardRequest, StripeCreateCardResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeCreateSetupIntent creates a Stripe SetupIntent and returns its client secret so the UI can collect card details.
+     *
+     * @generated from protobuf rpc: StripeCreateSetupIntent
+     */
+    stripeCreateSetupIntent(input: StripeCreateSetupIntentRequest, options?: RpcOptions): UnaryCall<StripeCreateSetupIntentRequest, StripeCreateSetupIntentResponse> {
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeCreateSetupIntentRequest, StripeCreateSetupIntentResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeDeleteCard detaches a credit card from the customer's Stripe account.
+     *
+     * @generated from protobuf rpc: StripeDeleteCard
+     */
+    stripeDeleteCard(input: StripeDeleteCardRequest, options?: RpcOptions): UnaryCall<StripeDeleteCardRequest, StripeDeleteCardResponse> {
+        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeDeleteCardRequest, StripeDeleteCardResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeGetSettings returns the customer's invoice-related settings from Stripe: billing email, PO prefix, and customer name.
+     *
+     * @generated from protobuf rpc: StripeGetSettings
+     */
+    stripeGetSettings(input: StripeGetSettingsRequest, options?: RpcOptions): UnaryCall<StripeGetSettingsRequest, StripeGetSettingsResponse> {
+        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeGetSettingsRequest, StripeGetSettingsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeListCards returns the customer's Stripe credit cards for the payments-and-invoices UI.
+     *
+     * @generated from protobuf rpc: StripeListCards
+     */
+    stripeListCards(input: StripeListCardsRequest, options?: RpcOptions): UnaryCall<StripeListCardsRequest, StripeListCardsResponse> {
+        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeListCardsRequest, StripeListCardsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeListInvoices returns the customer's Stripe invoice history for the payments-and-invoices UI.
+     *
+     * @generated from protobuf rpc: StripeListInvoices
+     */
+    stripeListInvoices(input: StripeListInvoicesRequest, options?: RpcOptions): UnaryCall<StripeListInvoicesRequest, StripeListInvoicesResponse> {
+        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeListInvoicesRequest, StripeListInvoicesResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeUpdateCard updates an existing card on the customer's Stripe account (for example, changing the default card).
+     *
+     * @generated from protobuf rpc: StripeUpdateCard
+     */
+    stripeUpdateCard(input: StripeUpdateCardRequest, options?: RpcOptions): UnaryCall<StripeUpdateCardRequest, StripeUpdateCardResponse> {
+        const method = this.methods[29], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeUpdateCardRequest, StripeUpdateCardResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeUpdateEmail updates the email address Stripe uses when delivering invoices.
+     *
+     * @generated from protobuf rpc: StripeUpdateEmail
+     */
+    stripeUpdateEmail(input: StripeUpdateEmailRequest, options?: RpcOptions): UnaryCall<StripeUpdateEmailRequest, StripeUpdateEmailResponse> {
+        const method = this.methods[30], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeUpdateEmailRequest, StripeUpdateEmailResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeUpdatePOPrefix updates the purchase order prefix Stripe adds to the customer's invoices.
+     *
+     * @generated from protobuf rpc: StripeUpdatePOPrefix
+     */
+    stripeUpdatePOPrefix(input: StripeUpdatePOPrefixRequest, options?: RpcOptions): UnaryCall<StripeUpdatePOPrefixRequest, StripeUpdatePOPrefixResponse> {
+        const method = this.methods[31], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeUpdatePOPrefixRequest, StripeUpdatePOPrefixResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * StripeUpdateStripeAddress updates the customer's billing address on their Stripe account.
+     *
+     * @generated from protobuf rpc: StripeUpdateStripeAddress
+     */
+    stripeUpdateStripeAddress(input: StripeUpdateStripeAddressRequest, options?: RpcOptions): UnaryCall<StripeUpdateStripeAddressRequest, StripeUpdateStripeAddressResponse> {
+        const method = this.methods[32], opt = this._transport.mergeOptions(options);
+        return stackIntercept<StripeUpdateStripeAddressRequest, StripeUpdateStripeAddressResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * SubmitUsageReports reports usage
@@ -604,7 +814,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SubmitUsageReports
      */
     submitUsageReports(input: SubmitUsageReportsRequest, options?: RpcOptions): UnaryCall<SubmitUsageReportsRequest, EmptyResponse> {
-        const method = this.methods[21], opt = this._transport.mergeOptions(options);
+        const method = this.methods[33], opt = this._transport.mergeOptions(options);
         return stackIntercept<SubmitUsageReportsRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -614,7 +824,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateSetupIntent
      */
     createSetupIntent(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, CreateSetupIntentResponse> {
-        const method = this.methods[22], opt = this._transport.mergeOptions(options);
+        const method = this.methods[34], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, CreateSetupIntentResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -624,7 +834,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: AddCard
      */
     addCard(input: AddCardRequest, options?: RpcOptions): UnaryCall<AddCardRequest, EmptyResponse> {
-        const method = this.methods[23], opt = this._transport.mergeOptions(options);
+        const method = this.methods[35], opt = this._transport.mergeOptions(options);
         return stackIntercept<AddCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -634,7 +844,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: RemoveCard
      */
     removeCard(input: RemoveCardRequest, options?: RpcOptions): UnaryCall<RemoveCardRequest, EmptyResponse> {
-        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        const method = this.methods[36], opt = this._transport.mergeOptions(options);
         return stackIntercept<RemoveCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -644,7 +854,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateCard
      */
     updateCard(input: UpdateCardRequest, options?: RpcOptions): UnaryCall<UpdateCardRequest, EmptyResponse> {
-        const method = this.methods[25], opt = this._transport.mergeOptions(options);
+        const method = this.methods[37], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateCardRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -654,7 +864,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetPaymentsInvoicesInformation
      */
     getPaymentsInvoicesInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetPaymentsInvoicesInformationResponse> {
-        const method = this.methods[26], opt = this._transport.mergeOptions(options);
+        const method = this.methods[38], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetPaymentsInvoicesInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -664,7 +874,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetInvoiceSettingsInformation
      */
     getInvoiceSettingsInformation(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, GetInvoiceSettingsInformationResponse> {
-        const method = this.methods[27], opt = this._transport.mergeOptions(options);
+        const method = this.methods[39], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, GetInvoiceSettingsInformationResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -674,7 +884,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateStripeAddress
      */
     updateStripeAddress(input: StripeBillingAddressRequest, options?: RpcOptions): UnaryCall<StripeBillingAddressRequest, EmptyResponse> {
-        const method = this.methods[28], opt = this._transport.mergeOptions(options);
+        const method = this.methods[40], opt = this._transport.mergeOptions(options);
         return stackIntercept<StripeBillingAddressRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -684,7 +894,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateEmail
      */
     updateEmail(input: UpdateEmailRequest, options?: RpcOptions): UnaryCall<UpdateEmailRequest, EmptyResponse> {
-        const method = this.methods[29], opt = this._transport.mergeOptions(options);
+        const method = this.methods[41], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateEmailRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -694,7 +904,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdatePurchaseOrderPrefix
      */
     updatePurchaseOrderPrefix(input: UpdatePurchaseOrderPrefixRequest, options?: RpcOptions): UnaryCall<UpdatePurchaseOrderPrefixRequest, EmptyResponse> {
-        const method = this.methods[30], opt = this._transport.mergeOptions(options);
+        const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdatePurchaseOrderPrefixRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -704,7 +914,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CancelSubscription
      */
     cancelSubscription(input: EmptyRequest, options?: RpcOptions): UnaryCall<EmptyRequest, EmptyResponse> {
-        const method = this.methods[31], opt = this._transport.mergeOptions(options);
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
         return stackIntercept<EmptyRequest, EmptyResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -713,7 +923,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetClientIPRestrictions
      */
     getClientIPRestrictions(input: GetClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse> {
-        const method = this.methods[32], opt = this._transport.mergeOptions(options);
+        const method = this.methods[44], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetClientIPRestrictionsRequest, GetClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -722,7 +932,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: PutClientIPRestrictions
      */
     putClientIPRestrictions(input: PutClientIPRestrictionsRequest, options?: RpcOptions): UnaryCall<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse> {
-        const method = this.methods[33], opt = this._transport.mergeOptions(options);
+        const method = this.methods[45], opt = this._transport.mergeOptions(options);
         return stackIntercept<PutClientIPRestrictionsRequest, PutClientIPRestrictionsResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -731,7 +941,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetClientIPRestriction
      */
     getClientIPRestriction(input: GetClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<GetClientIPRestrictionRequest, GetClientIPRestrictionResponse> {
-        const method = this.methods[34], opt = this._transport.mergeOptions(options);
+        const method = this.methods[46], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetClientIPRestrictionRequest, GetClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -740,7 +950,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateClientIPRestriction
      */
     createClientIPRestriction(input: CreateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<CreateClientIPRestrictionRequest, CreateClientIPRestrictionResponse> {
-        const method = this.methods[35], opt = this._transport.mergeOptions(options);
+        const method = this.methods[47], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateClientIPRestrictionRequest, CreateClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -749,7 +959,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateClientIPRestriction
      */
     updateClientIPRestriction(input: UpdateClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpdateClientIPRestrictionRequest, UpdateClientIPRestrictionResponse> {
-        const method = this.methods[36], opt = this._transport.mergeOptions(options);
+        const method = this.methods[48], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateClientIPRestrictionRequest, UpdateClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -758,7 +968,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpsertClientIPRestriction
      */
     upsertClientIPRestriction(input: UpsertClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<UpsertClientIPRestrictionRequest, UpsertClientIPRestrictionResponse> {
-        const method = this.methods[37], opt = this._transport.mergeOptions(options);
+        const method = this.methods[49], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertClientIPRestrictionRequest, UpsertClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -767,7 +977,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: DeleteClientIPRestriction
      */
     deleteClientIPRestriction(input: DeleteClientIPRestrictionRequest, options?: RpcOptions): UnaryCall<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse> {
-        const method = this.methods[38], opt = this._transport.mergeOptions(options);
+        const method = this.methods[50], opt = this._transport.mergeOptions(options);
         return stackIntercept<DeleteClientIPRestrictionRequest, DeleteClientIPRestrictionResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -777,7 +987,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ChildCluster
      */
     childCluster(input: ChildClusterRequest, options?: RpcOptions): UnaryCall<ChildClusterRequest, ChildClusterResponse> {
-        const method = this.methods[39], opt = this._transport.mergeOptions(options);
+        const method = this.methods[51], opt = this._transport.mergeOptions(options);
         return stackIntercept<ChildClusterRequest, ChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -788,7 +998,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetFile
      */
     getFile(input: GetFileRequest, options?: RpcOptions): ServerStreamingCall<GetFileRequest, GetFileResponse> {
-        const method = this.methods[40], opt = this._transport.mergeOptions(options);
+        const method = this.methods[52], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetFileRequest, GetFileResponse>("serverStreaming", this._transport, method, opt, input);
     }
     /**
@@ -797,7 +1007,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: CreateChildCluster
      */
     createChildCluster(input: CreateChildClusterRequest, options?: RpcOptions): UnaryCall<CreateChildClusterRequest, CreateChildClusterResponse> {
-        const method = this.methods[41], opt = this._transport.mergeOptions(options);
+        const method = this.methods[53], opt = this._transport.mergeOptions(options);
         return stackIntercept<CreateChildClusterRequest, CreateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -806,7 +1016,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: GetChildCluster
      */
     getChildCluster(input: GetChildClusterRequest, options?: RpcOptions): UnaryCall<GetChildClusterRequest, GetChildClusterResponse> {
-        const method = this.methods[42], opt = this._transport.mergeOptions(options);
+        const method = this.methods[54], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetChildClusterRequest, GetChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -815,7 +1025,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpdateChildCluster
      */
     updateChildCluster(input: UpdateChildClusterRequest, options?: RpcOptions): UnaryCall<UpdateChildClusterRequest, UpdateChildClusterResponse> {
-        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        const method = this.methods[55], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpdateChildClusterRequest, UpdateChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -824,7 +1034,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: UpsertChildCluster
      */
     upsertChildCluster(input: UpsertChildClusterRequest, options?: RpcOptions): UnaryCall<UpsertChildClusterRequest, UpsertChildClusterResponse> {
-        const method = this.methods[44], opt = this._transport.mergeOptions(options);
+        const method = this.methods[56], opt = this._transport.mergeOptions(options);
         return stackIntercept<UpsertChildClusterRequest, UpsertChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -833,7 +1043,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: SuspendChildCluster
      */
     suspendChildCluster(input: SuspendChildClusterRequest, options?: RpcOptions): UnaryCall<SuspendChildClusterRequest, SuspendChildClusterResponse> {
-        const method = this.methods[45], opt = this._transport.mergeOptions(options);
+        const method = this.methods[57], opt = this._transport.mergeOptions(options);
         return stackIntercept<SuspendChildClusterRequest, SuspendChildClusterResponse>("unary", this._transport, method, opt, input);
     }
     /**
@@ -842,7 +1052,7 @@ export class TenantsServiceClient implements ITenantsServiceClient, ServiceInfo 
      * @generated from protobuf rpc: ListChildClusters
      */
     listChildClusters(input: ListChildClustersRequest, options?: RpcOptions): UnaryCall<ListChildClustersRequest, ListChildClustersResponse> {
-        const method = this.methods[46], opt = this._transport.mergeOptions(options);
+        const method = this.methods[58], opt = this._transport.mergeOptions(options);
         return stackIntercept<ListChildClustersRequest, ListChildClustersResponse>("unary", this._transport, method, opt, input);
     }
 }
