@@ -2401,6 +2401,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindAppServer,
 		types.KindKubeServer,
 		types.KindWindowsDesktop,
+		types.KindLinuxDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
 		types.KindSAMLIdPServiceProvider,
