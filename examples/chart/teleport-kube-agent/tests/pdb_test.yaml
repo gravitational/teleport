@@ -3,6 +3,9 @@ templates:
   - pdb.yaml
 tests:
   - it: should create a PDB when enabled in values (pdb.yaml)
+    capabilities:
+      majorVersion: 1
+      minorVersion: 27
     values:
       - ../.lint/pdb.yaml
     asserts:
@@ -13,6 +16,9 @@ tests:
       - matchSnapshot: {}
 
   - it: sets PodDisruptionBudget labels when specified
+    capabilities:
+      majorVersion: 1
+      minorVersion: 27
     values:
       - ../.lint/pdb.yaml
       - ../.lint/extra-labels.yaml
@@ -25,7 +31,7 @@ tests:
           value: poddisruptionbudget
       - matchSnapshot: {}
 
-  - it: enables unhealthyPodEvictionPolicy automatically for k8s = 1.27
+  - it: Defaults unhealthyPodEvictionPolicy to AlwaysAllow
     capabilities:
       majorVersion: 1
       minorVersion: 27
@@ -34,14 +40,14 @@ tests:
     set:
       highAvailability:
         podDisruptionBudget:
-          unhealthyPodEvictionPolicy: auto
+          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
           value: AlwaysAllow
       - matchSnapshot: {}
 
-  - it: omits unhealthyPodEvictionPolicy for k8s < 1.27
+  - it: omits unhealthyPodEvictionPolicy when empty
     capabilities:
       majorVersion: 1
       minorVersion: 26 
@@ -56,7 +62,7 @@ tests:
           path: spec.unhealthyPodEvictionPolicy
       - matchSnapshot: {}
 
-  - it: renders an explicit unhealthyPodEvictionPolicy on k8s < 1.27
+  - it: disallows unhealthyPodEvictionPolicy on k8s < 1.27
     capabilities:
       majorVersion: 1
       minorVersion: 26
@@ -67,10 +73,7 @@ tests:
         podDisruptionBudget:
           unhealthyPodEvictionPolicy: IfHealthyBudget
     asserts:
-      - equal:
-          path: spec.unhealthyPodEvictionPolicy
-          value: IfHealthyBudget
-      - matchSnapshot: {}
+      - failedTemplate: {}
 
   - it: honors user-provided unhealthyPodEvictionPolicy
     capabilities:
