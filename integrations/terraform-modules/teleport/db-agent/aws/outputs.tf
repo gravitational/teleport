@@ -65,7 +65,7 @@ output "teleport_provision_token_allow_aws_arn" {
 
 output "teleport_provision_token_name" {
   description = "Name of the Teleport provision token that allows the db agent to join the cluster using AWS IAM credentials."
-  value       = nonsensitive(try(teleport_provision_token.agent_aws_iam[0].metadata.name, null))
+  value       = try(nonsensitive(teleport_provision_token.agent_aws_iam[0].metadata.name), null)
 }
 
 output "teleport_config" {
