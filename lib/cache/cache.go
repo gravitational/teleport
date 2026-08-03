@@ -222,7 +222,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindWorkloadIdentity, ScopeFilter: allScopes},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance, ScopeFilter: allScopes},
