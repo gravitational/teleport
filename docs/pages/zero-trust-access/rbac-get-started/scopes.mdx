@@ -90,6 +90,8 @@ be assumed unsupported in scoped mode.
   scope and assigning scoped SSH access to users.
 - Basic scoped Kubernetes access, including joining Kubernetes services
   at a scope and assigning scoped Kubernetes access to users.
+- Basic scoped Application access, including joining Application Services
+  at a scope and assigning scoped application access to users.
 - Scoped Access Lists that can be managed by scoped administrators and used to
   grant scoped roles to groups of users.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
@@ -111,6 +113,8 @@ scoped mode:
 - `tsh ssh <login>@<host>` (for SSH instances available at the current scope)
 - `tsh kube ls` (lists Kubernetes clusters available at the current scope)
 - `tsh kube login <cluster>` (for Kubernetes clusters available at the current scope)
+- `tsh apps ls` (lists applications available at the current scope)
+- `tsh apps login <app>` (for applications available at the current scope)
 - `tctl get|create|edit|rm <resource>` (for scoped resources)
 - `tctl scoped tokens add|rm|ls ...` (for managing scoped tokens)
 - `tctl scopes status` (overview of scoped privilege usage in the cluster)
@@ -130,8 +134,9 @@ role includes the ability to create and assign scoped roles, so an unscoped
 administrator can bootstrap the first scoped admin.
 
 While logged in as a user with the `editor` role, create a scoped admin
-role that can manage scoped permissions, SSH into instances, and connect
-to Kubernetes clusters within `/examples` (replace `ubuntu` with your desired OS login):
+role that can manage scoped permissions, SSH into instances, connect
+to Kubernetes clusters, and access applications within `/examples` (replace
+`ubuntu` with your desired OS login):
 
 ```code
 $ tctl create <<EOF
@@ -160,6 +165,10 @@ spec:
         enabled: true
       remote:
         enabled: true
+  app:
+    labels:
+      - name: '*'
+        values: ['*']
   rules:
     - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
       verbs: [create, list, readnosecrets, update, delete]
@@ -302,6 +311,90 @@ This generates the kubeconfig necessary to access the cluster using scoped
 credentials. You can either use `kubectl` directly by specifying the correct
 context or use the `tsh kubectl` sub-command to interact with the selected
 cluster.
+
+## Joining a scoped Application Service
+
+To allow Application Services to join with scoped tokens, set
+`TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes` on the Auth Service instances in addition
+to `TELEPORT_UNSTABLE_SCOPES=yes` before creating the token.
+
+Only statically configured applications served by Application Services support
+joining with scopes. Dynamic application registration, including those discovered
+by the Teleport Discovery Service, does not yet support scopes.
+
+Log the scoped admin into the desired scope:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+```
+
+Create a scoped token that can be used to join an Application Service at
+the desired scope:
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=app
+```
+
+Copy the printed invite token to `/tmp/scoped-app-token` on the Application
+Service host, then create the following `/etc/teleport.yaml`:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/scoped-app-token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+app_service:
+  enabled: true
+  apps:
+  - name: scoped-grafana
+    uri: "http://localhost:3000"
+    labels:
+      env: "staging"
+      tier: "mfa"
+```
+
+Start Teleport with this configuration:
+
+```code
+$ sudo teleport start --config=/etc/teleport.yaml
+```
+
+Once the instance has joined, the scoped admin can list it:
+
+```code
+$ tsh apps ls
+Application                     Description Type Public Address                        Labels
+------------------------------- ----------- ---- ------------------------------------- --------------------
+/examples/basic::scoped-grafana             HTTP lv7pgada3xgarg2rvk7gm4xgmx7nto6j.t... env=staging,tier=mfa
+```
+
+Note that the scope is prefixed, followed by `::`, and then the application name.
+Scoped applications require the user to refer to each application by their
+scope-qualified name when interacting with `tsh`.
+
+The public address is also always derived for a scoped application. Users will
+not be able to define their own public address in order to disallow cross-scope
+access.
+
+Log in to the application:
+
+```code
+$ tsh apps login /examples/basic::scoped-grafana
+Logged into app /examples/basic::scoped-grafana. Example curl command:
+
+curl \
+  --cert "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.crt" \
+  --key "/Users/teleport-user/.tsh/keys/teleport.example.com/teleport-app/teleport.example.com/@lv7pgada3xgarg2rvk7gm4xgmx7nto6j.key" \
+  https://lv7pgada3xgarg2rvk7gm4xgmx7nto6j.teleport.example.com
+```
 
 ### Adding immutable labels via a token
 
