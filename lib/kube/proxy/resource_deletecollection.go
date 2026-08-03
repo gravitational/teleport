@@ -52,7 +52,7 @@ func (f *Forwarder) deleteResourcesCollection(sess *clusterSession, w http.Respo
 		"kube.Forwarder/deleteResourcesCollection",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("deleteResourcesCollection"),
 			semconv.RPCSystemKey.String("kube"),
 		),
@@ -101,7 +101,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, sess *clusterSe
 		"kube.Forwarder/handleDeleteCollectionReq",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("deletePodsCollection"),
 			semconv.RPCSystemKey.String("kube"),
 		),

@@ -172,14 +172,15 @@ func TestAuthenticate(t *testing.T) {
 	}
 	newForwarder := func() *Forwarder {
 		return &Forwarder{
-			log: logtest.NewLogger(),
+			log:      logtest.NewLogger(),
+			upstream: proxyServiceResolver{},
 			cfg: ForwarderConfig{
 				ClusterName:       "local",
 				CachingAuthClient: ap,
 				TracerProvider:    otel.GetTracerProvider(),
 				tracer:            otel.Tracer(teleport.ComponentKube),
 				ClusterFeatures:   fakeClusterFeatures,
-				KubeServiceType:   ProxyService,
+				Upstream:          NewProxyServiceUpstream(),
 				LockWatcher:       lockWatcher,
 			},
 			getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
@@ -1204,9 +1205,13 @@ func TestAuthenticate(t *testing.T) {
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
-				f.clusterDetails = map[string]*kubeDetails{tt.routeToCluster: {kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}}
+				// Legacy-proxy semantics: this proxy happens to hold creds for
+				// some clusters and forwards the rest.
+				s := newClusterStore()
+				s.details[tt.routeToCluster] = &kubeDetails{kubeCreds: &staticKubeCreds{targetAddr: "k8s.example.com"}}
+				f.upstream = &legacyProxyResolver{clusters: s}
 			} else {
-				f.clusterDetails = nil
+				f.upstream = proxyServiceResolver{}
 			}
 
 			gotCtx, err := f.authenticate(req)
@@ -1226,7 +1231,7 @@ func TestAuthenticate(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState", "LockingMode"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState", "LockingMode", "isLocalKubernetesCluster"),
 			))
 
 			if tt.wantDisconnectExpiredCert != nil {
@@ -1471,9 +1476,10 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 								Metadata: types.Metadata{Name: tt.username},
 							},
 						}),
-						kubeUsers:       set.New(tt.kubeUsers...),
-						kubeGroups:      set.New(tt.kubeGroups...),
-						teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
+						kubeUsers:                set.New(tt.kubeUsers...),
+						kubeGroups:               set.New(tt.kubeGroups...),
+						teleportCluster:          teleportClusterClient{isRemote: tt.remoteCluster},
+						isLocalKubernetesCluster: !tt.isProxy && !tt.remoteCluster,
 					},
 				},
 				tt.inHeaders,
@@ -1591,15 +1597,15 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		},
 	} {
 
-		f.clusterDetails = map[string]*kubeDetails{
-			"local": {
-				kubeCreds: &staticKubeCreds{
-					targetAddr: mockKubeAPI.URL,
-					tlsConfig:  mockKubeAPI.TLS,
-					transport:  test.rtBuilder(t),
-				},
+		s := newClusterStore()
+		s.details["local"] = &kubeDetails{
+			kubeCreds: &staticKubeCreds{
+				targetAddr: mockKubeAPI.URL,
+				tlsConfig:  mockKubeAPI.TLS,
+				transport:  test.rtBuilder(t),
 			},
 		}
+		f.upstream = &kubeServiceResolver{clusters: s}
 
 		authCtx.kubeClusterName = "local"
 		sess, err := f.newClusterSession(ctx, authCtx)
@@ -1644,8 +1650,9 @@ func newMockForwarder(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    logtest.NewLogger(),
-		router: httprouter.New(),
+		log:      logtest.NewLogger(),
+		router:   httprouter.New(),
+		upstream: proxyServiceResolver{},
 		cfg: ForwarderConfig{
 			Keygen:            authority,
 			AuthClient:        caClient,
@@ -1902,13 +1909,19 @@ func (m *mockWatcher) Done() <-chan struct{} {
 }
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
-	return &Forwarder{
+	f := &Forwarder{
 		log:            logtest.NewLogger(),
 		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
 		ctx:            ctx,
 	}
+	if cfg.Upstream != nil {
+		f.upstream = cfg.Upstream
+	} else {
+		f.upstream = NewProxyServiceUpstream()
+	}
+	return f
 }
 
 type mockSemaphoreClient struct {
@@ -2301,12 +2314,13 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 
 	var getConnTLSRootsCalled bool
 	f := &Forwarder{
+		upstream: proxyServiceResolver{},
 		cfg: ForwarderConfig{
 			Keygen:            authority,
 			AuthClient:        cl,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
-			KubeServiceType:   ProxyService,
+			Upstream:          NewProxyServiceUpstream(),
 			CachingAuthClient: cl,
 
 			GetConnTLSCertificate: func() (*tls.Certificate, error) {
@@ -2394,15 +2408,15 @@ func TestKubeForwarder_GOAWAYErrors(t *testing.T) {
 			// Plug a stub round tripper that returns the GOAWAY-related error
 			// into a fake Kubernetes cluster, so the kube proxy's full
 			// error-handling pipeline runs against it.
-			f.clusterDetails = map[string]*kubeDetails{
-				"kube-cluster": {
-					kubeCreds: &staticKubeCreds{
-						targetAddr: "kube.invalid:443",
-						tlsConfig:  &tls.Config{InsecureSkipVerify: true},
-						transport:  &errRoundTripper{err: tt.err},
-					},
+			s := newClusterStore()
+			s.details["kube-cluster"] = &kubeDetails{
+				kubeCreds: &staticKubeCreds{
+					targetAddr: "kube.invalid:443",
+					tlsConfig:  &tls.Config{InsecureSkipVerify: true},
+					transport:  &errRoundTripper{err: tt.err},
 				},
 			}
+			f.upstream = &kubeServiceResolver{clusters: s}
 
 			authCtx := mockAuthCtx(t, "kube-cluster", false)
 			sess, err := f.newClusterSession(ctx, authCtx)
@@ -2460,19 +2474,19 @@ func TestGOAWAYHandling(t *testing.T) {
 	go func() { require.NoError(t, gs.Serve()) }()
 
 	// Insert a fake Kubernetes cluster that forwards requests to the GOAWAY server above.
-	f.clusterDetails = map[string]*kubeDetails{
-		"kube-cluster": {
-			kubeCreds: &staticKubeCreds{
-				targetAddr: gs.URL(),
-				tlsConfig:  gs.tlsConfig,
-				transport: &http2.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
-					},
+	s := newClusterStore()
+	s.details["kube-cluster"] = &kubeDetails{
+		kubeCreds: &staticKubeCreds{
+			targetAddr: gs.URL(),
+			tlsConfig:  gs.tlsConfig,
+			transport: &http2.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
 				},
 			},
 		},
 	}
+	f.upstream = &kubeServiceResolver{clusters: s}
 
 	// Create a user session.
 	authCtx := mockAuthCtx(t, "kube-cluster", false)
@@ -2546,15 +2560,15 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	prodTransport, err := newH2Transport(tlsCfg, nil)
 	require.NoError(t, err)
 
-	f.clusterDetails = map[string]*kubeDetails{
-		"kube-cluster": {
-			kubeCreds: &staticKubeCreds{
-				targetAddr: gs.URL(),
-				tlsConfig:  tlsCfg,
-				transport:  prodTransport,
-			},
+	s := newClusterStore()
+	s.details["kube-cluster"] = &kubeDetails{
+		kubeCreds: &staticKubeCreds{
+			targetAddr: gs.URL(),
+			tlsConfig:  tlsCfg,
+			transport:  prodTransport,
 		},
 	}
+	f.upstream = &kubeServiceResolver{clusters: s}
 
 	authCtx := mockAuthCtx(t, "kube-cluster", false)
 	sess, err := f.newClusterSession(ctx, authCtx)
@@ -2637,7 +2651,7 @@ func TestForwarderConfig(t *testing.T) {
 		DataDir:           t.TempDir(),
 		HostID:            "host-id",
 		ClusterFeatures:   fakeClusterFeatures,
-		KubeServiceType:   KubeService,
+		Upstream:          NewKubeServiceUpstream(),
 	}
 	cases := []struct {
 		name string

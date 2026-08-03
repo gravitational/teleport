@@ -45,7 +45,7 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		"kube.Forwarder/listResources",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("listResources"),
 			semconv.RPCSystemKey.String("kube"),
 		),
@@ -129,7 +129,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 		"kube.Forwarder/listResourcesList",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -156,7 +156,7 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	// and routes the body to either the streaming or buffered filter path.
 	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
 	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
-	fw := newFilteringResponseWriter(w, matcher, filterWrapper, f.log, ctx, f.cfg.tracer, f.cfg.KubeServiceType)
+	fw := newFilteringResponseWriter(w, matcher, filterWrapper, f.log, ctx, f.cfg.tracer, f.component())
 	sess.forwarder.ServeHTTP(fw, req)
 	return fw.Finish()
 }
@@ -203,7 +203,7 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 		"kube.Forwarder/listResourcesWatcher",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)

@@ -222,11 +222,11 @@ func TestGetServerInfo(t *testing.T) {
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
-			clusterDetails: map[string]*kubeDetails{
+			upstream: &kubeServiceResolver{clusters: &clusterStore{details: map[string]*kubeDetails{
 				"kube-cluster": {
 					kubeCluster: mustCreateKubernetesClusterV3(t, "kube-cluster"),
 				},
-			},
+			}}},
 		},
 		listener: listener,
 	}

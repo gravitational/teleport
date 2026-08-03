@@ -58,6 +58,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 			tracer:      otel.Tracer("test"),
 			ClusterName: clusterName,
 		},
+		upstream: proxyServiceResolver{},
 		getKubernetesServersForKubeCluster: func(_ context.Context, kubeClusterName string) ([]types.KubeServer, error) {
 			switch kubeClusterName {
 			case clusterName:
@@ -233,6 +234,7 @@ func TestDirectTransportNotCached(t *testing.T) {
 	forwarder := &Forwarder{
 		ctx:             context.Background(),
 		cachedTransport: transportClients,
+		upstream:        proxyServiceResolver{},
 	}
 
 	kubeAPICreds := &dynamicKubeCreds{
@@ -250,6 +252,7 @@ func TestDirectTransportNotCached(t *testing.T) {
 			teleportCluster: teleportClusterClient{
 				name: "a",
 			},
+			isLocalKubernetesCluster: true,
 		},
 	}
 
@@ -293,6 +296,7 @@ func TestTransportCache(t *testing.T) {
 		},
 		ctx:             ctx,
 		cachedTransport: transportClients,
+		upstream:        proxyServiceResolver{},
 		getKubernetesServersForKubeCluster: func(_ context.Context, _ string) ([]types.KubeServer, error) {
 			return []types.KubeServer{
 				unscopedServer,
@@ -438,6 +442,7 @@ func TestLocalClusterDialsByHealth(t *testing.T) {
 					ClusterName:      clusterName,
 					ReverseTunnelSrv: healthReverseTunnel{},
 				},
+				upstream: proxyServiceResolver{},
 				getKubernetesServersForKubeCluster: func(context.Context, string) ([]types.KubeServer, error) {
 					return tt.servers, nil
 				},

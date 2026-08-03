@@ -44,6 +44,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -323,23 +324,29 @@ current-context: foo
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
+			upstream, err := newUpstreamResolver(tt.serviceType)
+			require.NoError(t, err)
 			fwd := &Forwarder{
-				clusterDetails: map[string]*kubeDetails{},
+				upstream: upstream,
 				cfg: ForwarderConfig{
 					ClusterName:                   teleClusterName,
-					KubeServiceType:               tt.serviceType,
+					Upstream:                      upstream,
 					KubeconfigPath:                tt.kubeconfigPath,
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
 				log: logtest.NewLogger(),
 			}
-			err := fwd.getKubeDetails(ctx)
+			err = fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(fwd.clusterDetails, tt.want,
+			got := map[string]*kubeDetails{}
+			if s := fwd.upstream.store(); s != nil {
+				got = s.details
+			}
+			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
 				cmpopts.IgnoreFields(kubeDetails{}, "rwMu", "kubeCodecs", "wg", "cancelFunc", "gvkSupportedResources", "refreshGroup"),
@@ -360,4 +367,20 @@ func mustCreateKubernetesClusterV3(t *testing.T, name string) *types.KubernetesC
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 	return kubeCluster
+}
+
+// newUpstreamResolver returns a resolver matching the given service type
+// string. Internal helper used by tests that drive Forwarder behavior off the
+// legacy KubeServiceType string.
+func newUpstreamResolver(svc KubeServiceType) (UpstreamResolver, error) {
+	switch svc {
+	case KubeService:
+		return NewKubeServiceUpstream(), nil
+	case ProxyService:
+		return NewProxyServiceUpstream(), nil
+	case LegacyProxyService:
+		return NewLegacyProxyUpstream(), nil
+	default:
+		return nil, trace.BadParameter("unknown KubeServiceType %q", svc)
+	}
 }
