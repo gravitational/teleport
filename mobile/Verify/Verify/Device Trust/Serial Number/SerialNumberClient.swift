@@ -20,12 +20,12 @@ import Sharing
 
 @DependencyClient
 struct SerialNumberClient {
-	var getDeviceSerialNumber: @Sendable () -> String = { "" }
+	var getDeviceSerialNumber: @Sendable () throws(SerialNumberError) -> String = { "" }
 }
 
 extension SerialNumberClient {
 	static let liveValue = SerialNumberClient(
-		getDeviceSerialNumber: {
+		getDeviceSerialNumber: { () throws(SerialNumberError) -> String in
 			#if DEBUG
 				@Shared(.debugStorage(.debugSerialNumber))
 				var debugSerialNumber: String? = nil
@@ -37,8 +37,17 @@ extension SerialNumberClient {
 				}
 				return debugSerialNumber
 			#else
-				fatalError("Production path has not yet been implemented. Requires messing around in Jamf.")
+				guard let serialNumber = ManagedAppConfiguration.serialNumber else {
+					throw .missingSerialNumber
+				}
+				return serialNumber
 			#endif
 		},
 	)
+}
+
+// MARK: - Supporting Types
+
+enum SerialNumberError: Error {
+	case missingSerialNumber
 }
