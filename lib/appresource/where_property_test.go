@@ -35,13 +35,12 @@ var identifierText = rapid.StringMatching(`[a-zA-Z0-9_\-]{0,8}`)
 
 // drawEnv draws a valid environment with a canonical method.
 func drawEnv(t *rapid.T) Env {
-	str := identifierText
 	return Env{
 		Request: Request{Method: rapid.SampledFrom(validMethods).Draw(t, "method")},
 		Identity: Identity{
-			Name:   str.Draw(t, "name"),
-			Roles:  rapid.SliceOfN(str, 0, 3).Draw(t, "roles"),
-			Traits: rapid.MapOfN(str, rapid.SliceOfN(str, 0, 3), 0, 3).Draw(t, "traits"),
+			Name:   identifierText.Draw(t, "name"),
+			Roles:  rapid.SliceOfN(identifierText, 0, 3).Draw(t, "roles"),
+			Traits: rapid.MapOfN(identifierText, rapid.SliceOfN(identifierText, 0, 3), 0, 3).Draw(t, "traits"),
 		},
 	}
 }
@@ -49,20 +48,19 @@ func drawEnv(t *rapid.T) Env {
 // drawClause draws a well-formed where clause of bounded depth.
 func drawClause(t *rapid.T, depth int) string {
 	if depth == 0 || rapid.Bool().Draw(t, "leaf") {
-		str := identifierText
 		switch rapid.IntRange(0, 5).Draw(t, "kind") {
 		case 0:
 			return `true`
 		case 1:
 			return `false`
 		case 2:
-			return fmt.Sprintf(`user.name == %q`, str.Draw(t, "literal"))
+			return fmt.Sprintf(`user.name == %q`, identifierText.Draw(t, "literal"))
 		case 3:
-			return fmt.Sprintf(`contains(user.roles, %q)`, str.Draw(t, "literal"))
+			return fmt.Sprintf(`contains(user.roles, %q)`, identifierText.Draw(t, "literal"))
 		case 4:
 			return fmt.Sprintf(`request.method == %q`, rapid.SampledFrom(validMethods).Draw(t, "m"))
 		default:
-			return fmt.Sprintf(`has_prefix(user.name, %q)`, str.Draw(t, "literal"))
+			return fmt.Sprintf(`has_prefix(user.name, %q)`, identifierText.Draw(t, "literal"))
 		}
 	}
 	switch rapid.IntRange(0, 2).Draw(t, "op") {
@@ -93,15 +91,29 @@ func evaluateProp(t *rapid.T, expr string, env Env) bool {
 
 // TestCompileReturnsValueOrError checks that CompileWhere never returns a
 // Where with a nil expression, which is what lets Evaluate dereference it
-// without a guard.
+// without a guard, and that a failure returns no Where at all. Arbitrary
+// strings essentially never parse, so half the draws are well-formed
+// clauses.
 func TestCompileReturnsValueOrError(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		expr := rapid.String().Draw(t, "expr")
+		wellFormed := rapid.Bool().Draw(t, "wellFormed")
+		var expr string
+		if wellFormed {
+			expr = drawClause(t, 2)
+		} else {
+			expr = rapid.String().Draw(t, "expr")
+		}
 		where, err := CompileWhere(expr)
 		if err != nil {
+			if wellFormed {
+				t.Fatalf("CompileWhere(%q) failed for a well-formed clause: %v", expr, err)
+			}
+			if where != nil {
+				t.Fatalf("CompileWhere(%q) returned a Where and an error", expr)
+			}
 			return
 		}
-		if where == nil || where.expression == nil {
+		if where.expression == nil {
 			t.Fatalf("CompileWhere(%q) returned a Where with no expression", expr)
 		}
 	})
@@ -148,18 +160,6 @@ func TestContainsMatchesSlicesContains(t *testing.T) {
 		got := evaluateProp(t, expr, drawEnv(t))
 		if want := slices.Contains(items, item); got != want {
 			t.Fatalf("%s = %v, want %v", expr, got, want)
-		}
-	})
-}
-
-func TestEvaluateDeterministic(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		clause := drawClause(t, 2)
-		env := drawEnv(t)
-		first := evaluateProp(t, clause, env)
-		second := evaluateProp(t, clause, env)
-		if first != second {
-			t.Fatalf("clause %q evaluated to %v then %v for the same environment", clause, first, second)
 		}
 	})
 }

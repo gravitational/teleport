@@ -71,6 +71,8 @@ func TestEnvBindings(t *testing.T) {
 			require.Equal(t, tt.want, evaluate(t, tt.expr, getRequest, identity))
 		})
 	}
+	// Cases the fixed table request and identity cannot express, a non-GET
+	// method and a nil traits map.
 	require.True(t, evaluate(t, `request.method == "DELETE"`, Request{Method: http.MethodDelete}, identity))
 	require.False(t, evaluate(t, `contains(user.traits["allowed_projects"], "acme")`, getRequest, Identity{}))
 }
@@ -86,6 +88,7 @@ func TestUnsupportedMethodRejected(t *testing.T) {
 			t.Run(expr+"/"+method, func(t *testing.T) {
 				got, err := where.Evaluate(Env{Request: Request{Method: method}})
 				require.ErrorContains(t, err, "unsupported HTTP method")
+				require.True(t, trace.IsBadParameter(err))
 				require.False(t, got)
 			})
 		}
