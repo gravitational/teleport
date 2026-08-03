@@ -60,7 +60,6 @@ variable "managed_updates_group" {
   type        = string
 }
 
-
 variable "assign_public_ip" {
   default     = false
   description = <<EOF

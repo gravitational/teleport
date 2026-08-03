@@ -65,7 +65,7 @@ EOF
   value = (
     var.create
     ? format(
-      "arn:%s:sts::%s:assumed-role/%s/*",
+      "arn:%v:sts::%v:assumed-role/%v/*",
       one(data.aws_partition.this[*].partition),
       one(data.aws_caller_identity.this[*].account_id),
       one(aws_iam_role.ecs_task[*].name),
