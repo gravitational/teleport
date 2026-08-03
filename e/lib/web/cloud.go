@@ -60,12 +60,6 @@ func (p *Plugin) registerCloudHandlers() {
 	if features.GetCloud() {
 		p.h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.withCloudCache(p.getBillingInformationHandle)))
 		p.h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.withCloudCache(p.getNonBillableUsageSummaryHandle)))
-
-		// Upgrade window related endpoints.
-		// TODO(mcbattirola): remove on v19, since the endpoints are deprecated in favor of `enterprise/sites/:site/upgradewindowstart`.
-		// Keeping it for now to ensure compatibility between proxies within one major of difference.
-		p.h.GET("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.withCloudCache(p.getUpgradeWindowStartHourHandle)))
-		p.h.POST("/enterprise/cloud/upgradewindowstart", p.withCloudAuth(p.updateUpgradeWindowStartHourHandle))
 	}
 
 	// upgrade window endpoints with cluster param
@@ -198,57 +192,6 @@ func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	return res, nil
-}
-
-// Deprecated: use `getClusterUpgradeWindowStartHourHandle` instead
-// TODO(mcbattirola): remove in v18
-func (p *Plugin) getUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
-	res, err := client.GetAccountUpgradeWindowStartHour(r.Context(), &cloudapi.EmptyRequest{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return res, nil
-}
-
-// Deprecated: use `updateClusterUpgradeWindowStartHourHandle` instead
-// TODO(mcbattirola): remove in v18
-func (p *Plugin) updateUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {
-	var req cloudapi.UpdateAccountUpgradeWindowStartHourRequest
-	if err := p.readProtoJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := client.UpdateAccountUpgradeWindowStartHour(r.Context(), &req); err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	// emit audit event
-	event := &apievents.UpgradeWindowStartUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.UpgradeWindowStartUpdateEvent,
-			Code: events.UpgradeWindowStartUpdatedCode,
-		},
-		UserMetadata: apievents.UserMetadata{
-			User: ctx.GetUser(),
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: ctx.GetSessionID(),
-		},
-		UpgradeWindowStartMetadata: apievents.UpgradeWindowStartMetadata{
-			UpgradeWindowStart: fmt.Sprintf("%02d:00:00", req.UpgradeWindowStartHour),
-		},
-	}
-
-	if err := p.h.GetProxyClient().EmitAuditEvent(r.Context(), event); err != nil {
-		p.Logger.WarnContext(r.Context(), "Failed to emit window upgrade start update event",
-			"error", err,
-			"user", event.UserMetadata.User,
-			"upgrade_window_start", event.UpgradeWindowStartMetadata.UpgradeWindowStart,
-		)
-	}
-
-	return web.OK(), nil
 }
 
 func (p *Plugin) getClusterUpgradeWindowStartHourHandle(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {

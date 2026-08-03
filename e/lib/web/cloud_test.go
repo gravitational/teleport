@@ -180,11 +180,11 @@ func TestPlugin_getBillingInformationHandle(t *testing.T) {
 	require.Equal(t, pass, actual)
 }
 
-func TestPlugin_getUpgradeWindowStartHourHandle(t *testing.T) {
+func TestPlugin_getClusterUpgradeWindowStartHourHandle(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, "/enterprise/cloud/upgradewindowstart", nil)
+	r := httptest.NewRequest(http.MethodGet, "/enterprise/sites/some-cluster/upgradewindowstart", nil)
 	r = r.WithContext(authz.ContextWithUser(context.Background(), authz.LocalUser{}))
 	wCtx := &web.SessionContext{}
 
@@ -200,7 +200,7 @@ func TestPlugin_getUpgradeWindowStartHourHandle(t *testing.T) {
 		},
 	}
 
-	actual, err := s.webPlugin.getUpgradeWindowStartHourHandle(w, r, wCtx, client)
+	actual, err := s.webPlugin.getClusterUpgradeWindowStartHourHandle(w, r, wCtx, nil, client)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
