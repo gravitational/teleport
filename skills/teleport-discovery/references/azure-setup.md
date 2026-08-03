@@ -38,9 +38,9 @@ as the default option. Otherwise, use `subscription` scope.
 
 For management-group scope:
 
-1. Ask which management group to use. Default to the tenant ID (Tenant root group,
-   all subscriptions). The alternative is a specific management group ID.
-2. For tenant-wide: derive `management_group_id` from
+1. Ask which management group to use: a specific management group ID, or the tenant ID for
+   the Tenant root group (all subscriptions).
+2. For the Tenant root group: derive `management_group_id` from
    `az account show --query tenantId --output tsv`. Note that using a tenant ID
    targets the [Tenant root group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory)
    and requires [elevated access](https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin).
