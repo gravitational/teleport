@@ -34,7 +34,6 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -58,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -1830,72 +1827,6 @@ func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
 	require.Contains(t, locks[0].Message(), "failed to verify its join state")
 }
 
-// createScopedBot creates a scoped bot with necessary role assignments for testing.
-func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authclient.Client) {
-	t.Helper()
-
-	// Create a scoped role for the bot.
-	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
-			Kind:    scopedaccess.KindScopedRole,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "scoped-example",
-			},
-			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{"/test"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Create the scoped bot.
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Kind:    types.KindBot,
-			Version: types.V1,
-			Scope:   "/test",
-			Metadata: &headerv1.Metadata{
-				Name: "test-scoped",
-			},
-			Spec: &machineidv1pb.BotSpec{},
-		},
-	})
-	require.NoError(t, err)
-
-	// Create a scoped role assignment for the bot.
-	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: uuid.NewString(),
-			},
-			SubKind: scopedaccess.SubKindDynamic,
-			Scope:   "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
-				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	ctx := t.Context()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name:    resp.GetAssignment().GetMetadata().GetName(),
-			SubKind: resp.GetAssignment().GetSubKind(),
-			Scope:   resp.GetAssignment().GetScope(),
-		})
-		require.NoError(t, err)
-	}, time.Second*10, 100*time.Millisecond)
-}
-
 func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	t.Parallel()
 
@@ -1931,7 +1862,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	createScopedBot(t, srv, adminClient)
+	CreateScopedBot(t, srv.Auth(), "test-scoped")
 
 	scopedToken := &joiningv1.ScopedToken{
 		Kind:    types.KindScopedToken,
