@@ -24,4 +24,7 @@ extension DependencyValues {
 
 	@DependencyEntry(liveValue: DeviceTrustCredentialClient.liveValue)
 	nonisolated var deviceTrustCredentialClient = DeviceTrustCredentialClient()
+
+	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
+	nonisolated var serialNumberClient = SerialNumberClient()
 }

@@ -29,6 +29,7 @@ import {
   DatabaseAccessSection,
   GitHubOrganizationAccessSection,
   KubernetesAccessSection,
+  LinuxDesktopAccessSection,
   ServerAccessSection,
   WindowsDesktopAccessSection,
 } from './Resources';
@@ -42,6 +43,8 @@ import {
   GitHubOrganizationAccessInputFields,
   KubernetesAccess,
   KubernetesAccessInputFields,
+  LinuxDesktopAccess,
+  LinuxDesktopAccessInputFields,
   newResourceAccess,
   ServerAccess,
   ServerAccessInputFields,
@@ -696,6 +699,73 @@ describe('WindowsDesktopAccessSection', () => {
       ],
       hideValidationErrors: true,
     } as WindowsDesktopAccess);
+  });
+
+  test('validation', async () => {
+    const { user, validator } = setup();
+    await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+    act(() => validator.validate());
+    expect(
+      screen.getByPlaceholderText('label key')
+    ).toHaveAccessibleDescription('required');
+  });
+
+  test('hide all input fields', async () => {
+    setup({ labels: false, logins: false });
+    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('label value')
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
+  });
+
+  test('hide one input field', async () => {
+    setup({ labels: true, logins: false });
+    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('LinuxDesktopAccessSection', () => {
+  const setup = (visibleInputFields?: LinuxDesktopAccessInputFields) => {
+    const onChange = jest.fn();
+    let validator: Validator;
+    render(
+      <StatefulSection<
+        LinuxDesktopAccess,
+        ResourceAccessValidationResult,
+        LinuxDesktopAccessInputFields
+      >
+        component={LinuxDesktopAccessSection}
+        defaultValue={newResourceAccess('linux_desktop', defaultRoleVersion)}
+        onChange={onChange}
+        validatorRef={v => {
+          validator = v;
+        }}
+        validate={validateResourceAccess}
+        visibleInputFields={visibleInputFields}
+      />
+    );
+    return { user: userEvent.setup(), onChange, validator };
+  };
+
+  test('editing', async () => {
+    const { user, onChange } = setup();
+    await user.type(screen.getByPlaceholderText('label key'), 'os');
+    await user.type(screen.getByPlaceholderText('label value'), 'ubuntu');
+    await selectEvent.create(screen.getByLabelText('Logins'), 'alice', {
+      createOptionText: 'Login: alice',
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'linux_desktop',
+      labels: [{ name: 'os', value: 'ubuntu' }],
+      logins: [
+        expect.objectContaining({ value: '{{internal.logins}}' }),
+        expect.objectContaining({ label: 'alice', value: 'alice' }),
+      ],
+      hideValidationErrors: true,
+    } as LinuxDesktopAccess);
   });
 
   test('validation', async () => {

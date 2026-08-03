@@ -1555,6 +1555,108 @@ func TestAccessChecker_Constraints_AwsConsole(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestAccessChecker_Constraints_UnknownKind verifies that nil-Details
+// constraints deny their resource even when no role matchers are passed.
+func TestAccessChecker_Constraints_UnknownKind(t *testing.T) {
+	const localCluster = "cluster"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.AppLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	newApp := func(name string) *types.AppServerV3 {
+		return &types.AppServerV3{
+			Kind: types.KindApp,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}
+	}
+	appRID := func(name string, rc *types.ResourceConstraints) types.ResourceAccessID {
+		return types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName: localCluster,
+				Kind:        types.KindApp,
+				Name:        name,
+			},
+			Constraints: rc,
+		}
+	}
+	unknownConstraints := func() *types.ResourceConstraints {
+		return &types.ResourceConstraints{Version: "v1"}
+	}
+
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		appRID("constrained-app", unknownConstraints()),
+		appRID("plain-app", nil),
+		// Duplicate entries for one resource; must deny regardless of order.
+		appRID("shadowed-app", nil),
+		appRID("shadowed-app", unknownConstraints()),
+	}}
+
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+	state := AccessState{MFARequired: MFARequiredNever}
+
+	// No matchers, as when the app service authorizes a plain web app.
+	err := ac.CheckAccess(newApp("constrained-app"), state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Passing a matcher must not change the outcome.
+	err = ac.CheckAccess(newApp("constrained-app"), state, NewLoginMatcher("root"))
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// A clean duplicate entry must not shadow the constrained one.
+	err = ac.CheckAccess(newApp("shadowed-app"), state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// The rest of the identity keeps working.
+	require.NoError(t, ac.CheckAccess(newApp("plain-app"), state))
+}
+
+// TestAccessChecker_Constraints_UnknownKind_Kube verifies that a nil-Details
+// pod entry denies cluster access even alongside a clean pod entry.
+func TestAccessChecker_Constraints_UnknownKind_Kube(t *testing.T) {
+	const localCluster = "cluster"
+
+	role := newRole(func(rv *types.RoleV6) {
+		rv.Spec.Allow.KubernetesLabels = types.Labels{types.Wildcard: {types.Wildcard}}
+		rv.Spec.Allow.Namespaces = []string{types.Wildcard}
+	})
+
+	kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kc"}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	podRID := func(pod string, rc *types.ResourceConstraints) types.ResourceAccessID {
+		return types.ResourceAccessID{
+			Id: types.ResourceID{
+				ClusterName:     localCluster,
+				Kind:            types.KindKubePod,
+				Name:            "kc",
+				SubResourceName: pod,
+			},
+			Constraints: rc,
+		}
+	}
+	state := AccessState{MFARequired: MFARequiredNever}
+
+	// Clean entry first, constrained entry second; still denied.
+	info := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		podRID("ns/pod-a", nil),
+		podRID("ns/pod-b", &types.ResourceConstraints{Version: "v1"}),
+	}}
+	ac := NewAccessCheckerWithRoleSet(info, localCluster, NewRoleSet(role))
+	err = ac.CheckAccess(kubeCluster, state)
+	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+
+	// Control: clean entries alone allow cluster access.
+	cleanInfo := &AccessInfo{AllowedResourceAccessIDs: []types.ResourceAccessID{
+		podRID("ns/pod-a", nil),
+	}}
+	cleanAC := NewAccessCheckerWithRoleSet(cleanInfo, localCluster, NewRoleSet(role))
+	require.NoError(t, cleanAC.CheckAccess(kubeCluster, state))
+}
+
 // TestUserSessionRoleNotFoundError ensures that role not found errors during user session access checks include UserSessionRoleNotFoundErrorMsg when appropriate,
 func TestUserSessionRoleNotFoundError(t *testing.T) {
 	// Create a mock RoleGetter that returns "role not found" error for a specific role

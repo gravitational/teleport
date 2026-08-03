@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -10211,6 +10212,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
 		types.Resource153ToResourceWithLabels(beamsv1.Beam_builder{
 			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Labels: map[string]string{},
+			}.Build(),
+		}.Build()),
+		types.Resource153ToResourceWithLabels(linuxdesktopv1.LinuxDesktop_builder{
+			Kind:    types.KindLinuxDesktop,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
 				Labels: map[string]string{},
