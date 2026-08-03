@@ -91,7 +91,7 @@ No modules.
 | ecs\_task\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role. | `string` | `null` | no |
 | ecs\_task\_role\_self\_assumption\_allowed | Whether the ECS task IAM role can assume itself. | `bool` | `true` | no |
 | environment\_vars | Environment variables to set on the Teleport ECS container. | `map(string)` | `{}` | no |
-| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `false` | no |
+| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
 | security\_group\_ids | Additional security group IDs to attach to the Teleport agent ECS tasks. | `list(string)` | `[]` | no |
 | teleport\_config | Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition. | `any` | n/a | yes |

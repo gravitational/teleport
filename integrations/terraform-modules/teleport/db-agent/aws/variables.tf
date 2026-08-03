@@ -43,7 +43,7 @@ variable "apply_aws_tags" {
 }
 
 variable "managed_updates_enabled" {
-  default     = false
+  default     = true
   description = "Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module."
   type        = bool
 }

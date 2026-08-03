@@ -81,7 +81,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | environment\_vars | Environment variables to set on the Teleport db agent ECS container. | `map(string)` | `{}` | no |
 | join\_params | Override the Teleport join parameters. When null, the module creates an IAM join token automatically. Set this to use a pre-existing token or a different join method. | ```object({ token_name = string method = string })``` | `null` | no |
 | log\_level | Teleport agent log level. | `string` | `"INFO"` | no |
-| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `false` | no |
+| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
 | security\_group\_ids | Additional security group IDs to attach to the Teleport db agent ECS tasks. | `list(string)` | `[]` | no |
 | teleport\_container\_image | Container image used for the Teleport db agent ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
