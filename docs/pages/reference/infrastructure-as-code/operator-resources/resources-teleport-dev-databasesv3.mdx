@@ -48,8 +48,10 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |keytab_file|string|KeytabFile is the path to the Kerberos keytab file.|
 |krb5_file|string|Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.|
 |ldap_cert|string|LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.|
+|ldap_host|string|LDAPHost optionally overrides the host used for LDAP queries. It may include a port, which defaults to 636. If empty, KDCHostName is used. This is useful when the LDAP server and the Kerberos KDC are reachable under different names.|
 |ldap_service_account_name|string|LDAPServiceAccountName is the name of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|
 |ldap_service_account_sid|string|LDAPServiceAccountSID is the SID of service account for performing LDAP queries. Required for x509 Auth / PKINIT.|
+|ldap_tls_server_name|string|LDAPTLSServerName optionally overrides the server name used for the TLS handshake with the LDAP server. If empty, the host part of LDAPHost is used, falling back to KDCHostName.|
 |pki_domain|string|PKIDomain optionally configures a separate Active Directory domain for PKI operations. If empty, Domain is used. This can be useful for cases where PKI is configured in a root domain but Teleport is used to provide access to resources in a child domain.|
 |spn|string|SPN is the service principal name for the database.|
 

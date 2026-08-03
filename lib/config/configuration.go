@@ -1983,6 +1983,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				LDAPServiceAccountName: database.AD.LDAPServiceAccountName,
 				LDAPServiceAccountSID:  database.AD.LDAPServiceAccountSID,
 				PKIDomain:              database.AD.PKIDomain,
+				LDAPHost:               database.AD.LDAPHost,
+				LDAPTLSServerName:      database.AD.LDAPTLSServerName,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,

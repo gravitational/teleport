@@ -3098,6 +3098,104 @@ db_service:
 	}
 }
 
+// TestDatabaseADConfig verifies Active Directory settings survive the trip from
+// the file configuration all the way to the database resource.
+func TestDatabaseADConfig(t *testing.T) {
+	tests := []struct {
+		desc           string
+		inConfigString string
+		outAD          servicecfg.DatabaseAD
+	}{
+		{
+			desc: "without LDAP endpoint overrides",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: sqlserver
+    protocol: sqlserver
+    uri: sqlserver.example.com:1433
+    ad:
+      krb5_file: /etc/krb5.conf
+      domain: example.com
+      spn: MSSQLSvc/sqlserver.example.com:1433
+      kdc_host_name: kdc.example.com
+      ldap_service_account_name: EXAMPLE\svc-teleport
+      ldap_service_account_sid: S-1-5-21-2191801808-3167526388-2669316733-1104
+`,
+			outAD: servicecfg.DatabaseAD{
+				Krb5File:               "/etc/krb5.conf",
+				Domain:                 "example.com",
+				SPN:                    "MSSQLSvc/sqlserver.example.com:1433",
+				KDCHostName:            "kdc.example.com",
+				LDAPServiceAccountName: `EXAMPLE\svc-teleport`,
+				LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+			},
+		},
+		{
+			desc: "with LDAP endpoint overrides",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: sqlserver
+    protocol: sqlserver
+    uri: sqlserver.example.com:1433
+    ad:
+      krb5_file: /etc/krb5.conf
+      domain: child.example.com
+      spn: MSSQLSvc/sqlserver.example.com:1433
+      kdc_host_name: kdc.child.example.com
+      ldap_service_account_name: EXAMPLE\svc-teleport
+      ldap_service_account_sid: S-1-5-21-2191801808-3167526388-2669316733-1104
+      pki_domain: example.com
+      ldap_host: 10.0.0.1:636
+      ldap_tls_server_name: ldap.child.example.com
+`,
+			outAD: servicecfg.DatabaseAD{
+				Krb5File:               "/etc/krb5.conf",
+				Domain:                 "child.example.com",
+				SPN:                    "MSSQLSvc/sqlserver.example.com:1433",
+				KDCHostName:            "kdc.child.example.com",
+				LDAPServiceAccountName: `EXAMPLE\svc-teleport`,
+				LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+				PKIDomain:              "example.com",
+				LDAPHost:               "10.0.0.1:636",
+				LDAPTLSServerName:      "ldap.child.example.com",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			}
+			cfg := servicecfg.MakeDefaultConfig()
+			require.NoError(t, Configure(&clf, cfg, false))
+
+			require.Len(t, cfg.Databases.Databases, 1)
+			database := cfg.Databases.Databases[0]
+			require.Equal(t, tt.outAD, database.AD)
+
+			// The same settings must reach the database resource served to the
+			// agent.
+			resource, err := database.ToDatabase()
+			require.NoError(t, err)
+			require.Equal(t, types.AD{
+				Krb5File:               tt.outAD.Krb5File,
+				Domain:                 tt.outAD.Domain,
+				SPN:                    tt.outAD.SPN,
+				KDCHostName:            tt.outAD.KDCHostName,
+				LDAPServiceAccountName: tt.outAD.LDAPServiceAccountName,
+				LDAPServiceAccountSID:  tt.outAD.LDAPServiceAccountSID,
+				PKIDomain:              tt.outAD.PKIDomain,
+				LDAPHost:               tt.outAD.LDAPHost,
+				LDAPTLSServerName:      tt.outAD.LDAPTLSServerName,
+			}, resource.GetAD())
+		})
+	}
+}
+
 // TestDatabaseCLIFlags verifies database service can be configured with CLI flags.
 func TestDatabaseCLIFlags(t *testing.T) {
 	// Prepare test CA certificate used to configure some databases.

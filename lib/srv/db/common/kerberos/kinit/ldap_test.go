@@ -87,6 +87,89 @@ func (m *mockAuthClient) GetClusterName(ctx context.Context) (types.ClusterName,
 	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "test-cluster", ClusterID: "test-cluster-id"})
 }
 
+// TestNewLDAPConnectorEndpoint verifies how the LDAP endpoint is derived from
+// the AD configuration. By default the LDAP server is assumed to be reachable
+// under the KDC host name; ldap_host and ldap_tls_server_name override that.
+func TestNewLDAPConnectorEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		kdcHostName       string
+		ldapHost          string
+		ldapTLSServerName string
+		wantAddress       string
+		wantTLSServerName string
+		wantErrMessage    string
+	}{
+		{
+			name:              "LDAP endpoint defaults to KDC host name",
+			kdcHostName:       "kdc.example.com",
+			wantAddress:       "kdc.example.com",
+			wantTLSServerName: "kdc.example.com",
+		},
+		{
+			name:              "ldap_host overrides address and TLS server name",
+			kdcHostName:       "kdc.example.com",
+			ldapHost:          "ldap.example.com",
+			wantAddress:       "ldap.example.com",
+			wantTLSServerName: "ldap.example.com",
+		},
+		{
+			name:              "ldap_tls_server_name overrides TLS server name only",
+			kdcHostName:       "kdc.example.com",
+			ldapTLSServerName: "ldap.example.com",
+			wantAddress:       "kdc.example.com",
+			wantTLSServerName: "ldap.example.com",
+		},
+		{
+			name:              "ldap_host and ldap_tls_server_name are independent",
+			kdcHostName:       "kdc.example.com",
+			ldapHost:          "10.0.0.1:636",
+			ldapTLSServerName: "ldap.example.com",
+			wantAddress:       "10.0.0.1:636",
+			wantTLSServerName: "ldap.example.com",
+		},
+		{
+			name:              "port is trimmed from the derived TLS server name",
+			kdcHostName:       "kdc.example.com",
+			ldapHost:          "ldap.example.com:3269",
+			wantAddress:       "ldap.example.com:3269",
+			wantTLSServerName: "ldap.example.com",
+		},
+		{
+			name:              "port is trimmed from the derived TLS server name of the KDC",
+			kdcHostName:       "kdc.example.com:636",
+			wantAddress:       "kdc.example.com:636",
+			wantTLSServerName: "kdc.example.com",
+		},
+		{
+			name:           "KDC host name is required even when ldap_host is set",
+			ldapHost:       "ldap.example.com",
+			wantErrMessage: "missing KDC host name",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			adConfig := types.AD{
+				Domain:                 "example.com",
+				LDAPCert:               fixtures.TLSCACertPEM,
+				KDCHostName:            tt.kdcHostName,
+				LDAPHost:               tt.ldapHost,
+				LDAPTLSServerName:      tt.ldapTLSServerName,
+				LDAPServiceAccountName: "DOMAIN\\test-user",
+				LDAPServiceAccountSID:  "S-1-5-21-2191801808-3167526388-2669316733-1104",
+			}
+
+			connector, err := newLDAPConnector(slog.Default(), &mockAuthClient{}, adConfig)
+			if tt.wantErrMessage != "" {
+				require.ErrorContains(t, err, tt.wantErrMessage)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAddress, connector.ldapConfig.address)
+			require.Equal(t, tt.wantTLSServerName, connector.ldapConfig.tlsServerName)
+		})
+	}
+}
+
 func TestTLSConfigForLDAP(t *testing.T) {
 	for _, tt := range []struct {
 		name          string

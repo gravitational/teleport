@@ -166,6 +166,22 @@ func TestKRBConfString(t *testing.T) {
 	require.Equal(t, expectedConfString, krb5Config)
 }
 
+// TestKRBConfIgnoresLDAPOverrides verifies the LDAP endpoint overrides don't
+// leak into the Kerberos configuration: pkinit_kdc_hostname must keep pointing
+// at the KDC regardless of where LDAP lives.
+func TestKRBConfIgnoresLDAPOverrides(t *testing.T) {
+	cfg := types.AD{
+		Domain:            "example.com",
+		KDCHostName:       "instance.host.example.com",
+		LDAPHost:          "ldap.example.com",
+		LDAPTLSServerName: "ldap.tls.example.com",
+	}
+
+	krb5Config, err := newKrb5Config(cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedConfString, krb5Config)
+}
+
 type mockConnector struct {
 }
 

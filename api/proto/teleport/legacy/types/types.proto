@@ -659,6 +659,15 @@ message AD {
   // cases where PKI is configured in a root domain but Teleport is used to
   // provide access to resources in a child domain.
   string PKIDomain = 9 [(gogoproto.jsontag) = "pki_domain,omitempty"];
+  // LDAPHost optionally overrides the host used for LDAP queries. It may
+  // include a port, which defaults to 636. If empty, KDCHostName is used.
+  // This is useful when the LDAP server and the Kerberos KDC are reachable
+  // under different names.
+  string LDAPHost = 10 [(gogoproto.jsontag) = "ldap_host,omitempty"];
+  // LDAPTLSServerName optionally overrides the server name used for the TLS
+  // handshake with the LDAP server. If empty, the host part of LDAPHost is
+  // used, falling back to KDCHostName.
+  string LDAPTLSServerName = 11 [(gogoproto.jsontag) = "ldap_tls_server_name,omitempty"];
 }
 
 // DatabaseTLSMode represents the level of TLS verification performed by

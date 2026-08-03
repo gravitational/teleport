@@ -193,6 +193,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			LDAPServiceAccountName: d.AD.LDAPServiceAccountName,
 			LDAPServiceAccountSID:  d.AD.LDAPServiceAccountSID,
 			PKIDomain:              d.AD.PKIDomain,
+			LDAPHost:               d.AD.LDAPHost,
+			LDAPTLSServerName:      d.AD.LDAPTLSServerName,
 		},
 		Azure: types.Azure{
 			ResourceID:    d.Azure.ResourceID,
@@ -344,6 +346,12 @@ type DatabaseAD struct {
 	// PKIDomain is the Active Directory domain where CRLs are published.
 	// (Optional, defaults to Domain.)
 	PKIDomain string
+	// LDAPHost is the host used for LDAP queries, optionally including a port.
+	// (Optional, defaults to KDCHostName.)
+	LDAPHost string
+	// LDAPTLSServerName is the server name used for the TLS handshake with the
+	// LDAP server. (Optional, defaults to the host part of LDAPHost.)
+	LDAPTLSServerName string
 }
 
 // DatabaseAzure contains Azure database configuration.

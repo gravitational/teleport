@@ -2255,6 +2255,12 @@ type DatabaseAD struct {
 	// PKIDomain is the Active Directory domain where CRLs are published.
 	// (Optional, defaults to Domain.)
 	PKIDomain string `yaml:"pki_domain,omitempty"`
+	// LDAPHost is the host used for LDAP queries, optionally including a port.
+	// (Optional, defaults to KDCHostName.)
+	LDAPHost string `yaml:"ldap_host,omitempty"`
+	// LDAPTLSServerName is the server name used for the TLS handshake with the
+	// LDAP server. (Optional, defaults to the host part of LDAPHost.)
+	LDAPTLSServerName string `yaml:"ldap_tls_server_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
