@@ -37,7 +37,7 @@ func TestAzureInstallerBackoffRecordAttempt(t *testing.T) {
 	require.Equal(t, int32(1), entry.attempts)
 	require.Equal(t, now, entry.lastAttemptAt)
 	require.Equal(t, "first-issue", entry.issueType)
-	require.Same(t, vm, entry.vm)
+	require.Same(t, vm, entry.target)
 	require.Equal(t, now.Add(baseDelay), entry.retryAfter)
 	require.True(t, entry.seenInLastScan)
 
@@ -46,7 +46,7 @@ func TestAzureInstallerBackoffRecordAttempt(t *testing.T) {
 	require.Equal(t, int32(2), entry.attempts)
 	require.Equal(t, now, entry.lastAttemptAt)
 	require.Equal(t, "second-issue", entry.issueType)
-	require.Same(t, vm, entry.vm)
+	require.Same(t, vm, entry.target)
 	require.Equal(t, now.Add(2*baseDelay), entry.retryAfter)
 	require.True(t, entry.seenInLastScan)
 
@@ -55,7 +55,7 @@ func TestAzureInstallerBackoffRecordAttempt(t *testing.T) {
 	require.Equal(t, int32(3), entry.attempts)
 	require.Equal(t, now, entry.lastAttemptAt)
 	require.Empty(t, entry.issueType)
-	require.Same(t, vm, entry.vm)
+	require.Same(t, vm, entry.target)
 	require.Equal(t, now.Add(4*baseDelay), entry.retryAfter)
 	require.True(t, entry.seenInLastScan)
 
@@ -95,7 +95,7 @@ func TestAzureInstallerBackoffDelayBounds(t *testing.T) {
 			backoff, err := newAzureInstallerBackoff(tt.baseDelay, nil)
 			require.NoError(t, err)
 			_, vm := azureBackoffTestVM("backed-off")
-			var entry *azureInstallerBackoffEntry
+			var entry *installerBackoffEntry[*azure.VirtualMachine]
 			for range tt.attempts {
 				entry = backoff.recordAttemptLocked(vm, time.Now())
 			}
