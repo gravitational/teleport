@@ -65,29 +65,27 @@ The `cert_authority_override` resource targets a CA with the following fields:
   kind: role
   version: v8
   metadata:
-    name: <Var name="role-name" />
+    name: <Var name="ca-override-admin" />
   spec:
     allow:
       rules:
         - resources:
             - cert_authority_override
           verbs:
-            - read
-            - list
             - create
-            - update
             - delete
+            - list
+            - read
+            - update
   ```
 
-  Assign the `<Var name="role-name" />` role to the user who will manage CA
-  overrides.
+  Assign the `<Var name="ca-override-admin" />` role to the user who will manage
+  CA overrides.
 
 - Only the following CAs are currently supported: `db_client` and `windows`.
-
 - All Auth Service instances and related services, such as Windows Desktop
   Service and Database Service instances, must be upgraded to the same CA
   override-aware Teleport version.
-
 - For safety, back up your cluster state before starting and retain downstream
   trust to the self-signed CA certificates until the upgrade is fully verified.
 
