@@ -6217,7 +6217,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 											v.Null = false
 											v.Value = string(obj.EnterpriseServerHost)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["enterprise_server_host"] = v
 										}
 									}
@@ -6243,7 +6245,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 											v.Null = false
 											v.Value = string(obj.EnterpriseSlug)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["enterprise_slug"] = v
 										}
 									}
@@ -6269,7 +6273,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 											v.Null = false
 											v.Value = string(obj.StaticJwks)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["static_jwks"] = v
 										}
 									}
@@ -6298,7 +6304,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Allow {
 														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
@@ -6341,7 +6349,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Sub)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["sub"] = v
 																}
 															}
@@ -6367,7 +6377,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Repository)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["repository"] = v
 																}
 															}
@@ -6393,7 +6405,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.RepositoryOwner)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["repository_owner"] = v
 																}
 															}
@@ -6419,7 +6433,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Workflow)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["workflow"] = v
 																}
 															}
@@ -6445,7 +6461,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Environment)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["environment"] = v
 																}
 															}
@@ -6471,7 +6489,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Actor)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["actor"] = v
 																}
 															}
@@ -6497,7 +6517,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Ref)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["ref"] = v
 																}
 															}
@@ -6523,7 +6545,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.RefType)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["ref_type"] = v
 																}
 															}
@@ -6549,7 +6573,9 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.Enterprise)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["enterprise"] = v
 																}
 															}
@@ -6575,23 +6601,31 @@ func CopyScopedTokenToTerraformPreserveUnknown(ctx context.Context, obj *github_
 
 																	v.Null = false
 																	v.Value = string(obj.EnterpriseId)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["enterprise_id"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
 												}
 												c.Null = false
-												c.Unknown = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["allow"] = c
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["github"] = v
 							}
 						}

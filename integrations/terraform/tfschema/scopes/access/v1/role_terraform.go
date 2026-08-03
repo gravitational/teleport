@@ -4058,7 +4058,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 
 											v.Null = false
 											v.Value = string(obj.LabelExpression)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["label_expression"] = v
 										}
 									}
@@ -4751,7 +4753,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 
 											v.Null = false
 											v.Value = string(obj.LabelExpression)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["label_expression"] = v
 										}
 									}
