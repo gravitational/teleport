@@ -735,7 +735,7 @@ export function newResourceAccess(
       return {
         kind: 'linux_desktop',
         labels: [],
-        logins: [stringToOption('{{internal.logins}}')],
+        logins: [stringToOption('{{internal.linux_desktop_logins}}')],
         hideValidationErrors: true,
       };
     case 'git_server':
