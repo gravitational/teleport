@@ -1002,15 +1002,10 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 }
 
 // checkTokenBot verifies that the join token references the bot the caller
-// named. Classic tokens always report an empty scope, so a scoped ref can never
-// match, which is correct.
+// named, scope included.
 func checkTokenBot(tokenID string, token types.ProvisionToken, ref scopes.QualifiedName) error {
 	name, scope := token.GetBot()
-	return trace.Wrap(checkBotRefMatches(tokenID, scopes.QualifiedName{Scope: scope, Name: name}, ref))
-}
-
-func checkBotRefMatches(tokenID string, tokenBot, ref scopes.QualifiedName) error {
-	if tokenBot != ref {
+	if tokenBot := (scopes.QualifiedName{Scope: scope, Name: name}); tokenBot != ref {
 		return trace.BadParameter("token %q is valid for bot %q, not %q",
 			tokenID, tokenBot, ref)
 	}
