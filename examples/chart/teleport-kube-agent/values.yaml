@@ -846,10 +846,12 @@ highAvailability:
     # highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy(string) -- allows
     # eviction of unhealthy pods even if it falls below minAvailable. When all
     # pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
-    # server due to firewall/networking), the default policy (IfHealthyBudget)
-    # prevents draining a node. Set to "" to disable this option, or set an
-    # explicit policy to force rendering it on Kubernetes versions before 1.27.
-    # See: [unhealthyPodEvictionPolicy in Kube
+    # server due to firewall/networking), the kubernetes default policy
+    # (IfHealthyBudget) prevents draining a node. This chart's defaul
+    # (AlwaysAllow) allows failing pods to be killed when nodes need to drain.
+    # The value will be omitted with a warning on Kubernetes before 1.27 due to
+    # API support. Set to "" to supress the warning at helm install time.
+    # See also: [unhealthyPodEvictionPolicy in Kube
     # docs](https://kubernetes.io/blog/2023/01/06/unhealthy-pod-eviction-policy-for-pdbs/#how-do-i-use-it)
     unhealthyPodEvictionPolicy: AlwaysAllow
 
