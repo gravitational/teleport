@@ -33,7 +33,7 @@ const (
 	minInstallBackoff = time.Minute
 )
 
-type installerBackoffEntry struct {
+type azureInstallerBackoffEntry struct {
 	vm *azure.VirtualMachine
 	// issueType is the latest installation issue for this entry.
 	issueType string
@@ -51,15 +51,15 @@ type installerBackoffEntry struct {
 }
 
 // retryable returns true if the entry can be retried.
-func (e *installerBackoffEntry) retryable(t time.Time) bool {
+func (e *azureInstallerBackoffEntry) retryable(t time.Time) bool {
 	return t.After(e.retryAfter)
 }
 
-func (e *installerBackoffEntry) isFailedAttempt() bool {
+func (e *azureInstallerBackoffEntry) isFailedAttempt() bool {
 	return e.issueType != ""
 }
 
-type installerBackoffKey struct {
+type azureInstallerBackoffKey struct {
 	// resourceID is the path based resource ID Azure, e.g., /subscriptions/<sub-id>/resourceGroups/<rg-id>/providers/Microsoft.Compute/virtualMachines/<vm-name>
 	// It is not necessarily unique.
 	resourceID string
@@ -68,25 +68,25 @@ type installerBackoffKey struct {
 	vmID string
 }
 
-func newInstallerBackoffKey(vm *azure.VirtualMachine) installerBackoffKey {
-	return installerBackoffKey{
+func newAzureInstallerBackoffKey(vm *azure.VirtualMachine) azureInstallerBackoffKey {
+	return azureInstallerBackoffKey{
 		resourceID: vm.ID,
 		vmID:       vm.VMID,
 	}
 }
 
-// installerBackoff tracks VM installation attempts backs the installer off to
+// azureInstallerBackoff tracks VM installation attempts and backs the installer off to
 // avoid excessive attempts.
-type installerBackoff struct {
+type azureInstallerBackoff struct {
 	retry *retryutils.RetryV2
 
 	mu sync.Mutex
 	// entries is a map of installation attempts, by VM ID.
-	entries map[installerBackoffKey]*installerBackoffEntry
+	entries map[azureInstallerBackoffKey]*azureInstallerBackoffEntry
 }
 
-// newInstallerBackoff creates a new [*installerBackoff].
-func newInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (*installerBackoff, error) {
+// newAzureInstallerBackoff creates a new [*azureInstallerBackoff].
+func newAzureInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (*azureInstallerBackoff, error) {
 	// bound the base delay to [minInstallBackoff, maxInstallBackoff/4]
 	baseDelay = min(
 		max(baseDelay, minInstallBackoff),
@@ -100,19 +100,19 @@ func newInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) (*in
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &installerBackoff{
+	return &azureInstallerBackoff{
 		retry:   retry,
-		entries: make(map[installerBackoffKey]*installerBackoffEntry),
+		entries: make(map[azureInstallerBackoffKey]*azureInstallerBackoffEntry),
 	}, nil
 }
 
 // filter filters out instances that are should be backed off and returns the
 // list of entries that were removed.
-func (b *installerBackoff) filter(instances *server.AzureInstances, t time.Time) []installerBackoffEntry {
+func (b *azureInstallerBackoff) filter(instances *server.AzureInstances, t time.Time) []azureInstallerBackoffEntry {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	var removed []installerBackoffEntry
+	var removed []azureInstallerBackoffEntry
 	instances.Instances = slices.DeleteFunc(instances.Instances, func(vm *azure.VirtualMachine) bool {
 		entry := b.addLocked(vm)
 		entry.seenInLastScan = true
@@ -125,11 +125,11 @@ func (b *installerBackoff) filter(instances *server.AzureInstances, t time.Time)
 	return removed
 }
 
-func (b *installerBackoff) addLocked(vm *azure.VirtualMachine) *installerBackoffEntry {
-	key := newInstallerBackoffKey(vm)
+func (b *azureInstallerBackoff) addLocked(vm *azure.VirtualMachine) *azureInstallerBackoffEntry {
+	key := newAzureInstallerBackoffKey(vm)
 	entry := b.entries[key]
 	if entry == nil {
-		entry = &installerBackoffEntry{
+		entry = &azureInstallerBackoffEntry{
 			retry: b.retry.Clone(),
 		}
 		b.entries[key] = entry
@@ -138,7 +138,7 @@ func (b *installerBackoff) addLocked(vm *azure.VirtualMachine) *installerBackoff
 	return entry
 }
 
-func (b *installerBackoff) recordAttemptLocked(vm *azure.VirtualMachine, t time.Time) *installerBackoffEntry {
+func (b *azureInstallerBackoff) recordAttemptLocked(vm *azure.VirtualMachine, t time.Time) *azureInstallerBackoffEntry {
 	entry := b.addLocked(vm)
 	entry.retry.Inc()
 	entry.attempts++
@@ -148,7 +148,7 @@ func (b *installerBackoff) recordAttemptLocked(vm *azure.VirtualMachine, t time.
 	return entry
 }
 
-func (b *installerBackoff) recordSuccessfulAttempt(vm *azure.VirtualMachine, t time.Time) installerBackoffEntry {
+func (b *azureInstallerBackoff) recordSuccessfulAttempt(vm *azure.VirtualMachine, t time.Time) azureInstallerBackoffEntry {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	entry := b.recordAttemptLocked(vm, t)
@@ -158,7 +158,7 @@ func (b *installerBackoff) recordSuccessfulAttempt(vm *azure.VirtualMachine, t t
 
 // recordFailedAttempt records an entry in the backoff for a failed VM
 // installation attempt and returns its backoff entry.
-func (b *installerBackoff) recordFailedAttempt(vm *azure.VirtualMachine, issueType string, t time.Time) installerBackoffEntry {
+func (b *azureInstallerBackoff) recordFailedAttempt(vm *azure.VirtualMachine, issueType string, t time.Time) azureInstallerBackoffEntry {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	entry := b.recordAttemptLocked(vm, t)
@@ -174,7 +174,7 @@ func (b *installerBackoff) recordFailedAttempt(vm *azure.VirtualMachine, issueTy
 // Undiscovered entries that have not elapsed the retry period are kept around
 // to handle the case where discovery config is updated to match a VM that was
 // failing and should still be backed off.
-func (b *installerBackoff) expireEntries(t time.Time) {
+func (b *azureInstallerBackoff) expireEntries(t time.Time) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -188,8 +188,8 @@ func (b *installerBackoff) expireEntries(t time.Time) {
 }
 
 // reset clears all backoff entries.
-func (b *installerBackoff) reset() {
+func (b *azureInstallerBackoff) reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.entries = make(map[installerBackoffKey]*installerBackoffEntry)
+	b.entries = make(map[azureInstallerBackoffKey]*azureInstallerBackoffEntry)
 }

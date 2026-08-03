@@ -26,12 +26,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv/server"
 )
 
-func TestInstallerBackoffRecordAttempt(t *testing.T) {
+func TestAzureInstallerBackoffRecordAttempt(t *testing.T) {
 	now := time.Now()
 	baseDelay := time.Minute
-	backoff, err := newInstallerBackoff(baseDelay, nil)
+	backoff, err := newAzureInstallerBackoff(baseDelay, nil)
 	require.NoError(t, err)
-	_, vm := backoffTestVM("vm-1")
+	_, vm := azureBackoffTestVM("vm-1")
 
 	entry := backoff.recordFailedAttempt(vm, "first-issue", now)
 	require.Equal(t, int32(1), entry.attempts)
@@ -63,7 +63,7 @@ func TestInstallerBackoffRecordAttempt(t *testing.T) {
 	require.Empty(t, backoff.entries)
 }
 
-func TestInstallerBackoffDelayBounds(t *testing.T) {
+func TestAzureInstallerBackoffDelayBounds(t *testing.T) {
 	tests := []struct {
 		name      string
 		baseDelay time.Duration
@@ -92,10 +92,10 @@ func TestInstallerBackoffDelayBounds(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backoff, err := newInstallerBackoff(tt.baseDelay, nil)
+			backoff, err := newAzureInstallerBackoff(tt.baseDelay, nil)
 			require.NoError(t, err)
-			_, vm := backoffTestVM("backed-off")
-			var entry *installerBackoffEntry
+			_, vm := azureBackoffTestVM("backed-off")
+			var entry *azureInstallerBackoffEntry
 			for range tt.attempts {
 				entry = backoff.recordAttemptLocked(vm, time.Now())
 			}
@@ -105,15 +105,15 @@ func TestInstallerBackoffDelayBounds(t *testing.T) {
 	}
 }
 
-func TestInstallerBackoffFilter(t *testing.T) {
+func TestAzureInstallerBackoffFilter(t *testing.T) {
 	now := time.Now()
 	baseDelay := time.Minute
-	backoff, err := newInstallerBackoff(baseDelay, nil)
+	backoff, err := newAzureInstallerBackoff(baseDelay, nil)
 	require.NoError(t, err)
 
-	vm1Key, vm1 := backoffTestVM("backed-off")
-	vm2Key, vm2 := backoffTestVM("retryable")
-	vm3Key, vm3 := backoffTestVM("never-failed")
+	vm1Key, vm1 := azureBackoffTestVM("backed-off")
+	vm2Key, vm2 := azureBackoffTestVM("retryable")
+	vm3Key, vm3 := azureBackoffTestVM("never-failed")
 
 	backoff.recordFailedAttempt(vm2, "retryable-issue", now)
 	backedOffEntry := backoff.recordFailedAttempt(vm1, "backed-off-issue", now.Add(baseDelay))
@@ -141,15 +141,15 @@ func TestInstallerBackoffFilter(t *testing.T) {
 	require.False(t, backoff.entries[vm3Key].isFailedAttempt())
 }
 
-func TestInstallerBackoffExpireEntries(t *testing.T) {
+func TestAzureInstallerBackoffExpireEntries(t *testing.T) {
 	now := time.Now()
 	baseDelay := time.Minute
-	backoff, err := newInstallerBackoff(baseDelay, nil)
+	backoff, err := newAzureInstallerBackoff(baseDelay, nil)
 	require.NoError(t, err)
 
-	vm1Key, vm1 := backoffTestVM("vm1")
-	vm2Key, vm2 := backoffTestVM("vm2")
-	vm3Key, vm3 := backoffTestVM("vm3")
+	vm1Key, vm1 := azureBackoffTestVM("vm1")
+	vm2Key, vm2 := azureBackoffTestVM("vm2")
+	vm3Key, vm3 := azureBackoffTestVM("vm3")
 
 	backoff.recordFailedAttempt(vm1, "issue", now)
 	backoff.recordFailedAttempt(vm2, "issue", now)
@@ -183,12 +183,12 @@ func TestInstallerBackoffExpireEntries(t *testing.T) {
 	require.NotContains(t, backoff.entries, vm2Key, "vm2 was not seen in last scan and expired, so it should have been removed")
 }
 
-func backoffTestVM(name string) (installerBackoffKey, *azure.VirtualMachine) {
+func azureBackoffTestVM(name string) (azureInstallerBackoffKey, *azure.VirtualMachine) {
 	vm := &azure.VirtualMachine{
 		ID:   "/subscriptions/test/resourceGroups/test/providers/Microsoft.Compute/virtualMachines/" + name,
 		Name: name,
 		VMID: name + "-vmid",
 	}
-	key := newInstallerBackoffKey(vm)
+	key := newAzureInstallerBackoffKey(vm)
 	return key, vm
 }
