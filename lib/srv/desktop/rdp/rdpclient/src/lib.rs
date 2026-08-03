@@ -42,7 +42,7 @@ use rdpdr::tdp::{
 };
 use std::ffi::CString;
 use std::fmt::Debug;
-use std::io::ErrorKind;
+use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 use std::os::raw::c_char;
 use std::ptr;
 use util::{from_c_string, from_go_array};
@@ -53,7 +53,6 @@ mod linux_desktop_encoder;
 mod network_client;
 mod piv;
 mod rdpdr;
-mod ssl;
 mod util;
 
 /// rdpclient_init_log should be called at initialization time to set up
@@ -92,14 +91,19 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 ///
 /// # Safety
 ///
-/// The caller must ensure that cgo_handle is a valid handle and that
-/// go_addr, go_domain, go_kdc, cert_der, key_der point to valid buffers.
+/// The caller must ensure that cgo_handle is a valid handle, that
+/// go_domain, go_kdc, cert_der, key_der point to valid buffers, and that
+/// conn_fd and tls_fd are open file descriptors whose ownership is being
+/// transferred to this function.
 #[no_mangle]
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
+
+    let conn_fd = unsafe { OwnedFd::from_raw_fd(params.conn_fd) };
+    let tls_fd = unsafe { OwnedFd::from_raw_fd(params.tls_fd) };
+
     // Convert from C to Rust types.
     let username = from_c_string(params.go_username);
-    let addr = from_c_string(params.go_addr);
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
@@ -119,7 +123,6 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             ad: params.ad,
             nla: params.nla,
             username,
-            addr,
             computer_name,
             cert_der,
             key_der,
@@ -132,6 +135,8 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
             client_id: params.client_id,
             keyboard_layout: params.keyboard_layout,
+            conn_fd: Some(conn_fd),
+            tls_fd: Some(tls_fd),
         },
     ) {
         Ok(res) => CGOResult {
@@ -152,28 +157,15 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
         },
         Err(e) => {
             error!("client_run failed: {:?}", e);
-            let message = match e {
-                client::ClientError::Tcp(io_err) if io_err.kind() == ErrorKind::TimedOut => {
-                    String::from(TIMEOUT_ERROR_MESSAGE)
-                }
-                _ => format!("{}", e),
-            };
             CGOResult {
                 err_code: CGOErrCode::ErrCodeFailure,
-                message: CString::new(message)
+                message: CString::new(format!("{}", e))
                     .map(|c| c.into_raw())
                     .unwrap_or(ptr::null_mut()),
             }
         }
     }
 }
-
-const TIMEOUT_ERROR_MESSAGE: &str = "Connection Timed Out\n\n\
-Teleport could not connect to the host within the timeout period. \
-This could be due to a firewall blocking connections, an overloaded system, \
-or network congestion. To resolve this issue, ensure that the Teleport agent \
-has connectivity to the Windows host.\n\n\
-Use \"nc -vz HOST 3389\" to help debug this issue.";
 
 fn handle_operation<T>(cgo_handle: CgoHandle, ctx: &'static str, f: T) -> CGOErrCode
 where
@@ -525,7 +517,6 @@ pub struct CGOConnectParams {
     ad: bool,
     nla: bool,
     go_username: *const c_char,
-    go_addr: *const c_char,
     go_domain: *const c_char,
     go_kdc_addr: *const c_char,
     go_computer_name: *const c_char,
@@ -541,6 +532,12 @@ pub struct CGOConnectParams {
     show_desktop_wallpaper: bool,
     client_id: [u32; 4],
     keyboard_layout: u32,
+    /// conn_fd is an fd for the TCP connection to the RDP server, used
+    /// for the pre-TLS portion of the RDP connection.
+    conn_fd: RawFd,
+    /// tls_fd is an fd for one end of a socketpair that Go uses to relay
+    /// the TLS-wrapped RDP stream.
+    tls_fd: RawFd,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.

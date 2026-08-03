@@ -93,15 +93,6 @@ FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 GOFIPS140 = v1.0.0
 export GOFIPS140
-ifeq ($(BUILDBOX_MODE),cross)
-# We need to set CGO_ENABLED=0 when building rdpclient as the build of
-# boring-sys builds and runs a Go program as part of its integrity testing.
-# (https://github.com/google/boringssl/blob/master/crypto/fipsmodule/FIPS.md#integrity-testing)
-# If CGO_ENABLED=1, this fails for odd reasons (it tries to use the cross
-# assembler to build ASM for the host).
-# It also needs to know the cross-compiler sysroot to properly cross-compile.
-RDPCLIENT_ENV = CGO_ENABLED=0 BORING_BSSL_FIPS_SYSROOT=$(CROSSTOOLNG_SYSROOT)
-endif
 endif
 
 # Look for the PAM header "security/pam_appl.h" to determine if we should
@@ -549,8 +540,7 @@ RDPCLIENT_SKIP_CARGO ?= 0
 rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 ifneq ($(RDPCLIENT_SKIP_CARGO),1)
-	$(RDPCLIENT_ENV) \
-		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+	cargo build -p rdp-client --release --locked $(CARGO_TARGET)
 else
 	@echo "Skipping rdp-client cargo build (RDPCLIENT_SKIP_CARGO=1)"
 endif
@@ -559,8 +549,7 @@ endif
 .PHONY: rdpdecoder
 rdpdecoder: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
-	$(RDPCLIENT_ENV) \
-		cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
+	cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
 endif
 
 define ironrdp_package_json
