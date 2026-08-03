@@ -525,3 +525,21 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 		}
 	})
 }
+
+func TestSubKindToCertAuthType(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		subKind string
+		want    types.CertAuthType
+	}{
+		{subKind: string(types.DatabaseClientCA), want: types.DatabaseClientCA},
+		{subKind: string(types.WindowsCA), want: types.WindowsCA},
+		{subKind: subca.SPIFFECAOverrideSubKind, want: types.SPIFFECA},
+	} {
+		t.Run(tt.subKind, func(t *testing.T) {
+			got := subca.SubKindToCertAuthType(tt.subKind)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -37,16 +37,32 @@ func SupportedCATypes() []string {
 	return slices.Clone(allowedCAOverrideSubKinds)
 }
 
+// SPIFFECAOverrideSubKind is the sub_kind for SPIFFE CA overrides.
+// The SPIFFE CA has both X.509 (TLS) and JWT signing components, and this
+// sub_kind targets the TLS signing component.
+const SPIFFECAOverrideSubKind = "spiffe-tls"
+
 var (
 	allowedCAOverrideSubKinds = []string{
 		string(types.DatabaseClientCA),
 		string(types.WindowsCA),
+		SPIFFECAOverrideSubKind,
 	}
 
 	// Public keys are printed as HEX(SHA256(...)), therefore it's a hex string
 	// with exactly 64 characters. See PublicKeyHash.
 	certificateOverridePublicKeyRE = regexp.MustCompile(`^[0-9A-Fa-f]{64}$`)
 )
+
+// SubKindToCertAuthType maps a CA override sub_kind to its CertAuthType.
+func SubKindToCertAuthType(subKind string) types.CertAuthType {
+	switch subKind {
+	case SPIFFECAOverrideSubKind:
+		return types.SPIFFECA
+	default:
+		return types.CertAuthType(subKind)
+	}
+}
 
 // ParsedCertAuthorityOverride is a CertAuthorityOverride with a
 // ParsedCertificateOverride list.
