@@ -47,6 +47,10 @@ const sampleFlags: RequestFlags = {
 
 const props: RequestViewProps = {
   user: 'loggedInUsername',
+  userDisplay: {
+    primary: 'Logged In User',
+    secondary: 'logged-in-user@example.com',
+  },
   fetchRequestAttempt: makeSuccessAttempt(requestRolePending),
   submitReviewAttempt: makeEmptyAttempt(),
   getFlags: () => sampleFlags,
@@ -61,11 +65,15 @@ const props: RequestViewProps = {
   deleteRequest: () => null,
 };
 
-const reviewBoxText = `${props.user} - add a review`;
-
 test('renders review box if user can review', async () => {
   render(<RequestView {...props} />);
-  expect(screen.getByText(reviewBoxText)).toBeInTheDocument();
+  const reviewHeader = screen.getByText(/add a review/i);
+
+  expect(within(reviewHeader).getByText('Logged In User')).toBeVisible();
+  expect(within(reviewHeader).getByText('loggedInUsername')).toBeVisible();
+  expect(
+    within(reviewHeader).queryByText('logged-in-user@example.com')
+  ).not.toBeInTheDocument();
 });
 
 test('does not render review box if user cannot review', async () => {
@@ -78,7 +86,7 @@ test('does not render review box if user cannot review', async () => {
       })}
     />
   );
-  expect(screen.queryByText(reviewBoxText)).not.toBeInTheDocument();
+  expect(screen.queryByText(/add a review/i)).not.toBeInTheDocument();
 });
 
 test('renders requester and reviewer display names with usernames', () => {

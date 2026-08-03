@@ -7,8 +7,12 @@ resource "aws_iam_role" "ecs_execution" {
 
   assume_role_policy = one(data.aws_iam_policy_document.ecs_execution_trust[*].json)
   description        = "Execution role used by the Teleport ECS agent task."
-  name_prefix        = "${var.ecs_cluster_name}-exec"
-  tags               = var.apply_aws_tags
+  name = format("%v-%v-exec-%v",
+    one(aws_ecs_cluster.teleport_agent[*].name),
+    one(data.aws_region.this[*].region),
+    one(random_string.name_suffix[*].result),
+  )
+  tags = var.apply_aws_tags
 }
 
 data "aws_iam_policy_document" "ecs_execution_trust" {
@@ -31,7 +35,7 @@ data "aws_iam_policy_document" "ecs_execution_trust" {
         format(
           "arn:%s:ecs:%s:%s:*",
           one(data.aws_partition.this[*].partition),
-          one(data.aws_region.this[*].name),
+          one(data.aws_region.this[*].region),
           one(data.aws_caller_identity.this[*].account_id),
         ),
       ]

@@ -941,6 +941,7 @@ func (s *LinuxService) trackSession(ctx context.Context, id *tlsca.Identity, lin
 		Kind:        string(types.LinuxDesktopSessionKind),
 		State:       types.SessionState_SessionStateRunning,
 		Hostname:    s.cfg.Hostname,
+		DesktopName: s.cfg.Hostname,
 		Address:     s.cfg.Heartbeat.HostUUID,
 		ClusterName: s.clusterName,
 		Login:       linuxUser,
