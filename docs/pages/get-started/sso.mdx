@@ -58,12 +58,12 @@ read-only access to certain databases.
 
 ## Connect your identity provider to Teleport
 
-For most users, you can connect your identity provider to Teleport by following
-a guided wizard in the Teleport Web UI. For advanced users who need more control
-over their configuration, or for identity providers that do not have a guided
-flow, you can manually configure Teleport to connect to your IdP.
+In most cases, you can connect your identity provider to Teleport by following a
+guided wizard in the Teleport Web UI. If you need more control over your
+configuration, or Teleport does not have a guided flow for your identity
+provider, you can manually configure Teleport to connect to your IdP.
 
-Teleport Community Edition only supports GitHub as an Idp, and you can only
+Teleport Community Edition only supports GitHub as an IdP, and you can only
 [connect GitHub
 manually](../zero-trust-access/sso/integrate-idp/github-sso.mdx).
 
@@ -80,8 +80,7 @@ To enroll your provider, visit the Teleport Web UI. From the sidebar, navigate t
 ### Create an authentication connector
 
 You can connect any identity provider to Teleport as long as it supports the
-SAML or OIDC protocols. Teleport also supports GitHub as an IdP (the only option
-for Teleport Community Edition). 
+SAML or OIDC protocols.
 
 Connecting an IdP to Teleport involves the following steps:
 
