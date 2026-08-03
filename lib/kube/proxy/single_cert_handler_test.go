@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
@@ -97,6 +98,39 @@ func TestSingleCertRouting(t *testing.T) {
 				_, err := clientA.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 				require.NoError(t, err)
 
+			},
+		},
+		{
+			// The shared unrouted certificate of the tsh kube local proxy: no Kubernetes cluster, no MFA state.
+			// One such cert must serve every Kubernetes cluster in the Teleport cluster via path routing.
+			name:     "unrouted identity path routes to every cluster",
+			roleSpec: defaultRoleSpec,
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{
+				WithIdentityRoute(clusterName, ""),
+			},
+			assert: func(t *testing.T, restConfig *rest.Config) {
+				for _, kubeCluster := range []string{"a", "b"} {
+					client := pathRoutedKubeClient(t, restConfig, clusterName, kubeCluster)
+					_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+					require.NoError(t, err, "unrouted cert must serve kube cluster %q", kubeCluster)
+				}
+			},
+		},
+		{
+			// As above, but carrying the usage restriction auth stamps on a Kubernetes-only certificate.
+			// Without it the identity is unrestricted and the AcceptedUsage check in the auth middleware is skipped.
+			name:     "unrouted kube-only identity path routes to every cluster",
+			roleSpec: defaultRoleSpec,
+			genKubeCertificateOpts: []GenTestKubeClientTLSCertOptions{
+				WithIdentityRoute(clusterName, ""),
+				WithUsage(teleport.UsageKubeOnly),
+			},
+			assert: func(t *testing.T, restConfig *rest.Config) {
+				for _, kubeCluster := range []string{"a", "b"} {
+					client := pathRoutedKubeClient(t, restConfig, clusterName, kubeCluster)
+					_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+					require.NoError(t, err, "unrouted kube-only cert must serve kube cluster %q", kubeCluster)
+				}
 			},
 		},
 		{
