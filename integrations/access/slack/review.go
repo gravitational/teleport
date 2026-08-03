@@ -226,9 +226,21 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(reqs) > 0 && reqs[0].GetRequestKind().IsLongTerm() {
-		log.DebugContext(ctx, "Request is long-term, cannot apply review from Slack")
-		return trace.AccessDenied("cannot review long-term request")
+	if len(reqs) != 1 {
+		// `GetAccessRequests` can return empty list if request is expired or
+		// `access_request:list` permission is missing. To avoid bricking reviews
+		// on short-term requests due to missing permission, we opt to skip the long-term request kind check
+		// and proceed with review.
+		// `SubmitAccessReview` API only permits short-term access grant, so the worst case
+		// is an "Approve" can block a future access list promotion for the request, not long-term access escalation.
+		log.WarnContext(ctx, "Skipping long-term request kind check; request not found or plugin is missing `access_request:list` permission",
+			"num_requests", len(reqs),
+		)
+	} else {
+		if reqs[0].GetRequestKind().IsLongTerm() {
+			log.DebugContext(ctx, "Request is long-term, cannot apply review from Slack")
+			return trace.AccessDenied("cannot review long-term request")
+		}
 	}
 
 	username, err := utils.FnCacheGet(ctx, a.userCache, slackUserID, func(ctx context.Context) (string, error) {
