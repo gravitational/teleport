@@ -461,7 +461,7 @@ func TestEC2WatcherGetInstancesConcurrency(t *testing.T) {
 				}()
 
 				synctest.Wait()
-				require.Equal(t, ec2DiscoveryConcurrencyLimit, len(started))
+				require.Len(t, started, ec2DiscoveryConcurrencyLimit)
 
 				close(release)
 				synctest.Wait()
@@ -469,7 +469,7 @@ func TestEC2WatcherGetInstancesConcurrency(t *testing.T) {
 				result := <-resultC
 				require.NoError(t, result.err)
 				require.Len(t, result.instances, tt.expectedInstanceGroups)
-				require.Equal(t, totalScans, len(started))
+				require.Len(t, started, totalScans)
 			})
 		})
 	}
@@ -561,7 +561,7 @@ func TestEC2WatcherResolveRegionsConcurrency(t *testing.T) {
 		}()
 
 		synctest.Wait()
-		require.Equal(t, ec2DiscoveryConcurrencyLimit, len(started))
+		require.Len(t, started, ec2DiscoveryConcurrencyLimit)
 
 		close(release)
 		synctest.Wait()
@@ -569,7 +569,7 @@ func TestEC2WatcherResolveRegionsConcurrency(t *testing.T) {
 		result := <-resultC
 		require.NoError(t, result.err)
 		require.Len(t, result.instances, totalAccounts)
-		require.Equal(t, totalAccounts, len(started))
+		require.Len(t, started, totalAccounts)
 	})
 }
 
