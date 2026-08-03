@@ -2,9 +2,6 @@
 # It does not ensure the setup runs within Antithesis, this should be triggered manually or via dispatch due to quotas.
 name: Validate Antithesis
 on:
-  push:
-    branches:
-      - master
   pull_request:
   merge_group:
 
