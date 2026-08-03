@@ -167,10 +167,10 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.initSharedBotTokenFlags(c.botsAdd)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
-	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'.").Required().StringVar(&c.botName)
+	c.botsRemove.Arg("name", "Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().StringVar(&c.botName)
 
 	c.botsLock = bots.Command("lock", "Prevent a bot from renewing its certificates.")
-	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form '<scope>::<name>'.").Required().StringVar(&c.botName)
+	c.botsLock.Arg("name", "Name of an existing bot to lock. For a scoped bot, provide a scope-qualified name of the form [scope]::[name].").Required().StringVar(&c.botName)
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()

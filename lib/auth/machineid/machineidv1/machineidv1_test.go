@@ -3876,7 +3876,7 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 		waitForSRACache(t, srv, sraResp)
 
-		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(botName, "/scopes/test", true))
+		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(t, botName, "/scopes/test", true))
 		createBotInstance(t, srv, botName, "/scopes/test", instanceID)
 
 		_, err = botClient.BotInstanceServiceClient().SubmitHeartbeat(ctx, machineidv1pb.SubmitHeartbeatRequest_builder{

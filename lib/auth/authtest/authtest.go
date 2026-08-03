@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
@@ -1178,12 +1179,10 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 }
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
+func TestScopedBot(t *testing.T, botName string, scope string, botInternal bool) TestIdentity {
 	// The cert username must match the User name the bot service persists.
 	userName, err := services.BotResourceName(scope, botName)
-	if err != nil {
-		panic(fmt.Sprintf("TestScopedBot: invalid scope %q: %v", scope, err))
-	}
+	require.NoError(t, err)
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,
