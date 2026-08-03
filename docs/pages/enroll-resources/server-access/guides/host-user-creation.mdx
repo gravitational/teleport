@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 Teleport's SSH Service can automatically create local Unix users on a server,
@@ -23,6 +24,9 @@ member of your organization and gives you fine-grained, per-host control of
 permissions. As a security best practice, Teleport provisions these users and 
 keeps them on the host for auditability, though they can be configured to be 
 deleted at the end of an SSH session if required by your environment.
+
+In this guide, you will configure host user creation and host sudoers for
+Teleport-protected servers.
 
 ## How it works
 
