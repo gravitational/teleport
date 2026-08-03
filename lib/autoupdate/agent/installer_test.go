@@ -61,18 +61,19 @@ func TestLocalInstaller_Install(t *testing.T) {
 	verifier, sig := testArtifactSignatureVerifier(t, tgz.Bytes())
 
 	tests := []struct {
-		name            string
-		reservedTmp     uint64
-		reservedInstall uint64
-		existingSum     string
-		checksumValue   string
-		signatureValue  string
-		signatureStatus int
-		flags           autoupdate.InstallFlags
-		baseURL         string
-		force           bool
-		insecure        bool
-		alreadyPresent  bool
+		name                         string
+		reservedTmp                  uint64
+		reservedInstall              uint64
+		existingSum                  string
+		checksumValue                string
+		signatureValue               string
+		signatureStatus              int
+		flags                        autoupdate.InstallFlags
+		baseURL                      string
+		force                        bool
+		insecure                     bool
+		allowStagingChecksumFallback bool
+		alreadyPresent               bool
 
 		errMatch string
 	}{
@@ -85,9 +86,15 @@ func TestLocalInstaller_Install(t *testing.T) {
 			checksumValue: testSum,
 		},
 		{
-			name:          "not present internal development CDN checksum only",
+			name:          "not present internal development CDN with signature verification by default",
 			baseURL:       stagingCDNBaseURL,
 			checksumValue: testSum,
+		},
+		{
+			name:                         "not present internal development CDN checksum only fallback enabled",
+			baseURL:                      stagingCDNBaseURL,
+			checksumValue:                testSum,
+			allowStagingChecksumFallback: true,
 		},
 		{
 			name:           "present",
@@ -219,7 +226,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ArtifactSignatureVerifiers: []signature.Verifier{verifier},
 			}
 			ctx := context.Background()
-			err = installer.Install(ctx, NewRevision(version, tt.flags), baseURL, tt.force, tt.insecure)
+			err = installer.Install(ctx, NewRevision(version, tt.flags), baseURL, tt.force, tt.insecure, tt.allowStagingChecksumFallback)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -237,7 +244,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
-			if tt.insecure || isStagingCDN(baseURL) {
+			if tt.insecure || (isStagingCDN(baseURL) && tt.allowStagingChecksumFallback) {
 				require.Empty(t, sigPath)
 			} else {
 				require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
@@ -294,7 +301,7 @@ func TestLocalInstaller_Install_MismatchedChecksumMetadata(t *testing.T) {
 		ArtifactSignatureVerifiers: []signature.Verifier{verifier},
 	}
 
-	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false)
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false, false, false)
 	require.ErrorContains(t, err, "downloaded checksum does not match artifact digest")
 	require.Equal(t, "/teleport-"+runtime.GOOS+"/"+runtime.GOARCH+"/"+version+"."+checksumType, shaPath)
 

@@ -131,6 +131,8 @@ func Run(args []string) int {
 		BoolVar(&ccfg.Insecure)
 	app.Flag("insecure-skip-signature-verify", "Disable artifact signature verification and fall back to checksum-only verification. Do not use in production.").
 		Hidden().IsSetByUser(&ccfg.InsecureSkipSignatureVerifyChanged).BoolVar(&ccfg.InsecureSkipSignatureVerify)
+	app.Flag("allow-staging-checksum-fallback", "Allow checksum-only fallback for artifacts downloaded from the staging CDN.").
+		IsSetByUser(&ccfg.AllowStagingChecksumFallbackChanged).BoolVar(&ccfg.AllowStagingChecksumFallback)
 
 	app.HelpFlag.Short('h')
 

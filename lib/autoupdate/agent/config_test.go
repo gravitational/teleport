@@ -130,13 +130,15 @@ func TestValidateConfigSpec(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name                        string
-		config                      UpdateSpec
-		override                    UpdateSpec
-		insecureSkipSignatureVerify bool
-		insecureChanged             bool
-		result                      UpdateSpec
-		errMatch                    string
+		name                         string
+		config                       UpdateSpec
+		override                     UpdateSpec
+		insecureSkipSignatureVerify  bool
+		insecureChanged              bool
+		allowStagingChecksumFallback bool
+		allowStagingChanged          bool
+		result                       UpdateSpec
+		errMatch                     string
 	}{
 		{
 			name: "overrides",
@@ -254,20 +256,45 @@ func TestValidateConfigSpec(t *testing.T) {
 				BaseURL: "https://example.com",
 			},
 		},
+		{
+			name: "allow staging checksum fallback can be enabled",
+			override: UpdateSpec{
+				BaseURL: "https://cdn.cloud.gravitational.io",
+			},
+			allowStagingChecksumFallback: true,
+			allowStagingChanged:          true,
+			result: UpdateSpec{
+				BaseURL:                      "https://cdn.cloud.gravitational.io",
+				AllowStagingChecksumFallback: true,
+			},
+		},
+		{
+			name: "allow staging checksum fallback can be cleared",
+			config: UpdateSpec{
+				BaseURL:                      "https://cdn.cloud.gravitational.io",
+				AllowStagingChecksumFallback: true,
+			},
+			allowStagingChanged: true,
+			result: UpdateSpec{
+				BaseURL: "https://cdn.cloud.gravitational.io",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := updateConfigSpec(&tt.config, OverrideConfig{
 				UpdateSpec: UpdateSpec{
-					Proxy:                       tt.override.Proxy,
-					Path:                        tt.override.Path,
-					Group:                       tt.override.Group,
-					BaseURL:                     tt.override.BaseURL,
-					Enabled:                     tt.override.Enabled,
-					Pinned:                      tt.override.Pinned,
-					SELinuxSSH:                  tt.override.SELinuxSSH,
-					InsecureSkipSignatureVerify: tt.insecureSkipSignatureVerify,
+					Proxy:                        tt.override.Proxy,
+					Path:                         tt.override.Path,
+					Group:                        tt.override.Group,
+					BaseURL:                      tt.override.BaseURL,
+					Enabled:                      tt.override.Enabled,
+					Pinned:                       tt.override.Pinned,
+					SELinuxSSH:                   tt.override.SELinuxSSH,
+					InsecureSkipSignatureVerify:  tt.insecureSkipSignatureVerify,
+					AllowStagingChecksumFallback: tt.allowStagingChecksumFallback,
 				},
-				InsecureSkipSignatureVerifyChanged: tt.insecureChanged,
+				InsecureSkipSignatureVerifyChanged:  tt.insecureChanged,
+				AllowStagingChecksumFallbackChanged: tt.allowStagingChanged,
 			})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)

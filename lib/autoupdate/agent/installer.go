@@ -158,7 +158,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify bool) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify, allowStagingChecksumFallback bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -229,7 +229,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 
 	if insecureSkipSignatureVerify {
 		li.Log.WarnContext(ctx, "Artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
-	} else if isStagingCDN(baseURL) {
+	} else if isStagingCDN(baseURL) && allowStagingChecksumFallback {
 		li.Log.WarnContext(ctx, "Artifact signature verification skipped: staging CDN in use.", "version", rev)
 	} else if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
 		return trace.Wrap(err)

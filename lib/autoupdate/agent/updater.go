@@ -306,7 +306,7 @@ type Installer interface {
 	// Install the Teleport agent at revision from the download Template.
 	// If force is true, Install will remove broken revisions.
 	// Install must be idempotent.
-	Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool) error
+	Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, allowStagingChecksumFallback bool) error
 	// Link the Teleport agent at the specified revision of Teleport into path.
 	// The revert function must restore the previous linking, returning false on any failure.
 	// If force is true, Link will overwrite non-symlinks.
@@ -404,6 +404,9 @@ type OverrideConfig struct {
 	// InsecureSkipSignatureVerifyChanged specifies whether the user explicitly toggled
 	// artifact verification fallback behavior.
 	InsecureSkipSignatureVerifyChanged bool
+	// AllowStagingChecksumFallbackChanged specifies whether the user explicitly toggled
+	// checksum-only fallback for artifacts downloaded from the staging CDN.
+	AllowStagingChecksumFallbackChanged bool
 	// SELinuxSSHChanged specifies whether the user explicitly toggled SELinux behavior.
 	SELinuxSSHChanged bool
 }
@@ -1057,7 +1060,7 @@ func (u *Updater) update(ctx context.Context, cfg *UpdateConfig, target Revision
 	if err != nil {
 		return trace.Wrap(err, "failed to determine if linked")
 	}
-	err = u.Installer.Install(ctx, target, baseURL, !linked, cfg.Spec.InsecureSkipSignatureVerify)
+	err = u.Installer.Install(ctx, target, baseURL, !linked, cfg.Spec.InsecureSkipSignatureVerify, cfg.Spec.AllowStagingChecksumFallback)
 	if err != nil {
 		return trace.Wrap(err, "failed to install")
 	}
