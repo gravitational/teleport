@@ -119,6 +119,9 @@ type SSMInstallationResult struct {
 	// InstanceName is the Instance's name.
 	// Might be empty.
 	InstanceName string
+	// Rotation indicates that the request was made to rotate host CAs. Rotation
+	// attempts are never subject to installer backoff.
+	Rotation bool
 }
 
 // SSMInstaller handles running SSM commands that install Teleport on EC2 instances.
@@ -149,6 +152,9 @@ type SSMRunRequest struct {
 	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
+	// Rotation indicates that the command rotates host CAs. Rotation attempts
+	// must not be delayed by installer backoff.
+	Rotation bool
 }
 
 // InstallerScriptName returns the Teleport Installer script name.
@@ -320,6 +326,7 @@ func invalidSSMInstanceInstallationResult(req SSMRunRequest, instanceMetadata in
 		SSMDocumentName:     req.DocumentName,
 		InstallerScript:     req.InstallerScriptName(),
 		InstanceName:        instanceMetadata.InstanceName,
+		Rotation:            req.Rotation,
 	}
 }
 
@@ -588,6 +595,7 @@ func (si *SSMInstaller) reportCommandStepOutcome(ctx context.Context, req SSMRun
 		SSMDocumentName:     req.DocumentName,
 		InstallerScript:     req.InstallerScriptName(),
 		InstanceName:        instanceMetadata.InstanceName,
+		Rotation:            req.Rotation,
 	})
 }
 

@@ -37,6 +37,17 @@ func newEC2InstallerBackoffTarget(group *server.EC2Instances, instance server.EC
 	}
 }
 
+func newEC2InstallerBackoffTargetFromResult(result *server.SSMInstallationResult) ec2InstallerBackoffTarget {
+	return ec2InstallerBackoffTarget{
+		accountID: result.SSMRunEvent.AccountID,
+		region:    result.SSMRunEvent.Region,
+		instance: server.EC2Instance{
+			InstanceID:   result.SSMRunEvent.InstanceID,
+			InstanceName: result.InstanceName,
+		},
+	}
+}
+
 type ec2InstallerBackoffKey struct {
 	accountID  string
 	region     string
