@@ -1,0 +1,374 @@
+---
+title: Terraform Database Auto-Discovery
+sidebar_label: AWS with Terraform
+description: Configure Teleport to auto-discover Amazon databases.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - aws
+page_type: how-to
+---
+
+This guide shows you how to use Terraform to configure Teleport to discover
+Amazon databases and deploy a Teleport Database Service on Amazon
+Elastic Container Service (ECS).
+
+## How it works
+
+{/*
+TODO(gavin): after the modules are published, hyperlink each module name to the module reference docs
+*/}
+
+The `teleport-discovery-aws` Terraform module creates AWS IAM resources, AWS
+OIDC integration, and Teleport `discovery_config` that the
+**Teleport Discovery Service** uses to discover databases in AWS.
+
+Teleport Cloud runs the Discovery Service for you. For a self-hosted Teleport
+cluster, you run a Discovery Service with a `discovery_group` that matches the
+group configured by the module.
+
+The `teleport-db-agent-aws` Terraform module deploys a **Teleport Database Service**
+as an ECS service.
+The module creates an ECS cluster and service, task IAM roles, CloudWatch log
+group, security group, and Teleport IAM join token. By default, the Database
+Service selects discovered databases in the same AWS account, region, and VPC.
+
+The Discovery Service only calls AWS APIs and does not need network access to
+the databases.
+
+The Database Service must be able to reach:
+1. The Teleport cluster's public proxy endpoint
+1. The AWS database endpoints
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Terraform `1.5.7` or later.
+- An AWS account containing at least one RDS or Aurora database.
+- A VPC and at least one subnet in which to deploy the Database Service.
+- AWS credentials for the AWS Terraform provider.
+- Teleport credentials for the Teleport Terraform provider. For a local Terraform run,
+  follow the [Teleport Terraform provider local
+  demo](../../../configuration/terraform-provider/local.mdx).
+
+This guide deploys the Database Service to the same AWS account, region, and VPC
+as the databases. To access databases in other AWS accounts, configure
+`database_service_resources` and the required cross-account IAM roles instead
+of using the module's default resource matcher.
+
+## Step 1/6. Prepare the Discovery Service
+
+<Tabs>
+
+<TabItem label="Teleport Cloud">
+
+Teleport Cloud runs a Discovery Service in the `cloud-discovery-group` group.
+No Discovery Service installation is required.
+
+</TabItem>
+
+<TabItem label="Self-hosted">
+
+{/*
+TODO(gavin): include instructions for deploying discovery service on ECS
+*/}
+
+Install Teleport on a host that can reach your Teleport Proxy Service. The host
+needs network access to the AWS API, but it does not need network access to any databases.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create a join token for the Discovery Service:
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Discovery" tokenType="discovery" tokenFile="/tmp/token" !)
+
+Create `/etc/teleport.yaml` on the host. Assign
+<Var name="teleport.example.com:443" /> to the public address of your Teleport
+Proxy Service:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: "<Var name="aws-databases" />"
+```
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+</TabItem>
+
+</Tabs>
+
+## Step 2/6. Configure the Terraform providers
+
+Configure the
+[AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+with the region containing the VPC and databases.
+
+Add the AWS and Teleport providers to your Terraform configuration:
+
+```hcl
+terraform {
+  required_version = ">= 1.5.7"
+
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 6.0"
+    }
+    teleport = {
+      source = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 18.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "<Var name="us-east-1" />"
+}
+
+provider "teleport" {}
+```
+
+Configure the Teleport Terraform provider with credentials for your cluster.
+For a local Terraform run, log in to Teleport and export credentials for the
+provider from the same shell in which you will run Terraform:
+
+```code
+$ tsh login
+$ eval "$(tctl terraform env)"
+```
+
+For CI/CD and other remote execution environments, follow [Using the Teleport
+Terraform Provider](../../../configuration/terraform-provider/terraform-provider.mdx)
+to configure Machine ID or workload identity credentials.
+
+## Step 3/6. Configure the Terraform modules
+
+Add both modules and a security group ingress rule to your Terraform configuration.
+
+<Tabs>
+
+<TabItem label="Teleport Cloud">
+
+```hcl
+module "aws_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=cloud.major_version=).0"
+
+  teleport_proxy_public_addr    = "<Var name="example.teleport.sh:443" />"
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  aws_matchers = [{
+    types   = ["rds"]
+    regions = ["<Var name="us-east-1" />"]
+    tags    = { "*" = ["*"] }
+  }]
+}
+
+module "teleport_db_agent" {
+  source  = "terraform.releases.teleport.dev/teleport/db-agent/aws"
+  version = "~> (=cloud.major_version=).0"
+
+  teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
+  vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
+  ecs_service_subnets = [
+    "<Var name="subnet-0123456789abcdef0" />",
+    "<Var name="subnet-abcdef01234567890" />",
+  ]
+
+  allow_database_modification           = true
+  database_types_for_default_iam_policy = ["rds"]
+}
+
+resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
+  security_group_id            = "<Var name="sg-0123456789abcdef0" />"
+  referenced_security_group_id = module.teleport_db_agent.security_group_id
+  ip_protocol                  = "-1"
+}
+```
+
+</TabItem>
+
+<TabItem label="Self-hosted">
+
+```hcl
+module "aws_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
+  teleport_discovery_group_name = "<Var name="aws-databases" />"
+
+  aws_matchers = [{
+    types   = ["rds"]
+    regions = ["<Var name="us-east-1" />"]
+    tags    = { "*" = ["*"] }
+  }]
+}
+
+module "teleport_db_agent" {
+  source  = "terraform.releases.teleport.dev/teleport/db-agent/aws"
+  version = "~> (=teleport.major_version=).0"
+
+  teleport_proxy_public_addr = "<Var name="teleport.example.com:443" />"
+  vpc_id                     = "<Var name="vpc-0123456789abcdef0" />"
+  ecs_service_subnets = [
+    "<Var name="subnet-0123456789abcdef0" />",
+    "<Var name="subnet-abcdef01234567890" />",
+  ]
+
+  allow_database_modification           = true
+  database_types_for_default_iam_policy = ["rds"]
+}
+
+resource "aws_vpc_security_group_ingress_rule" "teleport_db_agent" {
+  security_group_id            = "<Var name="sg-0123456789abcdef0" />"
+  referenced_security_group_id = module.teleport_db_agent.security_group_id
+  ip_protocol                  = "-1"
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+Replace the VPC, subnet, security group, and region values with
+values for your AWS environment. If the databases use different security
+groups, create one `aws_vpc_security_group_ingress_rule` resource for
+each security group.
+
+The discovery module's `aws_matchers` input controls which databases are
+registered with Teleport. The example discovers all RDS and Aurora databases in
+the configured region. Replace the wildcard `tags` selector to restrict
+discovery to databases with specific AWS tags.
+
+The database-agent module's default resource matcher selects registered
+databases with `account-id`, `region`, and `vpc-id` labels matching the AWS
+account, region, and VPC in which the ECS service runs.
+
+Setting `database_types_for_default_iam_policy = ["rds"]` adds permissions to
+describe RDS databases and connect with IAM authentication. Set
+`allow_database_modification = true` to also allow the Database Service to
+enable IAM database authentication. The default policy grants these RDS actions
+against all applicable resources. To restrict the permissions for a production
+deployment, pass a policy document to `ecs_task_role_inline_policy`. Statements
+with the `RDSAutoEnableIAMAuth`, `RDSConnect`, and `RDSFetchMetadata` SIDs
+override the corresponding default statements.
+
+The discovery module uses an AWS OIDC integration by default. The public proxy
+address of a self-hosted cluster must be reachable over HTTPS so AWS can use it
+as an OIDC identity provider. If the proxy is not publicly reachable, configure
+`discovery_service_iam_credential_source` to use an AWS IAM role available to
+the Discovery Service instead.
+
+AWS permits only one IAM OIDC provider for a given provider URL in an account.
+If the account already has an IAM OIDC provider for this Teleport cluster, set
+`create_aws_iam_openid_connect_provider = false` in the discovery module.
+
+## Step 4/6. Apply the Terraform configuration
+
+Initialize Terraform and review the plan:
+
+```code
+$ terraform init
+$ terraform apply
+```
+
+The discovery module should plan the following resources:
+
+- An AWS IAM role and policy for RDS discovery.
+- An AWS IAM OIDC provider and Teleport AWS OIDC integration.
+- A Teleport `discovery_config` for the selected RDS databases.
+
+The database-agent module should plan the following resources:
+
+- An ECS cluster, task definition, and service.
+- ECS task and execution IAM roles.
+- A CloudWatch log group.
+- A security group that permits outbound traffic.
+- A Teleport IAM join token restricted to the ECS task role.
+
+The plan should also include the inbound rule for the RDS security group.
+Review the plan carefully, then approve it.
+
+The ECS service runs two Database Service tasks by default. The tasks join the
+Teleport cluster with their AWS IAM identity, so the module does not store a
+secret join token in the ECS task definition.
+
+## Step 5/6. Verify database discovery
+
+The Discovery Service registers matched databases as Teleport `db` resources.
+
+List the registered databases:
+
+```code
+$ tctl get db
+```
+
+The Discovery Service adds the `teleport.dev/origin: cloud` label to each
+database that it registers. Verify that the output contains RDS databases from
+the configured AWS account and region.
+
+If expected databases are missing, check the discovery integration in the
+Teleport Web UI under **Zero Trust Access > Integrations**, then refer to the
+[Discovery Service troubleshooting](#discovery-service-troubleshooting)
+section.
+
+## Step 6/6. Verify the Database Service
+
+After the ECS tasks start and match the registered databases, they create
+short-lived Teleport `db_server` resources. List the databases served by the
+Database Service:
+
+```code
+$ tctl db ls teleport.dev/origin=cloud,teleport.dev/cloud=AWS,region=<Var name="us-east-1" />
+```
+
+If the command lists the expected RDS databases, auto-discovery and the
+Database Service are configured correctly.
+
+If `tctl get db` lists a database but `tctl db ls` does not, inspect the ECS task
+logs in the CloudWatch log group created by the database-agent module. Also
+verify the VPC route, RDS security group rule, resource labels, and ECS task IAM
+permissions. Refer to [Database Service
+troubleshooting](#database-service-troubleshooting) for additional checks.
+
+<Admonition type="note">
+
+This guide configures RDS auto-discovery and deploys the Database Service. It
+does not provision database users or configure Teleport RBAC for those users.
+Follow the appropriate guide in [Enroll AWS
+Databases](../../database-access/enrollment/aws/aws.mdx) before connecting to a
+database.
+
+</Admonition>
+
+## Next steps
+
+- Learn how the Database Service uses [Dynamic
+  Registration](../../database-access/guides/dynamic-registration.mdx).
+- [Connect to a database](../../database-access/guides/guides.mdx).
+- Configure access to AWS databases in [external AWS
+  accounts](../../database-access/enrollment/aws/aws-cross-account.mdx).
+
+## Troubleshooting
+
+(!docs/pages/includes/discovery/tctl-discovery-status.mdx provider="AWS" cloud="aws" resource="AWS RDS"!)
+
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" cloud="AWS"!)
+
+(!docs/pages/includes/discovery/database-service-troubleshooting.mdx!)
