@@ -122,6 +122,7 @@ func (c *Clients) GetRunCommandClient(ctx context.Context, subscription string) 
 	return c.AzureRunCommand, nil
 }
 
+// GetNetworkInterfacesClient returns an Azure Network Interfaces client for the given subscription.
 func (c *Clients) GetNetworkInterfacesClient(ctx context.Context, subscription string) (azure.NetworkInterfacesClient, error) {
 	return c.AzureNetworkInterfaces, nil
 }
