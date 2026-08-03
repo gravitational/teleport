@@ -4870,6 +4870,8 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				resource = respResource.GetWindowsDesktop()
 			case types.KindWindowsDesktopService:
 				resource = respResource.GetWindowsDesktopService()
+			case types.KindLinuxDesktop:
+				resource = proto.UnpackLinuxDesktop(respResource.GetLinuxDesktop())
 			case types.KindKubernetesCluster:
 				resource = respResource.GetKubeCluster()
 			case types.KindKubeServer:
@@ -4937,6 +4939,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetWindowsDesktop()
 			case types.KindWindowsDesktopService:
 				resource = respResource.GetWindowsDesktopService()
+			case types.KindLinuxDesktop:
+				resource = proto.UnpackLinuxDesktop(respResource.GetLinuxDesktop())
 			case types.KindKubernetesCluster:
 				resource = respResource.GetKubeCluster()
 			case types.KindKubeServer:
