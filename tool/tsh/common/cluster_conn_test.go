@@ -76,7 +76,7 @@ func TestClusterConn_LingerReusesConnection(t *testing.T) {
 
 		time.Sleep(2 * clusterConnLinger)
 		synctest.Wait()
-		require.Equal(t, 0, dialer.conns[0].closes, "the cancelled close must not fire under the holder")
+		require.Equal(t, 0, dialer.conns[0].closes, "the canceled close must not fire under the holder")
 
 		release()
 		time.Sleep(clusterConnLinger)
