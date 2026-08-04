@@ -22,8 +22,6 @@ jobs:
       with:
         cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
         cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
-        existing-gh-secrets: "${{ toJSON(secrets) }}"
-        existing-gh-variables: "${{ toJSON(vars) }}"
         values: |
           AMPLIFY_APP_IDS,variable
           IAM_ROLE,variable
