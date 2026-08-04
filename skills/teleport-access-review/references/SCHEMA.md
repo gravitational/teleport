@@ -87,8 +87,8 @@ Used for identities, resources, and grants.
 | Level         | Meaning                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------- |
 | `standing`    | The identity holds the grant directly, no request or impersonation needed.                    |
-| `impersonate` | Reachable only by minting a certificate to impersonate another identity (no approval needed). |
-| `request`     | Reachable only after an approved access request.                                              |
+| `impersonate` | Held only by minting a certificate to impersonate another identity (no approval needed).      |
+| `request`     | Held only after an approved access request.                                                   |
 | `denied`      | A deny rule blocks the access. Any denied path wins over everything else.                     |
 
 A trailing `*` on the level in text output marks `temporary` (self-expiring)

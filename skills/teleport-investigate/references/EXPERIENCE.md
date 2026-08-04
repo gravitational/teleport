@@ -82,8 +82,9 @@ abbreviated.
 
 ### "Were there any failed authentications from India in the last 7 days?"
 
-Login failures are `user.login` with `status:failure` (local and SSO both). From
-India → `--country India`. Facets answer it without pulling events:
+Login failures are `user.login` with `status:failure`, whatever the method
+(local, SSO, `client.cert`, `headless`). From India → `--country India`. Facets
+answer it without pulling events:
 
 ```sh
 $TCTL investigate --event-type user.login --status failure --country India \
@@ -95,9 +96,9 @@ $TCTL investigate --event-type user.login --status failure --country India \
 { "total": 1, "who": [{ "value": "alice", "count": 1 }] }
 ```
 
-Don't add `--event-type auth`: `auth` is an **authorization**-attempt failure —
-most often an SSH certificate lacking the requested principal — not a failed
-authentication. Mixing the two inflates any brute-force signal.
+Don't add `--event-type auth`: `auth` is usually an **authorization**-attempt
+failure — most often an SSH certificate lacking the requested principal — rather
+than a failed authentication. Mixing the two inflates any brute-force signal.
 
 ### "What did bot CI-deployer do yesterday?"
 
@@ -147,14 +148,13 @@ $TCTL investigate --resource production-database --event-type db.session.end \
 }
 ```
 
-Manually exclude Teleport automation from the `who` facet — `Instance`
-(`instance.join`), an agent's `<host-uuid>.<cluster-name>`, and `UNKNOWN` are not
-human accessors.
+The `who` facet lists `identity.id` values, and several of them aren't people.
+Drop `system` (`session.summarized`), `Instance` (`instance.join`), `UNKNOWN`,
+and any agent's `<host-uuid>.<cluster-name>` before reporting accessors.
 
-**Don't use `--exclude-user-kind system` for this.** `identity.kind` is derived
-per **event**, not per identity — the same human is `system` on `mfa.add` and
-`user` on `mfa_auth_challenge.*` — so excluding the kind drops real human
-activity. Filter by identity name or event type instead.
+Exclude them by name, **not** with `--exclude-user-kind system`: `identity.kind`
+is derived per **event**, so the same human is `system` on `mfa.add` and `user`
+on `mfa_auth_challenge.*`, and excluding the kind drops real human activity.
 
 ### "Show me what activity was performed during the following access request `<uuid>`"
 
@@ -277,9 +277,10 @@ start with low-cost searches and refine until the result set is narrow.
 - **Empty `data`** — broaden the time window, or add `--show-unmatched` to a
   `--facets-only` run to discover which filter values actually exist in the
   window, then adjust the filter.
-- **Negative coordinates need the equals form.** A negative `--latitude` or
-  `--longitude` is misread as a flag (`expected argument for flag '--latitude'`);
-  pass it as `--latitude=-26.2309 --longitude=28.0583`.
+- **Geo filters come as a set, and negatives need the equals form.**
+  `--latitude`, `--longitude` and `--radius` (km) must all be passed. A negative
+  coordinate is misread as a flag (`expected argument for flag '--latitude'`), so
+  write it as `--latitude=-26.2309 --longitude=28.0583 --radius=50`.
 - **`user_agent` is sparse.** For Teleport events it's only populated on some
   event types (login, cert issue, db session start, SCIM list/get); treat a
   missing `user_agent` as absent data, not a signal.
