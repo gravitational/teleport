@@ -48,7 +48,7 @@ func getAuthConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Resour
 		return nil, trace.Wrap(err)
 	}
 
-	samlConns, err := clt.GetSAMLConnectors(ctx, false)
+	samlConns, err := clt.GetSAMLConnectorsWithValidationOptions(ctx, false, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +83,7 @@ func (p *Plugin) getSAMLConnectorHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	connector, err := clt.GetSAMLConnector(r.Context(), params.ByName("name"), true)
+	connector, err := clt.GetSAMLConnectorWithValidationOptions(r.Context(), params.ByName("name"), true, types.SAMLConnectorValidationFollowURLs(false))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,10 +217,10 @@ func (p *Plugin) updateOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 type resourcesAPIGetter interface {
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	// GetSAMLConnector returns SAML connector information by id
-	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
-	// GetSAMLConnectors gets SAML connectors list
-	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information by id with validation options.
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets SAML connectors list with validation options.
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets OIDC connectors list

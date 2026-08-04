@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -114,11 +116,25 @@ func TestGetAuthConnectors(t *testing.T) {
 		require.NoError(t, err)
 		return []types.GithubConnector{connector}, nil
 	}
-	m.mockGetSAMLConnectors = func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
+	m.mockGetSAMLConnectorWithValidationOptions = func(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
 		connector, err := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{
 			AssertionConsumerService: "service",
 			EntityDescriptor:         "descriptor",
 		})
+		options := types.NewSAMLConnectorValidationOptions(opts)
+		require.False(t, withSecrets)
+		require.True(t, options.NoFollowURLs)
+		require.NoError(t, err)
+		return connector, nil
+	}
+	m.mockGetSAMLConnectorsWithValidationOptions = func(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+		connector, err := types.NewSAMLConnector("samlName", types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "service",
+			EntityDescriptor:         "descriptor",
+		})
+		options := types.NewSAMLConnectorValidationOptions(opts)
+		require.False(t, withSecrets)
+		require.True(t, options.NoFollowURLs)
 		require.NoError(t, err)
 		return []types.SAMLConnector{connector}, nil
 	}
@@ -150,7 +166,7 @@ func TestGetAuthConnectors(t *testing.T) {
 
 func TestSAMLConnector(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -270,12 +286,91 @@ func TestSAMLConnector(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting connectors")
 }
 
+func TestSAMLConnectorWithUnavailableMetadata(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	}))
+	pack := s.newAuthWebPack(t, "foo")
+
+	const metadata = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.example.com/metadata">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.example.com/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+	var unavailable atomic.Bool
+	var metadataRequests atomic.Int64
+	metadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		metadataRequests.Add(1)
+		if unavailable.Load() {
+			http.NotFound(w, nil)
+			return
+		}
+		_, _ = w.Write([]byte(metadata))
+	}))
+	t.Cleanup(metadataServer.Close)
+
+	connector, err := types.NewSAMLConnector("unavailable-metadata", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://proxy.example.com/v1/webapi/saml/acs/unavailable-metadata",
+		EntityDescriptorURL:      metadataServer.URL,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "developers", Roles: []string{"default-implicit-role"}},
+		},
+	})
+	require.NoError(t, err)
+	raw, err := services.MarshalSAMLConnector(connector)
+	require.NoError(t, err)
+	_, err = pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "saml"), ui.ResourceItem{
+		Kind:    types.KindSAMLConnector,
+		Name:    connector.GetName(),
+		Content: string(raw),
+	})
+	require.NoError(t, err)
+
+	unavailable.Store(true)
+	requestCount := metadataRequests.Load()
+
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("enterprise", "authconnectors"), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	var connectors ui.ListAuthConnectorsResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectors))
+	var listed bool
+	for _, item := range connectors.Connectors {
+		if item.ID == "saml:"+connector.GetName() && item.Kind == types.KindSAMLConnector && item.Name == connector.GetName() {
+			listed = true
+			break
+		}
+	}
+	require.True(t, listed, "connector with unavailable metadata is missing from the list")
+
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("enterprise", "saml", "connector", connector.GetName()), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	var item ui.ResourceItem
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &item))
+	require.Equal(t, connector.GetName(), item.Name)
+	require.Equal(t, types.KindSAMLConnector, item.Kind)
+	var returnedConnector types.SAMLConnectorV2
+	require.NoError(t, yaml.Unmarshal([]byte(item.Content), &returnedConnector))
+	require.Equal(t, metadataServer.URL, returnedConnector.GetEntityDescriptorURL())
+
+	require.Equal(t, requestCount, metadataRequests.Load(), "Web API followed the unavailable metadata URL")
+}
+
 type mockedResourceAPIGetter struct {
-	mockGetGithubConnectors func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	mockGetSAMLConnector    func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
-	mockGetSAMLConnectors   func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-	mockGetOIDCConnector    func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-	mockGetOIDCConnectors   func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	mockGetGithubConnectors                    func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockGetSAMLConnectorWithValidationOptions  func(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
+	mockGetSAMLConnectorsWithValidationOptions func(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	mockGetOIDCConnector                       func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
+	mockGetOIDCConnectors                      func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -286,17 +381,17 @@ func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withS
 	return nil, trace.NotImplemented("mockGetGithubConnectors not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
-	if m.mockGetSAMLConnector != nil {
-		return m.mockGetSAMLConnector(ctx, id, withSecrets)
+func (m *mockedResourceAPIGetter) GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	if m.mockGetSAMLConnectorWithValidationOptions != nil {
+		return m.mockGetSAMLConnectorWithValidationOptions(ctx, id, withSecrets, opts...)
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMLConnector not implemented")
 }
 
-func (m *mockedResourceAPIGetter) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	if m.mockGetSAMLConnectors != nil {
-		return m.mockGetSAMLConnectors(ctx, withSecrets)
+func (m *mockedResourceAPIGetter) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	if m.mockGetSAMLConnectorsWithValidationOptions != nil {
+		return m.mockGetSAMLConnectorsWithValidationOptions(ctx, withSecrets, opts...)
 	}
 
 	return nil, trace.NotImplemented("mockGetSAMLConnectors not implemented")
@@ -320,7 +415,7 @@ func (m *mockedResourceAPIGetter) GetOIDCConnectors(ctx context.Context, withSec
 
 func TestOIDCConnector(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newWebSuite(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
