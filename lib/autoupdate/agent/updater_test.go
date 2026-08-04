@@ -73,6 +73,8 @@ func testArtifactSignatureVerifiers(t *testing.T) []signature.Verifier {
 	verifiers, err := NewArtifactSignatureVerifiers(
 		setEmbeddedArtifactSignatureKey(),
 		setEmbeddedArtifactSignatureKey(),
+		"",
+		"",
 	)
 	require.NoError(t, err)
 	return verifiers
@@ -821,7 +823,7 @@ func TestUpdater_Update(t *testing.T) {
 					tbotReloadCalls     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, allowStagingChecksumFallback bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
 						for _, r := range tt.linkedRevisions {
 							if r == rev {
 								require.False(t, force)
@@ -1925,7 +1927,7 @@ func TestUpdater_Install(t *testing.T) {
 					selinuxRemovals     int
 				)
 				updater.Installer = &testInstaller{
-					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, allowStagingChecksumFallback bool) error {
+					FuncInstall: func(_ context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
 						installedRevision = rev
 						installedBaseURL = baseURL
 						return tt.installErr
@@ -2403,7 +2405,7 @@ func blankTestAddr(s []byte) []byte {
 }
 
 type testInstaller struct {
-	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, allowStagingChecksumFallback bool) error
+	FuncInstall       func(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error
 	FuncRemove        func(ctx context.Context, rev Revision) error
 	FuncLink          func(ctx context.Context, rev Revision, path string, force bool) (revert func(context.Context) bool, err error)
 	FuncLinkSystem    func(ctx context.Context) (revert func(context.Context) bool, err error)
@@ -2415,8 +2417,8 @@ type testInstaller struct {
 	FuncIsLinked      func(ctx context.Context, rev Revision, path string) (bool, error)
 }
 
-func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, allowStagingChecksumFallback bool) error {
-	return ti.FuncInstall(ctx, rev, baseURL, force, insecureSkipSignatureVerify, allowStagingChecksumFallback)
+func (ti *testInstaller) Install(ctx context.Context, rev Revision, baseURL string, force bool, insecureSkipSignatureVerify bool, enableStagingSignatureVerify bool) error {
+	return ti.FuncInstall(ctx, rev, baseURL, force, insecureSkipSignatureVerify, enableStagingSignatureVerify)
 }
 
 func (ti *testInstaller) Remove(ctx context.Context, rev Revision) error {

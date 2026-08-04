@@ -79,6 +79,18 @@ var artifactSignaturePublicKeyB64 string
 // binary at build time via ldflags.
 var artifactSignatureBackupPublicKeyB64 string
 
+// artifactSignatureAdditionalPublicKeyB64 is injected into the
+// teleport-update binary at build time via ldflags. It provides an additional
+// trusted artifact signing key beyond the primary/backup pair, for example to
+// allow a staging-built updater to verify prod-signed artifacts.
+var artifactSignatureAdditionalPublicKeyB64 string
+
+// artifactSignatureAdditionalBackupPublicKeyB64 is injected into the
+// teleport-update binary at build time via ldflags. It provides an additional
+// trusted backup artifact signing key beyond the primary/backup pair, for
+// example to allow a staging-built updater to verify prod-signed artifacts.
+var artifactSignatureAdditionalBackupPublicKeyB64 string
+
 func main() {
 	if code := Run(os.Args[1:]); code != 0 {
 		os.Exit(code)
@@ -131,8 +143,8 @@ func Run(args []string) int {
 		BoolVar(&ccfg.Insecure)
 	app.Flag("insecure-skip-signature-verify", "Disable artifact signature verification and fall back to checksum-only verification. Do not use in production.").
 		Hidden().IsSetByUser(&ccfg.InsecureSkipSignatureVerifyChanged).BoolVar(&ccfg.InsecureSkipSignatureVerify)
-	app.Flag("allow-staging-checksum-fallback", "Allow checksum-only fallback for artifacts downloaded from the staging CDN.").
-		IsSetByUser(&ccfg.AllowStagingChecksumFallbackChanged).BoolVar(&ccfg.AllowStagingChecksumFallback)
+	app.Flag("enable-staging-signature-verify", "Enable detached signature verification for staging CDN artifacts that would otherwise skip verification").
+		IsSetByUser(&ccfg.EnableStagingSignatureVerifyChanged).BoolVar(&ccfg.EnableStagingSignatureVerify)
 
 	app.HelpFlag.Short('h')
 
@@ -309,6 +321,8 @@ func newArtifactSignatureVerifiers() ([]signature.Verifier, error) {
 	return autoupdate.NewArtifactSignatureVerifiers(
 		artifactSignaturePublicKeyB64,
 		artifactSignatureBackupPublicKeyB64,
+		artifactSignatureAdditionalPublicKeyB64,
+		artifactSignatureAdditionalBackupPublicKeyB64,
 	)
 }
 

@@ -135,8 +135,8 @@ func TestValidateConfigSpec(t *testing.T) {
 		override                     UpdateSpec
 		insecureSkipSignatureVerify  bool
 		insecureChanged              bool
-		allowStagingChecksumFallback bool
-		allowStagingChanged          bool
+		enableStagingSignatureVerify bool
+		enableStagingChanged         bool
 		result                       UpdateSpec
 		errMatch                     string
 	}{
@@ -257,24 +257,24 @@ func TestValidateConfigSpec(t *testing.T) {
 			},
 		},
 		{
-			name: "allow staging checksum fallback can be enabled",
+			name: "enable staging signature verification can be enabled",
 			override: UpdateSpec{
 				BaseURL: "https://cdn.cloud.gravitational.io",
 			},
-			allowStagingChecksumFallback: true,
-			allowStagingChanged:          true,
+			enableStagingSignatureVerify: true,
+			enableStagingChanged:         true,
 			result: UpdateSpec{
 				BaseURL:                      "https://cdn.cloud.gravitational.io",
-				AllowStagingChecksumFallback: true,
+				EnableStagingSignatureVerify: true,
 			},
 		},
 		{
-			name: "allow staging checksum fallback can be cleared",
+			name: "enable staging signature verification can be cleared",
 			config: UpdateSpec{
 				BaseURL:                      "https://cdn.cloud.gravitational.io",
-				AllowStagingChecksumFallback: true,
+				EnableStagingSignatureVerify: true,
 			},
-			allowStagingChanged: true,
+			enableStagingChanged: true,
 			result: UpdateSpec{
 				BaseURL: "https://cdn.cloud.gravitational.io",
 			},
@@ -291,10 +291,10 @@ func TestValidateConfigSpec(t *testing.T) {
 					Pinned:                       tt.override.Pinned,
 					SELinuxSSH:                   tt.override.SELinuxSSH,
 					InsecureSkipSignatureVerify:  tt.insecureSkipSignatureVerify,
-					AllowStagingChecksumFallback: tt.allowStagingChecksumFallback,
+					EnableStagingSignatureVerify: tt.enableStagingSignatureVerify,
 				},
 				InsecureSkipSignatureVerifyChanged:  tt.insecureChanged,
-				AllowStagingChecksumFallbackChanged: tt.allowStagingChanged,
+				EnableStagingSignatureVerifyChanged: tt.enableStagingChanged,
 			})
 			if tt.errMatch != "" {
 				require.ErrorContains(t, err, tt.errMatch)

@@ -72,7 +72,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 		baseURL                      string
 		force                        bool
 		insecure                     bool
-		allowStagingChecksumFallback bool
+		enableStagingSignatureVerify bool
 		alreadyPresent               bool
 
 		errMatch string
@@ -86,15 +86,20 @@ func TestLocalInstaller_Install(t *testing.T) {
 			checksumValue: testSum,
 		},
 		{
-			name:          "not present internal development CDN with signature verification by default",
+			name:          "not present internal development CDN pre-v19 checksum fallback by default",
 			baseURL:       stagingCDNBaseURL,
 			checksumValue: testSum,
 		},
 		{
-			name:                         "not present internal development CDN checksum only fallback enabled",
+			name:                         "not present internal development CDN pre-v19 signature verification explicitly enabled",
 			baseURL:                      stagingCDNBaseURL,
 			checksumValue:                testSum,
-			allowStagingChecksumFallback: true,
+			enableStagingSignatureVerify: true,
+		},
+		{
+			name:          "v19 internal development CDN verifies by default",
+			baseURL:       stagingCDNBaseURL,
+			checksumValue: testSum,
 		},
 		{
 			name:           "present",
@@ -148,12 +153,20 @@ func TestLocalInstaller_Install(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			installVersion := version
+			switch tt.name {
+			case "not present internal development CDN pre-v19 checksum fallback by default", "not present internal development CDN pre-v19 signature verification explicitly enabled":
+				installVersion = "18.10.1"
+			case "v19 internal development CDN verifies by default":
+				installVersion = "19.0.0-dev.test.1"
+			}
+
 			dir := t.TempDir()
-			err := os.MkdirAll(filepath.Join(dir, version), os.ModePerm)
+			err := os.MkdirAll(filepath.Join(dir, installVersion), os.ModePerm)
 			require.NoError(t, err)
 
 			if tt.existingSum != "" {
-				err := os.WriteFile(filepath.Join(dir, version, checksumType), []byte(tt.existingSum), os.ModePerm)
+				err := os.WriteFile(filepath.Join(dir, installVersion, checksumType), []byte(tt.existingSum), os.ModePerm)
 				require.NoError(t, err)
 			}
 
@@ -226,7 +239,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 				ArtifactSignatureVerifiers: []signature.Verifier{verifier},
 			}
 			ctx := context.Background()
-			err = installer.Install(ctx, NewRevision(version, tt.flags), baseURL, tt.force, tt.insecure, tt.allowStagingChecksumFallback)
+			err = installer.Install(ctx, NewRevision(installVersion, tt.flags), baseURL, tt.force, tt.insecure, tt.enableStagingSignatureVerify)
 			if tt.errMatch != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMatch)
@@ -234,7 +247,7 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			const expectedPath = "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + version
+			expectedPath := "/teleport-" + runtime.GOOS + "/" + runtime.GOARCH + "/" + installVersion
 			if tt.alreadyPresent {
 				require.Equal(t, expectedPath+"."+checksumType, shaPath)
 				require.Empty(t, dlPath)
@@ -244,23 +257,23 @@ func TestLocalInstaller_Install(t *testing.T) {
 
 			require.Equal(t, expectedPath, dlPath)
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
-			if tt.insecure || (isStagingCDN(baseURL) && tt.allowStagingChecksumFallback) {
+			if tt.insecure || shouldSkipStagingSignatureVerification(baseURL, installVersion, tt.enableStagingSignatureVerify) {
 				require.Empty(t, sigPath)
 			} else {
 				require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
 			}
 
 			for _, p := range []string{
-				filepath.Join(dir, version, "lib", "systemd", "system", "teleport.service"),
-				filepath.Join(dir, version, "bin", "teleport"),
-				filepath.Join(dir, version, "bin", "tsh"),
+				filepath.Join(dir, installVersion, "lib", "systemd", "system", "teleport.service"),
+				filepath.Join(dir, installVersion, "bin", "teleport"),
+				filepath.Join(dir, installVersion, "bin", "tsh"),
 			} {
 				v, err := os.ReadFile(p)
 				require.NoError(t, err)
 				require.Equal(t, version, string(v))
 			}
 
-			sum, err := os.ReadFile(filepath.Join(dir, version, checksumType))
+			sum, err := os.ReadFile(filepath.Join(dir, installVersion, checksumType))
 			require.NoError(t, err)
 			require.Equal(t, testSum, string(sum))
 		})
@@ -394,16 +407,16 @@ func TestIsStagingCDN(t *testing.T) {
 }
 
 func TestNewArtifactSignatureVerifiers(t *testing.T) {
-	_, err := NewArtifactSignatureVerifiers("", "")
+	_, err := NewArtifactSignatureVerifiers("", "", "", "")
 	require.ErrorContains(t, err, "teleport-update artifact signature public key is not configured")
 
 	primaryKey, primaryB64 := testArtifactSignatureKey(t)
-	_, err = NewArtifactSignatureVerifiers(primaryB64, "")
+	_, err = NewArtifactSignatureVerifiers(primaryB64, "", "", "")
 	require.ErrorContains(t, err, "teleport-update backup artifact signature public key is not configured")
 
 	backupKey, backupB64 := testArtifactSignatureKey(t)
 
-	verifiers, err := NewArtifactSignatureVerifiers(primaryB64, backupB64)
+	verifiers, err := NewArtifactSignatureVerifiers(primaryB64, backupB64, "", "")
 	require.NoError(t, err)
 	require.Len(t, verifiers, 2)
 
@@ -417,8 +430,32 @@ func TestNewArtifactSignatureVerifiers(t *testing.T) {
 	require.Error(t, verifiers[0].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
 	require.NoError(t, verifiers[1].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
 
-	_, err = NewArtifactSignatureVerifiers(primaryB64, "not-base64")
+	extraKey, extraB64 := testArtifactSignatureKey(t)
+	additionalBackupKey, additionalBackupB64 := testArtifactSignatureKey(t)
+	verifiers, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, extraB64, additionalBackupB64)
+	require.NoError(t, err)
+	require.Len(t, verifiers, 4)
+	sig, err = ecdsa.SignASN1(rand.Reader, extraKey, digest[:])
+	require.NoError(t, err)
+	require.NoError(t, verifiers[2].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+	sig, err = ecdsa.SignASN1(rand.Reader, additionalBackupKey, digest[:])
+	require.NoError(t, err)
+	require.NoError(t, verifiers[3].VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
+
+	_, err = NewArtifactSignatureVerifiers(primaryB64, "not-base64", "", "")
 	require.ErrorContains(t, err, "failed to decode backup teleport-update artifact signature public key")
+
+	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, extraB64, "")
+	require.ErrorContains(t, err, "teleport-update additional artifact signature keys must be configured as a pair")
+
+	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, "", additionalBackupB64)
+	require.ErrorContains(t, err, "teleport-update additional artifact signature keys must be configured as a pair")
+
+	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, "not-base64", additionalBackupB64)
+	require.ErrorContains(t, err, "failed to decode additional primary teleport-update artifact signature public key")
+
+	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, extraB64, "not-base64")
+	require.ErrorContains(t, err, "failed to decode additional backup teleport-update artifact signature public key")
 }
 
 func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {

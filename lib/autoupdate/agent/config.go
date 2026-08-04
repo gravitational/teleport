@@ -83,9 +83,9 @@ type UpdateSpec struct {
 	// InsecureSkipSignatureVerify disables artifact signature verification and falls back
 	// to checksum-only verification. This is intended for development builds that are not signed.
 	InsecureSkipSignatureVerify bool `yaml:"insecure_skip_signature_verify,omitempty"`
-	// AllowStagingChecksumFallback permits checksum-only verification for artifacts downloaded from
-	// the staging CDN instead of requiring detached signature verification.
-	AllowStagingChecksumFallback bool `yaml:"allow_staging_checksum_fallback,omitempty"`
+	// EnableStagingSignatureVerify enforces detached signature verification for staging CDN artifacts
+	// that would otherwise skip signature verification.
+	EnableStagingSignatureVerify bool `yaml:"enable_staging_signature_verify,omitempty"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
@@ -246,8 +246,8 @@ func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	if override.InsecureSkipSignatureVerifyChanged {
 		spec.InsecureSkipSignatureVerify = override.InsecureSkipSignatureVerify
 	}
-	if override.AllowStagingChecksumFallbackChanged {
-		spec.AllowStagingChecksumFallback = override.AllowStagingChecksumFallback
+	if override.EnableStagingSignatureVerifyChanged {
+		spec.EnableStagingSignatureVerify = override.EnableStagingSignatureVerify
 	}
 	if override.Enabled {
 		spec.Enabled = true

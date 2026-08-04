@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -63,8 +64,9 @@ const (
 	// maxArtifactSignatureSize is the maximum allowed size of a detached artifact signature.
 	maxArtifactSignatureSize = 4_096 // 4 KB, ECDSA P256 signatures are ~96 bytes
 	// stagingCDNBaseURL is the staging CDN used for tenant dev-build workflows.
-	// Signature verification is skipped for this CDN since artifacts are not prod-signed.
 	stagingCDNBaseURL = "https://cdn.cloud.gravitational.io"
+	// stagingSignatureVerificationVersion is the first major version that verifies staging CDN artifacts by default.
+	stagingSignatureVerificationVersion = 19
 )
 
 const (
@@ -158,7 +160,7 @@ func (li *LocalInstaller) Remove(ctx context.Context, rev Revision) error {
 // Install a Teleport version directory in InstallDir.
 // This function is idempotent.
 // See Installer interface for additional specs.
-func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify, allowStagingChecksumFallback bool) (err error) {
+func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL string, force, insecureSkipSignatureVerify, enableStagingSignatureVerify bool) (err error) {
 	versionDir, err := li.revisionDir(rev)
 	if err != nil {
 		return trace.Wrap(err)
@@ -229,7 +231,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 
 	if insecureSkipSignatureVerify {
 		li.Log.WarnContext(ctx, "Artifact signature verification is disabled. Falling back to checksum-only verification.", "version", rev)
-	} else if isStagingCDN(baseURL) && allowStagingChecksumFallback {
+	} else if shouldSkipStagingSignatureVerification(baseURL, rev.Version, enableStagingSignatureVerify) {
 		li.Log.WarnContext(ctx, "Artifact signature verification skipped: staging CDN in use.", "version", rev)
 	} else if err := li.verifyArtifactSignature(ctx, uri+"."+artifactSignatureType, pathSum); err != nil {
 		return trace.Wrap(err)
@@ -326,6 +328,17 @@ func isStagingCDN(baseURL string) bool {
 	return err == nil && ok
 }
 
+func shouldSkipStagingSignatureVerification(baseURL, version string, enableStagingSignatureVerify bool) bool {
+	if !isStagingCDN(baseURL) || enableStagingSignatureVerify {
+		return false
+	}
+	semVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return false
+	}
+	return semVersion.Major < stagingSignatureVerificationVersion
+}
+
 func sameHostname(rawURL, wantURL string) (bool, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -342,12 +355,24 @@ func sameHostname(rawURL, wantURL string) (bool, error) {
 	return got == want, nil
 }
 
-func NewArtifactSignatureVerifiers(primaryPublicKeyB64, backupPublicKeyB64 string) ([]signature.Verifier, error) {
+// NewArtifactSignatureVerifiers constructs the trusted verifier set for
+// teleport-update. The primary/backup pair is required. An additional
+// primary/backup pair may be provided to extend trust for specific build lanes,
+// such as allowing a staging-built updater to verify prod-signed artifacts.
+func NewArtifactSignatureVerifiers(primaryPublicKeyB64, backupPublicKeyB64, additionalPublicKeyB64, additionalBackupPublicKeyB64 string) ([]signature.Verifier, error) {
 	if primaryPublicKeyB64 == "" {
 		return nil, trace.BadParameter("teleport-update artifact signature public key is not configured")
 	}
 	if backupPublicKeyB64 == "" {
 		return nil, trace.BadParameter("teleport-update backup artifact signature public key is not configured")
+	}
+
+	if additionalPublicKeyB64 != "" && additionalBackupPublicKeyB64 == "" {
+		return nil, trace.BadParameter("teleport-update additional backup artifact signature public key is not configured")
+	}
+
+	if additionalPublicKeyB64 == "" && additionalBackupPublicKeyB64 != "" {
+		return nil, trace.BadParameter("teleport-update additional artifact signature public key is not configured")
 	}
 
 	primaryVerifier, err := loadArtifactSignatureVerifier(primaryPublicKeyB64, "primary")
@@ -360,7 +385,22 @@ func NewArtifactSignatureVerifiers(primaryPublicKeyB64, backupPublicKeyB64 strin
 		return nil, trace.Wrap(err)
 	}
 
-	return []signature.Verifier{primaryVerifier, backupVerifier}, nil
+	verifiers := []signature.Verifier{primaryVerifier, backupVerifier}
+	if additionalPublicKeyB64 != "" {
+		additionalPrimaryVerifier, err := loadArtifactSignatureVerifier(additionalPublicKeyB64, "additional primary")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiers = append(verifiers, additionalPrimaryVerifier)
+
+		additionalBackupVerifier, err := loadArtifactSignatureVerifier(additionalBackupPublicKeyB64, "additional backup")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiers = append(verifiers, additionalBackupVerifier)
+	}
+
+	return verifiers, nil
 }
 
 func loadArtifactSignatureVerifier(publicKeyB64 string, label string) (signature.Verifier, error) {

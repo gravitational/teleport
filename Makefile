@@ -397,8 +397,10 @@ TELEPORT_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) -X github.com/gravitational/teleport
 TOOLS_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community'
 TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 ?=
 TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64 ?=
+TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64 ?=
 TELEPORT_UPDATE_DEV_BUILD ?=
-TELEPORT_UPDATE_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community -X main.artifactSignaturePublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64) -X main.artifactSignatureBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64)'
+TELEPORT_UPDATE_LDFLAGS ?= -ldflags '$(GO_LDFLAGS) $(KUBECTL_SETVERSION) -X github.com/gravitational/teleport/lib/modules.teleportBuildType=community -X main.artifactSignaturePublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64) -X main.artifactSignatureBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64) -X main.artifactSignatureAdditionalBackupPublicKeyB64=$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64)'
 endif
 
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
