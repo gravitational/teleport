@@ -921,10 +921,8 @@ func (c *ClusterClient) mfaRequired(ctx context.Context, dial dialAuthClientFunc
 		return false, nil, noop, trace.Wrap(err)
 	}
 
-	// The caller's client answers the check, but nothing here can tell
-	// which cluster it serves, so it must not issue the certs.
-	if params.AuthClient != nil {
-		resp, err := params.AuthClient.IsMFARequired(ctx, req)
+	if params.MFAChecker != nil {
+		resp, err := params.MFAChecker.IsMFARequired(ctx, req)
 		if err != nil {
 			return false, nil, noop, trace.Wrap(err)
 		}
