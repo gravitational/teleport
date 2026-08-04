@@ -150,6 +150,20 @@ func TestValidateUserTask(t *testing.T) {
 		require.NoError(t, err)
 		return userTask
 	}
+	baseAzureVMPermissionTask := func(t *testing.T) *usertasksv1.UserTask {
+		userTask, err := NewDiscoverAzureVMUserTask(
+			TaskGroup{
+				Integration: "my-integration",
+				IssueType:   AutoDiscoverAzureVMIssueSubscriptionListDenied,
+			},
+			time.Now().Add(24*time.Hour),
+			&usertasksv1.DiscoverAzureVM{
+				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			},
+		)
+		require.NoError(t, err)
+		return userTask
+	}
 
 	const noError = ""
 
@@ -620,6 +634,20 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: noError,
 		},
 		{
+			name:    "DiscoverAzureVM: subscription list permission issue allows empty scope and instances",
+			task:    baseAzureVMPermissionTask,
+			wantErr: noError,
+		},
+		{
+			name: "DiscoverAzureVM: subscription list permission issue requires deterministic task name",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMPermissionTask(t)
+				ut.Metadata.Name = "another-name"
+				return ut
+			},
+			wantErr: "task name must be",
+		},
+		{
 			name: "DiscoverAzureVM: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseAzureVMDiscoverTask(t)
@@ -935,6 +963,7 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 	userTaskExpirationTime := time.Now()
 	userTaskExpirationTimestamp := timestamppb.New(userTaskExpirationTime)
 	vmSyncTimestamp := userTaskExpirationTimestamp
+	vmRetryTimestamp := timestamppb.New(time.Now().Add(time.Minute))
 
 	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
 
@@ -948,6 +977,9 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 				DiscoveryConfig: "dc01",
 				DiscoveryGroup:  "dg01",
 				SyncTime:        vmSyncTimestamp,
+				LastAttemptTime: timestamppb.New(vmRetryTimestamp.AsTime().Add(-time.Minute)),
+				RetryAfterTime:  vmRetryTimestamp,
+				Attempts:        2,
 			},
 		},
 	}

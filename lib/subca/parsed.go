@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -131,7 +130,7 @@ func parseCertificateAndPublicKey(co *subcav1.CertificateOverride) (_ *x509.Cert
 	}
 
 	// Normalize user-supplied public keys.
-	pkh := strings.ToLower(co.GetPublicKey())
+	pkh := NormalizePublicKey(co.GetPublicKey())
 	return nil, pkh, nil
 }
 
@@ -220,7 +219,7 @@ func validateCertificateOverride(
 		if !certificateOverridePublicKeyRE.MatchString(co.GetPublicKey()) {
 			return nil, "", errors.New("invalid public key")
 		}
-		if wantPublicKey != "" && !strings.EqualFold(co.GetPublicKey(), wantPublicKey) {
+		if wantPublicKey != "" && NormalizePublicKey(co.GetPublicKey()) != wantPublicKey {
 			return nil, "public_key", fmt.Errorf("certificate public key mismatch (want %q)", wantPublicKey)
 		}
 	}
@@ -289,7 +288,7 @@ func validateCertificateOverride(
 
 	// Normalize public key to lowercase so it matches HashPublicKey.
 	publicKey := cmp.Or(wantPublicKey, co.GetPublicKey())
-	publicKey = strings.ToLower(publicKey)
+	publicKey = NormalizePublicKey(publicKey)
 
 	return &ParsedCertificateOverride{
 		CertificateOverride: co,

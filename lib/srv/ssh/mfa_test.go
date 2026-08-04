@@ -170,7 +170,7 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{Response: nil}
+	resp := sshpb.MFAPromptResponse_builder{}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 

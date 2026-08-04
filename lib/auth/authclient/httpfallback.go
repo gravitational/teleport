@@ -165,7 +165,7 @@ func (c *Client) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelCon
 func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	var filter *trustpb.ListTunnelConnectionsFilter
 	if clusterName != "" {
-		filter = &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName}
+		filter = trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build()
 	}
 
 	items, err := clientutils.CollectWithFallback(

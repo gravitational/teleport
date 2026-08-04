@@ -3,6 +3,10 @@ templates:
   - predeploy_job.yaml
   - predeploy_config.yaml
   - predeploy_serviceaccount.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: Deploys the proxy-test config
     template: predeploy_config.yaml
@@ -20,7 +24,7 @@ tests:
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should set resources on proxy predeploy job when jobResources set in values

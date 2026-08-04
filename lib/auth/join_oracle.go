@@ -95,12 +95,20 @@ func (a *Server) registerUsingOracleMethod(
 		params := makeBotCertsParams(tokenReq, claims, workloadidentityv1pb.JoinAttrs_builder{
 			Oracle: claims.JoinAttrs(),
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		return certs, trace.Wrap(err, "generating bot certs")
+		certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating bot certs")
+		}
+		a.emitBotJoinEvent(ctx, provisionToken, params, botInstanceID)
+		return certs, nil
 	}
 	params := makeHostCertsParams(tokenReq, claims)
 	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err, "generating certs")
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs")
+	}
+	a.emitJoinEvent(ctx, provisionToken, params)
+	return certs, nil
 }
 
 func generateOracleChallenge() (string, error) {

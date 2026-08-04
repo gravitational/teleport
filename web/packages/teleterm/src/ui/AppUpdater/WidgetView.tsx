@@ -207,11 +207,12 @@ function AvailableUpdate({
       <Flex width="100%" alignItems="center" justifyContent="space-between">
         <Flex gap={1} alignItems="center" width="100%">
           {platform === 'darwin' ? (
-            <img alt="App icon" height="50px" src={iconMac} />
+            <img alt="App icon" height="50px" width="50px" src={iconMac} />
           ) : (
             <img
               alt="App icon"
               height="43px"
+              width="43px"
               style={{ marginRight: '4px' }}
               src={iconWinLinux}
             />

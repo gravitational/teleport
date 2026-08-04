@@ -150,6 +150,12 @@
           "tools": [
             "{{internal.mcp_tools}}"
           ]
+        },
+        "linux_desktop_logins": [
+          "{{internal.linux_desktop_logins}}"
+        ],
+        "linux_desktop_labels": {
+          "*": "*"
         }
       },
       "deny": {}
@@ -647,6 +653,14 @@
               "delete",
               "create_enroll_token",
               "enroll"
+            ]
+          },
+          {
+            "resources": [
+              "mobile_device"
+            ],
+            "verbs": [
+              "create_enroll_token"
             ]
           },
           {
@@ -1276,6 +1290,18 @@
           {
             "resources": [
               "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",

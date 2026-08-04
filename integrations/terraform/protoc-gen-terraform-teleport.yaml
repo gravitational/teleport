@@ -235,7 +235,11 @@ exclude_fields:
     # credentials is excluded intentionally so that we dont have to handle plugin credentials, which are stored separately.
     - "IntegrationV1.Spec.credentials"
     - "IntegrationV1.Spec.GitHub"
-    
+
+    # Uses a google.protobuf.Struct field that isn't supported (see
+    # https://github.com/gravitational/protoc-gen-terraform/issues/52)
+    - "ProvisionTokenV2.Spec.GenericOIDC.MustMatchFields"
+
 name_overrides:
 
 # These fields will be marked as Computed: true
@@ -508,6 +512,11 @@ suffixes:
 plan_modifiers:
     # Force to recreate resource if it's name changes
     Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    # Scope is part of the scoped resource identity and must not be updated in-place.
+    AppV3.scope:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    KubernetesClusterV3.scope:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"

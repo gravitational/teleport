@@ -265,15 +265,13 @@ func (p *AgentPool) Start() error {
 		"cluster", p.Cluster,
 	)
 
-	p.wg.Add(1)
-	go func() {
+	p.wg.Go(func() {
 		if err := p.run(); err != nil {
 			p.logger.WarnContext(p.ctx, "Agent pool exited", "error", err)
 		}
 
 		p.cancel()
-		p.wg.Done()
-	}()
+	})
 	return nil
 }
 
@@ -296,10 +294,7 @@ func (p *AgentPool) run() error {
 
 			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
-			p.wg.Add(1)
-			p.active.add(agent)
-			p.lastConnectivityChange = p.Clock.Now()
-			p.updateConnectedProxies()
+			p.addActiveAgent(p.ctx, agent)
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
@@ -309,6 +304,23 @@ func (p *AgentPool) run() error {
 			p.logger.DebugContext(p.ctx, "Failed to wait for backoff", "error", err)
 		}
 	}
+}
+
+// addActiveAgent registers a successfully started agent with the pool.
+func (p *AgentPool) addActiveAgent(ctx context.Context, agent Agent) {
+	p.wg.Add(1)
+	p.active.add(agent)
+	p.lastConnectivityChange = p.Clock.Now()
+
+	if agent.GetState() == AgentClosed {
+		// The agent can close after Start succeeds but before run registers it.
+		// If the AgentClosed callback already ran, it could not remove the agent
+		// from the active set, so reconcile the state after registration.
+		p.handleEvent(ctx, agent)
+		return
+	}
+
+	p.updateConnectedProxies()
 }
 
 // connectAgent connects a new agent and processes any agent events blocking until a
@@ -720,7 +732,7 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 
 	dialReq := parseDialReq(req.Payload)
 	switch dialReq.Address {
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop, reversetunnelclient.LocalLinuxDesktop:
 	default:
 		p.logger.WarnContext(ctx, "Received dial request for unexpected address, routing to the local service anyway",
 			"dial_addr", dialReq.Address,

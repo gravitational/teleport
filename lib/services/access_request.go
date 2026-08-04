@@ -77,6 +77,14 @@ const (
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
+	return validateAccessRequest(ar, false)
+}
+
+// validateAccessRequest implements [ValidateAccessRequest]. With
+// allowUnenforceable set, unenforceable constraints (see
+// [types.ResourceConstraints.Unenforceable]) pass validation, keeping
+// requests written by newer Auths readable.
+func validateAccessRequest(ar types.AccessRequest, allowUnenforceable bool) error {
 	if err := CheckAndSetDefaults(ar); err != nil {
 		return trace.Wrap(err)
 	}
@@ -96,14 +104,19 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	}
 
 	for _, r := range ar.GetRequestedResourceAccessIDs() {
-		if r.GetConstraints() == nil {
+		rc := r.GetConstraints()
+		if rc == nil {
 			continue
 		}
-		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
+		if allowUnenforceable && rc.Unenforceable() {
+			// Skip all validation; these may carry a newer version.
+			continue
+		}
+		if err := rc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		kind := r.GetResourceID().Kind
-		switch c := r.GetConstraints().Details.(type) {
+		switch c := rc.Details.(type) {
 		case *types.ResourceConstraints_AwsConsole:
 			if kind != types.KindApp {
 				return trace.BadParameter("aws_console constraints are not valid for resource kind %q", kind)
@@ -135,7 +148,8 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		return trace.Wrap(err)
 	}
 	var invalidClusters []string
-	for _, resourceID := range ar.GetRequestedResourceIDs() {
+	for _, resourceAccessID := range ar.GetAllRequestedResourceIDs() {
+		resourceID := resourceAccessID.GetResourceID()
 		if resourceID.ClusterName == "" {
 			continue
 		}
@@ -222,8 +236,8 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, resourceID := range req.ResourceIDs {
-		if resourceID.ClusterName != currentCluster.GetClusterName() {
+	for _, resourceAccessID := range types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds) {
+		if resourceAccessID.GetResourceID().ClusterName != currentCluster.GetClusterName() {
 			// Requested resource is from another cluster, so we can't know
 			// all of the roles which would grant access to it.
 			return false, nil
@@ -241,6 +255,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 	if !shouldFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
+		req.ResourceAccessIds = nil
 	}
 
 	var caps types.AccessCapabilities
@@ -251,19 +266,21 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), req.Login)
+	resourceAccessIDs := types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds)
+
+	if len(resourceAccessIDs) != 0 && !req.FilterRequestableRolesByResource {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, resourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if req.RequestableRoles {
-		var resourceIDs []types.ResourceID
+		var requestableResourceAccessIDs []types.ResourceAccessID
 		if req.FilterRequestableRolesByResource {
-			resourceIDs = req.ResourceIDs
+			requestableResourceAccessIDs = resourceAccessIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, types.ResourceIDsToResourceAccessIDs(resourceIDs), req.Login)
+		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, requestableResourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1772,11 +1789,18 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	// Filter out resources the user requested but doesn't have access to.
+	// Filter out resources the user requested but doesn't have access to and
+	// pair each remaining resource with matchers for any requested constraints.
 	filteredResources := make([]types.ResourceWithLabels, 0, len(underlyingResources))
+	constraintMatchers := make([][]RoleMatcher, 0, len(underlyingResources))
 	for _, resource := range underlyingResources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+			matchers, err := BuildResourceConstraintMatchers(resourceAccessIDs, resource)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			filteredResources = append(filteredResources, resource)
+			constraintMatchers = append(constraintMatchers, matchers)
 		}
 	}
 
@@ -1788,25 +1812,8 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		}
 
 		roleAllowsAccess := true
-		for _, resource := range filteredResources {
-			var extraMatchers []RoleMatcher
-			for _, raid := range resourceAccessIDs {
-				if rid := raid.GetResourceID(); rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
-					continue
-				}
-				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					if rm != nil {
-						extraMatchers = append(extraMatchers, rm)
-					}
-					break
-				}
-			}
-
-			access, err := m.roleAllowsResource(role, resource, loginHint, extraMatchers...)
+		for i, resource := range filteredResources {
+			access, err := m.roleAllowsResource(role, resource, loginHint, constraintMatchers[i]...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2363,7 +2370,8 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 	if err := utils.FastUnmarshal(data, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ValidateAccessRequest(&req); err != nil {
+	// Requests written by newer Auths must stay readable.
+	if err := validateAccessRequest(&req, true); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
@@ -2377,6 +2385,9 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (*types.AccessRe
 
 // MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(accessRequest types.AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	// Writes stay strict; re-persisting a request whose constraints
+	// this build couldn't decode would overwrite the newer content in
+	// the backend.
 	if err := ValidateAccessRequest(accessRequest); err != nil {
 		return nil, trace.Wrap(err)
 	}

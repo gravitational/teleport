@@ -238,7 +238,7 @@ func unmarshalNotificationsResponse(t *testing.T, resp []byte) *GetNotifications
 func newUserNotification(t *testing.T, username string, title string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
 		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
@@ -248,9 +248,9 @@ func newUserNotification(t *testing.T, username string, title string) *notificat
 				types.NotificationTitleLabel: title,
 			},
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 func newGlobalNotification(t *testing.T, title string, spec *notificationsv1.GlobalNotificationSpec) *notificationsv1.GlobalNotification {
@@ -266,11 +266,11 @@ func newGlobalNotification(t *testing.T, title string, spec *notificationsv1.Glo
 		}.Build(),
 	}.Build())
 
-	notification := notificationsv1.GlobalNotification{
+	notification := notificationsv1.GlobalNotification_builder{
 		Spec: spec,
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 // notificationsToTitlesList accepts a list of notifications notifications and returns a slice of strings containing their titles in order, this is used to compare against

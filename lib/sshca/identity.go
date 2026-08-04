@@ -124,6 +124,9 @@ type Identity struct {
 	// BotInstanceID is the unique identifier for the bot instance, if this is a
 	// Machine ID bot. It is empty for human users.
 	BotInstanceID string
+	// BotScope is the scope of the Machine ID bot this identity was issued to,
+	// if any. Empty for unscoped bots and human users.
+	BotScope string
 	// JoinToken is the name of the join token used by the bot to join, if any.
 	JoinToken string
 	// AllowedResourceIDs lists the resources the user should be able to access.
@@ -153,6 +156,9 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string
@@ -279,6 +285,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.BotInstanceID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotInstanceID] = i.BotInstanceID
 	}
+	if i.BotScope != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBotScope] = i.BotScope
+	}
 	if i.JoinToken != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionJoinToken] = i.JoinToken
 	}
@@ -328,6 +337,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	if i.DelegationSessionID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
 	}
+	if i.BeamID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBeamID] = i.BeamID
+	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
 	}
@@ -355,6 +367,11 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		// TODO(lxea): update behavior when non ssh, non extensions are supported.
 		if extension.Mode != types.CertExtensionMode_EXTENSION ||
 			extension.Type != types.CertExtensionType_SSH {
+			continue
+		}
+		// Beam IDs are server-derived from delegation sessions and must not be
+		// spoofed or overwritten by role-supplied certificate extensions.
+		if extension.Name == teleport.CertExtensionBeamID {
 			continue
 		}
 		cert.Extensions[extension.Name] = extension.Value
@@ -531,6 +548,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	ident.BotName = takeValue(teleport.CertExtensionBotName)
 	ident.BotInstanceID = takeValue(teleport.CertExtensionBotInstanceID)
+	ident.BotScope = takeValue(teleport.CertExtensionBotScope)
 	ident.JoinToken = takeValue(teleport.CertExtensionJoinToken)
 
 	var (
@@ -586,6 +604,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
 	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
+	ident.BeamID = takeValue(teleport.CertExtensionBeamID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)

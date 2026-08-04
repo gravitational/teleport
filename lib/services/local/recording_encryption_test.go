@@ -39,17 +39,17 @@ func TestRecordingEncryption(t *testing.T) {
 
 	ctx := context.Background()
 
-	initialEncryption := pb.RecordingEncryption{
+	initialEncryption := pb.RecordingEncryption_builder{
 		Spec: pb.RecordingEncryptionSpec_builder{
 			ActiveKeyPairs: nil,
 		}.Build(),
-	}
+	}.Build()
 
 	// get should fail when there's no recording encryption
 	_, err = service.GetRecordingEncryption(ctx)
 	require.Error(t, err)
 
-	created, err := service.CreateRecordingEncryption(ctx, &initialEncryption)
+	created, err := service.CreateRecordingEncryption(ctx, initialEncryption)
 	require.NoError(t, err)
 
 	encryption, err := service.GetRecordingEncryption(ctx)

@@ -158,13 +158,10 @@ func (instances *AzureInstances) LogValue() slog.Value {
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
-		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.Metadata.SubscriptionID {
+		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabelInternal]
-		if vmID != "" {
+		if vmID := types.GetAzureVMID(node); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}
@@ -179,44 +176,44 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
-// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(
+// MatcherToAzureInstanceFetchers converts an Azure VM matcher into Azure VM fetchers.
+func MatcherToAzureInstanceFetchers(
 	ctx context.Context,
 	logger *slog.Logger,
-	matchers []types.AzureMatcher,
+	matcher types.AzureMatcher,
 	getClient azureClientGetter,
 	discoveryConfigName string,
 	listSubs listSubscriptionsFunc,
-) []Fetcher[*AzureInstances] {
-	ret := make([]Fetcher[*AzureInstances], 0)
-	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
-		for _, subscription := range matcher.Subscriptions {
-			for _, resourceGroup := range matcher.ResourceGroups {
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:             matcher,
-					Subscription:        subscription,
-					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   getClient,
-					DiscoveryConfigName: discoveryConfigName,
-					Logger:              logger,
-				})
-				ret = append(ret, fetcher)
-			}
+) ([]Fetcher[*AzureInstances], error) {
+	subscriptions, err := expandAzureMatcherSubscriptions(ctx, matcher.Subscriptions, matcher.Integration, listSubs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetchers := make([]Fetcher[*AzureInstances], 0, len(subscriptions)*len(matcher.ResourceGroups))
+	for _, subscription := range subscriptions {
+		for _, resourceGroup := range matcher.ResourceGroups {
+			fetchers = append(fetchers, newAzureInstanceFetcher(azureFetcherConfig{
+				Matcher:             matcher,
+				Subscription:        subscription,
+				ResourceGroup:       resourceGroup,
+				AzureClientGetter:   getClient,
+				DiscoveryConfigName: discoveryConfigName,
+				Logger:              logger,
+			}))
 		}
 	}
-	return ret
+	return fetchers, nil
 }
 
 // expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
 // subscriptions and replaces the wildcard with the subscriptions list.
 func expandAzureMatcherSubscriptions(
 	ctx context.Context,
-	logger *slog.Logger,
 	subscriptions []string,
 	integration string,
 	listSubs listSubscriptionsFunc,
-) []string {
+) ([]string, error) {
 	var out []string
 	for _, sub := range subscriptions {
 		if sub != types.Wildcard {
@@ -224,17 +221,18 @@ func expandAzureMatcherSubscriptions(
 			continue
 		}
 		subs, err := listSubs(ctx, integration)
+		// Azure can return a successful response with no subscriptions when the
+		// identity has no subscription-scoped access. Treat this as a resolution
+		// failure so wildcard discovery doesn't silently produce 0 fetchers.
+		if err == nil && len(subs) == 0 {
+			err = trace.NotFound("Azure returned no subscriptions for wildcard in discovery configuration")
+		}
 		if err != nil {
-			// TODO(gavin): make a user task
-			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
-				"integration", integration,
-				"error", err,
-			)
-			continue
+			return nil, trace.Wrap(err)
 		}
 		out = append(out, subs...)
 	}
-	return utils.Deduplicate(out)
+	return utils.Deduplicate(out), nil
 }
 
 type azureFetcherConfig struct {
@@ -312,7 +310,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
+	nonLinuxVMIDs := make([]string, 0)
 	for _, vm := range vms {
+		// Teleport only supports Linux nodes, so we filter out non-Linux VMs.
+		// If the OS is unknown, we allow it because the OS type might not always be present in the API response.
+		if !vm.IsLinuxOrUnknown() {
+			nonLinuxVMIDs = append(nonLinuxVMIDs, vm.ID)
+			continue
+		}
+
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
@@ -326,6 +332,19 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		}
 
 		instanceGroups[batchGroup] = append(instanceGroups[batchGroup], vm)
+	}
+	if len(nonLinuxVMIDs) > 0 {
+		// Show at most 10 non-Linux VM IDs in the log message to avoid spamming the logs.
+		sampleSize := min(len(nonLinuxVMIDs), 10)
+		nonLinuxVMIDsSample := make([]string, sampleSize)
+		copy(nonLinuxVMIDsSample, nonLinuxVMIDs[:sampleSize])
+
+		f.Logger.DebugContext(ctx, "Skipped non Linux VMs in Azure Server Discovery",
+			"fetcher", f,
+			"total_vms", len(vms),
+			"skipped_vms", len(nonLinuxVMIDs),
+			"skipped_vms_sample", nonLinuxVMIDsSample,
+		)
 	}
 
 	var instances []*AzureInstances

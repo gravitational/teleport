@@ -98,6 +98,17 @@ func TestAzureWatcher(t *testing.T) {
 								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
 								Location: to.Ptr("location2"),
 							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm7")),
+								Location: to.Ptr("location2"),
+								Properties: &armcompute.VirtualMachineProperties{
+									StorageProfile: &armcompute.StorageProfile{
+										OSDisk: &armcompute.OSDisk{
+											OSType: to.Ptr(armcompute.OperatingSystemTypesWindows),
+										},
+									},
+								},
+							},
 						},
 					},
 				},
@@ -235,6 +246,16 @@ func TestAzureWatcher(t *testing.T) {
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6", "vm7", "vm8", "vm9", "vm10", "vm11", "vm12"},
 		},
+		{
+			name: "filter by operating system",
+			matcher: types.AzureMatcher{
+				ResourceGroups: []string{"rg1", "rg2"},
+				Regions:        []string{"location1", "location2"},
+				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
+				Subscriptions:  []string{sub1},
+			},
+			wantVMs: []string{"vm2", "vm4"},
+		},
 	}
 
 	logger := logtest.NewLogger()
@@ -247,20 +268,20 @@ func TestAzureWatcher(t *testing.T) {
 			watcher := NewWatcher[*AzureInstances](ctx, logger)
 
 			const noDiscoveryConfig = ""
-			watcher.SetFetchers(noDiscoveryConfig,
-				MatchersToAzureInstanceFetchers(
-					t.Context(),
-					logger,
-					[]types.AzureMatcher{tc.matcher},
-					func(ctx context.Context, integration string) (azure.Clients, error) {
-						return &clients, nil
-					},
-					noDiscoveryConfig,
-					func(ctx context.Context, integration string) (subscriptions []string, err error) {
-						return []string{sub1, sub2}, nil
-					},
-				),
+			fetchers, err := MatcherToAzureInstanceFetchers(
+				t.Context(),
+				logger,
+				tc.matcher,
+				func(ctx context.Context, integration string) (azure.Clients, error) {
+					return &clients, nil
+				},
+				noDiscoveryConfig,
+				func(ctx context.Context, integration string) (subscriptions []string, err error) {
+					return []string{sub1, sub2}, nil
+				},
 			)
+			require.NoError(t, err)
+			watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 			go watcher.Run()
 			t.Cleanup(watcher.Stop)
@@ -286,6 +307,50 @@ func TestAzureWatcher(t *testing.T) {
 			require.ElementsMatch(t, tc.wantVMs, vmIDs)
 		})
 	}
+}
+
+func TestMatcherToAzureInstanceFetchersSubscriptionListError(t *testing.T) {
+	t.Parallel()
+
+	permissionErr := trace.AccessDenied("missing subscriptions/read")
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, permissionErr },
+	)
+
+	require.Empty(t, fetchers)
+	require.ErrorIs(t, err, permissionErr)
+}
+
+func TestMatcherToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
+	t.Parallel()
+
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, nil },
+	)
+
+	require.Empty(t, fetchers)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {

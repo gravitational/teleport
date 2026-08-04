@@ -128,9 +128,7 @@ func TestMain(m *testing.M) {
 // on the configured RBAC rules.
 func TestAccessPostgres(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
-		db.SetStaticLabels(map[string]string{"foo": "bar"})
-	}))
+	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres", withPostgresStaticLabels(map[string]string{"foo": "bar"})))
 	go testCtx.startHandlingConnections()
 
 	dynamicDBLabels := types.Labels{"echo": {"test"}}
@@ -2758,13 +2756,40 @@ type withDatabaseOption func(t testing.TB, ctx context.Context, testCtx *testCon
 
 type databaseOption func(*types.DatabaseV3)
 
-func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseOption {
+type testPostgresOptions struct {
+	serverOptions   []postgres.TestServerOption
+	databaseOptions []databaseOption
+}
+
+type testPostgresOption func(opts *testPostgresOptions)
+
+// withPostgresNoCancelKey makes the test server skip BackendKeyData (e.g. RDS Proxy).
+func withPostgresNoCancelKey() testPostgresOption {
+	return func(opts *testPostgresOptions) {
+		opts.serverOptions = append(opts.serverOptions, postgres.WithNoCancelKey())
+	}
+}
+
+// withPostgresStaticLabels sets static labels on the database resource.
+func withPostgresStaticLabels(labels map[string]string) testPostgresOption {
+	return func(opts *testPostgresOptions) {
+		opts.databaseOptions = append(opts.databaseOptions, func(db *types.DatabaseV3) {
+			db.SetStaticLabels(labels)
+		})
+	}
+}
+
+func withSelfHostedPostgres(name string, applyOpts ...testPostgresOption) withDatabaseOption {
 	return func(t testing.TB, ctx context.Context, testCtx *testContext) types.Database {
+		var opts testPostgresOptions
+		for _, applyOpt := range applyOpts {
+			applyOpt(&opts)
+		}
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
 			ClientAuth: tls.RequireAndVerifyClientCert,
-		})
+		}, opts.serverOptions...)
 		require.NoError(t, err)
 		go postgresServer.Serve()
 		t.Cleanup(func() { postgresServer.Close() })
@@ -2776,7 +2801,7 @@ func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseO
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
-		for _, dbOpt := range dbOpts {
+		for _, dbOpt := range opts.databaseOptions {
 			dbOpt(database)
 		}
 		testCtx.postgres[name] = testPostgres{

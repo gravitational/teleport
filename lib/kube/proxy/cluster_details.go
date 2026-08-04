@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"log/slog"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -31,6 +32,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/singleflight"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -76,6 +78,8 @@ type kubeDetails struct {
 	// gvkSupportedResources is the list of registered API path resources and their
 	// GVK definition.
 	gvkSupportedResources gvkSupportedResources
+	// refreshGroup is used to coalesce concurrent discovery of the same API group-version into one request.
+	refreshGroup singleflight.Group
 	// isClusterOffline is true if the cluster is offline.
 	// An offline cluster will not be able to serve any requests until it comes back online.
 	// The cluster is marked as offline if the cluster schema cannot be created
@@ -254,6 +258,106 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
 	return k.kubeCodecs, k.rbacSupportedTypes, nil
+}
+
+// resolveResource looks up a resource kind in the discovery-backed cache.
+// On a miss it discovers just that API group-version (a single request) to catch recently-installed CRDs,
+// then retries, and returns the definition and whether it was found.
+func (k *kubeDetails) resolveResource(apiGroup, apiGroupVersion, resourceKind string) (res metav1.APIResource, found bool) {
+	k.rwMu.RLock()
+	res, found = k.rbacSupportedTypes.getResource(apiGroup, resourceKind)
+	k.rwMu.RUnlock()
+	if found {
+		return res, true
+	}
+
+	k.refreshGroupVersion(apiGroup, apiGroupVersion)
+
+	k.rwMu.RLock()
+	defer k.rwMu.RUnlock()
+	return k.rbacSupportedTypes.getResource(apiGroup, resourceKind)
+}
+
+// refreshGroupVersion discovers a single API group-version and merges any new resources into the cache.
+// When the version is empty (SelfSubjectAccessReview requests often omit it) it resolves the group's
+// preferred version first. Concurrent calls for the same group(-version) are coalesced — including the
+// preferred-version lookup — so version-less requests don't each hit discovery. A discovery error leaves
+// the kind absent (and thus denied).
+func (k *kubeDetails) refreshGroupVersion(apiGroup, apiGroupVersion string) {
+	if k.kubeCreds == nil {
+		return
+	}
+	_, _, _ = k.refreshGroup.Do(apiGroup+"/"+apiGroupVersion, func() (any, error) {
+		version := apiGroupVersion
+		if version == "" {
+			if version = k.preferredVersionForGroup(apiGroup); version == "" {
+				return nil, nil
+			}
+		}
+		gv := schema.GroupVersion{Group: apiGroup, Version: version}
+		list, err := k.getKubeClient().Discovery().ServerResourcesForGroupVersion(gv.String())
+		if err != nil {
+			return nil, nil
+		}
+		k.mergeGroupVersion(gv, list)
+		return nil, nil
+	})
+}
+
+// preferredVersionForGroup returns the cluster's preferred version for an API group, or "" if the
+// group can't be resolved. Lets resolveResource discover a group whose version the caller didn't supply.
+func (k *kubeDetails) preferredVersionForGroup(apiGroup string) string {
+	groups, err := k.getKubeClient().Discovery().ServerGroups()
+	if err != nil {
+		return ""
+	}
+	for _, g := range groups.Groups {
+		if g.Name == apiGroup {
+			return g.PreferredVersion.Version
+		}
+	}
+	return ""
+}
+
+// mergeGroupVersion merges a group-version's resources into the cached RBAC types, GVK map, and codec scheme,
+// swapping in fresh copies so existing readers keep a consistent snapshot.
+// It only rebuilds when there are new kinds.
+func (k *kubeDetails) mergeGroupVersion(gv schema.GroupVersion, list *metav1.APIResourceList) {
+	k.rwMu.Lock()
+	defer k.rwMu.Unlock()
+
+	hasNew := false
+	for _, apiResource := range list.APIResources {
+		if _, ok := k.rbacSupportedTypes[allowedResourcesKey{apiGroup: gv.Group, resourceKind: apiResource.Name}]; !ok {
+			hasNew = true
+			break
+		}
+	}
+	if !hasNew {
+		return
+	}
+
+	rbac := maps.Clone(k.rbacSupportedTypes)
+	gvk := maps.Clone(k.gvkSupportedResources)
+	for _, apiResource := range list.APIResources {
+		apiResource.Group = gv.Group
+		apiResource.Version = gv.Version
+		rbac[allowedResourcesKey{apiGroup: gv.Group, resourceKind: apiResource.Name}] = apiResource
+		gvk[gvkSupportedResourcesKey{name: apiResource.Name, apiGroup: gv.Group, version: gv.Version}] = &schema.GroupVersionKind{
+			Group:   gv.Group,
+			Version: gv.Version,
+			Kind:    apiResource.Kind,
+		}
+	}
+
+	codecs, err := buildCodecsForGVKs(gvk)
+	if err != nil {
+		return
+	}
+
+	k.rbacSupportedTypes = rbac
+	k.gvkSupportedResources = gvk
+	k.kubeCodecs = codecs
 }
 
 // getObjectGVK returns the default GVK (if any) registered for the specified request path.

@@ -50,7 +50,10 @@ import type { RecordingType } from 'teleport/services/recordings';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
-import { defaultEntitlements } from './entitlement';
+import {
+  applyLegacyPolicyEntitlementFallback,
+  defaultEntitlements,
+} from './entitlement';
 import generateResourcePath from './generateResourcePath';
 import { IntegrationTag } from './Integrations/Enroll/Shared';
 import type { MfaChallengeResponse } from './services/mfa';
@@ -143,6 +146,7 @@ export const ossRoutes = {
   databases: '/web/cluster/:clusterId/databases',
   desktops: '/web/cluster/:clusterId/desktops',
   desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+  linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
   users: '/web/users',
   bots: '/web/bots',
   bot: '/web/bot/:botName',
@@ -168,6 +172,7 @@ export const ossRoutes = {
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
   loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
+  scopePicker: '/web/scope_picker',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',
@@ -241,7 +246,9 @@ const cfg = {
   // If you have no other options, use the `isStripeManaged` config flag to determine if product used is Team.
   // EUB can be determined from a combination of existing config flags eg: `isUsageBasedBilling && !isStripeManaged`.
   isUsageBasedBilling: false,
-  hideInaccessibleFeatures: false,
+  get hideInaccessibleFeatures(): boolean {
+    return this.entitlements.FeatureHiding.enabled;
+  },
   customTheme: '',
   isStripeManaged: false,
   hasQuestionnaire: false,
@@ -252,6 +259,9 @@ const cfg = {
 
   // beamsUI indicates whether the Beams lite-mode UI is enabled
   beamsUi: false,
+
+  // scopesEnabled indicates whether authorization scopes are enabled.
+  scopesEnabled: false,
 
   configDir: '$HOME/.config/teleport',
 
@@ -276,8 +286,8 @@ const cfg = {
   oidc: false,
   /** @deprecated Use entitlements instead; remove in v20 */
   saml: false,
-  // isPolicyEnabled refers to the Teleport Policy product
-  /** @deprecated Use entitlements.Policy.enabled instead;*/
+  // isPolicyEnabled refers to the legacy Teleport Policy product.
+  /** @deprecated Use the feature-specific identity security entitlements instead. */
   isPolicyEnabled: false,
 
   ui: {
@@ -374,6 +384,8 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
@@ -823,18 +835,38 @@ const cfg = {
     return searchString ? `${path}?${searchString}` : path;
   },
 
-  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+  getSsoUrl({
+    providerUrl,
+    providerName,
+    redirect,
+    loginHint,
+    scope,
+  }: {
+    providerUrl: string;
+    providerName: string;
+    redirect: string;
+    loginHint?: string;
+    scope?: string;
+  }) {
     loginHint = loginHint === '' ? undefined : loginHint;
+    scope = scope === '' ? undefined : scope;
     let basePath =
       cfg.baseUrl +
-      generateFullPath(providerUrl, { redirect, providerName, loginHint });
+      generateFullPath(providerUrl, {
+        redirect,
+        providerName,
+        loginHint,
+        scope,
+      });
 
+    const url = new URL(basePath);
     if (!loginHint) {
-      const url = new URL(basePath);
       url.searchParams.delete('login_hint', '');
-      basePath = url.toString();
     }
-    return basePath;
+    if (!scope) {
+      url.searchParams.delete('scope', '');
+    }
+    return url.toString();
   },
 
   getAuditRoute(clusterId: string) {
@@ -1055,7 +1087,7 @@ const cfg = {
     if (options?.activeTab) {
       search.set('tab', options.activeTab);
     }
-    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+    return `${generatePath(cfg.routes.botInstances)}?${search.toString()}`;
   },
 
   getInstancesRoute() {
@@ -1102,6 +1134,14 @@ const cfg = {
 
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
       clusterId,
       desktopName,
       username,
@@ -2041,7 +2081,7 @@ const cfg = {
   },
 
   init(backendConfig = {}) {
-    mergeDeep(this, backendConfig);
+    mergeDeep(this, applyLegacyPolicyEntitlementFallback(backendConfig));
   },
 };
 

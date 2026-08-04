@@ -349,8 +349,10 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend: srv.Backend,
-		Modules: cfg.Modules,
+		Backend:                     srv.Backend,
+		Modules:                     cfg.Modules,
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -611,6 +613,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
 		Beams:                   p.AuthServer.Services.Beams,
+		BeamsConfig:             p.AuthServer.Services.BeamsConfigService,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -668,7 +671,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		PrimaryCache:       c,
 		Events:             p.AuthServer.Services,
 		Inventory:          p.AuthServer.Services,
-		BotInstanceBackend: p.AuthServer.Services,
+		BotInstanceBackend: p.AuthServer.Services.BotInstance,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1166,8 +1169,8 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1182,8 +1185,8 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1292,20 +1295,21 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 	if clusterName != "" {
 		serverFQDN = utils.HostFQDN(hostID, clusterName)
 	}
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 		Scope: scope,
-		SystemRoles: &scopesv1.SystemRoles{
+		SystemRoles: scopesv1.SystemRoles_builder{
 			Primary:    string(types.RoleInstance),
 			Additional: types.SystemRoles(roles).StringSlice(),
-		},
-	}
+		}.Build(),
+	}.Build()
 	return TestIdentity{
 		I: authz.ScopedBuiltinRole{
 			ClusterName: clusterName,
 			ServerFQDN:  serverFQDN,
 			ScopePin:    pin,
 			Identity: tlsca.Identity{
+				Username: serverFQDN,
 				ScopePin: pin,
 			},
 		},

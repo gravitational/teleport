@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -305,10 +306,10 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 		return nil, trace.Wrap(err)
 	}
 
-	metadata := headerv1.Metadata{
+	metadata := headerv1.Metadata_builder{
 		Name: botName,
-	}
-	spec := machineidv1.BotSpec{}
+	}.Build()
+	spec := &machineidv1.BotSpec{}
 
 	if request.Roles != nil {
 		mask.Append(&machineidv1.Bot{}, "spec.roles")
@@ -352,8 +353,8 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 		Bot: machineidv1.Bot_builder{
 			Kind:     types.KindBot,
 			Version:  types.V1,
-			Metadata: &metadata,
-			Spec:     &spec,
+			Metadata: metadata,
+			Spec:     spec,
 		}.Build(),
 	}.Build())
 	if err != nil {
@@ -468,13 +469,22 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		return nil, trace.Wrap(err)
 	}
 
+	botName := r.URL.Query().Get("bot_name")
+
+	// Exhaustive view, per the scope_filter field docs.
+	var scopeFilter *scopesv1.Filter
+	if botName == "" {
+		scopeFilter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()
+	}
+
 	request := machineidv1.ListBotInstancesV2Request_builder{
 		PageToken: r.URL.Query().Get("page_token"),
 		SortField: r.URL.Query().Get("sort_field"),
 		Filter: machineidv1.ListBotInstancesV2Request_Filters_builder{
-			BotName:    r.URL.Query().Get("bot_name"),
-			SearchTerm: r.URL.Query().Get("search"),
-			Query:      r.URL.Query().Get("query"),
+			BotName:     botName,
+			SearchTerm:  r.URL.Query().Get("search"),
+			Query:       r.URL.Query().Get("query"),
+			ScopeFilter: scopeFilter,
 		}.Build(),
 	}.Build()
 

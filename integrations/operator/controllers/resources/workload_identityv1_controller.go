@@ -39,12 +39,12 @@ type workloadIdentityClient struct {
 
 // Get gets the Teleport WorkloadIdentity of a given name
 func (l workloadIdentityClient) Get(
-	ctx context.Context, name string,
+	ctx context.Context, key reconcilers.ResourceKey,
 ) (*workloadidentityv1.WorkloadIdentity, error) {
 	resp, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		GetWorkloadIdentity(
-			ctx, workloadidentityv1.GetWorkloadIdentityRequest_builder{Name: name}.Build(),
+			ctx, workloadidentityv1.GetWorkloadIdentityRequest_builder{Name: key.Name}.Build(),
 		)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -83,11 +83,11 @@ func (l workloadIdentityClient) Update(
 }
 
 // Delete deletes a Teleport WorkloadIdentity
-func (l workloadIdentityClient) Delete(ctx context.Context, name string) error {
+func (l workloadIdentityClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := l.teleportClient.
 		WorkloadIdentityResourceServiceClient().
 		DeleteWorkloadIdentity(
-			ctx, workloadidentityv1.DeleteWorkloadIdentityRequest_builder{Name: name}.Build(),
+			ctx, workloadidentityv1.DeleteWorkloadIdentityRequest_builder{Name: key.Name}.Build(),
 		)
 	return trace.Wrap(err)
 }

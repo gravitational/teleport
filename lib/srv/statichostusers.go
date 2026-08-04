@@ -253,18 +253,18 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 	}
 
 	slog.DebugContext(ctx, "Attempt to update matched static host user.", "login", login)
-	ui := decisionpb.HostUsersInfo{
+	ui := decisionpb.HostUsersInfo_builder{
 		Groups: createUser.GetGroups(),
 		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 		Shell:  createUser.GetDefaultShell(),
-	}
+	}.Build()
 	if createUser.GetUid() != 0 {
 		ui.SetUid(strconv.Itoa(int(createUser.GetUid())))
 	}
 	if createUser.GetGid() != 0 {
 		ui.SetGid(strconv.Itoa(int(createUser.GetGid())))
 	}
-	if _, err := s.users.UpsertUser(login, &ui, TakeOwnershipIfUserExists(createUser.GetTakeOwnershipIfUserExists())); err != nil {
+	if _, err := s.users.UpsertUser(login, ui, TakeOwnershipIfUserExists(createUser.GetTakeOwnershipIfUserExists())); err != nil {
 		return trace.Wrap(err)
 	}
 	if s.sudoers != nil && len(createUser.GetSudoers()) != 0 {

@@ -7,6 +7,7 @@ tags:
 - how-to
 - zero-trust
 - mcp
+page_type: conceptual
 ---
 
 <Callout
@@ -28,6 +29,9 @@ The MCP server resources are registered as `app` resources in the Teleport
 backend. Application Service instances periodically query the Teleport Auth
 Service for `app` resources, each of which includes the information that the
 Application Service needs to proxy an application.
+
+This page describes the operations involved in managing MCP server registration
+dynamically.
 
 ## Required permissions
 

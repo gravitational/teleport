@@ -175,6 +175,16 @@ func (r *resource153ToLegacyAdapter[T]) GetKind() string {
 	return r.inner.GetKind()
 }
 
+// GetScope returns the scope of the wrapped resource if it is scope-aware, or "" otherwise. This lets
+// scope-based event/watch filtering extract scope uniformly from wrapped resources without needing to
+// know their concrete type.
+func (r *resource153ToLegacyAdapter[T]) GetScope() string {
+	if scoped, ok := any(r.inner).(interface{ GetScope() string }); ok {
+		return scoped.GetScope()
+	}
+	return ""
+}
+
 // Metadata153ToLegacy converts RFD153-style resource metadata to legacy
 // metadata.
 func Metadata153ToLegacy(md *headerv1.Metadata) Metadata {

@@ -32,6 +32,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -226,9 +227,8 @@ func (p *sshProvider) sessionSSHConfig(
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	// TODO(cthach): Set AuthCallback once x/crypto/ssh releases a version that
-	// resolves https://go-review.googlesource.com/c/crypto/+/717140.
-	return apissh.ClientConfig{
+
+	config := apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
 				return []ssh.Signer{certSigner}, nil
@@ -236,7 +236,21 @@ func (p *sshProvider) sessionSSHConfig(
 		},
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
-	}, nil
+	}
+
+	// If credential mode is direct, set AuthCallback so the client can perform in-band MFA if necessary.
+	if mode == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		config.AuthCallback = clientssh.AuthCallback(
+			ctx,
+			clientssh.AuthCallbackConfig{
+				MFAPerformer: func(ctx context.Context, sessionID []byte) (string, error) {
+					return p.cfg.clt.PerformSessionMFACeremony(ctx, target.profile, target.leafCluster, sessionID)
+				},
+			},
+		)
+	}
+
+	return config, nil
 }
 
 func buildHostKeyCallback(trustedCAs [][]byte, clock clockwork.Clock) (ssh.HostKeyCallback, error) {

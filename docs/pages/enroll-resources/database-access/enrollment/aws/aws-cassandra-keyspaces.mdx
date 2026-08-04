@@ -33,6 +33,9 @@ page_type: how-to
 - AWS Account with Amazon Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
+- An IAM principal for the Teleport Database Service. We assume that this is
+  either an IAM role called `TeleportDatabaseServiceRole` or an IAM user called
+  `TeleportDatabaseServiceUser`.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
@@ -94,12 +97,73 @@ $ sudo teleport db configure create \
 ## Step 3/5. Create an Amazon Keyspaces role
 
 Create an AWS IAM Role that will be used as your Keyspaces user.
-Go to the IAM -> Access Management -> [Roles](https://console.aws.amazon.com/iamv2/home#/roles).
-Press Create Role.
 
-![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step1.png)
-AWS provides the `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesFullAccess` IAM policies that you can incorporate into your Keyspaces user's role.
-You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Keyspaces or `AmazonKeyspacesFullAccess` for full access.
+1. Define a trust policy for the role. The following command retrieves your AWS
+   account ID and grants access to the account to the principal you selected
+   when starting this guide. Select the tab for your principal:
+
+   <Tabs>
+   <TabItem label="Role">
+
+   ```code
+   $ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+   $ jq -n --arg acct "$ACCOUNT_ID" \
+     '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":("arn:aws:iam::"+$acct+":role/TeleportDatabaseServiceRole")},"Action":"sts:AssumeRole"}]}' > keyspaces-trust-policy.json
+   ```
+
+   </TabItem>
+   <TabItem label="User">
+
+   ```code
+   $ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+   $ jq -n --arg acct "$ACCOUNT_ID" \
+     '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":("arn:aws:iam::"+$acct+":user/TeleportDatabaseServiceUser")},"Action":"sts:AssumeRole"}]}' > keyspaces-trust-policy.json
+   ```
+
+   </TabItem>
+   </Tabs>
+
+   This command writes a trust policy document to `keyspaces-trust-policy.json`.
+
+1. Create an IAM role called `KeyspacesReader` that uses this trust policy. We
+   will use this role to connect to the database later in this guide:
+
+   ```code
+   $ aws iam create-role \
+     --role-name KeyspacesReader \
+     --assume-role-policy-document file://keyspaces-trust-policy.json
+   ```
+
+1. Assign permissions to the `KeyspacesReader` role.
+
+   AWS provides the `AmazonKeyspacesReadOnlyAccess` and
+   `AmazonKeyspacesFullAccess` IAM policies that you can incorporate into your
+   Keyspaces user's role.  You can choose `AmazonKeyspacesReadOnlyAccess` for
+   read-only access to Amazon Keyspaces or `AmazonKeyspacesFullAccess` for full
+   access.
+
+   Assign one of these policies to the role you created:
+
+   <Tabs>
+   <TabItem label="Read-only">
+
+    ```code
+    $ aws iam attach-role-policy \
+      --role-name KeyspacesReader \
+      --policy-arn arn:aws:iam::aws:policy/AmazonKeyspacesReadOnlyAccess
+    ```
+
+   </TabItem>
+   <TabItem label="Full access">
+
+    ```code
+    $ aws iam attach-role-policy \
+      --role-name KeyspacesReader \
+      --policy-arn arn:aws:iam::aws:policy/AmazonKeyspacesFullAccess
+    ```
+
+   </TabItem>
+   </Tabs>
 
 <Admonition type="tip">
   The `AmazonKeyspacesReadOnlyAccess` and `AmazonKeyspacesFullAccess` policies may
@@ -108,28 +172,53 @@ You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to Amazon Ke
   You can also create your own custom Amazon Keyspaces Permissions Policies: [Amazon Keyspaces identity-based policy examples](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_id-based-policy-examples.html).
 </Admonition>
 
-![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step2.png)
-Enter a role name and press "Create role".
-![Create Role Step 1](../../../../../img/database-access/guides/keyspaces/create-role-step3.png)
-
 ## Step 4/5. Give Teleport permissions to assume roles
 
 Next, attach the following policy to the IAM role or IAM user the Teleport
-Database Service instance is using, which allows the Database Service to
-assume the IAM roles:
+Database Service instance is using, which allows the Database Service to assume
+the IAM roles. 
 
-```yaml
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "sts:AssumeRole",
-      "Resource": "*"
-    }
-  ]
-}
-```
+1. Save the following JSON document as `assume-role.json`:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "sts:AssumeRole",
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+
+1. Create the policy and attach it to the Teleport Database Service. This
+   depends on whether the Database Service authenticates as an IAM role or IAM
+   user:
+
+   <Tabs>
+   <TabItem label="Role">
+
+   ```code
+   $ aws iam put-role-policy \
+     --role-name TeleportDatabaseServiceRole \
+     --policy-name TeleportAssumeRole \
+     --policy-document file://assume-role.json
+   ```
+
+   </TabItem>
+   <TabItem label="User">
+
+   ```code
+   $ aws iam put-user-policy \
+     --user-name TeleportDatabaseServiceUser \
+     --policy-name TeleportAssumeRole \
+     --policy-document file://assume-role.json
+   ```
+
+   </TabItem>
+   </Tabs>
 
 <Admonition type="tip">
   You can make the policy more strict by providing specific IAM role resource

@@ -52,12 +52,12 @@ func TestValidatAppAuthConfig(t *testing.T) {
 					Metadata: headerv1.Metadata_builder{
 						Name: "example",
 					}.Build(),
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
+					Spec: appauthconfigv1.AppAuthConfigSpec_builder{
 						AppLabels: []*labelv1.Label{
 							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
-						SubKindSpec: validConfig,
-					},
+						Jwt: proto.ValueOrDefault(validConfig.Jwt),
+					}.Build(),
 				}.Build(),
 				assertErr: require.NoError,
 			},
@@ -68,12 +68,12 @@ func TestValidatAppAuthConfig(t *testing.T) {
 					Metadata: headerv1.Metadata_builder{
 						Name: "example",
 					}.Build(),
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
+					Spec: appauthconfigv1.AppAuthConfigSpec_builder{
 						AppLabels: []*labelv1.Label{
 							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
-						SubKindSpec: validConfig,
-					},
+						Jwt: proto.ValueOrDefault(validConfig.Jwt),
+					}.Build(),
 				}.Build(),
 				assertErr: require.Error,
 			},
@@ -81,12 +81,12 @@ func TestValidatAppAuthConfig(t *testing.T) {
 				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
+					Spec: appauthconfigv1.AppAuthConfigSpec_builder{
 						AppLabels: []*labelv1.Label{
 							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
-						SubKindSpec: validConfig,
-					},
+						Jwt: proto.ValueOrDefault(validConfig.Jwt),
+					}.Build(),
 				}.Build(),
 				assertErr: require.Error,
 			},
@@ -97,9 +97,9 @@ func TestValidatAppAuthConfig(t *testing.T) {
 					Metadata: headerv1.Metadata_builder{
 						Name: "example",
 					}.Build(),
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
-						SubKindSpec: validConfig,
-					},
+					Spec: appauthconfigv1.AppAuthConfigSpec_builder{
+						Jwt: proto.ValueOrDefault(validConfig.Jwt),
+					}.Build(),
 				}.Build(),
 				assertErr: require.Error,
 			},
@@ -110,12 +110,12 @@ func TestValidatAppAuthConfig(t *testing.T) {
 					Metadata: headerv1.Metadata_builder{
 						Name: "example",
 					}.Build(),
-					Spec: &appauthconfigv1.AppAuthConfigSpec{
+					Spec: appauthconfigv1.AppAuthConfigSpec_builder{
 						AppLabels: []*labelv1.Label{
 							labelv1.Label_builder{Name: "*", Values: []string{"some-random-value"}}.Build(),
 						},
-						SubKindSpec: validConfig,
-					},
+						Jwt: proto.ValueOrDefault(validConfig.Jwt),
+					}.Build(),
 				}.Build(),
 				assertErr: require.Error,
 			},

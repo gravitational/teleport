@@ -19,6 +19,7 @@
 import { Meta } from '@storybook/react-vite';
 
 import DialogConfirmation from 'design/DialogConfirmation';
+import { Logger } from 'design/logger';
 import {
   makeErrorAttempt,
   makeProcessingAttempt,
@@ -58,7 +59,11 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, selectDirectoryInBrowser);
+  const client = new TdpClient(
+    () => null,
+    selectDirectoryInBrowser,
+    new Logger('TDPClient')
+  );
   // Don't try to connect to a websocket.
   client.connect = async options => {
     emitFrame(client, options.screenSpec);

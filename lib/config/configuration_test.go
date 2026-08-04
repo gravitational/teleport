@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -458,7 +459,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Name:         "anthropic",
+					Name:         "anthropic-bedrock",
 					StaticLabels: Labels,
 					LLM: &LLM{
 						Format:   "anthropic",
@@ -470,6 +471,17 @@ func TestConfigReading(t *testing.T) {
 							},
 						},
 						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
 					},
 				},
 				{
@@ -1714,7 +1726,7 @@ func makeConfigFixture() string {
 			},
 		},
 		{
-			Name:         "anthropic",
+			Name:         "anthropic-bedrock",
 			StaticLabels: Labels,
 			LLM: &LLM{
 				Format:   "anthropic",
@@ -1726,6 +1738,17 @@ func makeConfigFixture() string {
 					},
 				},
 				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
 			},
 		},
 		{
@@ -2382,6 +2405,7 @@ uQM=
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2452,6 +2476,19 @@ uQM=
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2488,6 +2525,30 @@ uQM=
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},
@@ -2591,6 +2652,63 @@ uQM=
 	}
 }
 
+func TestLinuxDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
+	}{
+		{
+			desc:        "OK",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "^inc.*$"
+				fc.LinuxDesktop.XSessions.Excluded = "^exc.*$"
+				fc.LinuxDesktop.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.NotNil(t, cfg.LinuxDesktop.IncludedSessions)
+					assert.NotNil(t, cfg.LinuxDesktop.ExcludedSessions)
+					assert.True(t, cfg.LinuxDesktop.Enabled)
+					assert.Len(t, cfg.LinuxDesktop.Labels, 1)
+					assert.Equal(t, "bar", cfg.LinuxDesktop.Labels["foo"])
+				},
+			},
+		},
+		{
+			desc:        "NOK - invalid include",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "\\"
+			},
+		},
+		{
+			desc:        "NOK - invalid exclude",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Excluded = "\\"
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &servicecfg.Config{}
+			err := applyLinuxDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
+		})
+	}
+}
+
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
@@ -2612,6 +2730,55 @@ app_service:
 `,
 			name:   "app and wildcard resources",
 			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+    - 192.0.2.10
+`,
+			name:   "allowed target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - 169.254.0.0/16
+    - 127.0.0.0/8
+    - ::1/128
+`,
+			name:   "denied target hosts",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  allowed_hosts:
+    - 10.10.0.0/16
+  denied_hosts:
+    - 127.0.0.0/8
+`,
+			name: "allowed and denied target hosts are mutually exclusive",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "mutually exclusive")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  denied_hosts:
+    - localhost
+`,
+			name: "target hosts reject hostnames",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "must be an IP address or CIDR range")
+			},
 		},
 		{
 			inConfigString: `
@@ -3183,6 +3350,21 @@ app_service:
 				require.ErrorContains(t, err, "app1")
 				require.ErrorContains(t, err, "beta")
 			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
@@ -4336,6 +4518,44 @@ teleport:
 				},
 			},
 		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
@@ -5396,6 +5616,32 @@ func TestDiscoveryConfig(t *testing.T) {
 			}},
 		},
 		{
+			desc:          "GCP section is filled with Cloud SQL matcher",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"cloudsql"},
+						"locations": []string{"eucentral1"},
+						"labels": cfgMap{
+							"env": "prod",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"cloudsql"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
+			}},
+		},
+		{
 			desc:          "Azure section is filled with defaults (aks)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -6245,4 +6491,34 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestApplyAuditQueueConfig(t *testing.T) {
+	t.Parallel()
+	text := editConfig(t, func(cfg cfgMap) {
+		cfg["teleport"].(cfgMap)["audit_queue"] = cfgMap{
+			"soft_limit":                 "50MiB",
+			"hard_limit":                 "500MiB",
+			"max_attempts":               3,
+			"dead_letter_ttl":            "48h",
+			"dead_letter_sweep_interval": "10m",
+			"orphan_scan_interval":       "15m",
+			"backend":                    []any{auditqueue.KindSQLiteDisk, auditqueue.KindSQLiteMemory},
+			"synchronous":                auditqueue.SynchronousFull,
+		}
+	})
+	fc, err := ReadConfig(bytes.NewReader(text))
+	require.NoError(t, err)
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, ApplyFileConfig(fc, cfg))
+	require.Equal(t, servicecfg.AuditQueueConfig{
+		SoftLimit:               50 * 1024 * 1024,
+		MaxBytes:                500 * 1024 * 1024,
+		MaxAttempts:             3,
+		DeadLetterTTL:           48 * time.Hour,
+		DeadLetterSweepInterval: 10 * time.Minute,
+		OrphanScanInterval:      15 * time.Minute,
+		Backends:                []string{"sqlite_disk", "sqlite_memory"},
+		Synchronous:             "FULL",
+	}, cfg.AuditQueue)
 }

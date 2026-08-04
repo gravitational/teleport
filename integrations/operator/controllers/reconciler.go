@@ -52,6 +52,6 @@ func RequireEnterprise(features *proto.Features) bool {
 	return features.GetAdvancedAccessWorkflows()
 }
 
-func RequirePolicy(features *proto.Features) bool {
-	return modules.GetProtoEntitlement(features, entitlements.Policy).Enabled
+func RequireSessionSummaries(features *proto.Features) bool {
+	return modules.GetProtoEntitlement(features, entitlements.SessionSummaries).Enabled
 }

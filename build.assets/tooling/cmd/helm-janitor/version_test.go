@@ -28,10 +28,8 @@ import (
 
 const (
 	testChartYaml = `
-.version: &version "1.2.3"
-
 name: test-chart
-version: *version
+version: &version "1.2.3"
 appVersion: *version
 
 dependencies:
@@ -39,10 +37,8 @@ dependencies:
     version: *version
 `
 	updatedTestChartYaml = `
-.version: &version "1.2.4-foobar"
-
 name: test-chart
-version: *version
+version: &version "1.2.4-foobar"
 appVersion: *version
 
 dependencies:

@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -50,6 +51,18 @@ func TestRecordingsSearchResourcePropertyFlags(t *testing.T) {
 	require.Equal(t, "prod", c.searchPodNamespace)
 	require.Equal(t, "api-7fd", c.searchPodName)
 	require.Equal(t, "postgres", c.searchDatabaseName)
+}
+
+// TestReviewReasonEnumParity fails when a new NeedsReviewReason enum value is
+// added to the proto but not to reviewReasonNames, preventing silent omission
+// from the --review-reason flag.
+func TestReviewReasonEnumParity(t *testing.T) {
+	t.Parallel()
+	// NeedsReviewReason_value maps every proto name to its int32; subtract 1
+	// for UNSPECIFIED, which is not a valid CLI filter value.
+	wantCount := len(summarizerv1pb.NeedsReviewReason_value) - 1
+	require.Len(t, reviewReasonNames, wantCount,
+		"reviewReasonNames must have one entry per non-UNSPECIFIED NeedsReviewReason value; add or remove the missing entries")
 }
 
 func TestBuildSearchResourceProperties(t *testing.T) {

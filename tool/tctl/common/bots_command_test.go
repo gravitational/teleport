@@ -501,18 +501,18 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 func TestAggregateServiceHealth(t *testing.T) {
 	t.Parallel()
 
-	healthy := machineidv1pb.BotInstanceServiceHealth{
+	healthy := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
-	}
-	unhealthy := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	unhealthy := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
-	}
-	initializing := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	initializing := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
-	}
-	unknown := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	unknown := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
-	}
+	}.Build()
 
 	tcs := []struct {
 		name      string
@@ -533,73 +533,50 @@ func TestAggregateServiceHealth(t *testing.T) {
 			status:    0,
 		},
 		{
-			name: "one item - healthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-			},
+			name:      "one item - healthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
-			name: "one item - unhealthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unhealthy,
-			},
+			name:      "one item - unhealthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unhealthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
-			name: "one item - initializing",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&initializing,
-			},
+			name:      "one item - initializing",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{initializing},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
 		{
-			name: "one item - unknown",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unknown,
-			},
+			name:      "one item - unknown",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
-			name: "multiple items - healthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&healthy,
-			},
+			name:      "multiple items - healthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, healthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
-			name: "multiple items - unhealthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unhealthy,
-				&healthy,
-				&initializing,
-				&unknown,
-			},
+			name:      "multiple items - unhealthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unhealthy, healthy, initializing, unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
-			name: "multiple items - unknown",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&initializing,
-				&unknown,
-			},
+			name:      "multiple items - unknown",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, initializing, unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
-			name: "multiple items - initializing",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&initializing,
-			},
+			name:      "multiple items - initializing",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, initializing},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
@@ -760,6 +737,194 @@ func TestListBotInstances(t *testing.T) {
 	})
 }
 
+// TestBotInstancesScoped exercises "tctl bots instances list/show" against
+// instances of scoped bots, which are addressed by prefixing the bot's name
+// with its scope: <scope>::<bot name>.
+func TestBotInstancesScoped(t *testing.T) {
+	t.Parallel()
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	ctx := t.Context()
+	client, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	// An unscoped and a scoped bot sharing a name, to prove reads and filters
+	// are scope-strict.
+	unscopedInstance := createBotInstance(t, ctx, process)
+	scopedInstance := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
+		instance.SetScope("/staging")
+	})
+
+	// Give the auth cache a chance to catch-up
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		res, _, err := process.GetAuthServer().ListBotInstances(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, res, 2)
+	}, time.Second*10, time.Millisecond*50)
+
+	t.Run("list filter by scope-qualified bot name", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: "/staging::test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, scopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list filter by bare bot name excludes scoped bots", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.JSON,
+			botName: "test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		res, err := services.UnmarshalProtoResourceArray[*machineidv1pb.BotInstance]([]byte(buf.String()))
+		require.NoError(t, err)
+
+		require.Len(t, res, 1)
+		assertContainsInstance(t, res, unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list text output shows scope-qualified id", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout: &buf,
+			format: teleport.Text,
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		out := buf.String()
+		require.Contains(t, out, "/staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		require.Contains(t, out, "test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("list hides add hint for scoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: "/staging::test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		require.NotContains(t, buf.String(), "bots instances add")
+	})
+
+	t.Run("list shows add hint for unscoped bot", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:  &buf,
+			format:  teleport.Text,
+			botName: "test-bot-1",
+		}
+
+		require.NoError(t, cmd.ListBotInstances(t.Context(), client))
+
+		require.Contains(t, buf.String(), "bots instances add test-bot-1")
+	})
+
+	t.Run("show scoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:     &buf,
+			instanceID: "/staging::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
+
+		out := buf.String()
+		require.Contains(t, out, "Scope:  /staging")
+		require.Contains(t, out, "get bot_instance /staging::test-bot-1/"+scopedInstance.GetSpec().GetInstanceId())
+		// The slash form can't carry a scope, so it must not be suggested here.
+		require.NotContains(t, out, "get bot_instance/test-bot-1")
+		require.NotContains(t, out, "bots instances add")
+	})
+
+	t.Run("show unscoped instance", func(t *testing.T) {
+		buf := strings.Builder{}
+		cmd := BotsCommand{
+			stdout:     &buf,
+			instanceID: "test-bot-1/" + unscopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		require.NoError(t, cmd.ShowBotInstance(t.Context(), client))
+
+		out := buf.String()
+		require.NotContains(t, out, "Scope:")
+		require.Contains(t, out, "bots instances add test-bot-1")
+		// Same two-argument shape as the scoped case.
+		require.Contains(t, out, "get bot_instance test-bot-1/"+unscopedInstance.GetSpec().GetInstanceId())
+	})
+
+	t.Run("show scoped instance without scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("show scoped instance with wrong scope is not found", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "/prod::test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got: %v", err)
+	})
+
+	t.Run("list filter with scope prefix but no separator is rejected", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:  &strings.Builder{},
+			format:  teleport.JSON,
+			botName: "/staging",
+		}
+
+		err := cmd.ListBotInstances(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+	})
+
+	t.Run("show with scope prefix but no separator is rejected", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout:     &strings.Builder{},
+			instanceID: "/staging/test-bot-1/" + scopedInstance.GetSpec().GetInstanceId(),
+		}
+
+		err := cmd.ShowBotInstance(t.Context(), client)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+	})
+}
+
 func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, instanceId string) {
 	assert.True(t, slices.ContainsFunc(res, func(in *machineidv1pb.BotInstance) bool {
 		return in.GetSpec().GetInstanceId() == instanceId
@@ -842,6 +1007,19 @@ func TestListBotInstancesFallback(t *testing.T) {
 		err := cmd.ListBotInstances(ctx, authClient)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "fallback not supported for requests with a query")
+	})
+
+	t.Run("fallback not allowed for bot scope", func(t *testing.T) {
+		cmd := BotsCommand{
+			stdout: ptr(strings.Builder{}),
+			format: teleport.JSON,
+			// The bot scope filter is only available in ListBotInstancesV2.
+			botName: "/staging::test-bot-1",
+		}
+
+		err := cmd.ListBotInstances(ctx, authClient)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "fallback not supported for requests with a bot scope")
 	})
 }
 

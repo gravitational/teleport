@@ -16,8 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom';
+import {
+  createThemeSystem,
+  TELEPORT_THEME,
+  ThemeProvider as NewThemeProvider,
+} from '@gravitational/design-system';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -29,15 +34,17 @@ import {
   waitForElementToBeRemoved,
   within,
 } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import 'jest-styled-components';
+import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
 import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
 import { MemoryRouter, useLocation } from 'react-router';
 
-import { darkTheme } from 'design/theme';
+import { darkTheme, resolveTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+
+const testThemeSystem = createThemeSystem(TELEPORT_THEME.config);
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {
@@ -47,12 +54,16 @@ export const testQueryClient = new QueryClient({
   },
 });
 
+const legacyTheme = resolveTheme(darkTheme);
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={testQueryClient}>
-      <ConfiguredThemeProvider theme={darkTheme}>
-        {children}
-      </ConfiguredThemeProvider>
+      <NewThemeProvider system={testThemeSystem} forcedTheme="dark">
+        <ConfiguredThemeProvider theme={legacyTheme}>
+          {children}
+        </ConfiguredThemeProvider>
+      </NewThemeProvider>
     </QueryClientProvider>
   );
 }
@@ -173,11 +184,54 @@ export function enableMswServer() {
   afterAll(() => server.close());
 }
 
+/**
+ * Mocks HTMLElement.prototype.offsetParent for the current test suite. Call
+ * this at the top level of a test file (or inside a describe block) that
+ * exercises code filtering out hidden elements by offsetParent, e.g. the focus
+ * trap in Modal.
+ */
+export function mockOffsetParent() {
+  let originalOffsetParent: PropertyDescriptor | undefined;
+
+  beforeAll(() => {
+    originalOffsetParent = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'offsetParent'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      get(this: HTMLElement) {
+        // Walk up the ancestor chain — in real browsers, offsetParent is null when any
+        // ancestor has display: none.
+        let el: HTMLElement | null = this;
+        while (el) {
+          if (el.style.display === 'none') {
+            return null;
+          }
+          el = el.parentElement;
+        }
+        return this.parentElement;
+      },
+      configurable: true,
+    });
+  });
+
+  afterAll(() => {
+    if (originalOffsetParent) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetParent',
+        originalOffsetParent
+      );
+    }
+  });
+}
+
 export {
   act,
   screen,
   fireEvent,
-  darkTheme as theme,
+  legacyTheme as theme,
+  testThemeSystem,
   tick,
   render,
   prettyDOM,

@@ -18,6 +18,7 @@ package types
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -784,6 +785,17 @@ type SAMLConnectorValidationOptions struct {
 	// endpoints like /webapi/ping which must not hang or fail.
 	NoFollowURLs bool
 	WithSecrets  bool
+	// Transport used to fetch entity descriptor during the validation.
+	Transport http.RoundTripper
+}
+
+// NewSAMLConnectorValidationOptions creates SAMLConnectorValidationOptions from provided options.
+func NewSAMLConnectorValidationOptions(opts []SAMLConnectorValidationOption) SAMLConnectorValidationOptions {
+	options := SAMLConnectorValidationOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+	return options
 }
 
 // SAMLConnectorValidationOption is an option for validation of SAML connectors.
@@ -802,5 +814,13 @@ func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOptio
 func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.WithSecrets = withSecrets
+	}
+}
+
+// SAMLConnectorValidationHTTPTransport sets HTTP transport used to fetch entity descriptor during
+// the validation.
+func SAMLConnectorValidationHTTPTransport(transport http.RoundTripper) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.Transport = transport
 	}
 }

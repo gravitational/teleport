@@ -68,6 +68,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	ExecEvent:                                      &apievents.Exec{},
 	SubsystemEvent:                                 &apievents.Subsystem{},
 	X11ForwardEvent:                                &apievents.X11Forward{},
+	AgentForwardEvent:                              &apievents.AgentForward{},
 	PortForwardEvent:                               &apievents.PortForward{},
 	AuthAttemptEvent:                               &apievents.AuthAttempt{},
 	SCPEvent:                                       &apievents.SCP{},
@@ -96,9 +97,14 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionEndEvent:                             &apievents.AppSessionEnd{},
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
+	AppSessionTargetDialDeniedEvent:                &apievents.AppSessionTargetDialDenied{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
 	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
 	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},
+	AppSessionHTTPRequestEvent:                     &apievents.AppSessionHTTPRequest{},
+	AppSessionHTTPRequestBodyChunkEvent:            &apievents.AppSessionHTTPRequestBodyChunk{},
+	AppSessionHTTPResponseEvent:                    &apievents.AppSessionHTTPResponse{},
+	AppSessionHTTPResponseBodyChunkEvent:           &apievents.AppSessionHTTPResponseBodyChunk{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
@@ -149,6 +155,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	DeviceEnrollTokenCreateEvent:                   &apievents.DeviceEvent2{},
 	DeviceWebTokenCreateEvent:                      &apievents.DeviceEvent2{},
 	DeviceAuthenticateConfirmEvent:                 &apievents.DeviceEvent2{},
+	DeviceEnrollPairingRequestEvent:                &apievents.DeviceEvent2{},
 	LockCreatedEvent:                               &apievents.LockCreate{},
 	LockDeletedEvent:                               &apievents.LockDelete{},
 	RecoveryCodeGeneratedEvent:                     &apievents.RecoveryCodeGenerate{},
@@ -308,6 +315,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
 	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
 	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
+	ClientIPRestrictionsUpdateEvent:               &apievents.ClientIPRestrictionsUpdate{},
 }
 
 // TestJSON tests JSON marshal events
@@ -1261,9 +1269,6 @@ func TestEventCodesInWebTypes(t *testing.T) {
 		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
 		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
 		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
-		"TCO05I":      true, // CertAuthOverrideCertificatesAddCode
-		"TCO06I":      true, // CertAuthOverrideCertificatesUpdateCode
-		"TCO07I":      true, // CertAuthOverrideCertificatesRemoveCode
 	}
 
 	codesFile, err := os.ReadFile("codes.go")

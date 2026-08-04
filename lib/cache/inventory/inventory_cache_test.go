@@ -123,7 +123,8 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	dynamicAccessS := local.NewDynamicAccessService(bkWrapper)
 	restrictions := local.NewRestrictionsService(bkWrapper)
 	apps := local.NewAppService(bkWrapper)
-	kubernetes := local.NewKubernetesService(bkWrapper)
+	kubernetes, err := local.NewKubernetesService(bkWrapper)
+	require.NoError(t, err)
 	databases := local.NewDatabasesService(bkWrapper)
 	databaseServices := local.NewDatabaseServicesService(bkWrapper)
 	windowsDesktops := local.NewWindowsDesktopService(bkWrapper)
@@ -174,6 +175,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	require.NoError(t, err)
 
 	beamService, err := local.NewBeamService(bkWrapper)
+	require.NoError(t, err)
+
+	beamsConfigService, err := local.NewBeamsConfigService(bkWrapper)
 	require.NoError(t, err)
 
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(bkWrapper)
@@ -243,6 +247,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		WebSession:              idService.WebSessions(),
 		WebToken:                idService,
 		Beams:                   beamService,
+		BeamsConfig:             beamsConfigService,
 		SnowflakeSession:        idService,
 		Restrictions:            restrictions,
 		Apps:                    apps,
@@ -1746,15 +1751,15 @@ func (m *mockBotInstanceCache) ListBotInstances(ctx context.Context, pageSize in
 	return m.bots, "", nil
 }
 
-func (m *mockBotInstanceCache) GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error) {
+func (m *mockBotInstanceCache) GetBotInstance(ctx context.Context, req *machineidv1.GetBotInstanceRequest) (*machineidv1.BotInstance, error) {
 	return nil, nil
 }
 
-func (m *mockBotInstanceCache) DeleteBotInstance(ctx context.Context, botName, instanceID string) error {
+func (m *mockBotInstanceCache) DeleteBotInstance(ctx context.Context, req *machineidv1.DeleteBotInstanceRequest) error {
 	return nil
 }
 
-func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, botName, instanceID string, update func(*machineidv1.BotInstance) (*machineidv1.BotInstance, error)) (*machineidv1.BotInstance, error) {
+func (m *mockBotInstanceCache) PatchBotInstance(ctx context.Context, opts services.PatchBotInstanceOpts) (*machineidv1.BotInstance, error) {
 	return nil, nil
 }
 

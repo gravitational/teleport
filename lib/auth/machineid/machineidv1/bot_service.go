@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/set"
@@ -54,6 +55,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 	types.JoinMethodCircleCI,
 	types.JoinMethodEnv0,
 	types.JoinMethodGCP,
+	types.JoinMethodGenericOIDC,
 	types.JoinMethodGitHub,
 	types.JoinMethodGitLab,
 	types.JoinMethodIAM,
@@ -186,7 +188,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	// state backend.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBot, types.VerbReadNoSecrets,
+		&ruleCtx, types.KindBot, scopedaccess.Read,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -203,7 +205,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
 		ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Read)
 		},
 	); err != nil {
 		// Return NotFound rather than Forbidden to avoid leaking existence of
@@ -255,7 +257,7 @@ func (bs *BotService) ListBots(
 	// Check generally if this user may have the ability to list bots - ignoring
 	// where conditions.
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBot, types.VerbList,
+		&ruleCtx, types.KindBot, scopedaccess.List,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +321,7 @@ func (bs *BotService) ListBots(
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = bot
 		if err := authCtx.CheckerContext.Decision(ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbList)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.List)
 		}); err != nil {
 			// Ignore resources the user cannot access.
 			continue
@@ -356,7 +358,7 @@ func (bs *BotService) CreateBot(
 	ruleCtx := authCtx.RuleContext()
 	ruleCtx.Resource153 = req.GetBot()
 	if err := authCtx.CheckerContext.Decision(ctx, req.GetBot().GetScope(), func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Create)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -587,7 +589,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		req.GetBot().GetScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
-				&ruleCtx, types.KindBot, types.VerbCreate, types.VerbUpdate,
+				&ruleCtx, types.KindBot, scopedaccess.Create, scopedaccess.Update,
 			)
 		},
 	); err != nil {
@@ -838,7 +840,7 @@ func (bs *BotService) DeleteBot(
 	// Perform maybe-check before we hit the backend.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBot, types.VerbDelete,
+		&ruleCtx, types.KindBot, scopedaccess.Delete,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -854,7 +856,7 @@ func (bs *BotService) DeleteBot(
 
 	ruleCtx.Resource153 = dummyBotWithName(req.GetBotName())
 	if err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbDelete)
+		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, scopedaccess.Delete)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}

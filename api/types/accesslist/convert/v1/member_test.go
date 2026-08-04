@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -53,6 +54,49 @@ func TestWithMemberIneligibleStatusField(t *testing.T) {
 	fn(alMember)
 
 	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.Enum().String(), alMember.Spec.IneligibleStatus)
+}
+
+func TestMemberStatusIgnoredByDefault(t *testing.T) {
+	member := newAccessListMember(t, "access-list-member")
+	member.Status = &accesslist.AccessListMemberStatus{
+		Display:        &types.UserDisplay{Primary: "Member Name", Secondary: "member@example.com"},
+		AddedByDisplay: &types.UserDisplay{Primary: "Adder Name", Secondary: "adder@example.com"},
+	}
+
+	converted, err := FromMemberProto(ToMemberProto(member))
+	require.NoError(t, err)
+
+	require.Nil(t, converted.Status)
+}
+
+func TestWithMemberStatusField(t *testing.T) {
+	member := newAccessListMember(t, "access-list-member")
+	member.Status = &accesslist.AccessListMemberStatus{
+		Display:        &types.UserDisplay{Primary: "Member Name", Secondary: "member@example.com"},
+		AddedByDisplay: &types.UserDisplay{Primary: "Adder Name", Secondary: "adder@example.com"},
+	}
+	protoMember := ToMemberProto(member)
+
+	converted, err := FromMemberProto(protoMember, WithMemberStatusField(protoMember))
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(member, converted))
+}
+
+func TestWithMemberStatusFieldPreservesEmptyDisplay(t *testing.T) {
+	protoMember := ToMemberProto(newAccessListMember(t, "access-list-member"))
+	protoMember.Status = &accesslistv1.MemberStatus{
+		Display:        &accesslistv1.UserDisplay{},
+		AddedByDisplay: &accesslistv1.UserDisplay{Primary: "Adder Name"},
+	}
+
+	member, err := FromMemberProto(protoMember, WithMemberStatusField(protoMember))
+	require.NoError(t, err)
+
+	require.NotNil(t, member.Status)
+	require.NotNil(t, member.Status.Display)
+	require.Empty(t, *member.Status.Display)
+	require.Equal(t, &types.UserDisplay{Primary: "Adder Name"}, member.Status.AddedByDisplay)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.

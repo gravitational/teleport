@@ -153,6 +153,10 @@ type ExecCommand struct {
 	// the subsystem name.
 	Command string `json:"command"`
 
+	// ForceLoginShell indicates if we should use login shell even when
+	// command is provided.
+	ForceLoginShell bool `json:"force_login_shell"`
+
 	// DestinationAddress is the target address to dial to.
 	DestinationAddress string `json:"dst_addr"`
 
@@ -198,6 +202,10 @@ type ExecCommand struct {
 
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
+
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string `json:"test_login_shell"`
 
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
@@ -1264,6 +1272,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 	if c.IsTestStub {
 		shellPath = "/bin/sh"
 	}
+	// Tests may override the login shell so they don't run the real user's shell,
+	// which has side effects such as polluting the user's shell history.
+	if c.TestLoginShell != "" {
+		shellPath = c.TestLoginShell
+	}
 
 	// If a subsystem was requested, handle the known subsystems or error out;
 	// if it's a normal command execution, and if no command was given,
@@ -1292,6 +1305,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 		// this is a login shell."
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
 		cmd.Args = []string{"-" + filepath.Base(shellPath)}
+	} else if c.ForceLoginShell {
+		// Configure the shell to run in 'login' mode even though command
+		// was provided
+		cmd.Path = shellPath
+		cmd.Args = []string{"-" + filepath.Base(shellPath), "-c", c.Command}
 	} else {
 		// Execute commands like OpenSSH does:
 		// https://github.com/openssh/openssh-portable/blob/master/session.c
@@ -1909,13 +1927,20 @@ func ConfigureCommand(ctx context.Context, logger *slog.Logger, childLogWriter i
 
 	// Build the "teleport exec" command.
 	executor.Cmd = &exec.Cmd{
-		Stdin:      childFiles[0],
-		Stdout:     childFiles[1],
-		Stderr:     childFiles[2],
 		Path:       executable,
 		Args:       args,
 		Env:        *env,
 		ExtraFiles: childFiles[3:],
+	}
+
+	if childFiles[0] != nil {
+		executor.Cmd.Stdin = childFiles[0]
+	}
+	if childFiles[1] != nil {
+		executor.Cmd.Stdout = childFiles[1]
+	}
+	if childFiles[2] != nil {
+		executor.Cmd.Stderr = childFiles[2]
 	}
 
 	// Perform OS-specific tweaks to the command.

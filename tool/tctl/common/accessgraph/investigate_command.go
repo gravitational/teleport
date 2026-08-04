@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
@@ -159,9 +157,7 @@ func (a *investigateArgs) luceneToFlagMap() map[string]string {
 
 // initInvestigate registers `tctl investigate` and all its flags.
 func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
-	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.\n\n"+
-		"To let an AI agent drive this command, install the matching Agent Skill:\n\n"+
-		"`npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate`")
+	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.")
 
 	cmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 1d)", time.RFC3339, time.DateOnly)).
 		Default("1d").
@@ -518,7 +514,7 @@ func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error 
 		return trace.Wrap(err)
 	}
 
-	width := facetWrapWidth(out)
+	width := terminalWidth(out)
 	if _, err := fmt.Fprintln(out, "Facets:"); err != nil {
 		return trace.Wrap(err)
 	}
@@ -577,19 +573,6 @@ func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error 
 	}
 	_, err := fmt.Fprintln(out)
 	return trace.Wrap(err)
-}
-
-// facetWrapWidth returns the column count to wrap facet values at.
-func facetWrapWidth(out io.Writer) int {
-	f, ok := out.(*os.File)
-	if !ok {
-		return 80
-	}
-	width, _, err := term.GetSize(int(f.Fd()))
-	if err != nil || width <= 0 {
-		return 80
-	}
-	return width
 }
 
 // writeWrappedList prints "prefix" followed by items joined with ", ",

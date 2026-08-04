@@ -82,8 +82,8 @@ func handleGetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 // handleSetLog returns the http set log level handler.
 func handleSetLog(logger *slog.Logger, leveler LogLeveler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		defer r.Body.Close()
+		rawLevel, err := io.ReadAll(io.LimitReader(r.Body, 1024))
 		if err != nil {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			w.Write([]byte("Unable to read request body."))

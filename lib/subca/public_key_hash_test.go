@@ -19,6 +19,7 @@ package subca_test
 import (
 	"crypto/x509"
 	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,4 +49,16 @@ func TestHashPublicKey(t *testing.T) {
 		got := subca.HashPublicKey(rawSubjPKInfo)
 		assert.Equal(t, want, got)
 	})
+}
+
+func TestNormalizePublicKey(t *testing.T) {
+	t.Parallel()
+
+	const examplePubKey = `99c968f51266531bde14cbb0cd1cc52d0cc5590bde0a760da27f9be8a7ea7ad7`
+	// Normalizing a "normal" pub key is a noop.
+	assert.Equal(t, examplePubKey, subca.NormalizePublicKey(examplePubKey))
+
+	// Normalize an upper-case pub key.
+	abnormalPubKey := strings.ToUpper(examplePubKey)
+	assert.Equal(t, examplePubKey, subca.NormalizePublicKey(abnormalPubKey))
 }

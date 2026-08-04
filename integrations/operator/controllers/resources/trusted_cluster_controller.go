@@ -40,8 +40,8 @@ type trustedClusterClient struct {
 }
 
 // Get gets the Teleport trusted_cluster of a given name.
-func (r trustedClusterClient) Get(ctx context.Context, name string) (types.TrustedCluster, error) {
-	trustedCluster, err := r.teleportClient.GetTrustedCluster(ctx, name)
+func (r trustedClusterClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.TrustedCluster, error) {
+	trustedCluster, err := r.teleportClient.GetTrustedCluster(ctx, key.Name)
 	return trustedCluster, trace.Wrap(err)
 }
 
@@ -58,8 +58,8 @@ func (r trustedClusterClient) Update(ctx context.Context, trustedCluster types.T
 }
 
 // Delete deletes a Teleport trusted_cluster.
-func (r trustedClusterClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteTrustedCluster(ctx, name))
+func (r trustedClusterClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteTrustedCluster(ctx, key.Name))
 }
 
 // Mutate mutates a Teleport trusted_cluster.

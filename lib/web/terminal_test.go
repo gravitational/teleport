@@ -20,6 +20,8 @@ package web
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -33,10 +35,15 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -86,6 +93,74 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)
+}
+
+func TestGenerateClientConfig(t *testing.T) {
+	t.Parallel()
+
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromSigner(privateKey)
+	require.NoError(t, err)
+
+	handler := &sshBaseHandler{
+		userAuthClient:  mockAuthClient{},
+		proxyPublicAddr: "proxy.example.com",
+		sshDialTimeout:  5 * time.Second,
+	}
+
+	tc := &client.TeleportClient{
+		Config: client.Config{
+			HostLogin: "alice",
+			SiteName:  "leaf-cluster",
+			PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
+	}
+
+	cfg, err := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
+	require.NoError(t, err)
+
+	want := apissh.ClientConfig{
+		User:    "alice",
+		Timeout: 5 * time.Second,
+	}
+
+	require.Empty(
+		t,
+		cmp.Diff(
+			want,
+			cfg,
+			cmpopts.IgnoreFields(
+				apissh.ClientConfig{},
+				"PublicKeyAuth", "HostKeyCallback", "BannerCallback", "AuthCallback", // Must be asserted separately.
+			),
+		),
+		"generateClientConfig mismatch (-want +got)",
+	)
+	require.NotNil(t, cfg.PublicKeyAuth)
+	require.NotNil(t, cfg.HostKeyCallback)
+	require.Nil(t, cfg.BannerCallback)
+	require.NotNil(t, cfg.AuthCallback)
+
+	signers, err := cfg.PublicKeyAuth.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+}
+
+type mockAuthClient struct {
+	authProviderMock
+}
+
+func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return struct {
+		mfav2.MFAServiceClient
+	}{}
 }
 
 type testTerminal struct {

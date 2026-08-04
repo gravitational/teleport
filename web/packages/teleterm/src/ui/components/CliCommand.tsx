@@ -20,7 +20,6 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, Flex, Indicator } from 'design';
-import { fade } from 'design/theme/utils/colorManipulator';
 
 interface CliCommandProps {
   cliCommand: string;
@@ -113,7 +112,9 @@ const CommandContainer = styled(Flex)<{
     // always use light colors
     const { light } = props.theme.colors;
     // 0.72 - text.slightlyMuted opacity
-    return props.shouldDisplayIsLoading ? fade(light, 0.72) : light;
+    return props.shouldDisplayIsLoading
+      ? `color-mix(in srgb, ${light} 72%, transparent)`
+      : light;
   }};
   font-family: ${props => props.theme.fonts.mono};
 `;

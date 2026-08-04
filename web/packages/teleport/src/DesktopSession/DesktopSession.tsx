@@ -17,14 +17,20 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { matchPath, useParams } from 'react-router';
 
+import { Logger } from 'design/logger';
 import {
   DisconnectedState,
   DesktopSessionWithSharing as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
+import { SessionSelection } from 'shared/components/DesktopSession/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
+import {
+  selectDirectoryInBrowser,
+  TdpClient,
+  useListener,
+} from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -44,6 +50,12 @@ export function DesktopSession() {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
   }, [clusterId, desktopName, username]);
 
+  const linuxDesktop =
+    matchPath(cfg.routes.linuxDesktop, location.pathname) !== null;
+  const addr = linuxDesktop
+    ? cfg.api.linuxDesktopWsAddr
+    : cfg.api.desktopWsAddr;
+
   const [client] = useState(
     () =>
       //TODO(gzdunek): It doesn't really matter here, but make TdpClient reactive to addr change.
@@ -51,7 +63,7 @@ export function DesktopSession() {
         abortSignal =>
           adaptWebSocketToTdpTransport(
             new AuthenticatedWebSocket(
-              cfg.api.desktopWsAddr
+              addr
                 .replace(':fqdn', getHostName())
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
@@ -60,7 +72,8 @@ export function DesktopSession() {
             ),
             abortSignal
           ),
-        selectDirectoryInBrowser
+        selectDirectoryInBrowser,
+        new Logger('TDPClient')
       )
   );
   const mfa = useMfaEmitter(client, undefined, {
@@ -85,6 +98,9 @@ export function DesktopSession() {
   // https://github.com/gravitational/webapps/pull/1297
   // Showing only the MFA prompt is enough for security.
   const hasAnotherSession = useCallback(async (): Promise<boolean> => {
+    if (linuxDesktop) {
+      return false;
+    }
     const [mfaRequiredResponse, desktopActive] = await Promise.all([
       auth.checkMfaRequired(clusterId, {
         windows_desktop: {
@@ -98,11 +114,24 @@ export function DesktopSession() {
       return false;
     }
     return desktopActive;
-  }, [clusterId, ctx.desktopService, desktopName, username]);
+  }, [clusterId, ctx.desktopService, desktopName, username, linuxDesktop]);
 
   useEffect(() => {
     fetchAcl();
   }, [username, clusterId, fetchAcl]);
+
+  const [sessions, setSessions] = useState([]);
+  useListener(client.onServerCapabilities, caps =>
+    setSessions(caps.availableSessions)
+  );
+
+  const onConnect = useCallback(
+    (session: string) => {
+      setSessions([]);
+      client.sendSessionSelection(session);
+    },
+    [client]
+  );
 
   return (
     <SharedDesktopSession
@@ -110,6 +139,15 @@ export function DesktopSession() {
       username={username}
       desktop={desktopName}
       customConnectionState={({ retry }) => {
+        if (sessions.length > 0) {
+          return (
+            <SessionSelection
+              desktopName={desktopName}
+              sessions={sessions}
+              onConnect={onConnect}
+            />
+          );
+        }
         // Errors, except for dialog cancellations, are handled within the MFA dialog.
         if (mfa.attempt.status === 'error' && !shouldShowMfaPrompt(mfa)) {
           return (

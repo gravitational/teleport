@@ -26,9 +26,11 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -37,19 +39,47 @@ import (
 type KubernetesService struct {
 	backend.Backend
 	logger *slog.Logger
+	svc    *generic.ScopeAwareService[types.KubeCluster]
 }
 
 // NewKubernetesService creates a new KubernetesService.
-func NewKubernetesService(backend backend.Backend) *KubernetesService {
-	return &KubernetesService{
-		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
+	svc, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.KubeCluster]{
+		Backend:               b,
+		ResourceKind:          types.KindKubernetesCluster,
+		UnscopedBackendPrefix: kubeUnscopedPrefix(),
+		ScopedBackendPrefix:   kubeScopedPrefix(),
+		MarshalFunc: func(kc types.KubeCluster, option ...services.MarshalOption) ([]byte, error) {
+			return services.MarshalKubeCluster(kc, option...)
+		},
+		UnmarshalFunc: func(bytes []byte, option ...services.MarshalOption) (types.KubeCluster, error) {
+			cluster, err := services.UnmarshalKubeCluster(bytes, option...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cluster, nil
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	return &KubernetesService{
+		Backend: b,
+		logger:  slog.With(teleport.ComponentKey, "KubernetesService"),
+		svc:     svc,
+	}, nil
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
+//
+// Deprecated: this predates both scope filtering and with_secrets, and is secret-inclusive because the
+// legacy RPC it backs must keep behaving as it does for outdated clients. Prefer RangeKubeClusters.
+// TODO(okraport): remove in v21, along with the legacy GetKubernetesClusters RPC.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	out, err := stream.Collect(s.RangeKubernetesClusters(ctx, "", ""))
+	out, err := stream.Collect(s.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+		WithSecrets: true,
+	}.Build()))
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -58,139 +88,126 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 	return out, nil
 }
 
-// ListKubernetesClusters returns a page of registered kubernetes clusters.
-func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	return generic.CollectPageAndCursor(s.RangeKubernetesClusters(ctx, start, ""), limit, types.KubeCluster.GetName)
+// ListKubeClusters returns a page of registered kube clusters respecting scope filters.
+func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	filterFn := func(kc types.KubeCluster) bool {
+		return scopes.MatchScope(scopeFilter, kc.GetScope())
+	}
+
+	clusters, next, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if !req.GetWithSecrets() {
+		for i, cluster := range clusters {
+			clusters[i] = cluster.WithoutSecrets().(types.KubeCluster)
+		}
+	}
+
+	return clusters, next, nil
 }
 
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-func (s *KubernetesService) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	mapFn := func(item backend.Item) (types.KubeCluster, bool) {
-		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
-				"key", item.Key,
-				"error", err,
-			)
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.KubeCluster](trace.Wrap(err))
+	}
+	withSecrets := req.GetWithSecrets()
+	filterFn := func(kc types.KubeCluster) (types.KubeCluster, bool) {
+		if !scopes.MatchScope(scopeFilter, kc.GetScope()) {
 			return nil, false
 		}
-		return cluster, true
+		if !withSecrets {
+			kc = kc.WithoutSecrets().(types.KubeCluster)
+		}
+		return kc, true
 	}
 
-	kubernetesKey := backend.NewKey(kubernetesPrefix)
-	startKey := kubernetesKey.AppendKey(backend.KeyFromString(start))
-	endKey := backend.RangeEnd(kubernetesKey)
-	if end != "" {
-		endKey = kubernetesKey.AppendKey(backend.KeyFromString(end)).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(cluster types.KubeCluster) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || cluster.GetName() < end
-		})
+	return stream.FilterMap(s.svc.Resources(ctx, req.GetPageToken(), ""), filterFn)
 }
 
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
-func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	item, err := s.Get(ctx, backend.NewKey(kubernetesPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("kubernetes cluster %q doesn't exist", name)
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	sqn := scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}
+	if sqn.Scope != "" {
+		if err := sqn.WeakValidate(); err != nil {
+			return nil, trace.Wrap(err)
 		}
+	}
+	cluster, err := s.svc.GetResource(ctx, sqn)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := services.UnmarshalKubeCluster(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if !req.GetWithSecrets() {
+		cluster = cluster.WithoutSecrets().(types.KubeCluster)
 	}
 	return cluster, nil
 }
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := services.CheckAndSetDefaults(cluster); err != nil {
+	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
-	}
-	value, err := services.MarshalKubeCluster(cluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.NewKey(kubernetesPrefix, cluster.GetName()),
-		Value:   value,
-		Expires: cluster.Expiry(),
-	}
-	_, err = s.Create(ctx, item)
-	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("kubernetes cluster %q already exists", cluster.GetName())
 	}
 
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err := s.svc.CreateResource(ctx, cluster)
+	return trace.Wrap(err)
 }
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := services.CheckAndSetDefaults(cluster); err != nil {
+	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
-	rev := cluster.GetRevision()
-	value, err := services.MarshalKubeCluster(cluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:      backend.NewKey(kubernetesPrefix, cluster.GetName()),
-		Value:    value,
-		Expires:  cluster.Expiry(),
-		Revision: rev,
-	}
-	_, err = s.Update(ctx, item)
-	if trace.IsNotFound(err) {
-		return trace.NotFound("kubernetes cluster %q doesn't exist", cluster.GetName())
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err := s.svc.UpdateResource(ctx, cluster)
+	return trace.Wrap(err)
 }
 
-// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.NewKey(kubernetesPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("kubernetes cluster %q doesn't exist", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+// DeleteKubeCluster removes the specified kubernetes cluster resource.
+func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) error {
-	startKey := backend.ExactKey(kubernetesPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
+	return s.svc.DeleteAllResources(ctx)
+}
+
+func validateKubeCluster(cluster types.KubeCluster) error {
+	if err := services.CheckAndSetDefaults(cluster); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if cluster.GetScope() == "" {
+		return nil
+	}
+
+	if err := scopes.StrongValidate(cluster.GetScope()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(cluster.GetDynamicLabels()) > 0 {
+		return trace.BadParameter("scoped kubernetes clusters do not support dynamic labels")
+	}
+
 	return nil
 }
 
-const (
-	kubernetesPrefix = "kubernetes"
-)
+func kubeUnscopedPrefix() backend.Key {
+	return backend.NewKey("kubernetes")
+}
+
+func kubeScopedPrefix() backend.Key {
+	return backend.NewKey("scoped", "kubernetes")
+}

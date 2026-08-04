@@ -2,6 +2,7 @@
 title: Manual EKS Auto-Discovery Configuration
 sidebar_label: Manual
 description: How to configure Teleport EKS auto-discovery manually.
+page_type: how-to
 tags:
  - how-to
  - zero-trust
@@ -60,6 +61,18 @@ If you are running Teleport Discovery v15.3.8 or later and the IAM role
 used by the Discovery Service has the necessary permissions to create and
 update Access Entries, you can skip this section. The service can self-bootstrap
 the required permissions automatically.
+
+Note: When using AWS SSO/Identity Center, you must use the underlying IAM role
+ARN as the Access Entry principal (e.g.,
+`arn:aws:iam::ACCOUNT:role/aws-reserved/sso.amazonaws.com/REGION/AWSReservedSSO_RoleName_ID`),
+not the STS assumed-role session ARN (e.g.,
+`arn:aws:sts::ACCOUNT:assumed-role/AWSReservedSSO_RoleName_ID/user@example.com`).
+EKS does not support STS session principals for access entries. If the
+Discovery Service runs under an SSO role, add `iam:GetRole` (scoped to the
+service's own role) to the IAM policy so auto-bootstrap can resolve the full
+role ARN path. Without this permission, the path is dropped and the access
+entry will reference an incorrect ARN. The IAM policy should also include
+`eks:ListAccessEntries` for the auto-bootstrap to verify existing entries.
 </Admonition>
 
 When the Kubernetes Service uses an IAM role that is different from the one that

@@ -215,7 +215,7 @@ Use the following command to connect to the database or to the address above usi
   $ psql postgres://my-prod-user@localhost:65282/my-prod-db
 MFA is required to access Database "prod-postgres-instance"
 Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
-If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<cross-platform,platform,browser> or environment variable TELEPORT_MFA_MODE=<cross-platform,platform,browser>.
 
 Tap any security key <tap>
 Detected security key tap
@@ -248,7 +248,10 @@ prod-mysql-instance-2             mysql    env=prod
 Do you want to proceed with 2 database(s)? [y/N]: y
 Executing command for "prod-mysql-instance-1". Output will be saved at "logs/prod-mysql-instance-1.output".
 MFA is required to access Database "prod-mysql-instance-1"
-Tap any security key
+Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<cross-platform,platform,browser> or environment variable TELEPORT_MFA_MODE=<cross-platform,platform,browser>.
+
+Tap any security key <tap>
 Detected security key tap
 Executing command for "prod-mysql-instance-2". Output will be saved at "logs/prod-mysql-instance-2.output".
 
@@ -273,7 +276,7 @@ Logged into Kubernetes cluster "prod-kube-cluster". Try 'kubectl version' to tes
 $ kubectl version
 MFA is required to access Kubernetes cluster "prod-kube-cluster"
 Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
-If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<cross-platform,platform,browser> or environment variable TELEPORT_MFA_MODE=<cross-platform,platform,browser>.
 
 Tap any security key <tap>
 Detected security key tap
@@ -295,7 +298,7 @@ example.com           prod-kube-cluster example.com-prod-kube-cluster
 
 MFA is required to access Kubernetes cluster "prod-kube-cluster"
 Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
-If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
+If you wish to perform MFA with another method, specify with flag --mfa-mode=<cross-platform,platform,browser> or environment variable TELEPORT_MFA_MODE=<cross-platform,platform,browser>.
 
 Tap any security key <tap>
 Detected security key tap

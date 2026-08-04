@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -118,7 +119,10 @@ func (c *scopedStatusCommand) status(ctx context.Context, client *authclient.Cli
 	// aggregate per scope counts
 	rows := make(map[string]scopeMetricRow)
 
-	for role, err := range scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRolesRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -130,7 +134,10 @@ func (c *scopedStatusCommand) status(ctx context.Context, client *authclient.Cli
 		rows[scope] = row
 	}
 
-	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()) {
 		if err != nil {
 			return trace.Wrap(err)
 		}

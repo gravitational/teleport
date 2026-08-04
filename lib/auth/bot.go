@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -329,7 +330,11 @@ func (a *Server) updateBotInstance(
 	var instanceGeneration int32
 	instanceNotFound := false
 	if botInstanceID != "" {
-		existingInstance, err := a.BotInstance.GetBotInstance(ctx, botName, botInstanceID)
+		existingInstance, err := a.BotInstance.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
+			BotScope:   scope,
+			BotName:    botName,
+			InstanceId: botInstanceID,
+		}.Build())
 		if trace.IsNotFound(err) {
 			instanceNotFound = true
 		} else if err != nil {
@@ -489,32 +494,36 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
-		if !bi.HasStatus() {
-			bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
-		}
+	_, err := a.BotInstance.PatchBotInstance(ctx, services.PatchBotInstanceOpts{
+		Bot:        scopes.QualifiedName{Scope: scope, Name: botName},
+		InstanceID: botInstanceID,
+		UpdateFn: func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+			if !bi.HasStatus() {
+				bi.SetStatus(&machineidv1pb.BotInstanceStatus{})
+			}
 
-		// Update the record's expiration timestamp based on the request TTL
-		// plus an expiry margin.
-		bi.GetMetadata().SetExpires(timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)))
+			// Update the record's expiration timestamp based on the request TTL
+			// plus an expiry margin.
+			bi.GetMetadata().SetExpires(timestamppb.New(a.GetClock().Now().Add(req.TTL + machineidv1.ExpiryMargin)))
 
-		// If we're at or above the limit, remove enough of the front elements
-		// to make room for the new one at the end.
-		if len(bi.GetStatus().GetLatestAuthentications()) >= machineidv1.AuthenticationHistoryLimit {
-			toRemove := len(bi.GetStatus().GetLatestAuthentications()) - machineidv1.AuthenticationHistoryLimit + 1
-			bi.GetStatus().SetLatestAuthentications(bi.GetStatus().GetLatestAuthentications()[toRemove:])
-		}
+			// If we're at or above the limit, remove enough of the front elements
+			// to make room for the new one at the end.
+			if len(bi.GetStatus().GetLatestAuthentications()) >= machineidv1.AuthenticationHistoryLimit {
+				toRemove := len(bi.GetStatus().GetLatestAuthentications()) - machineidv1.AuthenticationHistoryLimit + 1
+				bi.GetStatus().SetLatestAuthentications(bi.GetStatus().GetLatestAuthentications()[toRemove:])
+			}
 
-		// An initial auth record should have been added during initial join,
-		// but if not, add it now.
-		if !bi.GetStatus().HasInitialAuthentication() {
-			log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
-			bi.GetStatus().SetInitialAuthentication(authRecord)
-		}
+			// An initial auth record should have been added during initial join,
+			// but if not, add it now.
+			if !bi.GetStatus().HasInitialAuthentication() {
+				log.WarnContext(ctx, "bot instance is missing its initial authentication record, a new one will be added")
+				bi.GetStatus().SetInitialAuthentication(authRecord)
+			}
 
-		bi.GetStatus().SetLatestAuthentications(append(bi.GetStatus().GetLatestAuthentications(), authRecord))
+			bi.GetStatus().SetLatestAuthentications(append(bi.GetStatus().GetLatestAuthentications(), authRecord))
 
-		return bi, nil
+			return bi, nil
+		},
 	})
 
 	return trace.Wrap(err)
@@ -611,6 +620,7 @@ func (a *Server) generateInitialBotCerts(
 		IncludeHostCA:  true,
 		LoginIP:        loginIP,
 		BotName:        botName,
+		BotScope:       botScope,
 		BotInternal:    true,
 		JoinAttributes: joinAttrs,
 	}

@@ -138,6 +138,16 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, i
 	b.thumbnail = representative
 }
 
+// addInactivityEvent appends an inactivity event spanning [start, end] (expressed as offsets from the session
+// start) to the metadata. Shared by the TTY and desktop processors.
+func (b *baseRecordingProcessor) addInactivityEvent(start, end time.Time) {
+	b.metadata.SetEvents(append(b.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
+		StartOffset: durationpb.New(start.Sub(b.startTime)),
+		EndOffset:   durationpb.New(end.Sub(b.startTime)),
+		Inactivity:  &pb.SessionRecordingInactivityEvent{},
+	}.Build()))
+}
+
 func (b *baseRecordingProcessor) release() {
 	b.thumbnailGenerator.release()
 }

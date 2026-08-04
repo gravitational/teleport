@@ -49,6 +49,7 @@ use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
 mod license;
+mod linux_desktop_encoder;
 mod network_client;
 mod piv;
 mod rdpdr;
@@ -642,6 +643,7 @@ pub struct CGOSharedDirectoryInfoRequest {
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub fso: CGOFileSystemObject,
 }
@@ -701,6 +703,7 @@ pub struct CGOSharedDirectoryReadRequest {
 #[repr(C)]
 pub struct CGOSharedDirectoryReadResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub read_data_length: u32,
     pub read_data: *mut u8,
@@ -719,6 +722,7 @@ pub struct CGOSharedDirectoryCreateRequest {
 #[repr(C)]
 pub struct CGOSharedDirectoryListResponse {
     completion_id: u32,
+    directory_id: u32,
     err_code: TdpErrCode,
     fso_list_length: u32,
     fso_list: *mut CGOFileSystemObject,
@@ -735,6 +739,7 @@ pub struct CGOSharedDirectoryMoveRequest {
 #[repr(C)]
 pub struct CGOSharedDirectoryCreateResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub fso: CGOFileSystemObject,
 }
@@ -791,6 +796,7 @@ extern "C" {
         user_channel_id: u16,
         screen_width: u16,
         screen_height: u16,
+        share_id: u32,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,

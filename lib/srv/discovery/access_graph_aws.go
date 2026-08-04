@@ -333,6 +333,15 @@ func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate,
 // in the cluster features.
 var errTAGFeatureNotEnabled = errors.New("TAG feature is not enabled")
 
+func accessGraphEntitlementEnabled(features *proto.Features) bool {
+	return features.GetAccessGraph() ||
+		modules.GetProtoEntitlement(features, entitlements.AccessGraph).Enabled
+}
+
+func activityCenterEntitlementEnabled(features *proto.Features) bool {
+	return modules.GetProtoEntitlement(features, entitlements.ActivityCenter).Enabled
+}
+
 // initializeAndWatchAccessGraph creates a new access graph service client and
 // watches the connection state. If the connection is closed, it will
 // automatically try to reconnect.
@@ -343,8 +352,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	)
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !accessGraphEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 
@@ -432,14 +440,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
-	}()
+	})
 
 	// Configure the poll interval
 	tickerInterval := defaultPollInterval
@@ -456,9 +462,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
 	// Start the EKS audit log watcher that keeps track of the EKS audit log
-	// fetchers and updates them when Reconcile is called.
+	// fetchers and updates them when Reconcile is called. Use the WaitGroup
+	// to ensure this function does not return until all the log fetchers
+	// spawned from the watcher have completed.
 	eksAuditLogWatcher := newEKSAuditLogWatcher(client, s.Log)
-	go eksAuditLogWatcher.Run(ctx)
+	wg.Go(func() { eksAuditLogWatcher.Run(ctx) })
 
 	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)
@@ -645,8 +653,7 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 	const semaphoreName = "access_graph_aws_cloudtrail_sync"
 
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !activityCenterEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

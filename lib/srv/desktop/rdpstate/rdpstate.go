@@ -57,6 +57,9 @@ const (
 // Subsequent FastPathPDU messages are fed to the decoder, which maintains the screen framebuffer and cursor state.
 type RDPState struct {
 	decoder *decoder.Decoder
+
+	// mouseButtonInput is set when a mouse button message is processed; the decoder keeps no button state.
+	mouseButtonInput bool
 }
 
 // New creates a new RDPState.
@@ -153,6 +156,16 @@ func (s *RDPState) ResetUpdatedRegions() {
 	}
 }
 
+// MouseButtonInput reports whether a mouse button message has been processed since the last reset.
+func (s *RDPState) MouseButtonInput() bool {
+	return s.mouseButtonInput
+}
+
+// ResetMouseButtonInput clears the mouse button input flag.
+func (s *RDPState) ResetMouseButtonInput() {
+	s.mouseButtonInput = false
+}
+
 type connectionActivated struct {
 	IOChannelID, UserChannelID, ScreenWidth, ScreenHeight uint16
 }
@@ -240,6 +253,9 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return s.handleFastPathPDU(env.GetFastPathPdu())
 	case tdpbv1.Envelope_MouseMove_case:
 		return s.handleMouseMove(env.GetMouseMove())
+	case tdpbv1.Envelope_MouseButton_case:
+		s.mouseButtonInput = true
+		return nil
 	}
 
 	return nil

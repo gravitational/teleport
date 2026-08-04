@@ -28,67 +28,49 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewRequestConfig is config used to create a new provide request.
-type NewRequestConfig struct {
-	// LLM inference endpoint configuration.
-	LLM *types.LLM
-	// DownstreamRequest is the received downstream request.
-	DownstreamRequest *http.Request
-	// ProviderURL is the provider URL address.
-	ProviderURL *url.URL
-	// GetAPIKeyFunc is the function used to retrieve Anthropic API keys.
-	GetAPIKeyFunc func() string
-}
-
-func (c *NewRequestConfig) CheckAndSetDefaults() error {
-	if c.LLM == nil {
-		return trace.BadParameter("llm information is required")
-	}
-	if c.DownstreamRequest == nil {
-		return trace.BadParameter("downstream request is required")
-	}
-	if c.GetAPIKeyFunc == nil {
-		return trace.BadParameter("get api key function is required")
-	}
-
-	// Default URL address.
-	//
-	// https://platform.claude.com/docs/en/api/overview
-	c.ProviderURL = cmp.Or(c.ProviderURL, &url.URL{
-		Scheme: "https",
-		Host:   "api.anthropic.com",
-		Path:   "/v1",
-	})
-	return nil
-}
-
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 	var (
-		info            = &RequestInfo{}
+		info = &RequestInfo{}
+		res  = &llmrequest.Request{
+			Info:       info,
+			SettleFunc: llmlimiter.EmptySettleFunc,
+		}
 		providerPath    string
 		providerMethod  string
 		providerHeaders = http.Header{}
 	)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
-	// TODO(gabrielcorado): add support for bedrock provider.
-	switch cfg.LLM.Provider {
+	llm := cfg.App.GetLLM()
+	switch llm.Provider {
 	case types.LLMProviderAnthropic:
+		// Default URL address.
+		//
+		// https://platform.claude.com/docs/en/api/overview
+		cfg.ProviderURL = cmp.Or(cfg.ProviderURL, &url.URL{
+			Scheme: "https",
+			Host:   "api.anthropic.com",
+			Path:   "/v1",
+		})
+
 		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
 		case "/messages":
 			if cfg.DownstreamRequest.Method != http.MethodPost {
 				// We're ok with returning 404 back to clients instead 405 status.
-				return nil, info, trace.NotFound("messages API supports only POST requests")
+				return res, trace.NotFound("messages API supports only POST requests")
 			}
 			// Messages API endpoint supported.
 			//
@@ -109,40 +91,86 @@ func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
 			providerHeaders.Set("anthropic-version", "2023-06-01") // Currently, the only version supported.
 			providerHeaders.Set("content-type", "application/json")
 		default:
-			return nil, info, trace.NotFound("unsupported endpoint")
+			return res, trace.NotFound("unsupported endpoint")
+		}
+	case types.LLMProviderAWSBedrock:
+		cfg.ProviderURL = bedrock.BuildAnthropicURL(cfg.Logger, cfg.App)
+		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
+		case "/messages":
+			if cfg.DownstreamRequest.Method != http.MethodPost {
+				// We're ok with returning 404 back to clients instead 405 status.
+				return res, trace.NotFound("messages API supports only POST requests")
+			}
+			// Messages API endpoint supported.
+			//
+			// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html
+			providerPath = "/messages"
+			providerMethod = http.MethodPost
+
+			// Bedrock mantle require a specific API version and we're using
+			// signed requests.
+			//
+			// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html#inference-messages-api-prereq
+			providerHeaders.Set("anthropic-version", "2023-06-01")
+			providerHeaders.Set("content-type", "application/json")
+		default:
+			return res, trace.NotFound("unsupported endpoint")
 		}
 	default:
-		return nil, info, trace.NotImplemented("provider %q is not supported", cfg.LLM.Provider)
+		return res, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
 
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
+	if closeErr := cfg.DownstreamRequest.Body.Close(); closeErr != nil {
+		cfg.Logger.WarnContext(cfg.DownstreamRequest.Context(), "failed to close downstream body", "error", closeErr)
+	}
 	if err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	defer cfg.DownstreamRequest.Body.Close()
 
 	var req messagesAPIRequest
 	if err := utils.FastUnmarshal(body, &req); err != nil {
-		return nil, info, trace.BadParameter("unable to parse request body")
+		return res, trace.BadParameter("unable to parse request body")
 	}
 	info.requestedModel = req.Model
 	info.stream = req.Stream
 
-	providerModel, found := models.ConvertName(cfg.LLM.Models, cfg.LLM.FallbackModel, req.Model)
+	providerModel, found := models.ConvertName(llm.Models, llm.FallbackModel, req.Model)
 	if !found {
-		return nil, info, trace.BadParameter("requested model %q is not supported", req.Model)
+		return res, trace.BadParameter("requested model %q is not supported", req.Model)
 	}
 	info.providerModel = providerModel
 	req.Model = providerModel
 
-	if req.MaxTokens > maxNonStreamingTokens && !info.IsStream() {
-		return nil, info, trace.BadParameter("max_tokens must be %d or less for non-streaming requests", maxNonStreamingTokens)
+	if req.MaxTokens > maxOutputTokens {
+		return res, trace.BadParameter("max_tokens exceeds max value of %d", maxOutputTokens)
 	}
+
+	if req.MaxTokens > maxNonStreamingTokens && !info.IsStream() {
+		return res, trace.BadParameter("max_tokens must be %d or less for non-streaming requests", maxNonStreamingTokens)
+	}
+
+	// Messages API always require the max output to be available, and setting
+	// it to zero is also valid (used for prompt caching). So here we don't need
+	// to rely on making assumptions on the values provided.
+	_, settleFunc, err := cfg.Reserve(cfg.DownstreamRequest.Context(), llmlimiter.ReserveRequest{
+		App: cfg.App,
+		Usage: &llmlimiter.Usage{
+			// TODO(gabrielcorado): add reservation for input tokens.
+			OutputTokens: uint(req.MaxTokens),
+		},
+	})
+	if err != nil {
+		return res, trace.Wrap(err)
+	}
+	res.SettleFunc = settleFunc
 
 	providerBody, err := utils.FastMarshal(req)
 	if err != nil {
-		return nil, info, trace.ConnectionProblem(err, "failed to generate provider request")
+		return res, trace.ConnectionProblem(err, "failed to generate provider request")
 	}
+
 	info.requestSize = len(providerBody)
 
 	// Since we're doing a complete rewrite of the downstream request, it is
@@ -155,10 +183,21 @@ func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
 		bytes.NewBuffer(providerBody),
 	)
 	if err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	providerReq.Header = providerHeaders
-	return providerReq, info, nil
+
+	if llm.Provider == types.LLMProviderAWSBedrock {
+		if err := cfg.SignBedrockRequest(providerReq.Context(), cfg.App, providerReq, providerBody); err != nil {
+			// The signing failure cause can carry AWS credentials/config
+			// details, so it is only logged, and clients receive a generic
+			// internal error message.
+			cfg.Logger.ErrorContext(providerReq.Context(), "failed to sign provider request", "error", err)
+			return res, llmerrors.ErrConfig
+		}
+	}
+	res.HTTPRequest = providerReq
+	return res, nil
 }
 
 // WriteError writes an error in Anthropic format.
@@ -173,7 +212,7 @@ func marshalError(apiErr *errorEnvelope) []byte {
 	enc, err := utils.FastMarshal(apiErr)
 	if err != nil {
 		return []byte(
-			`{"type": "error", "error": {"type": "api_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"type": "error", "error": {"type": "api_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc
@@ -199,7 +238,7 @@ func newErrorMessage(err error) *errorEnvelope {
 		r.Error.Type = errorTypeInvalidRequestError
 	case errors.Is(err, llmerrors.ErrUnauthorized):
 		r.Error.Type = errorTypeAuthenticationError
-	case errors.Is(err, llmerrors.ErrRejected):
+	case errors.Is(err, llmerrors.ErrRejected), errors.Is(err, llmerrors.ErrLimitExceeded):
 		r.Error.Type = errorTypeRateLimitError
 	case errors.Is(err, llmerrors.ErrUnsupported), trace.IsNotFound(err):
 		r.Error.Type = errorTypeNotFoundError
@@ -243,4 +282,19 @@ const (
 	// The result give us around 21k tokens. This value covers all non-legacy
 	// models.
 	maxNonStreamingTokens = 21_000
+
+	// maxOutputTokens is the max value that can be used on the provider to
+	// avoid using the entire limit all at once.
+	//
+	// Anthropic supports different models, here we picked the latest "model
+	// class": `4.6`+ (that covers Opus, Sonnet, and Mythos/Fable).
+	//
+	// Reference: https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison
+	//
+	// Note: This can cause older models to reject the requests. This is an
+	// acceptable risk.
+	//
+	// TODO(gabrielcorado): take this information from the LLM configuration so
+	// users can configure it on a per-model basis.
+	maxOutputTokens = 128_000 // 128k tokens.
 )
