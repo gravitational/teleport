@@ -52,7 +52,7 @@ zstd = "0.13.3"
 ironrdp-graphics.workspace = true
 ironrdp-session.workspace = true
 ironrdp-session.features = ["qoiz"]
-base64 = "0.22.1"
+base64 = "0.23.0"
 rstest = "0.26"
 pretty_assertions = "1.4"
 
