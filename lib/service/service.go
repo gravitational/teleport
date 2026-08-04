@@ -3458,23 +3458,36 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt authclient.Clien
 	return authclient.NewRemoteProxyWrapper(clt, cache), nil
 }
 
-// newLocalCacheForApps returns new instance of access point configured for an
-// app service, along with the concrete app topology cache backing it. The
-// concrete cache is nil when caching is disabled.
-func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName string) (authclient.AppsAccessPoint, *cache.AppsCache, error) {
-	// if caching is disabled, return access point
+// appsAccessPoint is the read surface the app service wiring consumes: the
+// app agent's access point plus the reads required by the authorizer. It is
+// satisfied by both *cache.AppsCache and, when caching is disabled, the auth
+// client.
+type appsAccessPoint interface {
+	app.AccessPoint
+
+	// GetRole returns role by name.
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+}
+
+// newLocalCacheForApps returns the app topology cache for an app service, or
+// nil when caching is disabled.
+func (process *TeleportProcess) newLocalCacheForApps(clt authclient.ClientI, cacheName string) (*cache.AppsCache, error) {
+	// if caching is disabled, the client serves reads directly
 	if !process.Config.CachePolicy.Enabled {
-		return clt, nil, nil
+		return nil, nil
 	}
 
 	appsCache, err := accesspoint.NewAppsCache(process.accessPointConfigForClient(accesspoint.Config{
 		CacheName: cacheName,
 	}, clt))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return authclient.NewAppsWrapper(clt, appsCache), appsCache, nil
+	return appsCache, nil
 }
 
 // newLocalCacheForWindowsDesktop returns new instance of access point configured for a windows desktop service.
@@ -6991,9 +7004,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Create a caching client to the Auth Server. It is to reduce load on
 		// the Auth Server.
-		accessPoint, appsCache, err := process.newLocalCacheForApps(conn.Client, component)
+		appsCache, err := process.newLocalCacheForApps(conn.Client, component)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		var accessPoint appsAccessPoint = conn.Client
+		if appsCache != nil {
+			accessPoint = appsCache
 		}
 		resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
 		if err != nil {
@@ -7136,9 +7153,11 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
-			ClusterName:      clusterName,
-			AccessPoint:      accessPoint,
-			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			ClusterName: clusterName,
+			AccessPoint: accessPoint,
+			// TODO(fspmarshall/scopes): implement caching for scoped roles
+			// on app agents.
+			ScopedRoleReader: conn.Client.ScopedRoleReader(),
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger.With(teleport.ComponentKey, component),
 			ScopesFeatures:   process.scopesFeatures,
@@ -7680,7 +7699,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 
 // getPublicAddr waits for a proxy to be registered with Teleport. For a scoped
 // app (scope != ""), the returned address is the derived scope-qualified subdomain.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App, scope string) (string, error) {
+func getPublicAddr(ctx context.Context, authClient app.FindPublicAddrClient, a servicecfg.App, scope string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)

@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // AppsCache is the typed read surface of the app service's cache: the
@@ -31,10 +30,9 @@ import (
 // and the embedded set is the compile-time capability guard — a read of a
 // kind the app cache does not serve does not exist on this type.
 //
-// AppsCache structurally satisfies [authclient.ReadAppsAccessPoint], so the
-// legacy access-point wrappers are wired directly over it while consumers
-// migrate to the concrete type; the interface assertion below is the
-// completeness check for the composition.
+// AppsCache structurally satisfies the app agent's access point interface;
+// the completeness check for the composition is the interface assertion in
+// lib/srv/app.
 //
 // The watch set currently remains [ForApps] (exact parity with the legacy app
 // cache); deriving the watch set from this composition is deferred alongside
@@ -56,8 +54,6 @@ type AppsCache struct {
 	// none of the remaining legacy-only surface leaks onto the topology type.
 	cache *Cache
 }
-
-var _ authclient.ReadAppsAccessPoint = (*AppsCache)(nil)
 
 // NewAppsCache creates the app service topology cache. The app watch set is
 // applied internally — callers supply only the upstream service dependencies

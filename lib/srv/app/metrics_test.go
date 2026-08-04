@@ -122,10 +122,10 @@ func (metricsAuthClient) ResumeAuditStream(_ context.Context, _ session.ID, _ st
 	return events.NewDiscardRecorder(), nil
 }
 
-// metricsAccessPoint is a minimal fake that satisfies
-// [authclient.AppsAccessPoint] for the two calls made by newSessionRecorder.
+// metricsAccessPoint is a minimal fake that satisfies [AccessPoint] for the
+// two calls made by newSessionRecorder.
 type metricsAccessPoint struct {
-	authclient.AppsAccessPoint
+	AccessPoint
 }
 
 func (metricsAccessPoint) GetSessionRecordingConfig(_ context.Context) (types.SessionRecordingConfig, error) {

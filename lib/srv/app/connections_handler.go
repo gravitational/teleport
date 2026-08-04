@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -69,6 +70,30 @@ type ConnMonitor interface {
 	MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
+// AccessPoint is the subset of the auth server surface read when handling
+// application connections. It is satisfied by both the app service topology
+// cache (*cache.AppsCache) and, when caching is disabled, the auth client.
+type AccessPoint interface {
+	// AccessCache provides certificate authorities, cluster configuration,
+	// and the cluster name.
+	authclient.AccessCache
+
+	// GetAuthPreference returns the cluster authentication preference.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	//
+	// Deprecated: Prefer paginated variant [ListProxyServers].
+	//
+	// TODO(kiosion): DELETE IN 21.0.0
+	GetProxies() ([]types.Server, error)
+
+	// ListProxyServers returns a paginated list of registered proxy servers.
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+}
+
+var _ AccessPoint = (*cache.AppsCache)(nil)
+
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
 type ConnectionsHandlerConfig struct {
 	// Clock is used to control time.
@@ -90,7 +115,7 @@ type ConnectionsHandlerConfig struct {
 	AuthClient authclient.ClientI
 
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint authclient.AppsAccessPoint
+	AccessPoint AccessPoint
 
 	// Cloud provides cloud provider access related functionality.
 	Cloud Cloud

@@ -37,6 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -280,7 +281,7 @@ func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
 }
 
 type emptyAccessPoint struct {
-	authclient.AppsAccessPoint
+	upstreamtls.AccessPoint
 }
 
 func (emptyAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {

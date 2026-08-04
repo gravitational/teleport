@@ -64,7 +64,7 @@ type transportConfig struct {
 	hostID       string
 	insecureMode bool
 	clusterName  string
-	accessPoint  authclient.AppsAccessPoint
+	accessPoint  upstreamtls.AccessPoint
 	authClient   authclient.ClientI
 	// getUserCertFunc is the function used to retrieve session user certificate.
 	getUserCertFunc  func() ([]byte, error)

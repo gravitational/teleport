@@ -44,7 +44,7 @@ type tcpServer struct {
 	emitter          apievents.Emitter
 	hostID           string
 	log              *slog.Logger
-	accessPoint      authclient.AppsAccessPoint
+	accessPoint      upstreamtls.AccessPoint
 	authClient       authclient.ClientI
 	clusterName      string
 	cipherSuites     []uint16

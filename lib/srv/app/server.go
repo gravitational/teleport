@@ -65,8 +65,9 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *authclient.Client
 
-	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint authclient.AppsAccessPoint
+	// AccessPoint is a client used to resolve the cluster's public proxy
+	// address when deriving public addresses for dynamic apps.
+	AccessPoint FindPublicAddrClient
 	// AppsCache is the app service topology cache. It provides the dynamic
 	// application resources reconciled by this server and the change pulse
 	// that drives reconciliation. When unset (caching disabled), dynamic

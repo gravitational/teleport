@@ -616,84 +616,6 @@ type KubernetesAccessPoint interface {
 	ScopedRoleReader() services.ScopedRoleReader
 }
 
-// ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentApp.
-//
-// NOTE: This interface must match the resources replicated in cache.ForApps.
-type ReadAppsAccessPoint interface {
-	// Closer closes all the resources
-	io.Closer
-
-	// NewWatcher returns a new event watcher.
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
-	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
-
-	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	// GetUser returns a services.User for this cluster.
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
-	GetProxies() ([]types.Server, error)
-
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
-
-	// GetApps returns all application resources.
-	GetApps(ctx context.Context) ([]types.Application, error)
-
-	// ListApps returns a page of application resources.
-	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
-}
-
-// AppsAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentApp.
-type AppsAccessPoint interface {
-	// ReadAppsAccessPoint provides methods to read data
-	ReadAppsAccessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client. Used by the app service to
-	// authorize scope-pinned identities accessing applications.
-	ScopedRoleReader() services.ScopedRoleReader
-
-	// accessPoint provides common access point functionality
-	accessPoint
-}
-
 // ReadWindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentWindowsDesktop.
 //
@@ -1659,33 +1581,6 @@ func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
 func (w *KubernetesWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadKubernetesAccessPoint.Close()
-	return trace.NewAggregate(err, err2)
-}
-
-type AppsWrapper struct {
-	ReadAppsAccessPoint
-	accessPoint
-	NoCache AppsAccessPoint
-}
-
-func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessPoint {
-	return &AppsWrapper{
-		NoCache:             base,
-		accessPoint:         base,
-		ReadAppsAccessPoint: cache,
-	}
-}
-
-func (w *AppsWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	// TODO(fspmarshall/scopes): implement caching for scoped roles
-	// on app agents.
-	return w.NoCache.ScopedRoleReader()
-}
-
-// Close closes all associated resources
-func (w *AppsWrapper) Close() error {
-	err := w.NoCache.Close()
-	err2 := w.ReadAppsAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
