@@ -121,7 +121,8 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 		for _, resource := range r.GetResources() {
 			var verbs []string
 			for _, verb := range r.GetVerbs() {
-				if !isAllowedScopedRule(resource, verb) {
+				classicVerb, ok := compileScopedVerb(resource, verb)
+				if !ok {
 					// skip verbs that are not allowed for the resource kind. note that this differs from
 					// classic teleport role behavior, where we don't worry about unsupported resource:verb
 					// combinations because we theoretically won't have any access checks for unsupported
@@ -134,7 +135,7 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 					// the new rule.
 					continue
 				}
-				verbs = append(verbs, verb)
+				verbs = append(verbs, classicVerb)
 			}
 			if len(verbs) == 0 {
 				// skip rules that have no allowed verbs.

@@ -1511,11 +1511,12 @@ func (b0 DeleteAppServerResponse_builder) Build() *DeleteAppServerResponse {
 
 // The request for fetching a specific scoped or unscoped kube cluster resource.
 type GetKubeClusterRequest struct {
-	state            protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name        string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope       string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	xxx_hidden_WithSecrets bool                   `protobuf:"varint,3,opt,name=with_secrets,json=withSecrets,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *GetKubeClusterRequest) Reset() {
@@ -1557,12 +1558,23 @@ func (x *GetKubeClusterRequest) GetScope() string {
 	return ""
 }
 
+func (x *GetKubeClusterRequest) GetWithSecrets() bool {
+	if x != nil {
+		return x.xxx_hidden_WithSecrets
+	}
+	return false
+}
+
 func (x *GetKubeClusterRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *GetKubeClusterRequest) SetScope(v string) {
 	x.xxx_hidden_Scope = v
+}
+
+func (x *GetKubeClusterRequest) SetWithSecrets(v bool) {
+	x.xxx_hidden_WithSecrets = v
 }
 
 type GetKubeClusterRequest_builder struct {
@@ -1572,6 +1584,9 @@ type GetKubeClusterRequest_builder struct {
 	Name string
 	// The scope the kube cluster resource belongs to. Can be empty.
 	Scope string
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets bool
 }
 
 func (b0 GetKubeClusterRequest_builder) Build() *GetKubeClusterRequest {
@@ -1580,6 +1595,7 @@ func (b0 GetKubeClusterRequest_builder) Build() *GetKubeClusterRequest {
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_Scope = b.Scope
+	x.xxx_hidden_WithSecrets = b.WithSecrets
 	return m0
 }
 
@@ -1658,6 +1674,7 @@ type ListKubeClustersRequest struct {
 	xxx_hidden_PageSize    int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
 	xxx_hidden_PageToken   string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
 	xxx_hidden_ScopeFilter *v1.Filter             `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3"`
+	xxx_hidden_WithSecrets bool                   `protobuf:"varint,4,opt,name=with_secrets,json=withSecrets,proto3"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -1708,6 +1725,13 @@ func (x *ListKubeClustersRequest) GetScopeFilter() *v1.Filter {
 	return nil
 }
 
+func (x *ListKubeClustersRequest) GetWithSecrets() bool {
+	if x != nil {
+		return x.xxx_hidden_WithSecrets
+	}
+	return false
+}
+
 func (x *ListKubeClustersRequest) SetPageSize(v int32) {
 	x.xxx_hidden_PageSize = v
 }
@@ -1718,6 +1742,10 @@ func (x *ListKubeClustersRequest) SetPageToken(v string) {
 
 func (x *ListKubeClustersRequest) SetScopeFilter(v *v1.Filter) {
 	x.xxx_hidden_ScopeFilter = v
+}
+
+func (x *ListKubeClustersRequest) SetWithSecrets(v bool) {
+	x.xxx_hidden_WithSecrets = v
 }
 
 func (x *ListKubeClustersRequest) HasScopeFilter() bool {
@@ -1741,6 +1769,9 @@ type ListKubeClustersRequest_builder struct {
 	PageToken string
 	// Filters kube clusters by scope.
 	ScopeFilter *v1.Filter
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets bool
 }
 
 func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
@@ -1750,6 +1781,7 @@ func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
 	x.xxx_hidden_PageSize = b.PageSize
 	x.xxx_hidden_PageToken = b.PageToken
 	x.xxx_hidden_ScopeFilter = b.ScopeFilter
+	x.xxx_hidden_WithSecrets = b.WithSecrets
 	return m0
 }
 
@@ -2145,17 +2177,19 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x19\n" +
-	"\x17DeleteAppServerResponse\"A\n" +
+	"\x17DeleteAppServerResponse\"d\n" +
 	"\x15GetKubeClusterRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05scope\x18\x02 \x01(\tR\x05scope\"N\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\x12!\n" +
+	"\fwith_secrets\x18\x03 \x01(\bR\vwithSecrets\"N\n" +
 	"\x16GetKubeClusterResponse\x124\n" +
-	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\x94\x01\n" +
+	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\xb7\x01\n" +
 	"\x17ListKubeClustersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12=\n" +
-	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"z\n" +
+	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\x12!\n" +
+	"\fwith_secrets\x18\x04 \x01(\bR\vwithSecrets\"z\n" +
 	"\x18ListKubeClustersResponse\x126\n" +
 	"\bclusters\x18\x01 \x03(\v2\x1a.types.KubernetesClusterV3R\bclusters\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"D\n" +
