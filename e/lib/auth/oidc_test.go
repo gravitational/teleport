@@ -37,8 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
@@ -122,6 +124,11 @@ func (s store) CreateAccessToken(ctx context.Context, request op.TokenRequest) (
 func (s store) SetUserinfoFromRequest(ctx context.Context, userinfo *oidc.UserInfo, token op.IDTokenRequest, scopes []string) error {
 	if err := s.Storage.SetUserinfoFromRequest(ctx, userinfo, token, scopes); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if u, ok := s.userStore.users[userinfo.Subject]; ok {
+		userinfo.Email = u.Email
+		userinfo.EmailVerified = oidc.Bool(u.EmailVerified)
 	}
 
 	// Special case for testing id_token with claims.
@@ -226,7 +233,6 @@ func (s store) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthRequest,
 	}
 
 	return s.augmentAuthRequest(req), nil
-
 }
 
 func (s store) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
@@ -457,6 +463,7 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 			},
 			Claims: map[string]any{
 				"groups": []string{"access"},
+				"email":  "user-with-custom-claim@example.com",
 			},
 		},
 		{
@@ -691,7 +698,6 @@ func (s *OIDCSuite) authenticateUser(ctx context.Context, user string, req types
 		"state": []string{authRequest.StateToken},
 	})
 	if err != nil {
-
 		return "", nil, err
 	}
 
@@ -737,7 +743,6 @@ func (s *OIDCSuite) authenticateUserWithMFA(ctx context.Context, user string, sd
 		"state": []string{authRequest.StateToken},
 	})
 	if err != nil {
-
 		return nil, err
 	}
 
@@ -812,6 +817,20 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 	t.Parallel()
 	suite := newOIDCSuite(t, overridePKCEMode("enabled"))
 
+	ctx := t.Context()
+
+	// Constrain the TTL so role applies.
+	const accessRoleMaxSessionTTL = 30 * time.Second
+	accessRole, err := suite.authServer.GetRole(ctx, "access")
+	require.NoError(t, err)
+
+	accessRoleOptions := accessRole.GetOptions()
+	accessRoleOptions.MaxSessionTTL = types.Duration(accessRoleMaxSessionTTL)
+	accessRole.SetOptions(accessRoleOptions)
+
+	_, err = suite.authServer.UpdateRole(ctx, accessRole)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name           string
 		userID         string
@@ -820,6 +839,7 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 		noCodeVerifier bool
 		q              url.Values
 		assertion      func(t *testing.T, resp *authclient.OIDCAuthResponse, err error)
+		setup          func(t *testing.T, suite *OIDCSuite)
 	}{
 		{
 			name:   "successful authentication",
@@ -872,14 +892,84 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
 				require.ErrorContains(t, err, "email not verified by OIDC provider")
 				require.Nil(t, resp)
+				_, err = suite.authServer.GetUser(ctx, "test-user2@example.com", false)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
-			name:   "no claims to roles",
-			userID: "no-groups",
+			name:          "no claims to roles without access list roles",
+			userID:        "no-groups",
+			createSession: true,
 			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
-				require.ErrorContains(t, err, "No roles mapped from claims")
+				require.ErrorIs(t, err, eauth.ErrOIDCNoRoles)
 				require.Nil(t, resp)
+				// User isn't persisted.
+				_, err = suite.authServer.GetUser(ctx, "test-user2@example.com", false)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
+				_, err = suite.authServer.GetUserLoginState(ctx, "test-user2@example.com")
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
+			},
+		},
+		{
+			name:          "no claims to roles without access list roles",
+			userID:        "no-groups",
+			createSession: true,
+			testFlow:      true,
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.ErrorIs(t, err, eauth.ErrOIDCNoRoles)
+				require.Nil(t, resp)
+			},
+		},
+		{
+			name:          "no claims to roles with access list roles",
+			userID:        "no-groups",
+			createSession: true,
+			setup: func(t *testing.T, suite *OIDCSuite) {
+				ctx := t.Context()
+
+				username := "test-user4@example.com"
+
+				acl, err := accesslist.NewAccessList(
+					header.Metadata{Name: "oidc-test-access-list"},
+					accesslist.Spec{
+						Title:              "title",
+						Owners:             []accesslist.Owner{{Name: "test-user5"}},
+						Audit:              accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour)},
+						MembershipRequires: accesslist.Requires{},
+						OwnershipRequires:  accesslist.Requires{},
+						Grants:             accesslist.Grants{Roles: []string{"access"}},
+					},
+				)
+				require.NoError(t, err)
+
+				member, err := accesslist.NewAccessListMember(
+					header.Metadata{Name: username},
+					accesslist.AccessListMemberSpec{
+						AccessList: acl.GetName(),
+						Name:       username,
+						Joined:     time.Now(),
+						Expires:    time.Now().Add(24 * time.Hour),
+						Reason:     "test",
+						AddedBy:    "test-user5",
+					},
+				)
+				require.NoError(t, err)
+
+				_, _, err = suite.authServer.UpsertAccessListWithMembers(
+					ctx,
+					acl,
+					[]*accesslist.AccessListMember{member},
+				)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					suite.authServer.DeleteAccessList(ctx, acl.GetName())
+				})
+			},
+			assertion: func(t *testing.T, resp *authclient.OIDCAuthResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.WithinDuration(t, suite.clock.Now().Add(accessRoleMaxSessionTTL), resp.Session.Expiry(), 5*time.Second)
 			},
 		},
 		{
@@ -911,6 +1001,10 @@ func TestValidateOIDCAuthCallback(t *testing.T) {
 			}
 			if test.noCodeVerifier {
 				req.PkceVerifier = ""
+			}
+
+			if test.setup != nil {
+				test.setup(t, suite)
 			}
 
 			_, resp, err := suite.authenticateUser(ctx, test.userID, req)
@@ -953,6 +1047,86 @@ func TestOIDCUserCreation(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestAccessListOnlyRolesConstrainsExpiry verifies that user authenticating with
+// only Access List roles has expiry constrained by Access List expiry.
+func TestAccessListOnlyRolesConstrainsExpiry(t *testing.T) {
+	t.Parallel()
+	suite := newOIDCSuite(t)
+	ctx := context.Background()
+
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{Name: "oidc-test-access-list"},
+		accesslist.Spec{
+			Title:              "title",
+			Owners:             []accesslist.Owner{{Name: "test-user5"}},
+			Audit:              accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour)},
+			MembershipRequires: accesslist.Requires{},
+			OwnershipRequires:  accesslist.Requires{},
+			Grants:             accesslist.Grants{Roles: []string{"access"}},
+		},
+	)
+	require.NoError(t, err)
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{Name: "test-user4@example.com"},
+		accesslist.AccessListMemberSpec{
+			AccessList: acl.GetName(),
+			Name:       "test-user4@example.com",
+			Joined:     time.Now(),
+			Expires:    time.Now().Add(24 * time.Hour),
+			Reason:     "test",
+			AddedBy:    "test-user5",
+		},
+	)
+	require.NoError(t, err)
+
+	_, _, err = suite.authServer.UpsertAccessListWithMembers(
+		ctx,
+		acl,
+		[]*accesslist.AccessListMember{member},
+	)
+	require.NoError(t, err)
+
+	// Update access role with 30s max TTL.
+	accessRole, err := suite.authServer.GetRole(ctx, "access")
+	require.NoError(t, err)
+	options := accessRole.GetOptions()
+	options.MaxSessionTTL = types.Duration(30 * time.Second)
+	accessRole.SetOptions(options)
+	_, err = suite.authServer.UpdateRole(ctx, accessRole)
+	require.NoError(t, err)
+
+	_, _, err = suite.authenticateUser(ctx, "no-groups", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     10 * time.Minute,
+	})
+	require.NoError(t, err)
+
+	u, err := suite.authServer.GetUser(ctx, "test-user4@example.com", false)
+	require.NoError(t, err)
+
+	_, _, err = suite.authenticateUser(ctx, "no-groups", types.OIDCAuthRequest{
+		ConnectorID: suite.connector.GetName(),
+		CheckUser:   true,
+		CertTTL:     time.Minute,
+	})
+	require.NoError(t, err)
+
+	u2, err := suite.authServer.GetUser(ctx, "test-user4@example.com", false)
+	require.NoError(t, err)
+
+	require.NotEqual(t, u.GetRevision(), u2.GetRevision())
+	require.Equal(t, u.GetName(), u2.GetName())
+	// Constrained down to 30s from Access List role.
+	require.WithinDuration(t, suite.clock.Now().Add(30*time.Second), u2.Expiry(), 5*time.Second)
+
+	// Advance time 2 minutes, the user should be gone.
+	suite.clock.Advance(2 * time.Minute)
+	_, err = suite.authServer.GetUser(ctx, "test-user4@example.com", false)
+	require.Error(t, err)
+}
+
 // TestUserInfoBlockHTTP ensures that an insecure userinfo endpoint is
 // not consulted for additional claims. For these users, the only claims
 // consumed are the ones provided already within the token.
@@ -972,7 +1146,7 @@ func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 	// The role mapping claims for the user are only populated from the information retrieved
 	// via the user info endpoint. This validates that when the user info endpoint
 	// is insecure that we do not enrich the user and the appropriate error is returned.
-	require.ErrorContains(t, err, "No roles mapped from claims")
+	require.ErrorIs(t, err, eauth.ErrOIDCNoRoles)
 }
 
 // TestUserInfoBadStatus asserts that a 4xx response from userinfo results
@@ -980,41 +1154,56 @@ func TestOIDCBlockHTTPUserInfo(t *testing.T) {
 func TestUserInfoBadStatus(t *testing.T) {
 	t.Parallel()
 
-	// Tests provide no claims in the id token that are mapped to roles.
-	// When userinfo requests fail, but do not abort authentication, it's
-	// expected that the error returned indicates no roles were mapped from
-	// the limited claims.
-	mappingError := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
-		require.ErrorContains(t, err, "No roles mapped from claims", i...)
+	// When userinfo requests fail, we do not enrich the user and appropriate error is returned.
+	userinfoError := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+		require.ErrorIs(t, err, eauth.ErrOIDCNoRoles, i...)
 	})
 
 	tests := []struct {
-		name       string
-		statusCode int
-		assertion  require.ErrorAssertionFunc
+		name           string
+		userId         string
+		userEmail      string
+		statusCode     int
+		expectedGroups []string
+		assertion      require.ErrorAssertionFunc
 	}{
 		{
 			name:       http.StatusText(http.StatusInternalServerError),
+			userId:     "id1",
 			statusCode: http.StatusInternalServerError,
 			assertion:  require.Error,
 		},
 		{
 			name:       http.StatusText(http.StatusBadRequest),
+			userId:     "id1",
 			statusCode: http.StatusBadRequest,
-			assertion:  mappingError,
+			assertion:  userinfoError,
 		},
 		{
 			name:       http.StatusText(http.StatusUnauthorized),
+			userId:     "id1",
 			statusCode: http.StatusUnauthorized,
-			assertion:  mappingError,
-		}, {
+			assertion:  userinfoError,
+		},
+		{
 			name:       http.StatusText(http.StatusForbidden),
+			userId:     "id1",
 			statusCode: http.StatusForbidden,
-			assertion:  mappingError,
-		}, {
+			assertion:  userinfoError,
+		},
+		{
 			name:       http.StatusText(http.StatusMethodNotAllowed),
+			userId:     "id1",
 			statusCode: http.StatusMethodNotAllowed,
-			assertion:  mappingError,
+			assertion:  userinfoError,
+		},
+		{
+			name:           "existing token fallback",
+			userId:         "user-with-custom-claim",
+			userEmail:      "user-with-custom-claim@example.com",
+			statusCode:     http.StatusBadRequest,
+			expectedGroups: []string{"access"},
+			assertion:      require.NoError,
 		},
 	}
 
@@ -1028,7 +1217,6 @@ func TestUserInfoBadStatus(t *testing.T) {
 					}
 
 					h.ServeHTTP(w, r)
-
 				})
 			}))
 
@@ -1037,11 +1225,17 @@ func TestUserInfoBadStatus(t *testing.T) {
 			_, err := suite.authServer.UpdateOIDCConnector(ctx, suite.connector)
 			require.NoError(t, err)
 
-			_, _, err = suite.authenticateUser(ctx, "id1", types.OIDCAuthRequest{
+			_, _, err = suite.authenticateUser(ctx, test.userId, types.OIDCAuthRequest{
 				ConnectorID: suite.connector.GetName(),
 				CheckUser:   true,
 			})
 			test.assertion(t, err)
+
+			if len(test.expectedGroups) > 0 {
+				user, err := suite.authServer.Services.GetUser(t.Context(), test.userEmail, false)
+				require.NoError(t, err)
+				require.ElementsMatch(t, user.GetTraits()["groups"], test.expectedGroups)
+			}
 		})
 	}
 }
@@ -1129,7 +1323,7 @@ func TestMergeUserInfoClaims(t *testing.T) {
 			// since this user had zero groups, it should result in error, despite having values
 			// returned from the userinfo endpoint.
 			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "No roles mapped from claims")
+				require.ErrorIs(t, err, eauth.ErrOIDCNoRoles)
 			},
 		},
 	}

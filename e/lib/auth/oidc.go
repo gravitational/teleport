@@ -130,8 +130,8 @@ type rpKey struct {
 	forMFA bool
 }
 
-// ErrOIDCNoRoles results from not mapping any roles from OIDC claims.
-var ErrOIDCNoRoles = &trace.AccessDeniedError{Message: "No roles mapped from claims. The mappings may contain typos."}
+// ErrOIDCNoRoles is returned when a user authenticated via OIDC has no roles assigned in Teleport.
+var ErrOIDCNoRoles = &trace.AccessDeniedError{Message: "OIDC user has no Teleport-assigned roles."}
 
 // CreateOIDCAuthRequest creates an OIDC AuthnRequest.
 func (oas *OIDCAuthService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
@@ -645,10 +645,6 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		"expiry", idToken.IDTokenClaims.GetExpiration(),
 	)
 
-	if len(connector.GetClaimsToRoles()) == 0 {
-		oidcErr := trace.BadParameter("no claims to roles mapping, check connector documentation")
-		return nil, req.ClientLoginIP, trace.WithUserMessage(oidcErr, "Claims-to-roles mapping is empty, SSO user will never have any roles.")
-	}
 	logger.DebugContext(ctx, "Applying OIDC claims to roles mappings.", "claims_to_roles_count", len(connector.GetClaimsToRoles()))
 	diagCtx.Info.OIDCClaimsToRoles = connector.GetClaimsToRoles()
 
@@ -708,6 +704,38 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		SessionTTL:    types.Duration(params.SessionTTL),
 	}
 
+	if len(params.Roles) == 0 {
+		dryRunUser, err := oas.createOIDCUser(ctx, params, true)
+		if err != nil {
+			return nil, req.ClientLoginIP, trace.Wrap(err)
+		}
+
+		uls, err := oas.auth.GeneratePureULS(ctx, dryRunUser)
+		if err != nil {
+			return nil, req.ClientLoginIP, trace.Wrap(err)
+		}
+
+		// If we know the user won't have any roles from Access List then bail early.
+		// This is so that the user isn't persisted and clears out any existing roles.
+		// TODO(nixpig): Look into whether it's possible to refactor login hooks to work
+		// on in-memory user object, rather than from backend. This would remove the need
+		// to persist the user (and in doing so, the requirement to check if they would
+		// have access list roles beforehand).
+		if len(uls.GetAccessListRoles()) == 0 {
+			return nil, req.ClientLoginIP, trace.Wrap(ErrOIDCNoRoles)
+		}
+
+		// If we know the user will have roles from Access List, then determine what those
+		// are and ensure the session TTL is constrained by those so user expiry is
+		// immediately constrained.
+		sessionRoles, err := services.FetchRoles(uls.GetRoles(), oas.auth, uls.GetTraits())
+		if err != nil {
+			return nil, req.ClientLoginIP, trace.Wrap(err)
+		}
+		params.SessionTTL = utils.MinTTL(sessionRoles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL)
+		diagCtx.Info.CreateUserParams.SessionTTL = types.Duration(params.SessionTTL)
+	}
+
 	user, err := oas.createOIDCUser(ctx, params, req.SSOTestFlow)
 	if err != nil {
 		return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create user from provided parameters.")
@@ -720,6 +748,11 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	userState, err := oas.auth.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, req.ClientLoginIP, trace.Wrap(err)
+	}
+
+	// This is the final role set after evaluating connector-mapped and Teleport-assigned roles.
+	if len(userState.GetRoles()) == 0 {
+		return nil, req.ClientLoginIP, trace.Wrap(ErrOIDCNoRoles)
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
@@ -742,13 +775,18 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		return resp, req.ClientLoginIP, nil
 	}
 
+	roles, err := services.FetchRoles(userState.GetRoles(), oas.auth, userState.GetTraits())
+	if err != nil {
+		return nil, req.ClientLoginIP, trace.Wrap(err)
+	}
+
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
 		session, err := oas.auth.CreateWebSessionFromReq(ctx, auth.NewWebSessionRequest{
 			User:                 userState.GetName(),
 			Roles:                userState.GetRoles(),
 			Traits:               userState.GetTraits(),
-			SessionTTL:           params.SessionTTL,
+			SessionTTL:           utils.MinTTL(roles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL),
 			LoginTime:            oas.auth.GetClock().Now().UTC(),
 			LoginIP:              req.ClientLoginIP,
 			LoginUserAgent:       req.ClientUserAgent,
@@ -766,7 +804,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	if len(req.SshPublicKey) > 0 || len(req.TlsPublicKey) > 0 {
 		sshCert, tlsCert, err := oas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
 			UserState:               userState,
-			SessionTTL:              params.SessionTTL,
+			SessionTTL:              utils.MinTTL(roles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL),
 			SSHPubKey:               req.SshPublicKey,
 			TLSPubKey:               req.TlsPublicKey,
 			Compatibility:           req.Compatibility,
@@ -1024,6 +1062,11 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 		username = u
 	}
 
+	// Empty username is invalid. Return early and avoid the downstream work.
+	if username == "" {
+		return nil, trace.BadParameter("Username is required")
+	}
+
 	p := auth.CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      username,
@@ -1044,20 +1087,12 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 
 	var warnings []string
 	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
-	if len(p.Roles) == 0 {
-		if len(warnings) != 0 {
-			logger.WarnContext(ctx, "No roles mapped from claims", "warning", warnings, "connector", connector.WithoutSecrets())
-			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
-				Message:  "No roles mapped for the user",
-				Warnings: warnings,
-			}
-		} else {
-			logger.WarnContext(ctx, "No roles mapped from claims", "connector", connector.WithoutSecrets())
-			diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
-				Message: "No roles mapped for the user. The mappings may contain typos.",
-			}
+	if len(p.Roles) == 0 && len(warnings) != 0 {
+		logger.WarnContext(ctx, "No roles mapped from claims", "warning", warnings, "connector", connector.WithoutSecrets())
+		diagCtx.Info.OIDCClaimsToRolesWarnings = &types.SSOWarnings{
+			Message:  "No roles mapped for the user",
+			Warnings: warnings,
 		}
-		return nil, trace.Wrap(ErrOIDCNoRoles)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -1179,7 +1214,6 @@ func (oas *OIDCAuthService) handleSCIMOriginUser(ctx context.Context, existingUs
 	newUserConnector := newUser.GetCreatedBy().Connector
 	if newUserConnector == nil {
 		return nil, trace.BadParameter("newUser.GetCreatedBy.Connector is empty")
-
 	}
 	hasSameConnector := existingUserConnector.ID == newUserConnector.ID &&
 		existingUserConnector.Type == newUserConnector.Type
