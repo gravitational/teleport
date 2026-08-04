@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3434,7 +3435,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			c.ownerCtx,
 			ownerAuthCtx,
 			alWithReorderedRoles,
-			types.VerbUpdate,
+			scopedaccess.Update,
 		)
 		require.True(t, trace.IsAccessDenied(err), "owner does not need RBAC to be able to add members to ACL")
 
@@ -3848,7 +3849,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// This test must not be parallel to avoid testing issues with lock interaction and
 			// the fake clock being used for the underlying tests.
-			_, err := c.svc.authOrIsOwner(test.ctx, test.accessListName, types.VerbRead)
+			_, err := c.svc.authOrIsOwner(test.ctx, test.accessListName, scopedaccess.Read)
 			test.wantErr(t, err)
 		})
 	}
