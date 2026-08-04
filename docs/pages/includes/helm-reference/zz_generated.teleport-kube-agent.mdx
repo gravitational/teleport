@@ -1075,14 +1075,15 @@ available pod specified on the PodDisruptionBudget.
 
 | Type | Default |
 |------|---------|
-| `string` | `"AlwaysAllow"` |
+| `string` | `""` |
 
 `highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy` allows
 eviction of unhealthy pods even if it falls below minAvailable. When all
 pods are unhealthy (e.g. join token missing, CrashLoopBackoff, can't reach
-server due to firewall/networking), the kubernetes default policy
+server due to firewall/networking), the default policy
 (IfHealthyBudget) prevents draining a node. This chart's default
-(AlwaysAllow) allows failing pods to be killed when nodes need to drain.
+("") omits the setting. Set to AlwaysAllow to allow failing pods to be
+killed when nodes need to drain.
 The value will be omitted with a warning on Kubernetes before 1.27 due to
 API support. Set to "" to suppress the warning at helm install time.
 See also: [unhealthyPodEvictionPolicy in Kube

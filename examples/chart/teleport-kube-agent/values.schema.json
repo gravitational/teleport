@@ -438,7 +438,7 @@
                             "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/unhealthyPodEvictionPolicy",
                             "type": "string",
                             "enum": ["", "AlwaysAllow", "IfHealthyBudget"],
-                            "default": "AlwaysAllow"
+                            "default": ""
                         }
                     }
                 },
