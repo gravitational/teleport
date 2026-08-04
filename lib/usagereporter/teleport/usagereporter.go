@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -108,13 +109,23 @@ type StreamingUsageReporter struct {
 var _ UsageReporter = (*StreamingUsageReporter)(nil)
 
 func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
+	t.usageReporter.AddEventsToQueue(t.anonymize(events)...)
+}
+
+// anonymize builds a submit request per event.
+func (t *StreamingUsageReporter) anonymize(events []Anonymizable) []*prehogv1a.SubmitEventRequest {
+	reqs := make([]*prehogv1a.SubmitEventRequest, 0, len(events))
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
 		req.TeleportVersion = teleport.Version
-		t.usageReporter.AddEventsToQueue(req)
+		// Deduping resubmitted events requires a stable key per event.
+		req.EventKey = uuid.NewString()
+		reqs = append(reqs, req)
 	}
+
+	return reqs
 }
 
 func (t *StreamingUsageReporter) Run(ctx context.Context) {

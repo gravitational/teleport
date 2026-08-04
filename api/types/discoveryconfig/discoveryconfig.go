@@ -258,7 +258,73 @@ func (a *DiscoveryConfig) IsMatchersEmpty() bool {
 		len(a.Spec.Azure) == 0 &&
 		len(a.Spec.GCP) == 0 &&
 		len(a.Spec.Kube) == 0 &&
-		(a.Spec.AccessGraph == nil || len(a.Spec.AccessGraph.AWS) == 0)
+		(a.Spec.AccessGraph == nil ||
+			(len(a.Spec.AccessGraph.AWS) == 0 && len(a.Spec.AccessGraph.Azure) == 0))
+}
+
+// ReferencesIntegration returns true if any matcher or Access Graph sync uses
+// the named integration.
+func (a *DiscoveryConfig) ReferencesIntegration(integration string) bool {
+	if integration == "" {
+		return false
+	}
+
+	for _, matcher := range a.Spec.AWS {
+		if matcher.Integration == integration {
+			return true
+		}
+	}
+	for _, matcher := range a.Spec.Azure {
+		if matcher.Integration == integration {
+			return true
+		}
+	}
+
+	if a.Spec.AccessGraph != nil {
+		for _, sync := range a.Spec.AccessGraph.AWS {
+			if sync != nil && sync.Integration == integration {
+				return true
+			}
+		}
+		for _, sync := range a.Spec.AccessGraph.Azure {
+			if sync != nil && sync.Integration == integration {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// HasOtherMatchers returns true if any matcher or Access Graph sync does not use
+// the named integration. GCP and Kubernetes matchers cannot name an integration,
+// so each one counts as another.
+func (a *DiscoveryConfig) HasOtherMatchers(integration string) bool {
+	for _, matcher := range a.Spec.AWS {
+		if matcher.Integration != integration {
+			return true
+		}
+	}
+	for _, matcher := range a.Spec.Azure {
+		if matcher.Integration != integration {
+			return true
+		}
+	}
+
+	if a.Spec.AccessGraph != nil {
+		for _, sync := range a.Spec.AccessGraph.AWS {
+			if sync == nil || sync.Integration != integration {
+				return true
+			}
+		}
+		for _, sync := range a.Spec.AccessGraph.Azure {
+			if sync == nil || sync.Integration != integration {
+				return true
+			}
+		}
+	}
+
+	return len(a.Spec.GCP) > 0 || len(a.Spec.Kube) > 0
 }
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.

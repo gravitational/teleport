@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/header"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -53,12 +54,27 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
+}
+
+// The AWS OIDC cascade delete lists and deletes the resources it cleans up.
+var cascadeDeleteRole = types.RoleSpecV6{
+	Allow: types.RoleConditions{Rules: []types.Rule{
+		{
+			Resources: []string{types.KindIntegration},
+			Verbs:     []string{types.VerbDelete},
+		},
+		{
+			Resources: []string{types.KindDiscoveryConfig, types.KindAppServer},
+			Verbs:     []string{types.VerbDelete, types.VerbList},
+		},
+	}},
 }
 
 func TestIntegrationCRUD(t *testing.T) {
@@ -719,14 +735,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		},
 		{
 			Name: "cannot delete AWS OIDC integration with user-created discovery config",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{
-					{
-						Resources: []string{types.KindIntegration},
-						Verbs:     []string{types.VerbDelete},
-					},
-				}},
-			},
+			Role: cascadeDeleteRole,
 			Setup: func(t *testing.T, igName string) {
 				t.Helper()
 				ig := sampleIntegrationFn(t, igName)
@@ -758,7 +767,150 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsBadParameter,
 		},
 		{
-			Name: "delete AWS OIDC integration with associated resources",
+			Name: "delete AWS OIDC integration with access graph sync on the same integration",
+			Role: cascadeDeleteRole,
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				config := mustMakeDiscoveryConfig(t, ig)
+				config.Spec.AccessGraph = &types.AccessGraphSync{
+					AWS: []*types.AccessGraphAWSSync{{
+						Regions:     []string{"us-west-2"},
+						Integration: igName,
+					}},
+				}
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "delete AWS OIDC integration referenced only by an access graph sync",
+			Role: cascadeDeleteRole,
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				config, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: igName},
+					discoveryconfig.Spec{
+						DiscoveryGroup: igName,
+						AccessGraph: &types.AccessGraphSync{
+							AWS: []*types.AccessGraphAWSSync{{
+								Regions:     []string{"us-west-2"},
+								Integration: igName,
+							}},
+						},
+					},
+				)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.True(t, trace.IsNotFound(err))
+			},
+			ErrAssertion: noError,
+		},
+		{
+			Name: "cannot delete AWS OIDC integration with access graph azure sync on another integration",
+			Role: cascadeDeleteRole,
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				config := mustMakeDiscoveryConfig(t, ig)
+				config.Spec.AccessGraph = &types.AccessGraphSync{
+					Azure: []*types.AccessGraphAzureSync{{
+						SubscriptionID: "sub-id",
+						Integration:    "azure-integration",
+					}},
+				}
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetIntegration(context.Background(), igName)
+				require.NoError(t, err)
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "cannot delete AWS OIDC integration with azure matcher on another integration",
+			Role: cascadeDeleteRole,
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+
+				config := mustMakeDiscoveryConfig(t, ig)
+				config.Spec.Azure = []types.AzureMatcher{{
+					Types:          []string{"vm"},
+					Regions:        []string{"eastus"},
+					Subscriptions:  []string{"sub-id"},
+					ResourceGroups: []string{"rg"},
+					Integration:    "azure-integration",
+				}}
+				_, err = localClient.CreateDiscoveryConfig(ctx, config)
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetIntegration(context.Background(), igName)
+				require.NoError(t, err)
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsBadParameter,
+		},
+		{
+			Name: "cannot delete AWS OIDC integration discovery config without permission",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{
 					{
@@ -767,6 +919,73 @@ func TestIntegrationCRUD(t *testing.T) {
 					},
 				}},
 			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetIntegration(context.Background(), igName)
+				require.NoError(t, err)
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "cannot delete AWS OIDC integration app server without permission",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindIntegration},
+						Verbs:     []string{types.VerbDelete},
+					},
+					{
+						Resources: []string{types.KindDiscoveryConfig},
+						Verbs:     []string{types.VerbDelete, types.VerbList},
+					},
+				}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				t.Helper()
+				ig := sampleIntegrationFn(t, igName)
+				_, err := localClient.CreateIntegration(ctx, ig)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+				require.NoError(t, err)
+				_, err = localClient.UpsertApplicationServer(ctx, mustMakeAppServer(t, ig))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
+					Name:                      igName,
+					DeleteAssociatedResources: true,
+				}.Build())
+				return err
+			},
+			Validate: func(t *testing.T, igName string) {
+				t.Helper()
+				_, err := localClient.GetIntegration(context.Background(), igName)
+				require.NoError(t, err)
+				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
+				require.NoError(t, err)
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "delete AWS OIDC integration with associated resources",
+			Role: cascadeDeleteRole,
 			Setup: func(t *testing.T, igName string) {
 				t.Helper()
 
@@ -887,6 +1106,61 @@ func TestIntegrationCRUD(t *testing.T) {
 			}
 		})
 	}
+}
+
+type mockUsageReporter struct {
+	changedEvents []*usagereporter.DiscoveryConfigChangedEvent
+}
+
+func (m *mockUsageReporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
+	for _, e := range events {
+		if changed, ok := e.(*usagereporter.DiscoveryConfigChangedEvent); ok {
+			m.changedEvents = append(m.changedEvents, changed)
+		}
+	}
+}
+
+func TestIntegrationDeleteEmitsConfigChange(t *testing.T) {
+	t.Parallel()
+	clusterName := "test-cluster"
+
+	ca := newCertAuthority(t, types.HostCA, clusterName)
+	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, "127.0.0.1.nip.io")
+	reporter := resourceSvc.usageReporter.(*mockUsageReporter)
+
+	igName := uuid.NewString()
+	ig, err := types.NewIntegrationAWSOIDC(
+		types.Metadata{Name: igName},
+		&types.AWSOIDCIntegrationSpecV1{RoleARN: "arn:aws:iam::123456789012:role/OpsTeam"},
+	)
+	require.NoError(t, err)
+	_, err = localClient.CreateIntegration(ctx, ig)
+	require.NoError(t, err)
+
+	_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
+	require.NoError(t, err)
+
+	adminCtx := authorizerForAdminUser(t, ctx, cascadeDeleteRole, localClient)
+
+	_, err = resourceSvc.DeleteIntegration(adminCtx, integrationpb.DeleteIntegrationRequest_builder{
+		Name:                      igName,
+		DeleteAssociatedResources: true,
+	}.Build())
+	require.NoError(t, err)
+
+	require.Equal(t, []*usagereporter.DiscoveryConfigChangedEvent{{
+		DiscoveryConfigName: igName,
+		DiscoveryGroup:      igName,
+		IntegrationNames:    []string{igName},
+		Action:              prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE,
+		MatcherTypes: []prehogv1a.DiscoveryMatcherType{
+			prehogv1a.DiscoveryMatcherType_DISCOVERY_MATCHER_TYPE_AWS_EC2,
+		},
+		MatcherProviders: []prehogv1a.CloudProvider{
+			prehogv1a.CloudProvider_CLOUD_PROVIDER_AWS,
+		},
+		ClientKind: prehogv1a.ClientKind_CLIENT_KIND_UNKNOWN,
+	}}, reporter.changedEvents)
 }
 
 // authorizerForDummyUser creates a user context without admin MFA verification.
@@ -1125,6 +1399,7 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
 		Modules:         modulestest.EnterpriseModules(),
+		UsageReporter:   &mockUsageReporter{},
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{
 				Version:         1,

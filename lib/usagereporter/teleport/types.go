@@ -2319,6 +2319,62 @@ func (e *DiscoveryConfigEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEv
 	}
 }
 
+// DiscoveryConfigChangedEvent is emitted when a DiscoveryConfig is created,
+// updated, upserted, or deleted.
+type DiscoveryConfigChangedEvent struct {
+	// DiscoveryConfigName is the name of the DiscoveryConfig that changed.
+	DiscoveryConfigName string
+	// DiscoveryGroup is the group of Discovery Services that load the config.
+	DiscoveryGroup string
+	// IntegrationNames are the integrations the config's matchers use.
+	IntegrationNames []string
+	// AccessGraphIntegrationNames are the integrations the config's Access Graph
+	// syncs use.
+	AccessGraphIntegrationNames []string
+	// AccessGraphSyncProviders are the clouds the config syncs into Access Graph.
+	AccessGraphSyncProviders []prehogv1a.CloudProvider
+	// SetupAttemptID is the setup attempt ID the config carries as a label.
+	SetupAttemptID string
+	// Action is the change made to the config.
+	Action prehogv1a.DiscoveryConfigChangeAction
+	// MatcherTypes are the resource types the config's matchers select.
+	MatcherTypes []prehogv1a.DiscoveryMatcherType
+	// MatcherProviders are the platforms the config's matchers select from.
+	MatcherProviders []prehogv1a.CloudProvider
+	// ClientKind is the tool that made the request.
+	ClientKind prehogv1a.ClientKind
+}
+
+// Anonymize anonymizes the event.
+func (e *DiscoveryConfigChangedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	var setupAttemptID string
+	if e.SetupAttemptID != "" {
+		setupAttemptID = a.AnonymizeString(e.SetupAttemptID)
+	}
+
+	var discoveryGroupID string
+	if e.DiscoveryGroup != "" {
+		discoveryGroupID = a.AnonymizeString(e.DiscoveryGroup)
+	}
+
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_DiscoveryConfigChanged{
+			DiscoveryConfigChanged: &prehogv1a.DiscoveryConfigChangedEvent{
+				DiscoveryConfigId:         a.AnonymizeString(e.DiscoveryConfigName),
+				DiscoveryGroupId:          discoveryGroupID,
+				IntegrationIds:            utils.AnonymizeStrings(a, e.IntegrationNames),
+				AccessGraphIntegrationIds: utils.AnonymizeStrings(a, e.AccessGraphIntegrationNames),
+				AccessGraphSyncProviders:  e.AccessGraphSyncProviders,
+				SetupAttemptId:            setupAttemptID,
+				Action:                    e.Action,
+				MatcherTypes:              e.MatcherTypes,
+				MatcherProviders:          e.MatcherProviders,
+				ClientKind:                e.ClientKind,
+			},
+		},
+	}
+}
+
 // IdentitySecurityGraphSizeEvent is emitted when the size of a providers access graph is updated.
 type IdentitySecurityGraphSizeEvent prehogv1a.IdentitySecurityGraphSizeEvent
 

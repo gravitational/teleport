@@ -34,8 +34,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -391,6 +393,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 			grpc.WithDefaultCallOptions(
 				grpc.WaitForReady(true),
 			),
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTerraformProvider),
 		},
 		InsecureAddressDiscovery: insecure,
 	}
