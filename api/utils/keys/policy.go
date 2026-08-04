@@ -53,12 +53,29 @@ const (
 	// Instead, this policy must be accompanied by WebAuthn prompts for important operations
 	// in order to pass hardware key policy requirements.
 	PrivateKeyPolicyWebSession PrivateKeyPolicy = "web_session"
+	// PrivateKeyPolicyDeviceTrustPublic is a special case used for the public
+	// Device Trust Service (teleport.devicetrust.public.v1). Clients of that
+	// service hold no user key at all. Instead, they authenticate using either a
+	// short-lived, single-use token (CreatePairedDeviceEnrollToken, EnrollDevice)
+	// or by solving a challenge using a previously enrolled key stored in a TPM
+	// (AuthenticateDevice). As such, a private key policy cannot be enforced
+	// against those clients.
+	//
+	// This policy does not provide the same hardware key guarantee as the above
+	// policies and it must be used only in Device Trust scenarios.
+	PrivateKeyPolicyDeviceTrustPublic PrivateKeyPolicy = "device_trust_public"
 )
 
 // IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
 func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
 	// Web sessions are treated as a special case that meets all private key policy requirements.
 	if keyPolicy == PrivateKeyPolicyWebSession {
+		return true
+	}
+
+	// Public Device Trust identities have no client key at all and are used only
+	// for specific RPCs.
+	if keyPolicy == PrivateKeyPolicyDeviceTrustPublic {
 		return true
 	}
 
@@ -116,23 +133,30 @@ func (p PrivateKeyPolicy) MFAVerified() bool {
 	return p.isHardwareKeyTouchVerified() || p.isHardwareKeyPINVerified()
 }
 
-func (p PrivateKeyPolicy) validate() error {
+func (p PrivateKeyPolicy) validateRequireablePolicy() error {
 	switch p {
 	case PrivateKeyPolicyNone,
 		PrivateKeyPolicyHardwareKey,
 		PrivateKeyPolicyHardwareKeyTouch,
 		PrivateKeyPolicyHardwareKeyPIN,
-		PrivateKeyPolicyHardwareKeyTouchAndPIN,
-		PrivateKeyPolicyWebSession:
+		PrivateKeyPolicyHardwareKeyTouchAndPIN:
 		return nil
 	}
-	return trace.BadParameter("%q is not a valid key policy", p)
+	// Key policies like [PrivateKeyPolicyWebSession] mark an identity as exempt
+	// from key policy checks, so they satisfy every requirement and can never be
+	// one themselves.
+	return trace.BadParameter("%q is not a valid key policy that can be required", p)
 }
 
 // PolicyThatSatisfiesSet returns least restrictive policy necessary to satisfy the given set of policies.
+// Only policies that can be required are accepted.
 func PolicyThatSatisfiesSet(policies []PrivateKeyPolicy) (PrivateKeyPolicy, error) {
 	setPolicy := PrivateKeyPolicyNone
 	for _, policy := range policies {
+		if err := policy.validateRequireablePolicy(); err != nil {
+			return PrivateKeyPolicyNone, trace.Wrap(err)
+		}
+
 		if policy.IsSatisfiedBy(setPolicy) {
 			continue
 		}
@@ -178,7 +202,7 @@ func ParsePrivateKeyPolicyError(err error) (PrivateKeyPolicy, error) {
 	}
 
 	policy := PrivateKeyPolicy(subMatches[2])
-	if err := policy.validate(); err != nil {
+	if err := policy.validateRequireablePolicy(); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return policy, nil
