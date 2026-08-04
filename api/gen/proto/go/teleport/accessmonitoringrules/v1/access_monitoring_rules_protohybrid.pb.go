@@ -473,7 +473,9 @@ type AutomaticReview struct {
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
-	Decision      string `protobuf:"bytes,2,opt,name=decision,proto3" json:"decision,omitempty"`
+	Decision string `protobuf:"bytes,2,opt,name=decision,proto3" json:"decision,omitempty"`
+	// reason specifies a reason for the review decision. This field is optional and if
+	// it is not supplied, a generic reason will be applied to reviews.
 	Reason        string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -546,7 +548,9 @@ type AutomaticReview_builder struct {
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
 	Decision string
-	Reason   string
+	// reason specifies a reason for the review decision. This field is optional and if
+	// it is not supplied, a generic reason will be applied to reviews.
+	Reason string
 }
 
 func (b0 AutomaticReview_builder) Build() *AutomaticReview {

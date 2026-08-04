@@ -514,7 +514,9 @@ type AutomaticReview_builder struct {
 	// decision specifies the proposed state of the access review. This can be
 	// either 'APPROVED' or 'DENIED'.
 	Decision string
-	Reason   string
+	// reason specifies a reason for the review decision. This field is optional and if
+	// it is not supplied, a generic reason will be applied to reviews.
+	Reason string
 }
 
 func (b0 AutomaticReview_builder) Build() *AutomaticReview {
