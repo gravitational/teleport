@@ -118,11 +118,11 @@ to see these resources.
 
 ### Warnings about assignments for deactivated users
 
-A deactivated Okta user can be reactivated. Teleport keeps some Okta assignments
-for deactivated users where Teleport is still responsible for revoking access in
+A deactivated Okta user can be reactivated. Teleport keeps some Okta assignments 
+for deactivated users where Teleport is still responsible for revoking access in 
 Okta if the user is reactivated.
 
-Teleport will log a warning for each of a deactivated Okta user's remaining
+Teleport will log a warning for each of a deactivated user's remaining 
 Okta assignments that need to be cleaned up.
 
 ```text
@@ -139,8 +139,8 @@ $ tctl delete okta_assignments/my-assignment
 ```
 
 <Admonition type="warning">
-If you remove the Okta assignment manually and then reactivate the user in Okta,
-This can result in any previously authorized access through an Access Request
+If you remove the Okta assignment manually and then reactivate the user in Okta, 
+this can result in previously authorized access through an Access Request 
 (JIT) to be reinstated as standing access.
 </Admonition>
 
