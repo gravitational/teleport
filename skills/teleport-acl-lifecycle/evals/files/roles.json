@@ -1,0 +1,34 @@
+[
+  { "kind": "role", "metadata": { "name": "auditor" } },
+  { "kind": "role", "metadata": { "name": "db-read" } },
+  { "kind": "role", "metadata": { "name": "app-access" } },
+  {
+    "kind": "role",
+    "metadata": { "name": "access-standard-acl-preset-a1a1a1a1" },
+    "spec": {
+      "allow": {
+        "app_labels": {
+          "env": ["prod"],
+          "cloud": ["aws"]
+        },
+        "aws_role_arns": ["arn:aws:iam::123456789012:role/ProdAppReader"]
+      }
+    }
+  },
+  {
+    "kind": "role",
+    "metadata": { "name": "access-standard-acl-preset-f6f6f6f6" },
+    "spec": {
+      "allow": {
+        "app_labels": {
+          "env": ["prod"]
+        },
+        "aws_role_arns": ["arn:aws:iam::123456789012:role/ProdAppReader"],
+        "node_labels": {
+          "env": ["prod"]
+        },
+        "logins": ["ubuntu"]
+      }
+    }
+  }
+]
