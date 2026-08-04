@@ -1329,6 +1329,53 @@ func TestPrintNodesAsText(t *testing.T) {
 	}
 }
 
+func TestDropScopeFromSSHHost(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		host    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "bare hostname",
+			host: "node.example.com",
+			want: "node.example.com",
+		},
+		{
+			name: "scoped hostname",
+			host: "/foo/bar::baz",
+			want: "baz",
+		},
+		{
+			name: "scoped mixed-case hostname",
+			host: "/foo/bar::Baz.example.com",
+			want: "Baz.example.com",
+		},
+		{
+			name: "IPv6 address",
+			host: "[::1]",
+			want: "[::1]",
+		},
+		{
+			name:    "invalid scoped hostname",
+			host:    "/foo/bar::",
+			wantErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := dropScopeFromSSHHost(tt.host)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestMakeClient(t *testing.T) {
 	t.Parallel()
 
@@ -1426,6 +1473,13 @@ func TestMakeClient(t *testing.T) {
 	require.Equal(t,
 		map[string]string{"A": "B", "C": "D"},
 		tc.ExtraProxyHeaders)
+
+	// specific configuration with scoped hostname copied from tsh ls.
+	conf.UserHost = "root@/foo/bar::baz"
+	tc, err = makeClient(&conf)
+	require.NoError(t, err)
+	require.Equal(t, "root", tc.Config.HostLogin)
+	require.Equal(t, "baz", tc.Config.Host)
 
 	_, proxy := makeTestServers(t)
 
