@@ -1339,7 +1339,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances, backoff *ec2
 				discoveryConfigName: instances.DiscoveryConfigName,
 				integration:         instances.Integration,
 			}, 1)
-			s.addEC2FailedEnrollment(instances, entry.target.instance, entry.issueType, "", syncTime)
+			s.addEC2FailedEnrollment(instances, entry.target.instance, entry.issueType, "", syncTime, &entry)
 		}
 		if len(instances.Instances) == 0 {
 			log.DebugContext(s.ctx, "All EC2 installation attempts are backed off")
@@ -1480,12 +1480,14 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, bac
 		}, len(req.Instances))
 
 		for _, instance := range req.Instances {
+			var backoffEntry *installerBackoffEntry[ec2InstallerBackoffTarget]
 			if !instances.Rotation {
-				backoff.recordFailedAttempt(
+				entry := backoff.recordFailedAttempt(
 					newEC2InstallerBackoffTarget(instances, instance),
 					usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
 					syncTime,
 				)
+				backoffEntry = &entry
 			}
 			s.addEC2FailedEnrollment(
 				instances,
@@ -1493,6 +1495,7 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, bac
 				usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
 				"",
 				syncTime,
+				backoffEntry,
 			)
 		}
 		return trace.Wrap(err)
@@ -1500,7 +1503,28 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, bac
 	return nil
 }
 
-func (s *Server) addEC2FailedEnrollment(instances *server.EC2Instances, instance server.EC2Instance, issueType, invocationURL string, syncTime time.Time) {
+func (s *Server) addEC2FailedEnrollment(
+	instances *server.EC2Instances,
+	instance server.EC2Instance,
+	issueType,
+	invocationURL string,
+	syncTime time.Time,
+	backoffEntry *installerBackoffEntry[ec2InstallerBackoffTarget],
+) {
+	instanceTask := usertasksv1.DiscoverEC2Instance_builder{
+		InvocationUrl:   invocationURL,
+		DiscoveryConfig: instances.DiscoveryConfigName,
+		DiscoveryGroup:  s.DiscoveryGroup,
+		InstanceId:      instance.InstanceID,
+		Name:            instance.InstanceName,
+		SyncTime:        timestamppb.New(syncTime),
+	}
+	if backoffEntry != nil {
+		instanceTask.LastAttemptTime = timestamppb.New(backoffEntry.lastAttemptAt)
+		instanceTask.RetryAfterTime = timestamppb.New(backoffEntry.retryAfter)
+		instanceTask.Attempts = backoffEntry.attempts
+	}
+
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
 			accountID:       instances.AccountID,
@@ -1510,14 +1534,7 @@ func (s *Server) addEC2FailedEnrollment(instances *server.EC2Instances, instance
 			ssmDocument:     instances.DocumentName,
 			installerScript: instances.Parameters[server.ParamScriptName],
 		},
-		usertasksv1.DiscoverEC2Instance_builder{
-			InvocationUrl:   invocationURL,
-			DiscoveryConfig: instances.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			InstanceId:      instance.InstanceID,
-			Name:            instance.InstanceName,
-			SyncTime:        timestamppb.New(syncTime),
-		}.Build(),
+		instanceTask.Build(),
 	)
 }
 

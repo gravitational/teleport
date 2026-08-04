@@ -112,6 +112,12 @@ message DiscoverEC2Instance {
   string discovery_group = 7;
   // SyncTime is the timestamp of the latest discovery sync.
   google.protobuf.Timestamp sync_time = 8;
+  // LastAttemptTime is the timestamp of the last installation attempt.
+  google.protobuf.Timestamp last_attempt_time = 9;
+  // RetryAfterTime is the timestamp after which the instance installation will be retried.
+  google.protobuf.Timestamp retry_after_time = 10;
+  // Attempts is the number of installation attempts.
+  int32 attempts = 11;
 }
 
 // DiscoverEKS contains the clusters that failed to auto-enroll into the cluster.

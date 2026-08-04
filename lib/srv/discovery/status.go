@@ -398,18 +398,34 @@ func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec
 	}
 
 	syncTime := s.clock.Now()
+	var backoffEntry *installerBackoffEntry[ec2InstallerBackoffTarget]
 	if !result.Rotation {
-		backoff.recordFailedAttempt(
+		entry := backoff.recordFailedAttempt(
 			newEC2InstallerBackoffTargetFromResult(result),
 			result.IssueType,
 			syncTime,
 		)
+		backoffEntry = &entry
 	}
 
 	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
 		discoveryConfigName: result.DiscoveryConfigName,
 		integration:         result.IntegrationName,
 	}, 1)
+
+	instanceTask := usertasksv1.DiscoverEC2Instance_builder{
+		InvocationUrl:   result.SSMRunEvent.InvocationURL,
+		DiscoveryConfig: result.DiscoveryConfigName,
+		DiscoveryGroup:  s.DiscoveryGroup,
+		SyncTime:        timestamppb.New(syncTime),
+		InstanceId:      result.SSMRunEvent.InstanceID,
+		Name:            result.InstanceName,
+	}
+	if backoffEntry != nil {
+		instanceTask.LastAttemptTime = timestamppb.New(backoffEntry.lastAttemptAt)
+		instanceTask.RetryAfterTime = timestamppb.New(backoffEntry.retryAfter)
+		instanceTask.Attempts = backoffEntry.attempts
+	}
 
 	s.awsEC2Tasks.addFailedEnrollment(
 		awsEC2TaskKey{
@@ -420,14 +436,7 @@ func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec
 			ssmDocument:     result.SSMDocumentName,
 			installerScript: result.InstallerScript,
 		},
-		usertasksv1.DiscoverEC2Instance_builder{
-			InvocationUrl:   result.SSMRunEvent.InvocationURL,
-			DiscoveryConfig: result.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(syncTime),
-			InstanceId:      result.SSMRunEvent.InstanceID,
-			Name:            result.InstanceName,
-		}.Build(),
+		instanceTask.Build(),
 	)
 
 	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))

@@ -664,7 +664,13 @@ type DiscoverEC2Instance struct {
 	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
 	DiscoveryGroup string `protobuf:"bytes,7,opt,name=discovery_group,json=discoveryGroup,proto3" json:"discovery_group,omitempty"`
 	// SyncTime is the timestamp of the latest discovery sync.
-	SyncTime      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=sync_time,json=syncTime,proto3" json:"sync_time,omitempty"`
+	SyncTime *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=sync_time,json=syncTime,proto3" json:"sync_time,omitempty"`
+	// LastAttemptTime is the timestamp of the last installation attempt.
+	LastAttemptTime *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=last_attempt_time,json=lastAttemptTime,proto3" json:"last_attempt_time,omitempty"`
+	// RetryAfterTime is the timestamp after which the instance installation will be retried.
+	RetryAfterTime *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=retry_after_time,json=retryAfterTime,proto3" json:"retry_after_time,omitempty"`
+	// Attempts is the number of installation attempts.
+	Attempts      int32 `protobuf:"varint,11,opt,name=attempts,proto3" json:"attempts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -736,6 +742,27 @@ func (x *DiscoverEC2Instance) GetSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *DiscoverEC2Instance) GetLastAttemptTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastAttemptTime
+	}
+	return nil
+}
+
+func (x *DiscoverEC2Instance) GetRetryAfterTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RetryAfterTime
+	}
+	return nil
+}
+
+func (x *DiscoverEC2Instance) GetAttempts() int32 {
+	if x != nil {
+		return x.Attempts
+	}
+	return 0
+}
+
 func (x *DiscoverEC2Instance) SetInstanceId(v string) {
 	x.InstanceId = v
 }
@@ -760,6 +787,18 @@ func (x *DiscoverEC2Instance) SetSyncTime(v *timestamppb.Timestamp) {
 	x.SyncTime = v
 }
 
+func (x *DiscoverEC2Instance) SetLastAttemptTime(v *timestamppb.Timestamp) {
+	x.LastAttemptTime = v
+}
+
+func (x *DiscoverEC2Instance) SetRetryAfterTime(v *timestamppb.Timestamp) {
+	x.RetryAfterTime = v
+}
+
+func (x *DiscoverEC2Instance) SetAttempts(v int32) {
+	x.Attempts = v
+}
+
 func (x *DiscoverEC2Instance) HasSyncTime() bool {
 	if x == nil {
 		return false
@@ -767,8 +806,30 @@ func (x *DiscoverEC2Instance) HasSyncTime() bool {
 	return x.SyncTime != nil
 }
 
+func (x *DiscoverEC2Instance) HasLastAttemptTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastAttemptTime != nil
+}
+
+func (x *DiscoverEC2Instance) HasRetryAfterTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.RetryAfterTime != nil
+}
+
 func (x *DiscoverEC2Instance) ClearSyncTime() {
 	x.SyncTime = nil
+}
+
+func (x *DiscoverEC2Instance) ClearLastAttemptTime() {
+	x.LastAttemptTime = nil
+}
+
+func (x *DiscoverEC2Instance) ClearRetryAfterTime() {
+	x.RetryAfterTime = nil
 }
 
 type DiscoverEC2Instance_builder struct {
@@ -788,6 +849,12 @@ type DiscoverEC2Instance_builder struct {
 	DiscoveryGroup string
 	// SyncTime is the timestamp of the latest discovery sync.
 	SyncTime *timestamppb.Timestamp
+	// LastAttemptTime is the timestamp of the last installation attempt.
+	LastAttemptTime *timestamppb.Timestamp
+	// RetryAfterTime is the timestamp after which the instance installation will be retried.
+	RetryAfterTime *timestamppb.Timestamp
+	// Attempts is the number of installation attempts.
+	Attempts int32
 }
 
 func (b0 DiscoverEC2Instance_builder) Build() *DiscoverEC2Instance {
@@ -800,6 +867,9 @@ func (b0 DiscoverEC2Instance_builder) Build() *DiscoverEC2Instance {
 	x.DiscoveryConfig = b.DiscoveryConfig
 	x.DiscoveryGroup = b.DiscoveryGroup
 	x.SyncTime = b.SyncTime
+	x.LastAttemptTime = b.LastAttemptTime
+	x.RetryAfterTime = b.RetryAfterTime
+	x.Attempts = b.Attempts
 	return m0
 }
 
@@ -1645,7 +1715,7 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x10installer_script\x18\x05 \x01(\tR\x0finstallerScript\x1ah\n" +
 	"\x0eInstancesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12@\n" +
-	"\x05value\x18\x02 \x01(\v2*.teleport.usertasks.v1.DiscoverEC2InstanceR\x05value:\x028\x01\"\x9e\x02\n" +
+	"\x05value\x18\x02 \x01(\v2*.teleport.usertasks.v1.DiscoverEC2InstanceR\x05value:\x028\x01\"\xc8\x03\n" +
 	"\x13DiscoverEC2Instance\x12\x1f\n" +
 	"\vinstance_id\x18\x01 \x01(\tR\n" +
 	"instanceId\x12\x12\n" +
@@ -1653,7 +1723,11 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x0einvocation_url\x18\x05 \x01(\tR\rinvocationUrl\x12)\n" +
 	"\x10discovery_config\x18\x06 \x01(\tR\x0fdiscoveryConfig\x12'\n" +
 	"\x0fdiscovery_group\x18\a \x01(\tR\x0ediscoveryGroup\x127\n" +
-	"\tsync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTimeJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\n" +
+	"\tsync_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\x12F\n" +
+	"\x11last_attempt_time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x0flastAttemptTime\x12D\n" +
+	"\x10retry_after_time\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x0eretryAfterTime\x12\x1a\n" +
+	"\battempts\x18\v \x01(\x05R\battemptsJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\n" +
 	"account_idR\x06region\"\xa6\x02\n" +
 	"\vDiscoverEKS\x12L\n" +
 	"\bclusters\x18\x01 \x03(\v20.teleport.usertasks.v1.DiscoverEKS.ClustersEntryR\bclusters\x12\x1d\n" +
@@ -1736,23 +1810,25 @@ var file_teleport_usertasks_v1_user_tasks_proto_depIdxs = []int32{
 	16, // 7: teleport.usertasks.v1.UserTaskStatus.last_state_change:type_name -> google.protobuf.Timestamp
 	11, // 8: teleport.usertasks.v1.DiscoverEC2.instances:type_name -> teleport.usertasks.v1.DiscoverEC2.InstancesEntry
 	16, // 9: teleport.usertasks.v1.DiscoverEC2Instance.sync_time:type_name -> google.protobuf.Timestamp
-	12, // 10: teleport.usertasks.v1.DiscoverEKS.clusters:type_name -> teleport.usertasks.v1.DiscoverEKS.ClustersEntry
-	16, // 11: teleport.usertasks.v1.DiscoverEKSCluster.sync_time:type_name -> google.protobuf.Timestamp
-	13, // 12: teleport.usertasks.v1.DiscoverRDS.databases:type_name -> teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
-	16, // 13: teleport.usertasks.v1.DiscoverRDSDatabase.sync_time:type_name -> google.protobuf.Timestamp
-	14, // 14: teleport.usertasks.v1.DiscoverAzureVM.instances:type_name -> teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry
-	16, // 15: teleport.usertasks.v1.DiscoverAzureVMInstance.sync_time:type_name -> google.protobuf.Timestamp
-	16, // 16: teleport.usertasks.v1.DiscoverAzureVMInstance.last_attempt_time:type_name -> google.protobuf.Timestamp
-	16, // 17: teleport.usertasks.v1.DiscoverAzureVMInstance.retry_after_time:type_name -> google.protobuf.Timestamp
-	4,  // 18: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
-	6,  // 19: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
-	8,  // 20: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
-	10, // 21: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverAzureVMInstance
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	16, // 10: teleport.usertasks.v1.DiscoverEC2Instance.last_attempt_time:type_name -> google.protobuf.Timestamp
+	16, // 11: teleport.usertasks.v1.DiscoverEC2Instance.retry_after_time:type_name -> google.protobuf.Timestamp
+	12, // 12: teleport.usertasks.v1.DiscoverEKS.clusters:type_name -> teleport.usertasks.v1.DiscoverEKS.ClustersEntry
+	16, // 13: teleport.usertasks.v1.DiscoverEKSCluster.sync_time:type_name -> google.protobuf.Timestamp
+	13, // 14: teleport.usertasks.v1.DiscoverRDS.databases:type_name -> teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
+	16, // 15: teleport.usertasks.v1.DiscoverRDSDatabase.sync_time:type_name -> google.protobuf.Timestamp
+	14, // 16: teleport.usertasks.v1.DiscoverAzureVM.instances:type_name -> teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry
+	16, // 17: teleport.usertasks.v1.DiscoverAzureVMInstance.sync_time:type_name -> google.protobuf.Timestamp
+	16, // 18: teleport.usertasks.v1.DiscoverAzureVMInstance.last_attempt_time:type_name -> google.protobuf.Timestamp
+	16, // 19: teleport.usertasks.v1.DiscoverAzureVMInstance.retry_after_time:type_name -> google.protobuf.Timestamp
+	4,  // 20: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
+	6,  // 21: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
+	8,  // 22: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
+	10, // 23: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverAzureVMInstance
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_teleport_usertasks_v1_user_tasks_proto_init() }
