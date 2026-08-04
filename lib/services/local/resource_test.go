@@ -294,6 +294,65 @@ func TestOIDCConnectorWithoutClaimsToRoles(t *testing.T) {
 	})
 }
 
+func TestGithubConnectorWithoutTeamsToRoles(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tt := setupServicesContext(ctx, t)
+
+	identity, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
+
+	newGithubConnector := func(name string) types.GithubConnector {
+		connector, err := types.NewGithubConnector(name, types.GithubConnectorSpecV3{
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		})
+		require.NoError(t, err)
+		return connector
+	}
+
+	connector := newGithubConnector("github-connector")
+	value, err := services.MarshalGithubConnector(connector)
+	require.NoError(t, err)
+	_, err = tt.bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	t.Run("reads succeed", func(t *testing.T) {
+		const withSecrets = true
+
+		single, err := identity.GetGithubConnector(ctx, connector.GetName(), withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(connector, single, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		multiple, err := identity.GetGithubConnectors(ctx, withSecrets)
+		require.NoError(t, err)
+		require.Len(t, multiple, 1)
+
+		list, _, err := identity.ListGithubConnectors(ctx, 10, "", withSecrets)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+
+		ranged, err := stream.Collect(identity.RangeGithubConnectors(ctx, "", "", withSecrets))
+		require.NoError(t, err)
+		require.Len(t, ranged, 1)
+	})
+
+	t.Run("writes fail", func(t *testing.T) {
+		_, err := identity.CreateGithubConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+		_, err = identity.UpdateGithubConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+		_, err = identity.UpsertGithubConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+}
+
 func localAuthSecretsTestCase(t *testing.T) types.LocalAuthSecrets {
 	var auth types.LocalAuthSecrets
 	var err error

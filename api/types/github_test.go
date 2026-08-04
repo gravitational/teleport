@@ -81,3 +81,35 @@ func TestGithubAuthRequestCheck(t *testing.T) {
 		})
 	}
 }
+
+func TestGithubValidate(t *testing.T) {
+	tests := []struct {
+		name          string
+		teamsToRoles  []TeamRolesMapping
+		teamsToLogins []TeamMapping
+		assertErr     require.ErrorAssertionFunc
+	}{
+		{
+			name:      "no mappings",
+			assertErr: require.Error,
+		},
+		{
+			name:         "teams_to_roles mapping",
+			teamsToRoles: []TeamRolesMapping{{Organization: "gravitational", Team: "admins", Roles: []string{"access"}}},
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			connector, err := NewGithubConnector("test-connector", GithubConnectorSpecV3{
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+				RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+				TeamsToRoles: tt.teamsToRoles,
+			})
+			require.NoError(t, err)
+			tt.assertErr(t, connector.Validate())
+		})
+	}
+}
