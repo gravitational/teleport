@@ -577,10 +577,8 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			mfaRequired:   proto.MFARequired_MFA_REQUIRED_YES,
 			clientCluster: "leaf",
 			params: ReissueParams{
-				NodeName: "test",
-				// In real world RouteToCluster would be "leaf", but this doesn't work
-				// with how the test is currently set up.
-				RouteToCluster: "test",
+				NodeName:       "test",
+				RouteToCluster: "leaf",
 				AuthClient: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil

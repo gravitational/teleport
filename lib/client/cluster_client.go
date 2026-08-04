@@ -561,9 +561,10 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 	targetElsewhere := params.RouteToCluster != "" && params.RouteToCluster != c.cluster
 	mfaAgainstRoot := connectedIsRoot || targetElsewhere
 
+	// leafClusterName only names the target's cluster in the MFA prompt, and the root is not worth naming.
 	var leafClusterName string
-	if !connectedIsRoot {
-		leafClusterName = c.cluster
+	if params.RouteToCluster != c.root {
+		leafClusterName = params.RouteToCluster
 	}
 
 	var promptOpts []mfa.PromptOpt
