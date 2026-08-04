@@ -9,7 +9,7 @@ use ironrdp_egfx::pdu::Codec1Type::{ClearCodec, Uncompressed};
 use ironrdp_egfx::pdu::GfxPdu::WireToSurface1;
 use ironrdp_egfx::pdu::{Codec1Type, Codec2Type, Color, PixelFormat};
 use ironrdp_graphics::clearcodec::ClearCodecDecoder;
-use ironrdp_pdu::geometry::ExclusiveRectangle;
+use ironrdp_pdu::geometry::{ExclusiveRectangle, Rectangle};
 use ironrdp_pdu::{PduError, geometry::InclusiveRectangle};
 use ironrdp_graphics::progressive::{DecodedTile, ProgressiveDecodeError, ProgressiveDecoder};
 use tracing::warn;
@@ -44,6 +44,9 @@ type CacheSlot = u16;
 
 struct CacheEntry {
     key: CacheKey,
+    data: Vec<u8>,
+    width: u16,
+    height: u16,
 }
 
 #[derive(Clone)]
@@ -79,17 +82,12 @@ impl <S: SurfaceEx> Surface<S> {
     }
 }
 
-trait SurfaceEx: Send {
+pub trait SurfaceEx: Send {
     fn new() -> Self;
     fn update(&mut self, location: &ExclusiveRectangle, data: &Vec<u8>);
     fn copy(&self, dest: &mut Self, source_rect: &ExclusiveRectangle, points: Vec<(u16, u16)>);
     fn fill(&mut self, locations: &Vec<ExclusiveRectangle>, a: u8, r: u8, g: u8, b: u8);
-}
-
-enum EncodingContext {
-    Uncompressed,
-    CAVideo, /* RFX */
-    ClearCodec,
+    fn get(&self, location: &ExclusiveRectangle) -> Vec<u8>;
 }
 
 fn decode_with_codec1(codec: Codec1Type, width: u16, height: u16, data: &[u8]) -> DecodeResult<Vec<u8>> {
@@ -305,17 +303,33 @@ impl <S: SurfaceEx> GraphicsPipelineHandler for TeleportEgfxHandler<S> {
     }
 
     /****** CACHE OPERATIONS ******/
-    fn on_cache_to_surface(&mut self, _pdu: &ironrdp_egfx::pdu::CacheToSurfacePdu) {
+    fn on_cache_to_surface(&mut self, pdu: &ironrdp_egfx::pdu::CacheToSurfacePdu) {
+        let entry = self.bitmap_cache.get(&pdu.cache_slot).expect("missing cache entry");
+        let surface = self.surfaces.get_mut(&pdu.surface_id).expect("missing surface");
+
+        pdu.destination_points.iter().for_each(|point| {
+            let location = ExclusiveRectangle{
+                left: point.x,
+                top: point.y,
+                right: point.x + entry.width,
+                bottom: point.y + entry.height,
+            };
+
+            surface.apply_bitmap_update(&location, &entry.data);
+        });
+
+
         
     }
 
-    fn on_surface_to_cache(&mut self, _pdu: &ironrdp_egfx::pdu::SurfaceToCachePdu) {
-        
+    fn on_surface_to_cache(&mut self, pdu: &ironrdp_egfx::pdu::SurfaceToCachePdu) {
+        let data = self.surfaces.get(&pdu.surface_id).expect("missing surface").surface.get(&pdu.source_rectangle);
+        let _ = self.bitmap_cache.insert(pdu.cache_slot, CacheEntry { key: pdu.cache_key, data , width: pdu.source_rectangle.width(), height: pdu.source_rectangle.height()});
     }
 
 
-    fn on_evict_cache_entry(&mut self, _pdu: &ironrdp_egfx::pdu::EvictCacheEntryPdu) {
-        
+    fn on_evict_cache_entry(&mut self, pdu: &ironrdp_egfx::pdu::EvictCacheEntryPdu) {
+        let _ = self.bitmap_cache.remove(&pdu.cache_slot);
     }
     // Not implementing import offer
    
