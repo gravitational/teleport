@@ -209,8 +209,7 @@ impl Client {
         let display_control = DisplayControlClient::new(move |_| {
             Self::on_display_ctl_capabilities_received(&pending_resize_clone)
         });
-        let mut drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
-        drdynvc_client.attach_dynamic_channel(pt);
+        let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control).with_dynamic_channel(pt);
         
         let mut connector =
             ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
@@ -282,7 +281,7 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            //connection_result.message_channel_id,
+            connection_result.message_channel_id,
             connection_result.share_id,
         )));
 
