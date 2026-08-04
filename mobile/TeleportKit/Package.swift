@@ -7,6 +7,7 @@ let package = Package(
 	platforms: [.iOS(.v26)],
 	products: [
 		.library(name: "SystemClients", targets: ["SystemClients"]),
+		.library(name: "LogBackends", targets: ["LogBackends"]),
 	],
 	dependencies: [
 		.package(url: "https://github.com/pointfreeco/swift-dependencies", .upToNextMajor(from: "1.14.0")),
