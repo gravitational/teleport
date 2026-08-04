@@ -55,6 +55,13 @@ func TestExitCodeString(t *testing.T) {
 				"location. Please ensure it is not a reparse point and try again.",
 		},
 		{
+			name: "windows installer checksum mismatch",
+			code: WindowsInstallerChecksumMismatch,
+			want: "The downloaded Teleport authentication package installer failed " +
+				"SHA256 checksum verification. This may indicate a corrupted download " +
+				"or a tampered network path. Please try again.",
+		},
+		{
 			name: "unrecognized code falls back to the generic message",
 			code: ExitCode(999),
 			want: "Installation failed with exit code 999. " +

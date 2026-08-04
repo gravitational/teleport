@@ -3762,6 +3762,7 @@ func TestInstallerScriptWindowsAuthPackageRendered(t *testing.T) {
 			// The installstatus exit codes survived the fmt.Sprintf injection.
 			require.Contains(t, response, "exit 200") // WindowsInstallerDownloadFailure
 			require.Contains(t, response, "exit 201") // WindowsInstallerExecutionFailure
+			require.Contains(t, response, "exit 203") // WindowsInstallerChecksumMismatch
 
 			// getWindowsCA rendered a non-empty CA bundle, and no template
 			// directives were left unrendered.

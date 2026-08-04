@@ -2769,6 +2769,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		WindowsInstallerDownloadFailure:  int(installstatus.WindowsInstallerDownloadFailure),
 		WindowsInstallerExecutionFailure: int(installstatus.WindowsInstallerExecutionFailure),
 		WindowsInstallerStagingDirUnsafe: int(installstatus.WindowsInstallerStagingDirUnsafe),
+		WindowsInstallerChecksumMismatch: int(installstatus.WindowsInstallerChecksumMismatch),
 	}
 
 	var buf bytes.Buffer

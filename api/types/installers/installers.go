@@ -77,4 +77,8 @@ type Template struct {
 	// reparse point (symlink or junction) and may redirect to an untrusted
 	// location.
 	WindowsInstallerStagingDirUnsafe int
+	// WindowsInstallerChecksumMismatch is the exit code for when the downloaded
+	// Windows authentication package installer fails SHA256 checksum
+	// verification against the checksum published alongside it.
+	WindowsInstallerChecksumMismatch int
 }

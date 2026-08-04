@@ -67,14 +67,35 @@ function Test-NoProxyMatch($TargetHost, $NoProxy) {
 	return $false
 }
 
+$UseProxy = $env:HTTPS_PROXY -and -not (Test-NoProxyMatch 'cdn.teleport.dev' $env:NO_PROXY)
+
 Write-Host "Downloading authentication package installer ($InstallerName)..."
 try {
 	$dl = @{ Uri = "https://cdn.teleport.dev/$InstallerName"; OutFile = $InstallerPath; UseBasicParsing = $true }
-	if ($env:HTTPS_PROXY -and -not (Test-NoProxyMatch 'cdn.teleport.dev' $env:NO_PROXY)) { $dl.Proxy = $env:HTTPS_PROXY }
+	if ($UseProxy) { $dl.Proxy = $env:HTTPS_PROXY }
 	Invoke-WebRequest @dl
 } catch {
 	Write-Host "Authentication package download failed: $_"
 	exit {{ .WindowsInstallerDownloadFailure }}
+}
+
+Write-Host "Downloading authentication package installer checksum..."
+$ChecksumPath = "$InstallerPath.sha256"
+try {
+	$cs = @{ Uri = "https://cdn.teleport.dev/$InstallerName.sha256"; OutFile = $ChecksumPath; UseBasicParsing = $true }
+	if ($UseProxy) { $cs.Proxy = $env:HTTPS_PROXY }
+	Invoke-WebRequest @cs
+} catch {
+	Write-Host "Authentication package checksum download failed: $_"
+	exit {{ .WindowsInstallerDownloadFailure }}
+}
+
+Write-Host "Verifying authentication package installer checksum..."
+$ExpectedHash = ((Get-Content -LiteralPath $ChecksumPath -Raw) -split '\s+' | Where-Object { $_ })[0].ToLowerInvariant()
+$ActualHash = (Get-FileHash -LiteralPath $InstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($ExpectedHash -ne $ActualHash) {
+	Write-Host "Authentication package checksum mismatch: expected $ExpectedHash, got $ActualHash"
+	exit {{ .WindowsInstallerChecksumMismatch }}
 }
 
 Write-Host "Running authentication package installer..."

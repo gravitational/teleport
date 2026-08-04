@@ -47,6 +47,7 @@ const (
 	WindowsInstallerDownloadFailure  ExitCode = 200
 	WindowsInstallerExecutionFailure ExitCode = 201
 	WindowsInstallerStagingDirUnsafe ExitCode = 202
+	WindowsInstallerChecksumMismatch ExitCode = 203
 )
 
 // InstallerMinFreeDiskMB is the minimum free disk space in megabytes required for Teleport installation.
@@ -116,6 +117,10 @@ func (c ExitCode) String() string {
 		return "The installer staging directory under %WINDIR%\\SystemTemp is a " +
 			"reparse point (symlink or junction) and may redirect to an untrusted " +
 			"location. Please ensure it is not a reparse point and try again."
+	case WindowsInstallerChecksumMismatch:
+		return "The downloaded Teleport authentication package installer failed " +
+			"SHA256 checksum verification. This may indicate a corrupted download " +
+			"or a tampered network path. Please try again."
 	default:
 		return fmt.Sprintf(
 			"Installation failed with exit code %d. "+
