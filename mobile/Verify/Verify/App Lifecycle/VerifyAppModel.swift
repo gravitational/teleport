@@ -16,16 +16,31 @@
 
 import Foundation
 import Observation
-import OSLog
+
+// import OSLog
+import LogBackends
+import Logging
 
 /// The root of our app's view model tree.
 @Observable @MainActor
 final class VerifyAppModel {
-	static var logger = Logger.forType(VerifyAppModel.self)
+	static var logger = Logger(label: "VerifyAppModel")
 
 	// MARK: Child View Models
 
 	let landingViewModel = LandingViewModel()
+
+	// MARK: Initialization
+
+	init() {
+		LoggingSystem.bootstrap { label in
+			var handler = SimpleLogHandler(label: label)
+			#if DEBUG
+				handler.logLevel = .debug
+			#endif
+			return handler
+		}
+	}
 }
 
 // MARK: - Deep Link Handling

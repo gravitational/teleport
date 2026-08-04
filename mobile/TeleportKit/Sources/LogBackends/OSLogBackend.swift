@@ -14,4 +14,57 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Logging
+public import Logging
+import OSLog
+
+public struct OSLogBackend: LogHandler {
+	private let osLogger: os.Logger
+
+	public init(subsystem: String, category: String) {
+		self.osLogger = Logger(subsystem: subsystem, category: category)
+	}
+
+	// MARK: LogHandler Conformance
+
+	public var logLevel: Logging.Logger.Level = .info
+
+	public var metadata: Logging.Logger.Metadata = [:]
+
+	public subscript(metadataKey key: String) -> Logging.Logger.Metadata.Value? {
+		get { metadata[key] }
+		set { metadata[key] = newValue }
+	}
+
+	public func log(event: LogEvent) {
+		var metadataToLog = metadata
+		if let eventMetadata = event.metadata {
+			// Always favor metadata provided by the event, not the one supplied as base to the logger.
+			metadataToLog.merge(eventMetadata, uniquingKeysWith: { $1 })
+		}
+
+		osLogger.log(level: event.level.osLogLevel, "\(event.message)\(metadataToLog.formattedByNewLines())")
+	}
+}
+
+// MARK: - Private Heleprs
+
+extension Logging.Logger.Level {
+	var osLogLevel: OSLogType {
+		switch self {
+			case .trace:
+					.debug
+			case .debug:
+					.debug
+			case .info:
+					.info
+			case .notice:
+					.default
+			case .warning:
+					.error
+			case .error:
+					.error
+			case .critical:
+					.fault
+		}
+	}
+}
