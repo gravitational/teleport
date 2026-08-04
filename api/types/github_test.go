@@ -84,10 +84,9 @@ func TestGithubAuthRequestCheck(t *testing.T) {
 
 func TestGithubValidate(t *testing.T) {
 	tests := []struct {
-		name          string
-		teamsToRoles  []TeamRolesMapping
-		teamsToLogins []TeamMapping
-		assertErr     require.ErrorAssertionFunc
+		name         string
+		teamsToRoles []TeamRolesMapping
+		assertErr    require.ErrorAssertionFunc
 	}{
 		{
 			name:      "no mappings",
