@@ -106,6 +106,9 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 			Client:    s.AccessPoint,
 		},
 		KubernetesClusterGetter: s.AccessPoint,
+		// dynamically registered clusters may contain secrets which are necessary in order
+		// for the agent to connect to the cluster.
+		LoadSecrets: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
