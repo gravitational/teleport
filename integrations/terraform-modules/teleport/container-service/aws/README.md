@@ -69,13 +69,13 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | apply\_aws\_tags | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
-| assign\_public\_ip | Whether to assign public IP addresses to Teleport agent ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
+| assign\_public\_ip | Whether to assign public IP addresses to Teleport ECS tasks. If this is set to true, then var.ecs\_service\_subnets must be public subnets (route to an internet gateway). Otherwise, var.ecs\_service\_subnets must be private subnets (route to a NAT gateway). | `bool` | `false` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
-| create\_security\_group | Whether to create a security group for the Teleport agent ECS tasks. | `bool` | `true` | no |
+| create\_security\_group | Whether to create a security group for the Teleport ECS tasks. | `bool` | `true` | no |
 | ecs\_cluster\_name | Name of the ECS cluster. | `string` | `"teleport"` | no |
 | ecs\_cluster\_use\_name\_prefix | Determines whether `var.ecs_cluster_name` is used as a prefix of the ECS cluster name. | `bool` | `true` | no |
-| ecs\_service\_name | Name of the ECS service. | `string` | `"teleport-service"` | no |
-| ecs\_service\_subnets | Subnet IDs where the Teleport agent will be deployed. If var.assign\_public\_ip is true, then all of these subnets must be public subnets (route to an internet gateway). If var.assign\_public\_ip is false, then all of these subnets must be private subnets (route to a NAT gateway). | `list(string)` | n/a | yes |
+| ecs\_service\_name | Name of the ECS service. | `string` | `"teleport"` | no |
+| ecs\_service\_subnets | Subnet IDs where Teleport will be deployed. If var.assign\_public\_ip is true, then all of these subnets must be public subnets (route to an internet gateway). If var.assign\_public\_ip is false, then all of these subnets must be private subnets (route to a NAT gateway). | `list(string)` | n/a | yes |
 | ecs\_task\_cloudwatch\_log\_group\_kms\_key\_id | KMS key ID or ARN used to encrypt the ECS task CloudWatch log group. When null, CloudWatch Logs uses its default encryption key. | `string` | `null` | no |
 | ecs\_task\_cloudwatch\_log\_group\_name | Name for the ECS task CloudWatch log group. | `string` | `"ecs-teleport"` | no |
 | ecs\_task\_cloudwatch\_log\_group\_region | AWS region for the ECS task CloudWatch log group. Defaults to the AWS provider region. | `string` | `null` | no |
@@ -83,7 +83,7 @@ No modules.
 | ecs\_task\_cloudwatch\_log\_group\_skip\_destroy | Whether to preserve the ECS task CloudWatch log group when destroying module resources. Set to true if you do not wish the log group (and any logs it may contain) to be deleted at destroy time, and instead just remove the log group from the Terraform state. | `bool` | `false` | no |
 | ecs\_task\_cloudwatch\_log\_group\_use\_name\_prefix | Determines whether `var.ecs_task_cloudwatch_log_group_name` is used as a prefix of the ECS task CloudWatch log group name. | `bool` | `true` | no |
 | ecs\_task\_cpu | Number of cpu units used by the ECS task. | `number` | `2048` | no |
-| ecs\_task\_definition\_name | Name of the ECS task. | `string` | `"teleport-agent"` | no |
+| ecs\_task\_definition\_name | Name of the ECS task. | `string` | `"teleport"` | no |
 | ecs\_task\_definition\_use\_name\_prefix | Determines whether `var.ecs_task_definition_name` is used as a prefix of the ECS task definition name. | `bool` | `true` | no |
 | ecs\_task\_desired\_count | Desired number of Teleport ECS tasks to run. | `number` | `2` | no |
 | ecs\_task\_force\_new\_deployment | Set to true to force the ECS service to redeploy tasks without configuration changes. | `bool` | `false` | no |
@@ -91,13 +91,13 @@ No modules.
 | ecs\_task\_role\_inline\_policy | Optional JSON policy document to merge into the inline policy attached to the ECS task IAM role. | `string` | `null` | no |
 | ecs\_task\_role\_self\_assumption\_allowed | Whether the ECS task IAM role can assume itself. | `bool` | `true` | no |
 | environment\_vars | Environment variables to set on the Teleport ECS container. | `map(string)` | `{}` | no |
-| managed\_updates\_enabled | Whether to resolve the Teleport container version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
+| managed\_updates\_enabled | Whether to resolve the Teleport version from the configured Managed Updates endpoint when applying this module. | `bool` | `true` | no |
 | managed\_updates\_group | Update group to query through the v2 Managed Updates endpoint. | `string` | `"default"` | no |
-| security\_group\_ids | Additional security group IDs to attach to the Teleport agent ECS tasks. | `list(string)` | `[]` | no |
+| security\_group\_ids | Additional security group IDs to attach to the Teleport ECS tasks. | `list(string)` | `[]` | no |
 | teleport\_config | Teleport configuration. Write the configuration using native Terraform syntax. Warning: sensitive data, such as static join tokens, is visible to anyone who can read the task definition. | `any` | n/a | yes |
 | teleport\_container\_image | Container image used for Teleport ECS tasks. | `string` | `"public.ecr.aws/gravitational/teleport-ent-distroless"` | no |
 | teleport\_version | The version of Teleport to deploy. Generally, the version of Teleport should be controlled by using the appropriate version of this module. This variable is intended for development usage. | `string` | `"19.0.0-prealpha.2"` | no |
-| vpc\_id | VPC ID where the Teleport agent will be deployed. | `string` | n/a | yes |
+| vpc\_id | VPC ID where Teleport will be deployed. | `string` | n/a | yes |
 
 ## Outputs
 

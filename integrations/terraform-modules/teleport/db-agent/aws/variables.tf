@@ -4,7 +4,7 @@
 
 variable "ecs_service_subnets" {
   description = <<EOF
-Subnet IDs where the Teleport db agent will be deployed.
+Subnet IDs where Teleport will be deployed.
 If var.assign_public_ip is true, then all of these subnets must be public subnets (route to an internet gateway).
 If var.assign_public_ip is false, then all of these subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -28,7 +28,7 @@ variable "teleport_proxy_public_addr" {
 }
 
 variable "vpc_id" {
-  description = "VPC ID where the Teleport db agent will be deployed."
+  description = "VPC ID where Teleport will be deployed."
   type        = string
 }
 
@@ -38,7 +38,7 @@ variable "vpc_id" {
 
 variable "allow_database_modification" {
   default     = false
-  description = "Whether to add RDS permissions that allow the Teleport Database agent to modify database configuration."
+  description = "Whether to add RDS permissions that allow the Teleport Database Service to modify database configuration."
   type        = bool
 }
 
@@ -63,7 +63,7 @@ variable "managed_updates_group" {
 variable "assign_public_ip" {
   default     = false
   description = <<EOF
-Whether to assign public IP addresses to Teleport db agent ECS tasks.
+Whether to assign public IP addresses to Teleport ECS tasks.
 If this is set to true, then var.ecs_service_subnets must be public subnets (route to an internet gateway).
 Otherwise, var.ecs_service_subnets must be private subnets (route to a NAT gateway).
 EOF
@@ -78,7 +78,7 @@ variable "create" {
 
 variable "create_security_group" {
   default     = true
-  description = "Whether to create a security group for the Teleport db agent ECS tasks."
+  description = "Whether to create a security group for the Teleport ECS tasks."
   type        = bool
 }
 
@@ -170,7 +170,7 @@ variable "ecs_task_definition_use_name_prefix" {
 
 variable "ecs_task_desired_count" {
   default     = 2
-  description = "Desired number of Teleport db agent ECS tasks to run."
+  description = "Desired number of Teleport ECS tasks to run."
   type        = number
 }
 
@@ -195,7 +195,7 @@ variable "ecs_task_role_inline_policy" {
 
 variable "environment_vars" {
   default     = {}
-  description = "Environment variables to set on the Teleport db agent ECS container."
+  description = "Environment variables to set on the Teleport ECS container."
   type        = map(string)
 }
 
@@ -232,19 +232,19 @@ variable "database_service_resources" {
 
 variable "log_level" {
   default     = "INFO"
-  description = "Teleport agent log level."
+  description = "Teleport log level."
   type        = string
 }
 
 variable "security_group_ids" {
   default     = []
-  description = "Additional security group IDs to attach to the Teleport db agent ECS tasks."
+  description = "Additional security group IDs to attach to the Teleport ECS tasks."
   type        = list(string)
 }
 
 variable "teleport_container_image" {
   default     = "public.ecr.aws/gravitational/teleport-ent-distroless"
-  description = "Container image used for the Teleport db agent ECS tasks."
+  description = "Container image used for the Teleport ECS tasks."
   type        = string
 }
 
