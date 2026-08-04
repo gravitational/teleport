@@ -108,9 +108,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		}
 		allow := role.GetAppResources(types.Allow)
 		if types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)) {
-			if !denyAppRules {
-				decision.allowed = true
-			}
+			decision.allowed = !denyAppRules
 		} else if len(allow) > 0 {
 			// This version can only write a single pure allow_all rule, so
 			// any other non-empty rule set must come from a newer version.

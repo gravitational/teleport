@@ -4151,9 +4151,8 @@ const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 // proto field extends it automatically.
 var knownAppResourceFields = func() map[string]struct{} {
 	fields := make(map[string]struct{})
-	t := reflect.TypeOf(types.AppResource{})
-	for i := 0; i < t.NumField(); i++ {
-		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+	for f := range reflect.TypeFor[types.AppResource]().Fields() {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
 		if name != "" && name != "-" {
 			fields[name] = struct{}{}
 		}
@@ -4168,7 +4167,7 @@ var knownAppResourceFields = func() map[string]struct{} {
 // Fields outside allow app_resources stay lenient.
 func CheckAppResourcesKnownFields(raw []byte) error {
 	rules := jsoniter.Get(raw, "spec", "allow", "app_resources")
-	for i := 0; i < rules.Size(); i++ {
+	for i := range rules.Size() {
 		for _, key := range rules.Get(i).Keys() {
 			if _, known := knownAppResourceFields[key]; !known {
 				return trace.BadParameter("app_resources rule has unknown field %q", key)
@@ -4185,11 +4184,10 @@ func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
 	if role.Version != types.V9 {
 		return
 	}
-	rules := role.Spec.Allow.AppResources
-	for i := range rules {
+	for i := range role.Spec.Allow.AppResources {
 		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
 			if _, known := knownAppResourceFields[key]; !known {
-				rules[i] = types.AppResource{}
+				role.Spec.Allow.AppResources[i] = types.AppResource{}
 				break
 			}
 		}

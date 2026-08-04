@@ -1599,48 +1599,12 @@ func TestCheckAppResourcesKnownFields(t *testing.T) {
 	t.Parallel()
 
 	role := func(rules string) []byte {
-		return fmt.Appendf(nil, `{
-			"kind": "role",
-			"version": "v9",
-			"metadata": {"name": "test"},
-			"spec": {"allow": {"app_resources": %s}}
-		}`, rules)
+		return fmt.Appendf(nil, `{"kind": "role", "version": "v9", "metadata": {"name": "test"}, "spec": {"allow": {"app_resources": %s}}}`, rules)
 	}
-	tests := []struct {
-		name      string
-		raw       []byte
-		assertErr require.ErrorAssertionFunc
-	}{
-		{
-			name:      "allow_all rule accepted",
-			raw:       role(`[{"allow_all": true}]`),
-			assertErr: require.NoError,
-		},
-		{
-			name:      "absent app_resources accepted",
-			raw:       role(`[]`),
-			assertErr: require.NoError,
-		},
-		{
-			name: "unknown field in the first rule rejected",
-			raw:  role(`[{"future_paths": ["/admin"]}, {"allow_all": true}]`),
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "future_paths")
-			},
-		},
-		{
-			name: "unknown field in a later rule rejected",
-			raw:  role(`[{"allow_all": true}, {"allow_all": true, "future_paths": ["/admin"]}]`),
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "future_paths")
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertErr(t, CheckAppResourcesKnownFields(test.raw))
-		})
-	}
+	require.NoError(t, CheckAppResourcesKnownFields(role(`[{"allow_all": true}]`)))
+	require.NoError(t, CheckAppResourcesKnownFields(role(`[]`)))
+	require.ErrorContains(t, CheckAppResourcesKnownFields(role(`[{"future_paths": ["/admin"]}, {"allow_all": true}]`)), "future_paths")
+	require.ErrorContains(t, CheckAppResourcesKnownFields(role(`[{"allow_all": true}, {"allow_all": true, "future_paths": ["/admin"]}]`)), "future_paths")
 }
 
 func TestUnmarshalRole(t *testing.T) {

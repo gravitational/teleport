@@ -7187,9 +7187,7 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 	})
 
 	t.Run("existing deny expression merges with the moved allow expression", func(t *testing.T) {
-		// Deny expressions, unlike deny labels, have a union: the two
-		// expressions are OR-ed so the pre-existing deny keeps applying next
-		// to the moved allow expression.
+		// Expressions, unlike label maps, have a union: the two are OR-ed.
 		input := newV9Role(ruleWithoutAllowAll)
 		input.Spec.Deny.AppLabelsExpression = `labels["env"] == "prod"`
 		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))

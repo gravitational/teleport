@@ -83,8 +83,7 @@ func TestDecideMinimalV9(t *testing.T) {
 		AppResources: []types.AppResource{{AllowAll: true}},
 	})
 	v9DenyLabel.SetAppLabels(types.Deny, devLabels)
-	// A role newer than v9 must deny even when its known fields look like a
-	// plain allow_all rule.
+	// A role newer than v9 must deny even when it looks like plain allow_all.
 	v10Grants := &types.RoleV6{
 		Metadata: types.Metadata{Name: "v10-grants"},
 		Version:  "v10",
@@ -218,9 +217,8 @@ func TestEnforceMinimalV9(t *testing.T) {
 		for i, role := range roles {
 			names[i] = role.GetName()
 		}
-		checker := services.NewAccessCheckerWithRoleSet(
-			&services.AccessInfo{Username: "alice", Roles: names},
-			"cluster", services.NewRoleSet(roles...))
+		info := &services.AccessInfo{Username: "alice", Roles: names}
+		checker := services.NewAccessCheckerWithRoleSet(info, "cluster", services.NewRoleSet(roles...))
 		return &authz.Context{
 			Identity: authz.WrapIdentity(tlsca.Identity{Username: "alice"}),
 			Checker:  checker,
