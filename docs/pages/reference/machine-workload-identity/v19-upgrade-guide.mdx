@@ -27,8 +27,9 @@ services:
 ```
 
 Removing the `roles` field will result in the service or output utilizing all
-roles available to the Bot that `tbot` has authenticated as. In many cases, this
-is the desired behavior.
+roles available to the Bot that `tbot` has authenticated as. Be aware that this
+may represent an increase in privileges if a subset of the Bot's roles were
+previously specified.
 
 If you require differing roles for different services or outputs, we recommend
 that you migrate to an approach that leverages distinct Bots with distinct sets
