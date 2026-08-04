@@ -19,14 +19,18 @@ package recordingencryption
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"sync"
 	"time"
 
 	"filippo.io/age"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
@@ -34,6 +38,8 @@ const (
 	auditQueueSealerWatchRetryInterval = time.Second
 	auditQueueSealerRefreshTimeout     = 30 * time.Second
 	auditQueueSealerWatchRetryMax      = time.Minute
+
+	maxEventsPerSealedBatch = 1024
 )
 
 // SessionRecordingConfigWatcher reads the session recording config and
@@ -61,6 +67,16 @@ type AuditQueueSealer struct {
 
 // NewAuditQueueSealer returns an AuditQueueSealer.
 func NewAuditQueueSealer(ctx context.Context, client SessionRecordingConfigWatcher) (*AuditQueueSealer, error) {
+	return newAuditQueueSealer(ctx, client, false)
+}
+
+// NewLazyAuditQueueSealer returns an AuditQueueSealer that tolerates an
+// unresolvable session recording config at construction time.
+func NewLazyAuditQueueSealer(ctx context.Context, client SessionRecordingConfigWatcher) (*AuditQueueSealer, error) {
+	return newAuditQueueSealer(ctx, client, true)
+}
+
+func newAuditQueueSealer(ctx context.Context, client SessionRecordingConfigWatcher, lazy bool) (*AuditQueueSealer, error) {
 	if client == nil {
 		return nil, trace.BadParameter("SessionRecordingConfigWatcher is required for AuditQueueSealer")
 	}
@@ -79,11 +95,16 @@ func NewAuditQueueSealer(ctx context.Context, client SessionRecordingConfigWatch
 		client: client,
 		retry:  retry,
 	}
+	sealer.loopCtx, sealer.cancel = context.WithCancel(context.Background())
+
 	if err := sealer.refresh(ctx); err != nil {
-		return nil, trace.Wrap(err, "reading session recording config for audit queue encryption")
+		if !lazy {
+			sealer.cancel()
+			return nil, trace.Wrap(err, "reading session recording config for audit queue encryption")
+		}
+		sealer.warnOnFailureStreak(err)
 	}
 
-	sealer.loopCtx, sealer.cancel = context.WithCancel(context.Background())
 	sealer.wg.Go(sealer.watchLoop)
 	return sealer, nil
 }
@@ -280,4 +301,48 @@ func parseRecipients(config types.SessionRecordingConfig) (bool, []age.Recipient
 		recipients = append(recipients, recipient)
 	}
 	return true, recipients, nil
+}
+
+// AuditQueueOpener decrypts audit queue event batches.
+type AuditQueueOpener struct {
+	unwrapper KeyUnwrapper
+}
+
+// NewAuditQueueOpener returns an AuditQueueOpener.
+func NewAuditQueueOpener(unwrapper KeyUnwrapper) (*AuditQueueOpener, error) {
+	if unwrapper == nil {
+		return nil, trace.BadParameter("KeyUnwrapper is required for AuditQueueOpener")
+	}
+	return &AuditQueueOpener{unwrapper: unwrapper}, nil
+}
+
+// DecryptBatch decrypts a sealed audit event batch and returns the events it
+// contains.
+func (o *AuditQueueOpener) DecryptBatch(ctx context.Context, payload []byte) ([]apievents.AuditEvent, error) {
+	reader, err := age.Decrypt(bytes.NewReader(payload), NewAuditQueueIdentity(ctx, o.unwrapper))
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting audit event batch")
+	}
+	plaintext, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting audit event batch")
+	}
+
+	var events []apievents.AuditEvent
+	r := bytes.NewReader(plaintext)
+	for r.Len() > 0 {
+		if len(events) >= maxEventsPerSealedBatch {
+			return nil, trace.BadParameter("sealed audit event batch contains too many events")
+		}
+		var oneOf apievents.OneOf
+		if err := protodelim.UnmarshalFrom(r, protoadapt.MessageV2Of(&oneOf)); err != nil {
+			return nil, trace.Wrap(err, "unmarshaling audit event batch")
+		}
+		event, err := apievents.FromOneOf(oneOf)
+		if err != nil {
+			return nil, trace.Wrap(err, "converting audit event")
+		}
+		events = append(events, event)
+	}
+	return events, nil
 }

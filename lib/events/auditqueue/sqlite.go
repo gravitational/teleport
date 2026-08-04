@@ -52,28 +52,20 @@ const (
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
 	maxDrainKickBackoff            = 30 * time.Second
 
-	// We've run benchmarks and found a batch size of 25 to be a good middle
-	// ground between insertion performance and memory overhead of
-	// events-in-flight. We've observed peak performance is achieved with batch
-	// sizes around 250, and we encounter diminishing returns above that.
-	//
-	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
-	defaultMaxBatch  = 25
+	// defaultMaxBatch is the maximum size of a batch that will be written to
+	// sqlite. This parameter is useful for both improving sqlite write
+	// throughput, but much more importantly, for encrypted workloads, RSA
+	// decryption is the bottleneck. By increasing the batch size, we can
+	// reducing the amount of RSA decryptions per event which greatly improves
+	// throughput.
+	defaultMaxBatch  = 250
 	dequeueBatchSize = 25
+
+	defaultWriteLinger = time.Millisecond
 
 	// busyTimeoutMillis sets the maximum time we will wait for a SQLite DB
 	// operation.
 	busyTimeoutMillis = 5000
-)
-
-const (
-	// formatPlaintext marks a row whose payload is a sequence of
-	// apievents.OneOf messages.
-	formatPlaintext = 0
-	// formatAgeV1 marks a row whose payload is an age encrypted
-	// apievents.OneOf messages. Such rows cannot be decrypted by this
-	// process because the private keys live on the auth server.
-	formatAgeV1 = 1
 )
 
 // A note on `AUTOINCREMENT`, to quote the SQLite docs:
@@ -153,6 +145,7 @@ type sqliteQueue struct {
 	runMu                   sync.Mutex
 	toBeWritten             chan writeRequest
 	maxBatch                int
+	writeLinger             time.Duration
 	ctx                     context.Context
 	cancel                  context.CancelFunc
 	wg                      sync.WaitGroup
@@ -219,6 +212,11 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		deadLetterTTL = defaultDeadLetterTTL
 	}
 
+	writeLinger := cfg.WriteLinger
+	if writeLinger == 0 {
+		writeLinger = defaultWriteLinger
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &sqliteQueue{
 		db:                      db,
@@ -233,6 +231,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		deadLetterTTL:           deadLetterTTL,
 		synchronous:             cfg.Synchronous,
 		sealer:                  cfg.Sealer,
+		writeLinger:             writeLinger,
 		deadLetterKick:          make(chan struct{}, 1),
 	}
 
@@ -289,6 +288,10 @@ func (q *sqliteQueue) Enqueue(event apievents.AuditEvent) error {
 // together events produced by the `Enqueue` method. It drains the `toBeWritten`
 // channel.
 func (q *sqliteQueue) writeLoop() {
+	linger := time.NewTimer(time.Hour)
+	linger.Stop()
+	defer linger.Stop()
+
 	for {
 		// Wait until we get the first event.
 		var first writeRequest
@@ -302,15 +305,33 @@ func (q *sqliteQueue) writeLoop() {
 		// a buffer.
 		batch := make([]writeRequest, 0, q.maxBatch)
 		batch = append(batch, first)
+		if q.writeLinger > 0 {
+			linger.Reset(q.writeLinger)
+		}
 	drain:
 		for len(batch) < q.maxBatch {
+			if q.writeLinger <= 0 {
+				select {
+				case req := <-q.toBeWritten:
+					// While we can still take events, collect them into a batch.
+					batch = append(batch, req)
+				default:
+					break drain
+				}
+				continue
+			}
 			select {
 			case req := <-q.toBeWritten:
 				// While we can still take events, collect them into a batch.
 				batch = append(batch, req)
-			default:
+			case <-linger.C:
+				break drain
+			case <-q.ctx.Done():
 				break drain
 			}
+		}
+		if q.writeLinger > 0 {
+			linger.Stop()
 		}
 
 		// Update histogram metrics so we can observe what kind of batch sizes
@@ -344,7 +365,7 @@ func (q *sqliteQueue) commitBatch(batch []writeRequest) error {
 		return trace.Wrap(err)
 	}
 
-	format := formatPlaintext
+	format := FormatPlaintext
 	if q.sealer != nil {
 		sealedPayload, sealed, err := q.sealer.Seal(q.ctx, payload)
 		if err != nil {
@@ -352,7 +373,7 @@ func (q *sqliteQueue) commitBatch(batch []writeRequest) error {
 		}
 		if sealed {
 			payload = sealedPayload
-			format = formatAgeV1
+			format = FormatAgeV1
 		}
 	}
 
@@ -845,7 +866,7 @@ func (q *sqliteQueue) maxDeadLetterID() (int64, error) {
 
 func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]Item, error) {
 	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, payload, format, enqueued_at FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
+		"SELECT id, payload, format, event_count, enqueued_at FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
 		afterID, maxID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -945,7 +966,7 @@ func (q *sqliteQueue) recoverCorruptEvents() {
 		for _, r := range batch {
 			// Sealed rows cannot be validated without the decryption keys.
 			// Leave them quarantined until their TTL expires.
-			if r.format != formatPlaintext {
+			if r.format != FormatPlaintext {
 				continue
 			}
 			events, err := decodeBatch(r.payload)
@@ -1062,7 +1083,7 @@ func (q *sqliteQueue) ack(items []Item) error {
 func countEvents(items []Item) int {
 	var n int
 	for _, item := range items {
-		n += len(item.Events)
+		n += item.EventCount
 	}
 	return n
 }
@@ -1111,13 +1132,40 @@ func scanItems(rows *sql.Rows) (items []Item, corrupt []corruptRow, err error) {
 			id         int64
 			payload    []byte
 			format     int
+			eventCount int
 			enqueuedAt int64
 		)
-		if err := rows.Scan(&id, &payload, &format, &enqueuedAt); err != nil {
+		if err := rows.Scan(&id, &payload, &format, &eventCount, &enqueuedAt); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		if format != formatPlaintext {
+		switch format {
+		case FormatPlaintext:
+			events, err := decodeBatch(payload)
+			if err != nil {
+				corrupt = append(corrupt, corruptRow{
+					id:         id,
+					payload:    payload,
+					format:     format,
+					enqueuedAt: enqueuedAt,
+					err:        err,
+				})
+				continue
+			}
+			items = append(items, Item{
+				id:         id,
+				Events:     events,
+				Format:     FormatPlaintext,
+				EventCount: len(events),
+			})
+		case FormatAgeV1:
+			items = append(items, Item{
+				id:         id,
+				Payload:    payload,
+				Format:     FormatAgeV1,
+				EventCount: eventCount,
+			})
+		default:
 			corrupt = append(corrupt, corruptRow{
 				id:         id,
 				payload:    payload,
@@ -1125,22 +1173,7 @@ func scanItems(rows *sql.Rows) (items []Item, corrupt []corruptRow, err error) {
 				enqueuedAt: enqueuedAt,
 				err:        trace.Errorf("payload format %d cannot be decoded by this process", format),
 			})
-			continue
 		}
-
-		events, err := decodeBatch(payload)
-		if err != nil {
-			row := corruptRow{
-				id:         id,
-				payload:    payload,
-				format:     format,
-				enqueuedAt: enqueuedAt,
-				err:        err,
-			}
-			corrupt = append(corrupt, row)
-			continue
-		}
-		items = append(items, Item{id: id, Events: events})
 	}
 	return items, corrupt, trace.Wrap(rows.Err())
 }
@@ -1211,7 +1244,7 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 		return nil, nil
 	}
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload, format, enqueued_at FROM audit_queue ORDER BY id ASC LIMIT ?",
+		"SELECT id, payload, format, event_count, enqueued_at FROM audit_queue ORDER BY id ASC LIMIT ?",
 		limit)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -20,15 +20,20 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"runtime"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/authz"
@@ -36,6 +41,8 @@ import (
 	sessionpostprocessing "github.com/gravitational/teleport/lib/events/sessionpostprocessing"
 	"github.com/gravitational/teleport/lib/session"
 )
+
+const maxSealedBatchesPerRequest = 32
 
 // A KeyRotater facilitates rotation of encryption keys.
 type KeyRotater interface {
@@ -60,6 +67,12 @@ type ServiceConfig struct {
 	// OnUploadComplete is called after an upload completes to find or recover the
 	// session end event.
 	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
+	// KeyUnwrapper decrypts wrapped file keys through the keystore. It is used
+	// to decrypt sealed audit event batches submitted by agents.
+	KeyUnwrapper recordingencryption.KeyUnwrapper
+	// Emitter is the audit event emitter that decrypted audit event batches
+	// are forwarded to.
+	Emitter apievents.Emitter
 }
 
 // NewService returns a new [Service] based on the given [ServiceConfig].
@@ -77,10 +90,19 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("session summarizer provider is required")
 	case cfg.OnUploadComplete == nil:
 		return nil, trace.BadParameter("on upload complete callback is required")
+	case cfg.KeyUnwrapper == nil:
+		return nil, trace.BadParameter("key unwrapper is required")
+	case cfg.Emitter == nil:
+		return nil, trace.BadParameter("emitter is required")
 	}
 
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption)
+	}
+
+	opener, err := recordingencryption.NewAuditQueueOpener(cfg.KeyUnwrapper)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &Service{
@@ -91,6 +113,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		sessionSummarizerProvider: cfg.SessionSummarizerProvider,
 		recordingMetadataProvider: cfg.RecordingMetadataProvider,
 		onUploadComplete:          cfg.OnUploadComplete,
+		opener:                    opener,
+		emitter:                   cfg.Emitter,
+		decryptSem:                semaphore.NewWeighted(int64(runtime.GOMAXPROCS(0))),
 	}, nil
 }
 
@@ -111,6 +136,12 @@ type Service struct {
 	// onUploadComplete is called after an upload completes to find or recover the
 	// session end event for post-processing.
 	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
+	// opener decrypts sealed audit event batches submitted by agents.
+	opener *recordingencryption.AuditQueueOpener
+	// emitter is the audit event emitter that decrypted audit event batches
+	// are forwarded to.
+	emitter    apievents.Emitter
+	decryptSem *semaphore.Weighted
 }
 
 func streamUploadAsProto(upload events.StreamUpload) *recordingencryptionv1.Upload {
@@ -251,6 +282,107 @@ func (s *Service) CompleteUpload(ctx context.Context, req *recordingencryptionv1
 	}
 
 	return &recordingencryptionv1.CompleteUploadResponse{}, nil
+}
+
+// SubmitAuditQueueBatch delivers one sealed batch of audit events from an
+// agent's local audit queue.
+func (s *Service) SubmitAuditQueueBatch(ctx context.Context, req *recordingencryptionv1.SubmitAuditQueueBatchRequest) (*recordingencryptionv1.SubmitAuditQueueBatchResponse, error) {
+	serverID, isProxy, err := s.authorizeAuditQueueBatch(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(req.GetBatches()) > maxSealedBatchesPerRequest {
+		return nil, trace.BadParameter("too many sealed audit event batches in a single request")
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), apidefaults.DefaultIOTimeout)
+	defer cancel()
+	for _, sealed := range req.GetBatches() {
+		if sealed.GetFormat() != recordingencryptionv1.AuditQueueBatchFormat_AUDIT_QUEUE_BATCH_FORMAT_AGE_V1 {
+			return nil, trace.BadParameter("unsupported audit queue batch format %v", sealed.GetFormat())
+		}
+	}
+
+	decrypted := make([][]apievents.AuditEvent, len(req.GetBatches()))
+	var g errgroup.Group
+	for i, sealed := range req.GetBatches() {
+		if err := s.decryptSem.Acquire(ctx, 1); err != nil {
+			_ = g.Wait()
+			return nil, trace.Wrap(err)
+		}
+		g.Go(func() error {
+			defer s.decryptSem.Release(1)
+			d, err := s.opener.DecryptBatch(ctx, sealed.GetPayload())
+			if err != nil {
+				s.logger.WarnContext(ctx, "failed to decrypt sealed audit event batch",
+					"server_id", serverID,
+					"error", err,
+				)
+				// this message is sparse on purpose to avoid conveying key state to the caller
+				return trace.BadParameter("failed to decrypt audit event batch")
+			}
+
+			if sealed.GetEventCount() != int64(len(d)) {
+				s.logger.WarnContext(ctx, "sealed audit event batch reported an event count that does not match its payload",
+					"reported_count", sealed.GetEventCount(),
+					"decrypted_count", len(d),
+					"server_id", serverID,
+				)
+			}
+			decrypted[i] = d
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var batch []apievents.AuditEvent
+	for _, d := range decrypted {
+		batch = append(batch, d...)
+	}
+
+	for _, event := range batch {
+		if err := events.ValidateServerMetadata(event, serverID, isProxy); err != nil {
+			const msg = "Rejecting audit event, the client is attempting to " +
+				"submit events for an identity other than the one on its x509 certificate."
+			s.logger.WarnContext(ctx, msg,
+				"event_type", event.GetType(),
+				"event_id", event.GetID(),
+				"server_id", serverID,
+				"error", err,
+			)
+			// this message is sparse on purpose to avoid conveying extra data to an attacker
+			return nil, trace.AccessDenied("failed to validate event metadata")
+		}
+	}
+
+	ctx = events.WithForwardedEmit(ctx)
+	if err := events.EmitAuditEvents(ctx, s.emitter, batch); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &recordingencryptionv1.SubmitAuditQueueBatchResponse{}, nil
+}
+
+// authorizeAuditQueueBatch verifies that the caller is allowed to submit
+// sealed audit event batches.
+func (s *Service) authorizeAuditQueueBatch(ctx context.Context) (serverID string, isProxy bool, err error) {
+	authCtx, err := s.auth.Authorize(ctx)
+	if err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	role, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return "", false, trace.AccessDenied("this request can be only executed by a Teleport server")
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindEvent, types.VerbCreate); err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	return role.GetServerID(), authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)), nil
 }
 
 func (s *Service) authorizeKeyRotation(ctx context.Context) error {

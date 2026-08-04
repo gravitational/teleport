@@ -33,13 +33,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	RecordingEncryptionService_CreateUpload_FullMethodName     = "/teleport.recordingencryption.v1.RecordingEncryptionService/CreateUpload"
-	RecordingEncryptionService_UploadPart_FullMethodName       = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadPart"
-	RecordingEncryptionService_CompleteUpload_FullMethodName   = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteUpload"
-	RecordingEncryptionService_RotateKey_FullMethodName        = "/teleport.recordingencryption.v1.RecordingEncryptionService/RotateKey"
-	RecordingEncryptionService_GetRotationState_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/GetRotationState"
-	RecordingEncryptionService_CompleteRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteRotation"
-	RecordingEncryptionService_RollbackRotation_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/RollbackRotation"
+	RecordingEncryptionService_CreateUpload_FullMethodName          = "/teleport.recordingencryption.v1.RecordingEncryptionService/CreateUpload"
+	RecordingEncryptionService_UploadPart_FullMethodName            = "/teleport.recordingencryption.v1.RecordingEncryptionService/UploadPart"
+	RecordingEncryptionService_CompleteUpload_FullMethodName        = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteUpload"
+	RecordingEncryptionService_SubmitAuditQueueBatch_FullMethodName = "/teleport.recordingencryption.v1.RecordingEncryptionService/SubmitAuditQueueBatch"
+	RecordingEncryptionService_RotateKey_FullMethodName             = "/teleport.recordingencryption.v1.RecordingEncryptionService/RotateKey"
+	RecordingEncryptionService_GetRotationState_FullMethodName      = "/teleport.recordingencryption.v1.RecordingEncryptionService/GetRotationState"
+	RecordingEncryptionService_CompleteRotation_FullMethodName      = "/teleport.recordingencryption.v1.RecordingEncryptionService/CompleteRotation"
+	RecordingEncryptionService_RollbackRotation_FullMethodName      = "/teleport.recordingencryption.v1.RecordingEncryptionService/RollbackRotation"
 )
 
 // RecordingEncryptionServiceClient is the client API for RecordingEncryptionService service.
@@ -55,6 +56,9 @@ type RecordingEncryptionServiceClient interface {
 	UploadPart(ctx context.Context, in *UploadPartRequest, opts ...grpc.CallOption) (*UploadPartResponse, error)
 	// CompleteUploadRequest marks a multipart upload as complete.
 	CompleteUpload(ctx context.Context, in *CompleteUploadRequest, opts ...grpc.CallOption) (*CompleteUploadResponse, error)
+	// SubmitAuditQueueBatch delivers sealed batches of audit events from an
+	// agent's local audit queue.
+	SubmitAuditQueueBatch(ctx context.Context, in *SubmitAuditQueueBatchRequest, opts ...grpc.CallOption) (*SubmitAuditQueueBatchResponse, error)
 	// RotateKey rotates the key pair used for encrypting session recording data.
 	RotateKey(ctx context.Context, in *RotateKeyRequest, opts ...grpc.CallOption) (*RotateKeyResponse, error)
 	// GetRotationState returns whether or not a rotation is in progress.
@@ -97,6 +101,16 @@ func (c *recordingEncryptionServiceClient) CompleteUpload(ctx context.Context, i
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CompleteUploadResponse)
 	err := c.cc.Invoke(ctx, RecordingEncryptionService_CompleteUpload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *recordingEncryptionServiceClient) SubmitAuditQueueBatch(ctx context.Context, in *SubmitAuditQueueBatchRequest, opts ...grpc.CallOption) (*SubmitAuditQueueBatchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SubmitAuditQueueBatchResponse)
+	err := c.cc.Invoke(ctx, RecordingEncryptionService_SubmitAuditQueueBatch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +170,9 @@ type RecordingEncryptionServiceServer interface {
 	UploadPart(context.Context, *UploadPartRequest) (*UploadPartResponse, error)
 	// CompleteUploadRequest marks a multipart upload as complete.
 	CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error)
+	// SubmitAuditQueueBatch delivers sealed batches of audit events from an
+	// agent's local audit queue.
+	SubmitAuditQueueBatch(context.Context, *SubmitAuditQueueBatchRequest) (*SubmitAuditQueueBatchResponse, error)
 	// RotateKey rotates the key pair used for encrypting session recording data.
 	RotateKey(context.Context, *RotateKeyRequest) (*RotateKeyResponse, error)
 	// GetRotationState returns whether or not a rotation is in progress.
@@ -182,6 +199,9 @@ func (UnimplementedRecordingEncryptionServiceServer) UploadPart(context.Context,
 }
 func (UnimplementedRecordingEncryptionServiceServer) CompleteUpload(context.Context, *CompleteUploadRequest) (*CompleteUploadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteUpload not implemented")
+}
+func (UnimplementedRecordingEncryptionServiceServer) SubmitAuditQueueBatch(context.Context, *SubmitAuditQueueBatchRequest) (*SubmitAuditQueueBatchResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SubmitAuditQueueBatch not implemented")
 }
 func (UnimplementedRecordingEncryptionServiceServer) RotateKey(context.Context, *RotateKeyRequest) (*RotateKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RotateKey not implemented")
@@ -267,6 +287,24 @@ func _RecordingEncryptionService_CompleteUpload_Handler(srv interface{}, ctx con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RecordingEncryptionServiceServer).CompleteUpload(ctx, req.(*CompleteUploadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RecordingEncryptionService_SubmitAuditQueueBatch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SubmitAuditQueueBatchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RecordingEncryptionServiceServer).SubmitAuditQueueBatch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RecordingEncryptionService_SubmitAuditQueueBatch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RecordingEncryptionServiceServer).SubmitAuditQueueBatch(ctx, req.(*SubmitAuditQueueBatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -361,6 +399,10 @@ var RecordingEncryptionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CompleteUpload",
 			Handler:    _RecordingEncryptionService_CompleteUpload_Handler,
+		},
+		{
+			MethodName: "SubmitAuditQueueBatch",
+			Handler:    _RecordingEncryptionService_SubmitAuditQueueBatch_Handler,
 		},
 		{
 			MethodName: "RotateKey",

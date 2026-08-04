@@ -68,7 +68,7 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 
 func fetchDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload, format, enqueued_at FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
+		"SELECT id, payload, format, event_count, enqueued_at FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
 	if err != nil {
 		return nil, err
 	}

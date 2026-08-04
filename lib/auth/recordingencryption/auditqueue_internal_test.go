@@ -250,6 +250,81 @@ func TestNewAuditQueueSealer(t *testing.T) {
 	})
 }
 
+func lazySealerDecrypts(key *rsa.PrivateKey, payload, plaintext []byte) bool {
+	reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
+	if err != nil {
+		return false
+	}
+	decrypted, err := io.ReadAll(reader)
+	return err == nil && bytes.Equal(decrypted, plaintext)
+}
+
+func TestNewLazyAuditQueueSealer(t *testing.T) {
+	ctx := t.Context()
+	const testTimeout = 5 * time.Second
+	plaintext := []byte("audit event payload")
+
+	t.Run("config not seeded fails closed then recovers", func(t *testing.T) {
+		key, pubDER := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{}
+		getter.set(nil, trace.NotFound("session recording config not found"))
+
+		sealer, err := NewLazyAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		_, _, err = sealer.Seal(ctx, plaintext)
+		require.ErrorContains(t, err, "has not resolved the encryption keys")
+
+		src := encryptedSRC(t, true, pubDER)
+		getter.set(src, nil)
+		getter.emit(t, types.Event{Type: types.OpPut, Resource: src})
+
+		require.Eventually(t, func() bool {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			return err == nil && sealed && lazySealerDecrypts(key, payload, plaintext)
+		}, testTimeout, 10*time.Millisecond)
+	})
+
+	t.Run("enabled without keys fails closed until keys appear", func(t *testing.T) {
+		key, pubDER := testRSAKeyPair(t)
+		getter := &swappableSRCGetter{}
+		getter.set(encryptedSRC(t, true), nil)
+
+		sealer, err := NewLazyAuditQueueSealer(ctx, getter)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		_, _, err = sealer.Seal(ctx, plaintext)
+		require.ErrorContains(t, err, "has not resolved the encryption keys")
+
+		src := encryptedSRC(t, true, pubDER)
+		getter.set(src, nil)
+		getter.emit(t, types.Event{Type: types.OpPut, Resource: src})
+
+		require.Eventually(t, func() bool {
+			payload, sealed, err := sealer.Seal(ctx, plaintext)
+			return err == nil && sealed && lazySealerDecrypts(key, payload, plaintext)
+		}, testTimeout, 10*time.Millisecond)
+	})
+
+	t.Run("disabled encryption passes through immediately", func(t *testing.T) {
+		sealer, err := NewLazyAuditQueueSealer(ctx, &staticSRCGetter{src: encryptedSRC(t, false)})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, sealer.Close()) })
+
+		payload, sealed, err := sealer.Seal(ctx, plaintext)
+		require.NoError(t, err)
+		require.False(t, sealed)
+		require.Equal(t, plaintext, payload)
+	})
+
+	t.Run("nil client is rejected", func(t *testing.T) {
+		_, err := NewLazyAuditQueueSealer(ctx, nil)
+		require.ErrorContains(t, err, "SessionRecordingConfigWatcher is required")
+	})
+}
+
 func TestAuditQueueSealerSeal(t *testing.T) {
 	ctx := t.Context()
 
