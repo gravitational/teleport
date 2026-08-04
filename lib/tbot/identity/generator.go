@@ -241,8 +241,8 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 
 	log := cmp.Or(o.logger, g.logger)
 
-	// Roles are always resolved implicitly - there is no way for a service to
-	// request a narrower set.
+	// If we have been provided an existing identity, we can copy the role set
+	// from that - otherwise, we'll fetch the role set.
 	var roles []string
 	if o.currentIdentity != nil {
 		// If the caller provided an impersonated identity, take its roles.
