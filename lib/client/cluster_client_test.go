@@ -244,7 +244,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			name: "ssh login falls back to host login",
 			params: ReissueParams{
 				NodeName: "test",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
 						require.True(t, ok)
@@ -270,7 +270,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName: "test",
 				SSHLogin: "override-login",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
 						require.True(t, ok)
@@ -436,7 +436,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName:       "test",
 				RouteToCluster: "leaf",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO, Required: false}, nil
 					},
@@ -456,7 +456,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName:       "test",
 				RouteToCluster: "leaf",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
 					},
@@ -480,7 +480,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
 				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_NO, Required: false}, nil
 					},
@@ -550,7 +550,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				},
 				RequesterName:       proto.UserCertsRequest_TSH_DB_EXEC,
 				ReusableMFAResponse: &proto.MFAAuthenticateResponse{},
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
 					},
@@ -579,11 +579,10 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			params: ReissueParams{
 				NodeName:       "test",
 				RouteToCluster: "leaf",
-				AuthClient: fakeAuthClient{
+				MFAChecker: fakeAuthClient{
 					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
 					},
-					generateUserCerts: defaultGenerateUserCerts,
 				},
 			},
 			wantPromptReason: `MFA is required to access node "test" from leaf cluster "leaf"`,
@@ -599,9 +598,6 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			agent := agent
 			if test.agent != nil {
 				agent = test.agent
-			}
-			if test.params.AuthClient != nil {
-				defer test.params.AuthClient.Close()
 			}
 
 			suite := test.signatureAlgorithmSuite
@@ -909,7 +905,7 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 						}
 					}
 					if in.callerClient != "" {
-						params.AuthClient = authClients[in.callerClient]
+						params.MFAChecker = authClients[in.callerClient]
 					}
 
 					dials := counts{}
