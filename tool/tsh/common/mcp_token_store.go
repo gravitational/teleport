@@ -152,7 +152,7 @@ func newMCPOAuthHeaderSource(ctx context.Context, dialer *client.MCPServerDialer
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	httpClient, err := newMCPOAuthHTTPClient(dialer)
+	httpClient, err := newMCPOAuthHTTPClient(dialer, app.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
