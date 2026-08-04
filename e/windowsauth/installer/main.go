@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/x509"
 	_ "embed"
+	"encoding/asn1"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,11 +40,12 @@ var (
 	LSAKey      = `SYSTEM\CurrentControlSet\Control\Lsa`
 )
 
-var (
-	title  = zenity.Title("Teleport Authentication Package")
-	width  = zenity.Width(300)
-	height = zenity.Height(200)
-)
+// dialogOpts are the common options passed to all zenity dialogs.
+var dialogOpts = []zenity.Option{
+	zenity.Title("Teleport Authentication Package"),
+	zenity.Width(300),
+	zenity.Height(200),
+}
 
 const (
 	APName  = "Teleport"
@@ -53,7 +56,6 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Launching the Teleport Windows Auth Setup GUI")
 		time.Sleep(1 * time.Second)
-		FreeConsole()
 		ui()
 		return
 	}
@@ -65,11 +67,10 @@ func main() {
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 	case install.FullCommand():
 		if *cert != "" {
-			app.FatalIfError(importCert(*cert), "can't import certificate form %s", *cert)
+			app.FatalIfError(importCert(*cert), "can't import certificate from %s", *cert)
 		}
 		app.FatalIfError(disableNLA(), "can't disable NLA")
-		app.FatalIfError(setConnectionSecurityLayer(), "can't request security layer")
-		app.FatalIfError(enableRemoteFX(), "can't enable RemoteFX")
+		app.FatalIfError(configureTerminalServices(), "can't configure terminal services")
 		app.FatalIfError(copyDLL(), "can't install Teleport Authentication Package")
 		app.FatalIfError(registerDLL(), "can't register Teleport Authentication Package")
 		fmt.Println("Teleport Authentication Package installed")
@@ -89,22 +90,27 @@ var certificateFilter = zenity.FileFilter{
 }
 
 func ui() {
+	// Free the console window before showing GUI dialogs. This is done here
+	// rather than in main so that any errors before ui() is reached can still
+	// be printed to the console.
+	FreeConsole()
+
 	if _, err := os.Stat(dllPath); err == nil {
 		err := zenity.Question("Teleport Authentication Package is already installed.\n\nWhat would you like to do?",
-			title, width, height, zenity.OKLabel("Update"), zenity.ExtraButton("Uninstall"))
+			append(dialogOpts, zenity.OKLabel("Update"), zenity.ExtraButton("Uninstall"))...)
 		if err == zenity.ErrExtraButton {
 			if err := unregisterDLL(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't unregister Teleport Authentication Package: %s", err), title, width, height)
+				zenity.Error(fmt.Sprintf("Can't unregister Teleport Authentication Package: %s", err), dialogOpts...)
 				return
 			}
 			if err := deleteOldDLL(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't delete Teleport Authentication Package: %s", err), title, width, height)
+				zenity.Error(fmt.Sprintf("Can't delete Teleport Authentication Package: %s", err), dialogOpts...)
 				return
 			}
 			if err := zenity.Question("Teleport Authentication Package uninstalled successfully.\nRestart now?",
-				title, width, height); err == nil {
+				dialogOpts...); err == nil {
 				if err := rebootWindows(); err != nil {
-					zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), title, width, height)
+					zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), dialogOpts...)
 				}
 			}
 		} else if err == nil {
@@ -113,36 +119,19 @@ func ui() {
 				zenity.FileFilters{certificateFilter},
 				zenity.Title("Select Teleport CA Certificate, or cancel to use the existing certificate")); err == nil {
 				if err := importCert(file); err != nil {
-					zenity.Error(fmt.Sprintf("Can't import certificate: %s", err), title, width, height)
+					zenity.Error(fmt.Sprintf("Can't import certificate: %s", err), dialogOpts...)
 					return
 				}
 			}
-
-			if err := disableNLA(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't disable NLA: %s", err), title, width, height)
-				return
-			}
-			if err := setConnectionSecurityLayer(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
-				return
-			}
-			if err := enableRemoteFX(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't enable RemoteFX: %s", err), title, width, height)
-				return
-			}
-			if err := copyDLL(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't update Teleport Authentication Package: %s", err), title, width, height)
-				return
-			}
-			if err := registerDLL(); err != nil {
-				zenity.Error(fmt.Sprintf("Can't register Teleport Authentication Package: %s", err), title, width, height)
+			if err := installPackage(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't update Teleport Authentication Package: %s", err), dialogOpts...)
 				return
 			}
 			if err := zenity.Question("Teleport Authentication Package updated successfully.\n"+
 				"Restart is required.\n"+
-				"Restart now?", title, width, height); err == nil {
+				"Restart now?", dialogOpts...); err == nil {
 				if err := rebootWindows(); err != nil {
-					zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), title, width, height)
+					zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), dialogOpts...)
 				}
 			}
 		}
@@ -153,7 +142,7 @@ func ui() {
 		"2. Import Teleport CA Certificate\n"+
 		"3. Disable NLA\n\n"+
 		"All these steps are required.\n"+
-		"Proceed?", title, width, height); err != nil {
+		"Proceed?", dialogOpts...); err != nil {
 		return
 	}
 	file, err := zenity.SelectFile(
@@ -164,36 +153,35 @@ func ui() {
 		return
 	}
 	if err := importCert(file); err != nil {
-		zenity.Error(fmt.Sprintf("Can't import certificate: %s", err), title, width, height)
+		zenity.Error(fmt.Sprintf("Can't import certificate: %s", err), dialogOpts...)
 		return
 	}
-	if err := disableNLA(); err != nil {
-		zenity.Error(fmt.Sprintf("Can't disable NLA: %s", err), title, width, height)
-		return
-	}
-	if err := setConnectionSecurityLayer(); err != nil {
-		zenity.Error(fmt.Sprintf("Can't request security layer: %s", err), title, width, height)
-		return
-	}
-	if err := enableRemoteFX(); err != nil {
-		zenity.Error(fmt.Sprintf("Can't enable RemoteFX: %s", err), title, width, height)
-		return
-	}
-	if err := copyDLL(); err != nil {
-		zenity.Error(fmt.Sprintf("Can't install Teleport Authentication Package: %s", err), title, width, height)
-		return
-	}
-	if err := registerDLL(); err != nil {
-		zenity.Error(fmt.Sprintf("Can't register Teleport Authentication Package: %s", err), title, width, height)
+	if err := installPackage(); err != nil {
+		zenity.Error(fmt.Sprintf("Can't install Teleport Authentication Package: %s", err), dialogOpts...)
 		return
 	}
 	if err := zenity.Question("Teleport Authentication Package installed successfully.\n"+
 		"Restart is required.\n"+
-		"Restart now?", title, width, height); err == nil {
-		if err := exec.Command("cmd", "/C", "shutdown", "/r", "/t", "0", "/f").Run(); err != nil {
-			zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), title, width, height)
+		"Restart now?", dialogOpts...); err == nil {
+		if err := rebootWindows(); err != nil {
+			zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), dialogOpts...)
 		}
 	}
+}
+
+// installPackage runs the full installation sequence: disabling NLA, configuring
+// terminal services, installing the DLL, and registering it.
+func installPackage() error {
+	if err := disableNLA(); err != nil {
+		return err
+	}
+	if err := configureTerminalServices(); err != nil {
+		return err
+	}
+	if err := copyDLL(); err != nil {
+		return err
+	}
+	return registerDLL()
 }
 
 func rebootWindows() error {
@@ -214,16 +202,19 @@ func copyDLL() error {
 func deleteOldDLL() error {
 	if _, err := os.Stat(dllPath); err == nil {
 		newName := fmt.Sprintf("C:\\Windows\\System32\\teleport_old_%d.dll", time.Now().UnixMilli())
-		if err := os.Rename(dllPath, newName); err != nil {
-			return fmt.Errorf("can't move DLL: %w", err)
-		}
 		uname, err := windows.UTF16PtrFromString(newName)
 		if err != nil {
 			return err
 		}
-		// this will delete file on reboot
-		// see https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
-		windows.MoveFileEx(uname, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
+		// Schedule deletion of the renamed file on next reboot. This is done before
+		// the rename so a failure can't strand the DLL under a temp name.
+		// See https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
+		if err := windows.MoveFileEx(uname, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT); err != nil {
+			return fmt.Errorf("can't schedule DLL deletion on reboot: %w", err)
+		}
+		if err := os.Rename(dllPath, newName); err != nil {
+			return fmt.Errorf("can't move DLL: %w", err)
+		}
 	}
 	return nil
 }
@@ -231,7 +222,23 @@ func deleteOldDLL() error {
 func importCert(file string) error {
 	der, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("can't read file %s, error: %w", file, err)
+		return fmt.Errorf("can't read file %s: %w", file, err)
+	}
+	// Get the exact certificate bytes from the file to ignore any trailing
+	// whitespace or other unrelated data.
+	var raw asn1.RawValue
+	if _, err := asn1.Unmarshal(der, &raw); err == nil {
+		der = raw.FullBytes
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		return fmt.Errorf("can't parse certificate: %w", err)
+	}
+	if !cert.IsCA {
+		return fmt.Errorf("certificate is not a CA certificate")
+	}
+	if time.Now().After(cert.NotAfter) {
+		return fmt.Errorf("certificate expired on %s", cert.NotAfter.Format(time.DateOnly))
 	}
 	hstore, err := CertOpenStore(windows.CERT_STORE_PROV_SYSTEM_A, 0, 0, windows.CERT_SYSTEM_STORE_LOCAL_MACHINE, "ROOT")
 	if err != nil {
@@ -240,22 +247,6 @@ func importCert(file string) error {
 	defer windows.CertCloseStore(hstore, 0)
 	if err := CertAddEncodedCertificateToStore(hstore, windows.X509_ASN_ENCODING|windows.PKCS_7_ASN_ENCODING, der, windows.CERT_STORE_ADD_REPLACE_EXISTING, nil); err != nil {
 		return fmt.Errorf("can't add certificate to store: %w", err)
-	}
-	return nil
-}
-
-func enableRemoteFX() error {
-	key := `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
-	servicesKey, err := registry.OpenKey(registry.LOCAL_MACHINE, key, registry.ALL_ACCESS)
-	if err != nil {
-		return fmt.Errorf("opening key %s: %w", key, err)
-	}
-	defer servicesKey.Close()
-	if err := servicesKey.SetDWordValue("ColorDepth", 5); err != nil {
-		return fmt.Errorf("setting ColorDepth: %w", err)
-	}
-	if err := servicesKey.SetDWordValue("fEnableVirtualizedGraphics", 1); err != nil {
-		return fmt.Errorf("setting fEnableVirtualizedGraphics: %w", err)
 	}
 	return nil
 }
@@ -272,11 +263,13 @@ func disableNLA() error {
 	return nil
 }
 
-// setConnectionSecurityLayer sets  connection security layer to Negotiate (server and client will choose between RDP and TLS).
-// Teleport requires secure connection (TLS) but we don't want to prevent access from older clients.
+// configureTerminalServices sets the RDP security layer to Negotiate (server and
+// client will choose between RDP and TLS) and enables RemoteFX graphics.
+// Teleport requires a secure connection (TLS) but we don't want to prevent access
+// from older clients.
 //
 // See https://learn.microsoft.com/en-us/windows-hardware/customize/desktop/unattend/microsoft-windows-terminalservices-rdp-winstationextensions-securitylayer
-func setConnectionSecurityLayer() error {
+func configureTerminalServices() error {
 	key := `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
 	servicesKey, err := registry.OpenKey(registry.LOCAL_MACHINE, key, registry.ALL_ACCESS)
 	if err != nil {
@@ -284,7 +277,13 @@ func setConnectionSecurityLayer() error {
 	}
 	defer servicesKey.Close()
 	if err := servicesKey.SetDWordValue("SecurityLayer", 1); err != nil {
-		return fmt.Errorf("setting security layer: %w", err)
+		return fmt.Errorf("setting SecurityLayer: %w", err)
+	}
+	if err := servicesKey.SetDWordValue("ColorDepth", 5); err != nil {
+		return fmt.Errorf("setting ColorDepth: %w", err)
+	}
+	if err := servicesKey.SetDWordValue("fEnableVirtualizedGraphics", 1); err != nil {
+		return fmt.Errorf("setting fEnableVirtualizedGraphics: %w", err)
 	}
 	return nil
 }
@@ -292,30 +291,30 @@ func setConnectionSecurityLayer() error {
 func registerDLL() error {
 	key, _, err := registry.CreateKey(registry.LOCAL_MACHINE, CLSID, registry.ALL_ACCESS)
 	if err != nil {
-		return fmt.Errorf("error creating key: %w", err)
+		return fmt.Errorf("error creating CLSID key: %w", err)
 	}
 	defer key.Close()
 	if err := key.SetStringValue("", APName); err != nil {
-		return fmt.Errorf("error setting def value: %w", err)
+		return fmt.Errorf("error setting CLSID default value: %w", err)
 	}
 	subkey, _, err := registry.CreateKey(key, "InprocServer32", registry.ALL_ACCESS)
 	if err != nil {
-		return fmt.Errorf("error creating subkey: %w", err)
+		return fmt.Errorf("error creating InprocServer32 subkey: %w", err)
 	}
 	defer subkey.Close()
 	if err := subkey.SetStringValue("", dllPath); err != nil {
-		return fmt.Errorf("error setting subkey def value: %w", err)
+		return fmt.Errorf("error setting InprocServer32 default value: %w", err)
 	}
 	if err := subkey.SetStringValue("ThreadingModel", "Both"); err != nil {
-		return fmt.Errorf("error setting subkey ThreadingModel value: %w", err)
+		return fmt.Errorf("error setting InprocServer32 ThreadingModel value: %w", err)
 	}
 	subkey, _, err = registry.CreateKey(key, "ProgId", registry.ALL_ACCESS)
 	if err != nil {
-		return fmt.Errorf("error creating subkey: %w", err)
+		return fmt.Errorf("error creating ProgId subkey: %w", err)
 	}
 	defer subkey.Close()
 	if err := subkey.SetStringValue("", APName); err != nil {
-		return fmt.Errorf("error setting subkey def value: %w", err)
+		return fmt.Errorf("error setting ProgId default value: %w", err)
 	}
 	key, _, err = registry.CreateKey(registry.LOCAL_MACHINE, ProviderKey, registry.ALL_ACCESS)
 	if err != nil {
@@ -323,15 +322,15 @@ func registerDLL() error {
 	}
 	defer key.Close()
 	if err := key.SetStringValue("", APName); err != nil {
-		return fmt.Errorf("error setting def value: %w", err)
+		return fmt.Errorf("error setting credential provider default value: %w", err)
 	}
 	key, _, err = registry.CreateKey(registry.LOCAL_MACHINE, FilterKey, registry.ALL_ACCESS)
 	if err != nil {
-		return fmt.Errorf("error creating credential provider key: %w", err)
+		return fmt.Errorf("error creating credential provider filter key: %w", err)
 	}
 	defer key.Close()
 	if err := key.SetStringValue("", APName); err != nil {
-		return fmt.Errorf("error setting def value: %w", err)
+		return fmt.Errorf("error setting credential provider filter default value: %w", err)
 	}
 	key, err = registry.OpenKey(registry.LOCAL_MACHINE, LSAKey, registry.ALL_ACCESS)
 	if err != nil {
@@ -349,7 +348,7 @@ func registerDLL() error {
 	}
 	packages = append(packages, "teleport")
 	if err := key.SetStringsValue("Authentication Packages", packages); err != nil {
-		return fmt.Errorf("error setting def value: %w", err)
+		return fmt.Errorf("error setting Authentication Packages value: %w", err)
 	}
 	return nil
 }
@@ -386,7 +385,7 @@ func unregisterDLL() error {
 		}
 	}
 	if err := key.SetStringsValue("Authentication Packages", filtered); err != nil {
-		return fmt.Errorf("error setting def value: %w", err)
+		return fmt.Errorf("error setting Authentication Packages value: %w", err)
 	}
 	return nil
 }
