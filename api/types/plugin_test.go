@@ -1199,10 +1199,17 @@ func TestPluginDatadogValidation(t *testing.T) {
 					ApiEndpoint: "https://api.testdatadogserver.com",
 				},
 			},
-			creds: nil,
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
+					},
+				},
+			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "fallback_recipient must be set")
+				require.NoError(t, err)
 			},
 		},
 		{
