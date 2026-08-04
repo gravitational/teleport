@@ -1,0 +1,66 @@
+---
+title: Teleport Database Service Example
+sidebar_label: db-service
+description: Deploy Teleport Database Service to ECS.
+page_type: reference
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit teleport/container-service/aws/examples/db-service/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the configuration fields in a usage example of the
+teleport-container-service-aws Terraform module: db-service.
+
+Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/container-service/aws/examples/db-service](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/container-service/aws/examples/db-service)
+
+## Deploy Teleport Database Service to ECS
+
+This example deploys the Teleport Database Service to AWS ECS and joins it to an example Teleport cluster using an IAM join token.
+
+{/* BEGIN_TF_DOCS */}
+## Requirements
+
+| Name | Version |
+| ---- | ------- |
+| terraform | >= 1.5.7 |
+| aws | ~> 6.0 |
+| http | ~> 3.0 |
+| teleport | ~> 18.5 |
+
+## Providers
+
+| Name | Version |
+| ---- | ------- |
+| aws | ~> 6.0 |
+| teleport | ~> 18.5 |
+
+## Modules
+
+| Name | Source | Version |
+| ---- | ------ | ------- |
+| teleport\_database\_service | ../.. | n/a |
+| vpc | terraform-aws-modules/vpc/aws | 6.6.0 |
+
+## Resources
+
+| Name | Type |
+| ---- | ---- |
+| teleport_provision_token.iam | resource |
+| [aws_availability_zones.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+| ---- | ----------- | ---- | ------- | :------: |
+| teleport\_proxy\_addr | The address of the Teleport Proxy Service in host:port form. | `string` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+| ---- | ----------- |
+| teleport\_database\_service | n/a |
+{/* END_TF_DOCS */}

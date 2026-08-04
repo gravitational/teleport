@@ -61,10 +61,10 @@ release: build
 
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
-# TODO(gavin): publish teleport/container-service/aws after updating the promote-terraform cmd in teleport.e to handle hyphens in module names
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
+	teleport/container-service/aws \
 
 MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))

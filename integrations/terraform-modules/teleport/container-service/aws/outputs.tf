@@ -34,7 +34,7 @@ output "ecs_task_cloudwatch_log_group_arn" {
 }
 
 output "security_group_id" {
-  description = "Security group ID created for the Teleport agent ECS service."
+  description = "Security group ID created for the Teleport ECS service."
   value       = one(aws_security_group.teleport_agent[*].id)
 }
 
@@ -49,12 +49,12 @@ output "ecs_execution_role_name" {
 }
 
 output "ecs_task_role_arn" {
-  description = "The ARN of the task IAM role for the Teleport agent ECS task."
+  description = "The ARN of the task IAM role for the Teleport ECS task."
   value       = one(aws_iam_role.ecs_task[*].arn)
 }
 
 output "ecs_task_role_name" {
-  description = "The name of the task IAM role for the Teleport agent ECS task."
+  description = "The name of the task IAM role for the Teleport ECS task."
   value       = one(aws_iam_role.ecs_task[*].name)
 }
 

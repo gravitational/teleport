@@ -1,9 +1,32 @@
+---
+title: Reference for the teleport-container-service-aws Terraform module
+sidebar_label: teleport-container-service-aws
+description: This page describes the teleport-container-service-aws Terraform module.
+page_type: reference
+tags:
+ - infrastructure-as-code
+ - reference
+ - platform-wide
+---
+
+{/*
+    Auto-generated file.
+    Do not edit this directly in the docs/pages tree.
+    Instead, edit integrations/terraform-modules/teleport/container-service/aws/README.md
+    Then, regenerate the docs with `make -C integrations/terraform-modules docs`.
+*/}
+
+This page lists the input fields and output values of the teleport-container-service-aws
+Terraform module.
+
+Source Code: [github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/container-service/aws](https://github.com/gravitational/teleport/tree/master/integrations/terraform-modules/teleport/container-service/aws)
+
 ## Teleport ECS Deployment
 
 This module deploys a Teleport service to AWS ECS.
 
 ## Prerequisites
-<!-- lint ignore absolute-docs-links -->
+{/* lint ignore absolute-docs-links */}
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
@@ -17,7 +40,7 @@ If you're having trouble, check out our [GitHub Discussions](https://github.com/
 
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 
-<!-- BEGIN_TF_DOCS -->
+{/* BEGIN_TF_DOCS */}
 ## Requirements
 
 | Name | Version |
@@ -117,4 +140,4 @@ No modules.
 | security\_group\_id | Security group ID created for the Teleport ECS service. |
 | teleport\_config | Teleport configuration used by the ECS task. |
 | teleport\_provision\_token\_allow\_aws\_arn | A value that can be used with a Teleport IAM join token to allow the ECS cluster to join the Teleport cluster using its IAM credentials. |
-<!-- END_TF_DOCS -->
+{/* END_TF_DOCS */}
