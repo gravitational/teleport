@@ -20,6 +20,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -81,7 +82,7 @@ func (c *mcpLoginCommand) run() error {
 		return trace.Wrap(err)
 	}
 
-	httpClient, err := newMCPOAuthHTTPClient(dialer)
+	httpClient, err := newMCPOAuthHTTPClient(dialer, app.GetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,11 +211,10 @@ func (c *mcpLoginCommand) getOAuthClientCredentials() (string, string, error) {
 	return clientID, clientSecret, nil
 }
 
-// mcpOAuthDiscoveryBaseURL returns the local URL used for OAuth metadata
-// discovery through the Teleport tunnel. The hostname is deliberately local
-// so hostRoutingTransport sends the request through Teleport, while the full
-// path from the enrolled MCP application URI is preserved for RFC 9728
-// path-aware protected-resource discovery.
+// mcpOAuthDiscoveryBaseURL returns the public MCP resource URL used for OAuth
+// metadata discovery. hostRoutingTransport sends metadata requests for this
+// host through Teleport without exposing its synthetic local routing URL to
+// the OAuth handler.
 func mcpOAuthDiscoveryBaseURL(appURI string) (string, error) {
 	uri, err := url.Parse(appURI)
 	if err != nil {
@@ -227,12 +227,10 @@ func mcpOAuthDiscoveryBaseURL(appURI string) (string, error) {
 		return "", trace.BadParameter("MCP application URI %q is missing a host", appURI)
 	}
 
-	return (&url.URL{
-		Scheme:  "http",
-		Host:    "localhost",
-		Path:    uri.Path,
-		RawPath: uri.RawPath,
-	}).String(), nil
+	uri.Scheme = strings.TrimPrefix(uri.Scheme, "mcp+")
+	uri.RawQuery = ""
+	uri.Fragment = ""
+	return uri.String(), nil
 }
 
 // newMCPOAuthHTTPClient returns the HTTP client for talking OAuth. The
@@ -240,9 +238,18 @@ func mcpOAuthDiscoveryBaseURL(appURI string) (string, error) {
 // which may only be reachable through the Teleport proxy, and the
 // authorization server (for registration, token exchange, and refresh),
 // which must be directly reachable since the browser goes there anyway.
-// Requests to "localhost" are the MCP server via the tunnel; everything
-// else goes out directly.
-func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer) (*http.Client, error) {
+// Metadata requests to the MCP server are rewritten to the tunnel's synthetic
+// localhost address; authorization and token endpoints go out directly.
+func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer, appURI string) (*http.Client, error) {
+	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(appURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	parsedBaseURL, err := url.Parse(oauthBaseURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tunneled, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,22 +260,159 @@ func newMCPOAuthHTTPClient(dialer *client.MCPServerDialer) (*http.Client, error)
 		return nil, trace.Wrap(err)
 	}
 	return &http.Client{
-		Transport: &hostRoutingTransport{tunneled: tunneled, direct: direct},
-		Timeout:   30 * time.Second,
+		Transport: &hostRoutingTransport{
+			tunneled:        tunneled,
+			direct:          direct,
+			mcpServerOrigin: parsedBaseURL,
+		},
+		Timeout: 30 * time.Second,
 	}, nil
 }
 
-// hostRoutingTransport sends requests addressed to "localhost" through the
-// Teleport ALPN tunnel to the MCP server and everything else (the
-// authorization server) directly.
+// hostRoutingTransport sends OAuth metadata requests for the MCP server
+// through the Teleport ALPN tunnel and everything else directly. If a
+// provider does not implement RFC 9728's path-aware well-known URL, a 404 or
+// cross-origin redirect is retried at the root URL for compatibility.
 type hostRoutingTransport struct {
-	tunneled http.RoundTripper
-	direct   http.RoundTripper
+	tunneled        http.RoundTripper
+	direct          http.RoundTripper
+	mcpServerOrigin *url.URL
 }
 
 func (t *hostRoutingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := t.roundTrip(r)
+	if err != nil || !shouldTryOAuthMetadataRootFallback(r, resp) {
+		return resp, err
+	}
+
+	retry, ok := t.oauthMetadataRootFallbackRequest(r)
+	if !ok {
+		return resp, nil
+	}
+
+	retryResp, retryErr := t.roundTrip(retry)
+	if retryErr != nil || retryResp == nil {
+		return resp, nil
+	}
+	// Preserve a valid cross-origin redirect when the compatibility fallback
+	// is unavailable. The HTTP client can still follow the original redirect.
+	if isHTTPRedirect(resp.StatusCode) && retryResp.StatusCode >= http.StatusBadRequest {
+		closeOAuthResponse(retryResp)
+		return resp, nil
+	}
+	closeOAuthResponse(resp)
+	return retryResp, nil
+}
+
+func (t *hostRoutingTransport) roundTrip(r *http.Request) (*http.Response, error) {
 	if r.URL.Hostname() == "localhost" {
 		return t.tunneled.RoundTrip(r)
 	}
+	if sameOAuthOrigin(r.URL, t.mcpServerOrigin) && isOAuthMetadataPath(r.URL.Path) {
+		tunneledRequest := r.Clone(r.Context())
+		tunneledRequest.URL.Scheme = "http"
+		tunneledRequest.URL.Host = "localhost"
+		tunneledRequest.Host = ""
+		resp, err := t.tunneled.RoundTrip(tunneledRequest)
+		if resp != nil {
+			resp.Request = r
+		}
+		return resp, err
+	}
 	return t.direct.RoundTrip(r)
+}
+
+func (t *hostRoutingTransport) oauthMetadataRootFallbackRequest(r *http.Request) (*http.Request, bool) {
+	var fallback *http.Request
+	for candidate := r; candidate != nil; {
+		rootPath, ok := oauthMetadataRootPath(candidate.URL.Path)
+		if ok && rootPath != candidate.URL.Path {
+			fallback = candidate
+			if sameOAuthOrigin(candidate.URL, t.mcpServerOrigin) {
+				break
+			}
+		}
+		if candidate.Response == nil {
+			break
+		}
+		candidate = candidate.Response.Request
+	}
+	if fallback == nil {
+		return nil, false
+	}
+
+	retry := fallback.Clone(r.Context())
+	retry.Response = nil
+	retry.URL.Path, _ = oauthMetadataRootPath(fallback.URL.Path)
+	retry.URL.RawPath = ""
+	return retry, true
+}
+
+func shouldTryOAuthMetadataRootFallback(r *http.Request, resp *http.Response) bool {
+	if resp == nil || !isOAuthMetadataPath(r.URL.Path) {
+		return false
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return true
+	}
+	if !isHTTPRedirect(resp.StatusCode) {
+		return false
+	}
+	location, err := resp.Location()
+	return err == nil && !sameOAuthOrigin(r.URL, location)
+}
+
+func isHTTPRedirect(status int) bool {
+	return status >= http.StatusMultipleChoices && status < http.StatusBadRequest
+}
+
+func closeOAuthResponse(resp *http.Response) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 32*1024))
+	_ = resp.Body.Close()
+}
+
+func sameOAuthOrigin(a, b *url.URL) bool {
+	if a == nil || b == nil ||
+		!strings.EqualFold(a.Scheme, b.Scheme) ||
+		!strings.EqualFold(a.Hostname(), b.Hostname()) {
+		return false
+	}
+	return oauthURLPort(a) == oauthURLPort(b)
+}
+
+func oauthURLPort(uri *url.URL) string {
+	if port := uri.Port(); port != "" {
+		return port
+	}
+	switch strings.ToLower(uri.Scheme) {
+	case "http":
+		return "80"
+	case "https":
+		return "443"
+	default:
+		return ""
+	}
+}
+
+var oauthMetadataPaths = []string{
+	"/.well-known/oauth-protected-resource",
+	"/.well-known/oauth-authorization-server",
+	"/.well-known/openid-configuration",
+}
+
+func isOAuthMetadataPath(path string) bool {
+	_, ok := oauthMetadataRootPath(path)
+	return ok
+}
+
+func oauthMetadataRootPath(path string) (string, bool) {
+	for _, root := range oauthMetadataPaths {
+		if path == root || strings.HasPrefix(path, root+"/") {
+			return root, true
+		}
+	}
+	return "", false
 }
