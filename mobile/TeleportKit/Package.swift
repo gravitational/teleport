@@ -6,7 +6,6 @@ let package = Package(
     name: "TeleportKit",
     platforms: [.iOS(.v26)],
     products: [
-        .library(name: "TeleportKit", targets: ["TeleportKit"]),
         .library(name: "SystemClients", targets: ["SystemClients"]),
     ],
     dependencies: [
@@ -15,19 +14,12 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "TeleportKit",
-        ),
-        .target(
             name: "SystemClients",
             dependencies: [
                 .dependencies,
                 .dependenciesMacros,
                 .sharing,
             ]
-        ),
-        .testTarget(
-            name: "TeleportKitTests",
-            dependencies: ["TeleportKit"],
         ),
     ],
     swiftLanguageModes: [.v6]
