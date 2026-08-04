@@ -4161,6 +4161,23 @@ var knownAppResourceFields = func() map[string]struct{} {
 	return fields
 }()
 
+// CheckAppResourcesKnownFields rejects allow app_resources rules in the raw
+// role JSON that hold a field this version does not recognize. A lenient
+// JSON parse would drop such a field silently, and a v9 role from a newer
+// Teleport could lose a restricting field and widen access on a round-trip.
+// Fields outside allow app_resources stay lenient.
+func CheckAppResourcesKnownFields(raw []byte) error {
+	rules := jsoniter.Get(raw, "spec", "allow", "app_resources")
+	for i := 0; i < rules.Size(); i++ {
+		for _, key := range rules.Get(i).Keys() {
+			if _, known := knownAppResourceFields[key]; !known {
+				return trace.BadParameter("app_resources rule has unknown field %q", key)
+			}
+		}
+	}
+	return nil
+}
+
 // denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
 // stored JSON carried a field this version does not recognize, so the rule
 // grants no access. Worst case is over-deny.

@@ -56,8 +56,15 @@ type minimalV9Decision struct {
 	versionSkew bool
 }
 
-// preV9RoleVersions lists the role versions that predate v9 default-deny.
-var preV9RoleVersions = []string{types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7, types.V8}
+// roleVersionPredatesV9 reports whether the role version predates v9
+// default-deny.
+func roleVersionPredatesV9(version string) bool {
+	switch version {
+	case types.V1, types.V2, types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
+		return true
+	}
+	return false
+}
 
 // decideMinimalV9 applies the minimal v9 policy to the caller's roles that
 // grant app. If no v9-or-above role grants it, the request keeps full v8
@@ -87,7 +94,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		if !granted {
 			continue
 		}
-		if slices.Contains(preV9RoleVersions, role.GetVersion()) {
+		if roleVersionPredatesV9(role.GetVersion()) {
 			decision.droppedRoles = append(decision.droppedRoles, role.GetName())
 			continue
 		}

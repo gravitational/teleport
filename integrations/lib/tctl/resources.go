@@ -28,6 +28,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func writeResourcesYAML(w io.Writer, resources []types.Resource) error {
@@ -65,32 +66,6 @@ func readResourcesYAMLOrJSON(r io.Reader) ([]types.Resource, error) {
 	return resources, nil
 }
 
-// checkAppResourcesKnownFields rejects allow app_resources rules that
-// carry fields unknown to this version. The lenient JSON parse would
-// drop them silently, and a v9 role from a newer version of Teleport
-// could lose a restricting field and widen access on a round-trip.
-// Fields outside allow app_resources stay lenient.
-func checkAppResourcesKnownFields(raw []byte) error {
-	var role struct {
-		Spec struct {
-			Allow struct {
-				AppResources []map[string]json.RawMessage `json:"app_resources"`
-			} `json:"allow"`
-		} `json:"spec"`
-	}
-	if err := json.Unmarshal(raw, &role); err != nil {
-		return trace.Wrap(err)
-	}
-	for _, rule := range role.Spec.Allow.AppResources {
-		for field := range rule {
-			if field != "allow_all" {
-				return trace.BadParameter("app_resources rule has unknown field %q", field)
-			}
-		}
-	}
-	return nil
-}
-
 type streamResource struct{ types.Resource }
 
 func (res *streamResource) UnmarshalJSON(raw []byte) error {
@@ -120,7 +95,7 @@ func (res *streamResource) UnmarshalJSON(raw []byte) error {
 		case types.V4, types.V5, types.V6, types.V7, types.V8:
 			resource = &types.RoleV6{}
 		case types.V9:
-			if err := checkAppResourcesKnownFields(raw); err != nil {
+			if err := services.CheckAppResourcesKnownFields(raw); err != nil {
 				return trace.Wrap(err)
 			}
 			resource = &types.RoleV6{}

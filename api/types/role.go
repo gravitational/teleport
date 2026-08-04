@@ -1610,9 +1610,8 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 }
 
 // checkAppResources rejects app_resources on roles below version v9, but
-// accepts any rule content for forward compatibility.
-// [github.com/gravitational/teleport/lib/services.ValidateRole] applies
-// the remaining checks on create and update.
+// accepts any rule content for forward compatibility. Validation on create
+// and update applies the remaining checks.
 func (r *RoleV6) checkAppResources() error {
 	if r.Version == V9 {
 		return nil
