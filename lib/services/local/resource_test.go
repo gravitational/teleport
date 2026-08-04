@@ -34,7 +34,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 func TestCreateResourcesProvisionToken(t *testing.T) {
@@ -230,6 +233,65 @@ func TestGithubConnectorResource(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
+}
+
+func TestOIDCConnectorWithoutClaimsToRoles(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tt := setupServicesContext(ctx, t)
+
+	identity, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
+
+	newOIDCConnector := func(name string) types.OIDCConnector {
+		connector, err := types.NewOIDCConnector(name, types.OIDCConnectorSpecV3{
+			ClientID:     "client-id",
+			ClientSecret: "client-secret",
+			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		})
+		require.NoError(t, err)
+		return connector
+	}
+
+	connector := newOIDCConnector("oidc-connector")
+	value, err := services.MarshalOIDCConnector(connector)
+	require.NoError(t, err)
+	_, err = tt.bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, connector.GetName()),
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	t.Run("reads succeed", func(t *testing.T) {
+		const withSecrets = true
+
+		single, err := identity.GetOIDCConnector(ctx, connector.GetName(), withSecrets)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(connector, single, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		multiple, err := identity.GetOIDCConnectors(ctx, withSecrets)
+		require.NoError(t, err)
+		require.Len(t, multiple, 1)
+
+		list, _, err := identity.ListOIDCConnectors(ctx, 10, "", withSecrets)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+
+		ranged, err := stream.Collect(identity.RangeOIDCConnectors(ctx, "", "", withSecrets))
+		require.NoError(t, err)
+		require.Len(t, ranged, 1)
+	})
+
+	t.Run("writes fail", func(t *testing.T) {
+		_, err := identity.CreateOIDCConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+		_, err = identity.UpdateOIDCConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+		_, err = identity.UpsertOIDCConnector(ctx, connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
 }
 
 func localAuthSecretsTestCase(t *testing.T) types.LocalAuthSecrets {

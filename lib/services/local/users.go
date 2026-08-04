@@ -28,6 +28,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1814,7 +1815,7 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
+	opts = append(slices.Clip(opts), types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1837,28 +1838,26 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, types.SAMLConnectorValidationWithoutAttributesToRoles(true)))
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
 }
 
 // GetSAMLConnectorsWithValidationOptions returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, opts...))
 }
 
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
-	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	return generic.CollectPageAndCursor(s.RangeSAMLConnectorsWithOptions(ctx, start, "", withSecrets, opts...), limit, types.SAMLConnector.GetName)
 }
 
 // RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
+	opts = append(slices.Clip(opts), types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
-		opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
 			item.Value,
 			opts,
