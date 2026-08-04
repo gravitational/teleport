@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -79,19 +80,22 @@ func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httpr
 		sortBy = types.GetSortByFromString(values.Get("sort"))
 	}
 
-	req := accesslistv1.ListAccessListsV2Request_builder{
-		PageToken: startKey,
-		SortBy:    &sortBy,
-		PageSize:  limit,
-		Filter: accesslistv1.AccessListsFilter_builder{
-			Search: searchFilter,
-			Owners: owners,
-			Origin: values.Get("origin"),
-		}.Build(),
-	}.Build()
 	accessListClient := clt.AccessListClient()
 
-	page, nextKey, err := accessListClient.ListAccessListsV2(r.Context(), req)
+	page, nextKey, _, err := clientutils.Page(r.Context(), int(limit), startKey, func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+		req := accesslistv1.ListAccessListsV2Request_builder{
+			PageToken: pageToken,
+			SortBy:    &sortBy,
+			PageSize:  int32(pageSize),
+			Filter: accesslistv1.AccessListsFilter_builder{
+				Search: searchFilter,
+				Owners: owners,
+				Origin: values.Get("origin"),
+			}.Build(),
+		}.Build()
+
+		return accessListClient.ListAccessListsV2(ctx, req)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,33 +127,24 @@ func (p *Plugin) getAccessLists(_ http.ResponseWriter, r *http.Request, _ httpro
 
 	accessListClient := clt.AccessListClient()
 
-	// This will grab all access lists but in small chunks to not overload the grpc client.
+	// This will grab all access lists with adaptive page sizing to avoid errors due to
+	// exceeding the grpc response size limit.
 	// The web UI won't require "paginating" because we don't expect access lists to get
 	// in the thousands.
+	iter := clientutils.Resources(r.Context(), accessListClient.ListAccessLists)
 	var accessLists []*ui.AccessList
-	var nextKey string
-	for {
-		var page []*accesslist.AccessList
-		var err error
-
-		page, nextKey, err = accessListClient.ListAccessLists(r.Context(), 0, nextKey)
+	for accessList, err := range iter {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, accessList := range page {
-			uiList := &ui.AccessList{
-				AccessList:             accessList,
-				MembersCount:           accessList.GetStatus().MemberCount,
-				MemberListCount:        accessList.GetStatus().MemberListCount,
-				CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
-			}
-			accessLists = append(accessLists, uiList)
+		uiList := &ui.AccessList{
+			AccessList:             accessList,
+			MembersCount:           accessList.GetStatus().MemberCount,
+			MemberListCount:        accessList.GetStatus().MemberListCount,
+			CurrentUserAssignments: accessList.GetStatus().CurrentUserAssignments,
 		}
-
-		if nextKey == "" {
-			break
-		}
+		accessLists = append(accessLists, uiList)
 	}
 
 	return ui.AccessListsResponse{
@@ -530,18 +525,33 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 	}
 
 	aclClient := getAccessListServiceClient(sctx)
+	var totalCount int32
 
-	resp, err := aclClient.ListUserAccessLists(r.Context(), accesslistv1.ListUserAccessListsRequest_builder{
-		Username:  username,
-		PageSize:  limit,
-		PageToken: startKey,
-	}.Build())
+	page, nextKey, _, err := clientutils.Page(
+		r.Context(),
+		int(limit),
+		startKey,
+		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslistv1.AccessList, string, error) {
+			req := accesslistv1.ListUserAccessListsRequest_builder{
+				Username:  username,
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			}.Build()
+
+			resp, err := aclClient.ListUserAccessLists(ctx, req)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			totalCount = resp.GetTotalCount()
+			return resp.GetAccessLists(), resp.GetNextPageToken(), nil
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists := make([]*ui.AccessList, 0, len(resp.GetAccessLists()))
-	for _, protoAcl := range resp.GetAccessLists() {
+	accessLists := make([]*ui.AccessList, 0, len(page))
+	for _, protoAcl := range page {
 		accessList, err := conv.FromProto(protoAcl, conv.WithOwnersIneligibleStatusField(protoAcl.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -559,8 +569,8 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 
 	return ui.AccessListsResponse{
 		AccessLists: accessLists,
-		StartKey:    resp.GetNextPageToken(),
-		TotalCount:  resp.GetTotalCount(),
+		StartKey:    nextKey,
+		TotalCount:  totalCount,
 	}, nil
 }
 

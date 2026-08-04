@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,6 +110,112 @@ func TestGetAccessLists(t *testing.T) {
 		// upsert and the list request.
 		cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments"),
 	))
+}
+
+// TestAccessListsAdjustPageSize verifies that all access-list listing endpoints
+// retry with a smaller page size when their initial gRPC response is too large.
+func TestAccessListsAdjustPageSize(t *testing.T) {
+	s := newWebSuite(t,
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+		withModules(&modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Identity: {Enabled: true},
+				},
+			},
+		}),
+	)
+
+	authClient := s.newAdminAuthClient(t.Context(), t)
+	for _, name := range []string{"test-1", "test-2"} {
+		// Each access list is about 3 KiB, so both lists exceed the 4 KiB
+		// gRPC receive limit when returned in a single response.
+		accessList, err := accesslist.NewAccessList(header.Metadata{Name: name}, accesslist.Spec{
+			Title:             name,
+			Description:       strings.Repeat("x", 3*1024),
+			Audit:             accesslist.Audit{NextAuditDate: s.clock.Now()},
+			Owners:            []accesslist.Owner{{Name: "alice"}},
+			OwnershipRequires: accesslist.Requires{},
+			Grants:            accesslist.Grants{Roles: []string{"admin"}},
+		})
+		require.NoError(t, err)
+		_, err = authClient.AccessListClient().UpsertAccessList(t.Context(), accessList)
+		require.NoError(t, err)
+	}
+
+	// Do not call t.Parallel: the gRPC client receive limit is configured through
+	// a process-wide environment variable. Set it after setup so it affects the
+	// web session's client, without constraining setup RPCs.
+	t.Setenv("TELEPORT_UNSTABLE_GRPC_RECV_SIZE", "4kb")
+	webPack := s.newAuthWebPack(t, "foo")
+
+	t.Run("v1/legacy list accesslists endpoint", func(t *testing.T) {
+		endpoint := webPack.clt.Endpoint("enterprise", "accesslist")
+		resp, err := webPack.clt.Get(t.Context(), endpoint, url.Values{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+
+		var accessListResp ui.AccessListsResponse
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
+		require.Len(t, accessListResp.AccessLists, 2)
+		require.Equal(t, "test-1", accessListResp.AccessLists[0].GetName())
+		require.Equal(t, "test-2", accessListResp.AccessLists[1].GetName())
+	})
+
+	t.Run("v2 list accesslists endpoint", func(t *testing.T) {
+		endpoint := webPack.clt.Endpoint("v2", "enterprise", "accesslists")
+
+		var firstPage ui.AccessListsResponse
+		resp, err := webPack.clt.Get(t.Context(), endpoint, url.Values{
+			"sort":  []string{"name:asc"},
+			"limit": []string{"2"},
+		})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &firstPage))
+		require.Len(t, firstPage.AccessLists, 1)
+		require.Equal(t, "test-1", firstPage.AccessLists[0].GetName())
+		require.NotEmpty(t, firstPage.StartKey)
+
+		var secondPage ui.AccessListsResponse
+		resp, err = webPack.clt.Get(t.Context(), endpoint, url.Values{
+			"sort":     []string{"name:asc"},
+			"limit":    []string{"2"},
+			"startKey": []string{firstPage.StartKey},
+		})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &secondPage))
+		require.Len(t, secondPage.AccessLists, 1)
+		require.Equal(t, "test-2", secondPage.AccessLists[0].GetName())
+		require.Empty(t, secondPage.StartKey)
+	})
+
+	t.Run("list user accesslists endpoint", func(t *testing.T) {
+		_ = createUser(t, s, "alice")
+
+		endpoint := webPack.clt.Endpoint("enterprise", "users", "alice", "accesslists")
+
+		var firstPage ui.AccessListsResponse
+		resp, err := webPack.clt.Get(t.Context(), endpoint, url.Values{})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &firstPage))
+		require.Len(t, firstPage.AccessLists, 1)
+		require.Equal(t, "test-1", firstPage.AccessLists[0].GetName())
+		require.NotEmpty(t, firstPage.StartKey)
+		require.Equal(t, int32(2), firstPage.TotalCount)
+
+		var secondPage ui.AccessListsResponse
+		resp, err = webPack.clt.Get(t.Context(), endpoint, url.Values{"startKey": []string{firstPage.StartKey}})
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.Code())
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &secondPage))
+		require.Len(t, secondPage.AccessLists, 1)
+		require.Equal(t, "test-2", secondPage.AccessLists[0].GetName())
+		require.Empty(t, secondPage.StartKey)
+		require.Equal(t, int32(2), secondPage.TotalCount)
+	})
 }
 
 func TestCreateAccessList(t *testing.T) {
