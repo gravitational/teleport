@@ -83,7 +83,7 @@ impl <S: SurfaceEx> Surface<S> {
 }
 
 pub trait SurfaceEx: Send {
-    fn new() -> Self;
+    fn new(width: u16, height:u16) -> Self;
     fn update(&mut self, location: &ExclusiveRectangle, data: &Vec<u8>);
     fn copy(&self, dest: &mut Self, source_rect: &ExclusiveRectangle, points: Vec<(u16, u16)>);
     fn fill(&mut self, locations: &Vec<ExclusiveRectangle>, a: u8, r: u8, g: u8, b: u8);
@@ -121,7 +121,7 @@ impl ProgressiveCodec for ProgressiveDecoder {
     }
 }
 
-type DrawFn<S: SurfaceEx> = dyn FnMut(&Vec<MappedSurface<S>>) + Send;
+pub type DrawFn<S: SurfaceEx> = dyn FnMut(&Vec<MappedSurface<S>>) + Send;
 
 pub struct TeleportEgfxHandler<S: SurfaceEx> {
     // Send channel for additional PDUs to be sent
@@ -192,7 +192,7 @@ impl <S: SurfaceEx> GraphicsPipelineHandler for TeleportEgfxHandler<S> {
             width: surface.width,
             height: surface.height,
             pixel_format: surface.pixel_format,
-            surface: S::new(),
+            surface: S::new(surface.width, surface.height),
             mapping: None,
         };
 
@@ -316,10 +316,7 @@ impl <S: SurfaceEx> GraphicsPipelineHandler for TeleportEgfxHandler<S> {
             };
 
             surface.apply_bitmap_update(&location, &entry.data);
-        });
-
-
-        
+        }); 
     }
 
     fn on_surface_to_cache(&mut self, pdu: &ironrdp_egfx::pdu::SurfaceToCachePdu) {

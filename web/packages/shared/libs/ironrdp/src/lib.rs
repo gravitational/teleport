@@ -31,6 +31,7 @@ use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
 use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
+use ironrdp_pdu::geometry::ExclusiveRectangle;
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
 use ironrdp_pdu::rdp::client_info;
 use ironrdp_session::fast_path::UpdateKind;
@@ -44,7 +45,9 @@ use ironrdp_egfx::client::{GraphicsPipelineClient};
 use js_sys::{Uint8Array, Array};
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
-use web_sys::ImageData;
+use web_sys::{ImageData, OffscreenCanvasRenderingContext2d};
+
+use crate::egfx::SurfaceEx;
 mod egfx;
 
 #[wasm_bindgen]
@@ -123,6 +126,50 @@ pub struct FastPathProcessor {
     remote_fx_check_required: bool,
 }
 
+struct CanvasSurface {
+    // We use this to determine if the surface is dirty
+    // (has changed since the last render)
+    is_dirty: bool,
+    canvas: web_sys::OffscreenCanvas,
+    canvas_context: OffscreenCanvasRenderingContext2d
+}
+
+impl SurfaceEx for CanvasSurface {
+    fn new(width: u16, height: u16) -> Self {
+        let canvas = web_sys::OffscreenCanvas::new(width as u32, height as u32).expect("Failed to construct offscreen canvas");
+         let ctx = canvas
+        .get_context("2d").expect("")
+        .ok_or_else(|| JsValue::from_str("2d context not available")).expect("Could not retrieve 2d context from canvas")
+        .dyn_into::<OffscreenCanvasRenderingContext2d>().expect("msg");
+
+        return CanvasSurface { is_dirty: false, canvas: canvas, canvas_context: ctx }
+    }
+
+    fn copy(&self, dest: &mut Self, source_rect: &ironrdp_pdu::geometry::ExclusiveRectangle, points: Vec<(u16, u16)>) {
+        // Holy cow
+        points.iter().for_each(|(dx, dy)| {
+            dest.canvas_context.draw_image_with_offscreen_canvas_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(&self.canvas, source_rect.left as f64, source_rect.right as f64,
+             source_rect.width() as f64, source_rect.height() as f64, *dx as f64, *dy as f64, source_rect.width() as f64, source_rect.height() as f64);
+        });        
+    }
+
+    fn fill(&mut self, locations: &Vec<ironrdp_pdu::geometry::ExclusiveRectangle>, _a: u8, r: u8, g: u8, b: u8) {
+        locations.iter().for_each(|location| {
+            self.canvas_context.set_fill_style_str(format!("rgb({} {} {})", r, g, b).as_str());
+            self.canvas_context.fill_rect(location.left as f64, location.top as f64, location.width() as f64, location.height() as f64);
+        });
+    }
+
+    fn get(&self, location: &ironrdp_pdu::geometry::ExclusiveRectangle) -> Vec<u8> {
+        self.canvas_context.get_image_data(location.left as f64, location.top as f64, location.width() as f64, location.height() as f64).expect("failed to get image data").data().to_vec()
+    }
+
+    fn update(&mut self, location: &ironrdp_pdu::geometry::ExclusiveRectangle, data: &Vec<u8>) {
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(Clamped(data), location.width() as u32, location.height() as u32).expect("failed to create image data");
+        self.canvas_context.put_image_data(&image_data, location.left as f64, location.top as f64).expect("failed to put image data");
+    }
+}
+
 #[wasm_bindgen]
 pub struct EgfxProcessor {
     client: GraphicsPipelineClient,
@@ -136,7 +183,7 @@ impl EgfxProcessor {
     pub fn new() -> Self {
         let (send_image, recv_image) = mpsc::channel::<Vec<egfx::ImageData>>();
         let (send_pdu, recv_pdu) = mpsc::channel::<Vec<DvcMessage>>();
-        let handler = egfx::TeleportEgfxHandler::new(send_image, send_pdu);
+        let handler = egfx::TeleportEgfxHandler::new(send_pdu);
 
         Self {
             client: GraphicsPipelineClient::new(Box::new(handler), None),
