@@ -387,9 +387,9 @@ func (a *Server) updateBotInstance(
 		// codepath. (But may need to clean up log messages.)
 
 		// Set the initial generation counter. Note that with bot instances, the
-		// counter is now set for all join methods, but only enforced for token
-		// joins.
-		if currentIdentityGeneration > 0 {
+		// counter is now set for all join methods, but only enforced for some
+		// (see shouldEnforceGenerationCounter).
+		if currentIdentityGeneration > 0 && shouldEnforceGenerationCounter(req.Renewable, authRecord.GetJoinMethod()) {
 			// If the incoming identity has a nonzero generation, validate it
 			// using the legacy check. This will increment the counter on the
 			// request automatically
@@ -405,7 +405,14 @@ func (a *Server) updateBotInstance(
 			// Copy the value from the request into the auth record.
 			authRecord.Generation = int32(req.Generation)
 		} else {
-			// Otherwise, just set it to 1.
+			if currentIdentityGeneration > 0 {
+				a.logger.WarnContext(ctx, "bot rejoined with a nonzero generation but its instance record was not found, a fresh instance will be issued",
+					"bot_name", botName,
+					"missing_instance_id", botInstanceID,
+					"identity_generation", currentIdentityGeneration,
+					"join_method", authRecord.GetJoinMethod(),
+				)
+			}
 			req.Generation = 1
 			authRecord.Generation = 1
 		}
