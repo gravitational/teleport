@@ -201,6 +201,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
+
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1491,7 +1492,6 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		// Using NoFollowURLs below because getSSOMFADevice only needs connector ID, display and type
 		// to determine if the user has an SSO MFA device.
 		// The URL is followed during connector write and SSO MFA ceremony paths.
-
 		mfaConnector, err = s.GetSAMLConnectorWithValidationOptions(ctx, cb.Connector.ID, withSecrets, types.SAMLConnectorValidationFollowURLs(false))
 	case constants.OIDC:
 		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, withSecrets)
@@ -1644,6 +1644,7 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
+
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1680,6 +1681,7 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
+
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -2175,6 +2177,7 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
+
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2209,6 +2212,7 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
+
 }
 
 // GetGithubConnector returns a particular Github connector.
