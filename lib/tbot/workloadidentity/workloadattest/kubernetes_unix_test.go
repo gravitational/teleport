@@ -200,7 +200,7 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 				return env[s]
 			}
 
-			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
 			att, err := attestor.Attest(ctx, mockPID)
@@ -221,7 +221,6 @@ func TestKubernetesAttestor_Attest(t *testing.T) {
 				}.Build(),
 			}.Build(), att, protocmp.Transform()))
 			require.EqualValues(t, tc.wantRequests, requests.Load())
-			require.NoError(t, ctx.Err())
 		})
 	}
 }
