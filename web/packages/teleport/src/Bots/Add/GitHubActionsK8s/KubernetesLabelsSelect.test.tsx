@@ -29,6 +29,7 @@ import {
   theme,
   userEvent,
   within,
+  waitForElementToBeRemoved,
 } from 'design/utils/testing';
 import Validation from 'shared/components/Validation';
 
@@ -96,6 +97,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByText('Select one or more labels to configure access.')
@@ -121,6 +123,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(within(modal).getByText('No clusters found')).toBeInTheDocument();
   });
@@ -134,6 +137,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByText('kube-lon-dev-01.example.com')
@@ -162,6 +166,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(within(modal).getByText('Selected Labels (0)')).toBeInTheDocument();
   });
@@ -192,6 +197,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (3)' })
@@ -207,6 +213,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (0)' })
@@ -244,6 +251,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (1)' })
@@ -280,6 +288,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const selectedSection = within(modal)
       .getByRole('heading', { name: 'Selected Labels (0)' })
@@ -288,35 +297,62 @@ describe('KubernetesLabelsSelect', () => {
     const nameInput = within(selectedSection!).getByLabelText('Name');
     const valueInput = within(selectedSection!).getByLabelText('Value');
 
+    const checkFieldValidationPasses = () => {
+      // Name field validation message
+      expect(
+        within(selectedSection!).queryByText('Alphanumeric or * is required')
+      ).not.toBeInTheDocument();
+      expect(nameInput).toHaveValue('');
+      // Value field validation message
+      expect(
+        within(selectedSection!).queryByText('Value is required')
+      ).not.toBeInTheDocument();
+      expect(valueInput).toHaveValue('');
+    };
+
+    const checkForAddedLabel = (label: string) => {
+      expect(
+        within(selectedSection!).getByTestId(`label-action-${label}-remove`)
+      ).toBeInTheDocument();
+    };
+
     await user.type(nameInput, 'foo');
     await user.type(valueInput, 'bar{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo: bar');
 
     await user.type(nameInput, 'foo2:bar'); // colon in name
     await user.type(valueInput, 'baz{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo2:bar: baz');
 
     await user.type(nameInput, 'foo3');
     await user.type(valueInput, 'bar:baz'); // colon in value
     await user.type(nameInput, '{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo3: bar:baz');
 
     await user.type(nameInput, 'foo4');
     await user.type(valueInput, 'bar: baz{enter}'); // colon and space in value
+    checkFieldValidationPasses();
+    checkForAddedLabel('foo4: bar: baz');
 
     await user.type(nameInput, 'env');
     await user.type(valueInput, '*{enter}');
+    checkFieldValidationPasses();
+    checkForAddedLabel('env: *');
 
     await user.type(nameInput, 'region');
-    // Extra square brackets are required to escape the initial pair
-    await user.type(valueInput, '^eu-(west|east)-[[0-9]]+$');
+    // Extra opening square bracket escapes the next
+    await user.type(valueInput, '^eu-(west|east)-[[0-9]+$');
     await user.click(
       within(selectedSection!).getByRole('button', { name: 'add label' })
     );
+    checkFieldValidationPasses();
+    checkForAddedLabel('region: ^eu-(west|east)-[0-9]+$');
 
     expect(
       within(modal).getByRole('heading', { name: 'Selected Labels (6)' })
-    ).toBeInTheDocument();
-
-    expect(
-      within(selectedSection!).getByTestId('label-action-foo: bar-remove')
     ).toBeInTheDocument();
   });
 
@@ -335,6 +371,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const nameInput = within(modal).getByLabelText('Name');
     const valueInput = within(modal).getByLabelText('Value');
@@ -366,6 +403,7 @@ describe('KubernetesLabelsSelect', () => {
     await user.click(edit);
 
     const modal = screen.getByTestId('Modal');
+    await waitForLoading();
 
     const nameInput = within(modal).getByLabelText('Name');
     const valueInput = within(modal).getByLabelText('Value');
@@ -388,7 +426,7 @@ function renderComponent(opts?: {
   const { props, customAcl, disableTracking } = opts ?? {};
   const { selected = [], onChange = () => {} } = props ?? {};
 
-  const user = userEvent.setup();
+  const user = userEvent.setup({ delay: null });
 
   return {
     ...render(
@@ -450,5 +488,11 @@ function withListUnifiedResourcesSuccess(opts?: {
           }
         : undefined,
     })
+  );
+}
+
+async function waitForLoading() {
+  return waitForElementToBeRemoved(() =>
+    screen.queryByTestId('loading-resources')
   );
 }
