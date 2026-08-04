@@ -54,10 +54,23 @@ $CertPath      = Join-Path $WorkDir 'teleport.pem'
 Write-Host "Base64-decoding the embedded CA bundle and writing it to $CertPath..."
 [IO.File]::WriteAllBytes($CertPath, [Convert]::FromBase64String($CA))
 
+# Returns whether $TargetHost should be excluded from proxying by NO_PROXY list
+function Test-NoProxyMatch($TargetHost, $NoProxy) {
+	if (-not $NoProxy) { return $false }
+	foreach ($entry in $NoProxy -split ',') {
+		$entry = $entry.Trim()
+		if (-not $entry) { continue }
+		if ($entry -eq '*') { return $true }
+		$entry = $entry.TrimStart('.').ToLowerInvariant()
+		if ($TargetHost -eq $entry -or $TargetHost.EndsWith(".$entry")) { return $true }
+	}
+	return $false
+}
+
 Write-Host "Downloading authentication package installer ($InstallerName)..."
 try {
 	$dl = @{ Uri = "https://cdn.teleport.dev/$InstallerName"; OutFile = $InstallerPath; UseBasicParsing = $true }
-	if ($env:HTTPS_PROXY) { $dl.Proxy = $env:HTTPS_PROXY }
+	if ($env:HTTPS_PROXY -and -not (Test-NoProxyMatch 'cdn.teleport.dev' $env:NO_PROXY)) { $dl.Proxy = $env:HTTPS_PROXY }
 	Invoke-WebRequest @dl
 } catch {
 	Write-Host "Authentication package download failed: $_"
