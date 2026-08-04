@@ -23,6 +23,7 @@
 		CDAA8BB22FFD55CC00E6CA87 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB12FFD55CC00E6CA87 /* GRDB */; };
 		CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */; };
 		CDAA8BB72FFD5A1300E6CA87 /* SQLiteDataTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = CDAA8BB62FFD5A1300E6CA87 /* SQLiteDataTestSupport */; };
+		CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */ = {isa = PBXBuildFile; productRef = CDFCE7043022A9D4002E6773 /* LogBackends */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,6 +101,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CDFCE7053022A9D4002E6773 /* LogBackends in Frameworks */,
 				CD9AEFAC3022782200E2FC14 /* SystemClients in Frameworks */,
 				CDAA8BB52FFD5A1300E6CA87 /* SQLiteData in Frameworks */,
 				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
@@ -204,6 +206,7 @@
 				CDAA8BB12FFD55CC00E6CA87 /* GRDB */,
 				CDAA8BB42FFD5A1300E6CA87 /* SQLiteData */,
 				CD9AEFAB3022782200E2FC14 /* SystemClients */,
+				CDFCE7043022A9D4002E6773 /* LogBackends */,
 			);
 			productName = Verify;
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
@@ -990,6 +993,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CDDEB8752FE1F5F10052BC27 /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		CDFCE7043022A9D4002E6773 /* LogBackends */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD921947302148B80027C579 /* XCLocalSwiftPackageReference "../TeleportKit" */;
+			productName = LogBackends;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
