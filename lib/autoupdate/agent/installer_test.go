@@ -446,10 +446,10 @@ func TestNewArtifactSignatureVerifiers(t *testing.T) {
 	require.ErrorContains(t, err, "failed to decode backup teleport-update artifact signature public key")
 
 	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, extraB64, "")
-	require.ErrorContains(t, err, "teleport-update additional artifact signature keys must be configured as a pair")
+	require.ErrorContains(t, err, "teleport-update additional backup artifact signature public key is not configured")
 
 	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, "", additionalBackupB64)
-	require.ErrorContains(t, err, "teleport-update additional artifact signature keys must be configured as a pair")
+	require.ErrorContains(t, err, "teleport-update additional artifact signature public key is not configured")
 
 	_, err = NewArtifactSignatureVerifiers(primaryB64, backupB64, "not-base64", additionalBackupB64)
 	require.ErrorContains(t, err, "failed to decode additional primary teleport-update artifact signature public key")
