@@ -2269,6 +2269,8 @@ export type RawEvents = {
     {
       client_ip_restrictions: string[];
       success: boolean;
+      mode?: string;
+      enforcement_expires?: string;
     }
   >;
   [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
