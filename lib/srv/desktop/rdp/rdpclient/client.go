@@ -71,18 +71,25 @@ import "C"
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"math"
 	"net"
 	"os"
 	"runtime/cgo"
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -91,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func init() {
@@ -130,6 +138,11 @@ func init() {
 
 	C.rdpclient_init_log()
 }
+
+const (
+	rdpDialTimeout         = 5 * time.Second
+	rdpTLSHandshakeTimeout = 30 * time.Second
+)
 
 // Client is the RDP client.
 // Its lifecycle is:
@@ -334,6 +347,14 @@ func (c *Client) sendTDPBAlert(message string, severity tdpbv1.AlertSeverity) er
 	return c.conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
 }
 
+// failStartup reports err to the user as a TDP alert and returns it.
+// It is intented for failures that happen before the Rust client is started.
+// Once C.client_run returns, its error is reported through the CGOResult instead.
+func (c *Client) failStartup(err error) error {
+	c.sendTDPBAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+	return err
+}
+
 func readClientHello(conn *tdp.Conn, logger *slog.Logger) (*tdpb.ClientHello, error) {
 	for {
 		msg, err := conn.ReadMessage()
@@ -420,12 +441,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 	username := C.CString(c.username)
 	defer C.free(unsafe.Pointer(username))
 
-	// [addr] need only be valid for the duration of
-	// C.client_run. It is copied on the Rust side and
-	// thus can be freed here.
-	addr := C.CString(c.cfg.Addr)
-	defer C.free(unsafe.Pointer(addr))
-
 	// [kdcAddr] need only be valid for the duration of
 	// C.client_run. It is copied on the Rust side and
 	// thus can be freed here.
@@ -452,13 +467,126 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 		return trace.BadParameter("user key was nil")
 	}
 
+	dialCtx, cancelDial := context.WithTimeout(ctx, rdpDialTimeout)
+	defer cancelDial()
+	rdpConn, err := (&net.Dialer{}).DialContext(dialCtx, "tcp", c.cfg.Addr)
+	if err != nil {
+		if ctx.Err() != nil {
+			// The session is dead, there's nowhere to forward the error.
+			return trace.Wrap(err, "dialing %v", c.cfg.Addr)
+		}
+
+		// Look for (net.Error).Timeout(), which handles both
+		// context.DeadlineExceeded and os.ErrDeadlineExceeded.
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return c.failStartup(trace.Wrap(err, "Connection Timed Out\n\n"+
+				"Teleport could not connect to the host within the timeout period. "+
+				"This could be due to a firewall blocking connections, an overloaded system, "+
+				"or network congestion. To resolve this issue, ensure that the Teleport agent "+
+				"has connectivity to the Windows host.\n\n"+
+				"Use \"nc -vz HOST 3389\" to help debug this issue."))
+		}
+
+		return c.failStartup(trace.Wrap(err, "dialing %v", c.cfg.Addr))
+	}
+	defer rdpConn.Close()
+
+	// Rust handles the pre-TLS portion of the connection sequence directly,
+	// then hands the socket back to us and communicates over a socketpair from then on.
+	rdpConnDupe, err := dupeConn(rdpConn.(syscall.Conn))
+	if err != nil {
+		return c.failStartup(trace.Wrap(err, "duplicating RDP connection fd"))
+	}
+
+	left, right, err := uds.NewSocketpair(uds.SocketTypeStream)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		return c.failStartup(trace.Wrap(err, "creating socketpair"))
+	}
+
+	leftDupe, err := dupeConn(left)
+	if err != nil {
+		_ = unix.Close(int(rdpConnDupe))
+		_ = left.Close()
+		_ = right.Close()
+		return c.failStartup(trace.Wrap(err, "duplicating socketpair fd"))
+	}
+	_ = left.Close()
+
+	// copyErr records why the goroutine below gave up. Without it the Rust side
+	// only observes the socketpair closing, which it reports as an unhelpful
+	// "unexpected end of file".
+	var copyErr error
+	copyDone := make(chan struct{})
+
+	go func() {
+		defer close(copyDone)
+		defer rdpConn.Close()
+		defer right.Close()
+
+		// The Rust side does a 1-byte write when it's done with the
+		// pre-TLS portion and needs Go to perform the TLS handshake.
+		n, err := right.Read(make([]byte, 1))
+		if err != nil || n < 1 {
+			c.cfg.Logger.DebugContext(ctx, "missed TLS upgrade signal", "error", err)
+			return
+		}
+
+		// Perform the TLS handshake.
+		rdpConnTLS := tls.Client(rdpConn, &tls.Config{
+			// RDP uses TLS for encryption, but not authentication, so disable TLS verification.
+			InsecureSkipVerify: true, //#nosec
+		})
+		if err := func() error {
+			handshakeCtx, cancel := context.WithTimeout(ctx, rdpTLSHandshakeTimeout)
+			defer cancel()
+			return rdpConnTLS.HandshakeContext(handshakeCtx)
+		}(); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "TLS handshake failed", "error", err)
+			copyErr = trace.Wrap(err, "TLS handshake with %v failed", c.cfg.Addr)
+			return
+		}
+
+		// Write the subject public key info to the Rust side. This serves two purposes:
+		// 1) To indicate that the TLS handshake is complete.
+		// 2) The Rust side needs the public key info in order to perform NLA.
+		spki := rdpConnTLS.ConnectionState().PeerCertificates[0].RawSubjectPublicKeyInfo
+		if len(spki) > math.MaxUint32 {
+			panic("spki length greater than uint32")
+		}
+		if _, err := right.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(spki)))); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI length to RDP client", "error", err)
+			copyErr = trace.Wrap(err, "passing SPKI to RDP client")
+			return
+		}
+		if _, err := right.Write(spki); err != nil {
+			c.cfg.Logger.ErrorContext(ctx, "failed to pass SPKI to RDP client", "error", err)
+			copyErr = trace.Wrap(err, "passing SPKI to RDP client")
+			return
+		}
+
+		var wg sync.WaitGroup
+		defer wg.Wait()
+		wg.Add(2)
+
+		wg.Go(func() {
+			_, err := io.Copy(right, rdpConnTLS)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from TLS connection to RDP client", "error", err)
+		})
+
+		wg.Go(func() {
+			_, err := io.Copy(rdpConnTLS, right)
+			c.cfg.Logger.DebugContext(ctx, "finished copying from RDP client to TLS connection", "error", err)
+		})
+	}()
+
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
 			nla:              C.bool(c.cfg.NLA),
 			go_username:      username,
-			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
@@ -475,8 +603,17 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
 			client_id:               rdpClientIDToUint32Array[C.uint32_t](newRDPClientID(c.cfg.HostID)),
 			keyboard_layout:         C.uint32_t(c.keyboardLayout),
+
+			conn_fd: C.int(rdpConnDupe),
+			tls_fd:  C.int(leftDupe),
 		},
 	)
+
+	// The Rust client has exited, so tear down the copy loop and wait for it
+	// to finish. Closing rdpConn is what unblocks the copy's read of the TLS
+	// connection.
+	_ = rdpConn.Close()
+	<-copyDone
 
 	var message string
 	if res.message != nil {
@@ -494,6 +631,12 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
+		// The Rust client can only observe the socketpair closing, so if the
+		// copy is what actually failed, its error has more context.
+		if copyErr != nil {
+			err = trace.NewAggregate(copyErr, err)
+		}
+
 		c.sendTDPBAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 		return err
 	}
@@ -509,6 +652,28 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 	c.sendTDPBAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 
 	return nil
+}
+
+func dupeConn(c syscall.Conn) (int32, error) {
+	sc, err := c.SyscallConn()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	var dupe int32
+	var ctrlErr error
+	if err := sc.Control(func(fd uintptr) {
+		d, err := unix.FcntlInt(fd, unix.F_DUPFD_CLOEXEC, 0)
+		if err != nil {
+			ctrlErr = err
+		}
+		dupe = int32(d)
+	}); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if ctrlErr != nil {
+		return 0, trace.Wrap(ctrlErr)
+	}
+	return dupe, nil
 }
 
 func (c *Client) stopRustRDP() error {
