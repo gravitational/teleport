@@ -1044,6 +1044,13 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // UpsertKubernetesServer registers an kubernetes server.
 func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	if cluster := server.GetCluster(); cluster != nil {
+		server = server.Copy()
+		if err := server.SetCluster(cluster.WithoutSecrets().(types.KubeCluster)); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	svc, err := s.kubeServers.WithScopedResourcePrefix(scopes.QualifiedName{
 		Scope: server.GetScope(),
 		Name:  server.GetHostID(),

@@ -22,8 +22,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	grpcmetadata "google.golang.org/grpc/metadata"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -520,6 +522,66 @@ func TestUnscopedWatchKindAuthz(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.wantMode, got.GetMode())
+		})
+	}
+}
+
+// TestApplyLegacyWatchSecretsCompat verifies the version gate that keeps kube cluster event streams
+// secret-inclusive for clients predating minKubeClusterWatchSecretsVersion.
+//
+// TODO(fspmarshall): DELETE IN v21, along with applyLegacyWatchSecretsCompat.
+func TestApplyLegacyWatchSecretsCompat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		kind                string
+		clientVersion       string
+		expectedLoadSecrets bool
+	}{
+		{
+			name:                "outdated client is forced to load kube cluster secrets",
+			kind:                types.KindKubernetesCluster,
+			clientVersion:       "18.11.0",
+			expectedLoadSecrets: true,
+		},
+		{
+			name:          "client at the boundary asks for itself",
+			kind:          types.KindKubernetesCluster,
+			clientVersion: minKubeClusterWatchSecretsVersion.String(),
+		},
+		{
+			name:                "unversioned client is treated as outdated",
+			kind:                types.KindKubernetesCluster,
+			expectedLoadSecrets: true,
+		},
+		{
+			name:                "unparsable version is treated outdated",
+			kind:                types.KindKubernetesCluster,
+			clientVersion:       "not-a-semver",
+			expectedLoadSecrets: true,
+		},
+		{
+			name:          "other kinds are untouched",
+			kind:          types.KindKubeServer,
+			clientVersion: "18.11.0",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			if test.clientVersion != "" {
+				ctx = grpcmetadata.NewIncomingContext(ctx, grpcmetadata.Pairs(
+					metadata.VersionKey, test.clientVersion,
+				))
+			}
+
+			kind := types.WatchKind{Kind: test.kind}
+			applyLegacyWatchSecretsCompat(ctx, &kind)
+			require.Equal(t, test.expectedLoadSecrets, kind.LoadSecrets)
 		})
 	}
 }

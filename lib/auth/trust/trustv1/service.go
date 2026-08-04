@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -131,7 +132,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	checkAccess := func(ruleCtx services.RuleContext) error {
 		if req.GetIncludeKey() {
 			return authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbRead)
+				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, scopedaccess.Secrets)
 			})
 		}
 		// For read without secrets we use RiskyAuthorizeUnpinnedRead, this is to
@@ -267,7 +268,8 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		// All cert authorities can be considered as being "root" resources from
 		// the perspective of scoped RBAC, so we just hard-code root as the resource scope for the decision.
 		if err := authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, types.VerbList, types.VerbRead, types.VerbReadNoSecrets)
+			// note that Secrets implies Read; there is no need to require both.
+			return checker.CheckAccessToRules(&ruleCtx, types.KindCertAuthority, scopedaccess.List, scopedaccess.Secrets)
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

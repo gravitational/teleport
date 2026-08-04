@@ -1656,7 +1656,10 @@ type GetKubeClusterRequest struct {
 	// The name of the kube cluster resource.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The scope the kube cluster resource belongs to. Can be empty.
-	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
+	Scope string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets   bool `protobuf:"varint,3,opt,name=with_secrets,json=withSecrets,proto3" json:"with_secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1700,12 +1703,23 @@ func (x *GetKubeClusterRequest) GetScope() string {
 	return ""
 }
 
+func (x *GetKubeClusterRequest) GetWithSecrets() bool {
+	if x != nil {
+		return x.WithSecrets
+	}
+	return false
+}
+
 func (x *GetKubeClusterRequest) SetName(v string) {
 	x.Name = v
 }
 
 func (x *GetKubeClusterRequest) SetScope(v string) {
 	x.Scope = v
+}
+
+func (x *GetKubeClusterRequest) SetWithSecrets(v bool) {
+	x.WithSecrets = v
 }
 
 type GetKubeClusterRequest_builder struct {
@@ -1715,6 +1729,9 @@ type GetKubeClusterRequest_builder struct {
 	Name string
 	// The scope the kube cluster resource belongs to. Can be empty.
 	Scope string
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets bool
 }
 
 func (b0 GetKubeClusterRequest_builder) Build() *GetKubeClusterRequest {
@@ -1723,6 +1740,7 @@ func (b0 GetKubeClusterRequest_builder) Build() *GetKubeClusterRequest {
 	_, _ = b, x
 	x.Name = b.Name
 	x.Scope = b.Scope
+	x.WithSecrets = b.WithSecrets
 	return m0
 }
 
@@ -1804,7 +1822,10 @@ type ListKubeClustersRequest struct {
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Filters kube clusters by scope.
-	ScopeFilter   *v1.Filter `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
+	ScopeFilter *v1.Filter `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets   bool `protobuf:"varint,4,opt,name=with_secrets,json=withSecrets,proto3" json:"with_secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1855,6 +1876,13 @@ func (x *ListKubeClustersRequest) GetScopeFilter() *v1.Filter {
 	return nil
 }
 
+func (x *ListKubeClustersRequest) GetWithSecrets() bool {
+	if x != nil {
+		return x.WithSecrets
+	}
+	return false
+}
+
 func (x *ListKubeClustersRequest) SetPageSize(v int32) {
 	x.PageSize = v
 }
@@ -1865,6 +1893,10 @@ func (x *ListKubeClustersRequest) SetPageToken(v string) {
 
 func (x *ListKubeClustersRequest) SetScopeFilter(v *v1.Filter) {
 	x.ScopeFilter = v
+}
+
+func (x *ListKubeClustersRequest) SetWithSecrets(v bool) {
+	x.WithSecrets = v
 }
 
 func (x *ListKubeClustersRequest) HasScopeFilter() bool {
@@ -1888,6 +1920,9 @@ type ListKubeClustersRequest_builder struct {
 	PageToken string
 	// Filters kube clusters by scope.
 	ScopeFilter *v1.Filter
+	// If true, include secrets in the response. Requires secret-inclusive read
+	// permission on kubernetes_cluster.
+	WithSecrets bool
 }
 
 func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
@@ -1897,6 +1932,7 @@ func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
 	x.PageSize = b.PageSize
 	x.PageToken = b.PageToken
 	x.ScopeFilter = b.ScopeFilter
+	x.WithSecrets = b.WithSecrets
 	return m0
 }
 
@@ -2439,17 +2475,19 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x06server\x18\x01 \x01(\v2\x0f.types.ServerV2R\x06server\".\n" +
 	"\x18DeleteProxyServerRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"\x1b\n" +
-	"\x19DeleteProxyServerResponse\"A\n" +
+	"\x19DeleteProxyServerResponse\"d\n" +
 	"\x15GetKubeClusterRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05scope\x18\x02 \x01(\tR\x05scope\"N\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\x12!\n" +
+	"\fwith_secrets\x18\x03 \x01(\bR\vwithSecrets\"N\n" +
 	"\x16GetKubeClusterResponse\x124\n" +
-	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\x94\x01\n" +
+	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\xb7\x01\n" +
 	"\x17ListKubeClustersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12=\n" +
-	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"z\n" +
+	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\x12!\n" +
+	"\fwith_secrets\x18\x04 \x01(\bR\vwithSecrets\"z\n" +
 	"\x18ListKubeClustersResponse\x126\n" +
 	"\bclusters\x18\x01 \x03(\v2\x1a.types.KubernetesClusterV3R\bclusters\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"D\n" +

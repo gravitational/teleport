@@ -44,7 +44,7 @@ var scopedRoleSpec = accessv1.ScopedRoleSpec_builder{
 	Rules: []*accessv1.ScopedRule{
 		accessv1.ScopedRule_builder{
 			Resources: []string{"scoped_role"},
-			Verbs:     []string{"readnosecrets", "list"},
+			Verbs:     access.EncodeScopedVerbs(access.Read, access.List),
 		}.Build(),
 	},
 }.Build()
