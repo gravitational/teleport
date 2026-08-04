@@ -67,12 +67,12 @@ func roleVersionPredatesV9(version string) bool {
 }
 
 // decideMinimalV9 applies the minimal v9 policy to the caller's roles that
-// grant app. If no v9-or-above role grants it, the request keeps full v8
-// behavior. If one does, pre-v9 roles granting the same app are dropped,
-// and the request is allowed only when a granting v9-or-above role sets a
-// single allow_all rule and no role carries deny-side app rules. A version
-// above v9 is enforced like v9, so a role from a newer version denies
-// rather than allows.
+// grant app. If only pre-v9 roles grant it, the request keeps full v8
+// behavior. Otherwise pre-v9 roles granting the app are dropped and the
+// request is denied unless a granting v9 role holds a single allow_all rule
+// and no role carries deny-side app rules. A role newer than v9 still
+// enforces but never allows, since it may carry restrictions this version
+// cannot evaluate.
 //
 // TODO(@juliaogris): Replace with per-request rule matching from the
 // upcoming lib/appresource engine package.

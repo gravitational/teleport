@@ -11108,8 +11108,7 @@ func (m *RoleConditions) XXX_DiscardUnknown() {
 var xxx_messageInfo_RoleConditions proto.InternalMessageInfo
 
 // AppResource is one rule under a role's app_resources. The only supported
-// rule form is allow_all, which grants unrestricted access. The reserved
-// field numbers are for upcoming path, method, and where rules.
+// rule form is allow_all, which grants unrestricted access.
 type AppResource struct {
 	// AllowAll grants unrestricted access to every path and method. It
 	// cannot be combined with any other field.

@@ -83,13 +83,15 @@ func TestDecideMinimalV9(t *testing.T) {
 		AppResources: []types.AppResource{{AllowAll: true}},
 	})
 	v9DenyLabel.SetAppLabels(types.Deny, devLabels)
-	// A version above v9 must enforce default-deny exactly like v9.
+	// A role newer than v9 must deny even when its known fields look like a
+	// plain allow_all rule.
 	v10Grants := &types.RoleV6{
 		Metadata: types.Metadata{Name: "v10-grants"},
 		Version:  "v10",
 		Spec: types.RoleSpecV6{Allow: types.RoleConditions{
-			Namespaces: []string{apidefaults.Namespace},
-			AppLabels:  devLabels,
+			Namespaces:   []string{apidefaults.Namespace},
+			AppLabels:    devLabels,
+			AppResources: []types.AppResource{{AllowAll: true}},
 		}},
 	}
 	// Deny-side app rules must not open the app.

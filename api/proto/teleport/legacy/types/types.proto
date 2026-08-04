@@ -4437,8 +4437,7 @@ message RoleConditions {
 }
 
 // AppResource is one rule under a role's app_resources. The only supported
-// rule form is allow_all, which grants unrestricted access. The reserved
-// field numbers are for upcoming path, method, and where rules.
+// rule form is allow_all, which grants unrestricted access.
 message AppResource {
   // Fields 1 to 4 and 6 to 9 are reserved for the upcoming fine-grained
   // rule fields (paths, methods, where, allow_encoded, allow_code,

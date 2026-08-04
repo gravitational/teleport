@@ -7186,6 +7186,17 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
 	})
 
+	t.Run("existing deny expression merges with the moved allow expression", func(t *testing.T) {
+		// Deny expressions, unlike deny labels, have a union: the two
+		// expressions are OR-ed so the pre-existing deny keeps applying next
+		// to the moved allow expression.
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Deny.AppLabelsExpression = `labels["env"] == "prod"`
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Equal(t, `(labels["env"] == "prod") || (labels["vendor"] == "gitlab")`, got.Spec.Deny.AppLabelsExpression)
+	})
+
 	t.Run("pre-v9 role untouched", func(t *testing.T) {
 		v8, err := types.NewRoleWithVersion("legacy", types.V8, types.RoleSpecV6{})
 		require.NoError(t, err)

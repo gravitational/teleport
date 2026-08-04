@@ -27,8 +27,8 @@ import (
 // TestAppResourceFields fails when a field is added to or removed from
 // AppResource, so unreserving a proto field number cannot slip past the
 // checks that decide whether a rule is unrestricted. Any new field
-// restricts the rule, so IsAllowAllOnly and validateAppResources in
-// lib/services must account for it before this list changes.
+// restricts the rule, so IsAllowAllOnly and the server-side write
+// validation must account for it before this list changes.
 func TestAppResourceFields(t *testing.T) {
 	var fields []string
 	for f := range reflect.TypeFor[AppResource]().Fields() {
