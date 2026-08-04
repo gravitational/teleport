@@ -40,6 +40,7 @@ import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestChe
 import { FeatureBox } from 'teleport/components/Layout';
 import { Prompt } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import { shouldHideInaccessibleFeatures } from 'teleport/features';
 import { UnifiedResource } from 'teleport/services/agents';
 import { ResourceActionButton } from 'teleport/UnifiedResources/ResourceActionButton';
 import { ClusterResources } from 'teleport/UnifiedResources/UnifiedResources';
@@ -213,6 +214,13 @@ export function UnifiedResourcesE() {
     !!scope
   );
 
+  const hideAccessRequests =
+    shouldHideInaccessibleFeatures(cfg) &&
+    !ctx.getFeatureFlags().accessRequests;
+
+  const canFilterByAvailability =
+    availabilityFilterFromPreferences.canRequestAll && !hideAccessRequests;
+
   return (
     <FeatureBox px={4}>
       <Flex gap={4}>
@@ -241,7 +249,7 @@ export function UnifiedResourcesE() {
               isLeafCluster={isLeafCluster}
               getActionButton={getActionButton}
               availabilityFilter={
-                availabilityFilterFromPreferences.canRequestAll
+                canFilterByAvailability
                   ? availabilityFilterFromPreferences
                   : null
               }
