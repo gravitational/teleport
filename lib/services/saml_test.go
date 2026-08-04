@@ -562,7 +562,7 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 
 				// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
 				// in the connector role mapping exists.
-				roleGetter := roleSet{role: nil}
+				var roleGetter = roleSet{role: nil}
 
 				// There are quite a few things to leak in the error message:
 				// 1. The HTTP response content.
