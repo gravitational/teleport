@@ -41,10 +41,6 @@ tests:
       minorVersion: 27
     values:
       - ../.lint/pdb.yaml
-    set:
-      highAvailability:
-        podDisruptionBudget:
-          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
