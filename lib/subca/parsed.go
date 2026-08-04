@@ -45,8 +45,8 @@ const SPIFFECAOverrideSubKind = "spiffe-tls"
 var (
 	allowedCAOverrideSubKinds = []string{
 		string(types.DatabaseClientCA),
-		string(types.WindowsCA),
 		SPIFFECAOverrideSubKind,
+		string(types.WindowsCA),
 	}
 
 	// Public keys are printed as HEX(SHA256(...)), therefore it's a hex string

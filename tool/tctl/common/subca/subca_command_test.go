@@ -306,10 +306,10 @@ func TestMakeCATypeNames(t *testing.T) {
 	got := subca.MakeCATypeNames()
 	want := []string{
 		"db-client",
-		"windows",
 		"spiffe-tls",
+		"windows",
 	}
-	assert.ElementsMatch(t, want, got.Names, ""+
+	assert.Equal(t, want, got.Names, ""+
 		"CAType names mismatch. "+
 		"This is likely because a new entry was added to subca.SupportedCATypes(). "+
 		"Verify the newly added name and, if working as intended, add it to want list above.",

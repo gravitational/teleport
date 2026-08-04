@@ -529,17 +529,18 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 func TestSubKindToCertAuthType(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range []struct {
-		subKind string
-		want    types.CertAuthType
-	}{
-		{subKind: string(types.DatabaseClientCA), want: types.DatabaseClientCA},
-		{subKind: string(types.WindowsCA), want: types.WindowsCA},
-		{subKind: subca.SPIFFECAOverrideSubKind, want: types.SPIFFECA},
-	} {
-		t.Run(tt.subKind, func(t *testing.T) {
-			got := subca.SubKindToCertAuthType(tt.subKind)
-			assert.Equal(t, tt.want, got)
-		})
+	want := map[string]types.CertAuthType{
+		string(types.DatabaseClientCA): types.DatabaseClientCA,
+		subca.SPIFFECAOverrideSubKind:  types.SPIFFECA,
+		string(types.WindowsCA):        types.WindowsCA,
 	}
+
+	for _, subKind := range subca.SupportedCATypes() {
+		expected, ok := want[subKind]
+		assert.True(t, ok, "missing test case for %s", subKind)
+		assert.Equal(t, expected, subca.SubKindToCertAuthType(subKind))
+	}
+
+	// Ensure types.SPIFFECA ("spiffe") passes through unmodified.
+	assert.Equal(t, types.SPIFFECA, subca.SubKindToCertAuthType(string(types.SPIFFECA)))
 }
