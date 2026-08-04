@@ -37,23 +37,16 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
-// AccessPoint is the subset of the auth server surface the IAM configurator
-// needs: the cluster name for policy naming and semaphores to serialize
-// policy changes across agents.
-type AccessPoint interface {
-	// GetClusterName returns the local cluster name.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-	// Semaphores acquires and releases the semaphore lock guarding IAM
-	// policy changes.
-	types.Semaphores
-}
-
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
 	// Clock is used to control time.
 	Clock clockwork.Clock
-	// AccessPoint is a client connected to the Auth Server.
-	AccessPoint AccessPoint
+	// AccessPoint provides the cluster name used for policy naming, served
+	// from the cache when caching is enabled.
+	AccessPoint services.ClusterNameGetter
+	// Semaphores acquires and releases the semaphore lock guarding IAM
+	// policy changes across agents.
+	Semaphores types.Semaphores
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// HostID is the host identified where this agent is running.
@@ -72,6 +65,9 @@ func (c *IAMConfig) Check() error {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
+	}
+	if c.Semaphores == nil {
+		return trace.BadParameter("missing Semaphores")
 	}
 	if c.AWSConfigProvider == nil {
 		return trace.BadParameter("missing AWSConfigProvider")
@@ -328,7 +324,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
 	// once per group, and the IAM policy is only get/put once per group.
 	lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
-		Service: c.cfg.AccessPoint,
+		Service: c.cfg.Semaphores,
 		Request: types.AcquireSemaphoreRequest{
 			SemaphoreKind: configurator.cfg.policyName,
 			SemaphoreName: configurator.cfg.identity.GetName(),
@@ -354,7 +350,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 	}
 
 	defer func() {
-		err := c.cfg.AccessPoint.CancelSemaphoreLease(ctx, *lease)
+		err := c.cfg.Semaphores.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
 			c.logger.ErrorContext(ctx, "Failed to cancel lease",
 				"error", err,

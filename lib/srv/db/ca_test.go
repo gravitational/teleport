@@ -108,7 +108,7 @@ func TestInitCACert(t *testing.T) {
 	require.NoError(t, err)
 
 	redshiftServerless, err := types.NewDatabaseV3(types.Metadata{
-		Name: "redshift",
+		Name: "redshift-serverless",
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",

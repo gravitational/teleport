@@ -308,7 +308,7 @@ func TestHeartbeatEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	dbTwo, err := types.NewDatabaseV3(types.Metadata{
-		Name: "dbOne",
+		Name: "dbTwo",
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",

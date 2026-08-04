@@ -164,6 +164,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
+		Semaphores:  &mockAccessPoint{},
 		AWSConfigProvider: withStaticCredentials(
 			&mocks.AWSConfigProvider{
 				STSClient: stsClient,
@@ -378,6 +379,7 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			// Make configurator.
 			configurator, err := NewIAM(ctx, IAMConfig{
 				AccessPoint: &mockAccessPoint{},
+				Semaphores:  &mockAccessPoint{},
 				HostID:      "host-id",
 				AWSConfigProvider: withStaticCredentials(
 					&mocks.AWSConfigProvider{
@@ -420,9 +422,9 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}
 }
 
-// mockAccessPoint is a mock for AccessPoint.
+// mockAccessPoint is a mock cluster name getter and semaphore service.
 type mockAccessPoint struct {
-	AccessPoint
+	types.Semaphores
 }
 
 func (m *mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
