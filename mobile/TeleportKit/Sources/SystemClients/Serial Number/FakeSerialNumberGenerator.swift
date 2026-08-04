@@ -18,10 +18,10 @@
 	import Foundation
 
 	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
-	enum FakeSerialNumberGenerator {
+	public enum FakeSerialNumberGenerator {
 		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-		static func generate() -> String {
+		public static func generate() -> String {
 			func chunk() -> String {
 				(0 ..< 4)
 					.compactMap { _ in Self.base.randomElement() }

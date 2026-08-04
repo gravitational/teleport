@@ -16,7 +16,7 @@
 
 #if DEBUG
 	import Foundation
-	import Sharing
+	public import Sharing
 
 	extension UserDefaults {
 		static let debugSuiteName = "com.gravitational.teleport.verify.debug"
@@ -36,13 +36,13 @@
 	// MARK: - Keys
 
 	/// Type-safe keys for use when querying the debug user defaults
-	enum DebugUserDefaultsKey: String {
+	public enum DebugUserDefaultsKey: String {
 		case debugSerialNumber
 	}
 
 	/// A small helper function to access the debug store via the Sharing library
 	extension SharedReaderKey where Self == AppStorageKey<String?> {
-		static func debugStorage(
+		public static func debugStorage(
 			_ key: DebugUserDefaultsKey,
 		) -> Self {
 			.appStorage(key.rawValue, store: .debug)

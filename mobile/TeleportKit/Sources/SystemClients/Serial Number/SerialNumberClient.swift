@@ -19,12 +19,12 @@ import Foundation
 import Sharing
 
 @DependencyClient
-struct SerialNumberClient {
-	var getDeviceSerialNumber: @Sendable () throws(SerialNumberError) -> String = { "" }
+public struct SerialNumberClient: Sendable {
+	public var getDeviceSerialNumber: @Sendable () throws(SerialNumberError) -> String = { "" }
 }
 
 extension SerialNumberClient {
-	static let liveValue = SerialNumberClient(
+	public static let liveValue = SerialNumberClient(
 		getDeviceSerialNumber: { () throws(SerialNumberError) -> String in
 			#if DEBUG
 				@Shared(.debugStorage(.debugSerialNumber))
@@ -48,6 +48,6 @@ extension SerialNumberClient {
 
 // MARK: - Supporting Types
 
-enum SerialNumberError: Error {
+public enum SerialNumberError: Error {
 	case missingSerialNumber
 }
