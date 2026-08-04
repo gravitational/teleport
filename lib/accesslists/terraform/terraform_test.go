@@ -1,4 +1,20 @@
-package accesslists
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package terraform
 
 import (
 	"testing"
@@ -51,11 +67,11 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 
 	tests := []struct {
 		name string
-		cfg  TerraformConfigParams
+		cfg  ConfigParams
 	}{
 		{
 			name: "long-term-preset",
-			cfg: TerraformConfigParams{
+			cfg: ConfigParams{
 				PresetType:   preset.LongTermPresetType,
 				AccessListID: accessList.GetName(),
 				AccessList:   accessList,
@@ -72,7 +88,7 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 		},
 		{
 			name: "short-term-preset",
-			cfg: TerraformConfigParams{
+			cfg: ConfigParams{
 				PresetType:   preset.ShortTermPresetType,
 				AccessListID: accessList.GetName(),
 				AccessList:   accessList,
@@ -89,7 +105,7 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 		{
 			// Test roles are generated with nil access list
 			name: "access-roles-nil-access-list",
-			cfg: TerraformConfigParams{
+			cfg: ConfigParams{
 				PresetType:   preset.LongTermPresetType,
 				AccessListID: accessList.GetName(),
 				AccessRoles: []AccessRole{
@@ -101,7 +117,7 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 		{
 			// Access list is generated with nil roles and members
 			name: "access-list-nil-roles",
-			cfg: TerraformConfigParams{
+			cfg: ConfigParams{
 				PresetType:   preset.LongTermPresetType,
 				AccessListID: accessList.GetName(),
 				AccessList:   accessList,
@@ -111,7 +127,7 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := GenerateTerraformConfigWithPresetBuilder(tt.cfg)
+			out, err := GenerateConfigWithPresetBuilder(tt.cfg)
 			require.NoError(t, err)
 
 			if golden.ShouldSet() {
@@ -122,12 +138,12 @@ func TestGenerateTerraformConfigWithPresetBuilder(t *testing.T) {
 	}
 
 	// Test preset is required.
-	out, err := GenerateTerraformConfigWithPresetBuilder(TerraformConfigParams{})
+	out, err := GenerateConfigWithPresetBuilder(ConfigParams{})
 	require.Equal(t, "preset type is required", err.Error())
 	require.Empty(t, out)
 
 	// Test empty params minus required preset type.
-	out, err = GenerateTerraformConfigWithPresetBuilder(TerraformConfigParams{PresetType: preset.LongTermPresetType})
+	out, err = GenerateConfigWithPresetBuilder(ConfigParams{PresetType: preset.LongTermPresetType})
 	require.NoError(t, err)
 	require.Empty(t, out)
 }
@@ -175,7 +191,7 @@ func TestGenerateTerraformConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := GenerateTerraformConfig(accessList, tt.members, tt.providerBlock)
+			out, err := GenerateConfig(accessList, tt.members, tt.providerBlock)
 			require.NoError(t, err)
 
 			if golden.ShouldSet() {
@@ -186,7 +202,7 @@ func TestGenerateTerraformConfig(t *testing.T) {
 	}
 
 	// Test empty list.
-	out, err := GenerateTerraformConfig(nil, nil, nil)
+	out, err := GenerateConfig(nil, nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, out)
 }

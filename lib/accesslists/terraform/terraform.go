@@ -1,4 +1,20 @@
-package accesslists
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package terraform
 
 import (
 	"fmt"
@@ -15,7 +31,7 @@ import (
 
 const terraformAccessListType = "teleport_access_list"
 
-type TerraformConfigParams struct {
+type ConfigParams struct {
 	// PresetType specifies the type of preset configuration to apply.
 	PresetType preset.PresetType
 	// AccessList contains the full access list configuration.
@@ -49,8 +65,8 @@ type ProviderBlock struct {
 	TeleportVersion int64
 }
 
-// GenerateTerraformConfig returns a terraform text for basic access list and its members.
-func GenerateTerraformConfig(al *accesslist.AccessList, members []*accesslist.AccessListMember, providerBlock *ProviderBlock) (string, error) {
+// GenerateConfig returns a terraform text for basic access list and its members.
+func GenerateConfig(al *accesslist.AccessList, members []*accesslist.AccessListMember, providerBlock *ProviderBlock) (string, error) {
 	if al == nil {
 		// Nothing to generate
 		return "", nil
@@ -79,10 +95,10 @@ func GenerateTerraformConfig(al *accesslist.AccessList, members []*accesslist.Ac
 	return strings.Join(cfgBlocks, "\n"), nil
 }
 
-// GenerateTerraformConfigWithPresetBuilder returns a terraform text for access list created
+// GenerateConfigWithPresetBuilder returns a terraform text for access list created
 // with a preset builder which constructs all the supporting roles required and auto sets these
 // roles as access list grants.
-func GenerateTerraformConfigWithPresetBuilder(params TerraformConfigParams) (string, error) {
+func GenerateConfigWithPresetBuilder(params ConfigParams) (string, error) {
 	accessRoles := make([]types.Role, 0, len(params.AccessRoles))
 	for _, ar := range params.AccessRoles {
 		accessRoles = append(accessRoles, ar.Role)
