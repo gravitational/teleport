@@ -562,7 +562,7 @@ func Test_ValidateSAMLConnector_error_sanitization(t *testing.T) {
 
 				// Create a roleSet with <nil> role values as ValidateSAMLConnector only checks if the role
 				// in the connector role mapping exists.
-				var roleGetter = roleSet{role: nil}
+				roleGetter := roleSet{role: nil}
 
 				// There are quite a few things to leak in the error message:
 				// 1. The HTTP response content.
@@ -680,4 +680,49 @@ func Test_ValidateSAMLConnector_blocksHTTPSRedirectDowngrade(t *testing.T) {
 			require.Zero(t, downgradedRequestsCnt.Load())
 		})
 	}
+}
+
+func TestValidateSAMLConnectorWithoutAttributesToRoles(t *testing.T) {
+	t.Parallel()
+
+	connector, err := types.NewSAMLConnector("saml-connector", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs",
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso",
+	})
+	require.NoError(t, err)
+
+	t.Run("fails by default", func(t *testing.T) {
+		err := ValidateSAMLConnector(connector, nil)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	t.Run("succeeds with option", func(t *testing.T) {
+		err := ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
+		require.NoError(t, err)
+	})
+
+	t.Run("marshal fails", func(t *testing.T) {
+		_, err := MarshalSAMLConnector(connector)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	t.Run("unmarshal fails by default", func(t *testing.T) {
+		value, err := utils.FastMarshal(connector)
+		require.NoError(t, err)
+
+		_, err = UnmarshalSAMLConnector(value)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	t.Run("unmarshal succeeds with option", func(t *testing.T) {
+		value, err := utils.FastMarshal(connector)
+		require.NoError(t, err)
+
+		connector, err := UnmarshalSAMLConnectorWithValidationOptions(value, []types.SAMLConnectorValidationOption{
+			types.SAMLConnectorValidationWithoutAttributesToRoles(true),
+		})
+		require.NoError(t, err)
+		require.Empty(t, connector.GetAttributesToRoles())
+	})
 }
