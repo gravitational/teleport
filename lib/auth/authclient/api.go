@@ -694,78 +694,6 @@ type AppsAccessPoint interface {
 	accessPoint
 }
 
-// ReadDatabaseAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentDatabase.
-//
-// NOTE: This interface must match the resources replicated in cache.ForDatabases.
-type ReadDatabaseAccessPoint interface {
-	// Closer closes all the resources
-	io.Closer
-
-	// HealthCheckConfigReader defines methods for reading health check config
-	// resources.
-	services.HealthCheckConfigReader
-
-	// NewWatcher returns a new event watcher.
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
-	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
-
-	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	// GetUser returns a services.User for this cluster.
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// GetProxies returns a list of proxy servers registered in the cluster
-	GetProxies() ([]types.Server, error)
-
-	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
-	GetDatabases(ctx context.Context) ([]types.Database, error)
-
-	// ListDatabases returns a page of database resources.
-	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
-
-	// GetDatabase returns the specified database resource.
-	GetDatabase(ctx context.Context, name string) (types.Database, error)
-}
-
-// DatabaseAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentDatabase.
-type DatabaseAccessPoint interface {
-	// ReadDatabaseAccessPoint provides methods to read data
-	ReadDatabaseAccessPoint
-
-	// accessPoint provides common access point functionality
-	accessPoint
-}
-
 // ReadWindowsDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentWindowsDesktop.
 //
@@ -1731,27 +1659,6 @@ func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
 func (w *KubernetesWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadKubernetesAccessPoint.Close()
-	return trace.NewAggregate(err, err2)
-}
-
-type DatabaseWrapper struct {
-	ReadDatabaseAccessPoint
-	accessPoint
-	NoCache DatabaseAccessPoint
-}
-
-func NewDatabaseWrapper(base DatabaseAccessPoint, cache ReadDatabaseAccessPoint) DatabaseAccessPoint {
-	return &DatabaseWrapper{
-		NoCache:                 base,
-		accessPoint:             base,
-		ReadDatabaseAccessPoint: cache,
-	}
-}
-
-// Close closes all associated resources
-func (w *DatabaseWrapper) Close() error {
-	err := w.NoCache.Close()
-	err2 := w.ReadDatabaseAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

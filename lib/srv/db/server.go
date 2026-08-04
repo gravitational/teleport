@@ -113,6 +113,29 @@ func init() {
 	healthchecks.RegisterHealthChecker(sqlserver.NewHealthChecker, defaults.ProtocolSQLServer)
 }
 
+// AccessPoint is the subset of the auth server surface read by the database
+// agent. It is satisfied by both the database service topology cache
+// (*cache.DatabasesCache) and, when caching is disabled, the auth client.
+type AccessPoint interface {
+	// Events is used by the health check manager to watch health check
+	// config resources.
+	types.Events
+	// HealthCheckConfigReader is used by the health check manager to read
+	// health check config resources.
+	services.HealthCheckConfigReader
+	// CAGetter provides certificate authorities for the client TLS config
+	// callback.
+	authclient.CAGetter
+	// GetClusterName returns the local cluster name.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	// GetAuthPreference returns the cluster authentication preference.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// GetSessionRecordingConfig returns the session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+}
+
+var _ AccessPoint = (*cache.DatabasesCache)(nil)
+
 // Config is the configuration for a database proxy server.
 type Config struct {
 	// Clock used to control time.
@@ -122,7 +145,7 @@ type Config struct {
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *authclient.Client
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint authclient.DatabaseAccessPoint
+	AccessPoint AccessPoint
 	// DatabasesCache is the database service topology cache. It provides the
 	// dynamic database resources reconciled by this server and the change
 	// pulse that drives reconciliation. When unset (caching disabled),
@@ -296,7 +319,7 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.CloudIAM == nil {
 		c.CloudIAM, err = cloud.NewIAM(ctx, cloud.IAMConfig{
-			AccessPoint:       c.AccessPoint,
+			AccessPoint:       c.AuthClient,
 			AWSConfigProvider: c.AWSConfigProvider,
 			HostID:            c.HostID,
 		})
@@ -957,7 +980,7 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 		Context:         s.closeContext,
 		Component:       teleport.ComponentDatabase,
 		Mode:            srv.HeartbeatModeDatabaseService,
-		Announcer:       s.cfg.AccessPoint,
+		Announcer:       s.cfg.AuthClient,
 		GetServerInfo:   getDatabaseServiceServerInfo,
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),

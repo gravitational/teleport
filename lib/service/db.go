@@ -58,9 +58,13 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	accessPoint, databasesCache, err := process.newLocalCacheForDatabase(conn.Client, teleport.ComponentDatabase)
+	databasesCache, err := process.newLocalCacheForDatabase(conn.Client, teleport.ComponentDatabase)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	var accessPoint databasesAccessPoint = conn.Client
+	if databasesCache != nil {
+		accessPoint = databasesCache
 	}
 	resp, err := accessPoint.GetClusterNetworkingConfig(process.ExitContext())
 	if err != nil {

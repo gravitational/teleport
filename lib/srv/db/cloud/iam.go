@@ -31,19 +31,29 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
+// AccessPoint is the subset of the auth server surface the IAM configurator
+// needs: the cluster name for policy naming and semaphores to serialize
+// policy changes across agents.
+type AccessPoint interface {
+	// GetClusterName returns the local cluster name.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	// Semaphores acquires and releases the semaphore lock guarding IAM
+	// policy changes.
+	types.Semaphores
+}
+
 // IAMConfig is the IAM configurator config.
 type IAMConfig struct {
 	// Clock is used to control time.
 	Clock clockwork.Clock
-	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint authclient.DatabaseAccessPoint
+	// AccessPoint is a client connected to the Auth Server.
+	AccessPoint AccessPoint
 	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
 	AWSConfigProvider awsconfig.Provider
 	// HostID is the host identified where this agent is running.

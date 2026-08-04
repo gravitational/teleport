@@ -22,7 +22,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // DatabasesCache is the typed read surface of the database service's cache:
@@ -32,10 +31,9 @@ import (
 // a read of a kind the database cache does not serve does not exist on this
 // type.
 //
-// DatabasesCache structurally satisfies [authclient.ReadDatabaseAccessPoint],
-// so the legacy access-point wrappers are wired directly over it while
-// consumers migrate to the concrete type; the interface assertion below is
-// the completeness check for the composition.
+// DatabasesCache structurally satisfies the database agent's access point
+// interface; the completeness check for the composition is the interface
+// assertion in lib/srv/db.
 //
 // The watch set currently remains [ForDatabases] (exact parity with the
 // legacy database cache); deriving the watch set from this composition is
@@ -58,8 +56,6 @@ type DatabasesCache struct {
 	// none of the remaining legacy-only surface leaks onto the topology type.
 	cache *Cache
 }
-
-var _ authclient.ReadDatabaseAccessPoint = (*DatabasesCache)(nil)
 
 // NewDatabasesCache creates the database service topology cache. The database
 // watch set is applied internally — callers supply only the upstream service

@@ -130,8 +130,8 @@ type AuthClient interface {
 	GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 }
 
-// AccessPoint is an interface that defines a subset of
-// authclient.DatabaseAccessPoint that are required for database auth.
+// AccessPoint is an interface that defines the subset of the auth server
+// surface that is required for database auth.
 type AccessPoint interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }

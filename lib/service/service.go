@@ -3333,20 +3333,37 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt authclient.Client
 // newLocalCacheForDatabase returns new instance of access point configured
 // for a database service, along with the concrete database topology cache
 // backing it. The concrete cache is nil when caching is disabled.
-func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName string) (authclient.DatabaseAccessPoint, *cache.DatabasesCache, error) {
-	// if caching is disabled, return access point
+// databasesAccessPoint is the read surface the database service wiring
+// consumes: the database agent's access point plus the reads required by the
+// authorizer and connection monitor. It is satisfied by both
+// *cache.DatabasesCache and, when caching is disabled, the auth client.
+type databasesAccessPoint interface {
+	db.AccessPoint
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	// GetRole returns role by name.
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+}
+
+func (process *TeleportProcess) newLocalCacheForDatabase(clt authclient.ClientI, cacheName string) (*cache.DatabasesCache, error) {
+	// if caching is disabled, the client serves reads directly
 	if !process.Config.CachePolicy.Enabled {
-		return clt, nil, nil
+		return nil, nil
 	}
 
 	dbCache, err := accesspoint.NewDatabasesCache(process.accessPointConfigForClient(accesspoint.Config{
 		CacheName: cacheName,
 	}, clt))
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return authclient.NewDatabaseWrapper(clt, dbCache), dbCache, nil
+	return dbCache, nil
 }
 
 type eksClustersEnroller interface {

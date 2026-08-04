@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -421,9 +420,9 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 	}
 }
 
-// mockAccessPoint is a mock for auth.DatabaseAccessPoint.
+// mockAccessPoint is a mock for AccessPoint.
 type mockAccessPoint struct {
-	authclient.DatabaseAccessPoint
+	AccessPoint
 }
 
 func (m *mockAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
