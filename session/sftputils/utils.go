@@ -23,12 +23,37 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 )
+
+// CheckFileInfoName verifies that the Name of the FileInfo is in fact
+// a base name and not a path.
+func CheckFileInfoName(fi os.FileInfo) error {
+	name := fi.Name()
+	if name == "" {
+		return trace.BadParameter("name is empty")
+	}
+	if name == "." || name == ".." || strings.ContainsRune(name, '/') || strings.ContainsRune(name, '\\') {
+		return trace.BadParameter("invalid file name %q", name)
+	}
+
+	return nil
+}
+
+// CleanPath is like path.Clean, but replaces all backslashes with forward
+// slashes.
+func CleanPath(p string) string {
+	// replace backslashes first as path's package docs state only paths
+	// with forward slashes are supported
+	replaced := strings.ReplaceAll(p, "\\", "/")
+	return path.Clean(replaced)
+}
 
 // fileWrapper is a wrapper for *os.File that implements the WriteTo() method
 // required for concurrent data transfer.
