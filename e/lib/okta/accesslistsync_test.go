@@ -70,7 +70,6 @@ func (a *accessListSyncTestContext) appAccessRoleName(id string) string {
 	displayText, _ := v.GetLabel(types.OktaAppNameLabel)
 	return common.CreateOktaAccessRoleFriendlyName(displayText, id)
 }
-
 func (a *accessListSyncTestContext) appReviewerRoleName(id string) string {
 	v, ok := a.apps[id]
 	if !ok {
@@ -79,7 +78,6 @@ func (a *accessListSyncTestContext) appReviewerRoleName(id string) string {
 	displayText, _ := v.GetLabel(types.OktaAppNameLabel)
 	return common.CreateOktaReviewerRoleFriendlyName(displayText, id)
 }
-
 func (a *accessListSyncTestContext) groupAccessRoleName(id string) string {
 	v, ok := a.groups[id]
 	if !ok {
@@ -88,7 +86,6 @@ func (a *accessListSyncTestContext) groupAccessRoleName(id string) string {
 	displayText, _ := v.GetLabel(types.OktaGroupNameLabel)
 	return common.CreateOktaAccessRoleFriendlyName(displayText, id)
 }
-
 func (a *accessListSyncTestContext) groupReviewerRoleName(id string) string {
 	v, ok := a.groups[id]
 	if !ok {
@@ -610,6 +607,7 @@ func TestAccessListSync(t *testing.T) {
 
 		for _, tt := range testCases {
 			t.Run(tt.name, func(t *testing.T) {
+
 				// GIVEN an Okta integration with multiple synced groups
 				c := initAccessListSync(t, ctx)
 				for _, grp := range groups {
@@ -624,12 +622,13 @@ func TestAccessListSync(t *testing.T) {
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta group
 				oldGetGroupAssignmentsFunc := c.oktaClient.GetGroupAssignmentsFunc
-				c.oktaClient.GetGroupAssignmentsFunc = func(t *testing.T, ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
-					if err, ok := tt.importErrors[groupID]; ok {
-						return nil, err
+				c.oktaClient.GetGroupAssignmentsFunc =
+					func(t *testing.T, ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
+						if err, ok := tt.importErrors[groupID]; ok {
+							return nil, err
+						}
+						return oldGetGroupAssignmentsFunc(t, ctx, groupID)
 					}
-					return oldGetGroupAssignmentsFunc(t, ctx, groupID)
-				}
 
 				// WHEN I force a new Access List Sync
 				c.svc.sync(ctx)
@@ -720,12 +719,13 @@ func TestAccessListSync(t *testing.T) {
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta app
 				oldGetAppAssignmentsFunc := c.oktaClient.GetAppAssignmentsFunc
-				c.oktaClient.GetAppAssignmentsFunc = func(t *testing.T, ctx context.Context, app oktaapi.OktaAppID) ([]oktaapi.AppAssignment, error) {
-					if err, ok := tt.importErrors[app]; ok {
-						return nil, err
+				c.oktaClient.GetAppAssignmentsFunc =
+					func(t *testing.T, ctx context.Context, app oktaapi.OktaAppID) ([]oktaapi.AppAssignment, error) {
+						if err, ok := tt.importErrors[app]; ok {
+							return nil, err
+						}
+						return oldGetAppAssignmentsFunc(t, ctx, app)
 					}
-					return oldGetAppAssignmentsFunc(t, ctx, app)
-				}
 
 				// WHEN I force a new Access List Sync
 				c.svc.sync(ctx)
@@ -747,74 +747,6 @@ func TestAccessListSync(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestMatchesAnyFilter(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		filters   []*regexp.Regexp
-		matchName string
-		matches   bool
-	}{
-		{
-			name:      "empty filters",
-			filters:   []*regexp.Regexp{},
-			matchName: "test-name",
-			matches:   true,
-		},
-		{
-			name: "no match",
-			filters: []*regexp.Regexp{
-				regexp.MustCompile("^test-name-1*"),
-				regexp.MustCompile("^test-name-2*"),
-				regexp.MustCompile("^test-name-3*"),
-			},
-			matchName: "test-name",
-			matches:   false,
-		},
-		{
-			name: "single match",
-			filters: []*regexp.Regexp{
-				regexp.MustCompile("^test-name*"),
-			},
-			matchName: "test-name",
-			matches:   true,
-		},
-		{
-			name: "first matches",
-			filters: []*regexp.Regexp{
-				regexp.MustCompile("^test-name-1*"),
-				regexp.MustCompile("^test-name-2*"),
-				regexp.MustCompile("^test-name-3*"),
-			},
-			matchName: "test-name-1",
-			matches:   true,
-		},
-		{
-			name: "middle matches",
-			filters: []*regexp.Regexp{
-				regexp.MustCompile("^test-name-1*"),
-				regexp.MustCompile("^test-name-2*"),
-				regexp.MustCompile("^test-name-3*"),
-			},
-			matchName: "test-name-2",
-			matches:   true,
-		},
-		{
-			name: "last matches",
-			filters: []*regexp.Regexp{
-				regexp.MustCompile("^test-name-1*"),
-				regexp.MustCompile("^test-name-2*"),
-				regexp.MustCompile("^test-name-3*"),
-			},
-			matchName: "test-name-3",
-			matches:   true,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.matches, matchesAnyFilter(tt.filters, tt.matchName))
-		})
-	}
 }
 
 func newAccessListSyncAppServerWithLabels(t *testing.T, name string, labels map[string]string) types.AppServer {

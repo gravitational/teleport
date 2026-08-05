@@ -384,13 +384,6 @@ type Service struct {
 	// broadcasts changes as necessary.
 	serviceStatus *serviceStatus
 
-	// accessListSyncAppFilters limits which Okta apps will have Access List memberships
-	// synced back to Okta.
-	accessListSyncAppFilters []*regexp.Regexp
-	// accessListSyncGroupFilters limits which Okta groups will have Access List memberships
-	// synced back to Okta.
-	accessListSyncGroupFilters []*regexp.Regexp
-
 	// targetProcessingBackoffStep is the step value for linear backoff when processing
 	// Okta assignment targets.
 	targetProcessingBackoffStep time.Duration
@@ -517,8 +510,6 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		assignDefaultRoles:                config.SyncSettings.GetAssignDefaultRoles(),
 		disableOktaAppGroupSync:           config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus:                     serviceStatus,
-		accessListSyncAppFilters:          config.accessListSyncAppFilters,
-		accessListSyncGroupFilters:        config.accessListSyncGroupFilters,
 		targetProcessingBackoffStep:       config.TargetProcessingBackoffStep,
 		targetProcessingBackoffMax:        config.TargetProcessingBackoffMax,
 	}

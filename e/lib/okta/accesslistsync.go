@@ -774,9 +774,19 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			log.DebugContext(ctx, "application has no internal Okta app name label")
 		}
 
-		if !matchesAnyFilter(a.appFilters, oktaAppName) {
-			log.DebugContext(ctx, "application doesn't match filter, skipping")
-			continue
+		if len(a.appFilters) > 0 {
+			matchFound := false
+			for _, filter := range a.appFilters {
+				if filter.MatchString(oktaAppName) {
+					matchFound = true
+					break
+				}
+			}
+
+			if !matchFound {
+				log.DebugContext(ctx, "application doesn't match filter, skipping")
+				continue
+			}
 		}
 
 		if appIDProcessed.Contains(appID) {
@@ -884,9 +894,19 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 
 		log = log.With("okta_group_name", oktaGroupName)
 
-		if !matchesAnyFilter(a.groupFilters, oktaGroupName) {
-			log.DebugContext(ctx, "group doesn't match filter, skipping")
-			continue
+		if len(a.groupFilters) > 0 {
+			matchFound := false
+			for _, filter := range a.groupFilters {
+				if filter.MatchString(oktaGroupName) {
+					matchFound = true
+					break
+				}
+			}
+
+			if !matchFound {
+				log.DebugContext(ctx, "group doesn't match filter, skipping")
+				continue
+			}
 		}
 
 		irMetadata, err := a.groupToImportResources(ctx, groupID, group, params.appMapping, params.userMapping)
@@ -1165,11 +1185,4 @@ func MatchByLabels[T types.Resource](expectedOrgURL string) func(T) bool {
 // memberMapKey returns an identifier for members that will be unique in the reconciler.
 func memberMapKey(member *accesslist.AccessListMember) string {
 	return fmt.Sprintf("%s/%s", member.Spec.AccessList, member.GetName())
-}
-
-// matchesAnyFilter returns true if any of the filters match name.
-func matchesAnyFilter(filters []*regexp.Regexp, name string) bool {
-	return len(filters) == 0 || slices.ContainsFunc(filters, func(f *regexp.Regexp) bool {
-		return f.MatchString(name)
-	})
 }
