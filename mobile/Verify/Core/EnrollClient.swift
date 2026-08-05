@@ -19,7 +19,7 @@ import Dependencies
 import DependenciesMacros
 import Enroll
 import Foundation
-import OSLog
+import Logging
 import SystemClients
 
 /// Handles requests around enrolling the current device in Device Trust
@@ -39,7 +39,7 @@ public enum EnrollClientError: Error, Sendable {
 }
 
 extension EnrollClient {
-	private static let logger = Logger(subsystem: "com.gravitational.teleport.Verify", category: "EnrollClient")
+	private static let logger = Logger(label: "EnrollClient")
 
 	public static let liveValue = EnrollClient(
 		requestEnrollmentToken: { hostName, port, pairingToken in

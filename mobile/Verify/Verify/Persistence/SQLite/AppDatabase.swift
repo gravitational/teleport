@@ -16,7 +16,7 @@
 
 import Dependencies
 import Foundation
-import OSLog
+import Logging
 import SQLiteData
 
 /// A namespace that provides us a place to put our persistence code.
