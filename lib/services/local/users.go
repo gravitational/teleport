@@ -28,7 +28,6 @@ import (
 	"io"
 	"iter"
 	"log/slog"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1744,7 +1743,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
@@ -1768,9 +1767,6 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1791,9 +1787,6 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1839,7 +1832,6 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
-	opts = append(slices.Clip(opts), types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1880,7 +1872,6 @@ func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 // RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
-	opts = append(slices.Clip(opts), types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
 		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
 			item.Value,
