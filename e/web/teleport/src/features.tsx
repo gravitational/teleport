@@ -970,6 +970,7 @@ function getBeamsUiFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureIntegrationStatus(),
     new OSS.FeatureIntegrationOverview(),
+    new OSS.FeatureIntegrationOverviewSettings(),
 
     // Audit
     new OSS.FeatureAudit(),
