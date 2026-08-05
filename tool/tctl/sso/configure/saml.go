@@ -99,7 +99,7 @@ func addSAMLCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	sub.Flag("preset", "Preset.").Short('p').EnumVar(&saml.chosenPreset, samlPresets.getNames()...)
 	sub.Flag("name", "Connector name. Required, unless implied from preset.").Short('n').StringVar(&saml.connectorName)
 	sub.Flag("entity-descriptor", "Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.").Short('e').StringVar(&saml.entityDescriptorFlag)
-	sub.Flag("attributes-to-roles", "Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.").Short('r').Required().SetValue(flags.NewAttributesToRolesParser(&spec.AttributesToRoles))
+	sub.Flag("attributes-to-roles", "Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.").Short('r').SetValue(flags.NewAttributesToRolesParser(&spec.AttributesToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)
 	sub.Flag("allow-idp-initiated", "Allow the IdP to initiate the SSO flow.").BoolVar(&spec.AllowIDPInitiated)
 

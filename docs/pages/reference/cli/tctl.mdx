@@ -2683,7 +2683,7 @@ Configure GitHub auth connector.
 Usage:
 
 ```code
-$ tctl sso configure github --teams-to-roles=org,team,role1,role2,... --id=ID --secret=SECRET [<flags>]
+$ tctl sso configure github --id=ID --secret=SECRET [<flags>]
 ```
 
 Flags:
@@ -2708,7 +2708,7 @@ Configure OIDC auth connector, optionally using a preset. Available presets:
 Usage:
 
 ```code
-$ tctl sso configure oidc --claims-to-roles=name,value,role1,role2,... --secret=SECRET [<flags>]
+$ tctl sso configure oidc --secret=SECRET [<flags>]
 ```
 
 Flags:
@@ -2742,7 +2742,7 @@ Configure SAML auth connector, optionally using a preset. Available presets:
 Usage:
 
 ```code
-$ tctl sso configure saml --attributes-to-roles=ATTRIBUTES-TO-ROLES [<flags>]
+$ tctl sso configure saml [<flags>]
 ```
 
 Flags:

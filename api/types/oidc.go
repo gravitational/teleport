@@ -436,9 +436,6 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("the client_secret must be a literal value, file:// URLs are not supported")
 	}
 
-	if len(o.GetClaimsToRoles()) == 0 {
-		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
-	}
 	for _, v := range o.Spec.ClaimsToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")

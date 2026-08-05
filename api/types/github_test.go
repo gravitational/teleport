@@ -81,3 +81,34 @@ func TestGithubAuthRequestCheck(t *testing.T) {
 		})
 	}
 }
+
+func TestNewGitHubConnectorTeamsToRoles(t *testing.T) {
+	tests := []struct {
+		name         string
+		teamsToRoles []TeamRolesMapping
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "empty",
+			teamsToRoles: []TeamRolesMapping{},
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "invalid",
+			teamsToRoles: []TeamRolesMapping{{Organization: "", Team: "", Roles: []string{}}},
+			assertErr:    require.Error,
+		},
+		{
+			name:         "valid",
+			teamsToRoles: []TeamRolesMapping{{Organization: "org", Team: "team", Roles: []string{"access"}}},
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("role-mapping-"+tt.name, func(t *testing.T) {
+			_, err := NewGithubConnector(tt.name, GithubConnectorSpecV3{TeamsToRoles: tt.teamsToRoles})
+			tt.assertErr(t, err)
+		})
+	}
+}

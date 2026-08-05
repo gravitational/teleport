@@ -205,10 +205,6 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
-		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
-	}
-
 	return nil
 }
 
