@@ -145,7 +145,7 @@ func Run(args []string) int {
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
 	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
-		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+		Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -169,7 +169,7 @@ func Run(args []string) int {
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
 		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
 	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
-		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+		Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
