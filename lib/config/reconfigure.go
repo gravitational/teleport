@@ -149,7 +149,7 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 		}
 		return trace.BadParameter("%s requires the %s join method; pass --join-method %s", flag, types.JoinMethodBoundKeypair, types.JoinMethodBoundKeypair)
 	}
-	joinParamsInUse := fc.JoinParams != (JoinParams{}) ||
+	joinParamsInUse := !fc.JoinParams.IsEqual(&JoinParams{}) ||
 		req.Token != "" || req.RegistrationSecret != "" || req.RegistrationSecretPath != ""
 	if joinParamsInUse && joinMethod == "" {
 		return trace.BadParameter("the output config would set join_params without a join method, which the agent rejects at startup; pass --join-method")
@@ -204,7 +204,7 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	}
 	// The agent rejects a config that sets both join_params and the legacy
 	// auth_token.
-	if fc.JoinParams != (JoinParams{}) && fc.AuthToken != "" {
+	if !fc.JoinParams.IsEqual(&JoinParams{}) && fc.AuthToken != "" {
 		if fc.JoinParams.TokenName == "" {
 			fc.JoinParams.TokenName = fc.AuthToken
 		}
