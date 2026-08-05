@@ -354,6 +354,10 @@ func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.
 }
 
 func (c *Command) buildUpdatedAccessRoles(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) ([]*types.RoleV6, error) {
+	if err := rejectUnknownGrants(al); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if c.removeAccess {
 		return nil, nil // no roles appended means "remove these access roles from al grants"
 	}
@@ -390,12 +394,6 @@ func (c *Command) buildUpdatedAccessRoles(ctx context.Context, client *authclien
 
 // updateAccessListWithPreset updates an access list spec/meta and its related access roles.
 func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []string, []string, error) {
-	// The backend replaces grants wholesale without validating them, so this
-	// is the only place hand-edited grants are caught before they are dropped.
-	if err := rejectUnknownGrants(al); err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
 	updatedAccessRoles, err := c.buildUpdatedAccessRoles(ctx, client, al)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
