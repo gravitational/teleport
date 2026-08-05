@@ -906,7 +906,7 @@ func TestServerAzureLabels(t *testing.T) {
 		internalKey   string
 		visibleValue  string
 		internalValue string
-		getter        func(Server) string
+		getter        func(ResourceWithLabels) string
 	}{
 		{
 			name:          "VM ID",

@@ -1668,7 +1668,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	for _, matcher := range fc.Discovery.AzureMatchers {
 		var installParams *types.InstallerParams
 		var err error
-		if slices.Contains(matcher.Types, types.AzureMatcherVM) {
+		if slices.Contains(matcher.Types, types.AzureMatcherVM) ||
+			slices.Contains(matcher.Types, types.AzureMatcherWindowsVM) {
 			// Backwards compatibility for Azure VM matcher:
 			// If install_teleport param is not set, default to false.
 			if matcher.InstallParams == nil {

@@ -945,6 +945,9 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetUserTask gets a single User Task by its name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+
+	// GetDynamicWindowsDesktop gets a single Dynamic Windows Desktop by its name.
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1000,8 +1003,11 @@ type DiscoveryAccessPoint interface {
 	// UpsertUserTask creates or updates an User Task
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 
-	// UpsertDynamicWindowsDesktop creates or updates a Dynamic Windows Desktop
-	UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
+	// CreateDynamicWindowsDesktop creates a new Dynamic Windows Desktop.
+	CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
+
+	// UpdateDynamicWindowsDesktop updates an existing Dynamic Windows Desktop.
+	UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
 
 	// ListDynamicWindowsDesktops returns a paginated list of Dynamic Windows Desktops.
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
@@ -1914,13 +1920,24 @@ func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.
 	return w.NoCache.UpsertUserTask(ctx, req)
 }
 
-// UpsertDynamicWindowsDesktop creates or updates a Dynamic Windows Desktop.
-func (w *DiscoveryWrapper) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
-	return w.NoCache.UpsertDynamicWindowsDesktop(ctx, desktop)
+// CreateDynamicWindowsDesktop creates a new Dynamic Windows Desktop.
+func (w *DiscoveryWrapper) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	return w.NoCache.CreateDynamicWindowsDesktop(ctx, desktop)
+}
+
+// UpdateDynamicWindowsDesktop updates an existing Dynamic Windows Desktop.
+func (w *DiscoveryWrapper) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	return w.NoCache.UpdateDynamicWindowsDesktop(ctx, desktop)
 }
 
 func (w *DiscoveryWrapper) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
 	return w.NoCache.ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
+}
+
+// GetDynamicWindowsDesktop is not cached so the revision used for the
+// conditional update is never stale.
+func (w *DiscoveryWrapper) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	return w.NoCache.GetDynamicWindowsDesktop(ctx, name)
 }
 
 // Close closes all associated resources

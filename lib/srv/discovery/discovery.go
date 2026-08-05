@@ -83,7 +83,7 @@ import (
 
 var errNoInstances = errors.New("all fetched nodes already enrolled")
 
-const noDiscoveryConfig = ""
+const NoDiscoveryConfig = ""
 
 // Matchers contains all matchers used by discovery service
 type Matchers struct {
@@ -419,6 +419,8 @@ type Server struct {
 	cancelfn context.CancelFunc
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
+	// dynamicWindowsDesktopWatcher is a dynamic watcher for Windows desktops.
+	dynamicWindowsDesktopWatcher *services.GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]
 
 	// ec2Watcher periodically retrieves EC2 instances.
 	ec2Watcher *server.Watcher[*server.EC2Instances]
@@ -473,6 +475,7 @@ type Server struct {
 	awsEKSTasks           awsEKSTasks
 	awsRDSTasks           awsRDSTasks
 	azureVMStatus         atomic.Pointer[discoveryStatus]
+	azureWindowsVMStatus  atomic.Pointer[discoveryStatus]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -518,7 +521,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
-	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers, noDiscoveryConfig)
+	databaseFetchers, err := s.databaseFetchersFromMatchers(cfg.Matchers, NoDiscoveryConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -537,7 +540,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP, noDiscoveryConfig); err != nil {
+	if err := s.initGCPWatchers(s.ctx, cfg.Matchers.GCP, NoDiscoveryConfig); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -558,6 +561,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	s.startDynamicMatchersWatcher(s.ctx)
+
+	if err := s.initTeleportDynamicWindowsDesktopWatcher(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return s, nil
 }
@@ -690,7 +697,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		}),
 		server.WithPostFetchHookFn[*server.EC2Instances](s.ec2WatcherIterationEnded),
 	)
-	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
+	s.ec2Watcher.SetFetchers(NoDiscoveryConfig, staticFetchers)
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
@@ -717,7 +724,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	_, otherMatchers = splitMatchers(otherMatchers, db.IsAWSMatcherType)
 
 	// Add non-integration kube fetchers.
-	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, s.GetAWSRegionsLister, otherMatchers, noDiscoveryConfig)
+	kubeFetchers, err := fetchers.MakeEKSFetchersFromAWSMatchers(s.Log, s.AWSFetchersClients, s.GetAWSRegionsLister, otherMatchers, NoDiscoveryConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1113,7 +1120,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMa
 						FilterLabels:        matcher.ResourceTags,
 						ResourceGroups:      matcher.ResourceGroups,
 						Logger:              s.Log,
-						DiscoveryConfigName: noDiscoveryConfig,
+						DiscoveryConfigName: NoDiscoveryConfig,
 						Integration:         matcher.Integration,
 					})
 					if err != nil {
@@ -1145,7 +1152,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 		server.WithTriggerFetchC[*server.GCPInstances](s.newDiscoveryConfigChangedSub()),
 		server.WithClock[*server.GCPInstances](s.clock),
 	)
-	s.gcpWatcher.SetFetchers(noDiscoveryConfig, staticFetchers)
+	s.gcpWatcher.SetFetchers(NoDiscoveryConfig, staticFetchers)
 
 	if s.gcpInstaller == nil {
 		s.gcpInstaller = &server.GCPInstaller{
@@ -1723,7 +1730,7 @@ func (s *Server) startAzureServerDiscovery() {
 	refreshFetchers := func(drainConfigNotifications bool) {
 		s.Log.DebugContext(s.ctx, "Refreshing Azure server fetchers")
 		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
-		replaceMap[noDiscoveryConfig] = s.azureServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
+		replaceMap[NoDiscoveryConfig] = s.azureServerFetchersFromMatchers(s.Matchers.Azure, NoDiscoveryConfig)
 
 		s.dynamicDiscoveryConfigMu.RLock()
 		if drainConfigNotifications {
@@ -1749,7 +1756,7 @@ func (s *Server) startAzureServerDiscovery() {
 		azureWatcher.ReplaceFetchers(replaceMap)
 	}
 
-	var sm *discoveryStatus
+	var sm, winSM *discoveryStatus
 	var vmTasks *azureVMTasks
 	var runStart time.Time
 	var eg *errgroup.Group
@@ -1781,9 +1788,10 @@ func (s *Server) startAzureServerDiscovery() {
 			runStart = s.clock.Now()
 
 			if len(fetchers) > 0 {
-				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
+
 			}
 			sm = newStatusMap(types.AzureMatcherVM, runStart)
+			winSM = newStatusMap(types.AzureMatcherWindowsVM, runStart)
 			vmTasks = &azureVMTasks{}
 			eg = &errgroup.Group{}
 			eg.SetLimit(azureVMGroupProcessingConcurrencyLimit)
@@ -1799,9 +1807,26 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
 					integration:         fetcher.IntegrationName(),
 				}
-				sm.add(key)
+				var (
+					mt interface{ GetMatcherType() string }
+					ok bool
+				)
+				if mt, ok = fetcher.(interface{ GetMatcherType() string }); !ok {
+					s.Log.WarnContext(s.ctx, "Azure fetcher does not implement GetMatcherType", "fetcher", fetcher)
+					continue
+				}
+				switch mt.GetMatcherType() {
+				case types.AzureMatcherVM:
+					sm.add(key)
+					s.submitFetchEvent(types.CloudAzure, types.AzureMatcherVM)
+				case types.AzureMatcherWindowsVM:
+					winSM.add(key)
+					s.submitFetchEvent(types.CloudAzure, types.AzureMatcherWindowsVM)
+				default:
+					s.Log.WarnContext(s.ctx, "Unexpected matcher type for Azure fetcher", "matcher_type", mt.GetMatcherType())
+				}
 			}
-			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+			s.updateDiscoveryConfigStatus(slices.Concat(sm.discoveryConfigs(), winSM.discoveryConfigs())...)
 		}),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
 			for _, group := range instanceGroups {
@@ -1809,19 +1834,34 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: group.Metadata.DiscoveryConfigName,
 					integration:         group.Metadata.Integration,
 				}
-				status, err := s.reconcileAzureServers(group)
-				if err != nil {
-					s.Log.WarnContext(s.ctx, "Failed to reconcile discovered Azure instances with current Teleport nodes, skipping installation",
-						"group", group,
-						"error", err,
-					)
-					continue
+				switch group.Metadata.MatcherType {
+				case types.AzureMatcherVM:
+					status, err := s.reconcileAzureServers(group)
+					if err != nil {
+						s.Log.WarnContext(s.ctx, "Failed to reconcile discovered Azure instances with current Teleport nodes, skipping installation",
+							"group", group,
+							"error", err,
+						)
+						continue
+					}
+					eg.Go(func() error {
+						status := s.installAzureServers(group, vmTasks, status, backoff, sem)
+						sm.updateConcurrently(key, status)
+						return nil
+					})
+				case types.AzureMatcherWindowsVM:
+					eg.Go(func() error {
+						status, err := s.handleAzureWindowsDesktops(group, vmTasks, backoff, sem)
+						if err != nil {
+							s.Log.WarnContext(s.ctx, "Failed to handle discovered Azure Windows desktops, skipping installation",
+								"group", group,
+								"error", err,
+							)
+						}
+						winSM.updateConcurrently(key, status)
+						return nil
+					})
 				}
-				eg.Go(func() error {
-					status := s.installAzureServers(group, vmTasks, status, backoff, sem)
-					sm.updateConcurrently(key, status)
-					return nil
-				})
 			}
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
@@ -1833,9 +1873,11 @@ func (s *Server) startAzureServerDiscovery() {
 			_ = eg.Wait()
 			now := s.clock.Now()
 			sm.syncEnded(now)
+			winSM.syncEnded(now)
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
-			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+			s.azureWindowsVMStatus.Store(winSM)
+			s.updateDiscoveryConfigStatus(slices.Concat(sm.discoveryConfigs(), winSM.discoveryConfigs())...)
 			// upsert user tasks for failed enrollments.
 			vmTasks.upsertAll(s.taskUpdater())
 			backoff.expireEntries(now)
@@ -1893,7 +1935,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	addFailedAzureEnrollment := func(entry installerBackoffEntry, syncTime time.Time) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
-		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
+		if instances.Metadata.DiscoveryConfigName == NoDiscoveryConfig {
 			return
 		}
 		if !entry.isFailedAttempt() {
@@ -2531,6 +2573,22 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 			Clock:        s.clock,
 		},
 		NodesGetter: s.AccessPoint,
+	})
+
+	return trace.Wrap(err)
+}
+
+func (s *Server) initTeleportDynamicWindowsDesktopWatcher() (err error) {
+	s.dynamicWindowsDesktopWatcher, err = services.NewDynamicWindowsDesktopWatcher(s.ctx, services.DynamicWindowsDesktopWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentDiscovery,
+			Logger:       s.Log,
+			Client:       s.AccessPoint,
+			MaxStaleness: 0,
+			Clock:        s.clock,
+		},
+		DynamicWindowsDesktopGetter: s.AccessPoint,
+		DisableUpdateBroadcast:      true,
 	})
 
 	return trace.Wrap(err)

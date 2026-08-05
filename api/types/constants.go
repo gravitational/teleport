@@ -1115,6 +1115,8 @@ const (
 	DiscoveredResourceEICENode = "node.openssh-eice"
 	// DiscoveredResourceApp identifies a discovered Kubernetes App.
 	DiscoveredResourceApp = "app"
+	// DiscoveredResourceWindowsAuthPackage identifies a discovered Windows node using the Windows Auth Package.
+	DiscoveredResourceWindowsAuthPackage = "windows.auth-package"
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace

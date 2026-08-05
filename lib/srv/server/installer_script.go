@@ -148,10 +148,14 @@ func proxyAddress(ctx context.Context, proxyAddr string, getter proxyGetter) (st
 // resolveInstallerScript parses options, validates params, resolves the proxy
 // address, and builds the installer script URL. These steps are shared by all
 // platform-specific installer script builders.
-func resolveInstallerScript(ctx context.Context, params *types.InstallerParams, opts ...scriptOption) (proxyAddr, scriptURL string, o *scriptOptions, err error) {
+func resolveInstallerScript(ctx context.Context, params *types.InstallerParams, scriptName string, opts ...scriptOption) (proxyAddr, scriptURL string, o *scriptOptions, err error) {
 	scriptOptions := &scriptOptions{}
 	for _, opt := range opts {
 		scriptOptions = opt(scriptOptions)
+	}
+
+	if scriptName == "" {
+		return "", "", nil, trace.BadParameter("script name must not be empty")
 	}
 
 	if params == nil {
@@ -167,11 +171,14 @@ func resolveInstallerScript(ctx context.Context, params *types.InstallerParams, 
 	if params.Azure != nil && params.Azure.ClientID != "" {
 		scriptURLQuery.Set("azure-client-id", shsprintf.EscapeDefaultContext(params.Azure.ClientID))
 	}
+	if params.RestartAfterEnrollment {
+		scriptURLQuery.Set("restart-after-enrollment", "true")
+	}
 
 	u := url.URL{
 		Scheme:   "https",
 		Host:     proxyAddr,
-		Path:     path.Join("v1", "webapi", "scripts", "installer", shsprintf.EscapeDefaultContext(params.ScriptName)),
+		Path:     path.Join("v1", "webapi", "scripts", "installer", shsprintf.EscapeDefaultContext(scriptName)),
 		RawQuery: scriptURLQuery.Encode(),
 	}
 
@@ -179,7 +186,7 @@ func resolveInstallerScript(ctx context.Context, params *types.InstallerParams, 
 }
 
 func installerScript(ctx context.Context, params *types.InstallerParams, opts ...scriptOption) (string, error) {
-	proxyAddr, scriptURL, scriptOptions, err := resolveInstallerScript(ctx, params, opts...)
+	proxyAddr, scriptURL, scriptOptions, err := resolveInstallerScript(ctx, params, params.ScriptName, opts...)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -258,7 +265,7 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 }
 
 func installerScriptWindowsAuthPackage(ctx context.Context, params *types.InstallerParams, opts ...scriptOption) (string, error) {
-	proxyAddr, scriptURL, scriptOptions, err := resolveInstallerScript(ctx, params, opts...)
+	proxyAddr, scriptURL, scriptOptions, err := resolveInstallerScript(ctx, params, params.WindowsScriptName, opts...)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

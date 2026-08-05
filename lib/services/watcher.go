@@ -702,6 +702,9 @@ type DynamicWindowsDesktopWatcherConfig struct {
 	DynamicWindowsDesktopsC chan []types.DynamicWindowsDesktop
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
+	// DisableUpdateBroadcast disables broadcasting resource updates on
+	// DynamicWindowsDesktopsC.
+	DisableUpdateBroadcast bool
 }
 
 // NewDynamicWindowsDesktopWatcher returns a new instance of DynamicWindowsDesktopWatcher.
@@ -716,9 +719,10 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
 			getter.ListDynamicWindowsDesktops,
 		).getAll,
-		ResourceKey: types.DynamicWindowsDesktop.GetName,
-		ResourcesC:  cfg.DynamicWindowsDesktopsC,
-		CloneFunc:   types.DynamicWindowsDesktop.Copy,
+		ResourceKey:            types.DynamicWindowsDesktop.GetName,
+		ResourcesC:             cfg.DynamicWindowsDesktopsC,
+		CloneFunc:              types.DynamicWindowsDesktop.Copy,
+		DisableUpdateBroadcast: cfg.DisableUpdateBroadcast,
 		ReadOnlyFunc: func(resource types.DynamicWindowsDesktop) readonly.DynamicWindowsDesktop {
 			return resource
 		},

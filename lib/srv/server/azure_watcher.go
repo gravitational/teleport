@@ -74,8 +74,13 @@ func (md AzureInstancesMetadata) LogValue() slog.Value {
 }
 
 func (md *AzureInstancesMetadata) resourceType() string {
-	if md.InstallerParams != nil && md.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
-		return types.DiscoveredResourceAgentlessNode
+	if md.InstallerParams != nil {
+		if md.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
+			return types.DiscoveredResourceAgentlessNode
+		}
+		if md.InstallerParams.WindowsScriptName == installers.InstallerScriptNameWindowsAuthPackage {
+			return types.DiscoveredResourceWindowsAuthPackage
+		}
 	}
 	return types.DiscoveredResourceNode
 }
@@ -120,6 +125,7 @@ func (md *AzureInstancesMetadata) MakeRunEvent(result AzureInstallResult) *apiev
 			VMID:   vmID,
 			VMName: vmName,
 		},
+		DiscoveryResourceType: md.resourceType(),
 	}
 
 	if result.APIError != nil {
@@ -161,22 +167,40 @@ func (instances *AzureInstances) LogValue() slog.Value {
 	)
 }
 
+// FilterExistingDesktops removes instances matching existing dynamic Windows
+// desktops in place and returns the removed instances.
+func (instances *AzureInstances) FilterExistingDesktops(existingDesktops []types.DynamicWindowsDesktop) []*azure.VirtualMachine {
+	return filterExistingInstances(instances, existingDesktops)
+}
+
 // FilterExistingNodes removes instances matching existing nodes in place.
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
+	filterExistingInstances(instances, existingNodes)
+}
+
+// filterExistingInstances removes instances matching existing resources in
+// place and returns the removed instances.
+func filterExistingInstances[T types.ResourceWithLabels](instances *AzureInstances, existingInstances []T) []*azure.VirtualMachine {
 	vmIDs := make(map[string]struct{})
-	for _, node := range existingNodes {
-		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
+	for _, instance := range existingInstances {
+		if subID := types.GetAzureSubscriptionID(instance); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		if vmID := types.GetAzureVMID(node); vmID != "" {
+		if vmID := types.GetAzureVMID(instance); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}
 
+	removedVMs := make([]*azure.VirtualMachine, 0, len(instances.Instances))
 	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *azure.VirtualMachine) bool {
 		_, found := vmIDs[instance.VMID]
+		if found {
+			removedVMs = append(removedVMs, instance)
+		}
 		return found
 	})
+
+	return removedVMs
 }
 
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
@@ -305,6 +329,11 @@ func (f *azureInstanceFetcher) GetDiscoveryConfigName() string {
 // Might be empty when the fetcher is using ambient credentials.
 func (f *azureInstanceFetcher) IntegrationName() string {
 	return f.Integration
+}
+
+// GetMatcherType returns the type of matcher used to discover the instances.
+func (f *azureInstanceFetcher) GetMatcherType() string {
+	return f.MatcherType
 }
 
 type resourceGroupLocation struct {

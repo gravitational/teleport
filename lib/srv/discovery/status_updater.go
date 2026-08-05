@@ -147,10 +147,11 @@ func (s *discoveryConfigStatusUpdater) updateServerStatus(status discoveryconfig
 		previousSummary := existingDiscoverSummary(s.serverID, integration, existingServerStatuses)
 
 		integrationSummaries[integration] = discoveryconfigv1.DiscoverSummary_builder{
-			AwsEc2:   mergeResourceSummary(currentDiscoverSummary.GetAwsEc2(), previousSummary.GetAwsEc2()),
-			AwsRds:   mergeResourceSummary(currentDiscoverSummary.GetAwsRds(), previousSummary.GetAwsRds()),
-			AwsEks:   mergeResourceSummary(currentDiscoverSummary.GetAwsEks(), previousSummary.GetAwsEks()),
-			AzureVms: mergeResourceSummary(currentDiscoverSummary.GetAzureVms(), previousSummary.GetAzureVms()),
+			AwsEc2:          mergeResourceSummary(currentDiscoverSummary.GetAwsEc2(), previousSummary.GetAwsEc2()),
+			AwsRds:          mergeResourceSummary(currentDiscoverSummary.GetAwsRds(), previousSummary.GetAwsRds()),
+			AwsEks:          mergeResourceSummary(currentDiscoverSummary.GetAwsEks(), previousSummary.GetAwsEks()),
+			AzureVms:        mergeResourceSummary(currentDiscoverSummary.GetAzureVms(), previousSummary.GetAzureVms()),
+			AzureWindowsVms: mergeResourceSummary(currentDiscoverSummary.GetAzureWindowsVms(), previousSummary.GetAzureWindowsVms()),
 		}.Build()
 	}
 

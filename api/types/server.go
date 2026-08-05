@@ -786,27 +786,27 @@ func (s *ServerV2) GetImmutableLabels() map[string]string {
 	return s.Spec.ImmutableLabels
 }
 
-// GetAzureVMID returns the Azure VM ID, if this node comes from Azure.
-func GetAzureVMID(s Server) string {
-	val, _ := s.GetLabel(VMIDLabelInternal)
+// GetAzureVMID returns the Azure VM ID, if this resource comes from Azure.
+func GetAzureVMID(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(VMIDLabelInternal)
 	return val
 }
 
-// GetAzureSubscriptionID returns the Azure subscription ID, if this node comes from Azure.
-func GetAzureSubscriptionID(s Server) string {
-	val, _ := s.GetLabel(SubscriptionIDLabelInternal)
+// GetAzureSubscriptionID returns the Azure subscription ID, if this resource comes from Azure.
+func GetAzureSubscriptionID(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(SubscriptionIDLabelInternal)
 	return val
 }
 
-// GetAzureRegion returns the Azure region, if this node comes from Azure.
-func GetAzureRegion(s Server) string {
-	val, _ := s.GetLabel(RegionLabelInternal)
+// GetAzureRegion returns the Azure region, if this resource comes from Azure.
+func GetAzureRegion(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(RegionLabelInternal)
 	return val
 }
 
-// GetAzureResourceGroup returns the Azure resource group, if this node comes from Azure.
-func GetAzureResourceGroup(s Server) string {
-	val, _ := s.GetLabel(ResourceGroupLabelInternal)
+// GetAzureResourceGroup returns the Azure resource group, if this resource comes from Azure.
+func GetAzureResourceGroup(r ResourceWithLabels) string {
+	val, _ := r.GetLabel(ResourceGroupLabelInternal)
 	return val
 }
 

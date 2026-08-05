@@ -6852,6 +6852,13 @@ message AzureRun {
 
   // Status is the resulting status of command derived from other fields.
   string Status = 9 [(gogoproto.jsontag) = "status,omitempty"];
+
+  // discovery_resource_type is the type of resource the command was run to
+  // discover, e.g. "node" for a Teleport agent install or
+  // "windows.auth-package" for a Windows authentication package install.
+  // It lets readers of the audit log differentiate between the kinds of
+  // resource an azure.run event relates to.
+  string discovery_resource_type = 10;
 }
 
 // CassandraSession is emitted when a Cassandra client sends

@@ -1092,4 +1092,39 @@ func TestTaskNameForDiscoverHashStability(t *testing.T) {
 				ResourceGroup:  "my-rg",
 				Region:         "eastus",
 			}))
+
+	require.Equal(t, "e57abe3e-e183-5764-80a0-5a24dd7352f6",
+		taskNameForDiscoverAzureVM(
+			TaskGroup{
+				Integration: "my-integration",
+				IssueType:   AutoDiscoverAzureVMIssueWindowsAuthPackageMachineDomainJoined,
+			},
+			taskNameForDiscoverAzureVMParts{
+				SubscriptionID: "sub-123",
+				ResourceGroup:  "my-rg",
+				Region:         "eastus",
+			}))
+}
+
+func TestNewDiscoverAzureVMUserTask_AllIssueTypesAreValid(t *testing.T) {
+	t.Parallel()
+	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
+
+	for _, issueType := range DiscoverAzureVMIssueTypes {
+		t.Run(issueType, func(t *testing.T) {
+			_, err := NewDiscoverAzureVMUserTask(
+				TaskGroup{Integration: "my-integration", IssueType: issueType},
+				time.Now().Add(time.Hour),
+				&usertasksv1.DiscoverAzureVM{
+					SubscriptionId: "sub-123",
+					ResourceGroup:  "my-rg",
+					Region:         "eastus",
+					Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+						exampleVMID: {VmId: exampleVMID, DiscoveryConfig: "dc01", DiscoveryGroup: "dg01"},
+					},
+				},
+			)
+			require.NoError(t, err)
+		})
+	}
 }

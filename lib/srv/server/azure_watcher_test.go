@@ -546,9 +546,10 @@ func TestMakeRunEvent(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		result AzureInstallResult
-		want   *apievents.AzureRun
+		name            string
+		installerParams *types.InstallerParams
+		result          AzureInstallResult
+		want            *apievents.AzureRun
 	}{
 		{
 			name: "success",
@@ -561,7 +562,8 @@ func TestMakeRunEvent(t *testing.T) {
 				},
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunSuccessCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunSuccessCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -588,7 +590,8 @@ func TestMakeRunEvent(t *testing.T) {
 				},
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -612,7 +615,8 @@ func TestMakeRunEvent(t *testing.T) {
 				APIError: trace.AccessDenied("forbidden"),
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -637,7 +641,8 @@ func TestMakeRunEvent(t *testing.T) {
 				},
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -660,7 +665,8 @@ func TestMakeRunEvent(t *testing.T) {
 				APIError: trace.AccessDenied("forbidden"),
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -680,7 +686,8 @@ func TestMakeRunEvent(t *testing.T) {
 				APIError: trace.AccessDenied("forbidden"),
 			},
 			want: &apievents.AzureRun{
-				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				DiscoveryResourceType: types.DiscoveredResourceNode,
 				AzureMetadata: apievents.AzureMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
@@ -694,15 +701,45 @@ func TestMakeRunEvent(t *testing.T) {
 				APIError: "forbidden",
 			},
 		},
+		{
+			name: "windows auth package install is labelled",
+			installerParams: &types.InstallerParams{
+				WindowsScriptName: installers.InstallerScriptNameWindowsAuthPackage,
+			},
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Succeeded",
+					ExitCode:       0,
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata:              apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunSuccessCode},
+				DiscoveryResourceType: types.DiscoveredResourceWindowsAuthPackage,
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				ExecutionState: "Succeeded",
+				Status:         "Installation completed successfully.",
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			instances := &AzureInstances{
 				Metadata: AzureInstancesMetadata{
-					SubscriptionID: subscriptionID,
-					ResourceGroup:  resourceGroup,
-					Region:         region,
+					SubscriptionID:  subscriptionID,
+					ResourceGroup:   resourceGroup,
+					Region:          region,
+					InstallerParams: tc.installerParams,
 				},
 			}
 			evt := instances.Metadata.MakeRunEvent(tc.result)

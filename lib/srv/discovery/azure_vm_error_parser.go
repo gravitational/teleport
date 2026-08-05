@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/server"
+	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 func classifyAzureInstallResultIssue(installResult server.AzureInstallResult) string {
@@ -65,6 +66,44 @@ func classifyAzureVMEnrollmentError(err error) string {
 
 	default:
 		// generic error
+		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
+	}
+}
+
+// classifyAzureWindowsDesktopRegistrationError classifies errors returned while
+// registering a Windows desktop for an Azure VM.
+func classifyAzureWindowsDesktopRegistrationError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, errNoPrimaryPrivateIP) {
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageNoPrivateIP
+	}
+	return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
+}
+
+// classifyAzureWindowsAuthPackageInstallResultIssue classifies errors returned
+// while installing the Windows Auth Package on an Azure VM.
+func classifyAzureWindowsAuthPackageInstallResultIssue(installResult server.AzureInstallResult) string {
+	if installResult.CommandResult == nil {
+		return classifyAzureVMEnrollmentError(installResult.APIError)
+	}
+	switch installstatus.ExitCode(installResult.CommandResult.ExitCode) {
+	case installstatus.WindowsInsufficientDiskSpace:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageInsufficientDiskSpace
+	case installstatus.UnsupportedWindowsVersion:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageUnsupportedWindowsVersion
+	case installstatus.WindowsMachineDomainJoined:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageMachineDomainJoined
+	case installstatus.WindowsInstallerDownloadFailure:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageDownloadFailure
+	case installstatus.WindowsInstallerExecutionFailure:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageExecutionFailure
+	case installstatus.WindowsInstallerStagingDirUnsafe:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageStagingDirUnsafe
+	case installstatus.WindowsInstallerChecksumMismatch:
+		return usertasks.AutoDiscoverAzureVMIssueWindowsAuthPackageChecksumMismatch
+	default:
 		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
 	}
 }

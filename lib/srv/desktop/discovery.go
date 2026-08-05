@@ -604,7 +604,12 @@ func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDes
 	desktopLabels := dynamicDesktop.GetAllLabels()
 	labels := make(map[string]string, len(desktopLabels)+1)
 	maps.Copy(labels, desktopLabels)
-	labels[types.OriginLabel] = types.OriginDynamic
+	// If the origin label has already been set, don't overwrite it. This
+	// preserves the origin set by whoever created the resource (such as the
+	// Discovery service) so the windows_desktop reports the correct origin.
+	if labels[types.OriginLabel] == "" {
+		labels[types.OriginLabel] = types.OriginDynamic
+	}
 
 	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
 		Addr:   dynamicDesktop.GetAddr(),

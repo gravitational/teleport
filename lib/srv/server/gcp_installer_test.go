@@ -55,6 +55,7 @@ func TestGCPInstaller(t *testing.T) {
 	err := installer.Run(t.Context(), GCPRunRequest{
 		InstallerParams: &types.InstallerParams{
 			PublicProxyAddr: "localhost:8080",
+			ScriptName:      "test-installer",
 		},
 		Zone:       "useast-1",
 		ProjectID:  "test",

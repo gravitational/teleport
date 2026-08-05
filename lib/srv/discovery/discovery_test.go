@@ -302,6 +302,7 @@ func TestDiscoveryServer(t *testing.T) {
 			Params: &types.InstallerParams{
 				InstallTeleport: true,
 				EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				ScriptName:      types.DefaultInstallerScriptName,
 			},
 		}},
 	}
@@ -3484,7 +3485,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
 					ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
-					Params:         &types.InstallerParams{},
+					Params:         &types.InstallerParams{ScriptName: types.DefaultInstallerScriptName},
 					Integration:    noIntegration,
 				},
 				{
@@ -3493,7 +3494,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
 					ResourceTags:   types.Labels{integrationLabel: {"yes"}},
-					Params:         &types.InstallerParams{},
+					Params:         &types.InstallerParams{ScriptName: types.DefaultInstallerScriptName},
 					Integration:    dummyIntegration,
 				},
 			},

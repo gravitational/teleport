@@ -450,6 +450,10 @@ func (m *mockAuthServer) RangeSSHServers(ctx context.Context, req *presencev1.Li
 	return stream.Empty[types.Server]()
 }
 
+func (m *mockAuthServer) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return nil, "", nil
+}
+
 func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opts ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
 	return m.enrollEKSClusters(ctx, req, opts...)
 }

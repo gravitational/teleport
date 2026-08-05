@@ -3219,6 +3219,14 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 }
 
+func (c *Client) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().CreateDynamicWindowsDesktop(ctx, desktop)
+}
+
+func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	return c.DynamicDesktopClient().UpdateDynamicWindowsDesktop(ctx, desktop)
+}
+
 // LinuxDesktopClient returns a LinuxDesktop client.
 // Clients connecting to older Teleport versions, still get a LinuxDesktop client
 // when calling this method, but all RPCs will return "unknown service" errors

@@ -228,6 +228,7 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				InstallerParams: &types.InstallerParams{
 					JoinMethod: types.JoinMethodAzure,
 					JoinToken:  "test-token",
+					ScriptName: "test-installer",
 				},
 				ProxyAddrGetter: proxyAddrGetter,
 				Region:          "eastus",
@@ -271,6 +272,7 @@ func TestAzureInstallRequestRun(t *testing.T) {
 			InstallerParams: &types.InstallerParams{
 				JoinMethod: types.JoinMethodAzure,
 				JoinToken:  "test-token",
+				ScriptName: "test-installer",
 			},
 			ProxyAddrGetter: func(ctx context.Context) (string, error) {
 				return "proxy.example.com:443", nil

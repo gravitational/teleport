@@ -244,8 +244,8 @@ func TestInstallerScript(t *testing.T) {
 func TestInstallerScriptWindowsAuthPackage(t *testing.T) {
 	basicParams := func() *types.InstallerParams {
 		return &types.InstallerParams{
-			PublicProxyAddr: "proxy.example.com:443",
-			ScriptName:      "scriptName",
+			PublicProxyAddr:   "proxy.example.com:443",
+			WindowsScriptName: "scriptName",
 		}
 	}
 	for _, tt := range []struct {
@@ -327,6 +327,18 @@ func TestInstallerScriptWindowsAuthPackage(t *testing.T) {
 				return req
 			},
 			errCheck: require.Error,
+		},
+		{
+			name: "restart after enrollment is set",
+			req: func() *types.InstallerParams {
+				req := basicParams()
+				req.RestartAfterEnrollment = true
+				return req
+			},
+			errCheck: require.NoError,
+			expectedScript: windowsInstallerSetup +
+				windowsInstallerChecksFor("proxy.example.com:443", "") +
+				windowsInstallerFetch("https://proxy.example.com:443/v1/webapi/scripts/installer/scriptName?restart-after-enrollment=true", ""),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

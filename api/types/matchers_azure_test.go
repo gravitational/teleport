@@ -160,11 +160,80 @@ func TestAzureMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name: "windows-vm default values",
+			in: &AzureMatcher{
+				Types: []string{"windows-vm"},
+			},
+			errCheck: require.NoError,
+			expected: &AzureMatcher{
+				Types:          []string{"windows-vm"},
+				Regions:        []string{"*"},
+				Subscriptions:  []string{"*"},
+				ResourceGroups: []string{"*"},
+				ResourceTags: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					WindowsScriptName: DefaultInstallerScriptNameWindowsAuthPackage,
+				},
+			},
+		},
+		{
+			name: "windows-vm does not override an explicit script name",
+			in: &AzureMatcher{
+				Types: []string{"windows-vm"},
+				Params: &InstallerParams{
+					WindowsScriptName: "custom-windows-installer",
+				},
+			},
+			errCheck: require.NoError,
+			expected: &AzureMatcher{
+				Types:          []string{"windows-vm"},
+				Regions:        []string{"*"},
+				Subscriptions:  []string{"*"},
+				ResourceGroups: []string{"*"},
+				ResourceTags: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					WindowsScriptName: "custom-windows-installer",
+				},
+			},
+		},
+		{
 			name: "vm and windows-vm can be combined",
 			in: &AzureMatcher{
 				Types: []string{"vm", "windows-vm"},
 			},
 			errCheck: require.NoError,
+			expected: &AzureMatcher{
+				Types:          []string{"vm", "windows-vm"},
+				Regions:        []string{"*"},
+				Subscriptions:  []string{"*"},
+				ResourceGroups: []string{"*"},
+				ResourceTags: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					JoinMethod:        JoinMethodAzure,
+					JoinToken:         AzureInviteTokenName,
+					ScriptName:        DefaultInstallerScriptName,
+					WindowsScriptName: DefaultInstallerScriptNameWindowsAuthPackage,
+					Azure:             &AzureInstallerParams{},
+				},
+			},
+		},
+		{
+			name: "invalid proxy settings for windows-vm",
+			in: &AzureMatcher{
+				Types: []string{"windows-vm"},
+				Params: &InstallerParams{
+					HTTPProxySettings: &HTTPProxySettings{
+						HTTPProxy: "not a valid url",
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
