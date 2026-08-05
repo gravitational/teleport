@@ -1049,6 +1049,29 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 
 	// Note: Lying via IAM join not tested as that must be routed through the
 	// join service (along with Azure and TPM).
+
+	// Simulate the instance record disappearing (expired, deleted, or backend
+	// rollback): the rejoin should be issued a fresh instance, not denied, and
+	// must not lock the join token.
+	require.NoError(t, a.BotInstance.DeleteBotInstance(ctx, machineidv1pb.DeleteBotInstanceRequest_builder{
+		BotName:    botName,
+		InstanceId: initialK8sInstanceID,
+	}.Build()))
+
+	freshK8sResult, err := registerHelper(ctx, k8sToken, addr, func(p *joinclient.JoinParams) {
+		p.KubernetesReadFileFunc = k8sReadFileFunc
+		p.AuthClient = k8sClient
+	})
+	require.NoError(t, err)
+
+	freshK8sID, freshK8sGeneration := instanceIDFromCerts(t, freshK8sResult.Certs)
+	require.NotEmpty(t, freshK8sID)
+	require.NotEqual(t, initialK8sInstanceID, freshK8sID)
+	require.Equal(t, uint64(1), freshK8sGeneration)
+
+	locks, err := a.GetLocks(ctx, true, types.LockTarget{JoinToken: k8sToken.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, locks)
 }
 
 // TestRegisterBotWithInvalidInstanceID ensures that client-specified instance

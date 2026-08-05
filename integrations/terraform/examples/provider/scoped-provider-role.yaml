@@ -10,7 +10,7 @@ spec:
       verbs:
         - list
         - create
-        - readnosecrets
+        - read
         - update
         - delete
     - resources: ["scoped_token"]
@@ -18,5 +18,6 @@ spec:
         - list
         - create
         - read
+        - secrets
         - update
         - delete

@@ -2052,7 +2052,7 @@ func TestGetBot(t *testing.T) {
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
-						Verbs:     []string{types.VerbReadNoSecrets},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 						Resources: []string{types.KindBot},
 					}.Build(),
 				},
@@ -3300,7 +3300,7 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted"},
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
-						Verbs:     []string{types.VerbReadNoSecrets},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read),
 						Resources: []string{types.KindBotInstance},
 					}.Build(),
 				},
@@ -3431,7 +3431,7 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 				AssignableScopes: []string{"/scopes/granted", "/scopes/ungranted", "/scopes/other"},
 				Rules: []*scopedaccessv1.ScopedRule{
 					scopedaccessv1.ScopedRule_builder{
-						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+						Verbs:     scopedaccess.EncodeScopedVerbs(scopedaccess.Read, scopedaccess.List),
 						Resources: []string{types.KindBotInstance},
 					}.Build(),
 				},

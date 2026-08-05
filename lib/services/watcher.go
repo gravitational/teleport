@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -647,6 +648,10 @@ type KubeClusterWatcherConfig struct {
 	KubeClustersC chan []types.KubeCluster
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
+	// LoadSecrets specifies whether the watched kube clusters include their kubeconfig. Only the
+	// kube agent needs this, to connect to dynamically-registered clusters, and it requires
+	// secret-inclusive read permission on kubernetes_cluster.
+	LoadSecrets bool
 }
 
 // NewKubeClusterWatcher returns a new instance of KubeClusterWatcher.
@@ -659,8 +664,11 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.KubeCluster, readonly.KubeCluster]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
+		LoadSecrets:           cfg.LoadSecrets,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				WithSecrets: cfg.LoadSecrets,
+			}.Build()))
 		},
 		ResourceKey: GetCursorForKubeCluster,
 		DeleteKey: func(res types.Resource) string {
