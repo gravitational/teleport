@@ -15,32 +15,17 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
-import Observation
-
-// import OSLog
-import LogBackends
 import Logging
+import Observation
 
 /// The root of our app's view model tree.
 @Observable @MainActor
 final class VerifyAppModel {
-	static var logger = Logger(label: "VerifyAppModel")
+	private let logger = Logger(label: "VerifyAppModel")
 
 	// MARK: Child View Models
 
 	let landingViewModel = LandingViewModel()
-
-	// MARK: Initialization
-
-	init() {
-		LoggingSystem.bootstrap { label in
-			var handler = ConsoleLogHandler(label: label)
-			#if DEBUG
-				handler.logLevel = .debug
-			#endif
-			return handler
-		}
-	}
 }
 
 // MARK: - Deep Link Handling
@@ -53,14 +38,14 @@ extension VerifyAppModel {
 		do {
 			switch try DeepLink(from: url) {
 				case let .enrollMobileDevice(deepLink):
-					Self.logger.debug("Correctly parsed deep link", metadata: [
+					logger.debug("Correctly parsed deep link", metadata: [
 						"scannedURL": "\(url)",
 						"deepLink": "\(deepLink)",
 					])
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
-			Self.logger.warning("Failed to parse deep link", metadata: [
+			logger.warning("Failed to parse deep link", metadata: [
 				"scannedURL": "\(url)",
 				"error": .string(String(describing: error)),
 			])

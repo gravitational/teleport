@@ -17,7 +17,7 @@
 import CryptoKit
 import Foundation
 import LocalAuthentication
-import OSLog
+import Logging
 import Security
 
 /// Implements Device Trust using two pieces of device-local storage.
