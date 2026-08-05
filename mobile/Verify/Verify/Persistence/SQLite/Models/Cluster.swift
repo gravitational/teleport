@@ -15,6 +15,7 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
+import Logging
 import SQLiteData
 
 @Table("clusters")
@@ -24,14 +25,6 @@ struct Cluster: Identifiable {
 	var port: Int
 }
 
-// MARK: - CustomDebugStringConvertible
-
-extension Cluster: CustomDebugStringConvertible {
-	var debugDescription: String {
-		"\(id):\(host):\(port)"
-	}
-}
-
 extension Cluster {
 	var url: URL? {
 		var components = URLComponents()
@@ -39,6 +32,18 @@ extension Cluster {
 		components.port = port
 		components.scheme = "https"
 		return components.url
+	}
+}
+
+// MARK: - Logging
+
+extension Cluster {
+	var logMetadata: Logger.Metadata {
+		[
+			"cluster.id": "\(id)",
+			"cluster.host": "\(host)",
+			"cluster.port": "\(port)",
+		]
 	}
 }
 
