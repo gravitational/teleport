@@ -129,7 +129,8 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.SAML: {Enabled: true},
-				}},
+				},
+			},
 		},
 	}
 
@@ -309,14 +310,16 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 				Values: []samltypes.AttributeValue{
 					{Value: "beatles"},
 					{Value: "wings"},
-				}},
+				},
+			},
 			"instruments": samltypes.Attribute{
 				Name: "instruments",
 				Values: []samltypes.AttributeValue{
 					{Value: "bass"},
 					{Value: "piano"},
 					{Value: "guitar"},
-				}},
+				},
+			},
 		},
 	}
 	diagContext := auth.NewSSODiagContext(types.KindSAML, f.samlService.auth)
@@ -385,6 +388,109 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 		"Invalid traits in saved user login state.\nExpected: %v,\nActual:   %v", expectedTraits, postProcessedTraits)
 }
 
+// TestSAMLPostProcessingWithoutRoleMapping verifies that non-ephemeral post-processing
+// happens for connectors without role-mapping.
+func TestSAMLPostProcessingWithoutRoleMapping(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	f := newSAMLTestFixture(t)
+	const username = "ringo@apple-records.example.com"
+
+	for _, roleName := range []string{"guitarist", "scouser", teleport.SystemOktaRequesterRoleName} {
+		role, err := types.NewRole(roleName, types.RoleSpecV6{})
+		require.NoError(t, err)
+
+		_, err = f.authServer.CreateRole(ctx, role)
+		require.NoError(t, err)
+	}
+
+	connector, err := types.NewSAMLConnector("no-mapping-connector", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://example.com/saml/v2",
+		EntityDescriptorURL:      "https://example.com/saml/v2/identity_descriptor",
+		AttributesToRoles:        []types.AttributeMapping{},
+	})
+	require.NoError(t, err)
+	require.Empty(t, connector.GetAttributesToRoles())
+
+	diagContext := auth.NewSSODiagContext(types.KindSAML, f.samlService.auth)
+
+	authRequest := &types.SAMLAuthRequest{}
+	assertionInfo := &saml2.AssertionInfo{
+		NameID: username,
+		Values: saml2.Values{
+			"instruments": samltypes.Attribute{
+				Name:   "instruments",
+				Values: []samltypes.AttributeValue{{Value: "guitar"}},
+			},
+		},
+	}
+
+	t.Run("access list roles applied", func(t *testing.T) {
+		const username = "paul@apple-records.example.com"
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+		src.SetOrigin(types.OriginOkta)
+		src.SetRoles([]string{"guitarist"})
+		src.SetTraits(map[string][]string{
+			"okta/fullName":          {"James Paul McCartney"},
+			"spurious-is-dead-trait": {"yes"},
+		})
+		user, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		acl := newAccessList(t, "from-liverpool", []string{"scouser"})
+		_, _, err = f.authServer.UpsertAccessListWithMembers(f.testContext, acl,
+			[]*accesslist.AccessListMember{
+				newAccessListMember(t, acl.GetName(), username),
+			})
+		require.NoError(t, err)
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			user,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+		require.ElementsMatch(t, []string{"scouser"}, postProcessedUserState.GetRoles())
+
+		expectedTraits := map[string][]string{
+			"okta/fullName": {"James Paul McCartney"},
+			"instruments":   {"guitar"},
+		}
+		requireTraitsMatch(t, expectedTraits, postProcessedUserState.GetTraits())
+	})
+
+	t.Run("zero access list roles", func(t *testing.T) {
+		const username = "pete@apple-records.example.com"
+
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+
+		src.SetOrigin(types.OriginOkta)
+		src.AddRole("editor")
+		src.SetTraits(map[string][]string{"okta/fullName": {"James Paul McCartney"}})
+
+		user, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		userBefore, err := f.authServer.GetUser(f.testContext, username, false)
+		require.NoError(t, err)
+
+		_, err = f.samlService.postProcessUser(f.testContext, user, connector, diagContext, authRequest, assertionInfo)
+		require.ErrorIs(t, err, ErrSAMLNoRoles)
+
+		// User's roles/traits are unmodified.
+		userAfter, err := f.authServer.GetUser(f.testContext, username, false)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(userBefore, userAfter))
+	})
+}
+
 // TestSAMLPostProcessingPreservesIntegrationRoles asserts that the default
 // roles assigned by an integration are preserved.
 func TestSAMLPostProcessingPreservesIntegrationRoles(t *testing.T) {
@@ -422,14 +528,6 @@ func TestSAMLPostProcessingPreservesIntegrationRoles(t *testing.T) {
 			},
 		})
 	require.NoError(t, err, "failed creating SAML connector")
-
-	// // ALSO GIVEN a userGeorge configured with Origin: Okta but DOES NOT have the Okta
-	// // integration's default "okta requester" role
-	// userGeorge, err := types.NewUser(usernameGeorge)
-	// require.NoError(t, err)
-	// userGeorge.SetOrigin(types.OriginOkta)
-	// _, err = f.authServer.Services.CreateUser(f.testContext, userGeorge)
-	// require.NoError(t, err)
 
 	diagContext := auth.NewSSODiagContext(types.KindSAML, f.samlService.auth)
 
@@ -477,6 +575,48 @@ func TestSAMLPostProcessingPreservesIntegrationRoles(t *testing.T) {
 		// applying the AttributesToRoles to the updated, SAML-derived traits
 		// WHILE ALSO preserving the Okta-default "okta-requester" role
 		expectedRoles := []string{"drummer", teleport.SystemOktaRequesterRoleName}
+		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
+	})
+
+	t.Run("preserved role bypass", func(t *testing.T) {
+		const username = "bob@apple-records.example.com"
+
+		// GIVEN all the above, and...
+
+		// ALSO GIVEN a user configured with Origin: Okta AND having the Okta
+		// integration's default "okta requester" role
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+		src.SetOrigin(types.OriginOkta)
+		src.SetRoles([]string{teleport.SystemOktaRequesterRoleName})
+		bob, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		// WHEN I simulate a SAML login by invoking the user post-login processor
+		// with a set of SAML assertions that do not match the existing traits of
+		// the target user
+		authRequest := &types.SAMLAuthRequest{}
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{},
+		}
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			bob,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo)
+
+		// EXPECT that the operation succeeds
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+
+		// ALSO EXPECT that the returned UserState has no role-set derived
+		// applying the AttributesToRoles to the updated, SAML-derived traits
+		// WHILE ALSO preserving the Okta-default "okta-requester" role
+		expectedRoles := []string{teleport.SystemOktaRequesterRoleName}
 		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
 	})
 
@@ -581,6 +721,102 @@ func TestSAMLPostProcessingPreservesIntegrationRoles(t *testing.T) {
 		expectedRoles := []string{"guitarist"}
 		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
 	})
+
+	t.Run("no claim roles with access list", func(t *testing.T) {
+		const username = "paul@apple-records.example.com"
+
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+
+		src.SetOrigin(types.OriginOkta)
+		src.AddRole("guitarist")
+
+		user, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		role, err := types.NewRole("scouser", types.RoleSpecV6{})
+		require.NoError(t, err)
+
+		_, err = f.authServer.CreateRole(f.testContext, role)
+		require.NoError(t, err)
+
+		acl := newAccessList(t, username, []string{"scouser"})
+
+		_, _, err = f.authServer.UpsertAccessListWithMembers(
+			f.testContext,
+			acl,
+			[]*accesslist.AccessListMember{
+				newAccessListMember(t, acl.GetName(), username),
+			},
+		)
+		require.NoError(t, err)
+
+		authRequest := &types.SAMLAuthRequest{}
+
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{
+				"instruments": samltypes.Attribute{
+					Name:   "instruments",
+					Values: []samltypes.AttributeValue{{Value: "piano"}},
+				},
+			},
+		}
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			user,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo,
+		)
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+
+		// Stale role removed and Access List role applied.
+		require.ElementsMatch(t, []string{"scouser"}, postProcessedUserState.GetRoles())
+		userAfter, err := f.authServer.GetUser(f.testContext, username, false)
+		require.NoError(t, err)
+		require.Empty(t, userAfter.GetRoles())
+	})
+
+	t.Run("no claim roles without access list", func(t *testing.T) {
+		const username = "pete@apple-records.example.com"
+
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+
+		src.SetOrigin(types.OriginOkta)
+		src.AddRole("editor")
+		src.SetTraits(map[string][]string{"okta/fullName": {"James Paul McCartney"}})
+
+		user, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		authRequest := &types.SAMLAuthRequest{}
+
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{
+				"instruments": samltypes.Attribute{
+					Name:   "instruments",
+					Values: []samltypes.AttributeValue{{Value: "piano"}},
+				},
+			},
+		}
+
+		userBefore, err := f.authServer.GetUser(f.testContext, username, false)
+		require.NoError(t, err)
+
+		_, err = f.samlService.postProcessUser(f.testContext, user, connector, diagContext, authRequest, assertionInfo)
+		require.ErrorIs(t, err, ErrSAMLNoRoles)
+
+		// User's roles/traits are unmodified.
+		userAfter, err := f.authServer.GetUser(f.testContext, username, false)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(userBefore, userAfter))
+	})
 }
 
 func TestEncryptedSAML(t *testing.T) {
@@ -651,7 +887,8 @@ func TestPingSAMLWorkaround(t *testing.T) {
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
-			}},
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -760,7 +997,8 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
-			}},
+			},
+		},
 	}
 
 	ctx := context.Background()
@@ -1843,14 +2081,6 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 	mockEmitter := &eventstest.MockRecorderEmitter{}
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, Emitter: mockEmitter, LicenseChecker: ValidLicense{}})
 
-	// create role referenced in request.
-	_, err = authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"dummy"},
-		},
-	})
-	require.NoError(t, err)
-
 	connectorName := "saml"
 	spec := newTestConnectorSpec()
 	spec.MFASettings = &types.SAMLConnectorMFASettings{
@@ -1860,10 +2090,21 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 		Sso:              spec.SSO,
 	}
 
+	// Clear out the attribute mapping so no roles mapped from connector.
+	// This verifies the MFA doesn't depend on role-mapping.
+	spec.AttributesToRoles = nil
+
 	conn, err := types.NewSAMLConnector(connectorName, spec)
 	require.NoError(t, err)
 
-	_, err = a.CreateSAMLConnector(ctx, conn)
+	// Write directly to backend to bypass validation which would reject connector
+	// without attributes_to_roles field.
+	value, err := utils.FastMarshal(conn)
+	require.NoError(t, err)
+	_, err = srv.GetBackend().Put(ctx, backend.Item{
+		Key:   backend.NewKey("web", "connectors", "saml", "connectors", conn.GetName()),
+		Value: value,
+	})
 	require.NoError(t, err)
 
 	requestID := "_4f256462-6c2d-466d-afc0-6ee36602b6f2"
@@ -1892,6 +2133,10 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 				sd, err := a.GetMFASessionData(ctx, requestID)
 				assert.NoError(t, err)
 				assert.Equal(t, resp.MFAToken, sd.Token)
+
+				// User should not be persisted.
+				_, err = a.GetUser(ctx, username, false)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
 			},
 		},
 		{
@@ -1946,6 +2191,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 		})
 	}
 }
+
 func newConnector(t *testing.T, name, ssoURL, issuer, cert, preferredBinding string) types.SAMLConnector {
 	t.Helper()
 	c, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
@@ -2160,6 +2406,189 @@ func TestSAMLRequestSubjectInjection(t *testing.T) {
 					assert.NotContains(t, xmlBody, tt.subjectIdentifier, "XML should NOT contain the user email")
 				}
 			}
+		})
+	}
+}
+
+func TestValidateSAMLResponseRoleMappings(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Date(2022, 4, 25, 9, 0, 0, 0, time.UTC))
+
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		ClusterName: "me.localhost",
+		Dir:         t.TempDir(),
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, testAuthServer.Close())
+	})
+
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{
+		Auth:           testAuthServer.AuthServer,
+		LicenseChecker: ValidLicense{},
+		Emitter:        mockEmitter,
+	})
+
+	const accessRoleMaxSessionTTL = 30 * time.Second
+	_, err = authtest.CreateRole(ctx, testAuthServer.AuthServer, "access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.Duration(accessRoleMaxSessionTTL),
+		},
+	})
+	require.NoError(t, err)
+
+	const shortRoleMaxSessionTTL = 10 * time.Second
+	_, err = authtest.CreateRole(ctx, testAuthServer.AuthServer, "short", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			MaxSessionTTL: types.Duration(shortRoleMaxSessionTTL),
+		},
+	})
+	require.NoError(t, err)
+
+	spec := newTestConnectorSpec()
+	spec.AttributesToRoles = []types.AttributeMapping{
+		{Name: "groups", Value: "nonexistent-group", Roles: []string{"access"}},
+	}
+
+	noRolesConn, err := types.NewSAMLConnector("no-roles-connector", spec)
+	require.NoError(t, err)
+
+	_, err = testAuthServer.AuthServer.CreateSAMLConnector(ctx, noRolesConn)
+	require.NoError(t, err)
+
+	mixedSpec := newTestConnectorSpec()
+	mixedSpec.AttributesToRoles = []types.AttributeMapping{
+		{Name: "groups", Value: "Everyone", Roles: []string{"access"}},
+	}
+
+	mixedConn, err := types.NewSAMLConnector("mixed-connector", mixedSpec)
+	require.NoError(t, err)
+
+	_, err = testAuthServer.AuthServer.CreateSAMLConnector(ctx, mixedConn)
+	require.NoError(t, err)
+
+	// username is the email address from the SAML request.
+	const username = "ops@gravitational.io"
+	// requestID is the ID of the SAML request.
+	const requestID = "_4f256462-6c2d-466d-afc0-6ee36602b6f2"
+
+	tests := []struct {
+		name             string
+		createWebSession bool
+		connectorName    string
+		setup            func(t *testing.T)
+		assertion        func(t *testing.T, resp *authclient.SAMLAuthResponse, err error)
+	}{
+		{
+			name:          "no roles",
+			connectorName: "no-roles-connector",
+			assertion: func(t *testing.T, resp *authclient.SAMLAuthResponse, err error) {
+				require.ErrorIs(t, err, ErrSAMLNoRoles)
+				_, err = testAuthServer.AuthServer.GetUser(ctx, username, false)
+				require.ErrorAs(t, err, new(*trace.NotFoundError))
+			},
+		},
+		{
+			name:             "access list roles",
+			connectorName:    "no-roles-connector",
+			createWebSession: true,
+			setup: func(t *testing.T) {
+				acl := newAccessList(t, "saml-acl", []string{"access"})
+				_, _, err = testAuthServer.AuthServer.UpsertAccessListWithMembers(
+					ctx,
+					acl,
+					[]*accesslist.AccessListMember{
+						newAccessListMember(t, acl.GetName(), username),
+					},
+				)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					require.NoError(t, testAuthServer.AuthServer.DeleteAccessList(ctx, acl.GetName()))
+				})
+			},
+			assertion: func(t *testing.T, resp *authclient.SAMLAuthResponse, err error) {
+				require.NoError(t, err)
+				require.WithinDuration(t, clock.Now().Add(accessRoleMaxSessionTTL), resp.Session.Expiry(), 5*time.Second)
+				user, err := testAuthServer.AuthServer.GetUser(ctx, username, false)
+				require.NoError(t, err)
+				require.WithinDuration(t, clock.Now().Add(accessRoleMaxSessionTTL), user.Expiry(), 5*time.Second)
+			},
+		},
+		{
+			name:             "access list and connector roles",
+			connectorName:    "mixed-connector",
+			createWebSession: true,
+			setup: func(t *testing.T) {
+				short := newAccessList(t, "short-acl", []string{"short"})
+				_, _, err = testAuthServer.AuthServer.UpsertAccessListWithMembers(
+					ctx,
+					short,
+					[]*accesslist.AccessListMember{
+						newAccessListMember(t, short.GetName(), username),
+					},
+				)
+				require.NoError(t, err)
+
+				t.Cleanup(func() {
+					require.NoError(t, testAuthServer.AuthServer.DeleteAccessList(ctx, short.GetName()))
+				})
+			},
+			assertion: func(t *testing.T, resp *authclient.SAMLAuthResponse, err error) {
+				require.NoError(t, err)
+				require.WithinDuration(t, clock.Now().Add(shortRoleMaxSessionTTL), resp.Session.Expiry(), 5*time.Second)
+				user, err := testAuthServer.AuthServer.GetUser(ctx, username, false)
+				require.NoError(t, err)
+				require.WithinDuration(t, clock.Now().Add(accessRoleMaxSessionTTL), user.Expiry(), 5*time.Second)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setup != nil {
+				tt.setup(t)
+			}
+
+			err := testAuthServer.AuthServer.Services.CreateSAMLAuthRequest(
+				ctx,
+				types.SAMLAuthRequest{
+					ID:               requestID,
+					ConnectorID:      tt.connectorName,
+					CreateWebSession: tt.createWebSession,
+				},
+				defaults.SAMLAuthRequestTTL,
+			)
+			require.NoError(t, err)
+
+			t.Cleanup(func() {
+				// Cleanup completed request.
+				require.NoError(t, testAuthServer.Backend.Delete(ctx, backend.NewKey("web", "connectors", "saml", "requests", requestID)))
+			})
+
+			diagCtx := auth.NewSSODiagContext(types.KindSAML, testAuthServer.AuthServer)
+
+			resp, _, err := sas.validateSAMLResponse(
+				ctx,
+				diagCtx,
+				base64.StdEncoding.EncodeToString([]byte(respOkta)),
+				"",
+				"",
+			)
+
+			tt.assertion(t, resp, err)
 		})
 	}
 }

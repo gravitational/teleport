@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"net"
 	"net/http"
@@ -148,10 +147,10 @@ type samlProviderKey struct {
 }
 
 var (
-	// ErrSAMLNoRoles results from not mapping any roles from SAML claims.
-	ErrSAMLNoRoles = trace.AccessDenied("No roles mapped from claims. The mappings may contain typos.")
 	// ErrSAMLEntraIDGroupsOverage is returned when there's an error handling Entra ID groups overage.
 	ErrSAMLEntraIDGroupsOverage = trace.AccessDenied("Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector.")
+	// ErrSAMLNoRoles is returned when a user authenticated via SAML has no roles assigned in Teleport.
+	ErrSAMLNoRoles = trace.AccessDenied("SAML user has no Teleport-assigned roles.")
 	// ErrNoHTTPPostBinding is the error returned when client does not support SAML http-post binding request.
 	ErrNoHTTPPostBinding = trace.CompareFailedError{Message: "client does not support http-post binding request"}
 )
@@ -406,20 +405,12 @@ func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth
 
 	var warnings []string
 	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
-	if len(p.Roles) == 0 {
-		if len(warnings) != 0 {
-			logger.WarnContext(ctx, "No roles mapped from claims", "warnings", warnings, "connector", connector.WithoutSecrets())
-			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
-				Message:  "No roles mapped for the user",
-				Warnings: warnings,
-			}
-		} else {
-			logger.WarnContext(ctx, "No roles mapped from claims", "connector", connector.WithoutSecrets())
-			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
-				Message: "No roles mapped for the user. The mappings may contain typos.",
-			}
+	if len(p.Roles) == 0 && len(warnings) != 0 {
+		logger.WarnContext(ctx, "No roles mapped from claims", "warnings", warnings, "connector", connector.WithoutSecrets())
+		diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
+			Message:  "No roles mapped for the user",
+			Warnings: warnings,
 		}
-		return nil, trace.Wrap(ErrSAMLNoRoles)
 	}
 
 	// Pick smaller for role: session TTL from role or requested TTL.
@@ -785,6 +776,29 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	diagCtx.Info.SAMLAttributeStatements = sas.getAttributeFromAssertion(assertionInfo)
 	diagCtx.Info.SAMLAttributesToRoles = connector.GetAttributesToRoles()
 
+	// Update the MFA session with a token. Return it to the user to complete the MFA check.
+	if mfaSession != nil {
+		// validate the mfaSession now that we have the full request details.
+		if err := sas.validateMFASession(ctx, mfaSession, assertionInfo, connector.GetName()); err != nil {
+			return nil, loginIP, trace.Wrap(err)
+		}
+
+		token, err := sas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
+		if err != nil {
+			return nil, loginIP, trace.Wrap(err)
+		}
+
+		return &authclient.SAMLAuthResponse{
+			Req: SAMLAuthRequestFromProto(request),
+			Identity: types.ExternalIdentity{
+				ConnectorID: connector.GetName(),
+				Username:    assertionInfo.NameID,
+			},
+			Username: assertionInfo.NameID,
+			MFAToken: token,
+		}, loginIP, nil
+	}
+
 	user, err := sas.auth.GetUser(ctx, assertionInfo.NameID, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, loginIP, trace.Wrap(err)
@@ -804,10 +818,6 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	if isEphemeralSAMLUser(user) {
 		// This is an ephemeral SAML user: we can happily update and overwrite
 		// this user.
-		if len(connector.GetAttributesToRoles()) == 0 {
-			samlErr := trace.BadParameter("no attributes to roles mapping, check connector documentation")
-			return nil, loginIP, trace.WithUserMessage(samlErr, "Attributes-to-roles mapping is empty, SSO user will never have any roles.")
-		}
 
 		logger.DebugContext(ctx, "Applying SAML attribute to roles mappings", "attribute_to_roles_count", len(connector.GetAttributesToRoles()))
 
@@ -852,26 +862,57 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			}
 		}
 
+		if len(params.Roles) == 0 {
+			dryRun := true
+			dryRunUser, err := sas.createSAMLUser(ctx, createSAMLUserParams, dryRun)
+			if err != nil {
+				return nil, loginIP, trace.Wrap(err)
+			}
+
+			uls, err := sas.auth.GeneratePureULS(ctx, dryRunUser)
+			if err != nil {
+				return nil, loginIP, trace.Wrap(err)
+			}
+
+			// If we know the user won't have any roles from Access List then bail early.
+			// This is best-effort to avoid user being persisted and clears out any existing roles.
+			// TODO(nixpig): Look into whether it's possible to refactor login hooks to work
+			// on in-memory user object, rather than from backend. This would remove the need
+			// to persist the user (and in doing so, the requirement to check if they would
+			// have access list roles beforehand).
+			if len(uls.GetAccessListRoles()) == 0 {
+				return nil, loginIP, trace.Wrap(ErrSAMLNoRoles)
+			}
+
+			sessionRoles, err := services.FetchRoles(uls.GetRoles(), sas.auth, uls.GetTraits())
+			if err != nil {
+				return nil, loginIP, trace.Wrap(err)
+			}
+			createSAMLUserParams.SessionTTL = utils.MinTTL(sessionRoles.AdjustSessionTTL(apidefaults.MaxCertDuration), params.SessionTTL)
+			diagCtx.Info.CreateUserParams.SessionTTL = types.Duration(createSAMLUserParams.SessionTTL)
+		}
+
 		user, err = sas.createSAMLUser(ctx, createSAMLUserParams, diagCtx.Info.TestFlow)
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create user from provided parameters.")
 		}
-
-		sessionTTL = params.SessionTTL
-	} else {
-		// Calculate the session TTL as the minimum of all TTLs associated with
-		// the user and their roles.
-		roles, err := services.FetchRoles(user.GetRoles(), sas.auth, user.GetTraits())
-		if err != nil {
-			return nil, loginIP, trace.Wrap(err)
-		}
-		sessionTTL = roles.AdjustSessionTTL(apidefaults.MaxCertDuration)
+		sessionTTL = createSAMLUserParams.SessionTTL
 	}
 
 	userState, err := sas.postProcessUser(ctx, user, connector, diagCtx, request, assertionInfo)
 	if err != nil {
 		return nil, loginIP, trace.Wrap(err)
 	}
+
+	if len(userState.GetRoles()) == 0 {
+		return nil, loginIP, trace.Wrap(ErrSAMLNoRoles)
+	}
+
+	sessionRoles, err := services.FetchRoles(userState.GetRoles(), sas.auth, userState.GetTraits())
+	if err != nil {
+		return nil, loginIP, trace.Wrap(err)
+	}
+	sessionTTL = utils.MinTTL(sessionRoles.AdjustSessionTTL(apidefaults.MaxCertDuration), sessionTTL)
 
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &authclient.SAMLAuthResponse{
@@ -890,31 +931,14 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		}
 	}
 
-	// Update the MFA session with a token. Return it to the user to complete the MFA check.
-	if mfaSession != nil {
-		// validate the mfaSession now that we have the full request details.
-		switch {
-		case mfaSession.ConnectorID != connector.GetName():
-			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session, wrong provider %q", mfaSession.ConnectorID)
-		case mfaSession.ConnectorType != constants.SAML:
-			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session, wrong sso type %q", mfaSession.ConnectorType)
-		case mfaSession.Username != user.GetName():
-			slog.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", user.GetName())
-			return nil, loginIP, trace.AccessDenied("invalid SAML MFA session")
-		}
-
-		token, err := sas.auth.UpsertSSOMFASessionWithToken(ctx, mfaSession)
-		if err != nil {
-			return nil, loginIP, trace.Wrap(err)
-		}
-
-		resp.MFAToken = token
-		return resp, loginIP, nil
-	}
-
 	var scope string
 	if request != nil {
 		scope = request.Scope
+	}
+
+	roles, err := services.FetchRoles(userState.GetRoles(), sas.auth, userState.GetTraits())
+	if err != nil {
+		return nil, loginIP, trace.Wrap(err)
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -923,7 +947,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			User:                 userState.GetName(),
 			Roles:                userState.GetRoles(),
 			Traits:               userState.GetTraits(),
-			SessionTTL:           sessionTTL,
+			SessionTTL:           utils.MinTTL(roles.AdjustSessionTTL(apidefaults.MaxCertDuration), sessionTTL),
 			LoginTime:            sas.auth.GetClock().Now().UTC(),
 			LoginIP:              loginIP,
 			LoginUserAgent:       userAgent,
@@ -942,7 +966,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	if request != nil && (len(request.SshPublicKey) > 0 || len(request.TlsPublicKey) > 0) {
 		sshCert, tlsCert, err := sas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
 			UserState:               userState,
-			SessionTTL:              sessionTTL,
+			SessionTTL:              utils.MinTTL(roles.AdjustSessionTTL(apidefaults.MaxCertDuration), sessionTTL),
 			SSHPubKey:               request.SshPublicKey,
 			TLSPubKey:               request.TlsPublicKey,
 			Compatibility:           request.Compatibility,
@@ -982,6 +1006,21 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 
 	diagCtx.Info.Success = true
 	return resp, loginIP, nil
+}
+
+// validateMFASession checks the MFA session has the required request details.
+func (sas *SAMLAuthService) validateMFASession(ctx context.Context, mfaSession *services.SSOMFASessionData, assertionInfo *saml2.AssertionInfo, connectorName string) error {
+	switch {
+	case mfaSession.ConnectorID != connectorName:
+		return trace.AccessDenied("invalid SAML MFA session, wrong provider %q", mfaSession.ConnectorID)
+	case mfaSession.ConnectorType != constants.SAML:
+		return trace.AccessDenied("invalid SAML MFA session, wrong sso type %q", mfaSession.ConnectorType)
+	case mfaSession.Username != assertionInfo.NameID:
+		logger.WarnContext(ctx, "User attempted to validate an SSO MFA session belonging to a different user, denied", "user", assertionInfo.NameID)
+		return trace.AccessDenied("invalid SAML MFA session")
+	}
+
+	return nil
 }
 
 // maybeHandleEntraIDGroupsOverage checks for the presence of "groups.link" attribute on the
@@ -1043,9 +1082,6 @@ func (sas *SAMLAuthService) getAttributeFromAssertion(assertionInfo *saml2.Asser
 
 func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User, connector types.SAMLConnector, diagCtx *auth.SSODiagContext, request *types.SAMLAuthRequest, info *saml2.AssertionInfo) (services.UserState, error) {
 	if !isEphemeralSAMLUser(user) {
-		if len(connector.GetAttributesToRoles()) == 0 {
-			return user, nil
-		}
 		params, err := sas.calculateSAMLUser(ctx, diagCtx, connector, *info, request)
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to calculate user attributes.")
@@ -1082,6 +1118,19 @@ func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User
 		maps.Copy(traits, params.Traits)
 		user.SetTraits(traits)
 
+		if len(params.Roles) == 0 {
+			// If we know the user won't have any roles from Access List then bail early.
+			// This is best-effort to avoid user being persisted and clears out any existing roles.
+			// TODO(nixpig): Look into whether it's possible to refactor login hooks to work
+			// on in-memory user object, rather than from backend. This would remove the need
+			// to persist the user (and in doing so, the requirement to check if they would
+			// have access list roles beforehand).
+			if err := sas.checkAccessListRoles(ctx, user); err != nil {
+				logger.WarnContext(ctx, "Failed access list roles check", "error", err)
+				return nil, trace.Wrap(err)
+			}
+		}
+
 		if _, err := sas.auth.UpdateUser(ctx, user); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1094,7 +1143,27 @@ func (sas *SAMLAuthService) postProcessUser(ctx context.Context, user types.User
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// This is the final role set after evaluating connector-mapped and Teleport-assigned roles.
+	if len(userState.GetRoles()) == 0 {
+		return nil, trace.Wrap(ErrSAMLNoRoles)
+	}
+
 	return userState, nil
+}
+
+// checkAccessListRoles returns nil if the user will have access list roles.
+// It is called from the ephemeral and non-ephemeral user login flows to determine
+// whether to proceed when the user has no connector-mapped roles.
+func (sas *SAMLAuthService) checkAccessListRoles(ctx context.Context, user types.User) error {
+	willHaveAccessListRoles, err := willHaveAccessListRoles(ctx, sas.auth, user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !willHaveAccessListRoles {
+		return trace.Wrap(ErrSAMLNoRoles)
+	}
+	return nil
 }
 
 // traitAllowList defies a set of trait name matchers

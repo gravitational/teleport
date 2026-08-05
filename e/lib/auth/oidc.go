@@ -716,7 +716,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		}
 
 		// If we know the user won't have any roles from Access List then bail early.
-		// This is so that the user isn't persisted and clears out any existing roles.
+		// This is best-effort to avoid user being persisted and clears out any existing roles.
 		// TODO(nixpig): Look into whether it's possible to refactor login hooks to work
 		// on in-memory user object, rather than from backend. This would remove the need
 		// to persist the user (and in doing so, the requirement to check if they would
