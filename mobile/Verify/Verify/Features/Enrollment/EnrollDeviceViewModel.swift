@@ -85,12 +85,16 @@ class EnrollDeviceViewModel {
 				.fetchOne(db)
 			}
 
-			logger.info("Successfully enrolled \(cluster.debugDescription)")
+			logger.info("Successfully enrolled cluster", metadata: [
+				"cluster": "\(cluster.debugDescription)",
+			])
 			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
 
 			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
 		} catch {
-			logger.error("Failed to request enrollment token: \(error)")
+			logger.error("Failed to request enrollment token", metadata: [
+				"error": .string(String(describing: error)),
+			])
 			loadingState = .failure(error)
 		}
 	}

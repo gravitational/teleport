@@ -57,15 +57,12 @@ extension EnrollClient {
 				collectedData.modelIdentifier = try getModelIdentifier()
 				collectedData.buildOS = try getOSBuild()
 
-				logger.debug(
-					"""
-					Collected fields:
-						serialNumber=\(serialNumber)
-						deviceModel=\(collectedData.modelIdentifier)
-						osVersion=\(collectedData.versionOS)
-						osBuild=\(collectedData.buildOS)
-					""",
-				)
+				logger.debug("Collected device information", metadata: [
+					"serialNumber": "\(serialNumber)",
+					"deviceModel": "\(collectedData.modelIdentifier)",
+					"osVersion": "\(collectedData.versionOS)",
+					"osBuild": "\(collectedData.buildOS)",
+				])
 				let token = try client.createMobileEnrollToken(
 					pairingToken,
 					deviceData: collectedData,
