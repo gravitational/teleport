@@ -134,7 +134,7 @@ func (m *HealthReporter) Deregister(c *Cache) {
 	delete(target.healthy, c)
 
 	// If the last live cache deregistered, remove the GaugeVec, otherwise
-	// update it's value.
+	// update its value.
 	if len(target.live) == 0 {
 		delete(m.health, c.target)
 		m.gauge.DeleteLabelValues(c.target)

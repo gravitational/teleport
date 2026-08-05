@@ -33,7 +33,7 @@ import (
 // model of cache state. Rapid varies the number of caches and the sequence of
 // healthy, unhealthy, and closed transitions, checking the gauge after every
 // transition.
-func TestMetricConverges(tt *testing.T) {
+func TestMetricConverges(t *testing.T) {
 	rapid.Check(tt, func(rt *rapid.T) {
 		m := &machine{}
 		m.init(rt)
