@@ -68,7 +68,11 @@ export function LoginComponent({
 
   return (
     <>
-      <LogoHero />
+      <div>
+        <Box pt={3}>
+          <LogoHero />
+        </Box>
+      </div>
       {showMotd ? (
         <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (

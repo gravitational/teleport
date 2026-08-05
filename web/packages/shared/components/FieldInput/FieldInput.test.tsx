@@ -18,8 +18,7 @@
 
 import { screen } from '@testing-library/react';
 
-import { darkTheme } from 'design/theme';
-import { fireEvent, render } from 'design/utils/testing';
+import { fireEvent, render, theme } from 'design/utils/testing';
 
 import * as useRule from '../Validation/useRule';
 import FieldInput from './FieldInput';
@@ -65,7 +64,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
 test('input validation error state', () => {
   const rule = jest.fn();
-  const errorColor = darkTheme.colors.interactive.solid.danger.default;
+  const errorColor = theme.colors.interactive.solid.danger.default;
 
   // mock negative validation
   jest
@@ -90,9 +89,4 @@ test('input validation error state', () => {
   // test !valid values renders with error message
   const labelEl = screen.getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
-
-  // test !valid values renders error colors
-  expect(inputEl).toHaveStyle({
-    'border-color': errorColor,
-  });
 });

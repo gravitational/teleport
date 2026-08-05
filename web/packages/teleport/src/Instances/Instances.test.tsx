@@ -22,7 +22,6 @@ import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -30,6 +29,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
 } from 'design/utils/testing';
@@ -319,7 +319,7 @@ function makeWrapper(options: {
     return (
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <ContextProvider ctx={ctx}>
               <Router history={history}>
                 <Route path={cfg.routes.instances}>{children}</Route>
