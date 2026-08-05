@@ -62,6 +62,11 @@ spec:
     # Possible values: "APPROVED" or "DENIED"
     decision: APPROVED
 
+    # Optional: reason is text explaining the reasoning for this review.
+    # If the review resolves the request, it becomes the request's resolution reason.
+    # If omitted, Teleport generates a default automatic-review reason.
+    reason: "Access is denied outside the scheduled maintenance window."
+
   # Optional: notification configures notification routing rules.
   notification:
     # name specifies the external integration to which the notifications should
@@ -178,6 +183,14 @@ state of the request and respect the required review thresholds.
 If multiple automatic review rules match an Access Request, `DENIED` rules take
 precedence.
 
+### Review reason
+
+The `automatic_review.reason` field is an optional text field which allows specifying
+the resolution reason that will be stored on the request if this automatic review
+resolves the request.
+
+If no value is specified, a generic default reason will be used.
+
 ### Example automatic review rule
 
 If the following rule is configured, then any time an Access Request for the
@@ -199,6 +212,7 @@ spec:
   automatic_review:
     integration: builtin
     decision: APPROVED
+    reason: "User is on the SRE team."
 ```
 
 ### Example automatic review rule for resources
