@@ -41,7 +41,8 @@ type ReconfigureRequest struct {
 	// AuthServer sets auth_server (v3) or replaces auth_servers with the
 	// single given address (v1/v2). Mutually exclusive with Proxy.
 	AuthServer string
-	// CAPins replaces ca_pin with the target cluster's pins.
+	// CAPins replaces ca_pin with the target cluster's pins. Required when
+	// Proxy or AuthServer retargets a config that already pins a CA.
 	CAPins []string
 	// Token sets join_params.token_name and clears the legacy auth_token.
 	Token string
@@ -156,12 +157,17 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 	if req.JoinMethod != "" && !joinParamsInUse && fc.AuthToken == "" {
 		return trace.BadParameter("--join-method would create join_params without a token name; pass --token as well")
 	}
+	// ca_pin validates the CA of the cluster the agent joins, so pins carried
+	// over from the old cluster cannot be reused after a retarget. Requiring
+	// new ones keeps a pinned config from silently becoming an unpinned one.
+	if (req.Proxy != "" || req.AuthServer != "") && len(fc.CAPin) > 0 && len(req.CAPins) == 0 {
+		return trace.BadParameter("the input config sets ca_pin, and retargeting would leave the next join unpinned; pass --ca-pin with the target cluster's pins, which `tctl status` prints")
+	}
 
 	if req.Proxy != "" {
 		fc.ProxyServer = req.Proxy
 		fc.AuthServer = ""
 		fc.AuthServers = nil
-		fc.CAPin = nil
 	}
 	if req.AuthServer != "" {
 		if fc.Version == defaults.TeleportConfigVersionV3 {
@@ -171,7 +177,6 @@ func Reconfigure(fc *FileConfig, req ReconfigureRequest) error {
 		} else {
 			fc.AuthServers = []string{req.AuthServer}
 		}
-		fc.CAPin = nil
 	}
 	if len(req.CAPins) > 0 {
 		fc.CAPin = apiutils.Strings(slices.Clone(req.CAPins))

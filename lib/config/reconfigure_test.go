@@ -106,14 +106,17 @@ teleport:
 const proxyEnabledGuardMessage = "--proxy requires a config with proxy_service disabled; the agent rejects proxy_server when the proxy service is enabled"
 
 func TestReconfigureRetargeting(t *testing.T) {
+	// Retargeting a pinned config requires new pins; see TestReconfigureCAPinGuard.
 	t.Run("proxy retargets v3 and clears stale fields", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			Proxy:  "new.example.com:443",
+			CAPins: []string{"sha256:bbb"},
+		})
 		require.NoError(t, err)
 		require.Equal(t, "new.example.com:443", fc.ProxyServer)
 		require.Empty(t, fc.AuthServer)
 		require.Empty(t, fc.AuthServers)
-		require.Empty(t, fc.CAPin)
 		requireRoundTrips(t, fc)
 	})
 
@@ -139,21 +142,25 @@ func TestReconfigureRetargeting(t *testing.T) {
 
 	t.Run("auth-server on v3 sets auth_server and clears proxy_server", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			AuthServer: "new.example.com:3025",
+			CAPins:     []string{"sha256:bbb"},
+		})
 		require.NoError(t, err)
 		require.Equal(t, "new.example.com:3025", fc.AuthServer)
 		require.Empty(t, fc.ProxyServer)
 		require.Empty(t, fc.AuthServers)
-		require.Empty(t, fc.CAPin)
 		requireRoundTrips(t, fc)
 	})
 
 	t.Run("auth-server on v2 replaces auth_servers with the single address", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV2)
-		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			AuthServer: "new.example.com:3025",
+			CAPins:     []string{"sha256:bbb"},
+		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"new.example.com:3025"}, fc.AuthServers)
-		require.Empty(t, fc.CAPin)
 		requireRoundTrips(t, fc)
 	})
 
@@ -196,6 +203,65 @@ func TestReconfigureRetargeting(t *testing.T) {
 			AuthServer: "new.example.com:3025",
 		})
 		require.ErrorContains(t, err, "--proxy and --auth-server are mutually exclusive")
+	})
+}
+
+// A pinned input must never come out unpinned by omission: ca_pin is what lets
+// a joining agent validate the target cluster's CA, and silently dropping it
+// downgrades the next join to unpinned trust.
+func TestReconfigureCAPinGuard(t *testing.T) {
+	const noVersionWithPin = `teleport:
+  data_dir: /var/lib/teleport
+  auth_servers: ["old.example.com:3025"]
+  ca_pin: ["sha256:aaa"]
+`
+
+	t.Run("proxy retarget without ca-pin errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		require.ErrorContains(t, err, "--ca-pin")
+	})
+
+	t.Run("auth-server retarget without ca-pin errors", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		require.ErrorContains(t, err, "--ca-pin")
+	})
+
+	t.Run("v2 auth-server retarget without ca-pin errors", func(t *testing.T) {
+		fc := parseTestConfig(t, noVersionWithPin)
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		require.ErrorContains(t, err, "--ca-pin")
+	})
+
+	// The guard keys off the input's pins, not off retargeting alone.
+	t.Run("retarget without ca-pin succeeds when the input has no pins", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureNoVersion)
+		err := Reconfigure(fc, ReconfigureRequest{AuthServer: "new.example.com:3025"})
+		require.NoError(t, err)
+		require.Empty(t, fc.CAPin)
+		requireRoundTrips(t, fc)
+	})
+
+	t.Run("retarget with ca-pin replaces the input pins", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{
+			Proxy:  "new.example.com:443",
+			CAPins: []string{"sha256:bbb"},
+		})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:bbb"}, fc.CAPin)
+		requireRoundTrips(t, fc)
+	})
+
+	// Rotating a token against the same cluster is not a retarget, so it must
+	// not demand pins the operator already has in the file.
+	t.Run("token change alone preserves the input pins", func(t *testing.T) {
+		fc := parseTestConfig(t, reconfigureBaseV3)
+		err := Reconfigure(fc, ReconfigureRequest{Token: "new-token"})
+		require.NoError(t, err)
+		require.Equal(t, apiutils.Strings{"sha256:aaa"}, fc.CAPin)
+		requireRoundTrips(t, fc)
 	})
 }
 
@@ -420,7 +486,10 @@ func TestReconfigureLabelsAndFields(t *testing.T) {
 
 	t.Run("untouched fields carry through unchanged", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			Proxy:  "new.example.com:443",
+			CAPins: []string{"sha256:bbb"},
+		})
 		require.NoError(t, err)
 		require.Equal(t, "node-04", fc.NodeName)
 		require.Equal(t, "/var/lib/teleport", fc.DataDir)
@@ -446,6 +515,7 @@ func TestReconfigureNoOpAndIdempotency(t *testing.T) {
 	t.Run("reconfigure is idempotent", func(t *testing.T) {
 		req := ReconfigureRequest{
 			Proxy:      "new.example.com:443",
+			CAPins:     []string{"sha256:bbb"},
 			Token:      "new-token",
 			NodeLabels: "team=a",
 			DataDir:    "/var/lib/teleport_new",
@@ -565,7 +635,10 @@ func TestReconfigureCollisionErrors(t *testing.T) {
 
 	t.Run("config with no colliding fields does not error", func(t *testing.T) {
 		fc := parseTestConfig(t, reconfigureBaseV3)
-		err := Reconfigure(fc, ReconfigureRequest{Proxy: "new.example.com:443"})
+		err := Reconfigure(fc, ReconfigureRequest{
+			Proxy:  "new.example.com:443",
+			CAPins: []string{"sha256:bbb"},
+		})
 		require.NoError(t, err)
 	})
 
