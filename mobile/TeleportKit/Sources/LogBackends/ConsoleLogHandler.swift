@@ -17,23 +17,16 @@
 import Foundation
 public import Logging
 
-/// Features:
-/// - OSLog-style timestamp formatting
-/// - Color circle emoji indicators for log levels
-/// - Metadata support
-/// - Label (category) display
-public struct SimpleLogHandler: LogHandler {
+/// A simple print-based log handler primarily used for live debugging sessions.
+public struct ConsoleLogHandler: LogHandler {
 	public let label: String
 
-	private let formatter: DateFormatter = {
-		let formatter = DateFormatter()
-		formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS XXXXX"
-		formatter.locale = Locale(identifier: "en_US_POSIX")
-		return formatter
-	}()
+	private static let clock = ContinuousClock()
+	private static let originTimestamp = clock.now
 
 	public init(label: String) {
 		self.label = label
+		_ = Self.originTimestamp
 	}
 
 	// MARK: LogHandler Conformance
@@ -48,12 +41,10 @@ public struct SimpleLogHandler: LogHandler {
 	}
 
 	public func log(event: LogEvent) {
-		let timestamp = formatter.string(from: Date())
-		let indicator = levelIndicator(for: event.level)
-		let levelText = levelString(for: event.level)
+		let timeElapsed = Self.originTimestamp.duration(to: Self.clock.now)
 		let metadataToLog = metadata.merging(event.metadata ?? [:]) { _, new in new }
 
-		var output = "\(timestamp) \(indicator) \(levelText) [\(label)] \(event.message)\(metadataToLog.formattedByNewLines())"
+		let output = "\(timeElapsed.logFormat) \(event.level.formatted) \(event.file):\(event.line) | \(event.message) \(metadataToLog.formatted)"
 
 		print(output)
 	}
@@ -61,9 +52,17 @@ public struct SimpleLogHandler: LogHandler {
 
 // MARK: - Private Helpers
 
-extension SimpleLogHandler {
-	private func levelIndicator(for level: Logger.Level) -> String {
-		switch level {
+extension Logger.Level {
+	fileprivate var formatted: String {
+		return "\(indicator) [\(description.uppercased())]"
+	}
+
+	private static let maxLevelStringLength = Logger.Level.allCases
+		.map(\.description.count)
+		.max() ?? 10 // Some reasonable default
+
+	private var indicator: String {
+		switch self {
 			case .trace:
 				"⚪️"
 			case .debug:
@@ -76,35 +75,18 @@ extension SimpleLogHandler {
 				"🔴"
 		}
 	}
-
-	private func levelString(for level: Logger.Level) -> String {
-		switch level {
-			case .trace:
-				"TRACE"
-			case .debug:
-				"DEBUG"
-			case .info:
-				"INFO"
-			case .notice:
-				"NOTICE"
-			case .warning:
-				"WARNING"
-			case .error:
-				"ERROR"
-			case .critical:
-				"CRITICAL"
-		}
-	}
 }
 
-// MARK: - LoggingSystem Bootstrap Helper
+// MARK: - Duration Formatter
 
-extension LoggingSystem {
-	public static func bootstrapSimpleLogStyle(defaultLogLevel: Logger.Level = .info) {
-		LoggingSystem.bootstrap { label in
-			var handler = SimpleLogHandler(label: label)
-			handler.logLevel = defaultLogLevel
-			return handler
-		}
+extension Duration {
+	fileprivate var logFormat: String {
+		let milliseconds = components.attoseconds / 1_000_000_000_000_000
+
+		return String(
+			format: "+%03lld.%03llds",
+			components.seconds,
+			milliseconds,
+		)
 	}
 }

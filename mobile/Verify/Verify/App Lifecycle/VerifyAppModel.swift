@@ -34,7 +34,7 @@ final class VerifyAppModel {
 
 	init() {
 		LoggingSystem.bootstrap { label in
-			var handler = SimpleLogHandler(label: label)
+			var handler = ConsoleLogHandler(label: label)
 			#if DEBUG
 				handler.logLevel = .debug
 			#endif
@@ -53,11 +53,17 @@ extension VerifyAppModel {
 		do {
 			switch try DeepLink(from: url) {
 				case let .enrollMobileDevice(deepLink):
-					Self.logger.debug("Correctly parsed deep link from \(url): \(String(describing: deepLink))")
+					Self.logger.debug("Correctly parsed deep link", metadata: [
+						"scannedURL": "\(url)",
+						"deepLink": "\(deepLink)",
+					])
 					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
-			Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(String(describing: error))")
+			Self.logger.warning("Failed to parse deep link", metadata: [
+				"scannedURL": "\(url)",
+				"error": .string(String(describing: error)),
+			])
 			landingViewModel.showParserError(errorMessage: error.localizedDescription)
 		}
 	}

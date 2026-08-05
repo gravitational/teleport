@@ -14,16 +14,23 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Logging
+import Foundation
+public import Logging
 
 extension Logger.Metadata {
 	/// Formats the metadata in a way suitable for appending to the end of a log message.
 	///
-	/// If there is no metadata, returns the empty string, otherwise returns one piece of metadata per line, indented
-	/// by a tab, and prefixed with a newline so it can be appended to log messages directly.
-	func formattedByNewLines() -> String {
+	/// All metadata is joined into key value pairs of the form `\(key)=\(value)` with each pair separated by a space.
+	public var formatted: String {
 		guard !isEmpty else { return "" }
-		let metadataAsStrings = map { "\t\($0)=\($1)" }
-		return "\n" + metadataAsStrings.joined(separator: "\n")
+		let metadataAsStrings = map { key, value in
+			let prefix = if key.lowercased().localizedStandardContains("error") {
+				"❌"
+			} else {
+				"🔸"
+			}
+			return "\(prefix) \(key)=\(value)"
+		}
+		return metadataAsStrings.joined(separator: " ")
 	}
 }
