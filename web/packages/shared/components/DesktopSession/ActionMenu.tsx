@@ -35,6 +35,8 @@ export default function ActionMenu(props: Props) {
         color: buttonIconColor,
         style: { fontSize: '20px', borderRadius: '8px' },
         title: 'More actions',
+        // square highlight instead of default circle
+        css: 'border-radius: 0',
       }}
       menuProps={openUpward ? upwardMenuProps : menuProps}
     >

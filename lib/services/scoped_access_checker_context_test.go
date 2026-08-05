@@ -27,6 +27,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
@@ -46,7 +47,7 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	// is pinned away from root before any checker, including the default implicit
 	// role checker, is evaluated.
 	err = checkerContext.Decision(ctx, scopes.Root, func(checker *ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbReadNoSecrets)
+		return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, scopedaccess.Read)
 	})
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
@@ -59,6 +60,60 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	// Using an empty UnpinnedReadAuthorization is not allowed.
 	err = checkerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
+}
+
+// TestRiskyAuthorizeUnpinnedReadWithScope verifies that the per-call resourceScope
+// overrides the authorization's scope and is used to determine the resulting access decision.
+func TestRiskyAuthorizeUnpinnedReadWithScope(t *testing.T) {
+	t.Parallel()
+
+	const pinScope = "/test/scope"
+	pin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: pinScope,
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: types.RoleNode.String(),
+		}.Build(),
+	}.Build()
+	checkerCtx := newAgentPinCheckerContext(t, pin)
+
+	tests := []struct {
+		name          string
+		resourceScope string
+		wantErr       string
+	}{
+		{
+			name:          "override to pin scope is allowed",
+			resourceScope: pinScope,
+		},
+		{
+			name:          "override to descendant scope is allowed",
+			resourceScope: pinScope + "/child",
+		},
+		{
+			name:          "override to ancestor (root) scope is allowed",
+			resourceScope: scopes.Root,
+		},
+		{
+			name:          "override to orthogonal scope is denied",
+			resourceScope: "/other",
+			wantErr:       "a resource in scope \"/other\" can't be manipulated from a session pinned to orthogonal scope \"/test/scope\"",
+		},
+		{
+			name:          "override to empty scope is rejected",
+			resourceScope: "",
+			wantErr:       "scope is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkerCtx.RiskyAuthorizeUnpinnedReadWithScope(t.Context(), UnpinnedReadScopedRole, &Context{}, tt.resourceScope)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
 }
 
 type emptyScopedRoleReader struct{}
@@ -91,21 +146,22 @@ func newAgentPinCheckerContext(t *testing.T, pin *scopesv1.Pin) *ScopedAccessChe
 	return ctx
 }
 
+// newAgentPin is a test helper that builds a [*scopesv1.Pin] for an agent.
+func newAgentPin(scope string, role types.SystemRole) *scopesv1.Pin {
+	return scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: role.String(),
+		}.Build(),
+	}.Build()
+}
+
 // TestScopedAccessCheckerContextAgentPin covers the agent-pin mode of ScopedAccessCheckerContext.
 func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 	t.Parallel()
 
 	const pinScope = "/test/scope"
-
-	newAgentPin := func(scope string, role types.SystemRole) *scopesv1.Pin {
-		return scopesv1.Pin_builder{
-			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
-			Scope: scope,
-			SystemRoles: scopesv1.SystemRoles_builder{
-				Primary: role.String(),
-			}.Build(),
-		}.Build()
-	}
 
 	t.Run("constructor rejects nil pin", func(t *testing.T) {
 		t.Parallel()
@@ -154,7 +210,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 		called := false
 		err := checkerCtx.Decision(t.Context(), pinScope, func(c *ScopedAccessChecker) error {
 			called = true
-			return c.CheckAccessToRules(&Context{}, types.KindNode, types.VerbRead)
+			return c.CheckAccessToRules(&Context{}, types.KindNode, scopedaccess.Secrets)
 		})
 		require.NoError(t, err, "Decision at pin scope should succeed")
 		require.True(t, called, "fn should have been called")
@@ -169,7 +225,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 		called := false
 		err := checkerCtx.Decision(t.Context(), childScope, func(c *ScopedAccessChecker) error {
 			called = true
-			return c.CheckAccessToRules(&Context{}, types.KindNode, types.VerbRead)
+			return c.CheckAccessToRules(&Context{}, types.KindNode, scopedaccess.Secrets)
 		})
 		require.NoError(t, err, "Decision at child scope should succeed")
 		require.True(t, called, "fn should have been called for child scope")
@@ -198,9 +254,57 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 		err := checkerCtx.RiskyAuthorizeUnpinnedRead(t.Context(), UnpinnedReadAuthorization{
 			resourceScope: scopes.Root,
 			kind:          types.KindNode,
-			verbs:         []string{types.VerbRead},
+			verbs:         []scopedaccess.Verb{scopedaccess.Read},
 		}, &Context{})
 		require.NoError(t, err, "RiskyAuthorizeUnpinnedRead should bypass pin enforcement and succeed")
+	})
+
+	t.Run("RiskyAuthorizeUnpinnedRead rejects secret-inclusive reads", func(t *testing.T) {
+		t.Parallel()
+		pin := newAgentPin(pinScope, types.RoleNode)
+		checkerCtx := newAgentPinCheckerContext(t, pin)
+
+		// an unpinned read bypasses pin enforcement, so it must never be usable to authorize access
+		// to secret material.
+		err := checkerCtx.RiskyAuthorizeUnpinnedRead(t.Context(), UnpinnedReadAuthorization{
+			resourceScope: scopes.Root,
+			kind:          types.KindNode,
+			verbs:         []scopedaccess.Verb{scopedaccess.Secrets},
+		}, &Context{})
+		require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+	})
+
+	t.Run("RiskyAuthorizeUnpinnedEmitEvent bypasses pin enforcement", func(t *testing.T) {
+		t.Parallel()
+		pin := newAgentPin(pinScope, types.RoleNode)
+		checkerCtx := newAgentPinCheckerContext(t, pin)
+
+		// A normal decision for a root-scoped resource is denied because the identity
+		// is pinned away from root before any checker, including the default implicit
+		// role checker, is evaluated.
+		err := checkerCtx.Decision(t.Context(), scopes.Root, func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&Context{}, types.KindEvent, scopedaccess.Create)
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+		err = checkerCtx.RiskyAuthorizeUnpinnedEmitEvent(t.Context(), &Context{})
+		require.NoError(t, err, "RiskyAuthorizeUnpinnedEmitEvent should bypass pin enforcement and succeed")
+	})
+	t.Run("RiskyAuthorizeUnpinnedWriteEvent bypasses pin enforcement", func(t *testing.T) {
+		t.Parallel()
+		pin := newAgentPin(pinScope, types.RoleNode)
+		checkerCtx := newAgentPinCheckerContext(t, pin)
+
+		// A normal decision for a root-scoped resource is denied because the identity
+		// is pinned away from root before any checker, including the default implicit
+		// role checker, is evaluated.
+		err := checkerCtx.Decision(t.Context(), scopes.Root, func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&Context{}, types.KindEvent, scopedaccess.Create, scopedaccess.Update)
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+		err = checkerCtx.RiskyAuthorizeUnpinnedWriteEvent(t.Context(), &Context{})
+		require.NoError(t, err, "RiskyAuthorizeUnpinnedWriteEvent should bypass pin enforcement and succeed")
 	})
 
 	t.Run("riskyEnumerateScopedCheckers panics for agent pin context", func(t *testing.T) {
@@ -214,4 +318,36 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 			}
 		}, "riskyEnumerateScopedCheckers should panic for agent pin contexts")
 	})
+}
+
+func TestScopedAccessCheckerContextUnpinnedUserEventWrites(t *testing.T) {
+	ctx := t.Context()
+	userCheckerContext, err := NewScopedAccessCheckerContext(ctx, &AccessInfo{
+		Username: "alice",
+		ScopePin: scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: "/test/scope",
+		}.Build(),
+	}, "test-cluster", emptyScopedRoleReader{})
+	require.NoError(t, err)
+
+	ruleCtx := &Context{}
+
+	// A normal decision for a root-scoped resource is denied because the identity
+	// is pinned away from root before any checker, including the default implicit
+	// role checker, is evaluated.
+	err = userCheckerContext.Decision(ctx, scopes.Root, func(checker *ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(ruleCtx, types.KindEvent, scopedaccess.Create)
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// RiskyAuthorizeUnpinnedEmitEvent bypasses pin enforcement but should explicitly fail for scoped
+	// user pins.
+	err = userCheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, ruleCtx)
+	require.ErrorContains(t, err, "unpinned authorization for audit event emission is only supported for agent pins")
+
+	// RiskyAuthorizeUnpinneWriteEvent bypasses pin enforcement but should explicitly fail for scoped
+	// user pins.
+	err = userCheckerContext.RiskyAuthorizeUnpinnedWriteEvent(ctx, ruleCtx)
+	require.ErrorContains(t, err, "unpinned authorization for audit event emission is only supported for agent pins")
 }

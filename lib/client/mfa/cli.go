@@ -182,14 +182,33 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 	// If there are multiple options and we chose fewer without explicit user preference,
 	// notify the user about the available methods and how to select a specific one.
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
-		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
+		joinedChosenMethods := strings.Join(chosenMethods, " and ")
+		joinedAvailableMethods := strings.Join(availableMethods, ", ")
+		joinedFlags := strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ","))
+
 		const msg = "" +
 			"Available MFA methods [%v]. Continuing with %v.\r\n" +
 			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\r\n\r\n"
-		fmt.Fprintf(c.writer(), msg, strings.Join(availableMethods, ", "), strings.Join(chosenMethods, " and "), availableMethodsString, availableMethodsString)
+		fmt.Fprintf(c.writer(), msg, joinedAvailableMethods, joinedChosenMethods, joinedFlags, joinedFlags)
 	}
 
 	return state, userSpecifiedMethod
+}
+
+// expandMFAMethods replaces the MFA type with the appropriate --mfa-mode.
+// Currently this is only a concern for the WEBAUTHN MFA type name which maps to
+// "cross-platform" and "platform", since "webauthn" is not
+// itself a valid mode.
+func expandMFAMethods(methods []string) []string {
+	expanded := make([]string, 0, len(methods)+1)
+	for _, m := range methods {
+		if m == cliMFATypeWebauthn {
+			expanded = append(expanded, "cross-platform", "platform")
+			continue
+		}
+		expanded = append(expanded, m)
+	}
+	return expanded
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
@@ -246,7 +265,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			ctx,
 			"Disabling Browser MFA: user needs at least one webauthn device and client needs to support SSO MFA Ceremony",
 			"webauthn_available", chal.WebauthnChallenge != nil,
-			"mfa_ceremony_available (if false, this is a bug)", c.cfg.CallbackCeremony != nil,
+			"mfa_ceremony_available", c.cfg.CallbackCeremony != nil,
 		)
 	}
 

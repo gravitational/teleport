@@ -274,10 +274,10 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
 	connectors, err := clientutils.CollectWithFallback(ctx,
 		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
-			return clt.ListGithubConnectors(ctx, limit, start, true)
+			return clt.ListGithubConnectors(ctx, limit, start, false)
 		},
 		func(ctx context.Context) ([]types.GithubConnector, error) {
-			return clt.GetGithubConnectors(ctx, true)
+			return clt.GetGithubConnectors(ctx, false)
 		},
 	)
 	if err != nil {

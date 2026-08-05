@@ -80,7 +80,7 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 		"my-integration": {
 			IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
 				AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
-					Found:    3,
+					Found:    4,
 					Enrolled: 2,
 					Failed:   1,
 				},

@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/accesslist"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 )
 
 type nextAuditDateComparer struct {
@@ -35,26 +37,51 @@ type nextAuditDateComparer struct {
 	nextAuditDate time.Time
 }
 
-func (c *nextAuditDateComparer) CaptureNextAuditDate(name string) resource.TestCheckFunc {
+func (c *nextAuditDateComparer) CaptureNextAuditDate(ctx context.Context, scope, name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessListV2(ctx, &accesslistv1.GetAccessListRequest{
+			Name:  name,
+			Scope: scope,
+		})
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if al.Spec.Audit.NextAuditDate.IsZero() {
+			return trace.BadParameter("NextAuditDate must not be zero")
 		}
 		c.nextAuditDate = al.Spec.Audit.NextAuditDate
 		return nil
 	}
 }
 
-func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(name string) resource.TestCheckFunc {
+func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(ctx context.Context, scope, name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessListV2(ctx, &accesslistv1.GetAccessListRequest{
+			Name:  name,
+			Scope: scope,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		diff := cmp.Diff(c.nextAuditDate, al.Spec.Audit.NextAuditDate, cmpopts.EquateApproxTime(2*time.Millisecond))
 		if diff != "" {
 			return trace.CompareFailed("NextAuditDate should not have changed, was %s, is now %s", c.nextAuditDate, al.Spec.Audit.NextAuditDate)
+		}
+		return nil
+	}
+}
+
+func checkAccessListExists(ctx context.Context, clt *accesslist.Client, scope, name string) resource.TestCheckFunc {
+	return func(state *terraform.State) error {
+		al, err := clt.GetAccessListV2(ctx, &accesslistv1.GetAccessListRequest{
+			Name:  name,
+			Scope: scope,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if al.GetScope() != scope {
+			return trace.CompareFailed("access list scope mismatch: got %q, want %q", al.GetScope(), scope)
 		}
 		return nil
 	}
@@ -67,7 +94,9 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 	)
 
 	checkAccessListDestroyed := func(state *terraform.State) error {
-		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "test")
+		_, err := s.client.AccessListClient().GetAccessListV2(s.T().Context(), &accesslistv1.GetAccessListRequest{
+			Name: "test",
+		})
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -85,13 +114,19 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 			{
 				Config: s.getFixture("access_list_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.kind", "access_list"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
 					resource.TestCheckResourceAttr(name, "header.metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "header.metadata.labels.example", "yes"),
 					resource.TestCheckResourceAttr(name, "spec.description", "test description"),
 					resource.TestCheckResourceAttr(name, "spec.owners.0.name", "gru"),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.description", "The supervillain."),
 					resource.TestCheckResourceAttr(name, "spec.membership_requires.roles.0", "minion"),
+					resource.TestCheckResourceAttr(name, "spec.ownership_requires.roles.0", "supervillain"),
 					resource.TestCheckResourceAttr(name, "spec.grants.roles.0", "crane-operator"),
+					resource.TestCheckResourceAttr(name, "spec.title", "Hello"),
 					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "3"),
-					auditDateChecker.CaptureNextAuditDate("test"),
+					auditDateChecker.CaptureNextAuditDate(s.T().Context(), "", "test"),
 				),
 			},
 			{
@@ -101,10 +136,19 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 			{
 				Config: s.getFixture("access_list_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.metadata.labels.example", "yes"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.day_of_month", "15"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "3"),
+					resource.TestCheckResourceAttr(name, "spec.description", "test description"),
+					resource.TestCheckResourceAttr(name, "spec.grants.roles.0", "crane-operator"),
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.key", "allowed-machines"),
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.values.0", "crane"),
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.values.1", "forklift"),
-					auditDateChecker.TestNextAuditDateUnchanged("test"),
+					resource.TestCheckResourceAttr(name, "spec.membership_requires.roles.0", "minion"),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.description", "The supervillain."),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.name", "gru"),
+					resource.TestCheckResourceAttr(name, "spec.ownership_requires.roles.0", "supervillain"),
+					auditDateChecker.TestNextAuditDateUnchanged(s.T().Context(), "", "test"),
 				),
 			},
 			{
@@ -115,11 +159,192 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 				Config: s.getFixture("access_list_2_expiring.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "header.metadata.expires", "2038-01-01T00:00:00Z"),
-					auditDateChecker.TestNextAuditDateUnchanged("test"),
+					auditDateChecker.TestNextAuditDateUnchanged(s.T().Context(), "", "test"),
 				),
 			},
 			{
 				Config:   s.getFixture("access_list_2_expiring.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterprise) TestAccessListPreservesNextAuditDate() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkAccessListDestroyed := func(state *terraform.State) error {
+		_, err := s.client.AccessListClient().GetAccessListV2(s.T().Context(), &accesslistv1.GetAccessListRequest{
+			Name: "test-next-audit-date",
+		})
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_access_list.test"
+	auditDateChecker := nextAuditDateComparer{client: s.client}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkAccessListDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_next_audit_date_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "test-next-audit-date"),
+					resource.TestCheckResourceAttr(name, "spec.description", "next audit date test"),
+					auditDateChecker.CaptureNextAuditDate(s.T().Context(), "", "test-next-audit-date"),
+				),
+			},
+			{
+				Config: s.getFixture("access_list_next_audit_date_1_attempt_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.description", "updated next audit date test"),
+					auditDateChecker.TestNextAuditDateUnchanged(s.T().Context(), "", "test-next-audit-date"),
+				),
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterpriseScopedResources) TestAccessListScopedAndUnscoped() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkDestroyed := func(state *terraform.State) error {
+		for _, tc := range []struct {
+			scope string
+			name  string
+		}{
+			{name: "test-unscoped"},
+			{scope: "/foo/bar", name: "test-scoped"},
+		} {
+			_, err := s.client.AccessListClient().GetAccessListV2(s.T().Context(), &accesslistv1.GetAccessListRequest{
+				Name:  tc.name,
+				Scope: tc.scope,
+			})
+			if err != nil && !trace.IsNotFound(err) {
+				return err
+			}
+		}
+		return nil
+	}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_scoped_and_unscoped.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("teleport_access_list.unscoped", "header.metadata.name", "test-unscoped"),
+					resource.TestCheckResourceAttr("teleport_access_list.unscoped", "spec.membership_requires.roles.0", "minion"),
+					resource.TestCheckResourceAttr("teleport_access_list.scoped", "header.metadata.name", "test-scoped"),
+					resource.TestCheckResourceAttr("teleport_access_list.scoped", "scope", "/foo/bar"),
+					checkAccessListExists(s.T().Context(), s.client.AccessListClient(), "", "test-unscoped"),
+					checkAccessListExists(s.T().Context(), s.client.AccessListClient(), "/foo/bar", "test-scoped"),
+				),
+			},
+			{
+				Config:   s.getFixture("access_list_scoped_and_unscoped.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterprise) TestAccessListDefaults() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkAccessListDestroyed := func(state *terraform.State) error {
+		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "defaults")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_access_list.defaults"
+	auditDateChecker := nextAuditDateComparer{client: s.client}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkAccessListDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_defaults.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.kind", "access_list"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "defaults"),
+					resource.TestCheckResourceAttr(name, "spec.audit.notifications.start", "336h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.day_of_month", "1"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "6"),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.name", "gru"),
+					resource.TestCheckResourceAttr(name, "spec.title", "Hello"),
+					auditDateChecker.CaptureNextAuditDate(s.T().Context(), "", "defaults"),
+				),
+			},
+			{
+				Config:   s.getFixture("access_list_defaults.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterprise) TestAccessListMemberDefaults() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkAccessListMemberDestroyed := func(state *terraform.State) error {
+		_, err := s.client.AccessListClient().GetAccessListMember(context.TODO(), "member_defaults", "member_defaults")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_access_list_member.member_defaults"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkAccessListMemberDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_member_defaults.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.kind", "access_list_member"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "member_defaults"),
+
+					resource.TestCheckResourceAttr(name, "spec.access_list", "member_defaults"),
+					resource.TestCheckResourceAttr(name, "spec.expires", "2026-07-11T20:00:00Z"),
+					resource.TestCheckResourceAttr(name, "spec.membership_kind", "1"),
+					resource.TestCheckResourceAttr(name, "spec.reason", "example reason"),
+
+					resource.TestCheckNoResourceAttr(name, "spec.added_by"),
+					resource.TestCheckNoResourceAttr(name, "spec.joined"),
+					resource.TestCheckNoResourceAttr(name, "spec.name"),
+				),
+			},
+			{
+				Config:   s.getFixture("access_list_member_defaults.tf"),
 				PlanOnly: true,
 			},
 		},

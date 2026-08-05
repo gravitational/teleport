@@ -13,6 +13,10 @@ on:
       - '**.hcl'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   terraform-lint:
     uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5

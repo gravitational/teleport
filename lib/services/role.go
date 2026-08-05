@@ -50,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -131,6 +132,29 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
+	return newImplicitRole(types.CopyRulesSlice(DefaultImplicitRules))
+}
+
+// newScopedImplicitRole is the default implicit role as it applies to scoped identities. It confers
+// the same privileges as [NewImplicitRole], except that secret-inclusive read is replaced with
+// secret-exclusive read.
+func newScopedImplicitRole() types.Role {
+	rules := types.CopyRulesSlice(DefaultImplicitRules)
+	for i, rule := range rules {
+		// CopyRulesSlice is a shallow copy, so build a replacement slice rather than assigning into it.
+		verbs := make([]string, len(rule.Verbs))
+		for j, verb := range rule.Verbs {
+			if verb == types.VerbRead {
+				verb = types.VerbReadNoSecrets
+			}
+			verbs[j] = verb
+		}
+		rules[i].Verbs = verbs
+	}
+	return newImplicitRole(rules)
+}
+
+func newImplicitRole(rules []types.Rule) types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
@@ -147,7 +171,7 @@ func NewImplicitRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+				Rules:      rules,
 			},
 		},
 	}
@@ -237,11 +261,8 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 // ValidateRoleName checks that the role name is allowed to be created.
 func ValidateRoleName(role types.Role) error {
 	// System role names are not allowed.
-	systemRoles := types.SystemRoles([]types.SystemRole{
-		types.SystemRole(role.GetMetadata().Name),
-	})
-	if err := systemRoles.Check(); err == nil {
-		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	if types.SystemRole(role.GetMetadata().Name).IsValid() {
+		return trace.BadParameter("reserved role: %+q", role.GetMetadata().Name)
 	}
 	return nil
 }
@@ -378,7 +399,7 @@ func validateRoleExpressions(r types.Role) error {
 				}
 			}
 			if len(labelMatchers.Expression) > 0 {
-				if _, err := parseLabelExpression(labelMatchers.Expression); err != nil {
+				if _, err := label.ParseExpression(labelMatchers.Expression); err != nil {
 					errs = append(errs, trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err))
 				}
 			}
@@ -745,6 +766,11 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 				names = []string{""}
 			}
 			verbs := applyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
+			// A trait can reintroduce a wildcard alongside other verbs after
+			// validation has run, so collapse to just the wildcard.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
 			for _, namespace := range namespaces {
 				for _, name := range names {
 					out = append(out, types.KubernetesResource{
@@ -767,6 +793,7 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindDatabase,
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
@@ -908,7 +935,7 @@ func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string,
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
 			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins,
+			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
@@ -1405,26 +1432,7 @@ func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
-	return MatchLabelGetter(selector, mapLabelGetter(target))
-}
-
-// LabelGetter allows retrieving a particular label by name or retreiving all
-// labels at once. Prefer to use GetLabel when possible to avoid unnecessary
-// copies.
-type LabelGetter interface {
-	GetLabel(key string) (value string, ok bool)
-	GetAllLabels() map[string]string
-}
-
-type mapLabelGetter map[string]string
-
-func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
-	v, ok := m[key]
-	return v, ok
-}
-
-func (m mapLabelGetter) GetAllLabels() map[string]string {
-	return map[string]string(m)
+	return MatchLabelGetter(selector, label.MapLabelGetter(target))
 }
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
@@ -1432,7 +1440,7 @@ func (m mapLabelGetter) GetAllLabels() map[string]string {
 //
 // Keep in sync with front-end implementation;
 //   - web/packages/teleport/src/Bots/Add/Shared/kubernetes.ts:34
-func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
+func MatchLabelGetter(selector types.Labels, labelGetter label.LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
 		return false, "no match, empty selector", nil
@@ -1615,9 +1623,7 @@ func (set RoleSet) MaxSessions() int64 {
 	return ms
 }
 
-// MaxConnections returns the maximum number of concurrent Kubernetes connections
-// allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
+// MaxKubernetesConnections implements [AccessChecker].
 func (set RoleSet) MaxKubernetesConnections() int64 {
 	var mcs int64
 	for _, role := range set {
@@ -2234,10 +2240,71 @@ func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
 	return false, nil
 }
 
-// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// matchSPIFFESVIDDenyConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. Any field within a condition must match,
+// and any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDDenyConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		isPathMatch, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !isPathMatch {
+			return false, nil
+		}
+
+		// if any DNS SAN in the condition matches, we say the DNS SAN part
+		// of the condition matches
+		isDNSMatch := true
+		for _, dnsSANMatcher := range cond.DNSSANs {
+			isDNSMatch, err = contains(dnsSANs, func(reqDNSSAN string) (bool, error) {
+				return utils.MatchString(reqDNSSAN, dnsSANMatcher)
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isDNSMatch {
+				break
+			}
+		}
+		if !isDNSMatch {
+			return false, nil
+		}
+
+		// Any IP SAN requested can match one of the IP SAN matchers in the
+		// condition.
+		isIPMatch := true
+		for _, ipSANMatcher := range cond.IPSANs {
+			isIPMatch, err = contains(ipSANs, func(reqIPSAN net.IP) (bool, error) {
+				_, cidr, err := net.ParseCIDR(ipSANMatcher)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+				return cidr.Contains(reqIPSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isIPMatch {
+				break
+			}
+		}
+
+		// all other conditions met
+		return isIPMatch, nil
+	})
+}
+
+// matchSPIFFESVIDAllowConditions compares a slice of SPIFFE Role Conditions against
 // a requested SPIFFE SVID generation. All fields within a condition must match,
 // but any condition in the slice can match for the function to return true.
-func matchSPIFFESVIDConditions(
+func matchSPIFFESVIDAllowConditions(
 	conds []*types.SPIFFERoleCondition,
 	spiffeIDPath string,
 	dnsSANs []string,
@@ -2305,7 +2372,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check deny: a single match on a deny rule prohibits generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Deny)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDDenyConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2317,7 +2384,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check allow: if a single condition matches, allow generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Allow)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDAllowConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2862,7 +2929,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.username, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.username, l.userTraits, label.MapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2945,7 +3012,7 @@ func (set RoleSet) checkAccess(
 	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
+	if state.MFARequired == MFARequiredAlways && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) == "yes" || !state.MFAVerified) {
 		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
 		if !state.ReturnPreconditions {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
@@ -3027,7 +3094,7 @@ func (set RoleSet) checkAccess(
 	//
 	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
 	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
-		(state.MFAVerified && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" || !state.ReturnPreconditions))
+		(state.MFAVerified && (os.Getenv(teleport.EnvVarUnstableForceInBandMFA) != "yes" || !state.ReturnPreconditions))
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -3209,7 +3276,7 @@ func CheckLabelsMatch(
 	labelMatchers types.LabelMatchers,
 	username string,
 	userTraits wrappers.Traits,
-	resource LabelGetter,
+	resource label.LabelGetter,
 	debug bool,
 ) (bool, string, error) {
 	if labelMatchers.Empty() {
@@ -3258,15 +3325,15 @@ func CheckLabelsMatch(
 	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
 }
 
-func matchLabelExpression(labelExpression string, resource LabelGetter, username string, userTraits wrappers.Traits) (bool, string, error) {
-	parsedExpr, err := parseLabelExpression(labelExpression)
+func matchLabelExpression(labelExpression string, resource label.LabelGetter, username string, userTraits wrappers.Traits) (bool, string, error) {
+	parsedExpr, err := label.ParseExpression(labelExpression)
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	match, err := parsedExpr.Evaluate(labelExpressionEnv{
-		resourceLabelGetter: resource,
-		username:            username,
-		userTraits:          userTraits,
+	match, err := parsedExpr.Evaluate(label.ExpressionEnv{
+		ResourceLabelGetter: resource,
+		Username:            username,
+		UserTraits:          userTraits,
 	})
 	if err != nil {
 		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)

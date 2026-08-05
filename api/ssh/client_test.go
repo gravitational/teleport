@@ -506,6 +506,48 @@ func TestClientWrappedFuncsEarlyReturnsOnValidationErrors(t *testing.T) {
 	require.Nil(t, reqs)
 }
 
+func TestClientVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		config ClientConfig
+		want   string
+	}{
+		{
+			name: "no features",
+			config: ClientConfig{
+				User: "alice",
+				PublicKeyAuth: PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return nil, nil
+					},
+				},
+			},
+			want: DefaultClientVersion,
+		},
+		{
+			name: "with in-band MFA feature",
+			config: ClientConfig{
+				User: "alice",
+				PublicKeyAuth: PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return nil, nil
+					},
+				},
+				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+					return struct{ ssh.AuthMethod }{}, nil
+				},
+			},
+			want: ClientVersionWithFeatures(InBandMFAFeature),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.config.clientVersion())
+		})
+	}
+}
+
 func generateSigner(t *testing.T) ssh.Signer {
 	t.Helper()
 

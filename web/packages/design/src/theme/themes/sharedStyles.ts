@@ -17,10 +17,9 @@
  */
 
 import { fonts } from '../fonts';
-import { blueGrey, lightBlue, yellow } from '../palette';
 import typography, { fontSizes, fontWeights } from '../typography';
 import { getContrastRatio } from '../utils/colorManipulator';
-import { SharedColors, SharedStyles } from './types';
+import type { SharedStyles } from './types';
 
 // TODO(bl-nero): use a CSS var for sidebar width and make the breakpoints work
 // by changing the minimum width on a per-view basis (Main.tsx).
@@ -88,21 +87,6 @@ export const sharedStyles: SharedStyles = {
   radii: [0, 2, 4, 8, 16, 9999, '100%', 24],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
-};
-
-// Colors that are shared between all themes, these should be added to the theme.colors object.
-export const sharedColors: SharedColors = {
-  dark: '#000000',
-  light: '#FFFFFF',
-  interactionHandle: '#FFFFFF',
-  grey: {
-    ...blueGrey,
-  },
-  subtle: blueGrey[50],
-  bgTerminal: '#010B1C',
-  highlight: yellow[50],
-  disabled: blueGrey[500],
-  info: lightBlue[600],
 };
 
 export function getContrastText(background: string) {

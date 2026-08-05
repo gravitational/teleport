@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -351,6 +352,79 @@ func TestProxyHTTPConnection(t *testing.T) {
 		},
 	}
 
+	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
+}
+
+// TestProxyConnectionLimiting verifies that the ALPN proxy enforces the
+// configured per-client connection limit, keeps accepting connections after
+// rejecting an over-limit one, and releases limiter slots on connection close.
+func TestProxyConnectionLimiting(t *testing.T) {
+	t.Parallel()
+
+	const maxConnections = 2
+
+	suite := NewSuite(t)
+	connLimiter, err := limiter.NewLimiter(limiter.Config{MaxConnections: maxConnections})
+	require.NoError(t, err)
+	suite.limiter = connLimiter
+
+	l := mustCreateLocalListener(t)
+	lw := NewMuxListenerWrapper(l, suite.serverListener)
+	mustStartHTTPServer(lw)
+
+	suite.router = NewRouter()
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP),
+		Handler:   lw.HandleConnection,
+	})
+	suite.Start(t)
+
+	// The limiter tracks connections by client IP, which for this test is the
+	// same loopback address the server listens on.
+	clientIP, _, err := net.SplitHostPort(suite.GetServerAddress())
+	require.NoError(t, err)
+
+	// Occupy all limiter slots with connections that stall before sending a
+	// TLS hello, like the attack the limiter defends against.
+	heldConns := make([]net.Conn, 0, maxConnections)
+	for range maxConnections {
+		conn, err := net.Dial("tcp", suite.GetServerAddress())
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		heldConns = append(heldConns, conn)
+	}
+	require.Eventually(t, func() bool {
+		count, err := connLimiter.GetNumConnection(clientIP)
+		return err == nil && count == maxConnections
+	}, 5*time.Second, 10*time.Millisecond, "expected held connections to occupy all limiter slots")
+
+	// The next connection exceeds the limit: the proxy must close it right
+	// away instead of waiting out the TLS handshake read deadline.
+	rejected, err := net.Dial("tcp", suite.GetServerAddress())
+	require.NoError(t, err)
+	t.Cleanup(func() { rejected.Close() })
+	require.NoError(t, rejected.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = rejected.Read(make([]byte, 1))
+	require.ErrorIs(t, err, io.EOF, "expected over-limit connection to be closed by the proxy")
+
+	// Closing a held connection must release its limiter slot.
+	require.NoError(t, heldConns[0].Close())
+	require.Eventually(t, func() bool {
+		count, err := connLimiter.GetNumConnection(clientIP)
+		return err == nil && count == maxConnections-1
+	}, 5*time.Second, 10*time.Millisecond, "expected closed connection to release its limiter slot")
+
+	// A request through the freed slot must succeed, proving the accept loop
+	// survived the over-limit rejection above.
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				ServerName: "localhost",
+				RootCAs:    suite.GetCertPool(),
+			},
+			DisableKeepAlives: true,
+		},
+	}
 	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
 }
 

@@ -49,6 +49,12 @@
               "type": "doc",
               "id": "get-started/audit",
               "label": "Step 4: Monitor Audit Logs"
+            },
+            {
+              "type": "doc",
+              "id": "get-started/agent-skills",
+              "label": "Agent Skills",
+              "customProps": { "tag": "new" }
             }
           ]
         },
@@ -166,6 +172,14 @@
           "dirName": "agentic-identity-framework"
         }
       ]
+    },
+    {
+      "type": "doc",
+      "label": "Beams",
+      "id": "beams/beams",
+      "customProps": {
+        "tag": "new"
+      }
     },
     {
       "type": "category",

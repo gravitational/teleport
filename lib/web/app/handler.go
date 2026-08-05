@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -104,6 +105,15 @@ type Handler struct {
 	clusterName string
 
 	logger *slog.Logger
+
+	// cswshAction controls the response to a detected cross-origin WebSocket
+	// upgrade, configured via TELEPORT_UNSTABLE_APP_CSWSH_ACTION. Defaults to
+	// no-op.
+	cswshAction cswshAction
+
+	// dbscDisabled disables all DBSC handling, configured via
+	// TELEPORT_UNSTABLE_DISABLE_DBSC.
+	dbscDisabled bool
 }
 
 // NewHandler returns a new application handler.
@@ -117,6 +127,15 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
+		dbscDisabled: os.Getenv(dbscDisabledEnv) != "",
+	}
+	if h.cswshAction.enabled() {
+		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
+			"report", h.cswshAction.report, "block", h.cswshAction.block)
+	}
+	if h.dbscDisabled {
+		h.logger.InfoContext(ctx, "Application access DBSC support disabled via TELEPORT_UNSTABLE_DISABLE_DBSC")
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -224,13 +243,13 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // HealthCheckAppServer establishes a connection to a AppServer that can handle
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
-func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
+func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr, clusterName string) error {
 	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(publicAddr))
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchAppServerForRoute(appName, publicAddr))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -254,6 +273,12 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
+	// before forwarding to the application (CSWSH protection).
+	if err := h.guardCrossSiteWebSocket(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var redirectURI string
 
 	session.tr.mu.Lock()
@@ -339,7 +364,6 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -360,7 +384,6 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -396,7 +419,14 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		// Missing, expired, or invalid sessions are expected because clients
+		// replay stale cookies, so they are logged at debug rather than
+		// warning level.
+		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
+			h.logger.DebugContext(r.Context(), "Failed to fetch application session", "error", err)
+		} else {
+			h.logger.WarnContext(r.Context(), "Failed to fetch application session", "error", err)
+		}
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
@@ -590,12 +620,12 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 
 // extractCookie extracts the cookie from the *http.Request.
 func extractCookie(r *http.Request, cookieName string) (string, error) {
-	rawCookie, err := r.Cookie(cookieName)
-	if err != nil {
-		return "", trace.Wrap(err)
+	rawCookie, _ := r.Cookie(cookieName)
+	if rawCookie == nil {
+		return "", trace.NotFound("cookie %+q not found", cookieName)
 	}
-	if rawCookie != nil && rawCookie.Value == "" {
-		return "", trace.BadParameter("cookie missing")
+	if rawCookie.Value == "" {
+		return "", trace.NotFound("cookie %+q is empty", cookieName)
 	}
 
 	return rawCookie.Value, nil
@@ -616,6 +646,41 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// appAuthCertificateIdentities returns certificate-backed identities that
+// participate in app auth for the request. HTTPS-tunneled requests validate the
+// outer tunnel identity and, when present, the inner client cert identity.
+// Cookie/browser clients return no identities.
+func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
+	var identities []*tlsca.Identity
+	if IsHTTPSTunnelConn(r) {
+		identity, err := getIdentityFromHTTPSTunnelRequest(r)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	if HasClientCert(r) {
+		cert := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	return identities
+}
+
+// connectionCredentialExpired reports whether a certificate-authenticated
+// request is backed by a credential that has already expired as of now. Returns
+// false for cookie/browser clients, which don't authenticate with a
+// certificate.
+func connectionCredentialExpired(r *http.Request, now time.Time) bool {
+	for _, identity := range appAuthCertificateIdentities(r) {
+		if identity.Expires.Before(now) {
+			return true
+		}
+	}
+	return false
 }
 
 // isBrowserRequest reports whether the request originated from a browser.

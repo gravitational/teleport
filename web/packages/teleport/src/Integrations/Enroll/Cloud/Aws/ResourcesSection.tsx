@@ -70,11 +70,13 @@ const tagsWidth = fieldWidth + 32;
 type ResourcesSectionProps = {
   configs: ServiceConfigs;
   onConfigChange: (type: ServiceType, patch: Partial<ServiceConfig>) => void;
+  isOrganization?: boolean;
 };
 
 export function ResourcesSection({
   configs,
   onConfigChange,
+  isOrganization = false,
 }: ResourcesSectionProps) {
   const { valid, message } = useRule(requiredResourceType(configs));
   const hasError = !valid;
@@ -82,7 +84,7 @@ export function ResourcesSection({
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
-        <CircleNumber>2</CircleNumber>
+        <CircleNumber>3</CircleNumber>
         Resource Types
       </Flex>
       <Text ml={4} mb={3}>
@@ -113,6 +115,8 @@ export function ResourcesSection({
           config={configs.eks}
           onUpdate={patch => onConfigChange('eks', patch)}
           tagTooltip="Match EKS clusters by their tags. If no tags are added, Teleport will match and enroll all EKS clusters."
+          disabled={isOrganization}
+          disabledTooltip="Teleport Discovery Terraform module currently does not support EKS Discovery with AWS Organizations. Select Single Account scope to enable EKS discovery."
         >
           <Box mt={2}>
             <Toggle
@@ -146,12 +150,16 @@ function AwsService({
   config,
   onUpdate,
   tagTooltip,
+  disabled = false,
+  disabledTooltip,
   children,
 }: {
   label: string;
   config: ServiceConfig;
   onUpdate: (update: Partial<ServiceConfig>) => void;
   tagTooltip: string;
+  disabled?: boolean;
+  disabledTooltip?: string;
   children?: React.ReactNode;
 }) {
   const [tagsExpanded, setTagsExpanded] = useState(config.tags.length > 0);
@@ -161,16 +169,28 @@ function AwsService({
     [config.regions]
   );
 
+  const checkboxLabel = disabled ? (
+    <Flex alignItems="center" gap={1}>
+      {label}
+      <IconTooltip kind="info">
+        <Text>{disabledTooltip}</Text>
+      </IconTooltip>
+    </Flex>
+  ) : (
+    label
+  );
+
   return (
     <>
       <FieldCheckbox
         mb={2}
         size="small"
-        label={label}
-        checked={config.enabled}
+        label={checkboxLabel}
+        checked={config.enabled && !disabled}
+        disabled={disabled}
         onChange={() => onUpdate({ enabled: !config.enabled })}
       />
-      {config.enabled && (
+      {config.enabled && !disabled && (
         <Box ml={4}>
           <Box mb={3} width={fieldWidth}>
             <RegionSelect

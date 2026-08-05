@@ -282,6 +282,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		BotScope:                            unmappedIdentity.BotScope,
+		BeamID:                              unmappedIdentity.BeamID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
@@ -488,6 +490,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				Login:         principal,
 				User:          ident.Username,
 				TrustedDevice: ident.GetDeviceMetadata(),
+				BeamID:        ident.BeamID,
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -800,7 +803,7 @@ func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) 
 	}
 
 	var (
-		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
+		forceInBandMFA      = os.Getenv(teleport.EnvVarUnstableForceInBandMFA) == "yes"
 		isLegacyClient      = !inBandMFASupported
 		isRegularSSHCert    = id.MFAVerified == ""
 		isPerSessionMFACert = !isRegularSSHCert
@@ -1279,7 +1282,7 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		osUser == teleport.SSHSessionJoinPrincipal &&
 			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
 			(state.MFARequired == services.MFARequiredNever ||
-				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
+				(os.Getenv(teleport.EnvVarUnstableForceInBandMFA) != "yes" && state.MFAVerified))
 
 	// Collect preconditions that must be met before the session can start.
 	var preconds []*decisionpb.Precondition

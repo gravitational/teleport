@@ -18,6 +18,7 @@
 
 import { EventEmitter } from 'events';
 
+import { Logger } from 'design/logger';
 import {
   ClientScreenSpec,
   selectDirectoryInBrowser,
@@ -74,7 +75,8 @@ export class PlayerClient extends TdpClient {
     super(
       signal =>
         adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
-      selectDirectoryInBrowser
+      selectDirectoryInBrowser,
+      new Logger('TDPClient')
     );
   }
 

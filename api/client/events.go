@@ -100,6 +100,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Beam{
 			Beam: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:
+		out.Resource = &proto.Event_BeamsConfig{
+			BeamsConfig: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 		out.Resource = &proto.Event_BotInstance{
 			BotInstance: r.UnwrapT(),
@@ -215,6 +219,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
 		out.Resource = &proto.Event_CertAuthorityOverride{
 			CertAuthorityOverride: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+		out.Resource = &proto.Event_PendingCSRRequest{
+			PendingCSRRequest: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
 		out.Resource = &proto.Event_ValidatedMFAChallengeV2{
@@ -663,6 +671,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetBeam(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetBeamsConfig(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
@@ -754,6 +765,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetCertAuthorityOverride(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPendingCSRRequest(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetValidatedMFAChallengeV2(); r != nil {

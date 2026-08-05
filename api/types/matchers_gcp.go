@@ -33,6 +33,8 @@ const (
 	GCPMatcherKubernetes = "gke"
 	// GCPMatcherCompute is the GCP matcher for GCP VMs.
 	GCPMatcherCompute = "gce"
+	// GCPMatcherCloudSQL is the GCP matcher type for Cloud SQL databases.
+	GCPMatcherCloudSQL = "cloudsql"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
@@ -40,6 +42,7 @@ const (
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
+	GCPMatcherCloudSQL,
 }
 
 // GetTypes gets the types that the matcher can match.

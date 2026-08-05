@@ -175,6 +175,32 @@ func TestGetTokens(t *testing.T) {
 			},
 		},
 		{
+			name: "system tokens are shown but marked as system resources",
+			tokenData: []tokenData{
+				{
+					name: "beam-system-token",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{types.RoleNode},
+					},
+					labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+					expiry: expiry,
+				},
+			},
+			expected: []ui.JoinToken{
+				{
+					ID:               "beam-system-token",
+					SafeName:         "************token",
+					Expiry:           expiry,
+					Roles:            types.SystemRoles{types.RoleNode},
+					IsSystemResource: true,
+					Method:           "token",
+				},
+				staticUIToken,
+			},
+		},
+		{
 			name: "all tokens",
 			tokenData: []tokenData{
 				{
@@ -793,6 +819,16 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				{
 					OrganizationID: "example-organization-id",
 					ProjectName:    "example-project-name",
+				},
+			},
+		}
+	case types.JoinMethodGenericOIDC:
+		spec.GenericOIDC = &types.ProvisionTokenSpecV2GenericOIDC{
+			Issuer:   "https://example.com",
+			Audience: "example.teleport.sh",
+			AllowAny: []*types.ProvisionTokenSpecV2GenericOIDC_Rule{
+				{
+					Expression: "claims.foo == \"bar\"",
 				},
 			},
 		}

@@ -118,6 +118,7 @@ export type IntegrationSpecAzureOidc = {
   managedIdentity?: {
     region: string;
     resourceGroup: string;
+    managementGroupId?: string;
   };
 };
 
@@ -174,6 +175,10 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+  organization?: {
+    includeUnits: string[];
+    excludeUnits: string[];
+  };
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
@@ -568,6 +573,7 @@ export type Filters = {
 export type PluginEntraIDStatusDetails = {
   imported_users?: number;
   imported_groups?: number;
+  sync_mode?: 'full' | 'delta';
 };
 
 export type IntegrationOAuthCredentials = {

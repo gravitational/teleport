@@ -57,9 +57,9 @@ const (
 // UserDisplay contains display values derived from the user.
 type UserDisplay struct {
 	// Primary is a human-readable display name when distinct from username.
-	Primary string
+	Primary string `json:"primary,omitempty"`
 	// Secondary is supporting display context when distinct from username.
-	Secondary string
+	Secondary string `json:"secondary,omitempty"`
 }
 
 // GetDisplay returns display values derived from the user.

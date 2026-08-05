@@ -47,6 +47,17 @@ type IntegrationAWSOIDCSpec struct {
 	// such as preventing integration from update or deletion. Empty audience value
 	// should be treated as a default and backward-compatible behavior of the integration.
 	Audience string `json:"audience,omitempty"`
+
+	// Organization contains the AWS Organization discovery configuration.
+	Organization *IntegrationAWSOrganizationSpec `json:"organization,omitempty"`
+}
+
+// IntegrationAWSOrganizationSpec contains the AWS Organization discovery details.
+type IntegrationAWSOrganizationSpec struct {
+	// IncludeUnits is the list of Organizational Unit IDs to include.
+	IncludeUnits []string `json:"includeUnits,omitempty"`
+	// ExcludeUnits is the list of Organizational Unit IDs to exclude.
+	ExcludeUnits []string `json:"excludeUnits,omitempty"`
 }
 
 // IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
@@ -75,6 +86,8 @@ type IntegrationAzureManagedIdentitySpec struct {
 	Region string `json:"region,omitempty"`
 	// ResourceGroup is the Azure resource group containing the managed identity.
 	ResourceGroup string `json:"resourceGroup,omitempty"`
+	// ManagementGroupID is the Azure management group ID scope used for the managed identity.
+	ManagementGroupID string `json:"managementGroupId,omitempty"`
 }
 
 // AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
@@ -172,6 +185,7 @@ type ResourcesCount struct {
 	Enrolled int `json:"enrolled"`
 	// Failed is the count of resources that were found but failed to be enrolled
 	Failed int `json:"failed"`
+	// TODO(gavin): add Pending count
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -444,6 +458,17 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
+		includeUnits, _ := ig.GetLabel(types.AWSOrganizationalUnitsIncludeLabel)
+		excludeUnits, _ := ig.GetLabel(types.AWSOrganizationalUnitsExcludeLabel)
+		if includeUnits != "" || excludeUnits != "" {
+			ret.AWSOIDC.Organization = &IntegrationAWSOrganizationSpec{}
+			if includeUnits != "" {
+				ret.AWSOIDC.Organization.IncludeUnits = strings.Split(includeUnits, ",")
+			}
+			if excludeUnits != "" {
+				ret.AWSOIDC.Organization.ExcludeUnits = strings.Split(excludeUnits, ",")
+			}
+		}
 	case types.IntegrationSubKindAzureOIDC:
 		spec := ig.GetAzureOIDCIntegrationSpec()
 		if spec == nil {
@@ -456,10 +481,12 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		region, _ := ig.GetLabel(types.AzureManagedIdentityRegionLabel)
 		resourceGroup, _ := ig.GetLabel(types.AzureManagedIdentityResourceGroupLabel)
-		if region != "" || resourceGroup != "" {
+		managementGroupID, _ := ig.GetLabel(types.AzureManagementGroupIDLabel)
+		if region != "" || resourceGroup != "" || managementGroupID != "" {
 			azureSpec.ManagedIdentity = &IntegrationAzureManagedIdentitySpec{
-				Region:        region,
-				ResourceGroup: resourceGroup,
+				Region:            region,
+				ResourceGroup:     resourceGroup,
+				ManagementGroupID: managementGroupID,
 			}
 		}
 		ret.AzureOIDC = azureSpec

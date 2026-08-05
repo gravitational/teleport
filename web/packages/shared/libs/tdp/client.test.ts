@@ -45,7 +45,12 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess)
+    () => Promise.resolve(mockSharedDirectoryAccess),
+    {
+      warn(..._args: any[]) {},
+      info(..._args: any[]) {},
+      error(..._args: any[]) {},
+    }
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);
@@ -88,4 +93,68 @@ test('tdp upgrade', async () => {
   const hello = envelope.payload.clientHello;
   expect(hello.screenSpec).toEqual({ width: 1920, height: 1080, scale: 100 });
   expect(hello.keyboardLayout).toEqual(4);
+});
+
+test('shared directory management', async () => {
+  let client = new TdpClient(
+    () => Promise.resolve(mockTransport),
+    () => Promise.resolve(mockSharedDirectoryAccess),
+    {
+      warn(..._args: any[]) {},
+      info(..._args: any[]) {},
+      error(..._args: any[]) {},
+    },
+    // Remove operations are only supported on the TDPB codec.
+    { mode: 'tdpb' }
+  );
+
+  // Must connect before shared directory functions can be called.
+  let transportOpen = new Promise<void>(client.onTransportOpen);
+  client.connect({
+    screenSpec: { width: 1920, height: 1080, scale: 100 },
+    keyboardLayout: 1,
+  });
+  await transportOpen;
+
+  await Promise.all(Array.from({ length: 10 }, () => client.shareDirectory()));
+  // Identifiers begin at 2
+  const directories = client.listSharedDirectories();
+  expect(directories).toHaveLength(10);
+
+  // Reached maximum number of shared directories
+  await expect(client.shareDirectory()).rejects.toThrow();
+
+  // Internal directory management state should reset upon
+  // shutdown and subsequent connect. This should also
+  // reset the set pool of available identifiers.
+  client.shutdown();
+  transportOpen = new Promise<void>(client.onTransportOpen);
+  client.connect({
+    screenSpec: { width: 1920, height: 1080, scale: 100 },
+    keyboardLayout: 1,
+  });
+  await transportOpen;
+
+  // After reconnecting, the device identifiers should
+  // start from the beginning of the specified range again.
+  // (in this case, 2)
+  const shareAfterReset = await client.shareDirectory();
+  expect(shareAfterReset.id).toEqual(2);
+  client.unshareDirectory(shareAfterReset.id);
+
+  // Share 20 more so that the range of device identifiers wraps.
+  for (let i = 0; i < 20; i++) {
+    const res = await client.shareDirectory();
+    client.unshareDirectory(res.id);
+  }
+
+  // The range of valid device identifiers is currently [2, 22]
+  // Initial and released identifiers are added to a FIFO, so the
+  // next leased identifier should be be 2.
+  const res = await client.shareDirectory();
+  expect(res.id).toEqual(2);
+
+  // releasing an unknown or unleased identifier does not throw, but
+  // should log a warning.
+  client.unshareDirectory(3);
 });

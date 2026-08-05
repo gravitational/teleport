@@ -151,6 +151,9 @@ func leadingFraction(s string) (x int64, scale float64, rem string) {
 	return x, scale, s[i:]
 }
 
+// maxDurationLen bounds the length of a string accepted by ParseDuration.
+const maxDurationLen = 64
+
 var unitMap = map[string]int64{
 	"ns": int64(time.Nanosecond),
 	"us": int64(time.Microsecond),
@@ -171,6 +174,10 @@ var unitMap = map[string]int64{
 // such as "300ms", "-1.5h" or "2h45m".
 // Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 func ParseDuration(s string) (Duration, error) {
+	if len(s) > maxDurationLen {
+		return 0, trace.BadParameter("invalid duration: string exceeds %d bytes", maxDurationLen)
+	}
+
 	// [-+]?([0-9]*(\.[0-9]*)?[a-z]+)+
 	orig := s
 	var d int64

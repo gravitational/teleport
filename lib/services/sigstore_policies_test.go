@@ -140,12 +140,9 @@ func TestValidateSigstorePolicy(t *testing.T) {
 		"no keyless identity subject": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
 				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						SubjectMatcher: nil,
-						IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Issuer{
-							Issuer: "some issuer",
-						},
-					},
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Issuer: proto.String("some issuer"),
+					}.Build(),
 				})
 			},
 			err: "spec.keyless.identities[0].subject_matcher: subject or subject_regex is required",
@@ -164,12 +161,9 @@ func TestValidateSigstorePolicy(t *testing.T) {
 		"no keyless identity issuer": {
 			mod: func(p *workloadidentityv1.SigstorePolicy) {
 				p.GetSpec().GetKeyless().SetIdentities([]*workloadidentityv1.SigstoreKeylessSigningIdentity{
-					{
-						IssuerMatcher: nil,
-						SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Subject{
-							Subject: "some subject",
-						},
-					},
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Subject: proto.String("some subject"),
+					}.Build(),
 				})
 			},
 			err: "spec.keyless.identities[0].issuer_matcher: issuer or issuer_regex is required",

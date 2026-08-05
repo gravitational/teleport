@@ -30,11 +30,11 @@ import (
 
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
 	"k8s.io/client-go/tools/portforward"
+	"k8s.io/streaming/pkg/httpstream"
+	spdystream "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"

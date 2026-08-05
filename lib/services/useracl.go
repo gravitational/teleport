@@ -35,6 +35,15 @@ type ResourceAccess struct {
 	Use    bool `json:"use"`
 }
 
+// MobileDeviceAccess defines permissions for the mobile_device resource.
+// It uses a dedicated shape rather than ResourceAccess because mobile_device
+// exposes a custom verb, not the standard list/read/edit/create/delete/use set.
+type MobileDeviceAccess struct {
+	// CreateEnrollToken reflects the mobile_device.create_enroll_token verb,
+	// which gates a user's ability to start mobile device enrollment.
+	CreateEnrollToken bool `json:"createEnrollToken"`
+}
+
 // UserACL is derived from a user's role set and includes
 // information as to what features the user is allowed to use.
 type UserACL struct {
@@ -150,6 +159,8 @@ type UserACL struct {
 	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
 	// Beam defines access to Beams
 	Beam ResourceAccess `json:"beam"`
+	// MobileDevice defines permissions for the mobile_device resource.
+	MobileDevice MobileDeviceAccess `json:"mobileDevice"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -273,6 +284,10 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		beam = newAccess(userRoles, ctx, types.KindBeam)
 	}
 
+	mobileDevice := MobileDeviceAccess{
+		CreateEnrollToken: hasAccess(userRoles, ctx, types.KindMobileDevice, types.VerbCreateEnrollToken),
+	}
+
 	return UserACL{
 		AccessRequests:           requestAccess,
 		AppServers:               appServerAccess,
@@ -330,5 +345,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AutoUpdateAgentRollout:   autoUpdateAgentRollout,
 		AutoUpdateAgentReport:    autoUpdateAgentReport,
 		Beam:                     beam,
+		MobileDevice:             mobileDevice,
 	}
 }

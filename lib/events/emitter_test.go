@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -140,7 +141,8 @@ func TestAsyncEmitter(t *testing.T) {
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: eventstest.NewSlowEmitter(time.Hour),
+			Inner:   eventstest.NewSlowEmitter(time.Hour),
+			DataDir: t.TempDir(),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -157,7 +159,8 @@ func TestAsyncEmitter(t *testing.T) {
 	t.Run("Receive", func(t *testing.T) {
 		chanEmitter := eventstest.NewChannelEmitter(len(evts))
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: chanEmitter,
+			Inner:   chanEmitter,
+			DataDir: t.TempDir(),
 		})
 
 		require.NoError(t, err)
@@ -185,6 +188,7 @@ func TestAsyncEmitter(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(evts),
+			DataDir:    t.TempDir(),
 		})
 		require.NoError(t, err)
 
@@ -212,6 +216,44 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestCheckingAsyncEmitter_FieldsSetBeforePersist verifies that fields
+// are written to the event before it is enqueued.
+func TestCheckingAsyncEmitter_FieldsSetBeforePersist(t *testing.T) {
+	emitter, err := events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			ClusterName: "test-cluster",
+		},
+		events.AsyncEmitterConfig{
+			Inner:      eventstest.NewCountingEmitter(),
+			BufferSize: 8,
+			DataDir:    t.TempDir(),
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = emitter.Close()
+	})
+
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginCode,
+		},
+	}
+	require.Empty(t, event.GetID(), "event must start with empty UID")
+	require.True(t, event.GetTime().IsZero(), "event must start with zero Time")
+
+	before := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+
+	require.NotEmpty(t, event.GetID(),
+		"UID should be set on the input event after EmitAuditEvent",
+	)
+	require.False(t, event.GetTime().Before(before),
+		"Time on event should be >= time captured before EmitAuditEvent")
+	require.Equal(t, "test-cluster", event.GetClusterName())
 }
 
 // TestExport tests export to JSON format.
@@ -269,4 +311,93 @@ func TestExport(t *testing.T) {
 	}
 	require.NoError(t, snl.Err())
 	require.Len(t, outEvents, count)
+}
+
+func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("in-memory backend", func(t *testing.T) {
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableAuditQueue:   true,
+			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+		err = emitter.EmitAuditEvent(ctx, &apievents.UserLogin{
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Code: events.UserLocalLoginCode,
+			},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("fallback to in-memory", func(t *testing.T) {
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableAuditQueue:   true,
+			AuditQueueBackends: []auditqueue.Kind{"invalid_backend", auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+	})
+
+	t.Run("all backends fail", func(t *testing.T) {
+		_, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              eventstest.NewChannelEmitter(10),
+			EnableAuditQueue:   true,
+			AuditQueueBackends: []auditqueue.Kind{"invalid_backend"},
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("delivers to inner emitter", func(t *testing.T) {
+		inner := eventstest.NewChannelEmitter(1)
+		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+			Inner:              inner,
+			EnableAuditQueue:   true,
+			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+
+		sent := &apievents.UserLogin{
+			Metadata: apievents.Metadata{
+				Type: events.UserLoginEvent,
+				Code: events.UserLocalLoginCode,
+			},
+		}
+		require.NoError(t, emitter.EmitAuditEvent(ctx, sent))
+
+		select {
+		case got := <-inner.C():
+			require.Equal(t, sent, got)
+		case <-time.After(5 * time.Second):
+			t.Fatal("event was never delivered to inner emitter")
+		}
+	})
+}
+
+func TestAsyncEmitterShutdownDrainsQueue(t *testing.T) {
+	ctx := t.Context()
+	counter := eventstest.NewCountingEmitter()
+	emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		Inner:              counter,
+		EnableAuditQueue:   true,
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+
+	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
+	for _, e := range evts {
+		require.NoError(t, emitter.EmitAuditEvent(ctx, e))
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, emitter.Shutdown(shutdownCtx))
+
+	require.EqualValues(t, len(evts), counter.Count(),
+		"Shutdown should drain every enqueued event to the inner emitter")
 }

@@ -28,7 +28,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	goslices "slices"
 	"sort"
 	"strings"
 	"sync"
@@ -1533,6 +1536,85 @@ func TestOIDCConnector(t *testing.T) {
 		require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 		require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 	})
+}
+
+func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
+	t.Parallel()
+
+	const loginEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://login.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://login.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+	const mfaEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://mfa.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://mfa.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+
+	s := newAuthSuite(t)
+	t.Cleanup(func() { _ = s.a.Close() })
+
+	ctx := t.Context()
+
+	role, err := types.NewRole("dummy", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role, err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	const loginMetadataPath = "/test_metadata_login"
+	const mfaMetadataPath = "/test_metadata_mfa"
+	const badMetadataPath = "/test_metadata_bad"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case loginMetadataPath:
+			w.Write([]byte(loginEntityDescriptor))
+		case mfaMetadataPath:
+			w.Write([]byte(mfaEntityDescriptor))
+		default:
+			http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+		EntityDescriptorURL:      server.URL + badMetadataPath,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
+
+	// Let's create a valid connector to check updates.
+	samlConnector.SetEntityDescriptorURL(server.URL + loginMetadataPath)
+	createdSAMLConnector, err := s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Now let's check MFA entity descriptor fetching errors sanitization.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + badMetadataPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
+
+	// Verify it passes when URLs are OK.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + mfaMetadataPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.NoError(t, err)
 }
 
 func TestSAMLConnector(t *testing.T) {
@@ -3058,7 +3140,7 @@ func TestGenerateOpenSSHCertScoped(t *testing.T) {
 				User: "scoped-user",
 				Assignments: []*scopedaccessv1pb.Assignment{
 					scopedaccessv1pb.Assignment_builder{
-						Role:  "staging-ssh",
+						Role:  "/staging::staging-ssh",
 						Scope: "/staging",
 					}.Build(),
 				},
@@ -3137,15 +3219,13 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	_, _, err = p.a.GenerateUserTestCertsWithContext(ctx, certReq)
 	require.NoError(t, err)
 
-	testTargets := append(
-		[]types.LockTarget{
-			{User: user.GetName()},
-			{MFADevice: mfaID},
-			{AccessRequest: requestID},
-			{Device: deviceID},
-		},
-		services.RolesToLockTargets(user.GetRoles())...,
-	)
+	testTargets := []types.LockTarget{
+		{User: user.GetName()},
+		{MFADevice: mfaID},
+		{AccessRequest: requestID},
+		{Device: deviceID},
+	}
+	testTargets = goslices.AppendSeq(testTargets, services.RolesToLockTargets(goslices.Values(user.GetRoles())))
 	for _, target := range testTargets {
 		t.Run(fmt.Sprintf("lock targeting %v", target), func(t *testing.T) {
 			lockWatch, err := p.a.SubscribeToLockTarget(ctx, target)
@@ -3553,13 +3633,24 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	p := newAuthSuite(t)
+
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:        t.TempDir(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if p.bk != nil {
+			p.bk.Close()
+		}
+	})
 
 	// Set a web idle timeout.
 	duration := time.Duration(5) * time.Minute
 	cfg := types.DefaultClusterNetworkingConfig()
 	cfg.SetWebIdleTimeout(duration)
-	_, err := p.a.UpsertClusterNetworkingConfig(ctx, cfg)
+	_, err = p.a.UpsertClusterNetworkingConfig(ctx, cfg)
 	require.NoError(t, err)
 
 	// Create a user.
@@ -3590,6 +3681,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NotEmpty(t, ws.GetTLSCert())
 
 	t.Run("expands user metadata name in logins", func(t *testing.T) {
+		ctx := t.Context()
 		user, _, err := authtest.CreateUserAndRole(p.a, "templated-web-user", nil, nil, authtest.WithRoleMutator(func(role types.Role) {
 			role.SetLogins(types.Allow, []string{"{{user.metadata.name}}"})
 		}))
@@ -3603,13 +3695,158 @@ func TestNewWebSession(t *testing.T) {
 			SessionTTL: apidefaults.CertDuration,
 		}
 
-		_, checker, err := p.a.NewWebSession(ctx, req, nil /* opts */)
+		_, checkerCtx, err := p.a.NewWebSession(ctx, req, nil /* opts */)
 		require.NoError(t, err)
 
-		logins, err := checker.CheckLoginDuration(0)
+		logins, err := checkerCtx.CertParams().GetSSHLoginsForTTL(ctx, 0)
 		require.NoError(t, err)
 		require.Contains(t, logins, user.GetName())
 	})
+
+	t.Run("scoped session", func(t *testing.T) {
+		ctx := t.Context()
+		scopedService := local.NewScopedAccessService(p.bk)
+		_, err := scopedService.CreateScopedRole(ctx, scopedaccessv1pb.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1pb.ScopedRole_builder{
+				Kind: "scoped_role",
+				Metadata: headerv1.Metadata_builder{
+					Name: "web-session",
+				}.Build(),
+				Scope: "/test",
+				Spec: scopedaccessv1pb.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/test"},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		_, err = scopedService.CreateScopedRoleAssignment(ctx, scopedaccessv1pb.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1pb.ScopedRoleAssignment_builder{
+				Kind: "scoped_role_assignment",
+				Metadata: headerv1.Metadata_builder{
+					Name: uuid.NewString(),
+				}.Build(),
+				Scope:   "/test",
+				SubKind: "dynamic",
+				Spec: scopedaccessv1pb.ScopedRoleAssignmentSpec_builder{
+					User: user.GetName(),
+					Assignments: []*scopedaccessv1pb.Assignment{
+						scopedaccessv1pb.Assignment_builder{
+							Role:  "/test::web-session",
+							Scope: "/test",
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+
+		// Wait for scoped access cache to see the assignment.
+		pin := scopesv1pb.Pin_builder{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/test"}.Build()
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
+			err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, user.GetName(), pin)
+			assert.NoError(ct, err)
+			assert.NotNil(ct, pin.GetAssignmentTree())
+		}, 15*time.Second, 100*time.Millisecond)
+
+		req := auth.NewWebSessionRequest{
+			User:  user.GetName(),
+			Scope: "/test",
+		}
+
+		ws, _, err := p.a.NewWebSession(ctx, req, nil /* opts */)
+		require.NoError(t, err)
+		assert.Equal(t, user.GetName(), ws.GetUser())
+
+		_, identity := parseX509PEMAndIdentity(t, ws.GetTLSCert())
+		sp := identity.ScopePin
+		require.NotNil(t, sp)
+		assert.Equal(t, "/test", sp.GetScope())
+		assert.Equal(t, scopesv1pb.PinKind_PIN_KIND_USER, sp.GetKind())
+	})
+}
+
+func TestNewWebSessionScopedTrustedDeviceRequirement(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	p, err := newTestPack(ctx, testPackOptions{
+		DataDir:        t.TempDir(),
+		Modules:        modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+
+	authPref, err := p.a.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	authPref.SetDeviceTrust(&types.DeviceTrust{
+		Mode: constants.DeviceTrustModeRequired,
+	})
+	_, err = p.a.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	_, _, err = authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+
+	scopedService := p.a.ScopedAccess()
+	_, err = scopedService.CreateScopedRole(ctx, scopedaccessv1pb.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1pb.ScopedRole_builder{
+			Kind: "scoped_role",
+			Metadata: headerv1.Metadata_builder{
+				Name: "some-scoped-role",
+			}.Build(),
+			Scope: "/foo",
+			Spec: scopedaccessv1pb.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/foo/bar"},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = scopedService.CreateScopedRoleAssignment(ctx, scopedaccessv1pb.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1pb.ScopedRoleAssignment_builder{
+			Kind: "scoped_role_assignment",
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope:   "/foo",
+			SubKind: "dynamic",
+			Spec: scopedaccessv1pb.ScopedRoleAssignmentSpec_builder{
+				User: "test-user",
+				Assignments: []*scopedaccessv1pb.Assignment{
+					scopedaccessv1pb.Assignment_builder{
+						Role:  "/foo::some-scoped-role",
+						Scope: "/foo/bar",
+					}.Build(),
+				},
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for scoped access cache to see the assignment.
+	pin := scopesv1pb.Pin_builder{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/foo/bar"}.Build()
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, "test-user", pin)
+		assert.NoError(ct, err)
+		assert.NotNil(ct, pin.GetAssignmentTree())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	ws, _, err := p.a.NewWebSession(ctx, auth.NewWebSessionRequest{
+		User:  "test-user",
+		Scope: "/foo/bar",
+	}, nil /* opts */)
+	require.NoError(t, err)
+
+	assert.Equal(t, types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, ws.GetTrustedDeviceRequirement())
+
+	// Make sure this has actually created a scoped session.
+	_, identity := parseX509PEMAndIdentity(t, ws.GetTLSCert())
+	assert.NotNil(t, identity.ScopePin)
 }
 
 func TestDeleteMFADeviceSync(t *testing.T) {
@@ -5461,7 +5698,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 func newUserNotificationWithExpiry(t *testing.T, username string, title string, expires *timestamppb.Timestamp) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
 		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
@@ -5472,15 +5709,15 @@ func newUserNotificationWithExpiry(t *testing.T, username string, title string, 
 				types.NotificationTitleLabel: title,
 			},
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timestamppb.Timestamp) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := notificationsv1.GlobalNotification{
+	notification := notificationsv1.GlobalNotification_builder{
 		Spec: notificationsv1.GlobalNotificationSpec_builder{
 			All: proto.Bool(true),
 			Notification: notificationsv1.Notification_builder{
@@ -5494,9 +5731,9 @@ func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timest
 				}.Build(),
 			}.Build(),
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 // TestServerHostnameSanitization tests that persisting servers with

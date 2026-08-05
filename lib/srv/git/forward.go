@@ -352,6 +352,7 @@ func (s *ForwardServer) onRBACFailure(conn ssh.ConnMetadata, ident *sshca.Identi
 			Login:         gitUser,
 			User:          ident.Username,
 			TrustedDevice: ident.GetDeviceMetadata(),
+			BeamID:        ident.BeamID,
 		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  conn.LocalAddr().String(),

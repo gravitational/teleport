@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -196,6 +197,22 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 	return client
 }
 
+func newTestInventoryHandle(t testing.TB, clt *authclient.Client, hostID string, role types.SystemRole) inventory.DownstreamHandle {
+	t.Helper()
+	handle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello_builder{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{role}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	return handle
+}
+
 func setChildLogConfigForTest() ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
@@ -266,6 +283,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	}
 
@@ -536,9 +554,15 @@ func TestSessionAuditLog(t *testing.T) {
 	require.NotEmpty(t, startEvent.SessionID, "expected non empty sessionID")
 	sessionID := startEvent.SessionID
 
-	// Request agent forwarding, no individual event emitted.
+	// Request agent forwarding, event should be emitted immediately.
 	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
+
+	agentEvent := <-emitter.C()
+	agentForwardEvent, ok := agentEvent.(*apievents.AgentForward)
+	require.True(t, ok, "expected AgentForward event but got event of type %T", agentEvent)
+	require.Equal(t, events.AgentForwardCode, agentForwardEvent.GetCode())
+	require.True(t, agentForwardEvent.Status.Success)
 
 	// Request x11 forwarding, event should be emitted immediately.
 	clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
@@ -938,29 +962,38 @@ func TestLockInForce(t *testing.T) {
 	watcher := f.ssh.srv.GetLockWatcher()
 	sub, err := watcher.Subscribe(ctx, lock.Target())
 	require.NoError(t, err)
+	defer sub.Close()
+
+	waitForLockEvent := func(eventType types.OpType) {
+		t.Helper()
+
+		timeout := time.NewTimer(20 * time.Second)
+		defer timeout.Stop()
+		for {
+			select {
+			case evt := <-sub.Events():
+				if evt.Type != eventType || evt.Resource.GetName() != lock.GetName() {
+					continue
+				}
+
+				if eventType == types.OpPut {
+					eventLock, ok := evt.Resource.(types.Lock)
+					require.True(t, ok)
+					require.Empty(t, cmp.Diff(lock.Target(), eventLock.Target()))
+				}
+				return
+			case <-sub.Done():
+				t.Fatalf("lock subscription terminated unexpectedly %v", sub.Error())
+			case <-timeout.C:
+				t.Fatalf("timed out waiting for lock %s event", eventType)
+			}
+		}
+	}
 
 	require.NoError(t, f.testSrv.Auth().UpsertLock(ctx, lock))
 
 	// Wait for the lock to appear before proceeding.
-	timeout := time.After(20 * time.Second)
-	for wait := true; wait; {
-		select {
-		case evt := <-sub.Events():
-			if evt.Type != types.OpPut {
-				continue
-			}
-
-			eventLock, ok := evt.Resource.(types.Lock)
-			require.True(t, ok)
-			require.Empty(t, cmp.Diff(lock.Target(), eventLock.Target()))
-			wait = false
-		case <-sub.Done():
-			t.Fatalf("lock subscription terminated unexpectedly %v", sub.Error())
-		case <-timeout:
-			t.Fatal("timed out waiting for lock target event")
-		}
-	}
-	require.NoError(t, sub.Close())
+	waitForLockEvent(types.OpPut)
 
 	// Expect the session to eventually be terminated because of the lock.
 	select {
@@ -978,17 +1011,14 @@ func TestLockInForce(t *testing.T) {
 	// As long as the lock is in force, new sessions cannot be opened.
 	newClient, err := apissh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		// The client is expected to be closed by the lock monitor therefore expect
-		// an error on this second attempt.
-		require.Error(t, newClient.Close())
-	})
+	t.Cleanup(func() { newClient.Close() })
 	_, err = newClient.NewSession(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), lockInForceMsg)
 
 	// Once the lock is lifted, new sessions should go through without error.
 	require.NoError(t, f.testSrv.Auth().DeleteLock(ctx, "test-lock"))
+	waitForLockEvent(types.OpDelete)
 	newClient2, err := apissh.Dial(ctx, "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, newClient2.Close()) })
@@ -1334,6 +1364,12 @@ func TestAgentForwardPermission(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
 	ctx := t.Context()
 
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
@@ -1355,14 +1391,29 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
+	stderr, err := se.StderrPipe()
+	require.NoError(t, err)
+	stderrCh := startReadAll(stderr)
+
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
 	require.NoError(t, sshagent.RequestAgentForwarding(ctx, se))
+
+	agentEvent := <-emitter.C()
+	agentForwardEvent, ok := agentEvent.(*apievents.AgentForward)
+	require.True(t, ok, "expected AgentForward event but got event of type %T", agentEvent)
+	require.Equal(t, events.AgentForwardFailureCode, agentForwardEvent.GetCode())
+	require.False(t, agentForwardEvent.Status.Success)
+	require.Contains(t, agentForwardEvent.Status.Error, "agent forwarding")
 
 	// the output of env, we should not see SSH_AUTH_SOCK in the output
 	output, err := se.Output(ctx, "env")
 	require.NoError(t, err)
 	require.NotContains(t, string(output), "SSH_AUTH_SOCK")
+
+	stderrOutput, err := waitForBytes(ctx, stderrCh)
+	require.NoError(t, err)
+	require.Contains(t, string(stderrOutput), "Agent forwarding is not permitted for this user.\n")
 }
 
 // TestMaxSessions makes sure that MaxSessions RBAC rules prevent
@@ -1453,6 +1504,12 @@ func TestAgentForward(t *testing.T) {
 	f := newFixtureWithoutDiskBasedLogging(t)
 
 	ctx := t.Context()
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
@@ -1468,6 +1525,12 @@ func TestAgentForward(t *testing.T) {
 
 	err = sshagent.RequestAgentForwarding(ctx, se)
 	require.NoError(t, err)
+
+	agentEvent := <-emitter.C()
+	agentForwardEvent, ok := agentEvent.(*apievents.AgentForward)
+	require.True(t, ok, "expected AgentForward event but got event of type %T", agentEvent)
+	require.Equal(t, events.AgentForwardCode, agentForwardEvent.GetCode())
+	require.True(t, agentForwardEvent.Status.Success)
 
 	// prepare to send virtual "keyboard input" into the shell:
 	keyboard, err := se.StdinPipe()
@@ -2384,7 +2447,7 @@ func TestLimiter(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	nodeClient, _ := newNodeClient(t, f.testSrv)
+	nodeClient, nodeID := newNodeClient(t, f.testSrv)
 
 	lockWatcher := newLockWatcher(ctx, t, nodeClient)
 
@@ -2419,6 +2482,7 @@ func TestLimiter(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
@@ -2796,19 +2860,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 		}
 	}()
 
-	agentlessSrv := types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: uuid.NewString(),
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     agentlessListener.Addr().String(),
-			Hostname: "agentless",
-		},
-	}
-
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
@@ -2859,8 +2910,19 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, reverseTunnelServer.Start())
 		t.Cleanup(func() { _ = reverseTunnelServer.Close() })
 
-		nodeClient, _ := newNodeClient(t, f.testSrv)
-
+		nodeClient, nodeID := newNodeClient(t, f.testSrv)
+		agentlessSrv := types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: nodeID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     agentlessListener.Addr().String(),
+				Hostname: "agentless",
+			},
+		}
 		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
 		require.NoError(t, err)
 
@@ -2950,7 +3012,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		},
 		{
 			name:                 "proxy:agentlessServer",
-			subsystemOverride:    "proxy:" + agentlessSrv.Spec.Addr,
+			subsystemOverride:    "proxy:" + agentlessListener.Addr().String(),
 			wantErrInProxyMode:   false,
 			wantErrInRegularMode: true,
 		},
@@ -3297,6 +3359,7 @@ func TestEventMetadata(t *testing.T) {
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	}
 
@@ -3992,6 +4055,9 @@ func TestGetServerInfoHeartbeat(t *testing.T) {
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
 			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		}
+		if role == types.RoleNode {
+			opts = append(opts, SetInventoryControlHandle(newTestInventoryHandle(t, client, serverID, role)))
 		}
 		opts = append(opts, extraOpts...)
 

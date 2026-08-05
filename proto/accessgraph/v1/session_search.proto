@@ -197,6 +197,10 @@ message SearchSessionSummariesParams {
   // the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
   // matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
   SearchMode search_mode = 15;
+
+  // filter_needs_further_review_reasons restricts results to sessions that have
+  // at least one of the given review reasons. An empty list disables this filter.
+  repeated teleport.summarizer.v1.NeedsReviewReason filter_needs_further_review_reasons = 16;
 }
 
 // EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
@@ -410,6 +414,11 @@ message SessionSummary {
 
   // host_id is the unique identifier of the host where the session occurred.
   string host_id = 17;
+
+  // needs_further_review_reasons contains the reasons why this session was
+  // flagged as requiring further human review by the summarizer. Empty when the
+  // session was not flagged.
+  repeated teleport.summarizer.v1.NeedsReviewReason needs_further_review_reasons = 18;
 }
 
 // StoreSessionSummaryRequest is sent to store a session summary along with
@@ -477,6 +486,11 @@ message StoreSessionSummaryRequest {
   // embeddings are the semantic vector embeddings of the session summary,
   // used for similarity-based search queries.
   repeated EmbeddingChunk embeddings = 18;
+
+  // needs_further_review_reasons contains the reasons why this session needs
+  // further review, as determined by the summarizer. Empty when the session was
+  // not flagged.
+  repeated teleport.summarizer.v1.NeedsReviewReason needs_further_review_reasons = 19;
 }
 
 // EmbeddingChunk represents a semantic vector embedding for a text chunk from the

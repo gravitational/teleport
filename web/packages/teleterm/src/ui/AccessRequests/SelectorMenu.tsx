@@ -490,9 +490,9 @@ const StyledMenuItemContainer = styled(MenuItemContainer)<{ assumed: boolean }>`
   ${props =>
     props.assumed &&
     css`
-      background: ${props.theme.colors.interactive.tonal.primary.at(1)};
+      background: ${props.theme.colors.interactive.tonal.primary[1]};
       &:hover {
-        background-color: ${props.theme.colors.interactive.tonal.primary.at(0)};
+        background-color: ${props.theme.colors.interactive.tonal.primary[0]};
       }
     `};
 

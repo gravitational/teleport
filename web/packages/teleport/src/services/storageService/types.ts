@@ -69,6 +69,9 @@ export const KeysEnum = {
     'grv_teleport_identity_security_recommendations_unified_resources_cta_seen',
   APP_LAUNCHER_FRAGMENT: 'grv_teleport_app_launcher_fragment',
   DESKTOP_HIDPI: 'grv_teleport_desktop_hidpi',
+  // TODO(bl-nero): Remove this once the login scope picker is operational.
+  USE_LOGIN_SCOPE_PICKER: 'grv_teleport_use_login_scope_picker',
+  SCOPE_SELECTED: 'grv_teleport_scope_selected',
 };
 
 // SurveyRequest is the request for sending data to the back end

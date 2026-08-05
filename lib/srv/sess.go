@@ -1496,6 +1496,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			UserOriginClusterName: scx.Identity.OriginClusterName,
 			UserRoles:             scx.Identity.MappedRoles,
 			UserTraits:            scx.Identity.Traits,
+			BeamID:                scx.Identity.BeamID,
 			Events:                eventsMap,
 		}
 
@@ -1690,6 +1691,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			UserOriginClusterName: scx.Identity.OriginClusterName,
 			UserRoles:             scx.Identity.MappedRoles,
 			UserTraits:            scx.Identity.Traits,
+			BeamID:                scx.Identity.BeamID,
 			Events:                eventsMap,
 		}
 

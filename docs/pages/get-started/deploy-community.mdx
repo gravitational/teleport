@@ -19,7 +19,7 @@ You'll spin up a single-instance Teleport cluster on a Linux server, ideal for s
 
 ## How it works
 
-The Teleport cluster consists of two services:
+The Teleport cluster we set up in this guide consists of three services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
   issues certificates and conducts authentication challenges. The Auth Service
@@ -30,6 +30,11 @@ The Teleport cluster consists of two services:
 - **Teleport SSH Service:** An SSH server that enforces Teleport access
   controls, records sessions, and logs activity as Teleport audit events,
   enabling you to protect a Linux server with Teleport.
+
+The Teleport Auth Service and Proxy Service are considered the **control
+plane**. In Teleport Cloud, they run on Teleport-managed infrastructure. The
+Teleport SSH Service is an example of a **Teleport Agent** service, which
+proxies connections to and from a resource in your infrastructure.
 
 ![Architecture of the setup you will complete in this
 guide](../../img/linux-server-diagram.png)
@@ -47,35 +52,37 @@ Also, if you want to get a feel for Teleport commands and capabilities without s
 up any infrastructure, take a look at the browser-based [Teleport
 Labs](https://goteleport.com/labs).
 
-As for this guide, you can work through it with either a remote virtual machine (e.g., an Amazon
-EC2 instance) or a local Docker container. Make sure you have met the following
-requirements for your platform:
+You can work through this guide with either a remote virtual machine (e.g., an
+Amazon EC2 instance) or a local Docker container. **We recommend the Amazon EC2
+instance approach** for simplicity. Once you have completed this guide, having a
+dedicated host for your self-hosted Teleport cluster reduces the complexity of
+following other guides in the Teleport documentation.
+
+Make sure you have met the following requirements for your platform:
 
 <Tabs>
 <TabItem label="Remote virtual machine">
 
-- A Linux host with only port `443` open to ingress traffic. You must be able to
-  install and run software on the host. Either configure access to the host via
-  SSH for the initial setup (and open an SSH port in addition to port `443`) or
-  enter the commands in this guide into an Amazon EC2 [user data
-  script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
-  Google Compute Engine [startup
-  script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
-  similar.
-
+- A Linux host with only port `443` open to ingress traffic, and no existing
+  Teleport installation.
+  - You must be able to install and run software on the host. Either configure
+    access to the host via SSH for the initial setup (and open an SSH port in
+    addition to port `443`) or enter the commands in this guide into an Amazon
+    EC2 [user data
+    script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+    Google Compute Engine [startup
+    script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
+    similar.
+  - The host can start with 2 vCPU and 1GB RAM for testing, though for
+    additional users and resources, we recommend a larger instance size. For the
+    most scalable performance, run Teleport-protected resources on separate
+    hosts from the Teleport cluster.
 - **One** of the following:
-  - A registered domain name.
+  - A registered domain name or access to a service like Amazon Route53 that
+    allows you to register domain names.
   - An authoritative DNS nameserver managed by your organization, plus an
     existing certificate authority. If using this approach, ensure that your
     browser is configured to use your organization's nameserver.
-
-- Two DNS `A` records, each pointing to the IP address of your Linux host.
-  Assuming `teleport.example.com` is your domain name, set up records for:
-
-  |Domain|Reason|
-  |---|---|
-  |`teleport.example.com`|Traffic to the Proxy Service from users and services.|
-  |`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
 
 </TabItem>
 <TabItem label="Local Docker container">
@@ -140,7 +147,120 @@ Finally, you will need a multi-factor authenticator app such as
 Authenticator](https://www.google.com/landing/2step/), or
 [1Password](https://support.1password.com/one-time-passwords/).
 
-## Step 1/3. Set up Teleport on your Linux host
+<Admonition type="danger">
+
+For your Teleport cluster to be functional, the Proxy Service must be
+addressable from outside the cluster with a valid TLS certificate. In most
+cases, this requires a domain name. Only run your Teleport cluster with
+self-signed certificates if you understand the implications. Other guides in the
+documentation assume that your cluster has a domain name.
+
+See [Self-Signed
+Certificates](../installation/self-hosted/self-signed-certs.mdx) for how to run
+a Teleport cluster with self-signed certificates.
+
+</Admonition>
+
+## Step 1/4. Create DNS records
+
+If you are following this guide with a local Docker container for testing, skip
+to Step 2.
+
+Create two DNS `A` records, each pointing to the IP address of your Linux host.
+Assuming `teleport.example.com` is your domain name, set up records for:
+
+|Domain|Reason|
+|---|---|
+|`teleport.example.com`|Traffic to the Proxy Service from users and services.|
+|`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
+
+Here are example commands for creating these records on AWS and Google Cloud. If
+you are using a DNS name server managed by your organization, use your internal
+tooling to create the two records and skip to Step 2.
+
+1. Assign the following variables:
+   - <Var name="instance-ip" />: An IP address for the instance where you want to
+     run Teleport (mentioned in the Prerequisites). It must be reachable by cluster
+     users as well as any infrastructure resources you want to protect.
+   - <Var name="teleport.example.com"/>: The subdomain for your Teleport cluster.
+
+1. Run the appropriate commands for your cloud provider:
+
+   <Tabs>
+   <TabItem label="AWS Route 53">
+
+   Assign <Var name="myzone" /> to the ID of your Route 53 hosted zone and run
+   the following command:
+
+   ```code
+   $ MYDNS='<Var name="teleport.example.com" />'
+   $ MYIP='<Var name="instance-ip" />'
+   $ MYZONE='<Var name="myzone" />'
+   
+   # Create a JSON file changeset for AWS.
+   $ jq -n --arg dns "${MYDNS?}" --arg ip "${MYIP?}" \
+       '{
+           "Comment": "Create records",
+           "Changes": [
+             {
+               "Action": "CREATE",
+               "ResourceRecordSet": {
+                 "Name": $dns,
+                 "Type": "A",
+                 "TTL": 300,
+                 "ResourceRecords": [
+                   { "Value": $ip }
+                 ]
+               }
+             },
+             {
+               "Action": "CREATE",
+               "ResourceRecordSet": {
+                 "Name": ("*." + $dns),
+                 "Type": "A",
+                 "TTL": 300,
+                 "ResourceRecords": [
+                   { "Value": $ip }
+                 ]
+               }
+             }
+         ]
+       }' > myrecords.json
+   
+   # Review records before applying.
+   $ cat myrecords.json | jq
+   # Apply the records and capture change id
+   $ CHANGEID="$(aws route53 change-resource-record-sets --hosted-zone-id "${MYZONE?}" --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')"
+   
+   # Verify that change has been applied
+   $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
+   # "INSYNC"
+   ```
+
+   </TabItem>
+   <TabItem label="Google Cloud DNS">
+
+   Assign <Var name="myzone" /> to the name of the Cloud DNS zone in which you will
+   create records.
+
+   Run the following commands:
+
+   ```code
+   $ MYZONE='<Var name="myzone" />'
+   $ MYIP='<Var name="instance-ip" />'
+   $ MYDNS='<Var name="teleport.example.com" />'
+   
+   $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+   $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+   $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="300" --type="A" --zone="${MYZONE?}"
+   $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+   $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+   ```
+
+   </TabItem>
+   </Tabs>
+
+## Step 2/4. Set up Teleport on your Linux host
 
 In this step, you will log into your Linux host, download the Teleport binary,
 generate a Teleport configuration file, and start the Teleport Auth Service,
@@ -161,7 +281,11 @@ Generate a configuration file for Teleport using the `teleport configure` comman
 This command requires information about a TLS certificate and private key.
 
 The instructions depend on whether you are running Teleport on the public
-internet, a local container, or a private network:
+internet, a local container, or a private network. Unless you have specific
+security needs, **we recommend using Let's Encrypt on the public internet**.
+This reduces the complexity of following additional guides in the Teleport
+documentation since you do not need to export a certificate authority to all
+infrastructure in your cluster.
 
 <Tabs>
 
@@ -201,24 +325,6 @@ internet, a local container, or a private network:
       --public-addr=localhost:443 \
       --cert-file=/etc/teleport-tls/localhost.pem \
       --key-file=/etc/teleport-tls/localhost-key.pem
-  ```
-  </TabItem>
-  <TabItem label="Private network deployment">
-  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
-  and `/var/lib/teleport/fullchain.pem` respectively.
-
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
-
-  On the host where you will start the Teleport Auth Service and Proxy Service,
-  run the following `teleport configure` command. Assign <Var
-  name="teleport.example.com" /> to the domain name of your Teleport cluster.
-
-  ```code
-  $ sudo teleport configure -o file \
-      --cluster-name=<Var name="teleport.example.com" /> \
-      --public-addr=<Var name="teleport.example.com" />:443 \
-      --cert-file=/var/lib/teleport/fullchain.pem \
-      --key-file=/var/lib/teleport/privkey.pem
   ```
   </TabItem>
 </Tabs>
@@ -271,7 +377,7 @@ internet, a local container, or a private network:
   - Check the Teleport logs for errors: `sudo journalctl -u teleport` on a VM, or review the terminal output in your container.
 </Checkpoint>
 
-## Step 2/3. Create a Teleport user and set up multi-factor authentication
+## Step 3/4. Create a Teleport user and set up multi-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -377,7 +483,7 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 
 </details>
 
-## Step 3/3. Access your server with Teleport
+## Step 4/4. Access your server with Teleport
 
 Now that you have Teleport running and a user configured, you can access your Linux server through the Teleport Web UI (it will be automatically enrolled since Teleport is running on it).
 
@@ -407,3 +513,32 @@ At this point, you've launched your own Teleport Community Edition cluster and c
 <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Connect infrastructure <Icon name="arrowRight" inline size="sm"/> </Button>
 </div>
 
+## Advanced: Bring your own certificate
+
+It is possible to deploy Teleport Community Edition in environments that are
+air-gapped or require a private certificate authority. You can configure the
+Teleport Proxy Service to present a custom certificate and CA.
+
+On your Teleport host, place a valid private key and a certificate chain in
+`/var/lib/teleport/privkey.pem` and `/var/lib/teleport/fullchain.pem`
+respectively.
+
+The leaf certificate must have a subject that corresponds to the domain of your
+Teleport host, e.g., `*.teleport.example.com`.
+
+On the host where you will start the Teleport Auth Service and Proxy Service,
+run the following `teleport configure` command. Assign
+<Var name="teleport.example.com" /> to the domain name of your Teleport cluster.
+
+```code
+$ sudo teleport configure -o file \
+    --cluster-name=<Var name="teleport.example.com" /> \
+    --public-addr=<Var name="teleport.example.com" />:443 \
+    --cert-file=/var/lib/teleport/fullchain.pem \
+    --key-file=/var/lib/teleport/privkey.pem
+```
+
+All clients and Teleport Agents connecting to this cluster must trust the
+certificate authority that signed `fullchain.pem`. See [Running Teleport with
+Self-Signed Certificates]( ../installation/self-hosted/self-signed-certs.mdx)
+for details.

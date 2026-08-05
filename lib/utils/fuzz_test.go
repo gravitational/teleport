@@ -31,6 +31,9 @@ func FuzzParseProxyJump(f *testing.F) {
 	f.Add("@:,")
 	f.Add("user@host:port,bob@host:port")
 
+	// oss-fuzz reproducer: https://issues.oss-fuzz.com/issues/523269348
+	f.Add(strings.Repeat("0", 1<<16) + "]::" + strings.Repeat("0", 1<<16) + "[")
+
 	f.Fuzz(func(t *testing.T, in string) {
 		require.NotPanics(t, func() {
 			ParseProxyJump(in)

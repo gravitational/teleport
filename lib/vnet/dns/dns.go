@@ -46,6 +46,13 @@ const (
 	forwardRequestTimeout = 5 * time.Second
 )
 
+// DNSServerSuffix is the byte appended to VNet's IPv6 prefix to form the DNS server
+// address, VNet's DNS server lives at <ipv6_prefix>::N where N is this value
+var DNSServerSuffix = []byte{2}
+
+// DNSServerPort is the port VNet's DNS server listens on.
+const DNSServerPort = 53
+
 // Resolver represents an entity that can resolve DNS requests.
 type Resolver interface {
 	// ResolveA should return a Result for an A record question. If an empty Result is returned with no error,
@@ -401,7 +408,7 @@ func buildAAAAResponse(buf []byte, requestHeader *dnsmessage.Header, question *d
 	return buf, trace.Wrap(err, "serializing DNS response")
 }
 
-func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, rcode dnsmessage.RCode) (*dnsmessage.Builder, error) {
+func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dnsmessage.Question, rcode dnsmessage.RCode) (dnsmessage.Builder, error) {
 	buf = buf[:0]
 	responseBuilder := dnsmessage.NewBuilder(buf, dnsmessage.Header{
 		ID:            requestHeader.ID,
@@ -409,12 +416,11 @@ func prepDNSResponse(buf []byte, requestHeader *dnsmessage.Header, question *dns
 		Authoritative: true,
 		RCode:         dnsmessage.RCodeSuccess,
 	})
-	responseBuilder.EnableCompression()
 	if err := responseBuilder.StartQuestions(); err != nil {
-		return nil, trace.Wrap(err, "starting questions section of DNS response")
+		return dnsmessage.Builder{}, trace.Wrap(err, "starting questions section of DNS response")
 	}
 	if err := responseBuilder.Question(*question); err != nil {
-		return nil, trace.Wrap(err, "adding question to DNS response")
+		return dnsmessage.Builder{}, trace.Wrap(err, "adding question to DNS response")
 	}
-	return &responseBuilder, nil
+	return responseBuilder, nil
 }

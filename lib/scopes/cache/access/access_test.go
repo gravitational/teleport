@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	libcache "github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -205,6 +206,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	for _, name := range expectedAssignmentNames[0:10] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 			Name:    name,
+			Scope:   "/",
 			SubKind: scopedaccess.SubKindDynamic,
 		}.Build())
 		require.NoError(t, err)
@@ -227,6 +229,7 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	for _, name := range expectedAssignmentNames[10:] {
 		_, err := service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 			Name:    name,
+			Scope:   "/",
 			SubKind: scopedaccess.SubKindDynamic,
 		}.Build())
 		require.NoError(t, err)
@@ -240,7 +243,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle partial deletes for roles
 	for _, name := range expectedRoleNames[0:10] {
 		_, err := service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-			Name: name,
+			Name:  name,
+			Scope: "/",
 		}.Build())
 		require.NoError(t, err)
 	}
@@ -260,7 +264,8 @@ func TestScopedAccessCacheReplication(t *testing.T) {
 	// test that cache can handle delete of all roles
 	for _, name := range expectedRoleNames[10:] {
 		_, err := service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-			Name: name,
+			Name:  name,
+			Scope: "/",
 		}.Build())
 		require.NoError(t, err)
 	}
@@ -440,7 +445,7 @@ func newScopedRoleAssignment(roleName string) *scopedaccessv1.ScopedRoleAssignme
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  roleName,
+					Role:  scopes.QualifiedName{Scope: "/", Name: roleName}.String(),
 					Scope: "/foo",
 				}.Build(),
 			},

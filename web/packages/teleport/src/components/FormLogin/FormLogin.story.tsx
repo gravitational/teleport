@@ -39,6 +39,7 @@ const props: Props = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: false,
+  scope: '',
 };
 
 export default {
@@ -82,6 +83,8 @@ export const Cloud = () => (
     onRecover={() => null}
   />
 );
+
+export const Scoped = () => <FormLogin {...props} scope="/dev/east" />;
 
 export const ServerError = () => {
   const attempt = {

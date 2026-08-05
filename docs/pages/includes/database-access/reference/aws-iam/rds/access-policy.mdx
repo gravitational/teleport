@@ -33,13 +33,24 @@
 | Statement | Purpose |
 | --------- | ------- |
 |`RDSAutoEnableIAMAuth` | Automatically enable IAM auth on RDS instances and Aurora clusters. |
-|`RDSConnect` | Generate an IAM authentication token to connect to a database. |
+|`RDSConnect` | Connect to a database using IAM authentication tokens. | 
 |`RDSFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
 
 The Teleport Database Service uses `rds:ModifyDBInstance` and
 `rds:ModifyDBCluster` to automatically enable
 [IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
 on RDS instances and Aurora clusters, respectively.
+
+<Admonition type="warning" title="Production databases">
+Granting `RDSAutoEnableIAMAuth` allows the Teleport Database Service to modify your
+RDS instance or Aurora cluster configuration directly. Enabling IAM
+authentication does not cause downtime by itself. However, the Database
+Service applies the change immediately, which also applies any other
+modifications pending on the database. Before attaching this policy in a 
+production environment, check for pending modifications on your databases,
+or enable IAM authentication yourself and omit the `RDSAutoEnableIAMAuth` statement.
+</Admonition>
+
 You can omit the `RDSAutoEnableIAMAuth` permissions if IAM authentication is
 already enabled on your databases.
 

@@ -162,6 +162,128 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		})
 	})
 
+	t.Run("beam id label is carried into the certificate", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			service, pack := sessionServiceTestPack(t)
+			pack.createUser(t, "bob", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						"*": []string{"*"},
+					},
+				},
+			})
+
+			session := pack.createSessionWithLabels(t, delegationv1pb.DelegationSessionSpec_builder{
+				User: "bob",
+				Resources: []*delegationv1pb.DelegationResourceSpec{
+					delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
+				},
+				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
+					delegationv1pb.DelegationUserSpec_builder{
+						Kind:    types.KindBot,
+						BotName: proto.String("payroll-agent"),
+					}.Build(),
+				},
+			}.Build(), map[string]string{
+				types.BeamIDLabel: "my-beam",
+			})
+
+			appSession, err := types.NewWebSession(
+				uuid.NewString(),
+				types.KindAppSession,
+				types.WebSessionSpecV2{User: "bob"},
+			)
+			require.NoError(t, err)
+			pack.onCreateAppSession = func(_ context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
+				// The app session started for the delegation also carries the beam
+				// id, so the app-session certificate is attributed to the beam.
+				require.Equal(t, "my-beam", req.BeamID)
+				return appSession, nil
+			}
+
+			// The beam id from the delegation session's label must be threaded
+			// into the issued certificate request.
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
+				require.Equal(t, "my-beam", req.BeamID)
+				return &clientproto.Certs{TLS: tlsCertificate, SSH: sshCertificate}, nil
+			}
+			pack.authenticateBot("payroll-agent")
+
+			_, err = service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+				DelegationSessionId: session.GetMetadata().GetName(),
+				SshPublicKey:        sshPublicKey,
+				TlsPublicKey:        tlsPublicKey,
+				Ttl:                 durationpb.New(5 * time.Minute),
+				RouteToApp: delegationv1pb.RouteToApp_builder{
+					Name:        "hr-system",
+					PublicAddr:  "hr-system.test.teleport.sh",
+					ClusterName: "test.teleport.sh",
+					Uri:         "http://localhost:9000",
+					TargetPort:  9000,
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+		})
+	})
+
+	t.Run("no beam id label leaves the certificate beam id empty", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			service, pack := sessionServiceTestPack(t)
+			pack.createUser(t, "bob", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						"*": []string{"*"},
+					},
+				},
+			})
+
+			// Delegation session without a beam id label.
+			session := pack.createSession(t, delegationv1pb.DelegationSessionSpec_builder{
+				User: "bob",
+				Resources: []*delegationv1pb.DelegationResourceSpec{
+					delegationv1pb.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
+				},
+				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
+					delegationv1pb.DelegationUserSpec_builder{
+						Kind:    types.KindBot,
+						BotName: proto.String("payroll-agent"),
+					}.Build(),
+				},
+			}.Build())
+
+			appSession, err := types.NewWebSession(
+				uuid.NewString(),
+				types.KindAppSession,
+				types.WebSessionSpecV2{User: "bob"},
+			)
+			require.NoError(t, err)
+			pack.onCreateAppSession = func(_ context.Context, req sessionreq.NewAppSessionRequest) (types.WebSession, error) {
+				require.Empty(t, req.BeamID)
+				return appSession, nil
+			}
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*clientproto.Certs, error) {
+				require.Empty(t, req.BeamID)
+				return &clientproto.Certs{TLS: tlsCertificate, SSH: sshCertificate}, nil
+			}
+			pack.authenticateBot("payroll-agent")
+
+			_, err = service.GenerateCerts(t.Context(), delegationv1pb.GenerateCertsRequest_builder{
+				DelegationSessionId: session.GetMetadata().GetName(),
+				SshPublicKey:        sshPublicKey,
+				TlsPublicKey:        tlsPublicKey,
+				Ttl:                 durationpb.New(5 * time.Minute),
+				RouteToApp: delegationv1pb.RouteToApp_builder{
+					Name:        "hr-system",
+					PublicAddr:  "hr-system.test.teleport.sh",
+					ClusterName: "test.teleport.sh",
+					Uri:         "http://localhost:9000",
+					TargetPort:  9000,
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+		})
+	})
+
 	t.Run("success with wildcard resource", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			service, pack := sessionServiceTestPack(t)

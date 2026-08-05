@@ -2148,6 +2148,8 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Name is not empty
 // - Namespace is not empty
 // - APIGroup is empty for roles <=v7 and not empty for >=v8
+// This function is duplicated for scoped roles in lib/scopes/access/access.go. Any changes to role v8 behavior should
+// also be made there.
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		for _, verb := range kubeResource.Verbs {
@@ -2384,6 +2386,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindDatabaseService:
 		cond.DatabaseServiceLabels = labelMatchers.Labels
 		cond.DatabaseServiceLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindLinuxDesktop:
+		cond.LinuxDesktopLabels = labelMatchers.Labels
+		cond.LinuxDesktopLabelsExpression = labelMatchers.Expression
 		return nil
 	case KindWindowsDesktop:
 		cond.WindowsDesktopLabels = labelMatchers.Labels
@@ -2874,4 +2880,13 @@ func (a IdentityCenterAccountAssignment) GetAccount() string {
 // v7 and below, considered as the legacy SAML IdP RBAC.
 func IsLegacySAMLRBAC(roleVersion string) bool {
 	return slices.Contains([]string{V7, V6, V5, V4, V3, V2, V1}, roleVersion)
+}
+
+// ToLabels converts a map (map[string][]string) into Labels.
+func ToLabels(m map[string][]string) Labels {
+	out := make(Labels, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

@@ -115,6 +115,26 @@ func TestValidateLinuxDesktop(t *testing.T) {
 			}.Build(),
 			wantErr: true,
 		},
+		{
+			name: "incorrect kind",
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Kind:     "node",
+				Version:  types.V1,
+				Metadata: valid.GetMetadata(),
+				Spec:     valid.GetSpec(),
+			}.Build(),
+			wantErr: true,
+		},
+		{
+			name: "empty kind",
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Kind:     "",
+				Version:  types.V1,
+				Metadata: valid.GetMetadata(),
+				Spec:     valid.GetSpec(),
+			}.Build(),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

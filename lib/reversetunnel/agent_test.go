@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -380,11 +379,9 @@ func TestAgentStart(t *testing.T) {
 }
 
 func TestAgentSmoothedRTT(t *testing.T) {
-	clock := clockwork.NewFakeClock()
 	agent, client := testAgent(t, agentConfig{
 		staleConnTimeoutDisabled: true,
-		keepAlive:                time.Minute,
-		clock:                    clock,
+		keepAlive:                5 * time.Millisecond,
 	})
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -396,28 +393,20 @@ func TestAgentSmoothedRTT(t *testing.T) {
 
 	count := &atomic.Int32{}
 	client.MockSendRequest = func(ctx context.Context, name string, wantReply bool, payload []byte) (bool, []byte, error) {
-		switch count.Add(1) {
-		case 1:
-			clock.Advance(20 * time.Millisecond)
-		case 2:
-			clock.Advance(100 * time.Millisecond)
-		default:
+		if count.Add(1) > 2 {
 			return false, nil, trace.Errorf("err")
-
 		}
 		return true, nil, nil
 	}
 
-	go agent.sendKeepalives()
-
-	require.NoError(t, clock.BlockUntilContext(ctx, 1))
-	clock.Advance(time.Minute)
-	require.NoError(t, clock.BlockUntilContext(ctx, 1))
+	err := agent.sendKeepalives()
+	require.Error(t, err)
 
 	rtt, ok := agent.RTT()
 	require.True(t, ok)
-	require.Equal(t, 2, int(count.Load()))
-	assert.Equal(t, 30*time.Millisecond, rtt)
+	if rtt <= time.Duration(0) {
+		t.Fatalf("expected smoothed RTT to be greater than zero: %s", rtt)
+	}
 }
 
 func TestAgentStateTransitions(t *testing.T) {
@@ -676,4 +665,31 @@ func TestAgentTimeout(t *testing.T) {
 		})
 	}
 
+}
+
+func TestCalculateSmoothedRTT(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		rtts []time.Duration
+		srtt time.Duration
+	}{
+		{
+			name: "single measurement equals srtt",
+			rtts: []time.Duration{time.Second},
+			srtt: time.Second,
+		},
+		{
+			name: "multiple measurements are smoothed",
+			rtts: []time.Duration{time.Second, 2 * time.Second},
+			srtt: 1125 * time.Millisecond,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var srtt time.Duration
+			for _, rtt := range tc.rtts {
+				srtt = calculateSmoothedRTT(srtt, rtt)
+			}
+			require.Equal(t, tc.srtt, srtt)
+		})
+	}
 }

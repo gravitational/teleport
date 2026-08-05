@@ -20,7 +20,6 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -29,6 +28,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
@@ -162,6 +162,11 @@ describe('WorkloadIdentities', () => {
       screen.getByText(
         'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
       )
+    ).toBeInTheDocument();
+
+    // Scoped workload identities show their scope-qualified name.
+    expect(
+      screen.getByText('/staging::test-workload-identity-4')
     ).toBeInTheDocument();
   });
 
@@ -390,7 +395,7 @@ function makeWrapper(
     return (
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <InfoGuidePanelProvider data-testid="blah">
               <ContextProvider ctx={ctx}>{children}</ContextProvider>
             </InfoGuidePanelProvider>

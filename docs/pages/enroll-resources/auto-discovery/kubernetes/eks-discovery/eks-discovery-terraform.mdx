@@ -2,6 +2,7 @@
 title: Terraform EKS Auto-Discovery Configuration
 sidebar_label: Terraform
 description: How to configure Teleport EKS auto-discovery with Terraform
+page_type: how-to
 tags:
  - how-to
  - zero-trust
@@ -348,6 +349,8 @@ the change to the dynamic `discovery_config` and begin to enroll EKS clusters
 in the newly-configured regions.
 
 ## Troubleshooting
+
+(!docs/pages/includes/discovery/tctl-discovery-status.mdx provider="AWS" cloud="aws" resource="AWS EKS"!)
 
 (!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" cloud="AWS"!)
 

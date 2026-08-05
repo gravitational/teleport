@@ -107,6 +107,5 @@ func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (str
 func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
 	return []*exec.Cmd{
 		exec.CommandContext(ctx, "ip", "route", "show"),
-		exec.CommandContext(ctx, "resolvectl", "status"),
 	}
 }

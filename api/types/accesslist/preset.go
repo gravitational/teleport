@@ -32,11 +32,6 @@ const (
 	// This is used to track which roles should be deleted when they're removed
 	// from the configuration.
 	AccessListPresetRolesLabel = types.TeleportInternalLabelPrefix + "access-list-preset-roles"
-
-	// AccessListPresetRoleInfix is the infix used in the names of roles
-	// auto-created for a preset-backed access list. The full role name
-	// format is "{prefix}-{AccessListPresetRoleInfix}-{accessListUUID}".
-	AccessListPresetRoleInfix = "acl-preset"
 )
 
 // PresetRoleNames returns the role names recorded on this access list's
@@ -47,4 +42,10 @@ func (a *AccessList) PresetRoleNames() []string {
 		return nil
 	}
 	return strings.Split(rolesStr, ",")
+}
+
+// IsPreset returns true if the access list was created via a preset, identified
+// by the preset label the backend sets at create time.
+func (a *AccessList) IsPreset() bool {
+	return a.GetAllLabels()[AccessListPresetLabel] != ""
 }

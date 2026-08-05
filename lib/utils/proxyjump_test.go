@@ -20,8 +20,10 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,4 +71,17 @@ func TestProxyJumpParsing(t *testing.T) {
 			require.Equal(t, tc.out, re)
 		})
 	}
+}
+
+func TestProxyJumpLengthLimit(t *testing.T) {
+	t.Parallel()
+
+	atLimit := strings.Repeat("0", maxProxyJumpLen)
+	_, err := ParseProxyJump(atLimit)
+	require.NoError(t, err)
+
+	overLimit := strings.Repeat("0", maxProxyJumpLen+1)
+	_, err = ParseProxyJump(overLimit)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T", err)
 }
