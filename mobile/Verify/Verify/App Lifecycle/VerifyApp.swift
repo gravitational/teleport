@@ -73,9 +73,7 @@ struct VerifyApp: App {
 		LoggingSystem.bootstrap { label in
 			var handler = ConsoleLogHandler(label: label)
 			#if DEBUG
-				handler.logLevel = CommandLine.arguments.contains("--sql-trace")
-					? .trace
-					: .debug
+				handler.logLevel = CommandLine.arguments.contains("--sql-trace") ? .trace : .debug
 			#endif
 			return handler
 		}
@@ -84,7 +82,7 @@ struct VerifyApp: App {
 			$0.defaultDatabase = AppDatabase.makeLiveDatabase()
 		}
 		// Only initialize the model after our app's dependencies have been prepared
-		appModel = VerifyAppModel()
+		self.appModel = VerifyAppModel()
 	}
 
 	var body: some Scene {
