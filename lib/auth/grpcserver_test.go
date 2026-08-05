@@ -1777,6 +1777,50 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	_, sshPub, _, tlsPub := newSSHAndTLSKeyPairs(t)
 
+	t.Run("fail db exec reusing MFA after expiration", func(t *testing.T) {
+		authnChal, err := cl.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+				AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			},
+		})
+		require.NoError(t, err)
+
+		mfaResp := registered.webAuthHandler(t, authnChal)
+		req := proto.UserCertsRequest{
+			TLSPublicKey:  tlsPub,
+			Username:      user.GetName(),
+			Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+			Usage:         proto.UserCertsRequest_Database,
+			RequesterName: proto.UserCertsRequest_TSH_DB_EXEC,
+			Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+			RouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "db-a",
+				Database:    "db-a",
+			},
+			MFAResponse: mfaResp,
+		}
+
+		// The response can issue a certificate while its backing session is valid.
+		certs, err := cl.GenerateUserCerts(ctx, req)
+		require.NoError(t, err)
+		require.NotEmpty(t, certs.TLS)
+
+		// Reusing the same response after its backing session expires must not
+		// issue another certificate.
+		advance := defaults.WebauthnChallengeTimeout + time.Second
+		fakeClock.Advance(advance)
+		t.Cleanup(func() { fakeClock.Advance(-advance) })
+		req.Expires = clock.Now().Add(2 * teleport.UserSingleUseCertTTL)
+
+		certs, err = cl.GenerateUserCerts(ctx, req)
+		require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+		require.Nil(t, certs)
+	})
+
 	// Used for device trust tests.
 	wantDeviceExtensions := tlsca.DeviceExtensions{
 		DeviceID:     "device-id1",

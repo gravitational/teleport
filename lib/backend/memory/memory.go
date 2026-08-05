@@ -547,11 +547,11 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 // removeExpired makes a pass through map and removes expired elements
 // returns the number of expired elements removed
 func (m *Memory) removeExpired() int {
-	// In mirror mode, don't expire any elements. This allows the cache to setup
-	// a watch and expire elements as the events roll in.
-	if m.Mirror {
-		return 0
-	}
+	// remove item expiration to simulate dynamodb returning expired items in a scan.
+	// edoardo fixed it in https://github.com/gravitational/teleport/pull/68038
+	//if m.Mirror {
+	return 0
+	//}
 
 	removed := 0
 	now := m.Clock().Now().UTC()
