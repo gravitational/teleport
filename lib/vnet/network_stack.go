@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -50,13 +51,41 @@ import (
 var log = logutils.NewPackageLogger(teleport.ComponentKey, logComponent)
 
 const (
-	logComponent                     = "vnet"
-	dnsLogComponent                  = "dns"
-	nicID                            = 1
-	vnetTUNMTU                       = 16 * 1024
+	logComponent    = "vnet"
+	dnsLogComponent = "dns"
+	nicID           = 1
+	// vnetTUNMTU is the default MTU for the TUN device. It can be overridden
+	// with the TELEPORT_UNSTABLE_VNET_TUN_MTU environment variable.
+	vnetTUNMTU = 16 * 1024
+	// vnetTUNMTUEnvVar overrides the default TUN device MTU. It must be set in
+	// the environment of the VNet admin process.
+	vnetTUNMTUEnvVar = "TELEPORT_UNSTABLE_VNET_TUN_MTU"
+	// minTUNMTU is the lowest accepted MTU override, chosen because IPv6
+	// requires a minimum link MTU of 1280 bytes (RFC 8200).
+	minTUNMTU = 1280
+	// maxTUNMTU is the largest possible IP packet size, the 16-bit total
+	// length field limit shared by IPv4 (RFC 791) and IPv6 (RFC 8200).
+	maxTUNMTU                        = 65535
 	tcpReceiveBufferSize             = 0 // 0 means a default will be used.
 	maxInFlightTCPConnectionAttempts = 1024
 )
+
+// tunMTU returns the MTU to use for the TUN device.
+func tunMTU(ctx context.Context) int {
+	env := os.Getenv(vnetTUNMTUEnvVar)
+	if env == "" {
+		return vnetTUNMTU
+	}
+	mtu, err := strconv.Atoi(env)
+	if err != nil || mtu < minTUNMTU || mtu > maxTUNMTU {
+		log.WarnContext(ctx, "Ignoring invalid TUN MTU override.",
+			"env_var", vnetTUNMTUEnvVar, "value", env, "min", minTUNMTU, "max", maxTUNMTU)
+		return vnetTUNMTU
+	}
+	log.InfoContext(ctx, "Using TUN MTU override from environment.",
+		"env_var", vnetTUNMTUEnvVar, "mtu", mtu)
+	return mtu
+}
 
 // networkStackConfig holds configuration parameters for the VNet network stack.
 type networkStackConfig struct {

@@ -93,7 +93,8 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	// wireguard-go's Windows TUN implementation only stores and reports this MTU;
 	// it does not configure the Windows IP interfaces. Configure the MTU for each
 	// enabled address family separately below.
-	device, err := tun.CreateTUN(tunInterfaceName, vnetTUNMTU)
+	mtu := tunMTU(ctx)
+	device, err := tun.CreateTUN(tunInterfaceName, mtu)
 	if err != nil {
 		return trace.Wrap(err, "creating TUN device")
 	}
@@ -109,14 +110,14 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		log.WarnContext(ctx, "Failed to check whether IPv6 is disabled while configuring the TUN device, assuming IPv6 is enabled.",
 			"error", err)
 	}
-	if err := setWindowsTUNDeviceMTU(nativeTUN, vnetTUNMTU, ipv6Disabled); err != nil {
+	if err := setWindowsTUNDeviceMTU(nativeTUN, mtu, ipv6Disabled); err != nil {
 		return trace.Wrap(err, "setting TUN device MTU")
 	}
 	tunName, err := device.Name()
 	if err != nil {
 		return trace.Wrap(err, "getting TUN device name")
 	}
-	log.InfoContext(ctx, "Created TUN interface", "tun", tunName, "mtu", vnetTUNMTU)
+	log.InfoContext(ctx, "Created TUN interface", "tun", tunName, "mtu", mtu)
 
 	networkStackConfig, err := newNetworkStackConfig(ctx, device, clt)
 	if err != nil {
