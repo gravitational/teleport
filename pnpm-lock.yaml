@@ -517,9 +517,6 @@ importers:
 
 packages:
 
-  '@adobe/css-tools@4.4.4':
-    resolution: {integrity: sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==}
-
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
 
@@ -8026,8 +8023,6 @@ packages:
 
 snapshots:
 
-  '@adobe/css-tools@4.4.4': {}
-
   '@adobe/css-tools@4.5.0': {}
 
   '@ark-ui/react@5.36.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
@@ -14879,7 +14874,7 @@ snapshots:
 
   jest-styled-components@7.4.0(styled-components@6.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)):
     dependencies:
-      '@adobe/css-tools': 4.4.4
+      '@adobe/css-tools': 4.5.0
       styled-components: 6.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
 
   jest-util@30.4.1:
