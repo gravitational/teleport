@@ -294,14 +294,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			var id authtest.TestIdentity
 			if test.renewable {
 				id = authtest.TestRenewableUser(user.GetName(), 0)
-
-				meta := user.GetMetadata()
-				meta.Labels = map[string]string{
-					types.BotGenerationLabel: "0",
-				}
-				user.SetMetadata(meta)
-				user, err = srv.Auth().UpsertUser(ctx, user)
-				require.NoError(t, err)
 			} else {
 				id = authtest.TestUser(user.GetName())
 			}

@@ -1254,6 +1254,10 @@ const (
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
 	// BotGenerationLabel is a label used to record the certificate generation counter.
+	//
+	// Deprecated: the generation counter is now stored on the BotInstance
+	// resource. The label is only written for v18 downgrade compatibility and
+	// will be removed in v20.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 
 	// BotScopeLabel is a label used to identify the scope in which a Bot

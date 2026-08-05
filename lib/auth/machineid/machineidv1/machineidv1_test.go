@@ -266,7 +266,8 @@ func TestCreateBot(t *testing.T) {
 					Name:      "bot-success",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "success",
+						types.BotLabel: "success",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -382,7 +383,8 @@ func TestCreateBot(t *testing.T) {
 					Name:      "bot-success-with-expiry",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "success-with-expiry",
+						types.BotLabel: "success-with-expiry",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -835,6 +837,7 @@ func TestUpdateBot(t *testing.T) {
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
 		meta := preExistingBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
@@ -921,7 +924,8 @@ func TestUpdateBot(t *testing.T) {
 					Description: "after",
 					Namespace:   defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           preExistingBot.GetMetadata().GetName(),
+						types.BotLabel: preExistingBot.GetMetadata().GetName(),
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 					},
 				},
@@ -1242,11 +1246,43 @@ func TestUpsertBot(t *testing.T) {
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
 		meta := preExistingBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
 		require.NoError(t, err)
 	}
+
+	// A bot whose user is missing the generation label: upserts must still
+	// succeed once the label is no longer written.
+	noGenLabelBot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "no-generation-label",
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
+				Roles: []string{testRole.GetName()},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	{
+		noGenLabelBotUser, err := srv.Auth().GetUser(ctx, noGenLabelBot.GetStatus().GetUserName(), false)
+		require.NoError(t, err)
+		meta := noGenLabelBotUser.GetMetadata()
+		//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
+		delete(meta.Labels, types.BotGenerationLabel)
+		noGenLabelBotUser.SetMetadata(meta)
+		_, err = srv.Auth().UpsertUser(ctx, noGenLabelBotUser)
+		require.NoError(t, err)
+	}
+
+	// A pre-existing user that collides with a bot's user name but is not a
+	// bot user: upserts must refuse to overwrite it.
+	_, err = authtest.CreateUser(ctx, srv.Auth(), "bot-collision", testRole)
+	require.NoError(t, err)
 
 	// Scoped identity setup.
 	scopedSvc := client.ScopedAccessServiceClient()
@@ -1376,7 +1412,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-new",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "new",
+						types.BotLabel: "new",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1479,7 +1516,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-new-with-expiry",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "new-with-expiry",
+						types.BotLabel: "new-with-expiry",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "0",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1539,7 +1577,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "pre-existing",
+						types.BotLabel: "pre-existing",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1628,7 +1667,8 @@ func TestUpsertBot(t *testing.T) {
 					Name:      "bot-pre-existing",
 					Namespace: defaults.Namespace,
 					Labels: map[string]string{
-						types.BotLabel:           "pre-existing",
+						types.BotLabel: "pre-existing",
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
 						types.BotGenerationLabel: "1337",
 						"my-label":               "my-value",
 						"my-other-label":         "my-other-value",
@@ -1669,6 +1709,56 @@ func TestUpsertBot(t *testing.T) {
 						},
 					},
 				},
+			},
+		},
+		{
+			name:     "already exists without generation label",
+			identity: authtest.TestUser(botCreator.GetName()),
+			req: machineidv1pb.UpsertBotRequest_builder{
+				Bot: noGenLabelBot,
+			}.Build(),
+
+			assertError: require.NoError,
+			wantUser: &types.UserV2{
+				Kind:    types.KindUser,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "bot-no-generation-label",
+					Namespace: defaults.Namespace,
+					Labels: map[string]string{
+						types.BotLabel: "no-generation-label",
+						// Stamped fresh by the conversion, not copied forward.
+						//nolint:staticcheck // deprecated, kept for v18 downgrade compat until v20
+						types.BotGenerationLabel: "0",
+					},
+				},
+				Spec: types.UserSpecV2{
+					CreatedBy: types.CreatedBy{
+						User: types.UserRef{Name: botCreator.GetName()},
+					},
+					Roles:  []string{"bot-no-generation-label"},
+					Traits: nil,
+				},
+			},
+		},
+		{
+			name:     "existing user is not a bot",
+			identity: authtest.TestUser(botCreator.GetName()),
+			req: machineidv1pb.UpsertBotRequest_builder{
+				Bot: machineidv1pb.Bot_builder{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: "collision",
+					}.Build(),
+					Spec: machineidv1pb.BotSpec_builder{
+						Roles: []string{testRole.GetName()},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "does not belong to this bot")
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
 			},
 		},
 		{
