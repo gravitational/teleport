@@ -31,16 +31,15 @@ tests:
           value: poddisruptionbudget
       - matchSnapshot: {}
 
-  - it: Defaults unhealthyPodEvictionPolicy to AlwaysAllow
+  - it: omits unhealthyPodEvictionPolicy by default
     capabilities:
       majorVersion: 1
       minorVersion: 27
     values:
       - ../.lint/pdb.yaml
     asserts:
-      - equal:
+      - isNull:
           path: spec.unhealthyPodEvictionPolicy
-          value: AlwaysAllow
       - matchSnapshot: {}
 
   - it: omits unhealthyPodEvictionPolicy when empty
