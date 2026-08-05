@@ -738,7 +738,7 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 	generateUserCerts := newTestGenerateUserCerts(t, ca, clock, caSigner)
 
 	type inputs struct {
-		callerClient       string // which auth client the caller supplies, if any
+		mfaChecker         string // which MFA checker the caller supplies, if any
 		prefetchedMFACheck bool   // whether ReissueParams.MFACheck is set
 		routeToCluster     string // the cluster the caller wants to reach
 		clientCluster      string // the cluster the connected auth client belongs to
@@ -757,41 +757,41 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 
 	// Every permutation the loops below generate must appear here, so a missing row fails the test.
 	want := map[inputs]outcome{
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
-		{callerClient: "", prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: "", prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
 
-		{callerClient: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
-		{callerClient: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
-		{callerClient: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
-		{callerClient: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
-		{callerClient: callerYes, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerYes, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
 
-		{callerClient: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
-		{callerClient: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
-		{callerClient: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
-		{callerClient: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
-		{callerClient: callerNo, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: root}:   connectedIssues,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: root, clientCluster: leaf1}:  leafDialsRoot,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: root}:  connectedIssues,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf1, clientCluster: leaf1}: leafDialsRoot,
+		{mfaChecker: callerNo, prefetchedMFACheck: true, routeToCluster: leaf2, clientCluster: leaf1}: leafDialsRoot,
 
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{connected: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{dialedRoot: 1}, dials: counts{root: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{dialedLeaf1: 1}, dials: counts{leaf1: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{connected: 1}, dials: counts{root: 1}},
-		{callerClient: "", prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{dialedLeaf2: 1}, dials: counts{leaf2: 1, root: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{connected: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{dialedRoot: 1}, dials: counts{root: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{dialedLeaf1: 1}, dials: counts{leaf1: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{connected: 1}, dials: counts{root: 1}},
+		{mfaChecker: "", prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{dialedLeaf2: 1}, dials: counts{leaf2: 1, root: 1}},
 
-		{callerClient: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerYes: 1}},
-		{callerClient: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
-		{callerClient: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerYes: 1}},
-		{callerClient: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
-		{callerClient: callerYes, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   {issuer: connected, checks: counts{callerYes: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  {issuer: connected, checks: counts{callerYes: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
+		{mfaChecker: callerYes, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: {issuer: dialedRoot, checks: counts{callerYes: 1}, dials: counts{root: 1}},
 
-		{callerClient: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   callerDeclines,
-		{callerClient: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  callerDeclines,
-		{callerClient: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  callerDeclines,
-		{callerClient: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: callerDeclines,
-		{callerClient: callerNo, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: root}:   callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: root, clientCluster: leaf1}:  callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: root}:  callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf1, clientCluster: leaf1}: callerDeclines,
+		{mfaChecker: callerNo, prefetchedMFACheck: false, routeToCluster: leaf2, clientCluster: leaf1}: callerDeclines,
 	}
 
 	// newClusterClient returns a client connected to the named cluster, backed by authClient.
@@ -839,19 +839,19 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 		{leaf2, leaf1},
 	}
 
-	for _, callerClient := range []string{"", callerYes, callerNo} {
+	for _, mfaChecker := range []string{"", callerYes, callerNo} {
 		for _, prefetchedMFACheck := range []bool{true, false} {
 			for _, topology := range topologies {
 				in := inputs{
-					callerClient:       callerClient,
+					mfaChecker:         mfaChecker,
 					prefetchedMFACheck: prefetchedMFACheck,
 					routeToCluster:     topology.routeToCluster,
 					clientCluster:      topology.clientCluster,
 				}
 
-				name := "no caller client"
-				if in.callerClient != "" {
-					name = in.callerClient
+				name := "no MFA checker"
+				if in.mfaChecker != "" {
+					name = in.mfaChecker
 				}
 				if in.prefetchedMFACheck {
 					name += ", prefetched check"
@@ -904,8 +904,8 @@ func TestIssueUserCertsWithMFAAuthClientMatrix(t *testing.T) {
 							Required:    true,
 						}
 					}
-					if in.callerClient != "" {
-						params.MFAChecker = authClients[in.callerClient]
+					if in.mfaChecker != "" {
+						params.MFAChecker = authClients[in.mfaChecker]
 					}
 
 					dials := counts{}
