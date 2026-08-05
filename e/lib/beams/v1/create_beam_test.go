@@ -213,6 +213,179 @@ func TestCreateBeam(t *testing.T) {
 	require.Equal(t, storedBeam.GetMetadata().GetName(), node.GetMetadata().Name)
 }
 
+func TestCreateBeamRegions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                       string
+		proxyRegion                string
+		overrideRegion             string
+		defaultRegion              string
+		infoRegion                 string
+		wantDefaultProvisionCount  int
+		wantRegionalProvisionCount int
+		wantProviderRegions        []string
+		wantRequestedRegion        string
+		wantStatusRegion           string
+		wantRegionLabel            string
+	}{
+		{
+			name:                      "uses default client",
+			wantDefaultProvisionCount: 1,
+		},
+		{
+			name:                       "uses default region",
+			defaultRegion:              "us-east-1",
+			wantRegionalProvisionCount: 1,
+			wantProviderRegions:        []string{"us-east-1"},
+			wantRequestedRegion:        "us-east-1",
+		},
+		{
+			name:                       "uses returned default region",
+			defaultRegion:              "us-east-1",
+			infoRegion:                 "us-east-1",
+			wantRegionalProvisionCount: 1,
+			wantProviderRegions:        []string{"us-east-1"},
+			wantRequestedRegion:        "us-east-1",
+			wantStatusRegion:           "us-east-1",
+			wantRegionLabel:            "us-east-1",
+		},
+		{
+			name:                       "uses override region",
+			proxyRegion:                "us-east-1",
+			overrideRegion:             "eu-west-1",
+			infoRegion:                 "eu-central-1",
+			wantRegionalProvisionCount: 1,
+			wantProviderRegions:        []string{"eu-west-1"},
+			wantRequestedRegion:        "eu-west-1",
+			wantStatusRegion:           "eu-central-1",
+			wantRegionLabel:            "eu-central-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			defaultClient := &fakeComputeService{
+				provisionResponse: &compute.ProvisionBeamResponse{
+					SshAddr:     "127.0.0.1:3022",
+					AppAddrHttp: "127.0.0.1:8080",
+					AppAddrTcp:  "127.0.0.1:10080",
+				},
+			}
+			regionalClient := &fakeComputeService{
+				getInfoResponse: &compute.GetInfoResponse{
+					Region: tt.infoRegion,
+				},
+				provisionResponse: &compute.ProvisionBeamResponse{
+					SshAddr:     "127.0.0.1:3022",
+					AppAddrHttp: "127.0.0.1:8080",
+					AppAddrTcp:  "127.0.0.1:10080",
+				},
+			}
+			useRegionalClient := tt.defaultRegion != "" || tt.proxyRegion != "" || tt.overrideRegion != ""
+			if useRegionalClient {
+				defaultClient.provisionError = trace.Errorf("default client should not be used")
+			} else {
+				regionalClient.provisionError = trace.Errorf("regional provider should not be used")
+			}
+			provider := &fakeComputeServiceProvider{client: regionalClient}
+			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+				computeClient:   defaultClient,
+				computeProvider: provider,
+				validRegions:    []string{"us-east-1", "eu-west-1"},
+				defaultRegion:   tt.defaultRegion,
+			})
+			service := pack.service(t, pack.user(t, "alice"))
+
+			resp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
+				Egress:         beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+				ProxyRegion:    tt.proxyRegion,
+				OverrideRegion: tt.overrideRegion,
+			}.Build())
+			require.NoError(t, err)
+
+			beam := resp.GetBeam()
+			require.Equal(t, tt.wantRequestedRegion, beam.GetSpec().GetRequestedRegion())
+			require.Equal(t, tt.wantStatusRegion, beam.GetStatus().GetRegion())
+			require.Equal(t, tt.wantRegionLabel, beam.GetMetadata().GetLabels()[types.BeamRegionLabel])
+			require.Len(t, defaultClient.getProvisionRequests(), tt.wantDefaultProvisionCount)
+			require.Equal(t, tt.wantProviderRegions, provider.getRegions())
+			require.Len(t, regionalClient.getProvisionRequests(), tt.wantRegionalProvisionCount)
+			if tt.wantRegionalProvisionCount > 0 {
+				require.Len(t, regionalClient.getGetInfoRequests(), 1)
+				require.Equal(t, tt.wantStatusRegion, regionalClient.getProvisionRequests()[0].GetRegion())
+			}
+
+			storedBeam, err := pack.beam.GetBeam(t.Context(), beam.GetMetadata().GetName())
+			require.NoError(t, err)
+			require.Equal(t, tt.wantRequestedRegion, storedBeam.GetSpec().GetRequestedRegion())
+			require.Equal(t, tt.wantStatusRegion, storedBeam.GetStatus().GetRegion())
+			require.Equal(t, tt.wantRegionLabel, storedBeam.GetMetadata().GetLabels()[types.BeamRegionLabel])
+
+			node, err := pack.presence.GetNode(t.Context(), apidefaults.Namespace, beam.GetStatus().GetNodeId())
+			require.NoError(t, err)
+			require.Equal(t, tt.wantRegionLabel, node.GetStaticLabels()[types.BeamRegionLabel])
+		})
+	}
+}
+
+func TestClientForRegionRequiresRegionWithoutDefaultClient(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+		noComputeClient: true,
+		computeProvider: &fakeComputeServiceProvider{err: trace.BadParameter("beam region is required")},
+		validRegions:    []string{"us-east-1"},
+	})
+	service := pack.service(t, pack.user(t, "alice"))
+
+	_, err := service.clientForRegion("")
+	require.True(t, trace.IsBadParameter(err), "got %v", err)
+	require.ErrorContains(t, err, "beam region is required")
+	require.NotContains(t, err.Error(), "TELEPORT_BEAM_SERVICE")
+}
+
+func TestCreateBeamRejectsInvalidRegion(t *testing.T) {
+	t.Parallel()
+
+	computeClient := &fakeComputeService{}
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+		computeClient: computeClient,
+	})
+	service := pack.service(t, pack.user(t, "alice"))
+
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
+		Egress:      beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+		ProxyRegion: "us-east-1.teleport-beam",
+	}.Build())
+	require.True(t, trace.IsBadParameter(err), "got %v", err)
+	require.Empty(t, computeClient.getProvisionRequests())
+}
+
+func TestCreateBeamRejectsRegionOutsideAllowList(t *testing.T) {
+	t.Parallel()
+
+	computeClient := &fakeComputeService{}
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+		computeClient: computeClient,
+		validRegions:  []string{"us-east-1"},
+	})
+	service := pack.service(t, pack.user(t, "alice"))
+
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
+		Egress:      beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+		ProxyRegion: "eu-west-1",
+	}.Build())
+	require.True(t, trace.IsBadParameter(err), "got %v", err)
+	require.Empty(t, computeClient.getProvisionRequests())
+
+	beams, _, err := pack.beam.ListBeams(t.Context(), 10, "")
+	require.NoError(t, err)
+	require.Empty(t, beams)
+}
+
 func TestCreateBeamRetriesAliasCollision(t *testing.T) {
 	t.Parallel()
 

@@ -47,8 +47,8 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 		return nil, trace.BadParameter("NodeWriter is required")
 	case cfg.WorkloadIdentityWriter == nil:
 		return nil, trace.BadParameter("WorkloadIdentityWriter is required")
-	case cfg.ComputeServiceClient == nil:
-		return nil, trace.BadParameter("ComputeServiceClient is required")
+	case cfg.ComputeServiceClient == nil && cfg.ComputeServiceClientProvider == nil:
+		return nil, trace.BadParameter("ComputeServiceClient or ComputeServiceClientProvider is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("Authorizer is required")
 	case cfg.UsageReporter == nil:
@@ -59,6 +59,15 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 
 	if cfg.AliasGenerator == nil {
 		cfg.AliasGenerator = alias.Generate
+	}
+	regionValidator, err := newBeamRegionValidator(cfg.ValidRegions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ComputeServiceClientProvider == nil {
+		cfg.ComputeServiceClientProvider = staticComputeServiceClientProvider{
+			client: cfg.ComputeServiceClient,
+		}
 	}
 
 	return &BeamsService{
@@ -74,10 +83,12 @@ func NewBeamService(cfg BeamsServiceConfig) (*BeamsService, error) {
 		userWriter:              cfg.UserWriter,
 		nodeWriter:              cfg.NodeWriter,
 		workloadIdentityWriter:  cfg.WorkloadIdentityWriter,
-		computeService:          cfg.ComputeServiceClient,
+		computeServiceProvider:  cfg.ComputeServiceClientProvider,
+		computeServiceClient:    cfg.ComputeServiceClient,
 		authorizer:              cfg.Authorizer,
 		usageReporter:           cfg.UsageReporter,
-		region:                  cfg.Region,
+		regionValidator:         regionValidator,
+		defaultRegion:           cfg.DefaultRegion,
 		generateAlias:           cfg.AliasGenerator,
 		logger:                  cfg.Logger,
 	}, nil
@@ -122,9 +133,14 @@ type BeamsServiceConfig struct {
 	// WorkloadIdentityWriter is used to persist beam workload identities.
 	WorkloadIdentityWriter WorkloadIdentityWriter
 
-	// ComputeServiceClient is the gRPC client used to communicate with the
+	// ComputeServiceClient is the gRPC client used to communicate with a single
 	// beam compute service, responsible for provisioning microVMs.
 	ComputeServiceClient compute.BeamsOrchestratorServiceClient
+
+	// ComputeServiceClientProvider returns a beam compute service client for
+	// the requested region. If unset, ComputeServiceClient is used for every
+	// region.
+	ComputeServiceClientProvider ComputeServiceClientProvider
 
 	// Authorizer used to authorize requests.
 	Authorizer authz.Authorizer
@@ -136,8 +152,14 @@ type BeamsServiceConfig struct {
 	// UsageReporter is used to emit usage events.
 	UsageReporter usagereporter.UsageReporter
 
-	// Region is the AWS region where this beam service is running.
-	Region string
+	// ValidRegions is the list of Beam route regions accepted by this service.
+	// If empty, region validation only checks syntax.
+	ValidRegions []string
+
+	// DefaultRegion is used when creating a Beam and the client does not
+	// request a region. It allows old clients to create region-tagged Beams
+	// after regional routing is enabled.
+	DefaultRegion string
 
 	// Logger to which errors and messages will be written.
 	Logger *slog.Logger
@@ -246,6 +268,24 @@ type StorageBackend interface {
 	AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error)
 }
 
+// ComputeServiceClientProvider returns a Beam compute service client for a
+// requested region. Implementations may return a cached client, create one on
+// demand, or ignore the region when all requests should use a single compute
+// service. Implementations must return a non-nil client when error is nil.
+type ComputeServiceClientProvider interface {
+	ClientForRegion(region string) (compute.BeamsOrchestratorServiceClient, error)
+}
+
+type staticComputeServiceClientProvider struct {
+	client compute.BeamsOrchestratorServiceClient
+}
+
+// ClientForRegion returns the configured static compute client, ignoring the
+// requested region.
+func (p staticComputeServiceClientProvider) ClientForRegion(string) (compute.BeamsOrchestratorServiceClient, error) {
+	return p.client, nil
+}
+
 // BeamsService implements the RPC methods for managing beams and their
 // associated resources.
 type BeamsService struct {
@@ -264,13 +304,15 @@ type BeamsService struct {
 	nodeWriter              NodeWriter
 	workloadIdentityWriter  WorkloadIdentityWriter
 
-	storageBackend StorageBackend
-	computeService compute.BeamsOrchestratorServiceClient
-	authorizer     authz.Authorizer
-	usageReporter  usagereporter.UsageReporter
-	region         string
-	generateAlias  func() (string, error)
-	logger         *slog.Logger
+	storageBackend         StorageBackend
+	computeServiceProvider ComputeServiceClientProvider
+	computeServiceClient   compute.BeamsOrchestratorServiceClient
+	authorizer             authz.Authorizer
+	usageReporter          usagereporter.UsageReporter
+	regionValidator        beamRegionValidator
+	defaultRegion          string
+	generateAlias          func() (string, error)
+	logger                 *slog.Logger
 }
 
 type AuthPreferenceGetter interface {

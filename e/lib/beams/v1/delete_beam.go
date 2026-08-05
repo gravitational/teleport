@@ -43,7 +43,7 @@ func (s *BeamsService) DeleteBeam(ctx context.Context, req *beamsv1.DeleteBeamRe
 
 	// Destroy the compute before the beam record, so that it can be retried if
 	// something goes wrong.
-	if err := s.destroyBeamCompute(ctx, req.GetName()); err != nil {
+	if err := s.destroyBeamCompute(ctx, beam); err != nil {
 		logger.ErrorContext(ctx, "Failed to deprovision beam compute", "error", err)
 		return nil, trace.Wrap(err)
 	}
@@ -56,15 +56,21 @@ func (s *BeamsService) DeleteBeam(ctx context.Context, req *beamsv1.DeleteBeamRe
 	s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
 		BeamId: req.GetName(),
 		Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_USER_DELETED,
-		Region: s.region,
+		Region: beam.GetStatus().GetRegion(),
 	})
 
 	return &emptypb.Empty{}, nil
 }
 
-func (s *BeamsService) destroyBeamCompute(ctx context.Context, beamID string) error {
-	_, err := s.computeService.DestroyBeam(ctx, &compute.DestroyBeamRequest{
-		BeamId: beamID,
+func (s *BeamsService) destroyBeamCompute(ctx context.Context, beam *beamsv1.Beam) error {
+	region := beam.GetStatus().GetRegion()
+	client, err := s.clientForRegion(region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.DestroyBeam(ctx, &compute.DestroyBeamRequest{
+		BeamId: beam.GetMetadata().GetName(),
+		Region: region,
 	})
 	switch status.Code(err) {
 	case codes.OK, codes.NotFound:

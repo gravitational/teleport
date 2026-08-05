@@ -56,6 +56,9 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	if !oldBeam.GetSpec().GetExpires().AsTime().Equal(newBeam.GetSpec().GetExpires().AsTime()) {
 		return nil, trace.BadParameter("spec.expires: cannot be modified")
 	}
+	if oldBeam.GetSpec().GetRequestedRegion() != newBeam.GetSpec().GetRequestedRegion() {
+		return nil, trace.BadParameter("spec.requested_region: cannot be modified")
+	}
 
 	// Labels are managed by the service and used for RBAC. Do not allow users
 	// to modify, add, or remove any labels (at least until we figure out how

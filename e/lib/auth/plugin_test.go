@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -54,6 +55,111 @@ func Test_getBlockedPlugins(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(envVarNameDisabledPlugins, tt.env)
 			require.ElementsMatch(t, tt.want, getDisabledPlugins())
+		})
+	}
+}
+
+func TestBeamServiceAddrConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		addr        string
+		addrSuffix  string
+		regions     string
+		wantAddr    string
+		wantSuffix  string
+		wantRegions []string
+		wantErr     string
+	}{
+		{
+			name:     "single address",
+			addr:     "beam-service:443",
+			wantAddr: "beam-service:443",
+		},
+		{
+			name:        "suffix overrides single address",
+			addr:        "beam-service:443",
+			addrSuffix:  ".beams.example.com:443",
+			regions:     "us-east-1, eu-west-1",
+			wantAddr:    "beam-service:443",
+			wantSuffix:  ".beams.example.com:443",
+			wantRegions: []string{"us-east-1", "eu-west-1"},
+		},
+		{
+			name:       "suffix without valid regions",
+			addrSuffix: ".beams.example.com:443",
+			wantErr:    envVarNameValidBeamRegions + " is required",
+		},
+		{
+			name:       "invalid suffix",
+			addrSuffix: "beams.example.com:443",
+			regions:    "us-east-1",
+			wantErr:    envVarNameBeamServiceAddressSuffix + " must start with '.' or ':'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envVarNameBeamServiceAddress, tt.addr)
+			t.Setenv(envVarNameBeamServiceAddressSuffix, tt.addrSuffix)
+			t.Setenv(envVarNameValidBeamRegions, tt.regions)
+
+			addr, suffix, regions, err := beamServiceAddrConfig()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAddr, addr)
+			require.Equal(t, tt.wantSuffix, suffix)
+			require.Equal(t, tt.wantRegions, regions)
+		})
+	}
+}
+
+func TestRegionalBeamComputeClientProvider(t *testing.T) {
+	t.Parallel()
+
+	provider := newRegionalBeamComputeClientProvider(".beams.example.com:443", insecure.NewCredentials())
+	t.Cleanup(func() {
+		require.NoError(t, provider.Close())
+	})
+
+	tests := []struct {
+		name    string
+		region  string
+		wantErr string
+	}{
+		{
+			name:   "valid AWS region",
+			region: "us-east-1",
+		},
+		{
+			name:    "region containing address suffix",
+			region:  "us-east-1.beams.example.com",
+			wantErr: "is not a valid Beam region",
+		},
+		{
+			name:    "region containing underscore",
+			region:  "us_east_1",
+			wantErr: "is not a valid Beam region",
+		},
+		{
+			name:    "region too long",
+			region:  strings.Repeat("a", 64),
+			wantErr: "is not a valid Beam region",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := provider.ClientForRegion(tt.region)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, client)
 		})
 	}
 }

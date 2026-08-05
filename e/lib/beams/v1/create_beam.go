@@ -51,6 +51,29 @@ func (s *BeamsService) CreateBeam(ctx context.Context, req *beamsv1.CreateBeamRe
 	}
 
 	start := time.Now()
+	requestedRegion, err := s.requestedBeamRegion(req.GetProxyRegion(), req.GetOverrideRegion())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Call the compute service to get the region served by the selected
+	// endpoint. This happens before creating the compute so that the region is
+	// durable before it is needed for cleanup.
+	computeClient, err := s.clientForRegion(requestedRegion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	info, err := computeClient.GetInfo(ctx, &compute.GetInfoRequest{})
+	switch status.Code(err) {
+	case codes.OK:
+	case codes.Unimplemented:
+		// Older Beam compute services do not return region metadata and must
+		// continue to create regionless Beams.
+		info = nil
+	default:
+		return nil, trace.Wrap(err, "get beam compute service info")
+	}
+	resolvedRegion := info.GetRegion()
 
 	// Create the initial beam record before calling the compute service, so
 	// that if a subsequent step fails, we've got a record of the beam and the
@@ -61,7 +84,7 @@ func (s *BeamsService) CreateBeam(ctx context.Context, req *beamsv1.CreateBeamRe
 	)
 retry:
 	for range maxCreateRetries {
-		beam, regSecret, err = s.createBeam(ctx, authCtx.User.GetName(), req)
+		beam, regSecret, err = s.createBeam(ctx, authCtx.User.GetName(), req, requestedRegion, resolvedRegion)
 		switch {
 		case errors.Is(err, backend.ErrConditionFailed):
 			// Beam alias is already in-use, generate another and try again.
@@ -76,12 +99,18 @@ retry:
 		return nil, trace.Errorf("failed to create beam after %d attempts, please try again later", maxCreateRetries)
 	}
 
-	logger := s.logger.With("beam_id", beam.GetMetadata().GetName())
+	logger := s.logger.With(
+		"beam_id", beam.GetMetadata().GetName(),
+		"requested_region", requestedRegion,
+		"proxy_region", req.GetProxyRegion(),
+		"override_region", req.GetOverrideRegion(),
+	)
 
 	// Call the compute service to provision the beam microVM.
-	provisionRsp, err := s.computeService.ProvisionBeam(ctx, &compute.ProvisionBeamRequest{
+	provisionRsp, err := computeClient.ProvisionBeam(ctx, &compute.ProvisionBeamRequest{
 		BeamId:    beam.GetMetadata().GetName(),
 		BeamAlias: beam.GetStatus().GetAlias(),
+		Region:    resolvedRegion,
 		Tbot: &compute.TbotConfig{
 			JoinToken:            beam.GetStatus().GetJoinTokenName(),
 			RegistrationSecret:   regSecret,
@@ -115,7 +144,7 @@ retry:
 		// will eventually pick it back up.
 		var destroyErr error
 		if !limitExceeded {
-			destroyErr = s.destroyBeamCompute(cleanupCtx, beam.GetMetadata().GetName())
+			destroyErr = s.destroyBeamCompute(cleanupCtx, beam)
 		}
 		if destroyErr == nil {
 			if deleteErr := s.deleteBeam(cleanupCtx, beam); deleteErr != nil {
@@ -130,6 +159,11 @@ retry:
 		}
 		return nil, trace.Errorf("failed to provision beam compute")
 	}
+
+	beam.GetStatus().SetComputeStatus(beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_COMPLETE)
+	beam.GetStatus().SetSshAddr(provisionRsp.GetSshAddr())
+	beam.GetStatus().SetAppAddrHttp(provisionRsp.GetAppAddrHttp())
+	beam.GetStatus().SetAppAddrTcp(provisionRsp.GetAppAddrTcp())
 
 	// Create a node so we can SSH into the beam, and update the beam's status.
 	node, err := types.NewNode(
@@ -146,10 +180,6 @@ retry:
 		return nil, trace.Errorf("failed to create node for beam")
 	}
 
-	beam.GetStatus().SetComputeStatus(beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_COMPLETE)
-	beam.GetStatus().SetSshAddr(provisionRsp.GetSshAddr())
-	beam.GetStatus().SetAppAddrHttp(provisionRsp.GetAppAddrHttp())
-	beam.GetStatus().SetAppAddrTcp(provisionRsp.GetAppAddrTcp())
 	beam.GetStatus().SetNodeId(node.GetName())
 
 	actions, err := s.nodeWriter.AppendPutNodeActions(
@@ -179,7 +209,7 @@ retry:
 
 	s.usageReporter.AnonymizeAndSubmit(&usagereporter.BeamsCreatedEvent{
 		BeamId:            beam.GetMetadata().GetName(),
-		Region:            s.region,
+		Region:            beam.GetStatus().GetRegion(),
 		StartupDurationMs: time.Since(start).Milliseconds(),
 	})
 
@@ -188,7 +218,7 @@ retry:
 	}.Build(), nil
 }
 
-func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1.CreateBeamRequest) (*beamsv1.Beam, string, error) {
+func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1.CreateBeamRequest, requestedRegion string, computeRegion string) (*beamsv1.Beam, string, error) {
 	id := uuid.NewString()
 	expires := time.Now().Add(beamTTL)
 
@@ -204,14 +234,16 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 			Name: id,
 		}.Build(),
 		Spec: beamsv1.BeamSpec_builder{
-			Egress:         req.GetEgress(),
-			AllowedDomains: req.GetAllowedDomains(),
-			Expires:        timestamppb.New(expires),
+			Egress:          req.GetEgress(),
+			AllowedDomains:  req.GetAllowedDomains(),
+			Expires:         timestamppb.New(expires),
+			RequestedRegion: requestedRegion,
 		}.Build(),
 		Status: beamsv1.BeamStatus_builder{
 			User:          user,
 			Alias:         alias,
 			ComputeStatus: beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
+			Region:        computeRegion,
 		}.Build(),
 	}.Build()
 	beam.GetMetadata().SetLabels(beamResourceLabels(beam, false))
@@ -429,6 +461,9 @@ func beamResourceLabels(beam *beamsv1.Beam, isSystemResource bool) map[string]st
 		types.BeamIDLabel:    beam.GetMetadata().GetName(),
 		types.BeamOwnerLabel: beam.GetStatus().GetUser(),
 		types.BeamAliasLabel: beam.GetStatus().GetAlias(),
+	}
+	if region := beam.GetStatus().GetRegion(); region != "" {
+		labels[types.BeamRegionLabel] = region
 	}
 	if isSystemResource {
 		labels[types.TeleportInternalResourceType] = types.SystemResource

@@ -45,6 +45,42 @@ func TestGarbageCollectorDeletesExpiredBeam(t *testing.T) {
 	})
 }
 
+func TestGarbageCollectorDeletesExpiredBeamInStoredRegionOutsideAllowList(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+			computeClient: &fakeComputeService{
+				getInfoResponse: &compute.GetInfoResponse{
+					Region: "eu-central-1",
+				},
+				provisionResponse: &compute.ProvisionBeamResponse{
+					SshAddr: "127.0.0.1:3022",
+				},
+			},
+			validRegions: []string{"us-east-1", "eu-west-1"},
+		})
+
+		gc := pack.newGarbageCollector(t)
+		go gc.Run(t.Context())
+
+		service := pack.service(t, pack.user(t, "alice"))
+		createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
+			Egress:      beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+			ProxyRegion: "eu-west-1",
+		}.Build())
+		require.NoError(t, err)
+
+		time.Sleep(timeToFirstCollection)
+		synctest.Wait()
+
+		require.Len(t, pack.compute.getDestroyRequests(), 1)
+		require.Equal(t, "eu-central-1", pack.compute.getDestroyRequests()[0].GetRegion())
+		_, err = pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
+		require.True(t, trace.IsNotFound(err))
+	})
+}
+
 func TestGarbageCollectorDoesNotDeleteNonExpiredBeam(t *testing.T) {
 	t.Parallel()
 

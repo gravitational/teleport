@@ -87,6 +87,37 @@ func TestDeleteBeam(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 }
 
+func TestDeleteBeamUsesStoredRegion(t *testing.T) {
+	t.Parallel()
+
+	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{
+		computeClient: &fakeComputeService{
+			getInfoResponse: &compute.GetInfoResponse{
+				Region: "eu-central-1",
+			},
+			provisionResponse: &compute.ProvisionBeamResponse{
+				SshAddr: "127.0.0.1:3022",
+			},
+		},
+		validRegions: []string{"us-east-1", "eu-west-1"},
+	})
+	service := pack.service(t, pack.user(t, "alice"))
+
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
+		Egress:      beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
+		ProxyRegion: "eu-west-1",
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = service.DeleteBeam(t.Context(), beamsv1pb.DeleteBeamRequest_builder{
+		Name: createResp.GetBeam().GetMetadata().GetName(),
+	}.Build())
+	require.NoError(t, err)
+
+	require.Len(t, pack.compute.getDestroyRequests(), 1)
+	require.Equal(t, "eu-central-1", pack.compute.getDestroyRequests()[0].GetRegion())
+}
+
 func TestDeleteBeamMissingName(t *testing.T) {
 	t.Parallel()
 

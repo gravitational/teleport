@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -749,6 +750,18 @@ type fakeComputeService struct {
 	provisionRequests []*beamservicev1.ProvisionBeamRequest
 	destroyRequests   []*beamservicev1.DestroyBeamRequest
 	provisionResponse *beamservicev1.ProvisionBeamResponse
+}
+
+func (f *fakeComputeService) CreateBeam(ctx context.Context, in *beamservicev1.ProvisionBeamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (f *fakeComputeService) WaitForBeamProvision(ctx context.Context, in *beamservicev1.WaitForBeamProvisionRequest, opts ...grpc.CallOption) (beamservicev1.BeamsOrchestratorService_WaitForBeamProvisionClient, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (f *fakeComputeService) GetInfo(ctx context.Context, in *beamservicev1.GetInfoRequest, opts ...grpc.CallOption) (*beamservicev1.GetInfoResponse, error) {
+	return &beamservicev1.GetInfoResponse{}, nil
 }
 
 // ProvisionBeam fakes a beam provision request.

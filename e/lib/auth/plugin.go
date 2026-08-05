@@ -13,6 +13,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -84,14 +85,118 @@ import (
 )
 
 const (
-	pluginName                   = "auth.enterprise"
-	envVarNameDisabledPlugins    = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
-	envVarNameBedrockRegion      = "TELEPORT_BEDROCK_REGION"
-	envVarNameBedrockModel       = "TELEPORT_BEDROCK_MODEL"
-	envVarNameBeamServiceAddress = "TELEPORT_BEAM_SERVICE_ADDRESS"
+	pluginName                         = "auth.enterprise"
+	envVarNameDisabledPlugins          = "TELEPORT_UNSTABLE_DISABLE_PLUGINS"
+	envVarNameBedrockRegion            = "TELEPORT_BEDROCK_REGION"
+	envVarNameBedrockModel             = "TELEPORT_BEDROCK_MODEL"
+	envVarNameBeamServiceAddress       = "TELEPORT_BEAM_SERVICE_ADDRESS"
+	envVarNameBeamServiceAddressSuffix = "TELEPORT_BEAM_SERVICE_ADDRESS_SUFFIX"
+	envVarNameValidBeamRegions         = "TELEPORT_BEAM_SERVICE_VALID_REGIONS"
+	beamServiceAddressPrefix           = "teleport-beam-"
 )
 
 var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
+
+// regionalBeamComputeClientProvider routes beam compute requests to regional
+// orchestrators. Addresses are built as:
+//
+//	teleport-beam-<region><addressSuffix>
+//
+// Region validation happens in the Beam service before it asks the provider
+// for a client.
+type regionalBeamComputeClientProvider struct {
+	addressSuffix string
+	creds         credentials.TransportCredentials
+
+	mu    sync.Mutex
+	conns map[string]*grpc.ClientConn
+}
+
+func newRegionalBeamComputeClientProvider(addressSuffix string, creds credentials.TransportCredentials) *regionalBeamComputeClientProvider {
+	return &regionalBeamComputeClientProvider{
+		addressSuffix: addressSuffix,
+		creds:         creds,
+		conns:         make(map[string]*grpc.ClientConn),
+	}
+}
+
+// ClientForRegion returns a cached gRPC client for the regional Beam compute
+// service selected by region. The region is validated before it is
+// interpolated into the service address.
+func (p *regionalBeamComputeClientProvider) ClientForRegion(region string) (beamservicev1.BeamsOrchestratorServiceClient, error) {
+	if region == "" {
+		return nil, trace.BadParameter("beam region is required")
+	}
+	if err := beamsv1.ValidateBeamRegionSyntax(region); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	addr := beamServiceAddressPrefix + region + p.addressSuffix
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if conn := p.conns[addr]; conn != nil {
+		return beamservicev1.NewBeamsOrchestratorServiceClient(conn), nil
+	}
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(p.creds))
+	if err != nil {
+		return nil, trace.Wrap(err, "create regional beams compute service client")
+	}
+	p.conns[addr] = conn
+	return beamservicev1.NewBeamsOrchestratorServiceClient(conn), nil
+}
+
+// Close closes all cached regional Beam compute service connections.
+func (p *regionalBeamComputeClientProvider) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	var errs []error
+	for addr, conn := range p.conns {
+		if err := conn.Close(); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		delete(p.conns, addr)
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// beamServiceAddrConfig resolves Beam compute service environment variables.
+// When both the legacy single address and regional address suffix are set, the
+// suffix is used for regional requests and the single address is retained for
+// legacy clients that do not send a region.
+func beamServiceAddrConfig() (addr, addrSuffix string, validRegions []string, err error) {
+	addr = os.Getenv(envVarNameBeamServiceAddress)
+	addrSuffix = os.Getenv(envVarNameBeamServiceAddressSuffix)
+	validRegions = splitStringList(os.Getenv(envVarNameValidBeamRegions))
+
+	if addrSuffix == "" {
+		return addr, "", validRegions, nil
+	}
+	if !strings.HasPrefix(addrSuffix, ".") &&
+		!strings.HasPrefix(addrSuffix, ":") {
+		return "", "", nil, trace.BadParameter("%s must start with '.' or ':'", envVarNameBeamServiceAddressSuffix)
+	}
+	if len(validRegions) == 0 {
+		return "", "", nil, trace.BadParameter("%s is required when using %s", envVarNameValidBeamRegions, envVarNameBeamServiceAddressSuffix)
+	}
+	return addr, addrSuffix, validRegions, nil
+}
+
+func splitStringList(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var vs []string
+	for v := range strings.SplitSeq(s, ",") {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		vs = append(vs, v)
+	}
+	return vs
+}
 
 type getCertFunc = func() (*tls.Certificate, error)
 
@@ -643,8 +748,11 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 	}
 
 	client := p.Config.Beams.ComputeServiceClient
-	addr := os.Getenv(envVarNameBeamServiceAddress)
-	if client == nil && addr == "" {
+	addr, addrSuffix, validRegions, err := beamServiceAddrConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if client == nil && addr == "" && addrSuffix == "" {
 		return nil
 	}
 
@@ -653,6 +761,8 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		return trace.Wrap(err, "getting cluster name")
 	}
 
+	var provider beamsv1.ComputeServiceClientProvider
+	var defaultRegion string
 	if client == nil {
 		creds, err := beamscompute.TransportCredentials(ctx, beamscompute.TransportCredentialsConfig{
 			ClusterName:          clusterName,
@@ -665,37 +775,53 @@ func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Serv
 		if err != nil {
 			return trace.Wrap(err, "creating beams transport credentials")
 		}
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
-		if err != nil {
-			return trace.Wrap(err, "create beams compute service client")
+		if addrSuffix != "" {
+			regionalProvider := newRegionalBeamComputeClientProvider(addrSuffix, creds)
+			// This context is only terminated when the server is closed
+			context.AfterFunc(ctx, func() {
+				if err := regionalProvider.Close(); err != nil {
+					logger.WarnContext(context.Background(), "Failed to close regional Beam compute service clients", "error", err)
+				}
+			})
+			provider = regionalProvider
+			defaultRegion = validRegions[0]
 		}
-		client = beamservicev1.NewBeamsOrchestratorServiceClient(conn)
-	}
-
-	// Assume the beams region is the same until gravitational/rfd#54 lands
-	auditCfg, err := p.authServer.AuthServer.GetClusterAuditConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err, "getting cluster audit config for beams")
+		if addr != "" {
+			// For backward-compatibility with single-region configurations.
+			conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
+			if err != nil {
+				return trace.Wrap(err, "create beams compute service client")
+			}
+			// This context is only terminated when the server is closed
+			context.AfterFunc(ctx, func() {
+				if err := conn.Close(); err != nil {
+					logger.WarnContext(context.Background(), "Failed to close Beam compute service client", "error", err)
+				}
+			})
+			client = beamservicev1.NewBeamsOrchestratorServiceClient(conn)
+		}
 	}
 
 	srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
-		ClusterName:             clusterName,
-		AuthPreferenceGetter:    p.authServer.AuthServer,
-		BeamReader:              p.authServer.AuthServer,
-		StorageBackend:          p.authServer.GetBackend(),
-		AppWriter:               p.authServer.AuthServer,
-		BeamWriter:              p.authServer.AuthServer,
-		DelegationSessionWriter: p.authServer.AuthServer,
-		ProvisionTokenWriter:    p.authServer.AuthServer,
-		UserWriter:              p.authServer.AuthServer,
-		RoleWriter:              p.authServer.AuthServer,
-		NodeWriter:              p.authServer.AuthServer,
-		WorkloadIdentityWriter:  p.authServer.AuthServer,
-		ComputeServiceClient:    client,
-		Authorizer:              p.authServer.Authorizer,
-		UsageReporter:           p.authServer.AuthServer,
-		Region:                  auditCfg.Region(),
-		Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
+		ClusterName:                  clusterName,
+		AuthPreferenceGetter:         p.authServer.AuthServer,
+		BeamReader:                   p.authServer.AuthServer,
+		StorageBackend:               p.authServer.GetBackend(),
+		AppWriter:                    p.authServer.AuthServer,
+		BeamWriter:                   p.authServer.AuthServer,
+		DelegationSessionWriter:      p.authServer.AuthServer,
+		ProvisionTokenWriter:         p.authServer.AuthServer,
+		UserWriter:                   p.authServer.AuthServer,
+		RoleWriter:                   p.authServer.AuthServer,
+		NodeWriter:                   p.authServer.AuthServer,
+		WorkloadIdentityWriter:       p.authServer.AuthServer,
+		ComputeServiceClient:         client,
+		ComputeServiceClientProvider: provider,
+		Authorizer:                   p.authServer.Authorizer,
+		UsageReporter:                p.authServer.AuthServer,
+		ValidRegions:                 validRegions,
+		DefaultRegion:                defaultRegion,
+		Logger:                       logger.With(teleport.ComponentKey, "beams-service"),
 	})
 	if err != nil {
 		return trace.Wrap(err, "creating beams service")

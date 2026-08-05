@@ -38,13 +38,20 @@ type beamServiceTestPack struct {
 	workloadIdentity  *localservices.WorkloadIdentityService
 	delegationSession *localservices.DelegationSessionService
 	presence          *localservices.PresenceService
+	computeProvider   ComputeServiceClientProvider
+	validRegions      []string
+	defaultRegion     string
 	usageReporter     usagereporter.UsageReporter
 }
 
 type beamServiceTestPackConfig struct {
-	aliasGenerator func() (string, error)
-	computeClient  *fakeComputeService
-	usageReporter  usagereporter.UsageReporter
+	aliasGenerator  func() (string, error)
+	computeClient   *fakeComputeService
+	noComputeClient bool
+	computeProvider ComputeServiceClientProvider
+	validRegions    []string
+	defaultRegion   string
+	usageReporter   usagereporter.UsageReporter
 }
 
 // recordingUsageReporter captures events submitted via AnonymizeAndSubmit.
@@ -72,7 +79,7 @@ func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamSe
 		cfg.aliasGenerator = sequenceAliasGenerator("warm-orbit", "sparkling-zephyr")
 	}
 
-	if cfg.computeClient == nil {
+	if cfg.computeClient == nil && !cfg.noComputeClient {
 		cfg.computeClient = &fakeComputeService{
 			provisionResponse: &compute.ProvisionBeamResponse{
 				SshAddr:     "127.0.0.1:3022",
@@ -117,6 +124,9 @@ func newBeamServiceTestPack(t *testing.T, cfg beamServiceTestPackConfig) *beamSe
 		workloadIdentity:  workloadIdentityService,
 		delegationSession: delegationSessionService,
 		presence:          localservices.NewPresenceService(backend),
+		computeProvider:   cfg.computeProvider,
+		validRegions:      cfg.validRegions,
+		defaultRegion:     cfg.defaultRegion,
 		usageReporter:     ur,
 	}
 
@@ -185,24 +195,31 @@ func (p *beamServiceTestPack) service(t *testing.T, user types.User) *BeamsServi
 		}, nil
 	})
 
+	var computeClient compute.BeamsOrchestratorServiceClient
+	if p.compute != nil {
+		computeClient = p.compute
+	}
 	service, err := NewBeamService(BeamsServiceConfig{
-		ClusterName:             "dunder-mifflin.beams.run",
-		AuthPreferenceGetter:    testAuthPreferenceGetter{},
-		BeamReader:              p.beam,
-		StorageBackend:          p.backend,
-		AppWriter:               p.app,
-		BeamWriter:              p.beam,
-		DelegationSessionWriter: p.delegationSession,
-		ProvisionTokenWriter:    p.token,
-		RoleWriter:              p.role,
-		UserWriter:              p.identity,
-		NodeWriter:              p.presence,
-		WorkloadIdentityWriter:  p.workloadIdentity,
-		ComputeServiceClient:    p.compute,
-		Authorizer:              authorizer,
-		UsageReporter:           p.usageReporter,
-		AliasGenerator:          p.aliasGenerator,
-		Logger:                  logtest.NewLogger(),
+		ClusterName:                  "dunder-mifflin.beams.run",
+		AuthPreferenceGetter:         testAuthPreferenceGetter{},
+		BeamReader:                   p.beam,
+		StorageBackend:               p.backend,
+		AppWriter:                    p.app,
+		BeamWriter:                   p.beam,
+		DelegationSessionWriter:      p.delegationSession,
+		ProvisionTokenWriter:         p.token,
+		RoleWriter:                   p.role,
+		UserWriter:                   p.identity,
+		NodeWriter:                   p.presence,
+		WorkloadIdentityWriter:       p.workloadIdentity,
+		ComputeServiceClient:         computeClient,
+		ComputeServiceClientProvider: p.computeProvider,
+		Authorizer:                   authorizer,
+		UsageReporter:                p.usageReporter,
+		AliasGenerator:               p.aliasGenerator,
+		ValidRegions:                 p.validRegions,
+		DefaultRegion:                p.defaultRegion,
+		Logger:                       logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
@@ -217,11 +234,56 @@ func (testAuthPreferenceGetter) GetReadOnlyAuthPreference(context.Context) (read
 
 type fakeComputeService struct {
 	mu                sync.Mutex
+	getInfoRequests   []*compute.GetInfoRequest
 	provisionRequests []*compute.ProvisionBeamRequest
 	destroyRequests   []*compute.DestroyBeamRequest
+	getInfoResponse   *compute.GetInfoResponse
+	getInfoError      error
 	provisionResponse *compute.ProvisionBeamResponse
 	provisionError    error
 	destroyError      error
+}
+
+type fakeComputeServiceProvider struct {
+	mu      sync.Mutex
+	regions []string
+	client  compute.BeamsOrchestratorServiceClient
+	err     error
+}
+
+func (f *fakeComputeServiceProvider) ClientForRegion(region string) (compute.BeamsOrchestratorServiceClient, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.regions = append(f.regions, region)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.client, nil
+}
+
+func (f *fakeComputeServiceProvider) getRegions() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.regions)
+}
+
+func (f *fakeComputeService) CreateBeam(ctx context.Context, in *compute.ProvisionBeamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (f *fakeComputeService) WaitForBeamProvision(ctx context.Context, in *compute.WaitForBeamProvisionRequest, opts ...grpc.CallOption) (compute.BeamsOrchestratorService_WaitForBeamProvisionClient, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (f *fakeComputeService) GetInfo(ctx context.Context, req *compute.GetInfoRequest, _ ...grpc.CallOption) (*compute.GetInfoResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.getInfoRequests = append(f.getInfoRequests, req)
+	if f.getInfoError != nil {
+		return nil, f.getInfoError
+	}
+	return f.getInfoResponse, nil
 }
 
 func (f *fakeComputeService) ProvisionBeam(ctx context.Context, req *compute.ProvisionBeamRequest, _ ...grpc.CallOption) (*compute.ProvisionBeamResponse, error) {
@@ -244,6 +306,12 @@ func (f *fakeComputeService) DestroyBeam(_ context.Context, req *compute.Destroy
 		return nil, f.destroyError
 	}
 	return &emptypb.Empty{}, nil
+}
+
+func (f *fakeComputeService) getGetInfoRequests() []*compute.GetInfoRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.getInfoRequests)
 }
 
 func (f *fakeComputeService) getProvisionRequests() []*compute.ProvisionBeamRequest {

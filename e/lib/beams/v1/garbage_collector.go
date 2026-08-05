@@ -245,7 +245,7 @@ func (g *GarbageCollector) deleteExpiredBeam(ctx context.Context, beam *beamsv1p
 	ctx, cancel := context.WithTimeout(ctx, gcTimeout)
 	defer cancel()
 
-	if err := g.cfg.BeamService.destroyBeamCompute(ctx, beam.GetMetadata().GetName()); err != nil {
+	if err := g.cfg.BeamService.destroyBeamCompute(ctx, beam); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -256,7 +256,7 @@ func (g *GarbageCollector) deleteExpiredBeam(ctx context.Context, beam *beamsv1p
 		g.cfg.UsageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
 			BeamId: beamID,
 			Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_GC_EXPIRED,
-			Region: g.cfg.BeamService.region,
+			Region: beam.GetStatus().GetRegion(),
 		})
 		return nil
 	case !errors.Is(err, backend.ErrConditionFailed):
@@ -280,7 +280,7 @@ func (g *GarbageCollector) deleteExpiredBeam(ctx context.Context, beam *beamsv1p
 	g.cfg.UsageReporter.AnonymizeAndSubmit(&usagereporter.BeamsDestroyedEvent{
 		BeamId: beamID,
 		Reason: prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_GC_EXPIRED,
-		Region: g.cfg.BeamService.region,
+		Region: beam.GetStatus().GetRegion(),
 	})
 	return nil
 }
