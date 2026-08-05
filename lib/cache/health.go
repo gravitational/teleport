@@ -104,7 +104,7 @@ func (m *HealthReporter) Report(c *Cache, health bool) {
 		m.health[c.target] = target
 	}
 
-	// If a cache has reported it's health it must be live. Update healthy
+	// If a cache has reported its health it must be live. Update healthy
 	// set depending on what was reported.
 	target.live[c] = struct{}{}
 	if health {
