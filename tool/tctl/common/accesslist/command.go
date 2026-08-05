@@ -53,7 +53,16 @@ import (
 
 // Command implements the `tctl acl` family of commands.
 type Command struct {
-	format string
+	// format is the response print format (default text).
+	format    string
+	formatSet bool
+
+	// output when set is like a dry run where the resource config is printed
+	// instead of actual resources being created.
+	// Cannot use together with format.
+	output string
+
+	cfg *servicecfg.Config
 
 	ls            *kingpin.CmdClause
 	get           *kingpin.CmdClause
@@ -176,6 +185,8 @@ type Command struct {
 const (
 	memberKindUser = "user"
 	memberKindList = "list"
+
+	outputTerraform = "terraform"
 )
 
 const auditFrequencyText = "Audit recurrence in months (1, 3, 6, or 12)."
@@ -213,7 +224,9 @@ grants you set directly (--member-grant-roles, etc.) — there are no
 auto-generated supporting roles.`
 
 // Initialize allows Command to plug itself into the CLI parser
-func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
+func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
+	c.cfg = cfg
+
 	acl := app.Command("acl", "Manage Access Lists.").Alias("access-lists")
 
 	c.ls = acl.Command("ls", "List cluster Access Lists.")
@@ -265,7 +278,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 	c.update = acl.Command("update", updateHelpText)
 	c.update.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.update.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.update.Flag("format", "Output format.").Default(teleport.Text).IsSetByUser(&c.formatSet).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.update.Flag("output", "Print the resulting resource config without applying the update (dry-run).").EnumVar(&c.output, outputTerraform)
 	c.update.Flag("title", "New display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
 	c.update.Flag("description", "New description.").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
 	c.update.Flag("audit-frequency", auditFrequencyText+" Changing this resets the next audit date to now + frequency.").PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
@@ -281,7 +295,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 	c.create = acl.Command("create", createHelpText)
 	c.create.Flag("access-type", "How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'access-request' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.").EnumVar(&c.accessType, accessTypeLongTerm, accessTypeShortTerm)
-	c.create.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.create.Flag("format", "Output format.").Default(teleport.Text).IsSetByUser(&c.formatSet).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.create.Flag("output", "Print the resulting resource config without applying create (dry-run).").EnumVar(&c.output, outputTerraform)
 	c.create.Flag("title", "Display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
 	c.create.Flag("audit-frequency", auditFrequencyText).Default("6").PlaceHolder("6").IntVar(&c.auditFrequency)
 	c.create.Flag("audit-day", auditDayText).Default("1").PlaceHolder("1").IntVar(&c.auditDay)
