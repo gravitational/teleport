@@ -106,6 +106,28 @@ func TestLoadAllConfigs(t *testing.T) {
 
 }
 
+func TestLoadAllConfigsAllowsUserDefaultForGlobalPreset(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	globalPath := filepath.Join(tmp, "tsh-global.yaml")
+	require.NoError(t, os.WriteFile(globalPath, []byte(`
+presets:
+  prod:
+    proxy: prod.example.com:443
+`), 0o600))
+
+	tshHome := filepath.Join(tmp, "tsh-home")
+	userPath := filepath.Join(tshHome, TSHConfigPath)
+	require.NoError(t, os.MkdirAll(filepath.Dir(userPath), 0o700))
+	require.NoError(t, os.WriteFile(userPath, []byte("default_preset: prod\n"), 0o600))
+
+	config, err := LoadAllConfigs(globalPath, tshHome)
+	require.NoError(t, err)
+	require.Equal(t, "prod", config.DefaultPreset)
+	require.Contains(t, config.Presets, "prod")
+}
+
 func TestTshConfigMerge(t *testing.T) {
 	t.Parallel()
 
@@ -358,37 +380,37 @@ func TestProxyTemplatesApply(t *testing.T) {
 	}
 }
 
-func TestProfileCheck(t *testing.T) {
+func TestTSHConfigPresetCheck(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
-		profile   Profile
+		preset    TSHConfigPreset
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
-			name:      "valid profile with proxy only",
-			profile:   Profile{Proxy: "proxy.example.com:443"},
+			name:      "valid preset with proxy only",
+			preset:    TSHConfigPreset{Proxy: "proxy.example.com:443"},
 			assertErr: require.NoError,
 		},
 		{
 			name:      "valid mfa_mode sso",
-			profile:   Profile{MFAMode: "sso"},
+			preset:    TSHConfigPreset{MFAMode: "sso"},
 			assertErr: require.NoError,
 		},
 		{
 			name:      "invalid mfa_mode",
-			profile:   Profile{MFAMode: "bogus"},
+			preset:    TSHConfigPreset{MFAMode: "bogus"},
 			assertErr: require.Error,
 		},
 		{
 			name:      "invalid add_keys_to_agent",
-			profile:   Profile{AddKeysToAgent: "maybe"},
+			preset:    TSHConfigPreset{AddKeysToAgent: "maybe"},
 			assertErr: require.Error,
 		},
 		{
-			name:      "empty profile",
-			profile:   Profile{},
+			name:      "empty preset",
+			preset:    TSHConfigPreset{},
 			assertErr: require.NoError,
 		},
 	}
@@ -396,44 +418,44 @@ func TestProfileCheck(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			profile := test.profile
-			test.assertErr(t, profile.Check())
+			preset := test.preset
+			test.assertErr(t, preset.Check())
 		})
 	}
 }
 
-func TestTSHConfigCheckProfiles(t *testing.T) {
+func TestTSHConfigCheckPresets(t *testing.T) {
 	t.Parallel()
 
-	t.Run("valid profiles and default", func(t *testing.T) {
+	t.Run("valid presets and default", func(t *testing.T) {
 		t.Parallel()
 		config := TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"prod": {Proxy: "prod.example.com:443", MFAMode: "sso"},
 				"dev":  {Proxy: "dev.example.com:443"},
 			},
-			DefaultProfile: "prod",
+			DefaultPreset: "prod",
 		}
 		require.NoError(t, config.Check())
 	})
 
-	t.Run("default_profile pointing to missing key fails", func(t *testing.T) {
+	t.Run("default_preset pointing to missing key fails", func(t *testing.T) {
 		t.Parallel()
 		config := TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"prod": {Proxy: "prod.example.com:443"},
 			},
-			DefaultProfile: "staging",
+			DefaultPreset: "staging",
 		}
 		err := config.Check()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "staging")
 	})
 
-	t.Run("profile with bad mfa_mode fails with profile name in error", func(t *testing.T) {
+	t.Run("preset with bad mfa_mode fails with preset name in error", func(t *testing.T) {
 		t.Parallel()
 		config := TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"broken": {Proxy: "broken.example.com:443", MFAMode: "bogus"},
 			},
 		}
@@ -443,12 +465,12 @@ func TestTSHConfigCheckProfiles(t *testing.T) {
 	})
 }
 
-func TestTSHConfigGetProfile(t *testing.T) {
+func TestTSHConfigGetPreset(t *testing.T) {
 	t.Parallel()
 
-	prod := Profile{Proxy: "prod.example.com:443", Cluster: "prod"}
+	prod := TSHConfigPreset{Proxy: "prod.example.com:443", Cluster: "prod"}
 	config := TSHConfig{
-		Profiles: map[string]Profile{
+		Presets: map[string]TSHConfigPreset{
 			"prod": prod,
 			"dev":  {Proxy: "dev.example.com:443"},
 		},
@@ -456,29 +478,29 @@ func TestTSHConfigGetProfile(t *testing.T) {
 
 	t.Run("empty name returns BadParameter", func(t *testing.T) {
 		t.Parallel()
-		_, err := config.GetProfile("")
+		_, err := config.GetPreset("")
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	})
 
-	t.Run("nil profiles returns NotFound", func(t *testing.T) {
+	t.Run("nil presets returns NotFound", func(t *testing.T) {
 		t.Parallel()
 		empty := TSHConfig{}
-		_, err := empty.GetProfile("prod")
+		_, err := empty.GetPreset("prod")
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 	})
 
-	t.Run("existing profile is returned", func(t *testing.T) {
+	t.Run("existing preset is returned", func(t *testing.T) {
 		t.Parallel()
-		got, err := config.GetProfile("prod")
+		got, err := config.GetPreset("prod")
 		require.NoError(t, err)
 		require.Equal(t, prod, got)
 	})
 
-	t.Run("missing profile returns NotFound with available names", func(t *testing.T) {
+	t.Run("missing preset returns NotFound with available names", func(t *testing.T) {
 		t.Parallel()
-		_, err := config.GetProfile("missing")
+		_, err := config.GetPreset("missing")
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
 		assert.Contains(t, err.Error(), "prod")
@@ -486,65 +508,65 @@ func TestTSHConfigGetProfile(t *testing.T) {
 	})
 }
 
-func TestTSHConfigMergeProfiles(t *testing.T) {
+func TestTSHConfigMergePresets(t *testing.T) {
 	t.Parallel()
 
 	newBase := func() *TSHConfig {
 		return &TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"a":      {Proxy: "a.example.com:443"},
 				"shared": {Proxy: "X"},
 			},
-			DefaultProfile: "a",
+			DefaultPreset: "a",
 		}
 	}
 
-	t.Run("profiles merged per-key, other wins on shared", func(t *testing.T) {
+	t.Run("presets merged per-key, other wins on shared", func(t *testing.T) {
 		t.Parallel()
 		base := newBase()
 		other := &TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"b":      {Proxy: "b.example.com:443"},
 				"shared": {Proxy: "Y"},
 			},
 		}
 		merged := base.Merge(other)
-		require.Contains(t, merged.Profiles, "a")
-		require.Contains(t, merged.Profiles, "b")
-		require.Contains(t, merged.Profiles, "shared")
-		require.Equal(t, "Y", merged.Profiles["shared"].Proxy)
+		require.Contains(t, merged.Presets, "a")
+		require.Contains(t, merged.Presets, "b")
+		require.Contains(t, merged.Presets, "shared")
+		require.Equal(t, "Y", merged.Presets["shared"].Proxy)
 	})
 
-	t.Run("default_profile kept from base when other empty", func(t *testing.T) {
+	t.Run("default_preset kept from base when other empty", func(t *testing.T) {
 		t.Parallel()
 		base := newBase()
-		other := &TSHConfig{DefaultProfile: ""}
+		other := &TSHConfig{DefaultPreset: ""}
 		merged := base.Merge(other)
-		require.Equal(t, "a", merged.DefaultProfile)
+		require.Equal(t, "a", merged.DefaultPreset)
 	})
 
-	t.Run("default_profile taken from other when set", func(t *testing.T) {
+	t.Run("default_preset taken from other when set", func(t *testing.T) {
 		t.Parallel()
 		base := newBase()
 		other := &TSHConfig{
-			Profiles: map[string]Profile{
+			Presets: map[string]TSHConfigPreset{
 				"b": {Proxy: "b.example.com:443"},
 			},
-			DefaultProfile: "b",
+			DefaultPreset: "b",
 		}
 		merged := base.Merge(other)
-		require.Equal(t, "b", merged.DefaultProfile)
+		require.Equal(t, "b", merged.DefaultPreset)
 	})
 }
 
-func TestProfileYAMLUnmarshal(t *testing.T) {
+func TestTSHConfigPresetYAMLUnmarshal(t *testing.T) {
 	t.Parallel()
 
 	boolPtr := func(b bool) *bool { return &b }
 
 	const raw = `
-default_profile: prod
-profiles:
+default_preset: prod
+presets:
   prod:
     proxy: prod.example.com:443
     cluster: prod-cluster
@@ -555,10 +577,10 @@ profiles:
 	var config TSHConfig
 	require.NoError(t, yaml.Unmarshal([]byte(raw), &config))
 
-	require.Equal(t, "prod", config.DefaultProfile)
-	require.Contains(t, config.Profiles, "prod")
+	require.Equal(t, "prod", config.DefaultPreset)
+	require.Contains(t, config.Presets, "prod")
 
-	prod := config.Profiles["prod"]
+	prod := config.Presets["prod"]
 	require.Equal(t, "prod.example.com:443", prod.Proxy)
 	require.Equal(t, "prod-cluster", prod.Cluster)
 	require.Equal(t, "sso", prod.MFAMode)
