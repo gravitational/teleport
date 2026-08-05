@@ -94,6 +94,8 @@ func (h *Handler) sessionLengthHandle(
 				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "ssh"}, nil
 			case *events.WindowsDesktopSessionEnd:
 				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "desktop"}, nil
+			case *events.LinuxDesktopSessionEnd:
+				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "desktop"}, nil
 			case *events.DatabaseSessionEnd:
 				return response{evt.EndTime.Sub(evt.StartTime).Milliseconds(), "database"}, nil
 			}

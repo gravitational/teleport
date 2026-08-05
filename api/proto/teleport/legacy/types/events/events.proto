@@ -266,6 +266,17 @@ message WindowsDesktopMetadata {
   map<string, string> DesktopLabels = 5 [(gogoproto.jsontag) = "desktop_labels,omitempty"];
 }
 
+// LinuxDesktopMetadata contains common Linux desktop metadata. Fields are prefixed so this message can be
+// embedded alongside WindowsDesktopMetadata, whose colliding JSON tags would otherwise be silently dropped.
+message LinuxDesktopMetadata {
+  // LinuxDesktopAddr is the address of the desktop being accessed.
+  string LinuxDesktopAddr = 1 [(gogoproto.jsontag) = "linux_desktop_addr,omitempty"];
+  // LinuxUser is the Linux username used to connect.
+  string LinuxUser = 2 [(gogoproto.jsontag) = "linux_user,omitempty"];
+  // LinuxDesktopLabels are the labels on the desktop resource.
+  map<string, string> LinuxDesktopLabels = 3 [(gogoproto.jsontag) = "linux_desktop_labels,omitempty"];
+}
+
 // SAMLIdPServiceProviderMetadata contains common metadata for SAML IdP service provider
 // events.
 message SAMLIdPServiceProviderMetadata {
@@ -6642,7 +6653,7 @@ message SessionSummarized {
     (gogoproto.jsontag) = ""
   ];
 
-  // WindowsDesktopMetadata contains windows desktop information (for desktop sessions).
+  // WindowsDesktopMetadata contains windows desktop information (for Windows desktop sessions).
   WindowsDesktopMetadata Desktop = 14 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
@@ -6651,6 +6662,13 @@ message SessionSummarized {
 
   // Username is the name of the user who initiated the session.
   string Username = 15 [(gogoproto.jsontag) = "username,omitempty"];
+
+  // LinuxDesktopMetadata contains Linux desktop information (for Linux desktop sessions).
+  LinuxDesktopMetadata LinuxDesktop = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // KubeClusterMetadata contains common kubernetes cluster information.

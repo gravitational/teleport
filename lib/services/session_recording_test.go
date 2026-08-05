@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
@@ -206,4 +207,68 @@ func TestRebuildResourceFromSessionEndEvent(t *testing.T) {
 			require.Same(t, tt.event, sctx.Session)
 		})
 	}
+}
+
+func TestLinuxDesktopResourceFromSessionEnd(t *testing.T) {
+	linuxEnd := &apievents.LinuxDesktopSessionEnd{
+		Metadata:      apievents.Metadata{ClusterName: "test-cluster"},
+		DesktopName:   "linux-desktop-1",
+		DesktopAddr:   "linux-desktop-1.example.com",
+		LinuxUser:     "root",
+		DesktopLabels: map[string]string{"env": "prod"},
+	}
+
+	t.Run("linux.desktop.session.end", func(t *testing.T) {
+		got := linuxDesktopResourceFromSessionEnd(linuxEnd)
+		require.NotNil(t, got)
+
+		desktop, ok := got.(*linuxdesktopv1.LinuxDesktop)
+		require.True(t, ok, "expected *linuxdesktopv1.LinuxDesktop, got %T", got)
+		require.Equal(t, types.KindLinuxDesktop, desktop.GetKind())
+		require.Equal(t, types.V1, desktop.GetVersion())
+		require.Equal(t, "linux-desktop-1", desktop.GetMetadata().GetName())
+		require.Equal(t, map[string]string{"env": "prod"}, desktop.GetMetadata().GetLabels())
+		require.Equal(t, "linux-desktop-1.example.com", desktop.GetSpec().GetAddr())
+		// Filters on resource.spec.hostname depend on the address standing in for it.
+		require.Equal(t, "linux-desktop-1.example.com", desktop.GetSpec().GetHostname())
+	})
+
+	// A typed nil satisfies the type assertion, so it must be rejected explicitly or the field reads panic.
+	for _, tt := range []struct {
+		name  string
+		event apievents.AuditEvent
+	}{
+		{name: "nil event", event: nil},
+		{name: "nil with type set linux.desktop.session.end", event: (*apievents.LinuxDesktopSessionEnd)(nil)},
+		{name: "windows.desktop.session.end", event: &apievents.WindowsDesktopSessionEnd{DesktopName: "win-1"}},
+		{name: "session.end", event: &apievents.SessionEnd{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Nil(t, linuxDesktopResourceFromSessionEnd(tt.event))
+		})
+	}
+
+	t.Run("ExtendWithSessionEnd populates Resource153 only", func(t *testing.T) {
+		sctx := &Context{}
+		checker := &accessChecker{}
+		sctx.ExtendWithSessionEnd(linuxEnd, checker)
+
+		// Context.GetResource rejects having both set.
+		require.Nil(t, sctx.Resource)
+		require.NotNil(t, sctx.Resource153)
+		resource, err := sctx.GetResource()
+		require.NoError(t, err)
+		require.Equal(t, "linux-desktop-1", resource.GetName())
+		require.Equal(t, types.KindLinuxDesktop, resource.GetKind())
+	})
+
+	t.Run("ExtendWithSessionEnd clears Resource153 for other kinds", func(t *testing.T) {
+		sctx := &Context{}
+		sctx.ExtendWithSessionEnd(linuxEnd, &accessChecker{})
+		require.NotNil(t, sctx.Resource153)
+
+		sctx.ExtendWithSessionEnd(&apievents.WindowsDesktopSessionEnd{DesktopName: "win-1"}, &accessChecker{})
+		require.Nil(t, sctx.Resource153)
+		require.NotNil(t, sctx.Resource)
+	})
 }

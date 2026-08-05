@@ -81,49 +81,111 @@ func TestSessionPostProcessor(t *testing.T) {
 }
 
 func TestSessionPostProcessor_Desktop(t *testing.T) {
-	sessionID := session.ID(uuid.NewString())
 	startTime := time.Now().UTC().Add(-5 * time.Minute)
 	endTime := startTime.Add(3 * time.Minute)
 
-	metadataProvider := recordingmetadata.NewProvider()
-	recorderMetadata := &fakeRecordingMetadata{}
-	recorderMetadata.On(
-		"ProcessSessionRecording",
-		mock.Anything,
-		sessionID,
-		recordingmetadata.SessionTypeDesktop,
-		startTime,
-		endTime.Sub(startTime),
-	).Return(nil).Once()
-	metadataProvider.SetService(recorderMetadata)
-
-	summarizerProvider := summarizer.NewSessionSummarizerProvider()
-	sessionSummarizer := &fakeSummarizer{}
-	sessionSummarizer.On(
-		"SummarizeWindowsDesktop",
-		mock.Anything,
-		mock.MatchedBy(func(e *apievents.WindowsDesktopSessionEnd) bool {
-			return e.GetSessionID() == string(sessionID)
-		}),
-	).Return(nil).Once()
-	summarizerProvider.SetSummarizer(sessionSummarizer)
-
-	cfg := sessionpostprocessing.Config{
-		SessionEnd: &apievents.WindowsDesktopSessionEnd{
-			SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
-			StartTime:       startTime,
-			EndTime:         endTime,
+	tests := []struct {
+		name            string
+		summarizeMethod string
+		sessionEnd      func(sessionID session.ID) apievents.AuditEvent
+		wantMetadata    bool
+	}{
+		{
+			name:            "windows",
+			summarizeMethod: "SummarizeWindowsDesktop",
+			sessionEnd: func(sessionID session.ID) apievents.AuditEvent {
+				return &apievents.WindowsDesktopSessionEnd{
+					SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+					StartTime:       startTime,
+					EndTime:         endTime,
+				}
+			},
+			wantMetadata: true,
 		},
-		RecordingMetadataProvider: metadataProvider,
-		SessionSummarizerProvider: summarizerProvider,
-		SessionID:                 sessionID,
+		{
+			name:            "linux",
+			summarizeMethod: "SummarizeLinuxDesktop",
+			sessionEnd: func(sessionID session.ID) apievents.AuditEvent {
+				return &apievents.LinuxDesktopSessionEnd{
+					SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+					StartTime:       startTime,
+					EndTime:         endTime,
+				}
+			},
+			wantMetadata: true,
+		},
+		{
+			// Still summarized, but no interval to generate metadata over.
+			name:            "windows without end time",
+			summarizeMethod: "SummarizeWindowsDesktop",
+			sessionEnd: func(sessionID session.ID) apievents.AuditEvent {
+				return &apievents.WindowsDesktopSessionEnd{
+					SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+					StartTime:       startTime,
+				}
+			},
+			wantMetadata: false,
+		},
+		{
+			name:            "linux without start time",
+			summarizeMethod: "SummarizeLinuxDesktop",
+			sessionEnd: func(sessionID session.ID) apievents.AuditEvent {
+				return &apievents.LinuxDesktopSessionEnd{
+					SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+					EndTime:         endTime,
+				}
+			},
+			wantMetadata: false,
+		},
 	}
 
-	err := sessionpostprocessing.Process(t.Context(), cfg)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionID := session.ID(uuid.NewString())
+			sessionEnd := tt.sessionEnd(sessionID)
 
-	recorderMetadata.AssertExpectations(t)
-	sessionSummarizer.AssertExpectations(t)
+			metadataProvider := recordingmetadata.NewProvider()
+			recorderMetadata := &fakeRecordingMetadata{}
+			if tt.wantMetadata {
+				recorderMetadata.On(
+					"ProcessSessionRecording",
+					mock.Anything,
+					sessionID,
+					recordingmetadata.SessionTypeDesktop,
+					startTime,
+					endTime.Sub(startTime),
+				).Return(nil).Once()
+			}
+			metadataProvider.SetService(recorderMetadata)
+
+			summarizerProvider := summarizer.NewSessionSummarizerProvider()
+			sessionSummarizer := &fakeSummarizer{}
+			sessionSummarizer.On(
+				tt.summarizeMethod,
+				mock.Anything,
+				mock.MatchedBy(func(e apievents.AuditEvent) bool {
+					return e.(interface{ GetSessionID() string }).GetSessionID() == string(sessionID)
+				}),
+			).Return(nil).Once()
+			summarizerProvider.SetSummarizer(sessionSummarizer)
+
+			cfg := sessionpostprocessing.Config{
+				SessionEnd:                sessionEnd,
+				RecordingMetadataProvider: metadataProvider,
+				SessionSummarizerProvider: summarizerProvider,
+				SessionID:                 sessionID,
+			}
+
+			err := sessionpostprocessing.Process(t.Context(), cfg)
+			require.NoError(t, err)
+
+			recorderMetadata.AssertExpectations(t)
+			sessionSummarizer.AssertExpectations(t)
+			if !tt.wantMetadata {
+				recorderMetadata.AssertNotCalled(t, "ProcessSessionRecording")
+			}
+		})
+	}
 }
 
 type fakeRecordingMetadata struct {
@@ -150,6 +212,11 @@ func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 }
 
 func (f *fakeSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (f *fakeSummarizer) SummarizeLinuxDesktop(ctx context.Context, sessionEndEvent *apievents.LinuxDesktopSessionEnd) error {
 	args := f.Called(ctx, sessionEndEvent)
 	return args.Error(0)
 }

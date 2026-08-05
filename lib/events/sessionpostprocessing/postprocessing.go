@@ -19,6 +19,7 @@ package sessionpostprocessing
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -59,18 +60,24 @@ func Process(ctx context.Context, cfg Config) error {
 	var summarizerErr error
 	var metadataErr error
 	summarizer := cfg.SessionSummarizerProvider.SessionSummarizer()
+
+	// A recovered session can be missing a time bound, leaving no interval to generate metadata over.
+	processMetadata := func(sessionType recordingmetadata.SessionType, startTime, endTime time.Time) {
+		if startTime.IsZero() || endTime.IsZero() {
+			return
+		}
+		metadataSvc := cfg.RecordingMetadataProvider.Service()
+		if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, sessionType, startTime, endTime.Sub(startTime)); err != nil {
+			metadataErr = trace.Wrap(err, "failed to process session recording metadata")
+		}
+	}
+
 	switch o := cfg.SessionEnd.(type) {
 	case *apievents.SessionEnd:
 		if err := summarizer.SummarizeSSH(ctx, o); err != nil {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
-		metadataSvc := cfg.RecordingMetadataProvider.Service()
-		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
-			duration := o.EndTime.Sub(o.StartTime)
-			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, recordingmetadata.SessionTypeTTY, o.StartTime, duration); err != nil {
-				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
-			}
-		}
+		processMetadata(recordingmetadata.SessionTypeTTY, o.StartTime, o.EndTime)
 	case *apievents.DatabaseSessionEnd:
 		if err := summarizer.SummarizeDatabase(ctx, o); err != nil {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
@@ -79,13 +86,12 @@ func Process(ctx context.Context, cfg Config) error {
 		if err := summarizer.SummarizeWindowsDesktop(ctx, o); err != nil {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
-		metadataSvc := cfg.RecordingMetadataProvider.Service()
-		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
-			duration := o.EndTime.Sub(o.StartTime)
-			if err := metadataSvc.ProcessSessionRecording(ctx, cfg.SessionID, recordingmetadata.SessionTypeDesktop, o.StartTime, duration); err != nil {
-				metadataErr = trace.Wrap(err, "failed to process session recording metadata")
-			}
+		processMetadata(recordingmetadata.SessionTypeDesktop, o.StartTime, o.EndTime)
+	case *apievents.LinuxDesktopSessionEnd:
+		if err := summarizer.SummarizeLinuxDesktop(ctx, o); err != nil {
+			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
+		processMetadata(recordingmetadata.SessionTypeDesktop, o.StartTime, o.EndTime)
 	}
 	return trace.NewAggregate(summarizerErr, metadataErr)
 }

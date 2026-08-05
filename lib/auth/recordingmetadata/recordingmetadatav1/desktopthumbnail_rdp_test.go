@@ -1,4 +1,5 @@
-//go:build desktop_access_rdp || rust_rdp_decoder
+// Needs the decoder's crop/resize support, which only the rdpclient build compiles in (image-resize feature).
+//go:build desktop_access_rdp
 
 /**
  * Teleport

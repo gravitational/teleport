@@ -392,3 +392,22 @@ func TestValidateInferencePolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestPolicyKind(t *testing.T) {
+	tests := []struct {
+		kind types.SessionKind
+		want string
+	}{
+		{kind: types.WindowsDesktopSessionKind, want: "desktop"},
+		{kind: types.LinuxDesktopSessionKind, want: "desktop"},
+		{kind: types.SSHSessionKind, want: string(types.SSHSessionKind)},
+		{kind: types.KubernetesSessionKind, want: string(types.KubernetesSessionKind)},
+		{kind: types.DatabaseSessionKind, want: string(types.DatabaseSessionKind)},
+		{kind: types.BeamSummarySessionKind, want: string(types.BeamSummarySessionKind)},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.kind), func(t *testing.T) {
+			require.Equal(t, tt.want, PolicyKind(tt.kind))
+		})
+	}
+}

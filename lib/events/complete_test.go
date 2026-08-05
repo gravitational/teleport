@@ -184,6 +184,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	}{
 		{&apievents.SessionStart{}, events.SessionEndEvent, true},
 		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent, true},
+		{&apievents.LinuxDesktopSessionStart{}, events.LinuxDesktopSessionEndEvent, true},
 		{&apievents.SessionStart{}, events.SessionEndEvent, false},
 	} {
 		t.Run(fmt.Sprintf("%s ensure end event %t", test.endEventType, test.ensureSessionEndEvent), func(t *testing.T) {

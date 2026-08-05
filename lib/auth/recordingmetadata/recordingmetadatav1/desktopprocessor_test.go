@@ -1,4 +1,5 @@
-//go:build desktop_access_rdp || rust_rdp_decoder
+// Needs the decoder's crop/resize support, which only the rdpclient build compiles in (image-resize feature).
+//go:build desktop_access_rdp
 
 /**
  * Teleport
@@ -483,4 +484,111 @@ func desktopMouseButtonEvent(t *testing.T, eventTime time.Time) *apievents.Deskt
 	evt.Metadata.Time = eventTime
 
 	return evt
+}
+
+// TestDesktopRecordingProcessor_LinuxDesktop verifies that a Linux desktop session, which shares the
+// DesktopRecording frame stream with Windows but is delimited by Linux desktop session events, produces
+// metadata tagged as a Linux desktop recording along with a thumbnail.
+func TestDesktopRecordingProcessor_LinuxDesktop(t *testing.T) {
+	startTime := time.Now()
+
+	tests := []struct {
+		name             string
+		events           []apievents.AuditEvent
+		expectedMetadata func(t *testing.T, metadata *pb.SessionRecordingMetadata)
+	}{
+		{
+			name: "complete session populates metadata and produces thumbnail",
+			events: []apievents.AuditEvent{
+				linuxDesktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 64, 48),
+				desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White)),
+				desktopFastPathEvent(t, startTime.Add(8*time.Second), rdpstatetest.BuildBitmapPDU(10, 10, 4, 2, rdpstatetest.RGB565Red)),
+				linuxDesktopSessionEndEvent(startTime.Add(10 * time.Second)),
+			},
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
+				require.Equal(t, "test-cluster", metadata.ClusterName)
+				require.Equal(t, "test-user", metadata.User)
+				require.Equal(t, "test-desktop", metadata.ResourceName)
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP, metadata.Type)
+				require.Equal(t, 10*time.Second, metadata.Duration.AsDuration())
+			},
+		},
+		{
+			name: "recovered session without start event populates metadata from end event",
+			events: []apievents.AuditEvent{
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 64, 48),
+				desktopFastPathEvent(t, startTime.Add(1*time.Second), rdpstatetest.BuildBitmapPDU(0, 0, 4, 2, rdpstatetest.RGB565White)),
+				linuxDesktopRecoveredSessionEndEvent(startTime, startTime.Add(10*time.Second)),
+			},
+			// No start event was seen, so the identity fields can only have come from the end event.
+			expectedMetadata: func(t *testing.T, metadata *pb.SessionRecordingMetadata) {
+				require.NotNil(t, metadata)
+				require.Equal(t, "test-cluster", metadata.ClusterName)
+				require.Equal(t, "test-user", metadata.User)
+				require.Equal(t, "test-desktop", metadata.ResourceName)
+				require.Equal(t, pb.SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP, metadata.Type)
+				require.Equal(t, 10*time.Second, metadata.Duration.AsDuration())
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			duration := tt.events[len(tt.events)-1].GetTime().Sub(startTime)
+
+			processor := newTestDesktopProcessor(startTime, duration)
+			defer processor.release()
+
+			for _, evt := range tt.events {
+				require.NoError(t, processor.handleEvent(evt))
+			}
+
+			metadata, thumbnail := processor.collect()
+
+			tt.expectedMetadata(t, metadata)
+
+			require.NotNil(t, thumbnail)
+			require.NotEmpty(t, thumbnail.Png)
+
+			_, err := png.Decode(bytes.NewReader(thumbnail.Png))
+			require.NoError(t, err)
+		})
+	}
+}
+
+func linuxDesktopSessionStartEvent(eventTime time.Time) *apievents.LinuxDesktopSessionStart {
+	return &apievents.LinuxDesktopSessionStart{
+		Metadata: apievents.Metadata{
+			ClusterName: "test-cluster",
+			Time:        eventTime,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: "test-user",
+		},
+		DesktopName: "test-desktop",
+	}
+}
+
+func linuxDesktopSessionEndEvent(eventTime time.Time) *apievents.LinuxDesktopSessionEnd {
+	return &apievents.LinuxDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			Time: eventTime,
+		},
+	}
+}
+
+func linuxDesktopRecoveredSessionEndEvent(sessionStart, eventTime time.Time) *apievents.LinuxDesktopSessionEnd {
+	return &apievents.LinuxDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			ClusterName: "test-cluster",
+			Time:        eventTime,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: "test-user",
+		},
+		DesktopName: "test-desktop",
+		StartTime:   sessionStart,
+	}
 }

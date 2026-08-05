@@ -58,6 +58,10 @@ func (m dummySummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEnd
 	return nil
 }
 
+func (m dummySummarizer) SummarizeLinuxDesktop(ctx context.Context, sessionEndEvent *events.LinuxDesktopSessionEnd) error {
+	return nil
+}
+
 func (m dummySummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	return nil
 }

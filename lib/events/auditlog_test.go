@@ -471,6 +471,11 @@ func (f *fakeSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEnd
 	return args.Error(0)
 }
 
+func (f *fakeSummarizer) SummarizeLinuxDesktop(ctx context.Context, sessionEndEvent *apievents.LinuxDesktopSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
 func (f *fakeSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := f.Called(ctx, sessionID)
 	return args.Error(0)

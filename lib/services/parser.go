@@ -537,7 +537,7 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 }
 
 func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
-	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}} {
+	for _, emptySession := range emptySessionEnds {
 		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
 		if err == nil {
 			return v, nil
@@ -681,6 +681,15 @@ var emptyUser = &types.UserV2{}
 // emptyHostCert is an empty host certificate used when no host cert is
 // specified
 var emptyHostCert = &HostCertContext{}
+
+// emptySessionEnds are probed for zero values so a where clause naming a field of one session kind still
+// resolves against another.
+var emptySessionEnds = []events.AuditEvent{
+	&events.SessionEnd{},
+	&events.WindowsDesktopSessionEnd{},
+	&events.LinuxDesktopSessionEnd{},
+	&events.DatabaseSessionEnd{},
+}
 
 // EmptyResource is used to represent a use case when no resource
 // is specified in the rules matcher

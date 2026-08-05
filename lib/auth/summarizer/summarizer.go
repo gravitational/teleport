@@ -35,11 +35,15 @@ type SessionSummarizer interface {
 	// SummarizeWindowsDesktop summarizes the Windows desktop session recording
 	// associated with the provided [events.WindowsDesktopSessionEnd] event.
 	SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *events.WindowsDesktopSessionEnd) error
+	// SummarizeLinuxDesktop summarizes the Linux desktop session recording
+	// associated with the provided [events.LinuxDesktopSessionEnd] event.
+	SummarizeLinuxDesktop(ctx context.Context, sessionEndEvent *events.LinuxDesktopSessionEnd) error
 	// SummarizeWithoutEndEvent summarizes a session recording with a given ID.
 	// This is used for cases where the session ID is known, but there is no end
 	// event available. [SessionSummarizer.SummarizeSSH],
-	// [SessionSummarizer.SummarizeDatabase], and
-	// [SessionSummarizer.SummarizeWindowsDesktop] should be used instead of
+	// [SessionSummarizer.SummarizeDatabase],
+	// [SessionSummarizer.SummarizeWindowsDesktop], and
+	// [SessionSummarizer.SummarizeLinuxDesktop] should be used instead of
 	// this method whenever possible, as they are more efficient.
 	SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error
 }

@@ -164,8 +164,13 @@ type InferencePolicyMatchingContext struct {
 	User UserState
 	// Resource is the resource being accessed.
 	Resource types.Resource
-	// Session is a session.end or windows.desktop.session.end event. These
-	// events hold information about session recordings.
+	// Resource153 is the resource being accessed when it is an RFD153 resource
+	// (e.g. a Linux desktop) that does not implement the legacy [types.Resource]
+	// interface. At most one of Resource and Resource153 is set.
+	Resource153 types.Resource153
+	// Session is a session.end, windows.desktop.session.end, or
+	// linux.desktop.session.end event. These events hold information about
+	// session recordings.
 	Session events.AuditEvent
 }
 
@@ -183,8 +188,16 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		return val, trace.Wrap(err)
 
 	case ResourceIdentifier:
-		// First, try to fetch field value from the resource in the context.
-		val, origErr := predicate.GetFieldByTag(ctx.Resource, teleport.JSON, fields[1:])
+		// Linux desktop is an RFD153 resource, so it arrives in Resource153. A nil resource falls through to
+		// the dummy resources below, which is what lets filters be validated against an empty context.
+		var resource any = ctx.Resource
+		switch {
+		case ctx.Resource != nil && ctx.Resource153 != nil:
+			return nil, trace.BadParameter("only one resource should be provided")
+		case ctx.Resource153 != nil:
+			resource = ctx.Resource153
+		}
+		val, origErr := predicate.GetFieldByTag(resource, teleport.JSON, fields[1:])
 		if origErr == nil {
 			return val, nil
 		}
@@ -215,7 +228,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// First, try to fetch field value from the session in the context.
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd:
+		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd, *events.LinuxDesktopSessionEnd:
 			session = ctx.Session
 		}
 		val, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -249,10 +262,16 @@ func (ctx *InferencePolicyMatchingContext) GetAccessChecker() (AccessChecker, er
 // GetResource returns resource specified in the context,
 // returns error if not specified.
 func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error) {
-	if ctx.Resource == nil {
+	switch {
+	case ctx.Resource == nil && ctx.Resource153 == nil:
 		return nil, trace.NotFound("resource is not set in the context")
+	case ctx.Resource == nil && ctx.Resource153 != nil:
+		return types.Resource153ToLegacy(ctx.Resource153), nil
+	case ctx.Resource != nil && ctx.Resource153 == nil:
+		return ctx.Resource, nil
+	default:
+		return nil, trace.BadParameter("only one resource should be provided")
 	}
-	return ctx.Resource, nil
 }
 
 // ExtendWithSessionEnd extends the context with a session end event and
@@ -260,6 +279,7 @@ func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error)
 func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd events.AuditEvent) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+	ctx.Resource153 = linuxDesktopResourceFromSessionEnd(sessionEnd)
 }
 
 // MatchingClassifiers returns the classifiers from the given sequence that

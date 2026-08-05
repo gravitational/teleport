@@ -229,6 +229,16 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 	return nil
 }
 
+// PolicyKind returns the kind name that selects sessions of the given kind in an inference policy's spec.kinds.
+// Both desktop kinds map to "desktop" so one policy covers desktop access regardless of OS; a filter on
+// resource.kind narrows to one.
+func PolicyKind(kind types.SessionKind) string {
+	if kind == types.LinuxDesktopSessionKind {
+		return string(types.WindowsDesktopSessionKind)
+	}
+	return string(kind)
+}
+
 // NewClassifier creates a new Classifier resource with the given name and
 // spec.
 func NewClassifier(name string, spec *summarizerv1.ClassifierSpec) *summarizerv1.Classifier {

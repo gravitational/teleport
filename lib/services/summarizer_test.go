@@ -72,14 +72,24 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 		DesktopName: "desktop-1",
 	}
 
+	linuxDesktopSessionEnd := &events.LinuxDesktopSessionEnd{
+		Metadata:      events.Metadata{ClusterName: "cluster-1"},
+		DesktopName:   "linux-desktop-1",
+		DesktopAddr:   "10.0.0.2:3389",
+		LinuxUser:     "root",
+		DesktopLabels: map[string]string{"env": "prod"},
+	}
+	linuxDesktop := linuxDesktopResourceFromSessionEnd(linuxDesktopSessionEnd)
+
 	cases := []struct {
-		name       string
-		user       types.User
-		resource   types.Resource
-		session    events.AuditEvent
-		expression string
-		expected   any
-		notFound   bool
+		name        string
+		user        types.User
+		resource    types.Resource
+		resource153 types.Resource153
+		session     events.AuditEvent
+		expression  string
+		expected    any
+		notFound    bool
 	}{
 		{
 			name:       "known user field",
@@ -166,6 +176,82 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 			notFound:   true,
 		},
 		{
+			name:        "known Linux desktop resource field",
+			resource153: linuxDesktop,
+			expression:  "resource.spec.addr",
+			expected:    "10.0.0.2:3389",
+		},
+		{
+			name:        "known Linux desktop resource name",
+			resource153: linuxDesktop,
+			expression:  "resource.metadata.name",
+			expected:    "linux-desktop-1",
+		},
+		{
+			name:        "Linux desktop resource label",
+			resource153: linuxDesktop,
+			expression:  `resource.metadata.labels["env"]`,
+			expected:    "prod",
+		},
+		{
+			name:        "unknown Linux desktop resource field",
+			resource153: linuxDesktop,
+			expression:  "resource.spec.unknown",
+			notFound:    true,
+		},
+		{
+			// resource.kind is how a "desktop" policy narrows to one OS, so it must resolve for both kinds.
+			name:        "Linux desktop resource kind",
+			resource153: linuxDesktop,
+			expression:  "resource.kind",
+			expected:    types.KindLinuxDesktop,
+		},
+		{
+			name:       "Windows desktop resource kind",
+			resource:   desktop,
+			expression: "resource.kind",
+			expected:   types.KindWindowsDesktop,
+		},
+		{
+			// Only resolves because the reconstructed resource populates spec.hostname from the address.
+			name:        "Linux desktop resource hostname",
+			resource153: linuxDesktop,
+			expression:  "resource.spec.hostname",
+			expected:    "10.0.0.2:3389",
+		},
+		{
+			// A Windows-only field must resolve to a zero value against a Linux desktop, not fail to parse.
+			name:        "Windows desktop resource field on a Linux desktop resource",
+			resource153: linuxDesktop,
+			expression:  "resource.spec.domain",
+			expected:    "",
+		},
+		{
+			name:       "known Linux desktop session field",
+			session:    linuxDesktopSessionEnd,
+			expression: "session.desktop_name",
+			expected:   "linux-desktop-1",
+		},
+		{
+			name:       "Linux desktop session login",
+			session:    linuxDesktopSessionEnd,
+			expression: "session.linux_user",
+			expected:   "root",
+		},
+		{
+			// Must resolve to a zero value here, not fail to parse and abort the Windows session's summary.
+			name:       "Linux desktop session login on a Windows session",
+			session:    desktopSessionEnd,
+			expression: "session.linux_user",
+			expected:   "",
+		},
+		{
+			name:       "Windows desktop session login on a Linux session",
+			session:    linuxDesktopSessionEnd,
+			expression: "session.windows_user",
+			expected:   "",
+		},
+		{
 			name:       "known desktop session field",
 			session:    desktopSessionEnd,
 			expression: "session.desktop_name",
@@ -188,9 +274,10 @@ func TestInferencePolicyMatchingContext(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := &InferencePolicyMatchingContext{
-				User:     tc.user,
-				Resource: tc.resource,
-				Session:  tc.session,
+				User:        tc.user,
+				Resource:    tc.resource,
+				Resource153: tc.resource153,
+				Session:     tc.session,
 			}
 			parser, err := NewWhereParser(ctx)
 			require.NoError(t, err)
@@ -266,6 +353,9 @@ func TestValidateInferencePolicy(t *testing.T) {
 		{name: "valid db filter", kinds: allKinds, filter: `equals(resource.spec.protocol, "postgres")`},
 		{name: "valid kube filter", kinds: allKinds, filter: `resource.metadata.labels["env"] == "prod"`},
 		{name: "valid desktop filter", kinds: allKinds, filter: `equals(resource.spec.domain, "example.com")`},
+		{name: "valid Linux desktop filter", kinds: []string{"desktop"}, filter: `equals(resource.kind, "linux_desktop")`},
+		{name: "valid Linux desktop session filter", kinds: []string{"desktop"}, filter: `session.linux_user == "root"`},
+		{name: "linuxdesktop is not a policy kind", kinds: []string{"linuxdesktop"}, errorMessage: "unsupported kind in spec.kinds: linuxdesktop"},
 		{name: "valid shell session filter", kinds: allKinds, filter: `contains(session.participants, "joe")`},
 		{name: "valid db session filter", kinds: allKinds, filter: `session.db_protocol == "postgres"`},
 		{name: "valid desktop session filter", kinds: allKinds, filter: `session.desktop_name == "desktop-1"`},

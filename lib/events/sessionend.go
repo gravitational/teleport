@@ -37,6 +37,7 @@ import (
 // - SessionEnd
 // - DatabaseSessionEnd
 // - WindowsDesktopSessionEnd
+// - LinuxDesktopSessionEnd
 // - AppSessionEnd
 // - MCPSessionEnd,
 // or nil if none is found.
@@ -61,6 +62,8 @@ func FindSessionEndEvent(ctx context.Context, streamer SessionStreamer, sessionI
 			}
 			switch e := event.(type) {
 			case *apievents.WindowsDesktopSessionEnd:
+				return e, nil
+			case *apievents.LinuxDesktopSessionEnd:
 				return e, nil
 			case *apievents.SessionEnd:
 				return e, nil

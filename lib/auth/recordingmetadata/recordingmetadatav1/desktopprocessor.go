@@ -64,24 +64,46 @@ func (d *desktopProcessor) handleEvent(evt apievents.AuditEvent) error {
 	case *apievents.WindowsDesktopSessionStart:
 		return d.handleWindowsDesktopSessionStart(e)
 
+	case *apievents.LinuxDesktopSessionStart:
+		return d.handleLinuxDesktopSessionStart(e)
+
 	case *apievents.DesktopRecording:
 		return d.handleDesktopRecording(e)
 
 	case *apievents.WindowsDesktopSessionEnd:
 		return d.handleWindowsDesktopSessionEnd(e)
+
+	case *apievents.LinuxDesktopSessionEnd:
+		return d.handleLinuxDesktopSessionEnd(e)
 	}
 
 	return nil
+}
+
+// setDesktopMetadata records the identity of the desktop session.
+func (d *desktopProcessor) setDesktopMetadata(clusterName, user, desktopName string, t pb.SessionRecordingType) {
+	d.metadata.SetClusterName(clusterName)
+	d.metadata.SetUser(user)
+	d.metadata.SetResourceName(desktopName)
+	d.metadata.SetType(t)
 }
 
 func (d *desktopProcessor) handleWindowsDesktopSessionStart(evt *apievents.WindowsDesktopSessionStart) error {
 	d.startTime = evt.GetTime()
 	d.lastActivityTime = evt.GetTime()
 
-	d.metadata.SetClusterName(evt.ClusterName)
-	d.metadata.SetUser(evt.User)
-	d.metadata.SetResourceName(evt.DesktopName)
-	d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+	d.setDesktopMetadata(evt.ClusterName, evt.User, evt.DesktopName,
+		pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+
+	return nil
+}
+
+func (d *desktopProcessor) handleLinuxDesktopSessionStart(evt *apievents.LinuxDesktopSessionStart) error {
+	d.startTime = evt.GetTime()
+	d.lastActivityTime = evt.GetTime()
+
+	d.setDesktopMetadata(evt.ClusterName, evt.User, evt.DesktopName,
+		pb.SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP)
 
 	return nil
 }
@@ -179,21 +201,35 @@ func desktopActivityMinPixels(screenW, screenH uint16) int {
 
 func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.WindowsDesktopSessionEnd) error {
 	if d.metadata.GetType() == pb.SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED {
-		d.metadata.SetClusterName(evt.ClusterName)
-		d.metadata.SetUser(evt.User)
-		d.metadata.SetResourceName(evt.DesktopName)
-		d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+		d.setDesktopMetadata(evt.ClusterName, evt.User, evt.DesktopName,
+			pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
 	}
 
-	// Without the decoder, lastActivityTime never advances past the session start, so this would mark the whole
-	// recording inactive even when the user was active.
-	if d.gen.decoderAvailable() && !d.lastActivityTime.IsZero() && evt.GetTime().Sub(d.lastActivityTime) > inactivityThreshold {
-		d.addInactivityEvent(d.lastActivityTime, evt.GetTime())
-	}
-
-	d.captureThumbnailIfNeeded(evt.GetTime(), d.thumbnailInterval)
+	d.finalizeSessionEnd(evt.GetTime())
 
 	return nil
+}
+
+func (d *desktopProcessor) handleLinuxDesktopSessionEnd(evt *apievents.LinuxDesktopSessionEnd) error {
+	if d.metadata.GetType() == pb.SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED {
+		d.setDesktopMetadata(evt.ClusterName, evt.User, evt.DesktopName,
+			pb.SessionRecordingType_SESSION_RECORDING_TYPE_LINUX_DESKTOP)
+	}
+
+	d.finalizeSessionEnd(evt.GetTime())
+
+	return nil
+}
+
+// finalizeSessionEnd closes out any trailing inactivity gap and captures a final thumbnail.
+func (d *desktopProcessor) finalizeSessionEnd(endTime time.Time) {
+	// Without the decoder, lastActivityTime never advances past the session start, so this would mark the whole
+	// recording inactive even when the user was active.
+	if d.gen.decoderAvailable() && !d.lastActivityTime.IsZero() && endTime.Sub(d.lastActivityTime) > inactivityThreshold {
+		d.addInactivityEvent(d.lastActivityTime, endTime)
+	}
+
+	d.captureThumbnailIfNeeded(endTime, d.thumbnailInterval)
 }
 
 func (d *desktopProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {

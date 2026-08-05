@@ -32,23 +32,34 @@ import (
 func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checker AccessChecker) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
-	if linuxEnd, ok := sessionEnd.(*apievents.LinuxDesktopSessionEnd); ok {
-		ctx.Resource153 = linuxdesktopv1.LinuxDesktop_builder{
-			Kind:    types.KindLinuxDesktop,
-			SubKind: "",
-			Version: types.V1,
-			Metadata: headerv1.Metadata_builder{
-				Name:   linuxEnd.DesktopName,
-				Labels: linuxEnd.DesktopLabels,
-			}.Build(),
-			Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
-				Addr: linuxEnd.DesktopAddr,
-			}.Build(),
-		}.Build()
-	}
+	ctx.Resource153 = linuxDesktopResourceFromSessionEnd(sessionEnd)
 	// AccessCheker is set here to allow access checks to other resources
 	// in the where clause.
 	ctx.AccessChecker = checker
+}
+
+// linuxDesktopResourceFromSessionEnd reconstructs the LinuxDesktop resource that was active at the time of a
+// Linux desktop session, for RBAC "where" and inference policy filter matching. Linux desktop is an RFD153
+// resource, so it is returned as a [types.Resource153] rather than through rebuildResourceFromSessionEndEvent.
+// Returns nil for any other event type.
+func linuxDesktopResourceFromSessionEnd(sessionEnd apievents.AuditEvent) types.Resource153 {
+	linuxEnd, ok := sessionEnd.(*apievents.LinuxDesktopSessionEnd)
+	if !ok || linuxEnd == nil {
+		return nil
+	}
+	return linuxdesktopv1.LinuxDesktop_builder{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   linuxEnd.DesktopName,
+			Labels: linuxEnd.DesktopLabels,
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr: linuxEnd.DesktopAddr,
+			// DesktopAddr is sourced from the desktop's spec.hostname, so hostname filters resolve.
+			Hostname: linuxEnd.DesktopAddr,
+		}.Build(),
+	}.Build()
 }
 
 // rebuildResourceFromSessionEndEvent rebuilds a resource from a session end event.

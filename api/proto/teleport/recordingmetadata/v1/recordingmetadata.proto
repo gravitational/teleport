@@ -66,6 +66,8 @@ enum SessionRecordingType {
   SESSION_RECORDING_TYPE_KUBERNETES = 2;
   // SessionRecordingTypeWindowsDesktop is an interactive Windows desktop session recording.
   SESSION_RECORDING_TYPE_WINDOWS_DESKTOP = 3;
+  // SessionRecordingTypeLinuxDesktop is an interactive Linux desktop session recording.
+  SESSION_RECORDING_TYPE_LINUX_DESKTOP = 4;
 }
 
 // SessionRecordingMetadata contains metadata for a session recording.

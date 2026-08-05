@@ -384,6 +384,8 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 		err = summarizer.SummarizeDatabase(ctx, o)
 	case *apievents.WindowsDesktopSessionEnd:
 		err = summarizer.SummarizeWindowsDesktop(ctx, o)
+	case *apievents.LinuxDesktopSessionEnd:
+		err = summarizer.SummarizeLinuxDesktop(ctx, o)
 	}
 	if err != nil {
 		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
@@ -405,7 +407,7 @@ func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 // metadataParamsForSessionEnd returns the duration and session type used to
 // gate and parameterize recording metadata generation for a session end event.
 // Returns (>0, sessionType) for sessions whose recordings should be processed
-// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
+// (SSH/PTY and Windows/Linux Desktop). Returns (-1, sessionType) when the session is
 // eligible but its start or end time is missing, signaling the caller to warn.
 // Returns (0, SessionTypeUnspecified) for session types that don't produce
 // recording metadata.
@@ -422,6 +424,11 @@ func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, ti
 		}
 		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
 	case *apievents.WindowsDesktopSessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
+		}
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
+	case *apievents.LinuxDesktopSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
 			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
 		}

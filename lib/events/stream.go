@@ -615,6 +615,12 @@ type sliceWriter struct {
 	// start from a point where the session end event has already been uploaded.
 	// If captured, it will be passed to the summarizer.
 	desktopSessionEndEvent *apievents.WindowsDesktopSessionEnd
+	// linuxDesktopSessionEndEvent is an event that marked the end of this
+	// session if it was a Linux desktop one. It may be nil if the stream hasn't
+	// ended yet, and it may also be nil if the stream picked up after an auth
+	// server start from a point where the session end event has already been
+	// uploaded. If captured, it will be passed to the summarizer.
+	linuxDesktopSessionEndEvent *apievents.LinuxDesktopSessionEnd
 
 	// hasSessionEnd indicates if the session end event is present.
 	hasSessionEnd bool
@@ -733,6 +739,11 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.sessionType = recordingmetadata.SessionTypeDesktop
 				w.shouldProcessMetadata = true
 
+			case *apievents.OneOf_LinuxDesktopSessionStart:
+				w.sessionStartTime = e.LinuxDesktopSessionStart.Time
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				w.shouldProcessMetadata = true
+
 			case *apievents.OneOf_DesktopRecording:
 				w.sessionEndTime = e.DesktopRecording.Time
 
@@ -758,6 +769,15 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.sessionType = recordingmetadata.SessionTypeDesktop
 				if w.sessionStartTime.IsZero() {
 					w.sessionStartTime = e.WindowsDesktopSessionEnd.StartTime
+				}
+			case *apievents.OneOf_LinuxDesktopSessionEnd:
+				w.linuxDesktopSessionEndEvent = e.LinuxDesktopSessionEnd
+				w.sessionEndTime = e.LinuxDesktopSessionEnd.Time
+				w.hasSessionEnd = true
+				w.shouldProcessMetadata = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = e.LinuxDesktopSessionEnd.StartTime
 				}
 			case *apievents.OneOf_AppSessionEnd:
 				w.hasSessionEnd = true
@@ -912,6 +932,14 @@ func (w *sliceWriter) completeStream() {
 					w.sessionStartTime = o.StartTime
 				}
 				w.sessionEndTime = o.EndTime
+			case *apievents.LinuxDesktopSessionEnd:
+				w.linuxDesktopSessionEndEvent = o
+				w.shouldProcessMetadata = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = o.StartTime
+				}
+				w.sessionEndTime = o.EndTime
 			}
 		}
 
@@ -939,6 +967,8 @@ func (w *sliceWriter) completeStream() {
 			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
 		case w.desktopSessionEndEvent != nil:
 			err = summarizer.SummarizeWindowsDesktop(w.proto.cancelCtx, w.desktopSessionEndEvent)
+		case w.linuxDesktopSessionEndEvent != nil:
+			err = summarizer.SummarizeLinuxDesktop(w.proto.cancelCtx, w.linuxDesktopSessionEndEvent)
 		default:
 			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
 		}
