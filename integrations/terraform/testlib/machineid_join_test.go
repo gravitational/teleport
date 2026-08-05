@@ -29,7 +29,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +37,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/wait"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
@@ -406,7 +406,14 @@ func TestTerraformJoinScoped(t *testing.T) {
 			Rules: []*scopedaccessv1.ScopedRule{
 				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedToken},
-					Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbUpdate, types.VerbCreate, types.VerbDelete, types.VerbRead},
+					Verbs: scopedaccess.EncodeScopedVerbs(
+						scopedaccess.List,
+						scopedaccess.Read,
+						scopedaccess.Secrets,
+						scopedaccess.Create,
+						scopedaccess.Update,
+						scopedaccess.Delete,
+					),
 				}.Build(),
 			},
 		}.Build(),
@@ -460,8 +467,8 @@ func TestTerraformJoinScoped(t *testing.T) {
 
 	// Test setup: Wait for the role assignment to enter the auth server cache
 	// else the bot will race against the cache, joining will fail and the test wil be flaky.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := adminClient.ScopedAccessServiceClient().GetScopedRoleAssignment(
+	resp, err := wait.UntilFound(ctx, func(ctx context.Context) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+		return adminClient.ScopedAccessServiceClient().GetScopedRoleAssignment(
 			ctx,
 			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    testBotRole,
@@ -469,10 +476,10 @@ func TestTerraformJoinScoped(t *testing.T) {
 				SubKind: scopedaccess.SubKindDynamic,
 			}.Build(),
 		)
-		require.NoError(t, err)
-		require.NotNil(t, resp)
-		require.NotNil(t, resp.GetAssignment())
-	}, 5*time.Second, 100*time.Millisecond, "expected role assignment to enter the auth cache")
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, resp.GetAssignment())
 
 	// Test setup: Create a fake Kubernetes JWKS signer that will be used by the bot to join the cluster.
 	const (
@@ -553,7 +560,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 			kubernetes_token_path = %q
 			scoped = true
 		}
-	`, tt.addr, testTokenName, types.JoinMethodKubernetes, tokenPath)
+	`, tt.addr, scopes.QualifiedName{Scope: testRootScope, Name: testTokenName}.String(), types.JoinMethodKubernetes, tokenPath)
 
 			terraformProvider := provider.New()
 			terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

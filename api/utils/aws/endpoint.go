@@ -26,13 +26,40 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsAWSEndpoint returns true if the input URI is an AWS endpoint.
+const maxEndpointLength = 4096
+
+// IsAWSEndpoint returns true if the input URI is an AWS endpoint under the
+// amazonaws.com domains. It deliberately excludes api.aws endpoints (see
+// IsAWSAPIEndpoint) because callers like the DynamoDB/OpenSearch endpoint
+// parsers only understand the amazonaws.com shapes and use this check to
+// decide whether a parse failure is a config error. Once those parsers learn
+// the api.aws endpoint shapes, this split may no longer be necessary.
 func IsAWSEndpoint(uri string) bool {
 	hostname, err := removeSchemaAndPort(uri)
 	if err != nil {
 		return false
 	}
 	return strings.HasSuffix(hostname, AWSEndpointSuffix) || strings.HasSuffix(hostname, AWSCNEndpointSuffix)
+}
+
+// IsAWSAPIEndpoint returns true if the input URI is an AWS endpoint under the
+// api.aws domain, used for dualstack and newer AWS service endpoints.
+func IsAWSAPIEndpoint(uri string) bool {
+	hostname, err := removeSchemaAndPort(uri)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(hostname, AWSAPIEndpointSuffix)
+}
+
+// IsAWSOwnedEndpoint returns true if the input URI is under any AWS-owned
+// endpoint domain (amazonaws.com, amazonaws.com.cn, or api.aws). Use this for
+// trust and interception decisions. Use IsAWSEndpoint when deciding whether a
+// legacy endpoint parser should have understood the URI.
+//
+// https://docs.aws.amazon.com/general/latest/gr/rande.html
+func IsAWSOwnedEndpoint(uri string) bool {
+	return IsAWSEndpoint(uri) || IsAWSAPIEndpoint(uri)
 }
 
 // IsRDSEndpoint returns true if the input URI is an RDS endpoint.
@@ -118,8 +145,12 @@ func (d RDSEndpointDetails) IsProxy() bool {
 
 // ParseRDSEndpoint extracts the identifier and region from the provided RDS
 // endpoint.
-func ParseRDSEndpoint(endpoint string) (d *RDSEndpointDetails, err error) {
+func ParseRDSEndpoint(endpoint string) (*RDSEndpointDetails, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
 	if strings.ContainsRune(endpoint, ':') {
+		var err error
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -253,6 +284,10 @@ func parseRDSWithoutSuffixes(endpoint string, parts []string, region string) (*R
 // ParseRedshiftEndpoint extracts cluster ID and region from the provided
 // Redshift endpoint.
 func ParseRedshiftEndpoint(endpoint string) (clusterID, region string, err error) {
+	if len(endpoint) > maxEndpointLength {
+		return "", "", trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	if strings.ContainsRune(endpoint, ':') {
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {
@@ -307,8 +342,13 @@ type RedshiftServerlessEndpointDetails struct {
 
 // ParseRedshiftServerlessEndpoint extracts name, AWS Account ID, and region
 // from the provided Redshift Serverless endpoint.
-func ParseRedshiftServerlessEndpoint(endpoint string) (details *RedshiftServerlessEndpointDetails, err error) {
+func ParseRedshiftServerlessEndpoint(endpoint string) (*RedshiftServerlessEndpointDetails, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	if strings.ContainsRune(endpoint, ':') {
+		var err error
 		endpoint, _, err = net.SplitHostPort(endpoint)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -409,6 +449,10 @@ const (
 //
 // https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/GettingStarted.ConnectToCacheNode.html
 func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	endpoint, err := removeSchemaAndPort(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -504,9 +548,9 @@ func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 		}
 
 		// Remove "-ro" from reader endpoint.
-		if strings.HasSuffix(parts[0], "-ro") {
+		if before, ok := strings.CutSuffix(parts[0], "-ro"); ok {
 			return &RedisEndpointInfo{
-				ID:                       strings.TrimSuffix(parts[0], "-ro"),
+				ID:                       before,
 				Region:                   region,
 				TransitEncryptionEnabled: false,
 				EndpointType:             ElastiCacheReaderEndpoint,
@@ -570,6 +614,10 @@ func trimElastiCacheShardAndNodeID(input string) string {
 // ElastiCacheServerless Redis endpoint, which should be in the form
 // <cache_name>.serverless.<region>.cache.amazonaws.com:<port>
 func ParseElastiCacheServerlessEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	endpoint, err := removeSchemaAndPort(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -623,6 +671,10 @@ func ParseElastiCacheServerlessEndpoint(endpoint string) (*RedisEndpointInfo, er
 //
 // https://docs.aws.amazon.com/memorydb/latest/devguide/endpoints.html
 func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	endpoint, err := removeSchemaAndPort(endpoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -734,6 +786,12 @@ const (
 	// https://docs.amazonaws.cn/en_us/aws/latest/userguide/endpoints-arns.html
 	AWSCNEndpointSuffix = ".amazonaws.com.cn"
 
+	// AWSAPIEndpointSuffix is the endpoint suffix for AWS dualstack and newer
+	// service endpoints. The api.aws domain is owned and operated by AWS.
+	//
+	// https://docs.aws.amazon.com/general/latest/gr/rande.html#dual-stack-endpoints
+	AWSAPIEndpointSuffix = ".api.aws"
+
 	// RDSServiceName is the service name for AWS RDS.
 	RDSServiceName = "rds"
 
@@ -797,6 +855,10 @@ type DynamoDBEndpointInfo struct {
 
 // ParseDynamoDBEndpoint parses and extract info from the provided DynamoDB endpoint.
 func ParseDynamoDBEndpoint(endpoint string) (*DynamoDBEndpointInfo, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	endpoint = strings.ToLower(endpoint)
 	parts, partition, err := extractAWSEndpointParts(endpoint)
 	if err != nil {
@@ -847,6 +909,10 @@ type OpenSearchEndpointInfo struct {
 
 // ParseOpensearchEndpoint parses and extract info from the provided OpenSearch endpoint.
 func ParseOpensearchEndpoint(endpoint string) (*OpenSearchEndpointInfo, error) {
+	if len(endpoint) > maxEndpointLength {
+		return nil, trace.BadParameter("invalid endpoint exceeds maximum length of %d", maxEndpointLength)
+	}
+
 	endpoint = strings.ToLower(endpoint)
 	parts, partition, err := extractAWSEndpointParts(endpoint)
 	if err != nil {

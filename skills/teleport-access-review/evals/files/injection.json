@@ -20,8 +20,8 @@
             "origin": "teleport_db"
           },
           "level": "standing",
-          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
-          "grantors": [
+          "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "granted_by": [
             {
               "node": {
                 "id": "9d8c7b6a-5e4f-4a3b-8c2d-1e0f9a8b7c6d",

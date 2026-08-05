@@ -100,6 +100,18 @@ type ApplicationsInternal interface {
 	) ([]backend.ConditionalAction, error)
 }
 
+// TODO(williamo/scopes): remove once dynamic scoped app registration is
+// supported.
+func EnsureNotScopedApp(app types.Application) error {
+	if app == nil {
+		return trace.BadParameter("nil application")
+	}
+	if scope := app.GetScope(); scope != "" {
+		return trace.BadParameter("application %q cannot be created with scope %q: dynamic registration of scoped applications is not supported, remove the scope attribute", app.GetName(), scope)
+	}
+	return nil
+}
+
 // ValidateApp checks an Application's name, public_addr, and
 // required_apps.
 func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
@@ -335,6 +347,25 @@ func AppServerScopesEqual(serverScope, appScope string) bool {
 		return serverScope == appScope
 	}
 	return scopes.Compare(serverScope, appScope) == scopes.Equivalent
+}
+
+// GetCursorForAppServer returns the resource cursor identifying an app server
+// in the logical resource stream: "<host-id>/<name>" for unscoped app servers
+// and "~scoped/<encoded-scope>/<host-id>/<name>" for scoped apps.
+func GetCursorForAppServer(server types.AppServer) string {
+	return scopes.MakeResourceCursorWithHost(server.GetScope(), server.GetHostID(), server.GetName())
+}
+
+// GetCursorForResource returns the pagination cursor for a
+// resource used in ListResources.
+func GetCursorForResource(r types.ResourceWithLabels) string {
+	switch res := r.(type) {
+	case types.AppServer:
+		return GetCursorForAppServer(res)
+	case types.KubeServer:
+		return GetCursorForKubeServer(res)
+	}
+	return backend.GetPaginationKey(r)
 }
 
 // ValidatePublicAddr requires a lowercase DNS-1123 hostname. An

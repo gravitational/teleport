@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -167,7 +168,7 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	cert, err := keyRing.AppTLSCert(mcpServer.GetName())
+	cert, err := keyRing.AppTLSCert(scopes.QualifiedName{Name: appCertParams.RouteToApp.Name, Scope: appCertParams.RouteToApp.Scope})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

@@ -74,6 +74,8 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+  // The scope the resource being kept alive belongs to.
+  string scope = 11;
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -4823,6 +4825,8 @@ enum MFADeviceKind {
   MFA_DEVICE_KIND_TOTP = 2;
   // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
   MFA_DEVICE_KIND_WEBAUTHN = 3;
+  // MFA device is known to be configured using SSO as the weakest form of MFA.
+  MFA_DEVICE_KIND_SSO = 4;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -6674,10 +6678,23 @@ message LockSpecV2 {
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
-// LockTarget lists the attributes of interactions to be disabled.
+// LockTarget lists the attributes of interactions to be disabled. This type is
+// performance sensitive (as lock targets are checked during authz for just
+// about every interaction with the cluster) and it's used as a Go map key and
+// compared with Go equality, so care must be taken when adding fields to the
+// message. There is an assertion for the resulting Go message type to be
+// comparable, but some comparable types (like any pointer, or time.Time) don't
+// compare _correctly_ without additional steps. It's best to limit this message
+// to numbers and strings, if new additions are necessary.
 message LockTarget {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
+  // these options remove extraneous fields from the resulting Go struct, making
+  // it possible to compare by equality
+  option (gogoproto.goproto_unrecognized) = false;
+  option (gogoproto.goproto_sizecache) = false;
+  option (gogoproto.goproto_unkeyed) = false;
 
   // User specifies the name of a Teleport user.
   string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
@@ -7865,13 +7882,18 @@ message PluginOktaSyncSettings {
   // TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
   // groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
   // bidirectional sync is enabled. The default value is 30m.
+  //
+  // It is not advised to change this setting without prior recommendation.
   string time_between_imports = 14;
 
-  // TimeBetweenAssignmentProcessLoops controls the time between periodic iterations of the Okta assignment
-  // processor loop. Teleport reacts asynchronously to Okta permission changes and responds to changes immediately.
-  // This also implements a periodic fallback sync that is triggered periodically to reconcile to the desired state.
-  // For most use cases the default value should NOT be changed.
-  // A blank string results in the default value of 5min.
+  // TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
+  // Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
+  // out of sync. The default value is 5m.
+  //
+  // NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
+  // often the cached Okta client for assignments is being invalidated.
+  //
+  //It is not advised to change this setting without prior recommendation.
   string time_between_assignment_process_loops = 15;
 
   // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.
@@ -8439,6 +8461,8 @@ message PluginEntraIDStatusV1 {
   uint32 imported_users = 1;
   // imported_groups is the number of groups imported from Entra ID.
   uint32 imported_groups = 2;
+  // SyncMode indicates `full` or `delta` sync mode used in the latest sync.
+  string sync_mode = 3;
 }
 
 enum PluginStatusCode {
@@ -9699,9 +9723,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

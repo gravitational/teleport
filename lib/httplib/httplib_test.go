@@ -272,13 +272,14 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
+		withStripe      bool
 		urlPath         string
-		expectedCspVals map[string]string
+		expectedCSPVals map[string]string
 	}{
 		{
 			name:    "default (no wasm)",
 			urlPath: "/web/index.js",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -294,7 +295,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for cloud based usage, EUB product (no wasm)",
 			urlPath: "/web/index.js",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -309,7 +310,23 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for desktop session (with wasm)",
 			urlPath: "/web/cluster/:clusterId/desktops/:desktopName/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' 'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:    "for Linux desktop session (with wasm)",
+			urlPath: "/web/cluster/:clusterId/linux_desktops/:desktopName/:username",
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -325,7 +342,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for web ssh session (with wasm)",
 			urlPath: "/web/cluster/:clusterId/console/node/:sessionId/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -341,7 +358,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		{
 			name:    "for cloud based usage & desktop session, with wasm",
 			urlPath: "/web/cluster/:clusterId/desktops/:desktopName/:username",
-			expectedCspVals: map[string]string{
+			expectedCSPVals: map[string]string{
 				"default-src":     "'self'",
 				"base-uri":        "'self'",
 				"form-action":     "'self'",
@@ -354,14 +371,45 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 				"connect-src":     "'self' wss:",
 			},
 		},
+		{
+			name:       "for stripe-managed tenant (no wasm)",
+			withStripe: true,
+			urlPath:    "/web/index.js",
+			expectedCSPVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' https://js.stripe.com https://*.js.stripe.com",
+				"frame-src":       "https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
+				"connect-src":     "'self' wss: https://api.stripe.com",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+			},
+		},
+		{
+			name:       "for stripe-managed tenant on desktop session (with wasm)",
+			withStripe: true,
+			urlPath:    "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCSPVals: map[string]string{
+				"script-src":  "'self' https://js.stripe.com https://*.js.stripe.com 'wasm-unsafe-eval'",
+				"frame-src":   "https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com",
+				"connect-src": "'self' wss: https://api.stripe.com",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := make(http.Header)
-			SetIndexContentSecurityPolicy(h, tt.urlPath)
-			actualCsp := h.Get("Content-Security-Policy")
-			for k, v := range tt.expectedCspVals {
-				expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-				require.Contains(t, actualCsp, expectedCspSubString)
+			SetIndexContentSecurityPolicy(h, tt.withStripe, tt.urlPath)
+			actualCSP := h.Get("Content-Security-Policy")
+			for k, v := range tt.expectedCSPVals {
+				expectedCSPSubstring := fmt.Sprintf("%s %s;", k, v)
+				require.Contains(t, actualCSP, expectedCSPSubstring)
+			}
+			if !tt.withStripe {
+				require.NotContains(t, actualCSP, "stripe.com")
 			}
 		})
 	}
@@ -372,7 +420,7 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 
 	scriptSrc := "nonce-123456789abcdefg"
 
-	expectedCspVals := map[string]string{
+	expectedCSPVals := map[string]string{
 		"default-src":     "'self'",
 		"base-uri":        "'self'",
 		"form-action":     "'self'",
@@ -385,10 +433,11 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 
 	h := make(http.Header)
 	SetRedirectPageContentSecurityPolicy(h, scriptSrc)
-	actualCsp := h.Get("Content-Security-Policy")
-	for k, v := range expectedCspVals {
-		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Contains(t, actualCsp, expectedCspSubString)
+
+	actualCSP := h.Get("Content-Security-Policy")
+	for k, v := range expectedCSPVals {
+		expectedCSPSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCSP, expectedCSPSubString)
 	}
 }
 

@@ -74,6 +74,15 @@ const (
 	// consistency of the one-to-many relationship between them.
 	accessListLockTTL = 5 * time.Second
 
+	// accessListLockReleaseTimeout bounds the time spent releasing the lock at the
+	// end of a locked access list operation. It is raised above the default 1 second
+	// because the access list flow performs nested locking, and under heavy database
+	// load (CI/stress test) the default timeout may be exceeded during lock release.
+	// It must stay below accessListLockTTL/2 (2.5s): the lock refresher is stopped
+	// before release, so remaining lock ownership can be as short as TTL/2, and a
+	// release that outlives ownership could delete a lock acquired by another writer.
+	accessListLockReleaseTimeout = 2*time.Second + 300*time.Millisecond
+
 	// createAccessListLimitLockName is the lock used to prevent simultaneous
 	// creation or update of AccessLists in order to enforce the license limit
 	// on the number AccessLists in a cluster.
@@ -321,42 +330,45 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 	}
 
 	service, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[*accesslist.AccessList]{
-		Backend:                     cfg.Backend,
-		PageLimit:                   accessListMaxPageSize,
-		ResourceKind:                types.KindAccessList,
-		UnscopedBackendPrefix:       backend.NewKey(accessListPrefix),
-		ScopedBackendPrefix:         backend.NewKey(scopedPrefix, accessListPrefix),
-		MarshalFunc:                 services.MarshalAccessList,
-		UnmarshalFunc:               services.UnmarshalAccessList,
-		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		Backend:                      cfg.Backend,
+		PageLimit:                    accessListMaxPageSize,
+		ResourceKind:                 types.KindAccessList,
+		UnscopedBackendPrefix:        backend.NewKey(accessListPrefix),
+		ScopedBackendPrefix:          backend.NewKey(scopedPrefix, accessListPrefix),
+		MarshalFunc:                  services.MarshalAccessList,
+		UnmarshalFunc:                services.UnmarshalAccessList,
+		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
+		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	memberService, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[*accesslist.AccessListMember]{
-		Backend:                     cfg.Backend,
-		PageLimit:                   accessListMemberMaxPageSize,
-		ResourceKind:                types.KindAccessListMember,
-		UnscopedBackendPrefix:       backend.NewKey(accessListMemberPrefix),
-		ScopedBackendPrefix:         backend.NewKey(scopedPrefix, accessListMemberPrefix),
-		MarshalFunc:                 services.MarshalAccessListMember,
-		UnmarshalFunc:               services.UnmarshalAccessListMember,
-		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		Backend:                      cfg.Backend,
+		PageLimit:                    accessListMemberMaxPageSize,
+		ResourceKind:                 types.KindAccessListMember,
+		UnscopedBackendPrefix:        backend.NewKey(accessListMemberPrefix),
+		ScopedBackendPrefix:          backend.NewKey(scopedPrefix, accessListMemberPrefix),
+		MarshalFunc:                  services.MarshalAccessListMember,
+		UnmarshalFunc:                services.UnmarshalAccessListMember,
+		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
+		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	reviewService, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[*accesslist.Review]{
-		Backend:                     cfg.Backend,
-		PageLimit:                   accessListReviewMaxPageSize,
-		ResourceKind:                types.KindAccessListReview,
-		UnscopedBackendPrefix:       backend.NewKey(accessListReviewPrefix),
-		ScopedBackendPrefix:         backend.NewKey(scopedPrefix, accessListReviewPrefix),
-		MarshalFunc:                 services.MarshalAccessListReview,
-		UnmarshalFunc:               services.UnmarshalAccessListReview,
-		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		Backend:                      cfg.Backend,
+		PageLimit:                    accessListReviewMaxPageSize,
+		ResourceKind:                 types.KindAccessListReview,
+		UnscopedBackendPrefix:        backend.NewKey(accessListReviewPrefix),
+		ScopedBackendPrefix:          backend.NewKey(scopedPrefix, accessListReviewPrefix),
+		MarshalFunc:                  services.MarshalAccessListReview,
+		UnmarshalFunc:                services.UnmarshalAccessListReview,
+		RunWhileLockedRetryInterval:  cfg.RunWhileLockedRetryInterval,
+		RunWhileLockedReleaseTimeout: accessListLockReleaseTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -390,6 +402,12 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 
 // ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
+	return a.ListMatchingAccessLists(ctx, req)
+}
+
+// ListMatchingAccessLists returns a filtered and sorted paginated list of access lists.
+// Search term matchers are evaluated in order for terms that do not match stored access list fields.
+func (a *AccessListService) ListMatchingAccessLists(ctx context.Context, req *accesslistv1.ListAccessListsV2Request, searchTermMatchers ...services.AccessListSearchTermMatcherFunc) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
 	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
@@ -402,7 +420,7 @@ func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accessli
 	}
 
 	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter()) && scopes.MatchScope(scopeFilter, item.GetScope())
+		return services.MatchAccessList(item, req.GetFilter(), searchTermMatchers...) && scopes.MatchScope(scopeFilter, item.GetScope())
 	})
 }
 

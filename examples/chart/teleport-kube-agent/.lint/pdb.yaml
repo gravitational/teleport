@@ -5,3 +5,4 @@ highAvailability:
   podDisruptionBudget:
     enabled: true
     minAvailable: 2
+    unhealthyPodEvictionPolicy: "AlwaysAllow"

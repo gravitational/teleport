@@ -1,6 +1,10 @@
 suite: Proxy Service
 templates:
   - proxy.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: uses a LoadBalancer by default

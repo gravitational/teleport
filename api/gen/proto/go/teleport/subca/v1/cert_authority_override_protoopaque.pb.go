@@ -46,7 +46,7 @@ const (
 // self-signed root).
 //
 // Key material is never impacted by overrides, only certificates can be
-// overriden.
+// overridden.
 //
 // https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
 type CertAuthorityOverride struct {
@@ -329,6 +329,10 @@ type CertAuthorityOverrideStatus_builder struct {
 
 	// CRLs generated for each certificate override, keyed by normalized/lowercase
 	// public_key_hash.
+	//
+	// CRLs for disabled overrides may be created asynchronously, using
+	// CertAuthorityOverride watchers, if the Auth server performing the writes
+	// lacks access to certain keys.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList
 }
 

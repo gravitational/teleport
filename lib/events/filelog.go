@@ -197,6 +197,9 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 //
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the file audit backend does not support the beam ID filter")
+	}
 	l.logger.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit, "search", req.Search)
 	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{
 		eventTypes: req.EventTypes,
@@ -214,6 +217,9 @@ func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]
 }
 
 func (l *FileLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	if req.BeamID != "" {
+		return nil, "", trace.NotImplemented("the file audit backend does not support the beam ID filter")
+	}
 	l.logger.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To, "event_type", req.EventTypes, "limit", req.Limit)
 	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 	if err != nil {

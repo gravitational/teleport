@@ -63,7 +63,7 @@
     "playwright": "^1.61.1",
     "react-select-event": "^5.5.1",
     "storybook": "^10.4.6",
-    "svgo": "^4.0.1",
+    "svgo": "^4.0.2",
     "typescript": "^6.0.3",
     "vite": "^8.1.0"
   },
@@ -96,7 +96,7 @@
     "react-error-boundary": "^6.1.2",
     "react-hook-form": "^7.80.0",
     "react-is": "^19.2.7",
-    "react-router": "^8.1.0",
+    "react-router": "^8.3.0",
     "react-select": "^5.10.2",
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.4.3",
@@ -111,7 +111,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b",
+  "packageManager": "pnpm@11.17.0+sha512.cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
   "engines": {
     "node": "^24"
   }

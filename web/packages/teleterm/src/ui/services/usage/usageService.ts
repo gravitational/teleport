@@ -19,6 +19,7 @@
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { getErrorMessage } from 'shared/utils/error';
 
 import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -304,9 +305,9 @@ export class UsageService {
     } catch (e) {
       this.notificationsService.notifyWarning({
         title: 'Failed to report usage event',
-        description: e.message,
+        description: getErrorMessage(e),
       });
-      this.logger.warn(`Failed to report usage event`, e.message);
+      this.logger.warn('Failed to report usage event', e);
     }
   }
 

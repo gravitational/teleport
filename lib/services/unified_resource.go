@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/componentfeatures"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -551,7 +552,13 @@ func newWatcher(ctx context.Context, resourceCache *UnifiedResourceCache, cfg Re
 
 // resourceName is a unique name to be used as a key in the resources map
 func resourceKey(resource types.Resource) string {
-	return resource.GetName() + "/" + resource.GetKind()
+	key := resource.GetName() + "/" + resource.GetKind()
+	if r, ok := resource.(interface{ GetScope() string }); ok {
+		if scope := r.GetScope(); scope != "" {
+			key = scopes.QualifiedName{Name: key, Scope: scope}.String()
+		}
+	}
+	return key
 }
 
 type resourceSortKey struct {
@@ -583,6 +590,9 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 				name = sanitizedFriendlyName + "/" + app.GetName()
 			} else {
 				name = app.GetName()
+			}
+			if scope := r.GetScope(); scope != "" {
+				name = scopes.QualifiedName{Name: name, Scope: scope}.String()
 			}
 			kind = types.KindApp
 		}

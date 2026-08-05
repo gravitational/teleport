@@ -35,7 +35,7 @@ import (
 
 const testDefaultTimeout = 2 * time.Second
 
-var allKinds []Kind = []Kind{KindSQLite}
+var allKinds []Kind = []Kind{KindSQLiteDisk, KindSQLiteMemory}
 
 func newTestQueue(tb testing.TB, kind Kind) Queue {
 	tb.Helper()
@@ -51,6 +51,19 @@ func newTestQueueWithConfig(tb testing.TB, kind Kind, cfg Config) Queue {
 		require.NoError(tb, q.Close())
 	})
 	return q
+}
+
+func underlyingQueue(tb testing.TB, q Queue) *sqliteQueue {
+	tb.Helper()
+	switch v := q.(type) {
+	case *sqliteQueue:
+		return v
+	case *sqliteInMemoryQueue:
+		return v.inner
+	default:
+		tb.Fatalf("unexpected queue type %T", q)
+		return nil
+	}
 }
 
 func quietLogs(tb testing.TB) {
@@ -420,8 +433,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 			runErr := make(chan error, 1)
 			go func() { runErr <- q.Run(runCtx, handler) }()
 
-			sq, ok := q.(*sqliteQueue)
-			require.True(t, ok)
+			sq := underlyingQueue(t, q)
 
 			// Wait for the event to exhaust its attempts and land in the
 			// dead-letter queue, then signal recovery.
@@ -438,6 +450,62 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 			case <-time.After(testDefaultTimeout):
 				t.Fatal("dead-letter sweep never re-delivered the event after recovery")
 			}
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
+func TestEnqueueDequeue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type:        "user.login",
+			Code:        "T1000I",
+			Index:       42,
+			ClusterName: "my-cluster",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  "alice",
+			Login: "root",
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: "1.2.3.4:5678",
+			Protocol:   "ssh",
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		Method: "local",
+	}
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			q := newTestQueue(t, kind)
+
+			require.NoError(t, q.Enqueue(original))
+
+			delivered := make(chan apievents.AuditEvent, 1)
+			handler := func(_ context.Context, items []Item) []Item {
+				for _, item := range items {
+					delivered <- item.Event
+				}
+				return items
+			}
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			got := <-delivered
+			require.IsType(t, original, got)
+			require.Equal(t, original, got)
 
 			cancel()
 			require.ErrorIs(t, <-runErr, context.Canceled)

@@ -99,6 +99,9 @@ type Config struct {
 	// the beginning of the shutdown procedures.
 	ShutdownDelay time.Duration
 
+	// AuditQueue configures the audit log event queue.
+	AuditQueue AuditQueueConfig
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
@@ -325,9 +328,6 @@ type ConfigTesting struct {
 
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
-
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
@@ -638,6 +638,22 @@ func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
 }
 
+// ProxyWebAddr returns the address used to reach the cluster's web API: the
+// configured proxy for v3 configs, otherwise the first address in auth_servers
+// (in v1/v2 configs, this could be either a proxy or an auth server).
+//
+// Config validation guarantees one of the two is set. Returns an empty NetAddr
+// if no addresses are configured, which is unreachable for a validated config.
+func (cfg *Config) ProxyWebAddr() utils.NetAddr {
+	if cfg.Version == defaults.TeleportConfigVersionV3 && !cfg.ProxyServer.IsEmpty() {
+		return cfg.ProxyServer
+	}
+	if authServers := cfg.AuthServerAddresses(); len(authServers) > 0 {
+		return authServers[0]
+	}
+	return utils.NetAddr{}
+}
+
 // Token returns token needed to join the auth server
 //
 // If the value stored points to a file, it will attempt to read the token value from the file
@@ -647,7 +663,11 @@ func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
-		return "", trace.Wrap(err)
+		if _, parseErr := scopes.ParseQualifiedName(cfg.token); parseErr != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return cfg.token, nil
 	}
 
 	return token, nil

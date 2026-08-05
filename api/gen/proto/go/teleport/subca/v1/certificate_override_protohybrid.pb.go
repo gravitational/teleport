@@ -72,6 +72,9 @@ type CertificateOverride struct {
 	// A disabled override may exist for recording purposes, to be enabled later,
 	// or simply to mark a certain public key as not overridden. In the latter
 	// case the certificate may be absent.
+	//
+	// Disabled overrides allow CRLs to be created asynchronously, using
+	// CertAuthorityOverride watchers.
 	Disabled      bool `protobuf:"varint,4,opt,name=disabled,proto3" json:"disabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -177,6 +180,9 @@ type CertificateOverride_builder struct {
 	// A disabled override may exist for recording purposes, to be enabled later,
 	// or simply to mark a certain public key as not overridden. In the latter
 	// case the certificate may be absent.
+	//
+	// Disabled overrides allow CRLs to be created asynchronously, using
+	// CertAuthorityOverride watchers.
 	Disabled bool
 }
 

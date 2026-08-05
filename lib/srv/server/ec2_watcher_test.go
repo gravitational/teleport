@@ -32,6 +32,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -85,6 +86,18 @@ func (m *mockAWSAccountClient) ListRegions(ctx context.Context, input *account.L
 	return m.output, nil
 }
 
+type mockAWSSTSClient struct {
+	output        *sts.GetCallerIdentityOutput
+	responseError error
+}
+
+func (m *mockAWSSTSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	if m.responseError != nil {
+		return nil, m.responseError
+	}
+	return m.output, nil
+}
+
 type mockOrganizationsClient struct {
 	organizationID string
 	rootOUID       string
@@ -96,6 +109,74 @@ type ouItem struct {
 	innerOUs               []string
 	innerAccounts          []string
 	innerNotActiveAccounts []string
+}
+
+func TestEC2WatcherResolveCallerIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		accountID = "123456789012"
+		callerARN = "arn:aws:sts::123456789012:assumed-role/Discovery/session"
+	)
+
+	tests := []struct {
+		name      string
+		stsGetter AWSSTSGetter
+		want      *awsCallerIdentity
+		wantErr   bool
+	}{
+		{
+			name:    "missing STS getter",
+			wantErr: true,
+		},
+		{
+			name: "nil STS client",
+			stsGetter: func(context.Context, string, ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+				return nil, nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "nil caller identity response",
+			stsGetter: func(context.Context, string, ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+				return &mockAWSSTSClient{}, nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "caller identity",
+			stsGetter: func(context.Context, string, ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+				return &mockAWSSTSClient{
+					output: &sts.GetCallerIdentityOutput{
+						Account: aws.String(accountID),
+						Arn:     aws.String(callerARN),
+					},
+				}, nil
+			},
+			want: &awsCallerIdentity{
+				accountID: accountID,
+				arn:       callerARN,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+				AWSSTSGetter: tt.stsGetter,
+			})
+			identity, err := fetcher.resolveCallerIdentity(t.Context(), "")
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Nil(t, identity)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, identity)
+		})
+	}
 }
 
 func (m *mockOrganizationsClient) ListChildren(ctx context.Context, input *organizations.ListChildrenInput, opts ...func(*organizations.Options)) (*organizations.ListChildrenOutput, error) {
@@ -661,6 +742,8 @@ func TestEC2WatcherOrganizationAccessDeniedReturnsPermissionError(t *testing.T) 
 		integrationName     = "aws-integration"
 		organizationID      = "o-abcdefghij"
 		roleARN             = "arn:aws:iam::123456789012:role/OrganizationReader"
+		stsAccountID        = "210987654321"
+		callerARN           = "arn:aws:sts::210987654321:assumed-role/OrganizationReader/session"
 	)
 
 	matchers := []types.AWSMatcher{
@@ -699,6 +782,16 @@ func TestEC2WatcherOrganizationAccessDeniedReturnsPermissionError(t *testing.T) 
 				responseError: trace.AccessDenied("organizations denied"),
 			}, nil
 		},
+		AWSSTSGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+			require.Empty(t, region)
+			require.Empty(t, awsconfig.AssumedRoles(opts...))
+			return &mockAWSSTSClient{
+				output: &sts.GetCallerIdentityOutput{
+					Account: aws.String(stsAccountID),
+					Arn:     aws.String(callerARN),
+				},
+			}, nil
+		},
 		DiscoveryConfigName: discoveryConfigName,
 	})
 	require.NoError(t, err)
@@ -715,9 +808,49 @@ func TestEC2WatcherOrganizationAccessDeniedReturnsPermissionError(t *testing.T) 
 	require.Equal(t, integrationName, permErr.Integration)
 	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, permErr.IssueType)
 	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
-	require.Equal(t, "123456789012", permErr.AccountID)
+	require.Equal(t, stsAccountID, permErr.AccountID)
+	require.Equal(t, callerARN, permErr.CallerARN)
 	require.Empty(t, permErr.Region)
 	require.True(t, trace.IsAccessDenied(permErr.Err))
+}
+
+func TestEC2WatcherCallerIdentityFailureDoesNotBlockOrganizationDiscovery(t *testing.T) {
+	t.Parallel()
+
+	const integrationName = "aws-integration"
+
+	fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+		Matcher: types.AWSMatcher{
+			Integration: integrationName,
+			Organization: &types.AWSOrganizationMatcher{
+				OrganizationID: "o-abcdefghij",
+				OrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+					Include: []string{types.Wildcard},
+				},
+			},
+		},
+		AWSOrganizationsGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
+			return &mockOrganizationsClient{
+				responseError: trace.AccessDenied("organizations denied"),
+			}, nil
+		},
+		AWSSTSGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+			return &mockAWSSTSClient{
+				responseError: errors.New("STS endpoint unavailable"),
+			}, nil
+		},
+		Logger: logtest.NewLogger(),
+	})
+
+	accountIDs, err := fetcher.fetchAccountIDsUnderOrganization(t.Context())
+	require.Error(t, err)
+	require.Empty(t, accountIDs)
+
+	permissionErrors := EC2IAMPermissionErrors(err)
+	require.Len(t, permissionErrors, 1)
+	require.Equal(t, integrationName, permissionErrors[0].Integration)
+	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, permissionErrors[0].IssueType)
+	require.True(t, trace.IsAccessDenied(permissionErrors[0].Err))
 }
 
 func TestEC2WatcherOrganizationClientCreationPermissionErrorReturnsPermissionError(t *testing.T) {
@@ -728,6 +861,8 @@ func TestEC2WatcherOrganizationClientCreationPermissionErrorReturnsPermissionErr
 		integrationName     = "aws-integration"
 		organizationID      = "o-abcdefghij"
 		roleARN             = "arn:aws:iam::123456789012:role/OrganizationReader"
+		stsAccountID        = "210987654321"
+		callerARN           = "arn:aws:sts::210987654321:assumed-role/OrganizationReader/session"
 	)
 
 	for _, tt := range []struct {
@@ -789,6 +924,16 @@ func TestEC2WatcherOrganizationClientCreationPermissionErrorReturnsPermissionErr
 				AWSOrganizationsGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (liborganizations.OrganizationsClient, error) {
 					return nil, tt.err
 				},
+				AWSSTSGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+					require.Empty(t, region)
+					require.Empty(t, awsconfig.AssumedRoles(opts...))
+					return &mockAWSSTSClient{
+						output: &sts.GetCallerIdentityOutput{
+							Account: aws.String(stsAccountID),
+							Arn:     aws.String(callerARN),
+						},
+					}, nil
+				},
 				DiscoveryConfigName: discoveryConfigName,
 			})
 			require.NoError(t, err)
@@ -805,7 +950,8 @@ func TestEC2WatcherOrganizationClientCreationPermissionErrorReturnsPermissionErr
 			require.Equal(t, integrationName, permErr.Integration)
 			require.Equal(t, usertasks.AutoDiscoverEC2IssuePermOrgDenied, permErr.IssueType)
 			require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
-			require.Equal(t, "123456789012", permErr.AccountID)
+			require.Equal(t, stsAccountID, permErr.AccountID)
+			require.Equal(t, callerARN, permErr.CallerARN)
 			require.Empty(t, permErr.Region)
 			tt.checkErr(t, permErr.Err)
 		})
@@ -867,6 +1013,74 @@ func TestEC2WatcherListRegionsAccessDeniedReturnsPermissionError(t *testing.T) {
 	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
 	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
 	require.Equal(t, "123456789012", permErr.AccountID)
+	require.Empty(t, permErr.Region)
+	require.True(t, trace.IsAccessDenied(permErr.Err))
+}
+
+func TestEC2WatcherListRegionsAccessDeniedResolvesAccountIDFromSTS(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-regions"
+		integrationName     = "aws-integration"
+		stsAccountID        = "210987654321"
+		callerARN           = "arn:aws:sts::210987654321:assumed-role/Discovery/session"
+	)
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{types.Wildcard},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+		},
+	}
+
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return nil, errors.New("EC2 client getter must not be called when region listing fails")
+		},
+		RegionsListerGetter: func(ctx context.Context, opts ...awsconfig.OptionsFn) (account.ListRegionsAPIClient, error) {
+			return &mockAWSAccountClient{
+				responseError: trace.AccessDenied("account regions denied"),
+			}, nil
+		},
+		AWSSTSGetter: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+			require.Empty(t, region)
+			require.Empty(t, awsconfig.AssumedRoles(opts...))
+			return &mockAWSSTSClient{
+				output: &sts.GetCallerIdentityOutput{
+					Account: aws.String(stsAccountID),
+					Arn:     aws.String(callerARN),
+				},
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.Error(t, err)
+	require.Empty(t, results)
+
+	permissionErrors := EC2IAMPermissionErrors(err)
+	require.Len(t, permissionErrors, 1)
+
+	permErr := permissionErrors[0]
+	require.Equal(t, integrationName, permErr.Integration)
+	require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
+	require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
+	require.Equal(t, stsAccountID, permErr.AccountID)
+	require.Equal(t, callerARN, permErr.CallerARN)
 	require.Empty(t, permErr.Region)
 	require.True(t, trace.IsAccessDenied(permErr.Err))
 }
@@ -961,6 +1175,151 @@ func TestEC2WatcherDescribeInstancesAccessDeniedReturnsPermissionErrorAndPartial
 		AssumeRoleARN:       roleARN,
 		DiscoveryConfigName: discoveryConfigName,
 	}, results[0])
+}
+
+func TestEC2WatcherDescribeInstancesAccessDeniedResolvesAccountIDFromSTS(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-describe"
+		integrationName     = "aws-integration"
+		stsAccountID        = "210987654321"
+		callerARN           = "arn:aws:sts::210987654321:assumed-role/Discovery/session"
+	)
+	regions := []string{"us-west-2", "us-east-1"}
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     regions,
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+		},
+	}
+
+	stsCalls := 0
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, gotRegion string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			require.Contains(t, regions, gotRegion)
+			return &mockEC2Client{
+				responseError: trace.AccessDenied("describe instances denied"),
+			}, nil
+		},
+		AWSSTSGetter: func(ctx context.Context, gotRegion string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+			stsCalls++
+			require.Empty(t, gotRegion)
+			require.Empty(t, awsconfig.AssumedRoles(opts...))
+			return &mockAWSSTSClient{
+				output: &sts.GetCallerIdentityOutput{
+					Account: aws.String(stsAccountID),
+					Arn:     aws.String(callerARN),
+				},
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.Error(t, err)
+	require.Empty(t, results)
+
+	permissionErrors := EC2IAMPermissionErrors(err)
+	require.Len(t, permissionErrors, 2)
+	require.Equal(t, 1, stsCalls)
+
+	var gotRegions []string
+	for _, permErr := range permissionErrors {
+		require.Equal(t, integrationName, permErr.Integration)
+		require.Equal(t, usertasks.AutoDiscoverEC2IssuePermAccountDenied, permErr.IssueType)
+		require.Equal(t, discoveryConfigName, permErr.DiscoveryConfigName)
+		require.Equal(t, stsAccountID, permErr.AccountID)
+		require.Equal(t, callerARN, permErr.CallerARN)
+		require.True(t, trace.IsAccessDenied(permErr.Err))
+		gotRegions = append(gotRegions, permErr.Region)
+	}
+	require.ElementsMatch(t, regions, gotRegions)
+}
+
+func TestEC2WatcherSuccessfulDiscoveryDoesNotResolveCallerIdentity(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfigName = "dc-caller-identity"
+		integrationName     = "aws-integration"
+		region              = "us-west-2"
+	)
+
+	matchers := []types.AWSMatcher{
+		{
+			Params: &types.InstallerParams{
+				InstallTeleport: true,
+			},
+			Types:       []string{"ec2"},
+			Regions:     []string{region},
+			Tags:        map[string]utils.Strings{"teleport": {"yes"}},
+			Integration: integrationName,
+			SSM:         &types.AWSSSM{},
+		},
+	}
+
+	stsCalls := 0
+	fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+		Matchers: matchers,
+		PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+			return "proxy.example.com:3080", nil
+		},
+		EC2ClientGetter: func(ctx context.Context, gotRegion string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			require.Equal(t, region, gotRegion)
+			return &mockEC2Client{
+				output: &ec2.DescribeInstancesOutput{
+					Reservations: []ec2types.Reservation{{
+						OwnerId: aws.String("123456789012"),
+						Instances: []ec2types.Instance{{
+							InstanceId: aws.String("i-1234567890abcdef0"),
+							State: &ec2types.InstanceState{
+								Name: ec2types.InstanceStateNameRunning,
+							},
+							Tags: []ec2types.Tag{{
+								Key:   aws.String("teleport"),
+								Value: aws.String("yes"),
+							}},
+						}},
+					}},
+				},
+			}, nil
+		},
+		AWSSTSGetter: func(ctx context.Context, gotRegion string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error) {
+			stsCalls++
+			require.Empty(t, gotRegion)
+			return &mockAWSSTSClient{
+				responseError: fmt.Errorf("failed to retrieve credentials: %w", &ststypes.InvalidIdentityTokenException{
+					Message: aws.String("No OpenIDConnect provider found"),
+				}),
+			}, nil
+		},
+		DiscoveryConfigName: discoveryConfigName,
+		Logger:              logtest.NewLogger(),
+	})
+	require.NoError(t, err)
+	require.Len(t, fetchers, 1)
+
+	results, err := fetchers[0].GetInstances(t.Context(), false)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "123456789012", results[0].AccountID)
+	require.Equal(t, region, results[0].Region)
+	require.Len(t, results[0].Instances, 1)
+	require.Zero(t, stsCalls)
 }
 
 func TestEC2WatcherClientCreationPermissionErrorReturnsPermissionError(t *testing.T) {

@@ -1,6 +1,7 @@
 {{ role="myrole" user="your Teleport user" }}
-Assign the `{{ role }}` role to {{ user }} by running the appropriate
-commands for your authentication provider:
+Assign the `{{ role }}` role to {{ user }}. The commands to run depend on how
+you authenticate to Teleport, that is, whether you have a local Teleport user, a
+single sign-on authentication connector, or a non-interactive user:
 
 <Tabs>
 <TabItem label="Local User">
@@ -102,13 +103,13 @@ commands for your authentication provider:
    oidc.yaml file immediately after updating the resource.
 
 1. Edit `oidc.yaml`, adding `{{ role }}` to the `claims_to_roles` section. 
-   
+
    The claim you should map to this role depends on how you have designed your organization's 
    role-based access controls (RBAC). However, the group must include your user account and
    should be the smallest group possible within your organization.
-   
+
    Here is an example:
-   
+
    ```diff
      claims_to_roles:
        - name: "groups"
@@ -119,12 +120,63 @@ commands for your authentication provider:
    ```
 
 1. Apply your changes:
-   
+
    ```code
    $ tctl create -f oidc.yaml
    ```
 
 1. Sign out of the Teleport cluster and sign in again to assume the new role.
+
+</TabItem>
+<TabItem label="Non-Interactive">
+
+For non-interactive users such as AI agents and CI/CD runners, follow these
+steps.
+
+If you are using Machine ID to issue identity files to your user:
+
+1. Add the new role to your bot. Assign <Var name="mybot" /> to the name of the
+   Machine ID bot that issues your certificate:
+
+   ```code
+   $ tctl bots update <Var name="mybot" /> --add-roles {{ role }}
+   ```
+
+1. Force `tbot` to regenerate the certificate:
+
+   ```code
+   $ pkill -HUP tbot
+   ```
+
+   The bot will also generate a certificate with the new role on its next
+   renewal.
+
+Otherwise, update your user and regenerate your identity file:
+
+1. Retrieve your local user's roles as a comma-separated list. Make sure
+   <Var name="username" /> is the Teleport user you want to assign the new role
+   to.
+
+   ```code
+   $ ROLES=$(tctl get user/<Var name="username" /> --format=json | jq -r '.[].spec.roles | join(",")')
+   ```
+
+1. Edit your local user to add the new role:
+
+   ```code
+   $ tctl users update <Var name="username" /> \
+     --set-roles "${ROLES?},{{ role }}"
+   ```
+
+1. Regenerate the identity file. Make sure <Var name="path/to/identity/file" />
+   corresponds to the correct output path:
+
+   ```code
+   $ tctl auth sign \
+     --user=<Var name="username" /> \
+     --out=<Var name="path/to/identity/file" /> \
+     --overwrite
+   ```
 
 </TabItem>
 </Tabs>

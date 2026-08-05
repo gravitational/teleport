@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestValidateCreate(t *testing.T) {
@@ -194,9 +195,9 @@ func TestBuildResourceAccessRoles(t *testing.T) {
 
 func TestBuildMembers(t *testing.T) {
 	const listID = "acl-123"
-	c := Command{members: "apple,banana", memberAccessLists: "some-list"}
+	c := Command{members: "apple,banana", memberAccessLists: "some-list,/scoped::other-list"}
 
-	members, err := c.buildMembers(listID)
+	members, err := c.buildMembers(scopes.QualifiedName{Name: listID})
 	require.NoError(t, err)
 
 	gotKinds := make(map[string]string, len(members))
@@ -206,16 +207,18 @@ func TestBuildMembers(t *testing.T) {
 	}
 
 	require.Equal(t, map[string]string{
-		"apple":     accesslist.MembershipKindUser,
-		"banana":    accesslist.MembershipKindUser,
-		"some-list": accesslist.MembershipKindList,
+		"apple":               accesslist.MembershipKindUser,
+		"banana":              accesslist.MembershipKindUser,
+		"some-list":           accesslist.MembershipKindList,
+		"/scoped::other-list": accesslist.MembershipKindScopedList,
 	}, gotKinds)
 }
 
 func TestBuildOwners(t *testing.T) {
-	c := Command{owners: "apple,banana", ownerAccessLists: "some-list"}
+	c := Command{owners: "apple,banana", ownerAccessLists: "some-list,/scoped::other-list"}
 
-	owners := c.buildOwners()
+	owners, err := c.buildOwners()
+	require.NoError(t, err)
 
 	gotKinds := make(map[string]string, len(owners))
 	for _, o := range owners {
@@ -223,8 +226,9 @@ func TestBuildOwners(t *testing.T) {
 	}
 
 	require.Equal(t, map[string]string{
-		"apple":     accesslist.MembershipKindUser,
-		"banana":    accesslist.MembershipKindUser,
-		"some-list": accesslist.MembershipKindList,
+		"apple":               accesslist.MembershipKindUser,
+		"banana":              accesslist.MembershipKindUser,
+		"some-list":           accesslist.MembershipKindList,
+		"/scoped::other-list": accesslist.MembershipKindScopedList,
 	}, gotKinds)
 }

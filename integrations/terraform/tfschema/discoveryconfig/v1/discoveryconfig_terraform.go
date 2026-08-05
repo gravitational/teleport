@@ -602,7 +602,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:    true,
 						}),
 						"locations": {
-							Description: "Locations are GKE locations to search resources for.",
+							Description: "Locations are GCP locations to search resources for.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -621,7 +621,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 							Optional:    true,
 						}),
 						"types": {
-							Description: "Types are GKE resource types to match: \"gke\", \"vm\".",
+							Description: "Types are GCP resource types to match: \"gke\", \"gce\", \"cloudsql\".",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},

@@ -26,6 +26,9 @@ import * as Icon from 'design/Icon';
 import { H1, H2 } from 'design/Text';
 import { useStore } from 'shared/libs/stores';
 
+import history from 'teleport/services/history/history';
+import { storageService } from 'teleport/services/storageService';
+import session from 'teleport/services/websession/websession';
 import useTeleport from 'teleport/useTeleport';
 
 /**
@@ -39,6 +42,17 @@ export function LoginScopePicker() {
   const ctx = useTeleport();
   const storeUser = useStore(ctx.storeUser);
 
+  function signInWithScope(scope: string) {
+    session.switchScope(scope);
+  }
+
+  function signInWithoutScope() {
+    storageService.setScopeSelected(true);
+    const redirect = history.getEntryRoute();
+    const withPageRefresh = true;
+    history.push(redirect, withPageRefresh);
+  }
+
   return (
     <Box px="5" width="100%" overflow="scroll">
       <Card my="5" mx="auto" width="100%" maxWidth={600} p={4}>
@@ -47,9 +61,28 @@ export function LoginScopePicker() {
           Choose a scope for your session:
         </H2>
         <Stack gap={2} as={Ul}>
+          <Li>
+            <ScopeButton
+              block
+              size="extra-large"
+              onClick={() => signInWithoutScope()}
+            >
+              <Icon.Home />
+              <Flex justifyContent="start" flex={1}>
+                Teleport Home
+              </Flex>
+              <SignInAffordance gap={2}>
+                Sign in <Icon.ArrowForward />
+              </SignInAffordance>
+            </ScopeButton>
+          </Li>
           {storeUser.getAvailableScopes().map(scope => (
             <Li key={scope}>
-              <ScopeButton key={scope} block size="extra-large">
+              <ScopeButton
+                block
+                size="extra-large"
+                onClick={() => signInWithScope(scope)}
+              >
                 <Icon.Contract />
                 <Flex justifyContent="start" flex={1}>
                   {scope}

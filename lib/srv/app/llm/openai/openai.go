@@ -28,6 +28,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
+	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
+	llmlimiter "github.com/gravitational/teleport/lib/srv/app/llm/limiter"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,9 +38,13 @@ import (
 
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*llmrequest.Request, error) {
 	var (
-		info            = &RequestInfo{}
+		info = &RequestInfo{}
+		res  = &llmrequest.Request{
+			Info:       info,
+			SettleFunc: llmlimiter.EmptySettleFunc,
+		}
 		providerPath    string
 		providerMethod  string
 		providerHeaders = http.Header{}
@@ -45,7 +52,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	// Default URL address.
@@ -57,61 +64,70 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		Path:   "/v1",
 	})
 
+	// All endpoints use JSON content-type.
+	providerHeaders.Set("Content-Type", "application/json")
 	llm := cfg.App.GetLLM()
-	// TODO(gabrielcorado): add support for bedrock provider.
-	switch llm.Provider {
-	case types.LLMProviderOpenAI:
-		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
-		// https://developers.openai.com/api/reference/resources/responses/methods/create
-		case "/responses":
-			if cfg.DownstreamRequest.Method != http.MethodPost {
-				// We're ok with returning 404 back to clients instead 405 status.
-				return nil, info, trace.NotFound("responses API supports only POST requests")
-			}
 
-			// Currently, websocket mode is not supported.
-			//
-			// https://developers.openai.com/api/docs/guides/websocket-mode
-			if websocket.IsWebSocketUpgrade(cfg.DownstreamRequest) {
-				return nil, info, trace.NotFound("websocket mode is not supported")
-			}
-
-			info.endpointType = endpointTypeResponses
-			providerPath = "/responses"
-			providerMethod = http.MethodPost
-			req = &responsesAPIRequest{}
-		// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
-		case "/chat/completions":
-			if cfg.DownstreamRequest.Method != http.MethodPost {
-				// We're ok with returning 404 back to clients instead 405 status.
-				return nil, info, trace.NotFound("chat completions API supports only POST requests")
-			}
-
-			info.endpointType = endpointTypeChatCompletions
-			providerPath = "/chat/completions"
-			providerMethod = http.MethodPost
-			req = &chatCompletionsAPIRequest{}
-		default:
-			return nil, info, trace.NotFound("unsupported endpoint")
+	// Both `openai` and `bedrock` providers support responses and chat
+	// completions endpoints.
+	//
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+	switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
+	// https://developers.openai.com/api/reference/resources/responses/methods/create
+	case "/responses":
+		if cfg.DownstreamRequest.Method != http.MethodPost {
+			// We're ok with returning 404 back to clients instead 405 status.
+			return res, trace.NotFound("responses API supports only POST requests")
 		}
 
+		// Teleport and Bedrock don't support WebSocket mode.
+		//
+		// https://developers.openai.com/api/docs/guides/websocket-mode
+		// https://developers.openai.com/api/docs/guides/amazon-bedrock#responses-api-feature-availability
+		if websocket.IsWebSocketUpgrade(cfg.DownstreamRequest) {
+			return res, trace.NotFound("websocket mode is not supported")
+		}
+
+		info.endpointType = endpointTypeResponses
+		providerPath = "/responses"
+		providerMethod = http.MethodPost
+		req = &responsesAPIRequest{}
+	case "/chat/completions":
+		if cfg.DownstreamRequest.Method != http.MethodPost {
+			// We're ok with returning 404 back to clients instead 405 status.
+			return res, trace.NotFound("chat completions API supports only POST requests")
+		}
+
+		info.endpointType = endpointTypeChatCompletions
+		providerPath = "/chat/completions"
+		providerMethod = http.MethodPost
+		req = &chatCompletionsAPIRequest{}
+	default:
+		return res, trace.NotFound("unsupported endpoint")
+	}
+
+	switch llm.Provider {
+	case types.LLMProviderOpenAI:
 		// OpenAI API requires only `Authorization` header carrying the API key.
 		//
 		// https://developers.openai.com/api/reference/overview#authentication
 		providerHeaders.Set("Authorization", "Bearer "+cfg.GetAPIKeyFunc())
-		providerHeaders.Set("Content-Type", "application/json")
+	case types.LLMProviderAWSBedrock:
+		cfg.ProviderURL = bedrock.BuildOpenAIURL(cfg.Logger, cfg.App, info.endpointType == endpointTypeResponses)
 	default:
-		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
+		return res, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
 
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
-	if err != nil {
-		return nil, info, trace.Wrap(err)
+	if closeErr := cfg.DownstreamRequest.Body.Close(); closeErr != nil {
+		cfg.Logger.WarnContext(cfg.DownstreamRequest.Context(), "failed to close downstream body", "error", closeErr)
 	}
-	defer cfg.DownstreamRequest.Body.Close()
+	if err != nil {
+		return res, trace.Wrap(err)
+	}
 
 	if err := utils.FastUnmarshal(body, &req); err != nil {
-		return nil, info, trace.BadParameter("unable to parse request body")
+		return res, trace.BadParameter("unable to parse request body")
 	}
 
 	// Clients can send `null` JSON values, and since we're decoding into an
@@ -119,11 +135,11 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	// interface causes it to be `nil`. This condition guards against this case
 	// avoiding a nil pointer exception.
 	if req == nil {
-		return nil, info, trace.BadParameter("invalid request body")
+		return res, trace.BadParameter("invalid request body")
 	}
 
 	if err := req.Validate(); err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	info.requestedModel = req.GetModel()
@@ -131,16 +147,39 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 
 	providerModel, found := models.ConvertName(llm.Models, llm.FallbackModel, req.GetModel())
 	if !found {
-		return nil, info, trace.BadParameter("requested model %q is not supported", req.GetModel())
+		return res, trace.BadParameter("requested model %q is not supported", req.GetModel())
 	}
 	info.providerModel = providerModel
 	req.SetModel(providerModel)
 	req.EnableReportUsage()
 	req.DisableDataRetention()
 
+	// OpenAI endpoints do not require max output tokens to be specified.
+	reserveReq := llmlimiter.ReserveRequest{App: cfg.App}
+	switch requestOutput := req.GetOutputTokens(); requestOutput {
+	case nil:
+		// Not specified: We ask the limiter to return the value to be used on
+		// the provider request.
+		// TODO(gabrielcorado): add reservation for input tokens.
+		reserveReq.MaxUsage = &llmlimiter.Usage{OutputTokens: maxOutputTokens}
+	default:
+		// Specified: Request exact amount.
+		// TODO(gabrielcorado): add reservation for input tokens.
+		reserveReq.Usage = &llmlimiter.Usage{OutputTokens: uint(*requestOutput)}
+	}
+	reserveInfo, settleFunc, err := cfg.Reserve(cfg.DownstreamRequest.Context(), reserveReq)
+	if err != nil {
+		return res, trace.Wrap(err)
+	}
+	res.SettleFunc = settleFunc
+
+	if !reserveInfo.NotApplicable {
+		req.SetOutputTokens(int(reserveInfo.OutputTokens))
+	}
+
 	providerBody, err := utils.FastMarshal(req)
 	if err != nil {
-		return nil, info, trace.ConnectionProblem(err, "failed to generate provider request")
+		return res, trace.ConnectionProblem(err, "failed to generate provider request")
 	}
 	info.requestSize = len(providerBody)
 
@@ -154,8 +193,37 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		bytes.NewBuffer(providerBody),
 	)
 	if err != nil {
-		return nil, info, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	providerReq.Header = providerHeaders
-	return providerReq, info, nil
+
+	if llm.Provider == types.LLMProviderAWSBedrock {
+		if err := cfg.SignBedrockRequest(providerReq.Context(), cfg.App, providerReq, providerBody); err != nil {
+			// The signing failure cause can carry AWS credentials/config
+			// details, so it is only logged, and clients receive a generic
+			// internal error message.
+			cfg.Logger.ErrorContext(providerReq.Context(), "failed to sign provider request", "error", err)
+			return res, llmerrors.ErrConfig
+		}
+	}
+
+	res.HTTPRequest = providerReq
+	return res, nil
 }
+
+const (
+	// maxOutputTokens is the max value that can be used on the provider to
+	// avoid using the entire limit all at once.
+	//
+	// OpenAI supports different models, here we picked the latest "model class"
+	// from them: `gpt-5`+, using as reference `gpt-5.6-sol`.
+	//
+	// Reference: https://developers.openai.com/api/docs/models/gpt-5.6-sol
+	//
+	// Note: This can cause older models to reject the requests. This is an
+	// acceptable risk.
+	//
+	// TODO(gabrielcorado): take this information from the LLM configuration so
+	// users can configure it on a per-model basis.
+	maxOutputTokens = 128_000 // 128k tokens.
+)

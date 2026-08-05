@@ -4,10 +4,10 @@
 # Identity Activity Center is unavailable.
 #
 # The mock mirrors the real command rather than policing flags:
-#   * With --from, the CLI queries IAC — down here — so we serve the access paths
-#     with no activity plus the "activity unavailable" warning.
-#   * Without --from the CLI never contacts IAC, so there is nothing to report
-#     unavailable: access paths, no activity, no warning.
+#   * Activity is requested by default; IAC is down here, so we serve the access
+#     paths with no per-resource activity plus the `activity_unavailable` message.
+#   * With --no-activity the CLI skips the IAC lookup, so there is nothing to
+#     report unavailable: access paths only, no message.
 #   * Output is always JSON (we only model the JSON path), regardless of --format.
 
 import json
@@ -19,7 +19,7 @@ args = sys.argv[1:]
 
 
 def read(filename, *, with_activity):
-    """Print a fixture, dropping activity and its warning when no window was requested."""
+    """Print a fixture, dropping activity data and the activity-unavailable message when activity was not requested."""
     with open(os.path.join(dir, filename)) as f:
         text = f.read()
     if with_activity:
@@ -29,21 +29,10 @@ def read(filename, *, with_activity):
     for identity in data.get("identities", []):
         for resource in identity.get("resources", []):
             resource.pop("activity", None)
-    warnings = [w for w in data.get("warnings", []) if "activity unavailable" not in w]
-    if warnings:
-        data["warnings"] = warnings
-    else:
-        data.pop("warnings", None)
+    # No activity requested -> the CLI never contacts IAC, so there is no
+    # activity-unavailable message either.
+    data.pop("activity_unavailable", None)
     print(json.dumps(data, indent=2), end="")
-
-
-def wants_flag(flag):
-    for i, a in enumerate(args):
-        if a == flag and i + 1 < len(args):
-            return True
-        if a.startswith(f"{flag}="):
-            return True
-    return False
 
 
 if args[:1] == ["status"]:
@@ -53,8 +42,8 @@ elif args[:1] == ["access-review"]:
         print("usage: tctl access-review --query=QUERY [<flags>]\n")
         print("Review which identities can access which resources.")
     else:
-        windowed = wants_flag("--from")
-        read("no-activity.json", with_activity=windowed)
+        # Activity is on by default; only --no-activity skips the IAC lookup.
+        read("no-activity.json", with_activity="--no-activity" not in args)
 else:
     print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
     sys.exit(1)

@@ -30,6 +30,8 @@ page_type: how-to
 
 - (!docs/pages/includes/tctl.mdx!)
 
+(!docs/pages/includes/database-access/single-node-note.mdx!)
+
 ## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
@@ -41,7 +43,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
+(!docs/pages/includes/database-access/self-hosted-config-start.mdx dbName="myelastic" dbProtocol="elasticsearch" databaseAddress="elasticsearch.example.com:9200" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -49,11 +51,18 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
+  (!docs/pages/includes/database-access/self-hosted-db-helm-install.mdx dbName="myelastic" dbProtocol="elasticsearch" databaseAddress="elasticsearch.example.com:9200" !)
 </TabItem>
 </Tabs>
 
 (!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
+
+<Admonition type="note" title="Protocol name">
+The protocol name for Elasticsearch is `elasticsearch`. While `teleport db
+configure create` accepts arbitrary protocol strings without validation, the
+Database Service rejects any protocol not in the supported list at startup.
+Always use `elasticsearch` as the protocol value.
+</Admonition>
 
 ## Step 2/5. Create a Teleport user
 
@@ -127,6 +136,14 @@ Restart Elasticsearch to enable this configuration. Once mutual TLS has been ena
 longer be able to connect to the cluster without providing a valid client certificate. You can set
 `xpack.security.http.ssl.client_authentication` to `optional` to allow connections from clients
 that do not present a certificate, using other methods like username and password.
+
+<Admonition type="tip" title="Step ordering">
+Complete Step 3 (role mapping creation) before setting `client_authentication:
+required`. Once strict client authentication is enabled, you cannot use
+username/password to manage Elasticsearch. If you need to create or update role
+mappings after enabling mutual TLS, temporarily set `client_authentication:
+optional`, make your changes, then set it back to `required`.
+</Admonition>
 
 ## Step 5/5. Connect
 

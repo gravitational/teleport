@@ -104,11 +104,12 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
-|`--from`|*no default*|Show access activity at or after this time; enables the activity columns. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d). Default: activity hidden.|
+|`--from`|`24h`|Show access activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d).|
 |`--limit`|`50`|Maximum number of identities to return.|
-|`--[no-]detailed`|`false`|In text output, show each grantor with its individual access level instead of the summary counts.|
+|`--[no-]activity`|`true`|Use --no-activity to skip the activity lookup (on by default) for a faster, structural-only review; takes priority over --from/--to.|
+|`--[no-]detailed`|`false`|In text output, show each grant with its individual access level instead of the summary counts.|
 |`--query`|*no default*|SQL SELECT against access_path scoping the identities to review.|
-|`--to`|*no default*|Upper bound for access activity. Defaults to now when --from is set; requires --from.|
+|`--to`|`now`|Upper bound for access activity.|
 
 ## tctl acl create
 
@@ -118,8 +119,8 @@ Use --access-type to have Teleport create the access list's supporting roles
 for you. The --access-type value controls how members are granted access.
 Possible values are:
 
-  standing       members receive persistent access to the resources set below.
-  request-based  members must request that access; owners approve.
+  standing        members receive persistent access to the resources set below.
+  access-request  members must request that access; owners approve.
 
 The supporting roles are built from the resource flags you set. The available
 resource flags (grouped by target) are:
@@ -147,7 +148,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--access-type`|*no default* (one of: `standing`, `request-based`)|How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
+|`--access-type`|*no default* (one of: `standing`, `access-request`)|How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'access-request' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
 |`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
 |`--audit-day`|`1`|Day of month for audit (1, 15, or 31).|
 |`--audit-frequency`|`6`|Audit recurrence in months (1, 3, 6, or 12).|
@@ -397,7 +398,7 @@ Arguments:
 |access-list-name|*no default* (required)|The Access List name.|
 |expires|*no default* (optional)|When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.|
 |reason|*no default* (optional)|The reason the user has been added to the Access List. Defaults to empty.|
-|user|*no default* (required)|The user to add to the Access List.|
+|user|*no default* (required)|The member to add to the Access List.|
 
 ## tctl acl users ls
 
@@ -436,7 +437,7 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |access-list-name|*no default* (required)|The Access List name.|
-|user|*no default* (required)|The user to remove from the Access List.|
+|user|*no default* (required)|The member to remove from the Access List.|
 
 ## tctl alerts ack
 
@@ -814,6 +815,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--[no-]local-only`|`false`|If true only private keys local to the replying Auth server are used.|
 |`--out`|*no default*|If set writes CSRs to files using --out as the path prefix|
 |`--public-key`|*no default*|Public key hash of CA certificate to be targeted|
 |`--subject`|*no default*|Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"|
@@ -1234,7 +1236,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
+|name|*no default* (optional)|The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\]. If unset, lists instances from all bots.|
 
 ## tctl bots instances show
 
@@ -1250,7 +1252,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
+|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]. For an instance of a scoped bot, prefix the ID with the bot's scope: \[scope\]::\[bot name\]/\[uuid\].|
 
 ## tctl bots ls
 
@@ -1467,7 +1469,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Registers the current device. Overrides --os and --asset-tag.|
 |`--[no-]enroll`|`false`|If set, creates a device enrollment token|
-|`--os`|*no default* (one of: `linux`, `macos`, `windows`)|Operating system|
+|`--os`|*no default* (one of: `ios`, `ipados`, `linux`, `macos`, `windows`)|Operating system|
 
 ## tctl devices enroll
 
@@ -2838,6 +2840,7 @@ Flags:
 |`--bot-ttl`|`1h`|Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to \[1h\]|
 |`--resource-prefix`|`tctl-terraform-env-`|Resource prefix to use when creating the Terraform role and bots. Defaults to \[tctl-terraform-env-\]|
 |`--role`|*no default*|Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role "terraform-provider"|
+|`--scope`|*no default*|Scope of the bot used by the Terraform provider. When empty, TF provider runs unscoped.|
 
 ## tctl tokens add
 
