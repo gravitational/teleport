@@ -468,7 +468,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
-		KubeCluster:         "gke_project_europecentral2a_cluster1",
+		KubeCluster:         kubeClusterName,
 		CustomTLSServerName: localK8SNI,
 		TargetAddress:       suite.root.Config.Proxy.WebAddr,
 		RouteToCluster:      suite.leaf.Secrets.SiteName,
@@ -615,7 +615,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 				// If PROXY protocol is required, create load balancer in front of Teleport cluster
 				if tt.proxyProtocolMode == multiplexer.PROXYProtocolOn {
 					frontend := *utils.MustParseAddr("127.0.0.1:0")
-					lb, err := utils.NewLoadBalancer(context.Background(), frontend)
+					lb, err := utils.NewLoadBalancer(t.Context(), frontend)
 					require.NoError(t, err)
 					lb.PROXYHeader = []byte("PROXY TCP4 127.0.0.1 127.0.0.2 12345 42\r\n") // Send fake PROXY header
 					lb.AddBackend(targetAddr)
@@ -648,7 +648,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 						kubeConfig)
 				}
 
-				resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+				resp, err := k8Client.CoreV1().Pods("default").List(t.Context(), metav1.ListOptions{})
 				require.NoError(t, err)
 				require.Len(t, resp.Items, 3, "pods item length mismatch")
 			}

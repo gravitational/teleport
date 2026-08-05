@@ -1342,6 +1342,10 @@ func (i *TeleInstance) Start() error {
 		return trace.Wrap(err)
 	}
 
+	if err := i.WaitForKubeClusters(context.Background()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
