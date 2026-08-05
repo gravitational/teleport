@@ -60,16 +60,21 @@ extension AppDatabase {
 			// Create the database file by initializing a GRDB DatabaseQueue.
 			let databaseFileName = "AppDatabase.sqlite"
 			let databasePath = databaseDirectoryURL.appending(path: databaseFileName).path(percentEncoded: false)
-			logger.info("Initializing \(databaseFileName) database...")
+			logger.info("Initializing database...", metadata: [
+				"databaseFileName": "\(databaseFileName)",
+			])
 			database = try DatabaseQueue(
 				path: databasePath,
 				configuration: defaultConfiguration,
 			)
-			logger.info("Successfully initialized \(databaseFileName)")
+			logger.info("Successfully initialized database", metadata: [
+				"databaseFileName": "\(databaseFileName)",
+			])
 
-			// This log provides a convenient line we can copy/paste into our terminal so that we can open up our SQLite
-			// client of choice.
-			logger.info("open '\(databasePath)'")
+			#if DEBUG
+				// Print a complete command so it can be selected and pasted directly into a terminal.
+				print("open '\(databasePath)'")
+			#endif
 
 			logger.info("Running database migrations...")
 			try migrate(db: database)
@@ -82,7 +87,9 @@ extension AppDatabase {
 			#if DEBUG
 				fatalError("Database initialization failed: \(error)")
 			#else
-				logger.critical("Database initialization failed. Falling back to in-memory database: \(error)")
+				logger.critical("Database initialization failed; falling back to in-memory database", metadata: [
+					"error": .string(String(describing: error)),
+				])
 				database = makeInMemoryDatabase()
 			#endif
 		}
@@ -149,7 +156,7 @@ extension AppDatabase {
 						if context == .preview {
 							print("\($0.expandedDescription)")
 						} else {
-							logger.debug("\($0.expandedDescription)")
+							logger.trace("\($0.expandedDescription)")
 						}
 					}
 				}

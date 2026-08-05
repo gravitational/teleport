@@ -49,13 +49,17 @@ extension EnrollCameraScannerViewModel {
 		guard let enrollMobileDeviceDeepLink = validateScannedCode(payload) else {
 			return .continueScanning
 		}
-		logger.info("Scanned deep link: \(enrollMobileDeviceDeepLink.debugDescription)")
+		logger.info("Scanned deep link", metadata: [
+			"deepLink": "\(enrollMobileDeviceDeepLink.debugDescription)",
+		])
 		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: enrollMobileDeviceDeepLink)
 		return .stopScanning
 	}
 
 	private func validateScannedCode(_ payload: String) -> EnrollMobileDeviceDeepLink? {
-		logger.debug("Validating scanned QR code: \(payload)")
+		logger.debug("Validating scanned QR code", metadata: [
+			"payload": "\(payload)",
+		])
 		do {
 			guard let url = URL(string: payload) else {
 				return nil
@@ -66,7 +70,9 @@ extension EnrollCameraScannerViewModel {
 			}
 			return enrollMobileDeviceDeepLink
 		} catch {
-			logger.debug("\(payload) did not pass validation")
+			logger.debug("Scanned QR code did not pass validation", metadata: [
+				"payload": "\(payload)",
+			])
 			return nil
 		}
 	}
@@ -92,9 +98,9 @@ extension EnrollCameraScannerViewModel {
 			case .restricted, .denied, .authorized:
 				break
 			@unknown default:
-				logger.warning(
-					"Encountered unknown camera authorization status: \(self.cameraAuthorizationStatus.rawValue)",
-				)
+				logger.warning("Encountered unknown camera authorization status", metadata: [
+					"status": "\(cameraAuthorizationStatus.rawValue)",
+				])
 		}
 	}
 }
