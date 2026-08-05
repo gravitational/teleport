@@ -9,10 +9,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
 
   - it: sets Pod annotations when specified
@@ -21,10 +21,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
 
   - it: should not have more than one replica in standalone mode
@@ -760,10 +760,8 @@ tests:
         minReadySeconds: 60
         replicaCount: 1
     asserts:
-      - equal:
+      - notExists:
           path: spec.minReadySeconds
-          value: null
-
   - it: should use Recreate strategy when replicaCount = 1
     template: auth/deployment.yaml
     set:
@@ -879,7 +877,7 @@ tests:
       clusterName: teleport.example.com
     asserts:
       - equal:
-          path: spec.template.metadata.labels.azure\.workload\.identity/use
+          path: spec.template.metadata.labels["azure.workload.identity/use"]
           value: "true"
 
   - it: sets extraLabels on Deployment
@@ -982,9 +980,8 @@ tests:
       clusterName: helm-lint
       disableTopologySpreadConstraints: true
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
-
   - it: removes topology spread constraints when running on antique kubernetes
     template: auth/deployment.yaml
     set:
@@ -993,9 +990,8 @@ tests:
       majorVersion: 1
       minorVersion: 17
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.topologySpreadConstraints
-
   - it: uses custom topology spread constraints when set
     template: auth/deployment.yaml
     set:

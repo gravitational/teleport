@@ -1,8 +1,6 @@
-.version: &version "18.10.0"
-
 name: teleport-kube-updater
 apiVersion: v2
-version: *version
+version: &version "18.10.0"
 appVersion: *version
 type: library
 description: |

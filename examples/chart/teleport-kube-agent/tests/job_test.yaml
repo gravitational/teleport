@@ -16,17 +16,21 @@ tests:
     template: delete_hook.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
-    assets:
+    asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
       - containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
       - containsDocument:
+          any: true
           kind: Job
           apiVersion: batch/v1
 
@@ -85,6 +89,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - equal:
@@ -105,6 +110,7 @@ tests:
         name: lint-serviceaccount
     asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - equal:
@@ -130,6 +136,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -152,6 +159,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -179,6 +187,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - matchSnapshot:
@@ -195,6 +204,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       # ServiceAccount is not created in this mode
@@ -217,6 +227,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -230,6 +241,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -246,14 +258,17 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - not: true
         containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
       - not: true
         containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
       - matchSnapshot:
