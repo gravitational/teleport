@@ -530,7 +530,7 @@ func TestSubKindToCertAuthType(t *testing.T) {
 	t.Parallel()
 
 	specialsMap := map[string]types.CertAuthType{
-		subca.SPIFFECAOverrideSubKind:  types.SPIFFECA,
+		subca.SPIFFECAOverrideSubKind: types.SPIFFECA,
 	}
 
 	for _, subKind := range subca.SupportedCATypes() {
