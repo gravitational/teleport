@@ -44,6 +44,7 @@ type mcpLoginCommand struct {
 	clientID     string
 	promptSecret bool
 	callbackPort uint16
+	scopes       []string
 }
 
 func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand {
@@ -58,6 +59,8 @@ func newMCPLoginCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpLoginCommand
 		BoolVar(&cmd.promptSecret)
 	cmd.Flag("callback-port", "Local OAuth callback port. Set this to the exact port registered with the OAuth provider.").
 		Uint16Var(&cmd.callbackPort)
+	cmd.Flag("scope", "OAuth scope to request. This flag can be specified multiple times.").
+		StringsVar(&cmd.scopes)
 	return cmd
 }
 
@@ -109,6 +112,7 @@ func (c *mcpLoginCommand) run() error {
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURI:  redirectURI,
+		Scopes:       c.scopes,
 		PKCEEnabled:  true,
 		HTTPClient:   httpClient,
 		TokenStore:   tokenStore,
