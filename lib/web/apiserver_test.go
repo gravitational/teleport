@@ -10172,6 +10172,17 @@ func TestUserContextWithScopes(t *testing.T) {
 						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
+					// This one should not appear; role does not exist.
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-that-does-not-exist"}.String(),
+						Scope: "/test/broken1",
+					}.Build(),
+					// This one should not appear; role /test::role-a is not enforceable
+					// at scope /test/broken2.
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Scope: "/test/broken2",
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
