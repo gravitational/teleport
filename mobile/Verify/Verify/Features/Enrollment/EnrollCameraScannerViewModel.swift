@@ -49,9 +49,7 @@ extension EnrollCameraScannerViewModel {
 		guard let enrollMobileDeviceDeepLink = validateScannedCode(payload) else {
 			return .continueScanning
 		}
-		logger.info("Scanned deep link", metadata: [
-			"deepLink": "\(enrollMobileDeviceDeepLink.debugDescription)",
-		])
+		logger.info("Scanned deep link", metadata: enrollMobileDeviceDeepLink.logMetadata)
 		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: enrollMobileDeviceDeepLink)
 		return .stopScanning
 	}
