@@ -1,0 +1,42 @@
+{
+  "skill_name": "teleport-beams-byoi",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "anthropic-bedrock-multiple-models",
+      "prompt": "Configure the Anthropic Beams slot through Amazon Bedrock with models claude-sonnet and claude-opus, using claude-sonnet as the fallback. Generate Terraform only; do not apply it.",
+      "expected_output": "Terraform defines AWS OIDC/IAM resources, Bedrock inference models, an Anthropic-format Bedrock app with both models and the valid fallback, and routes the Anthropic Beams slot to that app. No apply or mutating CLI command runs.",
+      "assertions": [
+        "The generated Teleport app uses format anthropic and provider bedrock",
+        "Both requested models are configured",
+        "The fallback model is one of the configured models",
+        "The generated Beams config changes the Anthropic slot",
+        "No terraform apply, tctl create/edit, or mutating aws command is run"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "both-bedrock-slots",
+      "prompt": "Enable both Beams slots through Bedrock. Use Claude Sonnet for Anthropic with no fallback, and an OpenAI model available in Bedrock for OpenAI with that model as its fallback. Generate and validate Terraform but do not apply.",
+      "expected_output": "Terraform defines separate Anthropic and OpenAI format apps, both with provider bedrock, and routes both Beams slots through teleport_beams_config.",
+      "assertions": [
+        "The Anthropic app uses format anthropic and provider bedrock",
+        "The OpenAI app uses format openai and provider bedrock",
+        "Both slots are configured in teleport_beams_config",
+        "The OpenAI fallback is validated against its model list",
+        "terraform validate may run but terraform apply does not"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "reject-direct-openai",
+      "prompt": "Configure the Beams OpenAI slot using api.openai.com and an API key.",
+      "expected_output": "The skill refuses the request because this workflow supports OpenAI model interfaces only through Amazon Bedrock and does not manage direct OpenAI credentials.",
+      "assertions": [
+        "The direct OpenAI endpoint is rejected",
+        "No API key is requested or written",
+        "No Terraform or mutating command is generated"
+      ]
+    }
+  ]
+}

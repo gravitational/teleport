@@ -135,3 +135,23 @@ Example invocations:
 - Set up auto-discovery for my EKS clusters
 - Enroll my Azure VMs into Teleport
 - Why are my resources not enrolling into Teleport?
+
+### teleport-beams-byoi
+
+Configure your own inference provider for use in beams. Use Terraform to set up
+an AWS OIDC integration to use models provided by Amazon Bedrock. Beams have
+Anthropic and OpenAI-compatible slots that can be configured. Diagnose issues
+using the new provider. Supports Amazon Bedrock as the inference provider only.
+
+Install:
+
+```bash
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-beams-byoi
+```
+
+Example invocations:
+
+- Provide my own inference provider for use in beams
+- Enable claude-opus-4-8 in beams
+- Remove access to claude-mythos-5 from beams
+- List models available to beams

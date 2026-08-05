@@ -100,7 +100,7 @@ questions from `references/apply.md` in the same round.
 |-------|-----------------|---------|
 | `proxy_addr` | `$TSH status --format=json`, `active.profile_url` with the `https://` scheme stripped, such as `example.teleport.sh:443` | Ask |
 | `cluster_version` | `$TCTL status` `Version` field, such as `18.8.0` | Ask |
-| `deployment` | `cloud` when `proxy_addr`'s host ends in `.teleport.sh`, `.cloud.gravitational.io`, or `.beams.sh`, else `self-hosted` | none |
+| `deployment` | `cloud` when `proxy_addr`'s host ends in `.teleport.sh`, `.cloud.gravitational.io`, `.beams.run` or `.beams.sh`, else `self-hosted` | none |
 | `discovery_group` | `cloud`: `cloud-discovery-group`. `self-hosted`: see **Self-hosted discovery group** | Ask, per **Self-hosted discovery group** |
 | `write_location` | none | Ask, with a new `teleport-discovery/` directory as the default |
 

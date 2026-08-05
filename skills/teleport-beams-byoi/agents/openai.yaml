@@ -1,0 +1,4 @@
+interface:
+  display_name: "Teleport Beams Byoi"
+  short_description: "Generate Bedrock BYOI Terraform"
+  default_prompt: "Use $teleport-beams-byoi to configure Anthropic and OpenAI Beams slots through Amazon Bedrock with Terraform."
