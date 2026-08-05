@@ -368,6 +368,33 @@ function Build-WindowsAuthenticationPackage {
     Write-Host $("Built Windows authentication package in {0:g}" -f $CommandDuration)
 }
 
+function Get-KubectlVersionLDFlag {
+    <#
+    .SYNOPSIS
+        Returns the linker flag that adds the bundled kubectl version.
+
+    .OUTPUTS
+    string
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string] $TeleportSourceDirectory
+    )
+
+    Push-Location "$TeleportSourceDirectory"
+    try {
+        $KubectlVersion = (go list -m -f '{{.Version}}' k8s.io/kubectl) -replace '^v0\.', 'v1.'
+        if ($LastExitCode -ne 0) {
+            exit $LastExitCode
+        }
+    } finally {
+        Pop-Location
+    }
+
+    return "-X k8s.io/component-base/version.gitVersion=$KubectlVersion"
+}
+
 function Build-Tsh {
     [CmdletBinding()]
     param(
@@ -383,11 +410,12 @@ function Build-Tsh {
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
     $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
+    $KubectlLDFlags = Get-KubectlVersionLDFlag -TeleportSourceDirectory "$TeleportSourceDirectory"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tsh..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
+        go build -tags "piv kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tsh"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -417,11 +445,12 @@ function Build-Tctl {
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
     $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
+    $KubectlLDFlags = Get-KubectlVersionLDFlag -TeleportSourceDirectory "$TeleportSourceDirectory"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tctl..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -tags piv -trimpath -ldflags "-s -w $BuildTypeLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
+        go build -tags "piv kustomize_disable_go_plugin_support" -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tctl"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
@@ -450,11 +479,13 @@ function Build-Tbot {
     $BinaryName = "tbot.exe"
     $BuildDirectory = "$TeleportSourceDirectory\build"
     $SignedBinaryPath = "$BuildDirectory\$BinaryName"
+    $BuildTypeLDFlags = "-X github.com/gravitational/teleport/lib/modules.teleportBuildType=community"
+    $KubectlLDFlags = Get-KubectlVersionLDFlag -TeleportSourceDirectory "$TeleportSourceDirectory"
 
     $CommandDuration = Measure-Block {
         Write-Host "::group::Building tbot..."
         $UnsignedBinaryPath = "$BuildDirectory\unsigned-$BinaryName"
-        go build -trimpath -ldflags "-s -w" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
+        go build -tags kustomize_disable_go_plugin_support -trimpath -ldflags "-s -w $BuildTypeLDFlags $KubectlLDFlags" -o "$UnsignedBinaryPath" "$TeleportSourceDirectory\tool\tbot"
         if ($LastExitCode -ne 0) {
             exit $LastExitCode
         }
