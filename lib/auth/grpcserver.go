@@ -153,6 +153,7 @@ import (
 	"github.com/gravitational/teleport/lib/decision/decisionv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	_ "github.com/gravitational/teleport/lib/gogofriendlyprotocodec"
 	"github.com/gravitational/teleport/lib/httplib"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join"
