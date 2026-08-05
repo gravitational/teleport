@@ -41,10 +41,6 @@ tests:
       minorVersion: 27
     values:
       - ../.lint/pdb.yaml
-    set:
-      highAvailability:
-        podDisruptionBudget:
-          unhealthyPodEvictionPolicy: AlwaysAllow
     asserts:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
@@ -80,7 +76,7 @@ tests:
       - isNull:
           path: spec.unhealthyPodEvictionPolicy
 
-  - it: honors user-provided unhealthyPodEvictionPolicy
+  - it: honors user-provided unhealthyPodEvictionPolicy with non-default value
     capabilities:
       majorVersion: 1
       minorVersion: 27
@@ -94,4 +90,20 @@ tests:
       - equal:
           path: spec.unhealthyPodEvictionPolicy
           value: IfHealthyBudget
+      - matchSnapshot: {}
+
+  - it: honors user-provided unhealthyPodEvictionPolicy with default value
+    capabilities:
+      majorVersion: 1
+      minorVersion: 27
+    values:
+      - ../.lint/pdb.yaml
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          unhealthyPodEvictionPolicy: AlwaysAllow
+    asserts:
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
       - matchSnapshot: {}
