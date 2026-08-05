@@ -66,7 +66,7 @@ func (m *machine) init(t *rapid.T) {
 		// launches goroutines that call setInitError, so direct construction keeps
 		// health transitions under the state machine's control and makes the test
 		// deterministic.
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		c := &Cache{
 			Config: Config{
 				target:         "foo",
