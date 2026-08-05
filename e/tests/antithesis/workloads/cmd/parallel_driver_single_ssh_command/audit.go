@@ -7,26 +7,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	workloadclient "github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/client"
 	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
 	"github.com/gravitational/teleport/lib/events"
 )
-
-type auditEventsPageFunc = func(context.Context, int, string) ([]apievents.AuditEvent, string, error)
-
-func getEventsPage(clt *apiclient.Client, start, end time.Time, eventTypes ...string) auditEventsPageFunc {
-	return func(ctx context.Context, limit int, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchEvents(
-			ctx, start, end, apidefaults.Namespace,
-			eventTypes,
-			limit, types.EventOrderAscending, startKey, "")
-	}
-}
 
 func (p *TestCaseParams) assertSSHCommandAuditEvents(ctx context.Context, marker string, start, end time.Time) error {
 	admin, err := workloadclient.NewAPIClient(ctx, adminIdentity)
@@ -49,7 +34,13 @@ func (p *TestCaseParams) assertSSHCommandAuditEvents(ctx context.Context, marker
 		Timeout: auditEventEmitDeadline,
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
-			for evt, err := range clientutils.Resources(ctx, getEventsPage(admin, start, end, events.SessionStartEvent)) {
+			for evt, err := range workloadclient.RangeAllAuditEventsByType(
+				ctx,
+				admin,
+				start,
+				end,
+				events.SessionStartEvent,
+			) {
 				if err != nil {
 					return false, trace.Wrap(err, "reading events")
 				}
@@ -80,14 +71,15 @@ func (p *TestCaseParams) assertSSHCommandAuditEvents(ctx context.Context, marker
 		Details: details,
 		Condition: func(ctx context.Context, addDetail eventually.AddDetailFunc) (bool, error) {
 			eventmap := map[string]int{}
-			for evt, err := range clientutils.Resources(ctx, getEventsPage(
+			for evt, err := range workloadclient.RangeAllAuditEventsByType(
+				ctx,
 				admin,
 				start,
 				end,
 				events.SessionStartEvent,
 				events.SessionLeaveEvent,
 				events.SessionEndEvent,
-			)) {
+			) {
 				if err != nil {
 					return false, trace.Wrap(err, "reading events")
 				}

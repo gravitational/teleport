@@ -7,5 +7,5 @@
   "custom.include_for_node_hang": "auth1 auth2 proxy1 proxy2 agent",
   "custom.include_for_node_termination": "",
   "custom.include_for_node_throttle": "auth1 auth2 proxy1 proxy2 agent",
-  "custom.test_templates": "crud ssh"
+  "custom.test_templates": "crud ssh apps"
 }

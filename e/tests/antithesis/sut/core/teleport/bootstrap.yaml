@@ -125,6 +125,40 @@ spec:
     node_labels:
       '*': ['*']
 ---
+kind: role
+version: v8
+metadata:
+  name: app-admin
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+---
+kind: role
+version: v8
+metadata:
+  name: app-mint
+spec:
+  allow:
+    app_labels:
+      '*': ['*']
+    rules:
+      - resources: [role]
+        verbs: [read]
+---
+kind: role
+version: v8
+metadata:
+  name: app-deny
+spec:
+  allow:
+    rules:
+      - resources: [role]
+        verbs: [read]
+  deny:
+    app_labels:
+      '*': ['*']
+---
 kind: token
 version: v2
 metadata:

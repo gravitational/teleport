@@ -12,3 +12,6 @@ spec:
     - resource-read-only
     - node-admin
     - node-deny
+    - app-admin
+    - app-mint
+    - app-deny

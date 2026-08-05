@@ -105,6 +105,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/parallel_driver_single_ssh_command ./cmd/parallel_driver_single_ssh_command
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/parallel_driver_app_access ./cmd/parallel_driver_app_access
+
 FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -145,6 +150,7 @@ FROM runtime AS teleport
 # unhealthy state. This verifies the liveness property of Teleport cache to recover from failure.
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/crud/eventually_cache_is_healthy
 COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/ssh/eventually_cache_is_healthy
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/apps/eventually_cache_is_healthy
 
 CMD ["/usr/local/bin/teleport", "start"]
 
@@ -156,6 +162,7 @@ FROM teleport AS auth
 # backend.
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/crud/eventually_auth_consistent
 COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/ssh/eventually_auth_consistent
+COPY --from=builder /out/eventually_auth_consistent /opt/antithesis/test/v1/apps/eventually_auth_consistent
 
 CMD ["/usr/local/bin/teleport", "start", "--bootstrap=/etc/teleport/bootstrap.yaml", "--apply-on-startup=/etc/teleport/startup.yaml"]
 
@@ -177,4 +184,5 @@ CMD ["/usr/local/bin/workload_entrypoint", "--config=/etc/tbot/tbot.yaml"]
 FROM workload AS workload-core
 COPY --from=builder /out/parallel_driver_crud_fuzzer /opt/antithesis/test/v1/crud/parallel_driver_crud_fuzzer
 COPY --from=builder /out/parallel_driver_single_ssh_command /opt/antithesis/test/v1/ssh/parallel_driver_single_ssh_command
+COPY --from=builder /out/parallel_driver_app_access /opt/antithesis/test/v1/apps/parallel_driver_app_access
 

@@ -19,3 +19,17 @@ ssh_service:
   public_addr: agent:3022
   labels:
     test_template: ssh
+
+app_service:
+  enabled: true
+  apps:
+    - name: alpha
+      uri: http://app-alpha:80
+      public_addr: app-alpha.antithesis.teleport.local
+      labels:
+        app: alpha
+    - name: alpha-tcp
+      uri: tcp://app-alpha:80
+      public_addr: app-alpha-tcp.antithesis.teleport.local
+      labels:
+        app: alpha-tcp

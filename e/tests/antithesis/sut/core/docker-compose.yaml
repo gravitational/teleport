@@ -4,7 +4,7 @@ services:
     environment:
       OUT: /certs
       PUBLIC_ADDR: antithesis.teleport.local
-      SANS: localhost 127.0.0.1 antithesis.teleport.local proxy1 proxy2
+      SANS: localhost 127.0.0.1 antithesis.teleport.local proxy1 proxy2 app-alpha.antithesis.teleport.local app-alpha-tcp.antithesis.teleport.local
       GENERATE_PG_CERTS: "1"
       PG_CERT_DIR: /certs
     volumes:
@@ -137,6 +137,19 @@ services:
       default:
         aliases:
           - antithesis.teleport.local
+
+  app-alpha:
+    image: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}
+    container_name: app-alpha
+    hostname: app-alpha
+    volumes:
+      - ./app/alpha/:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   agent:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
