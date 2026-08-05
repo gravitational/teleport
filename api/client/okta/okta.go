@@ -16,10 +16,8 @@ package okta
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -151,17 +149,6 @@ func (c *Client) UpdateOktaAssignment(ctx context.Context, assignment types.Okta
 		Assignment: assignmentV1,
 	})
 	return resp, trace.Wrap(err)
-}
-
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-// since the last transition.
-func (c *Client) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
-	_, err := c.grpcClient.UpdateOktaAssignmentStatus(ctx, &oktapb.UpdateOktaAssignmentStatusRequest{
-		Name:          name,
-		Status:        types.OktaAssignmentStatusToProto(status),
-		TimeHasPassed: durationpb.New(timeHasPassed),
-	})
-	return trace.Wrap(err)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

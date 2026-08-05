@@ -30,11 +30,14 @@
 		var body: some View {
 			NavigationStack {
 				List {
-					Group {
-						Section("Feature Demos") {
-							Button("Secure Enclave Storage", systemImage: "lock") {
-								viewModel.destination = .deviceTrustCredentialDemo(.init())
-							}
+					Section("Settings") {
+						Button("Debug Settings", systemImage: "gearshape") {
+							viewModel.destination = .debugSettingsView(.init())
+						}
+					}
+					Section("Feature Demos") {
+						Button("Secure Enclave Storage", systemImage: "lock") {
+							viewModel.destination = .deviceTrustCredentialDemo(.init())
 						}
 					}
 				}
@@ -44,6 +47,9 @@
 
 				.navigationDestination(item: $viewModel.destination.deviceTrustCredentialDemo) { viewModel in
 					FeatureDemo.DeviceTrustCredentialView(viewModel: viewModel)
+				}
+				.navigationDestination(item: $viewModel.destination.debugSettingsView) { viewModel in
+					DebugSettingsView(viewModel: viewModel)
 				}
 			}
 		}

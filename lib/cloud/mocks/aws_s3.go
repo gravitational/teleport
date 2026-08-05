@@ -20,6 +20,7 @@ package mocks
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -35,12 +36,46 @@ type S3Client struct {
 	BucketACL          map[string][]s3types.Grant
 	BucketTags         map[string][]s3types.Tag
 	BucketLocations    map[string]s3types.BucketLocationConstraint
+	// RequireMaxBuckets rejects unpaginated ListBuckets requests, as AWS does
+	// for accounts with a bucket quota above maxListBuckets.
+	RequireMaxBuckets bool
 }
 
-func (m *S3Client) ListBuckets(_ context.Context, _ *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
-	return &s3.ListBucketsOutput{
-		Buckets: m.Buckets,
-	}, nil
+// maxListBuckets is the largest page size ListBuckets accepts for max-buckets.
+const maxListBuckets = 10000
+
+// ListBuckets pages through Buckets using max-buckets as the page size. The
+// continuation token is the index of the first bucket of the next page.
+func (m *S3Client) ListBuckets(_ context.Context, input *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	if input.MaxBuckets == nil {
+		if m.RequireMaxBuckets {
+			return nil, trace.BadParameter("unpaginated ListBuckets requests are rejected for accounts with a bucket quota greater than %d", maxListBuckets)
+		}
+		return &s3.ListBucketsOutput{
+			Buckets: m.Buckets,
+		}, nil
+	}
+	pageSize := int(aws.ToInt32(input.MaxBuckets))
+	if pageSize < 1 || pageSize > maxListBuckets {
+		return nil, trace.BadParameter("max-buckets must be between 1 and %d, got %d", maxListBuckets, pageSize)
+	}
+
+	start := 0
+	if token := aws.ToString(input.ContinuationToken); token != "" {
+		var err error
+		start, err = strconv.Atoi(token)
+		if err != nil {
+			return nil, trace.BadParameter("invalid continuation token %q", token)
+		}
+	}
+	end := min(start+pageSize, len(m.Buckets))
+	out := &s3.ListBucketsOutput{
+		Buckets: m.Buckets[start:end],
+	}
+	if end < len(m.Buckets) {
+		out.ContinuationToken = aws.String(strconv.Itoa(end))
+	}
+	return out, nil
 }
 
 func (m *S3Client) GetBucketPolicy(_ context.Context, input *s3.GetBucketPolicyInput, _ ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error) {

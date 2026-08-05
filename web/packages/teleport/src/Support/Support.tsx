@@ -226,7 +226,7 @@ export const SupportSectionCard = ({
   );
 };
 
-const IconBox = styled('span', {
+export const IconBox = styled('span', {
   base: {
     lineHeight: 0,
     padding: 2,

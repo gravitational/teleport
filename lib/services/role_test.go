@@ -11948,3 +11948,14 @@ func TestCheckImpersonateRoles(t *testing.T) {
 		})
 	}
 }
+
+// TestDefaultImplicitRulesHaveNoWildcardVerbs verifies the assumption newScopedImplicitRole relies on,
+// that the default implicit rules contain no wildcards (if they did, our secret-inclusive -> secret-exclusive
+// conversion would break).
+func TestDefaultImplicitRulesHaveNoWildcardVerbs(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range DefaultImplicitRules {
+		require.NotContains(t, rule.Verbs, types.Wildcard, "resources %v", rule.Resources)
+	}
+}

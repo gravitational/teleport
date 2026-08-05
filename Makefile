@@ -1497,7 +1497,7 @@ fix-license:
 # Used prior to a release by bumping VERSION in this Makefile and then
 # running "make update-version".
 .PHONY: update-version
-update-version: version test-helm-update-snapshots
+update-version: version
 
 # This rule triggers re-generation of version files if Makefile changes.
 .PHONY: version
