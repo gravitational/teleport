@@ -1767,6 +1767,9 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1787,6 +1790,9 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
