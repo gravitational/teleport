@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -44,9 +45,10 @@ type beamsLSCommand struct {
 	format string
 
 	// These helper functions can be overridden.
-	fetchFn        func(context.Context, *client.TeleportClient, bool) ([]*beamsv1.Beam, error)
-	proxyAddrFn    func(*CLIConf) (string, error)
-	humanizeTimeFn func(time.Time) string
+	fetchFn            func(context.Context, *client.TeleportClient, bool) ([]*beamsv1.Beam, error)
+	fetchBeamsConfigFn func(context.Context, *client.TeleportClient) (*beamsv1.BeamsConfig, error)
+	proxyAddrFn        func(*CLIConf) (string, error)
+	humanizeTimeFn     func(time.Time) string
 }
 
 func newBeamsLSCommand(parent *kingpin.CmdClause) *beamsLSCommand {
@@ -54,6 +56,7 @@ func newBeamsLSCommand(parent *kingpin.CmdClause) *beamsLSCommand {
 		CmdClause: parent.Command("ls", "List beam instances.").Alias("list"),
 	}
 	cmd.fetchFn = cmd.fetch
+	cmd.fetchBeamsConfigFn = cmd.fetchBeamsConfig
 	cmd.proxyAddrFn = cmd.proxyAddr
 	cmd.humanizeTimeFn = humanize.Time
 
@@ -83,7 +86,7 @@ func (c *beamsLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.print(cf, beams, proxyAddr))
+	return trace.Wrap(c.print(ctx, tc, cf.Stdout(), beams, proxyAddr))
 }
 
 func (c *beamsLSCommand) fetch(ctx context.Context, tc *client.TeleportClient, all bool) ([]*beamsv1.Beam, error) {
@@ -133,6 +136,27 @@ func (c *beamsLSCommand) fetch(ctx context.Context, tc *client.TeleportClient, a
 	return beams, nil
 }
 
+func (c *beamsLSCommand) fetchBeamsConfig(ctx context.Context, tc *client.TeleportClient) (*beamsv1.BeamsConfig, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	config, err := rootClient.BeamsConfigServiceClient().GetBeamsConfig(ctx, beamsv1.GetBeamsConfigRequest_builder{}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return config.GetBeamsConfig(), nil
+}
+
 func (c *beamsLSCommand) proxyAddr(cf *CLIConf) (string, error) {
 	_, proxyAddr, err := fetchProxyVersion(cf)
 	if err != nil {
@@ -141,7 +165,7 @@ func (c *beamsLSCommand) proxyAddr(cf *CLIConf) (string, error) {
 	return proxyAddr, nil
 }
 
-func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr string) error {
+func (c *beamsLSCommand) print(ctx context.Context, tc *client.TeleportClient, w io.Writer, beams []*beamsv1.Beam, proxyAddr string) error {
 	// Convert to script/agent friendly representation.
 	formatted := make([]formattedBeam, len(beams))
 	for idx, beam := range beams {
@@ -149,15 +173,15 @@ func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr str
 	}
 	switch strings.ToLower(c.format) {
 	case teleport.JSON:
-		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatted))
+		return trace.Wrap(common.PrintJSONIndent(w, formatted))
 	case teleport.YAML:
-		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatted))
+		return trace.Wrap(common.PrintYAML(w, formatted))
 	default:
-		return trace.Wrap(c.printTable(cf.Stdout(), formatted))
+		return trace.Wrap(c.printTable(ctx, tc, w, formatted))
 	}
 }
 
-func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
+func (c *beamsLSCommand) printTable(ctx context.Context, tc *client.TeleportClient, w io.Writer, beams []formattedBeam) error {
 	headings := []string{"ID", "URL", "Region", "Expires"}
 
 	// We only show the owner column when the user passed the `--all` flag,
@@ -179,5 +203,41 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		}
 		table.AddRow(row)
 	}
-	return trace.Wrap(table.WriteTo(w))
+
+	err := table.WriteTo(w)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	showBYOIPrompt := func() bool {
+		config, err := c.fetchBeamsConfigFn(ctx, tc)
+		if err != nil {
+			// This is a best endeavors feature, so ignore any error fetching config
+			return false
+		}
+		anthropicAppName := config.GetSpec().GetLlm().GetAnthropic().GetAppName()
+		openaiAppName := config.GetSpec().GetLlm().GetOpenai().GetAppName()
+		return anthropicAppName == "anthropic" && openaiAppName == "openai"
+	}()
+
+	if showBYOIPrompt {
+		_, err = fmt.Fprint(w, byoiPrompt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
 }
+
+const byoiPrompt = `
+╔══════════════════════════════════════════════════════════════╗
+║             Set up your LLM preference for Beams             ║
+║                      via Amazon Bedrock                      ║
+║                                                              ║
+║     Improve the privacy, scalability, and flexibility of     ║
+║                   your agentic workflows.                    ║
+║                                                              ║
+║            https://goteleport.com/docs/beams/byoi            ║
+╚══════════════════════════════════════════════════════════════╝
+`

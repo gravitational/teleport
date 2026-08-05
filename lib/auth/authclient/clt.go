@@ -2014,4 +2014,7 @@ type ClientI interface {
 
 	// BeamServiceClient returns a client for the beam service.
 	BeamServiceClient() beamsv1.BeamServiceClient
+
+	// BeamsConfigServiceClient returns a client for the beams config service.
+	BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient
 }
