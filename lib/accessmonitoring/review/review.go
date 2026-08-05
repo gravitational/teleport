@@ -265,9 +265,8 @@ func newAccessReview(userName, ruleName, state, reason string, created time.Time
 		return types.AccessReview{}, trace.BadParameter("proposed state is unsupported: %s", state)
 	}
 
-	reviewReason := reason
-	if reviewReason == "" {
-		reviewReason = fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
+	if reason == "" {
+		reason = fmt.Sprintf("Access request has been automatically %[4]s by %[1]q. "+
 			"User %[2]q is %[4]s by access_monitoring_rule %[3]q.",
 			teleport.SystemAccessApproverUserName, userName, ruleName, strings.ToLower(state))
 	}
@@ -275,7 +274,7 @@ func newAccessReview(userName, ruleName, state, reason string, created time.Time
 	return types.AccessReview{
 		Author:        teleport.SystemAccessApproverUserName,
 		ProposedState: proposedState,
-		Reason:        reviewReason,
+		Reason:        reason,
 		Created:       created,
 	}, nil
 }
