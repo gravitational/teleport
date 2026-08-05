@@ -208,7 +208,7 @@ func TestNoFollowSetstat(t *testing.T) {
 			Acmodtime:   true,
 		}, &sftp.FileStat{
 			Size:  uint64(len(fileData) / 2),
-			Mode:  0o604,
+			Mode:  0o7604, // with setuid/setgid/sticky bits
 			Atime: uint32(updatedTime.Unix()),
 			Mtime: uint32(updatedTime.Unix()),
 		})
