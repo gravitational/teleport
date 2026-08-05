@@ -85,9 +85,7 @@ class EnrollDeviceViewModel {
 				.fetchOne(db)
 			}
 
-			logger.info("Successfully enrolled cluster", metadata: [
-				"cluster": "\(cluster.debugDescription)",
-			])
+			logger.info("Successfully enrolled cluster", metadata: cluster?.logMetadata)
 			delegate?.enrollDeviceViewModelDidEnrollCluster(self)
 
 			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
