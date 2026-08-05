@@ -26,6 +26,8 @@ public struct ConsoleLogHandler: LogHandler {
 
 	public init(label: String) {
 		self.label = label
+
+		// Static values are lazy, so we force the resolution of the timestamp on first initialization.
 		_ = Self.originTimestamp
 	}
 
