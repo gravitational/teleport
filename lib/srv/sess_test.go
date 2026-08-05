@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"io"
-	"maps"
 	"net"
 	"os/user"
 	"slices"
@@ -534,7 +533,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 		// Wait for the events on the new recorder
 		require.Eventually(t, func() bool {
 			return len(srv.Events()) == 2
-		}, 1000*time.Second, 100*time.Millisecond)
+		}, 5*time.Second, 10*time.Millisecond)
 	})
 }
 
@@ -583,43 +582,14 @@ func TestInteractiveSession(t *testing.T) {
 	// to end and cleanup in the background
 	scx.party.s.Stop()
 
-	// Wait for the session to be removed from the registry.
-	require.Eventually(t, func() bool {
-		_, found := reg.findSession(scx.party.s.id)
-		return !found
-	}, time.Second*15, time.Millisecond*500)
+	// Wait for Close() to complete, advancing the fake clock past
+	// WaitCopyTimeout so the cleanup goroutine doesn't block.
+	waitSessionClosedWithClock(t, scx.party.s, srv.clock)
 
-	// Validate that the expected audit events were emitted.
+	// Events are emitted before Close() so they're guaranteed present now
 	expectedEvents := []string{events.SessionStartEvent, events.ResizeEvent, events.SessionEndEvent, events.SessionLeaveEvent}
-	require.Eventually(t, func() bool {
-		actual := srv.MockRecorderEmitter.Events()
-
-		for _, evt := range expectedEvents {
-			contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
-				return event.GetType() == evt
-			})
-			if !contains {
-				return false
-			}
-		}
-		return true
-	}, 15*time.Second, 500*time.Millisecond)
-
-	// Validate that the expected recording events were emitted.
-	require.Eventually(t, func() bool {
-		actual := srv.MockRecorderEmitter.RecordedEvents()
-
-		for _, evt := range expectedEvents {
-			contains := slices.ContainsFunc(actual, func(event apievents.PreparedSessionEvent) bool {
-				return event.GetAuditEvent().GetType() == evt
-			})
-			if !contains {
-				return false
-			}
-		}
-
-		return true
-	}, 15*time.Second, 500*time.Millisecond)
+	requireEventsEmitted(t, srv.MockRecorderEmitter, expectedEvents)
+	requireRecordedEventsEmitted(t, srv.MockRecorderEmitter, expectedEvents)
 }
 
 // TestNonInteractiveSession tests non-interactive session lifecycles
@@ -661,28 +631,14 @@ func TestNonInteractiveSession(t *testing.T) {
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.party)
 
-		// Wait for the command execution to complete and the session to be terminated.
-		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.party.s.id)
-			return !found
-		}, time.Second*15, time.Millisecond*500)
+		// Simulate what handleSessionRequests does; drain exec result
+		// and close the server context
+		drainExecResult(t, scx)
+		waitSessionClosedWithClock(t, scx.party.s, srv.clock)
 
-		// Verify that all the expected audit events are eventually emitted.
+		// Events are emitted before Close() so they're guaranteed present now
 		expected := []string{events.SessionStartEvent, events.ExecEvent, events.SessionEndEvent, events.SessionLeaveEvent}
-		require.Eventually(t, func() bool {
-			actual := srv.MockRecorderEmitter.Events()
-
-			for _, evt := range expected {
-				contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
-					return event.GetType() == evt
-				})
-				if !contains {
-					return false
-				}
-			}
-
-			return true
-		}, 15*time.Second, 500*time.Millisecond)
+		requireEventsEmitted(t, srv.MockRecorderEmitter, expected)
 
 		// Verify that NO recordings were emitted
 		require.Empty(t, srv.MockRecorderEmitter.RecordedEvents())
@@ -724,47 +680,19 @@ func TestNonInteractiveSession(t *testing.T) {
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.party)
 
-		// Wait for the command execution to complete and the session to be terminated.
-		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.party.s.id)
-			return !found
-		}, time.Second*15, time.Millisecond*500)
+		// Simulate what handleSessionRequests does; drain exec result
+		// and close the server context
+		drainExecResult(t, scx)
+		waitSessionClosedWithClock(t, scx.party.s, srv.clock)
 
-		// Verify that all the expected audit events are eventually emitted.
+		// Events are emitted before Close() so they're guaranteed present now
 		expectedEvents := []string{events.SessionStartEvent, events.ExecEvent, events.SessionEndEvent, events.SessionLeaveEvent}
-		require.Eventually(t, func() bool {
-			actual := srv.MockRecorderEmitter.Events()
-
-			for _, evt := range expectedEvents {
-				contains := slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
-					return event.GetType() == evt
-				})
-				if !contains {
-					return false
-				}
-			}
-
-			return true
-		}, 15*time.Second, 500*time.Millisecond)
+		requireEventsEmitted(t, srv.MockRecorderEmitter, expectedEvents)
 
 		// Validate that the expected recording events were emitted.
-		require.Eventually(t, func() bool {
-			actual := srv.MockRecorderEmitter.RecordedEvents()
-
-			for _, evt := range expectedEvents {
-				if evt == events.ExecEvent {
-					continue
-				}
-				contains := slices.ContainsFunc(actual, func(event apievents.PreparedSessionEvent) bool {
-					return event.GetAuditEvent().GetType() == evt
-				})
-				if !contains {
-					return false
-				}
-			}
-
-			return true
-		}, 15*time.Second, 500*time.Millisecond)
+		requireRecordedEventsEmitted(t, srv.MockRecorderEmitter, slices.DeleteFunc(slices.Clone(expectedEvents), func(e string) bool {
+			return e == events.ExecEvent
+		}))
 	})
 }
 
@@ -801,11 +729,7 @@ func TestStopUnstarted(t *testing.T) {
 	// to end and cleanup in the background
 	sess.Stop()
 
-	sessionClosed := func() bool {
-		_, found := reg.findSession(sess.id)
-		return !found
-	}
-	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+	waitSessionClosedWithClock(t, sess, srv.clock)
 }
 
 func TestModeratedSessionPresence(t *testing.T) {
@@ -911,24 +835,23 @@ func TestModeratedSessionPresence(t *testing.T) {
 	require.Equal(t, moderatorParticipant.ID, refreshedParticipant.ID)
 	require.Equal(t, presenceUpdateTime, refreshedParticipant.LastActive)
 
-	require.Never(t, func() bool {
-		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
-		require.NoError(t, err)
-		return updatedTracker.GetState() != types.SessionState_SessionStateRunning
-	}, 500*time.Millisecond, 100*time.Millisecond)
+	// The session should still be running.
+	updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStateRunning, updatedTracker.GetState())
 
 	// Advance the server clock so that the moderator is stale. The session should terminate.
 	srv.clock.Advance(srv.GetPresenceMaxDuration())
 
-	require.Eventually(t, sess.isStopped, time.Second, 10*time.Millisecond)
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
-		require.NoError(t, err)
-		require.Equal(t, types.SessionState_SessionStateTerminated, updatedTracker.GetState())
-		for _, participant := range updatedTracker.GetParticipants() {
-			require.NotEqual(t, moderatorParticipant.ID, participant.ID)
-		}
-	}, 5*time.Second, 100*time.Millisecond)
+	waitSessionClosed(t, sess)
+
+	// Tracker state should be set to Terminated inside Close().
+	terminatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStateTerminated, terminatedTracker.GetState())
+	for _, participant := range terminatedTracker.GetParticipants() {
+		require.NotEqual(t, moderatorParticipant.ID, participant.ID)
+	}
 }
 
 // TestParties tests the party mechanisms within an interactive session,
@@ -964,7 +887,7 @@ func TestParties(t *testing.T) {
 	partyIsRemoved := func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
 	}
-	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+	require.Eventually(t, partyIsRemoved, time.Second*5, 10*time.Millisecond)
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
@@ -981,7 +904,7 @@ func TestParties(t *testing.T) {
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
 	}
-	require.Eventually(t, partyIsRemoved, time.Second*5, time.Millisecond*500)
+	require.Eventually(t, partyIsRemoved, time.Second*5, 10*time.Millisecond)
 
 	p.closeOnce.Do(func() {
 		t.Fatalf("party should be closed already")
@@ -1013,7 +936,11 @@ func TestParties(t *testing.T) {
 
 	// Session should close.
 	regClock.Advance(defaults.SessionIdlePeriod)
-	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+	select {
+	case <-sess.stopC:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for session to stop")
+	}
 }
 
 func TestSessionRecordingModes(t *testing.T) {
@@ -1069,22 +996,14 @@ func TestSessionRecordingModes(t *testing.T) {
 				sess.Stop()
 			}
 
-			// Wait until the session is stopped.
-			require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
+			waitSessionClosedWithClock(t, sess, srv.clock)
 
-			// Wait until server receives all non-print events.
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				// Events can appear in different orders. Use a set to track.
-				eventsNotReceived := map[string]struct{}{
-					events.SessionStartEvent: {},
-					events.SessionLeaveEvent: {},
-					events.SessionEndEvent:   {},
-				}
-				for _, e := range srv.Events() {
-					delete(eventsNotReceived, e.GetType())
-				}
-				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
-			}, time.Second*5, time.Millisecond*500, "Some events not received")
+			// Events are emitted before Close(), so they're guaranteed present now.
+			requireEventsEmitted(t, srv.MockRecorderEmitter, []string{
+				events.SessionStartEvent,
+				events.SessionLeaveEvent,
+				events.SessionEndEvent,
+			})
 		})
 	}
 }
@@ -1116,11 +1035,10 @@ func TestBPFEnabledAndNoPermitEvents(t *testing.T) {
 
 	sess := scx.getSession()
 	require.NotNil(t, sess)
-	select {
-	case <-sess.doneCh:
-	case <-time.After(3 * time.Second):
-		require.Fail(t, "exec session did not complete")
-	}
+
+	// Drain the exec result so the cleanup goroutine proceeds immediately.
+	drainExecResult(t, scx)
+	waitSessionClosedWithClock(t, sess, srv.clock)
 
 	require.Zero(t, bpfSrv.openSessionCalls.Load())
 	require.Zero(t, bpfSrv.closeSessionCalls.Load())
@@ -1194,6 +1112,88 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 			}
 		})
 	}
+}
+
+// waitSessionClosed waits for the session's closedCh to be closed, indicating
+// the session has been fully cleaned up. Since events are emitted before Close()
+// all audit and recording events are guaranteed to be present after this returns.
+func waitSessionClosed(t *testing.T, sess *session) {
+	t.Helper()
+	select {
+	case <-sess.closedCh:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for session to close")
+	}
+}
+
+// waitSessionClosedWithClock advances the fake clock until the session is fully closed.
+// Interactive session cleanup goroutine blocks on clock.After(WaitCopyTimeout),
+// which may not be registered yet when the test tries to advance the clock.
+func waitSessionClosedWithClock(t *testing.T, sess *session, clock interface{ Advance(time.Duration) }) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-sess.closedCh:
+				return
+			case <-time.After(10 * time.Millisecond):
+				clock.Advance(defaults.WaitCopyTimeout)
+			}
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("timed out waiting for session to close")
+	}
+}
+
+// requireEventsEmitted asserts that all expected audit event types are present
+// in the mock emitter. Should be called after waitSessionClosed, which
+// guarantees events have been flushed.
+func requireEventsEmitted(t *testing.T, emitter *eventstest.MockRecorderEmitter, expectedEvents []string) {
+	t.Helper()
+	actual := emitter.Events()
+	for _, evt := range expectedEvents {
+		require.True(t, slices.ContainsFunc(actual, func(event apievents.AuditEvent) bool {
+			return event.GetType() == evt
+		}), "missing audit event: %s (got: %v)", evt, eventTypes(actual))
+	}
+}
+
+// requireRecordedEventsEmitted asserts that all expected recording event types
+// are present in the mock emitter. Should be called after waitSessionClosed.
+func requireRecordedEventsEmitted(t *testing.T, emitter *eventstest.MockRecorderEmitter, expectedEvents []string) {
+	t.Helper()
+	actual := emitter.RecordedEvents()
+	for _, evt := range expectedEvents {
+		require.True(t, slices.ContainsFunc(actual, func(event apievents.PreparedSessionEvent) bool {
+			return event.GetAuditEvent().GetType() == evt
+		}), "missing recorded event: %s", evt)
+	}
+}
+
+// drainExecResult reads the exec result from ExecResultCh then closes
+// the server context, which unblocks the exec cleanup goroutine.
+func drainExecResult(t *testing.T, scx *ServerContext) {
+	t.Helper()
+	go func() {
+		select {
+		case <-scx.ExecResultCh:
+			scx.Close()
+		case <-time.After(15 * time.Second):
+		}
+	}()
+}
+
+func eventTypes(events []apievents.AuditEvent) []string {
+	types := make([]string, len(events))
+	for i, e := range events {
+		types[i] = e.GetType()
+	}
+	return types
 }
 
 func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
