@@ -141,6 +141,7 @@ resource "teleport_app_server" "<app_name>" {
     host_id = uuid()
     app = {
       kind = "app"
+      sub_kind = "llm"
       version = "v3"
       metadata = {
         name = "<app_name>"
