@@ -40,8 +40,8 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// lengthCap bounds the length of a path Tokenize accepts.
-const lengthCap = 8 << 10 // 8 KiB
+// maxPathLength bounds the length of a path Tokenize accepts.
+const maxPathLength = 8 << 10 // 8 KiB
 
 // legalPathPunct is the non-alphanumeric bytes allowed in a raw
 // URL path. It is RFC 3986 pchar except for ";", plus "/" and "%".
@@ -51,56 +51,28 @@ const lengthCap = 8 << 10 // 8 KiB
 // path ends.
 const legalPathPunct = "-._~!$&'()*+,=:@/%"
 
-// Tokenize validates and splits an HTTP request path into raw segments
-// for matching. The argument is the escaped path as it appears on the
-// wire ([net/url.URL.EscapedPath], never the auto-decoded
-// [net/url.URL.Path]). Tokenize never decodes what it splits or
-// forwards. On any rule violation Tokenize rejects the path and
-// returns an error.
+// Tokenize validates an HTTP request path and splits it on a real
+// "/" into the encoded segments a role's path rules match against, so
+// an encoded slash stays inside one segment. Pass
+// [net/url.URL.EscapedPath], the encoded path sent to the upstream
+// app, not the already-decoded [net/url.URL.Path].
 //
-// The encoded separator and the encoded space are the only ASCII
-// escapes allowed. A space has no raw form in a URL path, so %20 is
-// content, like the non-ASCII escapes. Non-ASCII content is allowed
-// as percent-encoded UTF-8, under checks that prevent
-// fold-to-different-segment bypasses.
-//
-//  1. Reject any raw byte that cannot appear in a URL path,
-//     including bytes at or above 0x80 (raw unicode).
-//  2. Allow only the encoded separator (%2F), the encoded space
-//     (%20), and escapes whose decoded byte is at or above 0x80
-//     (non-ASCII unicode). Reject every other ASCII
-//     percent-encoding.
-//  3. On a decode-for-validation view (%2F to "/"), reject
-//     consecutive slashes and any segment of only dots and spaces,
-//     because an upstream that strips spaces or extra dots would
-//     resolve such a segment as "." or "..". A ".." written between
-//     encoded slashes ("a%2F..%2Fadmin") is rejected the same as a
-//     raw one.
-//  4. Each segment, once its content escapes are decoded, must be
-//     valid, NFKC-stable UTF-8 and contain only graphic runes, must
-//     not start with a combining mark, must not start or end with a
-//     space, and must not end with dots and spaces, because an
-//     upstream that trims the segment would see a different segment
-//     ("..%20" would trim to ".." and "secret." to "secret"). A
-//     leading dot is allowed, so "/.well-known" stays reachable.
-//     U+0020, arriving as %20, is the only space or separator rune
-//     allowed, and only between other characters. The encoded
-//     separator %2F is a segment boundary for these checks. "é" is
-//     allowed only as the precomposed "%C3%A9", not as the
-//     decomposed "e%CC%81".
-//  5. Split on real "/" only. An encoded slash stays one opaque
-//     token, hex case preserved.
+// Tokenize accepts a path that starts with "/", stays under 8 KiB,
+// and holds only the path characters RFC 3986 allows, except for ";".
+// Anything else has to be sent percent-encoded, and the only escapes
+// allowed are the separator %2F ("/"), the space %20 (" "), and the
+// UTF-8 bytes of non-ASCII text. Tokenize also rejects a path an
+// upstream app could read as a different path than the one a role
+// matched, such as "/a/../b" or "/files/secret." on a server that
+// trims a trailing dot.
 func Tokenize(path string) ([]string, error) {
-	if len(path) > lengthCap {
-		return nil, trace.BadParameter("path length %d exceeds the %d byte limit", len(path), lengthCap)
+	if len(path) > maxPathLength {
+		return nil, trace.BadParameter("path length %d exceeds the %d byte limit", len(path), maxPathLength)
 	}
 	if !strings.HasPrefix(path, "/") {
 		return nil, trace.BadParameter("path %q must start with /", clip(path))
 	}
-	if err := validatePathBytes(path); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := validatePercentEscapes(path); err != nil {
+	if err := validateRawBytes(path); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := validateDecoded(path); err != nil {
@@ -109,13 +81,29 @@ func Tokenize(path string) ([]string, error) {
 	return strings.Split(path[1:], "/"), nil
 }
 
-// validatePathBytes rejects any byte that cannot appear in a raw URL
-// path under RFC 3986.
-func validatePathBytes(path string) error {
-	for i := range len(path) {
+// validateRawBytes rejects any byte that cannot appear in a URL path
+// under RFC 3986, any invalid percent-escape, and every escape except
+// %2F ("/"), %20 (" "), or one that decodes to a non-ASCII byte.
+func validateRawBytes(path string) error {
+	for i := 0; i < len(path); i++ {
 		if !isLegalPathByte(path[i]) {
 			return trace.BadParameter("path %q contains an illegal URL byte %q", clip(path), path[i:i+1])
 		}
+		if path[i] != '%' {
+			continue
+		}
+		if i+2 >= len(path) {
+			return trace.BadParameter("path %q has a truncated percent-escape", clip(path))
+		}
+		v, err := strconv.ParseUint(path[i+1:i+3], 16, 8)
+		if err != nil {
+			return trace.BadParameter("path %q has a malformed percent-escape %q", clip(path), path[i:i+3])
+		}
+		if !isAllowedEscape(byte(v)) {
+			const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F, the encoded space %%20, and non-ASCII content escapes are allowed"
+			return trace.BadParameter(msg, clip(path), path[i:i+3])
+		}
+		i += 2
 	}
 	return nil
 }
@@ -130,37 +118,10 @@ func isLegalPathByte(b byte) bool {
 	return strings.IndexByte(legalPathPunct, b) >= 0
 }
 
-// validatePercentEscapes allows the encoded separator %2F, the
-// encoded space %20, and any escape that decodes to a non-ASCII
-// byte. Every other ASCII escape is rejected, because an upstream
-// could canonicalize it into a structural byte. A "%" without two
-// hex digits is rejected as malformed.
-func validatePercentEscapes(path string) error {
-	for i := 0; i < len(path); i++ {
-		if path[i] != '%' {
-			continue
-		}
-		if i+2 >= len(path) {
-			return trace.BadParameter("path %q has a truncated percent-escape", clip(path))
-		}
-		v, err := strconv.ParseUint(path[i+1:i+3], 16, 8)
-		if err != nil {
-			return trace.BadParameter("path %q has a malformed percent-escape %q", clip(path), path[i:i+3])
-		}
-		if isAllowedEscape(byte(v)) {
-			i += 2
-			continue
-		}
-		const msg = "path %q contains the percent-escape %q; only the encoded separator %%2F, the encoded space %%20, and non-ASCII content escapes are allowed"
-		return trace.BadParameter(msg, clip(path), path[i:i+3])
-	}
-	return nil
-}
-
 // isAllowedEscape reports whether a percent-escape decoding to b may
-// appear in a path. [validatePercentEscapes] accepts exactly the
-// escapes [decode] resolves: the separator, the space, and non-ASCII
-// content.
+// appear in a path. [validateRawBytes] accepts exactly the escapes
+// [decode] resolves, which are the separator, the space, and
+// non-ASCII content.
 func isAllowedEscape(b byte) bool {
 	return b == '/' || b == ' ' || b >= 0x80
 }
@@ -203,11 +164,11 @@ func validateDecoded(path string) error {
 	return nil
 }
 
-// decode returns the validation view of s, resolving every escape that
-// validatePercentEscapes leaves alive: %2F (either case) to "/", %20
-// to a space, and a non-ASCII escape to its byte. Those are the only
-// escapes it can receive, so nothing else needs decoding. The view is
-// used for validation only; the returned tokens keep their raw form.
+// decode returns the decoded validation view of path s, resolving
+// only valid escapes. %2F and %2f become "/", %20 a space, and a
+// non-ASCII escape its byte. The view exposes a structural byte
+// written as an escape, so "/x%2F..%2Fadmin" is rejected for the same
+// reason ".." is rejected in "/x/../admin".
 func decode(s string) string {
 	if !strings.ContainsRune(s, '%') {
 		return s
@@ -239,17 +200,16 @@ func rejectDotSegment(seg string) error {
 	return nil
 }
 
-// rejectLeadingMark rejects a segment whose first rune composes onto
-// the character before it, so "/a/%CC%87b", where %CC%87 is U+0307
-// combining dot above, looks like "/a/b". RFC 5891 section 4.2.3.2
-// bans the same form at the start of a domain label. A conjoining
-// Hangul jamo composes the same way without being a mark, so the
-// NFKC boundary property covers what unicode.IsMark misses.
+// rejectLeadingMark rejects a segment whose first character composes
+// onto the character before it, so "/a/%CC%87b", where %CC%87 is
+// U+0307 combining dot above, looks like "/a/b". RFC 5891 bans the
+// same form at the start of a domain label.
 func rejectLeadingMark(seg string) error {
 	if seg == "" || seg[0] < utf8.RuneSelf {
 		return nil
 	}
 	r, _ := utf8.DecodeRuneInString(seg)
+	// Some composing characters are not marks, so both checks are needed.
 	if unicode.IsMark(r) || !norm.NFKC.PropertiesString(seg).BoundaryBefore() {
 		const msg = "segment %q starts with %q, which composes onto the character before it; it must follow a base character"
 		return trace.BadParameter(msg, clip(seg), string(r))
@@ -287,9 +247,9 @@ func rejectTrailingDot(seg string) error {
 // the decoded view as %20, and [rejectEdgeSpace] keeps it off the
 // segment edges. Every other space and separator rune that
 // unicode.IsGraphic allows is excluded, along with control, format,
-// surrogate, private-use, and unassigned runes. The NFKC-stable ones
-// among them, such as U+1680 ogham space mark, are rejected here and
-// nowhere else.
+// surrogate, private-use, and unassigned runes. This is the only
+// check that rejects the NFKC-stable ones among them, such as U+1680
+// ogham space mark.
 func isGraphicRune(r rune) bool {
 	return r == ' ' || unicode.IsLetter(r) || unicode.IsMark(r) ||
 		unicode.IsNumber(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)

@@ -50,8 +50,8 @@ func TestTokenize(t *testing.T) {
 		},
 		{
 			name: "path at the length cap is allowed",
-			path: "/" + strings.Repeat("a", lengthCap-1),
-			want: []string{strings.Repeat("a", lengthCap-1)},
+			path: "/" + strings.Repeat("a", maxPathLength-1),
+			want: []string{strings.Repeat("a", maxPathLength-1)},
 		},
 		{
 			name: "encoded slash stays one opaque token",
@@ -148,7 +148,7 @@ func TestTokenize(t *testing.T) {
 		},
 		{
 			name:    "path over the length cap is rejected",
-			path:    "/" + strings.Repeat("a", lengthCap),
+			path:    "/" + strings.Repeat("a", maxPathLength),
 			wantErr: true,
 		},
 		{

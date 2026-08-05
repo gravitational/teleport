@@ -60,7 +60,7 @@ func TestTokenizePropertyAcceptsWireForm(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		path := wirePathGen().Draw(t, "path")
 		_, err := Tokenize(path)
-		require.NoErrorf(t, err, "generated wire path rejected: %q", path)
+		require.NoError(t, err, "generated wire path rejected: %q", path)
 	})
 }
 
@@ -76,7 +76,7 @@ func TestTokenizePropertyAcceptsOnlyEscapedForm(t *testing.T) {
 		_, err := Tokenize(path)
 		require.NoError(t, err)
 		u, err := url.ParseRequestURI(path)
-		require.NoErrorf(t, err, "accepted path does not parse: %q", path)
+		require.NoError(t, err, "accepted path does not parse: %q", path)
 		require.Equal(t, path, u.EscapedPath(), "accepted path is not its own escaped form")
 	})
 }
@@ -107,7 +107,7 @@ func TestTokenizePropertyIgnoresHexCase(t *testing.T) {
 		tokens, err := Tokenize(path)
 		require.NoError(t, err)
 		flippedTokens, err := Tokenize(flipped)
-		require.NoErrorf(t, err, "hex case flip changed the verdict: %q", flipped)
+		require.NoError(t, err, "hex case flip changed the verdict: %q", flipped)
 		require.Equal(t, flipped, "/"+strings.Join(flippedTokens, "/"))
 		require.Len(t, flippedTokens, len(tokens))
 	})
@@ -122,7 +122,7 @@ func TestTokenizePropertyRejectsRawNonASCII(t *testing.T) {
 		b := byte(rapid.IntRange(0x80, 0xff).Draw(t, "byte"))
 		mutated := insertAt(t, path, string(b))
 		_, err := Tokenize(mutated)
-		require.Errorf(t, err, "raw byte %#x not rejected: %q", b, mutated)
+		require.Error(t, err, "raw byte %#x not rejected: %q", b, mutated)
 	})
 }
 
@@ -148,7 +148,7 @@ func TestTokenizePropertyRejectsFoldForms(t *testing.T) {
 				path := wirePathGen().Draw(t, "path")
 				mutated := insertAt(t, path, form)
 				_, err := Tokenize(mutated)
-				require.Errorf(t, err, "%s not rejected: %q", name, mutated)
+				require.Error(t, err, "%s not rejected: %q", name, mutated)
 			})
 		})
 	}
@@ -192,7 +192,7 @@ func TestTokenizePropertyRejectsBadSegments(t *testing.T) {
 				i := slashes[n]
 				mutated := path[:i+1] + segment + "/" + path[i+1:]
 				_, err := Tokenize(mutated)
-				require.Errorf(t, err, "segment %q not rejected: %q", segment, mutated)
+				require.Error(t, err, "segment %q not rejected: %q", segment, mutated)
 			})
 		})
 	}
@@ -212,7 +212,7 @@ func TestTokenizePropertyRejectsEdgeSpaces(t *testing.T) {
 		i := rapid.SampledFrom(bounds).Draw(t, "bound")
 		mutated := path[:i] + "%20" + path[i:]
 		_, err := Tokenize(mutated)
-		require.Errorf(t, err, "edge space not rejected: %q", mutated)
+		require.Error(t, err, "edge space not rejected: %q", mutated)
 	})
 }
 
