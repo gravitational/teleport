@@ -9,6 +9,9 @@
 package mcputils
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -99,5 +102,47 @@ func TestScanEvents(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestScanEventsLargeDataLine(t *testing.T) {
+	data := bytes.Repeat([]byte("x"), 2*1024*1024)
+	input := "event: message\ndata: " + string(data) + "\n\n"
+
+	var got []Event
+	var err error
+	for e, err2 := range scanEvents(strings.NewReader(input)) {
+		if err2 != nil {
+			err = err2
+			break
+		}
+		got = append(got, e)
+	}
+
+	if err != nil {
+		t.Fatalf("scanEvents() returned unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("scanEvents() got %d events, want 1", len(got))
+	}
+	if got[0].Name != "message" {
+		t.Fatalf("event name = %q, want message", got[0].Name)
+	}
+	if !bytes.Equal(got[0].Data, data) {
+		t.Fatalf("event data length = %d, want %d", len(got[0].Data), len(data))
+	}
+}
+
+func TestScanEventsRejectsTooLargeLine(t *testing.T) {
+	input := "data: " + strings.Repeat("x", maxSSEEventLineSize+1)
+
+	var err error
+	for _, err2 := range scanEvents(strings.NewReader(input)) {
+		err = err2
+		break
+	}
+
+	if !errors.Is(err, bufio.ErrTooLong) {
+		t.Fatalf("scanEvents() error = %v, want %v", err, bufio.ErrTooLong)
 	}
 }
