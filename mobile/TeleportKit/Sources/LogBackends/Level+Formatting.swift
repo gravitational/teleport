@@ -14,24 +14,31 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Foundation
 import Logging
 
-extension Logger.Metadata {
-	/// Formats the metadata in a way suitable for appending to the end of a log message.
-	///
-	/// All metadata is joined into key value pairs of the form `\(key)=\(value)` with each pair including a prefix that
-	/// allows the metadata to be easily scanned/parsed by the human eye.
+extension Logger.Level {
+	/// Formats the log level in a way that allows it to be easily distinguished in a console or a log file, using both
+	/// colors and text.
 	var formatted: String {
-		guard !isEmpty else { return "" }
-		let metadataAsStrings = map { key, value in
-			let prefix = if key.lowercased().localizedStandardContains("error") {
-				"❌"
-			} else {
-				"🔸"
-			}
-			return "\(prefix) \(key)=\(value)"
+		"\(indicator) [\(description.uppercased())]"
+	}
+
+	private static let maxLevelStringLength = Logger.Level.allCases
+		.map(\.description.count)
+		.max() ?? 10 // Some reasonable default
+
+	private var indicator: String {
+		switch self {
+			case .trace:
+				"⚪️"
+			case .debug:
+				"🔵"
+			case .info, .notice:
+				"🟢"
+			case .warning:
+				"🟡"
+			case .error, .critical:
+				"🔴"
 		}
-		return metadataAsStrings.joined(separator: " ")
 	}
 }

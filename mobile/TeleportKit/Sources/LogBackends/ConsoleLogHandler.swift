@@ -52,33 +52,6 @@ public struct ConsoleLogHandler: LogHandler {
 	}
 }
 
-// MARK: - Private Helpers
-
-extension Logger.Level {
-	fileprivate var formatted: String {
-		return "\(indicator) [\(description.uppercased())]"
-	}
-
-	private static let maxLevelStringLength = Logger.Level.allCases
-		.map(\.description.count)
-		.max() ?? 10 // Some reasonable default
-
-	private var indicator: String {
-		switch self {
-			case .trace:
-				"⚪️"
-			case .debug:
-				"🔵"
-			case .info, .notice:
-				"🟢"
-			case .warning:
-				"🟡"
-			case .error, .critical:
-				"🔴"
-		}
-	}
-}
-
 // MARK: - Duration Formatter
 
 extension Duration {
