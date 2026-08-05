@@ -296,12 +296,9 @@ func ValidateRole(r types.Role) error {
 	return trace.NewAggregate(errs...)
 }
 
-// validateAppResources checks that app_resources appears only under
-// allow, that every rule sets allow_all and nothing else, and that an
-// allow_all rule is the only rule, since it subsumes every other. The
-// checks run on create and update only. Read paths accept any rule
-// content for forward compatibility, and the agent denies such requests
-// instead.
+// validateAppResources rejects an app_resources rule set that this version
+// cannot enforce, for example a rule with an unknown field. It runs on create
+// and update only, not on read.
 func validateAppResources(r types.Role) error {
 	if len(r.GetAppResources(types.Deny)) > 0 {
 		return trace.BadParameter("app_resources is not allowed under deny")
@@ -3011,6 +3008,14 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
+// RoleGrantsResource reports whether role alone grants access to r, checking
+// the namespace and label conditions only. It skips the MFA, device trust and
+// lock checks, which apply to a whole role set rather than one role.
+func RoleGrantsResource(role types.Role, r AccessCheckable, username string, traits wrappers.Traits) bool {
+	_, err := NewRoleSet(role).checkAccess(r, username, traits, AccessState{MFAVerified: true})
+	return err == nil
+}
+
 // checkAccess determines whether access should be granted to a resource based on the provided roles, resource
 // attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
 // is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
@@ -4159,23 +4164,6 @@ var knownAppResourceFields = func() map[string]struct{} {
 	}
 	return fields
 }()
-
-// CheckAppResourcesKnownFields rejects allow app_resources rules in the raw
-// role JSON that hold a field this version does not recognize. A lenient
-// JSON parse would drop such a field silently, and a v9 role from a newer
-// Teleport could lose a restricting field and widen access on a round-trip.
-// Fields outside allow app_resources stay lenient.
-func CheckAppResourcesKnownFields(raw []byte) error {
-	rules := jsoniter.Get(raw, "spec", "allow", "app_resources")
-	for i := range rules.Size() {
-		for _, key := range rules.Get(i).Keys() {
-			if _, known := knownAppResourceFields[key]; !known {
-				return trace.BadParameter("app_resources rule has unknown field %q", key)
-			}
-		}
-	}
-	return nil
-}
 
 // denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
 // stored JSON carried a field this version does not recognize, so the rule

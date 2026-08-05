@@ -1,0 +1,49 @@
+---
+title: Application Resources
+description: Explains how role v9 authorizes each HTTP request to an application through the app_resources rules.
+tags:
+ - reference
+ - zero-trust
+ - application-access
+---
+
+A role of version `v9` denies every HTTP request to an application it grants,
+unless a rule under `spec.allow.app_resources` authorizes the request. Earlier
+role versions authorize an application as a whole, so a user who reaches the
+application can send any request to it. Role v9 does not affect TCP, MCP, cloud
+(AWS console, Azure, and GCP), LLM, or Identity Center applications.
+
+## Rules
+
+In Teleport 19 the only supported rule is `allow_all: true`, which authorizes
+every request to the applications the role grants. It must be the only rule in
+the list, and `app_resources` is valid only under `allow`.
+
+```yaml
+kind: role
+version: v9
+metadata:
+  name: gitlab-dev
+spec:
+  allow:
+    app_labels:
+      vendor: [gitlab]
+    app_resources:
+      - allow_all: true
+```
+
+When a v9 role and a v8 or older role both grant the same application, Teleport
+drops the older roles from the decision, so they cannot restore unrestricted
+access to an application a v9 role restricts.
+
+## Agent version requirements
+
+Upgrade all Application Service agents to Teleport 19 before using role v9. An
+agent on Teleport 18 or earlier cannot evaluate `app_resources`, so the Auth
+Service serves it a downgraded v8 copy of each v9 role. For a role with an
+`allow_all` rule the copy grants the same access as v9. For any other role the
+copy moves the allow `app_labels` and `app_labels_expression` to the deny side,
+so the older agent denies those applications instead of granting them. A role
+does not record which application types it grants, so a downgraded role also
+denies the TCP, MCP, and cloud applications it selects, and can deny more
+applications than the v9 role restricts.

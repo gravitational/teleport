@@ -168,9 +168,7 @@ func TestDecideMinimalV9(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			got, err := decideMinimalV9(tc.roles, app, "alice", nil)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, decideMinimalV9(tc.roles, app, "alice", nil))
 		})
 	}
 }

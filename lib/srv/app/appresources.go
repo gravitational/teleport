@@ -22,8 +22,6 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
@@ -76,7 +74,7 @@ func roleVersionPredatesV9(version string) bool {
 //
 // TODO(@juliaogris): Replace with per-request rule matching from the
 // upcoming lib/appresource engine package.
-func decideMinimalV9(roles []types.Role, app types.Application, username string, traits wrappers.Traits) (minimalV9Decision, error) {
+func decideMinimalV9(roles []types.Role, app types.Application, username string, traits wrappers.Traits) minimalV9Decision {
 	// This version cannot evaluate deny-side app rules, which could only
 	// occur in roles from newer versions. Deny beats allow across the
 	// whole role set, so any role carrying them blocks allow_all
@@ -87,11 +85,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 
 	decision := minimalV9Decision{versionSkew: denyAppRules}
 	for _, role := range roles {
-		granted, err := roleGrantsApp(role, app, username, traits)
-		if err != nil {
-			return minimalV9Decision{}, trace.Wrap(err)
-		}
-		if !granted {
+		if !services.RoleGrantsResource(role, app, username, traits) {
 			continue
 		}
 		if roleVersionPredatesV9(role.GetVersion()) {
@@ -119,36 +113,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		decision.droppedRoles = nil
 		decision.versionSkew = false
 	}
-	return decision, nil
-}
-
-// roleGrantsApp reports whether role grants access to app through its
-// allow app_labels while its deny app_labels do not exclude it. It mirrors
-// the namespace and label stages of [services.RoleSet] access checking.
-func roleGrantsApp(role types.Role, app types.Application, username string, traits wrappers.Traits) (bool, error) {
-	namespace := types.ProcessNamespace(app.GetMetadata().Namespace)
-	if matched, _ := services.MatchNamespace(role.GetNamespaces(types.Deny), namespace); matched {
-		denyMatchers, err := role.GetLabelMatchers(types.Deny, types.KindApp)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		denied, _, err := services.CheckLabelsMatch(types.Deny, denyMatchers, username, traits, app, false)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if denied {
-			return false, nil
-		}
-	}
-	if matched, _ := services.MatchNamespace(role.GetNamespaces(types.Allow), namespace); !matched {
-		return false, nil
-	}
-	allowMatchers, err := role.GetLabelMatchers(types.Allow, types.KindApp)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	allowed, _, err := services.CheckLabelsMatch(types.Allow, allowMatchers, username, traits, app, false)
-	return allowed, trace.Wrap(err)
+	return decision
 }
 
 // enforceMinimalV9 applies v9 default-deny to a plain HTTP app request. It
@@ -160,10 +125,20 @@ func roleGrantsApp(role types.Role, app types.Application, username string, trai
 // upcoming lib/appresource engine package.
 func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Request, authCtx *authz.Context, app types.Application) (bool, error) {
 	identity := authCtx.Identity.GetIdentity()
-	decision, err := decideMinimalV9(authCtx.Checker.Roles(), app, identity.Username, authCtx.Checker.Traits())
-	if err != nil {
-		return false, trace.Wrap(err)
+	if !isGovernedByAppResources(app) {
+		// Skip rather than deny, because v9 does not restrict these app types
+		// and denying would break a working app on a routing bug.
+		if c.v9WarnOnce("apptype", identity.Username, app.GetName()) {
+			c.log.WarnContext(r.Context(), "Skipped app_resources enforcement because v9 does not govern this app type.",
+				"app", app.GetName(),
+				"user", identity.Username,
+				"app_sub_kind", app.GetSubKind(),
+			)
+		}
+		return false, nil
 	}
+
+	decision := decideMinimalV9(authCtx.Checker.Roles(), app, identity.Username, authCtx.Checker.Traits())
 
 	if len(decision.droppedRoles) > 0 && c.v9WarnOnce("drop", identity.Username, app.GetName()) {
 		c.log.WarnContext(r.Context(), "Dropped v8-or-older roles that grant a v9-governed app; v8 roles cannot re-open unrestricted access.",
@@ -193,6 +168,13 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 
 	http.Error(w, denyKindRequestNotAllowed, http.StatusForbidden)
 	return true, nil
+}
+
+// isGovernedByAppResources reports whether v9 app_resources rules govern this
+// app type.
+func isGovernedByAppResources(app types.Application) bool {
+	return !app.IsAWSConsole() && !app.IsAzureCloud() && !app.IsGCP() && !app.IsLLM() &&
+		app.GetSubKind() != types.KindIdentityCenterAccount
 }
 
 // isCORSPreflight reports whether r is a CORS preflight request, an

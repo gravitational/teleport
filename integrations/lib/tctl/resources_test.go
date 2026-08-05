@@ -52,26 +52,13 @@ metadata:
   name: test
 spec:
   allow:
-    app_resources:
-      - allow_all: true
-        paths: ["/admin"]
-`
-	_, err = readResourcesYAMLOrJSON(strings.NewReader(unknownField))
-	require.ErrorContains(t, err, `app_resources rule has unknown field "paths"`)
-
-	const unknownFieldOutsideAppResources = `kind: role
-version: v9
-metadata:
-  name: test
-spec:
-  allow:
     app_labels:
       env: ["dev"]
     app_resources:
       - allow_all: true
     made_up_field: true
 `
-	resources, err = readResourcesYAMLOrJSON(strings.NewReader(unknownFieldOutsideAppResources))
+	resources, err = readResourcesYAMLOrJSON(strings.NewReader(unknownField))
 	require.NoError(t, err)
 	require.Len(t, resources, 1)
 }

@@ -121,7 +121,7 @@ type Role interface {
 	SetAppLabels(RoleConditionType, Labels)
 
 	// GetAppResources gets the per-request app access rules this role defines
-	// for the given condition. Only v9 roles set them, and only under allow.
+	// for the given condition. Only v9+ roles set them, and only under allow.
 	GetAppResources(RoleConditionType) []AppResource
 
 	// GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.

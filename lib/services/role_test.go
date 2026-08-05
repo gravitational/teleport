@@ -1595,16 +1595,24 @@ func TestUnmarshalRoleV9DeniesAppAccessForUnknownField(t *testing.T) {
 		"a clean allow_all rule must read as allow-all")
 }
 
-func TestCheckAppResourcesKnownFields(t *testing.T) {
+func TestAppResourcesUnknownFieldRejectedOnWrite(t *testing.T) {
 	t.Parallel()
 
 	role := func(rules string) []byte {
 		return fmt.Appendf(nil, `{"kind": "role", "version": "v9", "metadata": {"name": "test"}, "spec": {"allow": {"app_resources": %s}}}`, rules)
 	}
-	require.NoError(t, CheckAppResourcesKnownFields(role(`[{"allow_all": true}]`)))
-	require.NoError(t, CheckAppResourcesKnownFields(role(`[]`)))
-	require.ErrorContains(t, CheckAppResourcesKnownFields(role(`[{"future_paths": ["/admin"]}, {"allow_all": true}]`)), "future_paths")
-	require.ErrorContains(t, CheckAppResourcesKnownFields(role(`[{"allow_all": true}, {"allow_all": true, "future_paths": ["/admin"]}]`)), "future_paths")
+	for _, rules := range []string{
+		`[{"future_paths": ["/admin"]}]`,
+		`[{"allow_all": true, "future_paths": ["/admin"]}]`,
+	} {
+		parsed, err := UnmarshalRole(role(rules))
+		require.NoError(t, err)
+		require.Error(t, ValidateRole(parsed), "rules %s must not be storable", rules)
+	}
+
+	parsed, err := UnmarshalRole(role(`[{"allow_all": true}]`))
+	require.NoError(t, err)
+	require.NoError(t, ValidateRole(parsed))
 }
 
 func TestUnmarshalRole(t *testing.T) {

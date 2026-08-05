@@ -28,7 +28,6 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 func writeResourcesYAML(w io.Writer, resources []types.Resource) error {
@@ -92,12 +91,7 @@ func (res *streamResource) UnmarshalJSON(raw []byte) error {
 		}
 	case types.KindRole:
 		switch header.Version {
-		case types.V4, types.V5, types.V6, types.V7, types.V8:
-			resource = &types.RoleV6{}
-		case types.V9:
-			if err := services.CheckAppResourcesKnownFields(raw); err != nil {
-				return trace.Wrap(err)
-			}
+		case types.V4, types.V5, types.V6, types.V7, types.V8, types.V9:
 			resource = &types.RoleV6{}
 		default:
 			return trace.BadParameter("unsupported resource version %s", header.Version)

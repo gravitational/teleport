@@ -1138,6 +1138,8 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 			)
 			return trace.Errorf("encountered unexpected role type")
 		}
+		// Send each role at a version the client understands. A client that
+		// does not know app_resources would read a v9 role as unrestricted.
 		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2321,9 +2323,10 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	}
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
-	// Order matters. v9 downgrades to v8 first, then v8 to v7. Both steps
-	// stamp TeleportDowngradedLabel, so on a pre-18 client the v7 reason
-	// overwrites the v9 one. The stripped app labels persist regardless.
+	// A v18 client supports v8 roles at most, a v17 client v7.
+	// Downgrade in order, v9 to v8 to v7.
+	// App label stripping from the v9 to v8 persists down to v7.
+	// Only the last step is captured in TeleportDowngradedLabel.
 	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
