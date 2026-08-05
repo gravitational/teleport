@@ -6217,6 +6217,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		OverrideGetter:             cfg.AuthServer,
 		ClusterName:                clusterName.GetClusterName(),
 		GetSigstorePolicyEvaluator: cfg.AuthServer.GetSigstorePolicyEvaluator,
+		IsEnterpriseBuild:          cfg.AuthServer.modules.IsEnterpriseBuild,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity issuance service")
