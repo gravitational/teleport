@@ -14,16 +14,4 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-import Logging
-
-extension Logger {
-	/// Creates a logger for a specific type.
-	static func forType<T>(_ type: T.Type) -> Logger {
-		Logger(label: String(describing: type))
-	}
-
-	/// Creates a logger for the file in which it is declared.
-	static func forFile(_ fileID: StaticString = #fileID) -> Logger {
-		Logger(label: "\(fileID)")
-	}
-}
+@_exported import Logging

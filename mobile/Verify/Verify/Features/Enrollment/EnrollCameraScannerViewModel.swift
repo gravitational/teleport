@@ -15,12 +15,12 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import AVFoundation
+import Logging
 import Observation
-import OSLog
 
 @Observable @MainActor
 final class EnrollCameraScannerViewModel {
-	private static let logger = Logger.forType(EnrollCameraScannerViewModel.self)
+	private let logger = Logger.forType(EnrollCameraScannerViewModel.self)
 
 	var cameraAuthorizationStatus: AVAuthorizationStatus = .notDetermined
 
@@ -49,13 +49,13 @@ extension EnrollCameraScannerViewModel {
 		guard let enrollMobileDeviceDeepLink = validateScannedCode(payload) else {
 			return .continueScanning
 		}
-		Self.logger.info("Scanned deep link: \(enrollMobileDeviceDeepLink.debugDescription)")
+		logger.info("Scanned deep link: \(enrollMobileDeviceDeepLink.debugDescription)")
 		delegate?.enrollCameraScannerViewModel(self, didReceiveEnrollMobileDeviceDeepLink: enrollMobileDeviceDeepLink)
 		return .stopScanning
 	}
 
 	private func validateScannedCode(_ payload: String) -> EnrollMobileDeviceDeepLink? {
-		Self.logger.debug("Validating scanned QR code: \(payload)")
+		logger.debug("Validating scanned QR code: \(payload)")
 		do {
 			guard let url = URL(string: payload) else {
 				return nil
@@ -66,7 +66,7 @@ extension EnrollCameraScannerViewModel {
 			}
 			return enrollMobileDeviceDeepLink
 		} catch {
-			Self.logger.debug("\(payload) did not pass validation")
+			logger.debug("\(payload) did not pass validation")
 			return nil
 		}
 	}
@@ -92,7 +92,7 @@ extension EnrollCameraScannerViewModel {
 			case .restricted, .denied, .authorized:
 				break
 			@unknown default:
-				Self.logger.warning(
+				logger.warning(
 					"Encountered unknown camera authorization status: \(self.cameraAuthorizationStatus.rawValue)",
 				)
 		}

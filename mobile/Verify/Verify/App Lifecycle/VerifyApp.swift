@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import Dependencies
+import LogBackends
 import SQLiteData
 import SwiftUI
 
@@ -69,6 +70,14 @@ struct VerifyApp: App {
 	private var appModel: VerifyAppModel
 
 	init() {
+		LoggingSystem.bootstrap { label in
+			var handler = ConsoleLogHandler(label: label)
+			#if DEBUG
+				handler.logLevel = .debug
+			#endif
+			return handler
+		}
+
 		prepareDependencies {
 			$0.defaultDatabase = AppDatabase.makeLiveDatabase()
 		}
