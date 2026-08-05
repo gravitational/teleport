@@ -388,23 +388,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	samlConnector = payload{
-		Name:                   "SAMLConnector",
-		TypeName:               "SAMLConnectorV2",
-		VarName:                "samlConnector",
-		GetMethod:              "GetSAMLConnector",
-		CreateMethod:           "CreateSAMLConnector",
-		UpdateMethod:           "UpsertSAMLConnector",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteSAMLConnector",
-		WithSecrets:            "true",
-		ID:                     "samlConnector.Metadata.Name",
-		Kind:                   "saml",
-		HasStaticID:            true,
-		TerraformResourceType:  "teleport_saml_connector",
-		HasCheckAndSetDefaults: true,
-	}
-
 	samlIdPServiceProvider = payload{
 		Name:                   "SAMLIdPServiceProvider",
 		TypeName:               "SAMLIdPServiceProviderV1",
@@ -1142,8 +1125,6 @@ func genTFSchema() {
 	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
 	generateDataSource(oidcConnector, pluralDataSource)
-	generateResource(samlConnector, pluralResource)
-	generateDataSource(samlConnector, pluralDataSource)
 	generateResource(samlIdPServiceProvider, pluralResource)
 	generateDataSource(samlIdPServiceProvider, pluralDataSource)
 	generateResource(provisionToken, pluralResource)
