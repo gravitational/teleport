@@ -72,6 +72,7 @@ const entitlementsMacOS = shouldBeSignedOnMacOS
 module.exports = {
   appId,
   asar: true,
+  npmRebuild: false,
   publish: [{ provider: 'custom' }],
   asarUnpack: '**\\*.{node,dll}',
   afterPack: packed => {
