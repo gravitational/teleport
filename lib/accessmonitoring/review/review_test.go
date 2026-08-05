@@ -502,14 +502,14 @@ func TestHandleAccessRequest(t *testing.T) {
 		requester     string
 		requestedRole string
 		reviewReason  string
-		setupMock     func(m *mockClient, reviewReason string)
+		setupMock     func(m *mockClient)
 		assertErr     require.ErrorAssertionFunc
 	}{
 		{
 			description:   "test non-existent user",
 			requester:     "non-existent-user",
 			requestedRole: "non-existent-role",
-			setupMock: func(m *mockClient, _ string) {
+			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, "non-existent-user").
 					Return(nil, trace.NotFound("user not found"))
 				m.On("GetUser", mock.Anything, "non-existent-user", false).
@@ -523,7 +523,7 @@ func TestHandleAccessRequest(t *testing.T) {
 			description:   "test approved user for unapproved role",
 			requester:     approvedUserName,
 			requestedRole: "unapproved-role",
-			setupMock: func(m *mockClient, _ string) {
+			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, approvedUserName).
 					Return(approvedUserLoginState, nil)
 
@@ -536,7 +536,7 @@ func TestHandleAccessRequest(t *testing.T) {
 			description:   "test unapproved user for approved role",
 			requester:     unapprovedUserName,
 			requestedRole: approvedRole,
-			setupMock: func(m *mockClient, _ string) {
+			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, unapprovedUserName).
 					Return(unapprovedUserLoginState, nil)
 
@@ -549,7 +549,7 @@ func TestHandleAccessRequest(t *testing.T) {
 			description:   "test approved user for approved role",
 			requester:     approvedUserName,
 			requestedRole: approvedRole,
-			setupMock: func(m *mockClient, reviewReason string) {
+			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, approvedUserName).
 					Return(approvedUserLoginState, nil)
 
@@ -557,7 +557,7 @@ func TestHandleAccessRequest(t *testing.T) {
 					approvedUserName,
 					testRuleName,
 					types.RequestState_APPROVED.String(),
-					reviewReason,
+					"",
 					time.Time{},
 				)
 				require.NoError(t, err)
@@ -574,7 +574,7 @@ func TestHandleAccessRequest(t *testing.T) {
 			requester:     approvedUserName,
 			requestedRole: approvedRole,
 			reviewReason:  "okay sure, I guess",
-			setupMock: func(m *mockClient, reviewReason string) {
+			setupMock: func(m *mockClient) {
 				m.On("GetUserLoginState", mock.Anything, approvedUserName).
 					Return(approvedUserLoginState, nil)
 
@@ -583,7 +583,7 @@ func TestHandleAccessRequest(t *testing.T) {
 				expectedReview := types.AccessReview{
 					Author:        teleport.SystemAccessApproverUserName,
 					ProposedState: types.RequestState_APPROVED,
-					Reason:        reviewReason,
+					Reason:        "okay sure, I guess",
 					Created:       time.Time{},
 				}
 
@@ -604,7 +604,7 @@ func TestHandleAccessRequest(t *testing.T) {
 
 			client := &mockClient{}
 			if test.setupMock != nil {
-				test.setupMock(client, test.reviewReason)
+				test.setupMock(client)
 			}
 
 			handler, err := NewHandler(Config{
