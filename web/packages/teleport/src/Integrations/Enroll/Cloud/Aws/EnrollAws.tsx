@@ -278,7 +278,11 @@ export function ScopeSection({
 }: ScopeSectionProps) {
   const isOrganization = scope === 'organization';
   const includeValidationResult = useRule(
-    includeOrgUnitsRule(orgUnits.include)
+    isOrganization
+      ? includeOrgUnitsRule(orgUnits.include)
+      : () => ({
+          valid: true,
+        })
   );
 
   return (
