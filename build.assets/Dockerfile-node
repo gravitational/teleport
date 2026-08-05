@@ -15,7 +15,7 @@
 # Pin the tag to Debian Bullseye to make sure the glibc compatibility
 # (glibc version of Bullseye is 2.31).
 ARG NODE_VERSION
-FROM node:${NODE_VERSION}-bullseye AS buildbox
+FROM node:${NODE_VERSION}-bookworm AS buildbox
 
 # BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
