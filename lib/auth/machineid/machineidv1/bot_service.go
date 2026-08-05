@@ -190,7 +190,7 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
-	bot, err := bs.getBot(ctx, req.GetScope(), req.GetBotName())
+	bot, err := bs.getBot(ctx, scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetBotName()})
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching bot")
 	}
@@ -210,9 +210,9 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 }
 
 func (bs *BotService) getBot(
-	ctx context.Context, scope, botName string,
+	ctx context.Context, name scopes.QualifiedName,
 ) (*pb.Bot, error) {
-	resourceName, err := services.BotResourceName(scope, botName)
+	resourceName, err := services.BotResourceName(name)
 	if err != nil {
 		return nil, trace.Wrap(err, "building bot resource name")
 	}
@@ -384,7 +384,7 @@ func (bs *BotService) CreateBot(
 
 	// TODO(strideynet): the usage event carries no scope, so this reports the
 	// unscoped name even for a scoped bot. The unscoped form cannot fail.
-	botUserName, _ := services.BotResourceName("", bot.GetMetadata().GetName())
+	botUserName, _ := services.BotResourceName(scopes.QualifiedName{Name: bot.GetMetadata().GetName()})
 	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
 		BotUserName: botUserName,
@@ -494,7 +494,7 @@ func UpsertBot(
 	// An upsert under a different scope addresses a different bot rather than
 	// transitioning an existing bot's scope, so there is no scope-transition
 	// guard here.
-	resourceName, err := services.BotResourceName(bot.GetScope(), bot.GetMetadata().GetName())
+	resourceName, err := services.BotResourceName(scopes.QualifiedName{Scope: bot.GetScope(), Name: bot.GetMetadata().GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err, "building bot resource name")
 	}
@@ -608,7 +608,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 
 	// TODO(strideynet): the usage event carries no scope, so this reports the
 	// unscoped name even for a scoped bot. The unscoped form cannot fail.
-	botUserName, _ := services.BotResourceName("", bot.GetMetadata().GetName())
+	botUserName, _ := services.BotResourceName(scopes.QualifiedName{Name: bot.GetMetadata().GetName()})
 	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
 		BotUserName: botUserName,
@@ -690,7 +690,7 @@ func (bs *BotService) UpdateBot(
 	}
 
 	// Unscoped by the check above, so the User and Role share this name.
-	resourceName, err := services.BotResourceName("", req.GetBot().GetMetadata().GetName())
+	resourceName, err := services.BotResourceName(scopes.QualifiedName{Name: req.GetBot().GetMetadata().GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err, "building bot resource name")
 	}
@@ -806,7 +806,7 @@ func (bs *BotService) deleteBotUser(
 
 func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 	// Check the role that's being deleted is linked to the bot.
-	roleName, err := services.BotResourceName("", botName)
+	roleName, err := services.BotResourceName(scopes.QualifiedName{Name: botName})
 	if err != nil {
 		return trace.Wrap(err, "building bot resource name")
 	}
@@ -860,7 +860,7 @@ func (bs *BotService) DeleteBot(
 		return nil, trace.Wrap(err)
 	}
 
-	resourceName, err := services.BotResourceName(req.GetScope(), req.GetBotName())
+	resourceName, err := services.BotResourceName(scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetBotName()})
 	if err != nil {
 		return nil, trace.Wrap(err, "building bot resource name")
 	}
@@ -1103,7 +1103,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	}
 
 	// Setup role
-	resourceName, err := services.BotResourceName("", bot.GetMetadata().GetName())
+	resourceName, err := services.BotResourceName(scopes.QualifiedName{Name: bot.GetMetadata().GetName()})
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "building bot resource name")
 	}
@@ -1192,7 +1192,7 @@ func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, 
 	}
 
 	// Setup user
-	resourceName, err := services.BotResourceName(bot.GetScope(), bot.GetMetadata().GetName())
+	resourceName, err := services.BotResourceName(scopes.QualifiedName{Scope: bot.GetScope(), Name: bot.GetMetadata().GetName()})
 	if err != nil {
 		return nil, trace.Wrap(err, "building bot resource name")
 	}

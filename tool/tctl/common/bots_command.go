@@ -565,7 +565,7 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 		return trace.Wrap(err)
 	}
 
-	resourceName, err := services.BotResourceName(c.botName.Scope, c.botName.Name)
+	resourceName, err := services.BotResourceName(c.botName)
 	if err != nil {
 		return trace.Wrap(err, "building bot resource name")
 	}

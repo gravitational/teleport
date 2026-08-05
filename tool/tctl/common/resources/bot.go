@@ -180,6 +180,8 @@ func createBot(
 	if err := (protojson.UnmarshalOptions{}).Unmarshal(raw.Raw, bot); err != nil {
 		return trace.Wrap(err)
 	}
+	// String() renders the bare name when the scope is empty.
+	displayName := scopes.QualifiedName{Scope: bot.GetScope(), Name: bot.GetMetadata().GetName()}.String()
 	if opts.Force {
 		_, err := client.BotServiceClient().UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
 			Bot: bot,
@@ -187,7 +189,7 @@ func createBot(
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
+		fmt.Printf("Bot %q has been created\n", displayName)
 		return nil
 	}
 
@@ -197,7 +199,7 @@ func createBot(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
+	fmt.Printf("Bot %q has been created\n", displayName)
 	return nil
 }
 

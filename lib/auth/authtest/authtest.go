@@ -1178,9 +1178,9 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 }
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(t *testing.T, botName string, scope string, botInternal bool) TestIdentity {
+func TestScopedBot(t *testing.T, botName scopes.QualifiedName, botInternal bool) TestIdentity {
 	// The cert username must match the User name the bot service persists.
-	userName, err := services.BotResourceName(scope, botName)
+	userName, err := services.BotResourceName(botName)
 	if err != nil {
 		t.Fatalf("TestScopedBot: %s", err.Error())
 	}
@@ -1194,7 +1194,7 @@ func TestScopedBot(t *testing.T, botName string, scope string, botInternal bool)
 				BotInternal: botInternal,
 			},
 		},
-		Scope: scope,
+		Scope: botName.Scope,
 	}
 }
 

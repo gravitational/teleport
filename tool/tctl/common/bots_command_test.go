@@ -1104,10 +1104,10 @@ func TestBotsScoped(t *testing.T) {
 		require.Contains(t, out, "/staging::robot")
 		// The scoped bot's backing user encodes its scope, which is how the two
 		// same-named bots stay distinct in storage.
-		scopedUser, err := services.BotResourceName("/staging", "robot")
+		scopedUser, err := services.BotResourceName(scopes.QualifiedName{Scope: "/staging", Name: "robot"})
 		require.NoError(t, err)
 		require.Contains(t, out, scopedUser)
-		unscopedUser, err := services.BotResourceName("", "robot")
+		unscopedUser, err := services.BotResourceName(scopes.QualifiedName{Name: "robot"})
 		require.NoError(t, err)
 		require.Contains(t, out, unscopedUser)
 	})
@@ -1139,7 +1139,7 @@ func TestBotsScoped(t *testing.T) {
 		cmd := BotsCommand{stdout: &strings.Builder{}, botName: scopes.QualifiedName{Scope: "/staging", Name: "robot"}}
 		require.NoError(t, cmd.LockBot(ctx, client))
 
-		scopedUser, err := services.BotResourceName("/staging", "robot")
+		scopedUser, err := services.BotResourceName(scopes.QualifiedName{Scope: "/staging", Name: "robot"})
 		require.NoError(t, err)
 		locks, err := client.GetLocks(ctx, false)
 		require.NoError(t, err)

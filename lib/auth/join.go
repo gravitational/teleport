@@ -366,7 +366,7 @@ func makeBotCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any, att
 // bot referenced by the given provision token.
 func botUserNameFromToken(token provision.Token) (string, error) {
 	botName, botScope := token.GetBot()
-	username, err := services.BotResourceName(botScope, botName)
+	username, err := services.BotResourceName(scopes.QualifiedName{Scope: botScope, Name: botName})
 	return username, trace.Wrap(err)
 }
 
@@ -581,7 +581,7 @@ func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, pa
 	if err != nil {
 		// Best-effort: emit the event with the bare name rather than drop it.
 		a.logger.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
-		botUserName, _ = services.BotResourceName("", botName)
+		botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: botName})
 	}
 	joinEvent := &apievents.BotJoin{
 		Metadata: apievents.Metadata{

@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestBotResourceName(t *testing.T) {
@@ -71,7 +73,7 @@ func TestBotResourceName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := BotResourceName(tt.scope, tt.botName)
+			got, err := BotResourceName(scopes.QualifiedName{Scope: tt.scope, Name: tt.botName})
 			tt.assertErr(t, err)
 			if err != nil {
 				return

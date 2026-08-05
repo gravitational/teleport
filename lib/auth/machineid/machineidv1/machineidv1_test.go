@@ -2806,12 +2806,12 @@ func TestDeleteBot(t *testing.T) {
 			_, err = client.BotServiceClient().DeleteBot(ctx, tt.req)
 			tt.assertError(t, err)
 			if tt.checkResourcesDeleted {
-				wantUserName, err := services.BotResourceName(tt.req.GetScope(), tt.req.GetBotName())
+				wantUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: tt.req.GetScope(), Name: tt.req.GetBotName()})
 				require.NoError(t, err)
 				_, err = srv.Auth().GetUser(ctx, wantUserName, false)
 				require.True(t, trace.IsNotFound(err), "bot user should be deleted")
 				if !tt.scoped {
-					roleName, err := services.BotResourceName("", tt.req.GetBotName())
+					roleName, err := services.BotResourceName(scopes.QualifiedName{Name: tt.req.GetBotName()})
 					require.NoError(t, err)
 					_, err = srv.Auth().GetRole(ctx, roleName)
 					require.True(t, trace.IsNotFound(err), "bot role should be deleted")
@@ -3876,7 +3876,7 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 		require.NoError(t, err)
 		waitForSRACache(t, srv, sraResp)
 
-		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(t, botName, "/scopes/test", true))
+		botClient, instanceID := newBotClient(t, authtest.TestScopedBot(t, scopes.QualifiedName{Scope: "/scopes/test", Name: botName}, true))
 		createBotInstance(t, srv, botName, "/scopes/test", instanceID)
 
 		_, err = botClient.BotInstanceServiceClient().SubmitHeartbeat(ctx, machineidv1pb.SubmitHeartbeatRequest_builder{

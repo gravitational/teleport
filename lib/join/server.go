@@ -936,11 +936,11 @@ func makeAuditEvent(ctx context.Context, info diagnostic.Info, attributesStruct 
 		default:
 			code = events.BotJoinCode
 		}
-		botUserName, err := services.BotResourceName(info.BotScope, info.BotName)
+		botUserName, err := services.BotResourceName(scopes.QualifiedName{Scope: info.BotScope, Name: info.BotName})
 		if err != nil {
 			// Best-effort: emit the event with the bare name rather than drop it.
 			log.WarnContext(ctx, "Failed to determine bot user name for join audit event", "error", err)
-			botUserName, _ = services.BotResourceName("", info.BotName)
+			botUserName, _ = services.BotResourceName(scopes.QualifiedName{Name: info.BotName})
 		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{

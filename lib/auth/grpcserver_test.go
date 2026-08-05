@@ -7317,7 +7317,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)
-				ident = authtest.TestScopedBot(t, c.botName, c.scope, c.internal)
+				ident = authtest.TestScopedBot(t, scopes.QualifiedName{Scope: c.scope, Name: c.botName}, c.internal)
 			}
 
 			client, err := testServer.NewClient(ident)
