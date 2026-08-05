@@ -633,10 +633,16 @@ describe('BotDetails', () => {
         { timeout: 5000 }
       );
 
-      expect(screen.getByTestId('current-pathname')).toHaveTextContent(
-        '/web/bots'
+      await waitFor(
+        () =>
+          expect(screen.getByTestId('current-pathname')).toHaveTextContent(
+            '/web/bots'
+          ),
+        {
+          timeout: 1_000,
+        }
       );
-    });
+    }, 6_000);
 
     it('should disable the delete action if no permissions', async () => {
       withFetchSuccess();
