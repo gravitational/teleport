@@ -1,8 +1,13 @@
+import { useEffect } from 'react';
+import type { FallbackProps } from 'react-error-boundary';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonLink, Flex } from 'design';
+import { Logger } from 'design/logger';
 
 import { storageService } from 'teleport/services/storageService';
+
+const logger = new Logger('AccessGraph/AccessGraphError');
 
 const Container = styled.div`
   display: flex;
@@ -66,23 +71,35 @@ export function AccessGraphSetupError({
   );
 }
 
-export function AccessGraphLoadingError() {
+// Fallback component for the error boundaries around the lazily-loaded Identity
+// Security bundles. A truthy `getAccessGraphEnabled` means `/features.json` was
+// served by Access Graph, so the service is reachable and the failure is most
+// likely a version incompatibility between it and Teleport.
+export function AccessGraphLoadingError({ error }: FallbackProps) {
+  // Logged rather than displayed: a failed script load only rejects with an
+  // opaque DOM load event, which makes for unhelpful copy.
+  useEffect(() => {
+    logger.error('failed to load Identity Security', error);
+  }, [error]);
+
   if (storageService.getAccessGraphEnabled()) {
-    // If we're here, it means we failed to load the React 19 specific JS bundle from Access Graph,
-    // but have successfully loaded `/features.json` from Access Graph (which indicates that the
-    // service is running and the feature is enabled).
-    // This likely means that the version of Access Graph is old and incompatible with Teleport 18+
-    // (where React 19 is used).
-    // TODO(ryan): delete in v19 as v17 will no longer be supported and this error should never be seen again.
     return (
       <Container>
         <Alert
           kind="danger"
           alignItems="flex-start"
-          details={<DocumentationButton />}
+          details={
+            <>
+              <Box mt={2}>
+                Identity Security failed to load, which usually means the
+                version running in your cluster is incompatible with this
+                version of Teleport. Please ensure it has been updated.
+              </Box>
+              <DocumentationButton />
+            </>
+          }
         >
-          The current version of Identity Security is incompatible with Teleport
-          18. Please update to the latest version.
+          Identity Security may be incompatible with this version of Teleport.
         </Alert>
       </Container>
     );

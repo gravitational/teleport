@@ -94,6 +94,8 @@ test('renders incompatible error when access graph bundle fails to load (can be 
   await act(() => Promise.resolve());
 
   expect(
-    screen.getByText(/current version of Identity Security is incompatible/)
+    screen.getByText(
+      /Identity Security may be incompatible with this version of Teleport/
+    )
   ).toBeInTheDocument();
 });
