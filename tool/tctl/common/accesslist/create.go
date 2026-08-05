@@ -54,6 +54,11 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
+	// Requested dry-run: print the resource config instead of creating anything.
+	if c.output != "" {
+		return trace.Wrap(c.dryRunCreate(newAccessList, members))
+	}
+
 	createResponse, err := c.createAccessList(ctx, client, newAccessList, members)
 	if err != nil {
 		return trace.Wrap(err)
@@ -63,6 +68,10 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 }
 
 func (c *Command) validateCreate() error {
+	if c.output != "" && c.formatSet {
+		return trace.BadParameter("--output and --format cannot be combined")
+	}
+
 	if c.accessType == "" {
 		if c.anyAccessFlagsSet() {
 			return trace.BadParameter("resource access flags (--node-labels, --logins, --aws-ic-assignments, etc.) require --access-type")
@@ -312,6 +321,18 @@ func (c *Command) buildMembers(accessListName scopes.QualifiedName) ([]*accessli
 		members = append(members, m)
 	}
 	return members, nil
+}
+
+func (c *Command) dryRunCreate(newAccessList *accesslist.AccessList, members []*accesslist.AccessListMember) error {
+	var accessRoles []*types.RoleV6
+	if c.accessType != "" {
+		var err error
+		accessRoles, err = c.buildResourceAccessRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.Wrap(c.writeOutput(newAccessList, accessRoles, members, presetType(c.accessType)))
 }
 
 // CreateResponse is a structured response when `format=json`
