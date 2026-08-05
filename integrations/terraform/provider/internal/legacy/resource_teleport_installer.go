@@ -279,6 +279,8 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Installer", trace.Errorf("Can not convert %T to InstallerV1", installerI), "installer"))
 		return
 	}
+	installer = installerResource
+
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -343,4 +345,53 @@ func (r resourceTeleportInstaller) ImportState(ctx context.Context, req tfsdk.Im
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportInstaller) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	installer := &apitypes.InstallerV1{}
+	resp.Diagnostics.Append(tfschema.CopyInstallerV1FromTerraform(ctx, config, installer)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	installerResource := installer
+
+	if err := installerResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting Installer defaults", trace.Wrap(err), "installer"))
+		return
+	}
+
+	installer = installerResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyInstallerV1ToTerraformPreserveUnknown(ctx, installer, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

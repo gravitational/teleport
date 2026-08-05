@@ -1,5 +1,3 @@
-//go:build linux
-
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -14,11 +12,22 @@
 // GNU Affero General Public License for more details.
 //
 // You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// along with this program.  If not, see http://www.gnu.org/licenses/
 
-package reexecsftp
+#if DEBUG
+	import Foundation
 
-import "golang.org/x/sys/unix"
+	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
+	enum FakeSerialNumberGenerator {
+		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-// readOnlyPath holds platform-specific flags for opening a directory for openat().
-const readOnlyPath = unix.O_PATH | unix.O_RDONLY
+		static func generate() -> String {
+			func chunk() -> String {
+				(0 ..< 4)
+					.compactMap { _ in Self.base.randomElement() }
+					.reduce(into: "") { $0.append($1) }
+			}
+			return "\(chunk())-\(chunk())"
+		}
+	}
+#endif

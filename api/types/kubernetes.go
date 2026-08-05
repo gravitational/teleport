@@ -36,6 +36,8 @@ var _ compare.IsEqual[KubeCluster] = (*KubernetesClusterV3)(nil)
 type KubeCluster interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
+	// ResourceWithSecrets provides WithoutSecrets method.
+	ResourceWithSecrets
 	// GetNamespace returns the kube cluster namespace.
 	GetNamespace() string
 	// GetStaticLabels returns the kube cluster static labels.
@@ -361,6 +363,18 @@ func (k *KubernetesClusterV3) String() string {
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() KubeCluster {
 	return utils.CloneProtoMsg(k)
+}
+
+// WithoutSecrets returns a shallow copy of this kube cluster with its kubeconfig removed. Note that this function
+// is a lot less aggressive than the existing [NewKubernetesClusterV3WithoutSecrets] which the heartbeat
+// path uses. That function removes all fields except for name/labels/scope.
+func (k *KubernetesClusterV3) WithoutSecrets() Resource {
+	if !k.IsKubeconfig() {
+		return k
+	}
+	k2 := *k
+	k2.Spec.Kubeconfig = nil
+	return &k2
 }
 
 // GetStatus gets the kube cluster status.

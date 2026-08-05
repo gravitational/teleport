@@ -35,6 +35,7 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "WorkloadIdentity.metadata.id"
+  - "WorkloadIdentity.metadata.revision"
 
   # The extra_claims field is a `google.protobuf.Struct` which isn't currently
   # supported by protoc-gen-terraform.

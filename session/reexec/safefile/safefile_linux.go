@@ -1,5 +1,7 @@
+//go:build linux
+
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,30 +16,9 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package plugin
+package safefile
 
-import (
-	"time"
+import "golang.org/x/sys/unix"
 
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
-)
-
-func OktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
-	if syncSettings == nil {
-		return 0, nil
-	}
-	raw := syncSettings.TimeBetweenImports
-	if raw == "" {
-		return 0, nil
-	}
-	parsed, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, trace.BadParameter("time_between_imports is not valid: %s", err)
-	}
-	if parsed < 0 {
-		return 0, trace.BadParameter("time_between_imports %q cannot be a negative value", raw)
-	}
-	return parsed, nil
-}
+// readOnlyPath holds platform-specific flags for opening a directory for openat().
+const readOnlyPath = unix.O_PATH | unix.O_RDONLY

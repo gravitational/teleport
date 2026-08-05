@@ -32,6 +32,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -1095,7 +1096,7 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		if err := a.scopedContext.AgentOwnedResourceAction(s.GetScope(), s.GetName(), types.RoleNode); err == nil {
 			return nil
 		}
-		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, types.VerbCreate, types.VerbUpdate)
+		return checker.CheckAccessToRules(&ruleCtx, types.KindNode, scopedaccess.Create, scopedaccess.Update)
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1186,6 +1187,7 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 	}
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
+		applyLegacyWatchSecretsCompat(ctx, &kind)
 		filter, err := a.authorizeWatchKind(ctx, kind)
 		if err != nil {
 			if watch.AllowPartialSuccess {
@@ -1271,6 +1273,29 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 	return trace.Wrap(a.authorizeAction(kind.Kind, verb))
 }
 
+// minKubeClusterWatchSecretsVersion is the client version after which we assume the caller would have explicitly requested
+// kube cluster secrets if they intended to make a secrets-inclusive watch.
+var minKubeClusterWatchSecretsVersion = &semver.Version{Major: 18, Minor: 12}
+
+// applyLegacyWatchSecretsCompat forces LoadSecrets on kubernetes_cluster watches from clients too old
+// to know they have to ask for it. Kube clusters used to always be a secrets-inclusive watch, and we
+// have retroactively added the ability to express secrets-exclusive watch permissions for them.
+//
+// TODO(fspmarshall): DELETE IN v21
+func applyLegacyWatchSecretsCompat(ctx context.Context, kind *types.WatchKind) {
+	if kind.Kind != types.KindKubernetesCluster || kind.LoadSecrets {
+		return
+	}
+
+	if clientVersion, ok := metadata.ClientVersionFromContext(ctx); ok {
+		if current, err := utils.MinVerWithoutPreRelease(clientVersion, minKubeClusterWatchSecretsVersion.String()); err == nil && current {
+			return
+		}
+	}
+
+	kind.LoadSecrets = true
+}
+
 // supportedScopedWatchKind matches the set of resource kinds that have been converted to support scoped watch
 // (namespaced + scope-carrying delete events). A scope filter that targets scoped
 // resources is only meaningful for these kinds.
@@ -1279,9 +1304,11 @@ func supportedScopedWatchKind(kind string) bool {
 	case types.KindAccessList,
 		types.KindAccessListMember,
 		types.KindAccessListReview,
+		types.KindBotInstance,
 		scopedaccess.KindScopedRole,
 		scopedaccess.KindScopedRoleAssignment,
-		types.KindKubernetesCluster:
+		types.KindKubernetesCluster,
+		types.KindWorkloadIdentity:
 		return true
 	default:
 		return false
@@ -1453,9 +1480,9 @@ func (a *ScopedServerWithRoles) authorizeWatchKindCore(ctx context.Context, kind
 		return nil, trace.BadParameter("cannot watch kind %q with unknown mode %v", kind.Kind, filter.GetMode())
 	}
 
-	verb := types.VerbReadNoSecrets
+	verb := scopedaccess.Read
 	if kind.LoadSecrets {
-		verb = types.VerbRead
+		verb = scopedaccess.Secrets
 	}
 
 	ruleCtx := a.scopedContext.RuleContext()
@@ -1874,7 +1901,7 @@ func (a *ScopedServerWithRoles) ListUnifiedResources(ctx context.Context, req *p
 
 	ruleCtx := a.scopedContext.RuleContext()
 
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, types.VerbList); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindNode, scopedaccess.List); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2262,7 +2289,9 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, req.ResourceType, types.VerbList, types.VerbRead); err != nil {
+	// secret-exclusive read is the right requirement even for resource types that do carry secrets,
+	// since this pre-check must never be stricter than the per-resource checks it precedes.
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, req.ResourceType, scopedaccess.List, scopedaccess.Read); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3591,6 +3620,32 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	return a.authServer.submitAccessReview(ctx, submission, &identity)
 }
 
+func (a *ScopedServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetAccessCapabilities(ctx, req)
+	}
+
+	if a.scopedContext.User == nil {
+		return nil, trace.AccessDenied(
+			"access capabilities can only be retrieved by scoped identities if they are users",
+		)
+	}
+
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.scopedContext.User.GetName()
+	}
+
+	// Scoped identities can only check their own capabilities
+	if err := a.scopedCurrentUserAction(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(bl-nero): Implement once it's supported by the backend. Currently,
+	// there's no concept of scoped access requests.
+	return &types.AccessCapabilities{}, nil
+}
+
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	// default to checking the capabilities of the caller
 	if req.User == "" {
@@ -4262,8 +4317,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	}
 
 	if req.Usage == proto.UserCertsRequest_AccessGraphAPI {
-		if !a.authServer.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
-			return nil, trace.AccessDenied("access graph requires a Teleport Policy license")
+		if !a.authServer.modules.Features().GetEntitlement(entitlements.AccessGraph).Enabled {
+			return nil, trace.AccessDenied("access graph requires a Teleport Access Graph license")
 		}
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "access graph is not permitted")
@@ -6806,7 +6861,7 @@ func (a *ServerWithRoles) canDeleteWebSession(username string) error {
 func (a *ScopedServerWithRoles) GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
-		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, types.VerbCreate)
+		return checker.CheckAccessToRules(&ruleCtx, types.KindJWT, scopedaccess.Create)
 	}); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -6901,7 +6956,7 @@ func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) er
 		services.AccessState{MFAVerified: true})
 }
 
-func (a *ScopedServerWithRoles) checkAccessToKubeClusterWithVerbs(ctx context.Context, cluster types.KubeCluster, verbs ...string) error {
+func (a *ScopedServerWithRoles) checkAccessToKubeClusterWithVerbs(ctx context.Context, cluster types.KubeCluster, verbs ...scopedaccess.Verb) error {
 	ruleCtx := a.scopedContext.RuleContext()
 	return a.scopedContext.CheckerContext.Decision(ctx, cmp.Or(cluster.GetScope(), scopes.Root), func(checker *services.ScopedAccessChecker) error {
 		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, verbs...); err != nil {
@@ -6946,7 +7001,7 @@ func (a *ScopedServerWithRoles) GetKubernetesServers(ctx context.Context) ([]typ
 	}
 	var filtered []types.KubeServer
 	for _, server := range servers {
-		err := a.checkAccessToKubeClusterWithVerbs(ctx, server.GetCluster(), types.VerbList, types.VerbRead)
+		err := a.checkAccessToKubeClusterWithVerbs(ctx, server.GetCluster(), scopedaccess.List, scopedaccess.Read)
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
@@ -6975,7 +7030,7 @@ func (a *ScopedServerWithRoles) GetApplicationServers(ctx context.Context, names
 		}
 
 		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			if err := checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, types.VerbRead, types.VerbList); err != nil {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, scopedaccess.Read, scopedaccess.List); err != nil {
 				return trace.Wrap(err)
 			}
 			return checker.App().CanAccessApp(server.GetApp())
@@ -7026,7 +7081,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req 
 	if err := a.scopedContext.AgentOwnedResourceAction(existingServer.GetScope(), existingServer.GetHostID(), types.RoleKube); err != nil {
 		ruleCtx := a.scopedContext.RuleContext()
 		if err := a.scopedContext.CheckerContext.Decision(ctx, existingServer.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+			return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, scopedaccess.Delete)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -7567,7 +7622,7 @@ func (a *ServerWithRoles) DeleteAllApps(ctx context.Context) error {
 func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbCreate); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Create); err != nil {
 			return err
 		}
 		// Don't allow users to create clusters they wouldn't have access to (e.g.
@@ -7586,7 +7641,7 @@ func (a *ScopedServerWithRoles) CreateKubernetesCluster(ctx context.Context, clu
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Update); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7600,7 +7655,7 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 		return trace.Wrap(err)
 	}
 	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbUpdate); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Update); err != nil {
 			return err
 		}
 		if err := checker.Kube().CanAccessCluster(existing); err != nil {
@@ -7631,23 +7686,28 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 
 // GetKubernetesCluster returns specified kubernetes cluster resource.
 //
+// NOTE: this and the other legacy kube cluster reads below are what outdated clients reach, so they
+// must retain their legacy secret-inclusive behavior, hence with_secrets and the Secrets verb. The
+// secret-exclusive-by-default model is implemented by the newere presencev1 service methods.
+//
 // Deprecated: Use GetKubeCluster from lib/auth/presence/presencev1/service.go instead.
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	kubeCluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
-		Name: name,
+		Name:        name,
+		WithSecrets: true,
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := a.scopedContext.CheckerContext.Decision(ctx, kubeCluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets); err != nil {
 			return err
 		}
 		return checker.Kube().CanAccessCluster(kubeCluster)
@@ -7661,7 +7721,7 @@ func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name s
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (result []types.KubeCluster, err error) {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -7669,11 +7729,12 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 		iterstream.FilterMap(
 			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+				WithSecrets: true,
 			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 						return err
 					}
 					return checker.Kube().CanAccessCluster(cluster)
@@ -7697,7 +7758,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
@@ -7706,11 +7767,12 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				PageToken:   start,
 				ScopeFilter: a.scopedContext.CheckerContext.ResolveScopeFilter(nil),
+				WithSecrets: true,
 			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Secrets, scopedaccess.List); err != nil {
 						return err
 					}
 					return checker.Kube().CanAccessCluster(cluster)
@@ -7731,7 +7793,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
@@ -7742,7 +7804,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 		return trace.Wrap(err)
 	}
 	if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete); err != nil {
 			return err
 		}
 		return checker.Kube().CanAccessCluster(cluster)
@@ -7757,7 +7819,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.
 func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context) error {
 	ruleCtx := a.scopedContext.RuleContext()
-	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbList, types.VerbDelete); err != nil {
+	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.List, scopedaccess.Delete); err != nil {
 		return trace.Wrap(err)
 	}
 	// Make sure to only delete kubernetes cluster user has access to.
@@ -7769,7 +7831,7 @@ func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context)
 	var deletedAtLeastOneCluster bool
 	for _, cluster := range clusters {
 		if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
-			if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete, types.VerbList); err != nil {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, scopedaccess.Delete, scopedaccess.List); err != nil {
 				return err
 			}
 			return checker.Kube().CanAccessCluster(cluster)

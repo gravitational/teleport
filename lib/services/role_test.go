@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -10216,6 +10217,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 				Labels: map[string]string{},
 			}.Build(),
 		}.Build()),
+		types.Resource153ToResourceWithLabels(linuxdesktopv1.LinuxDesktop_builder{
+			Kind:    types.KindLinuxDesktop,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Labels: map[string]string{},
+			}.Build(),
+		}.Build()),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -11938,5 +11946,16 @@ func TestCheckImpersonateRoles(t *testing.T) {
 			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
 			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
 		})
+	}
+}
+
+// TestDefaultImplicitRulesHaveNoWildcardVerbs verifies the assumption newScopedImplicitRole relies on,
+// that the default implicit rules contain no wildcards (if they did, our secret-inclusive -> secret-exclusive
+// conversion would break).
+func TestDefaultImplicitRulesHaveNoWildcardVerbs(t *testing.T) {
+	t.Parallel()
+
+	for _, rule := range DefaultImplicitRules {
+		require.NotContains(t, rule.Verbs, types.Wildcard, "resources %v", rule.Resources)
 	}
 }

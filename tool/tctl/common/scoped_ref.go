@@ -120,6 +120,24 @@ func ParseScopedRef(ref, id string) (ScopedRef, error) {
 			qn.Name, _, _ = strings.Cut(qn.Name, ":")
 		}
 
+		// A bot instance is identified by <bot_name>/<uuid> under the bot's scope,
+		// so for bot_instance refs the name component of the SQN may itself be a
+		// two-part identifier containing a '/'. Validate the parts individually
+		// since whole-name validation would reject the separator.
+		if r.Kind == types.KindBotInstance {
+			if botName, instanceID, ok := strings.Cut(qn.Name, "/"); ok {
+				if err := scopes.StrongValidate(qn.Scope); err != nil {
+					return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid scope: %v", qn, err)
+				}
+				for _, part := range []string{botName, instanceID} {
+					if err := scopes.StrongValidateSegment(part); err != nil {
+						return ScopedRef{}, trace.BadParameter("scope-qualified name %q has invalid name: %v", qn, err)
+					}
+				}
+				return ScopedRef{Kind: r.Kind, SubKind: subKind, Scope: qn.Scope, Name: qn.Name}, nil
+			}
+		}
+
 		if err := qn.StrongValidate(); err != nil {
 			return ScopedRef{}, trace.Wrap(err)
 		}

@@ -263,6 +263,8 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 
 	accessMonitoringRuleResource = accessMonitoringRuleI
 	
+	accessMonitoringRule = accessMonitoringRuleResource
+
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -327,4 +329,49 @@ func (r resourceTeleportAccessMonitoringRule) ImportState(ctx context.Context, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportAccessMonitoringRule) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessMonitoringRule := &accessmonitoringrulesv1.AccessMonitoringRule{}
+	resp.Diagnostics.Append(schemav1.CopyAccessMonitoringRuleFromTerraform(ctx, config, accessMonitoringRule)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessMonitoringRuleResource := accessMonitoringRule
+	accessMonitoringRuleResource.Kind = apitypes.KindAccessMonitoringRule
+
+	accessMonitoringRule = accessMonitoringRuleResource
+
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyAccessMonitoringRuleToTerraformPreserveUnknown(ctx, accessMonitoringRule, &config, preserveUnknown)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

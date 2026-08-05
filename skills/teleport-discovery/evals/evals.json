@@ -319,6 +319,49 @@
         "The teleport provider version constraint in the applied configuration floors at the 18.7.6 module minimum or the cluster major and caps below the next major.",
         "The agent verified the resources itself following references/monitor.md and reported the verification in final-response.md."
       ]
+    },
+    {
+      "id": 18,
+      "eval_name": "azure-write-vm-management-group",
+      "cloud": "azure",
+      "tier": "write",
+      "fixture": "cloud-azure-management-group",
+      "copy_fixture": null,
+      "prompt": "Set up Azure VM auto-discovery across all subscriptions in our tenant on Teleport Cloud tenant azure-tenant.teleport.sh. Use management group scoped discovery with the tenant root group (tenant-wide). Put the managed identity in our existing resource group my-rg. Discover VMs tagged env=prod. The plan is approved. Write the Terraform into a new directory, don't apply it.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/azure.",
+        "The agent treated this as management-group scope: the module block sets azure_management_group_id to data.azurerm_client_config.current.tenant_id, using a data azurerm_client_config block rather than hardcoding the tenant ID.",
+        "Because the stub az group show succeeds for my-rg, main.tf references the existing group via a data azurerm_resource_group block, not a resource block.",
+        "teleport_proxy_public_addr is exactly azure-tenant.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "One azure matcher: types [\"vm\"], subscriptions [\"*\"], tags {env: [\"prod\"]}. The subscriptions value is the wildcard, not an explicit UUID.",
+        "The teleport provider version constraint is >= 18.7.6, < 19.0.0. An open-ended >= 18.7.6, a major-only pin, or a 18.8.0 floor fails.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, and provision_token_name.",
+        "The agent ran no terraform: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
+      ]
+    },
+    {
+      "id": 19,
+      "eval_name": "azure-write-vm-management-group-custom-id",
+      "cloud": "azure",
+      "tier": "write",
+      "fixture": "cloud-azure-management-group",
+      "copy_fixture": null,
+      "prompt": "Set up Azure VM auto-discovery scoped to management group my-mg-example on Teleport Cloud tenant azure-tenant.teleport.sh. Use the existing resource group my-rg for the managed identity. The plan is approved. Write the Terraform into a new directory, don't apply it.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
+        "terraform validate passes for the directory.",
+        "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/azure.",
+        "The module block sets azure_management_group_id to exactly \"my-mg-example\", not to data.azurerm_client_config.current.tenant_id.",
+        "No data azurerm_client_config block is present because the management group ID is provided directly, not derived from the tenant.",
+        "Because the stub az group show succeeds for my-rg, main.tf references the existing group via a data azurerm_resource_group block.",
+        "teleport_proxy_public_addr is exactly azure-tenant.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
+        "One azure matcher: types [\"vm\"], subscriptions [\"*\"]. The subscriptions value is the wildcard.",
+        "The teleport provider version constraint is >= 18.7.6, < 19.0.0. An open-ended >= 18.7.6, a major-only pin, or a 18.8.0 floor fails.",
+        "main.tf defines outputs named exactly integration_name, discovery_config_name, and provision_token_name.",
+        "The agent ran no terraform: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file."
+      ]
     }
   ]
 }
