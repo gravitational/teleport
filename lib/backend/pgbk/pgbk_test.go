@@ -93,16 +93,14 @@ func TestSetupAndMigrateDynamicConcurrent(t *testing.T) {
 	migratedTable := pgx.Identifier{migratedTableName}.Sanitize()
 	versionTable := pgx.Identifier{versionTableName}.Sanitize()
 
-	cleanup := func(ctx context.Context) {
+	cleanup := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		_, _ = pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", migratedTable), pgx.QueryExecModeExec)
 		_, _ = pool.Exec(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", versionTable), pgx.QueryExecModeExec)
 	}
-	cleanup(ctx) // This should be impossible, but ensure the tables are gone either way.
-	t.Cleanup(func() {
-		cleanup(ctx)
-	})
+	cleanup() // This should be impossible, but ensure the tables are gone either way.
+	t.Cleanup(cleanup)
 
 	staleMigrationReady := make(chan struct{})
 	releaseStaleMigration := make(chan struct{})
