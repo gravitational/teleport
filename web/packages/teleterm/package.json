@@ -50,7 +50,7 @@
     "electron-updater": "^6.8.9",
     "electron-vite": "^5.0.0",
     "events": "3.3.0",
-    "react-dnd": "^14.0.4",
+    "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^14.0.2"
   },
   "productName": "Teleport Connect"
