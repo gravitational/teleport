@@ -1091,6 +1091,28 @@ List the available presets and see which one is the default:
 $ tsh preset ls
 ```
 
+When a logged-in profile's URL matches the proxy configured by one or more
+presets, `tsh status` lists those preset names below the profile URL:
+
+```code
+> Profile URL:        https://teleport.prod.example.com:443
+  Presets:            prod, production-admin
+  Logged in as:       alice
+```
+
+You can create a preset directly from a profile URL shown by `tsh status`:
+
+```code
+$ tsh preset add prod https://teleport.prod.example.com:443
+Preset "prod" added for proxy "teleport.prod.example.com:443".
+```
+
+The command normalizes the URL and adds a proxy-only preset to the
+user-specific `tsh` configuration. It does not copy credentials, login state,
+the active user, or the active cluster. Edit the preset in the configuration
+file if you want it to select additional settings. Existing preset names are
+not overwritten.
+
 Set the default preset in your user-specific `tsh` configuration:
 
 ```code

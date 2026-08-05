@@ -20,9 +20,12 @@ package common
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -41,19 +44,21 @@ import (
 
 type presetCommands struct {
 	ls  *presetLSCommand
+	add *presetAddCommand
 	use *presetUseCommand
 }
 
 func newPresetCommand(app *kingpin.Application) presetCommands {
-	preset := app.Command("preset", "View and select tsh configuration presets.")
+	preset := app.Command("preset", "Manage tsh configuration presets.")
 	return presetCommands{
 		ls:  newPresetLSCommand(preset),
+		add: newPresetAddCommand(preset),
 		use: newPresetUseCommand(preset),
 	}
 }
 
 func (c presetCommands) isManagementCommand(command string) bool {
-	return command == c.ls.FullCommand() || command == c.use.FullCommand()
+	return command == c.ls.FullCommand() || command == c.add.FullCommand() || command == c.use.FullCommand()
 }
 
 type presetLSCommand struct {
@@ -131,6 +136,43 @@ func (c *presetLSCommand) run(cf *CLIConf) error {
 	return nil
 }
 
+type presetAddCommand struct {
+	*kingpin.CmdClause
+	name     string
+	proxyURL string
+}
+
+func newPresetAddCommand(parent *kingpin.CmdClause) *presetAddCommand {
+	c := &presetAddCommand{
+		CmdClause: parent.Command("add", "Add a tsh preset for a profile URL."),
+	}
+	c.Arg("name", "Name of the preset to add.").Required().StringVar(&c.name)
+	c.Arg("profile URL", "Profile URL shown by tsh status.").Required().StringVar(&c.proxyURL)
+	return c
+}
+
+func (c *presetAddCommand) run(cf *CLIConf) error {
+	if strings.TrimSpace(c.name) == "" {
+		return trace.BadParameter("preset name cannot be empty")
+	}
+	if _, ok := cf.TSHConfig.Presets[c.name]; ok {
+		return trace.AlreadyExists("preset %q already exists", c.name)
+	}
+
+	proxy, err := normalizePresetProxy(c.proxyURL)
+	if err != nil {
+		return trace.Wrap(err, "invalid profile URL")
+	}
+
+	configPath := filepath.Join(profile.FullProfilePath(cf.HomePath), client.TSHConfigPath)
+	if err := addPreset(configPath, c.name, proxy); err != nil {
+		return trace.Wrap(err, "adding preset")
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Preset %q added for proxy %q.\n", c.name, proxy)
+	return nil
+}
+
 type presetUseCommand struct {
 	*kingpin.CmdClause
 	name string
@@ -162,6 +204,78 @@ func (c *presetUseCommand) run(cf *CLIConf) error {
 // nodes are used to retain unrelated fields and comments. A file lock prevents
 // concurrent tsh processes from losing each other's config updates.
 func setDefaultPreset(configPath, name string) (err error) {
+	return updateTSHConfig(configPath, func(root *yamlv3.Node) error {
+		value, found, err := yamlMappingValue(root, "default_preset")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if found {
+			value.Kind = yamlv3.ScalarNode
+			value.Tag = "!!str"
+			value.Value = name
+			return nil
+		}
+
+		root.Content = append(root.Content,
+			&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: "default_preset"},
+			&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: name},
+		)
+		return nil
+	})
+}
+
+func addPreset(configPath, name, proxy string) error {
+	return updateTSHConfig(configPath, func(root *yamlv3.Node) error {
+		presets, found, err := yamlMappingValue(root, "presets")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !found {
+			presets = &yamlv3.Node{Kind: yamlv3.MappingNode, Tag: "!!map"}
+			root.Content = append(root.Content,
+				&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: "presets"},
+				presets,
+			)
+		}
+		if presets.Kind != yamlv3.MappingNode {
+			return trace.BadParameter("tsh config presets field must contain a YAML mapping")
+		}
+		if _, found, err := yamlMappingValue(presets, name); err != nil {
+			return trace.Wrap(err)
+		} else if found {
+			return trace.AlreadyExists("preset %q already exists", name)
+		}
+
+		preset := &yamlv3.Node{Kind: yamlv3.MappingNode, Tag: "!!map", Content: []*yamlv3.Node{
+			{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: "proxy"},
+			{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: proxy},
+		}}
+		presets.Content = append(presets.Content,
+			&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: name},
+			preset,
+		)
+		return nil
+	})
+}
+
+func yamlMappingValue(mapping *yamlv3.Node, key string) (*yamlv3.Node, bool, error) {
+	var value *yamlv3.Node
+	for i := 0; i < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value != key {
+			continue
+		}
+		if value != nil {
+			return nil, false, trace.BadParameter("tsh config contains duplicate %q fields", key)
+		}
+		value = mapping.Content[i+1]
+	}
+	return value, value != nil, nil
+}
+
+// updateTSHConfig updates a tsh YAML config while retaining unrelated fields
+// and comments. A file lock prevents concurrent tsh processes from losing each
+// other's config updates.
+func updateTSHConfig(configPath string, update func(*yamlv3.Node) error) (err error) {
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o700); err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -194,24 +308,8 @@ func setDefaultPreset(configPath, name string) (err error) {
 	}
 
 	root := document.Content[0]
-	found := false
-	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value != "default_preset" {
-			continue
-		}
-		if found {
-			return trace.BadParameter("tsh config contains duplicate default_preset fields")
-		}
-		found = true
-		root.Content[i+1].Kind = yamlv3.ScalarNode
-		root.Content[i+1].Tag = "!!str"
-		root.Content[i+1].Value = name
-	}
-	if !found {
-		root.Content = append(root.Content,
-			&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: "default_preset"},
-			&yamlv3.Node{Kind: yamlv3.ScalarNode, Tag: "!!str", Value: name},
-		)
+	if err := update(root); err != nil {
+		return trace.Wrap(err)
 	}
 
 	out, err := yamlv3.Marshal(&document)
@@ -222,4 +320,65 @@ func setDefaultPreset(configPath, name string) (err error) {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
+}
+
+// normalizePresetProxy converts either a profile URL from tsh status or a tsh
+// proxy address into a canonical web proxy host:port used for matching.
+func normalizePresetProxy(raw string) (string, error) {
+	proxy := strings.TrimSpace(raw)
+	if proxy == "" {
+		return "", trace.BadParameter("proxy cannot be empty")
+	}
+
+	if strings.Contains(proxy, "://") {
+		parsedURL, err := url.Parse(proxy)
+		if err != nil {
+			return "", trace.BadParameter("invalid proxy URL %q", raw)
+		}
+		scheme := strings.ToLower(parsedURL.Scheme)
+		if scheme != "https" && scheme != "http" {
+			return "", trace.BadParameter("proxy URL must use http or https")
+		}
+		if parsedURL.Host == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || (parsedURL.Path != "" && parsedURL.Path != "/") {
+			return "", trace.BadParameter("proxy URL must contain only a scheme, host, and optional port")
+		}
+
+		host := parsedURL.Hostname()
+		port := parsedURL.Port()
+		if port == "" {
+			if strings.HasSuffix(parsedURL.Host, ":") {
+				return "", trace.BadParameter("invalid proxy URL %q", raw)
+			}
+			if scheme == "https" {
+				port = "443"
+			} else {
+				port = "80"
+			}
+		}
+		return canonicalProxyAddress(host, port)
+	}
+
+	if strings.ContainsAny(proxy, "/?#@") || strings.IndexFunc(proxy, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }) != -1 {
+		return "", trace.BadParameter("invalid proxy address %q", raw)
+	}
+	parsedProxy, err := client.ParseProxyHost(proxy)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	host, port, err := net.SplitHostPort(parsedProxy.WebProxyAddr)
+	if err != nil {
+		return "", trace.BadParameter("invalid proxy address %q", raw)
+	}
+	return canonicalProxyAddress(host, port)
+}
+
+func canonicalProxyAddress(host, port string) (string, error) {
+	if host == "" || strings.ContainsAny(host, "/,?#@") || strings.IndexFunc(host, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }) != -1 {
+		return "", trace.BadParameter("proxy host cannot be empty or contain whitespace")
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", trace.BadParameter("invalid proxy port %q", port)
+	}
+	return net.JoinHostPort(strings.ToLower(host), strconv.Itoa(portNumber)), nil
 }

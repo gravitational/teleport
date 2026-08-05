@@ -1978,6 +1978,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = scopes.ls.run(&cf)
 	case presets.ls.FullCommand():
 		err = presets.ls.run(&cf)
+	case presets.add.FullCommand():
+		err = presets.add.run(&cf)
 	case presets.use.FullCommand():
 		err = presets.use.run(&cf)
 	case proxySSH.FullCommand():
@@ -5689,6 +5691,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	}
 
 	fmt.Fprintf(w, "%vProfile URL:        %v\n", prefix, proxyURL)
+	if len(p.Presets) != 0 {
+		fmt.Fprintf(w, "  Presets:            %v\n", strings.Join(p.Presets, ", "))
+	}
 	if debug {
 		switch {
 		case p.RelayAddr == "" && p.DefaultRelayAddr != "":
@@ -5818,6 +5823,7 @@ func rolesToString(debug bool, roles []string) string {
 func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
 	env := getTshEnv()
 	active, others := makeAllProfileInfo(profile, profiles, env)
+	setMatchingPresets(cf.TSHConfig.Presets, append([]*profileInfo{active}, others...)...)
 
 	format := strings.ToLower(cf.Format)
 	switch format {
@@ -5923,6 +5929,7 @@ func onStatus(cf *CLIConf) error {
 
 type profileInfo struct {
 	ProxyURL                 string                   `json:"profile_url"`
+	Presets                  []string                 `json:"presets,omitempty"`
 	RelayAddr                string                   `json:"relay_addr,omitempty"`
 	DefaultRelayAddr         string                   `json:"default_relay_addr,omitempty"`
 	Username                 string                   `json:"username"`
@@ -5943,6 +5950,33 @@ type profileInfo struct {
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
+}
+
+// setMatchingPresets annotates profiles with presets that select the same web
+// proxy endpoint. Invalid preset proxy values are ignored here because a
+// malformed unrelated preset must not prevent tsh status from being displayed.
+func setMatchingPresets(presets map[string]client.TSHConfigPreset, profiles ...*profileInfo) {
+	for _, profile := range profiles {
+		if profile == nil {
+			continue
+		}
+		profile.Presets = nil
+		profileProxy, err := normalizePresetProxy(profile.ProxyURL)
+		if err != nil {
+			continue
+		}
+
+		for name, preset := range presets {
+			if preset.Proxy == "" {
+				continue
+			}
+			presetProxy, err := normalizePresetProxy(preset.Proxy)
+			if err == nil && presetProxy == profileProxy {
+				profile.Presets = append(profile.Presets, name)
+			}
+		}
+		sort.Strings(profile.Presets)
+	}
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
