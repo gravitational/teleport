@@ -73,7 +73,9 @@ struct VerifyApp: App {
 		LoggingSystem.bootstrap { label in
 			var handler = ConsoleLogHandler(label: label)
 			#if DEBUG
-				handler.logLevel = .debug
+				handler.logLevel = CommandLine.arguments.contains("--sql-trace")
+					? .trace
+					: .debug
 			#endif
 			return handler
 		}
