@@ -22,25 +22,41 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -369,4 +385,289 @@ type fakePinger struct {
 
 func (p fakePinger) Ping(_ context.Context) (*connection.ProxyPong, error) {
 	return nil, p.err
+}
+
+// TestE2E_ScopedApplicationTunnelService tests that the application tunnel
+// service works in scoped mode, issuing scoped app certs and proxying
+// traffic through to the backend.
+func TestE2E_ScopedApplicationTunnelService(t *testing.T) {
+	if !scopes.FeaturesFromEnv().AgentPinEnabled {
+		t.Skip("test requires TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+	}
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-app-access"
+		botName        = "scoped-tunnel-bot"
+		appName        = "scoped-tunnel-app"
+	)
+
+	// Spin up a test HTTP server.
+	wantStatus := http.StatusTeapot
+	wantBody := []byte("hello from scoped tunnel")
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(wantStatus)
+		w.Write(wantBody)
+	}))
+	t.Cleanup(httpSrv.Close)
+
+	// Start the main Teleport process (auth + proxy, no app service).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create a scoped role that grants app access.
+	makeScopedRole(t, ctx, rootClient, scopedRoleName, scopeName)
+
+	// Create the scoped bot, token, and role assignment.
+	botOnboarding := makeScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+
+	// Start a scoped app agent.
+	appTokenResp := makeScopedAppAgent(t, ctx, process, log, scopeName, appName, httpSrv.URL)
+	_ = appTokenResp
+
+	// Wait for the app to be visible.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		servers, err := rootClient.GetApplicationServers(ctx, "default")
+		if !assert.NoError(ct, err) {
+			return
+		}
+		for _, s := range servers {
+			if s.GetApp().GetName() == appName {
+				return
+			}
+		}
+		assert.Fail(ct, "scoped app not yet visible")
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and start the scoped bot with the tunnel service.
+	botListener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { botListener.Close() })
+
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+	connCfg := connection.Config{
+		Address:     proxyAddr.Addr,
+		AddressKind: connection.AddressKindProxy,
+		Insecure:    true,
+	}
+
+	b, err := bot.New(bot.Config{
+		Connection: connCfg,
+		Logger:     log,
+		Onboarding: *botOnboarding,
+		Scoped:     true,
+		Services: []bot.ServiceBuilder{
+			TunnelServiceBuilder(
+				&TunnelConfig{
+					Listener: botListener,
+					AppName:  appName,
+				},
+				connCfg,
+				bot.DefaultCredentialLifetime,
+				time.Minute,
+			),
+		},
+	})
+	require.NoError(t, err)
+
+	// Run bot in background.
+	ctx, cancel := context.WithCancel(ctx)
+	wg := sync.WaitGroup{}
+	wg.Go(func() {
+		err := b.Run(ctx)
+		assert.NoError(t, err, "bot should not exit with error")
+		cancel()
+	})
+	t.Cleanup(func() {
+		cancel()
+		wg.Wait()
+	})
+
+	// Verify the tunnel proxies traffic to the backend.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := http.Get("http://" + botListener.Addr().String())
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer resp.Body.Close()
+		assert.Equal(t, wantStatus, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, wantBody, body)
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// makeScopedBot creates a scoped bot with a bound keypair token and a scoped
+// role assignment, returning the onboarding config for tbot.
+func makeScopedBot(
+	t *testing.T,
+	process *service.TeleportProcess,
+	rootClient *authclient.Client,
+	botName, scopeName, scopedRoleName string,
+) *onboarding.Config {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := rootClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Metadata: headerv1.Metadata_builder{Name: botName}.Build(),
+			Scope:    scopeName,
+			Spec:     &machineidv1pb.BotSpec{},
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
+	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
+
+	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: botName + "-token"}.Build(),
+			Scope:    scopeName,
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  jointoken.TokenUsageModeBot,
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
+						InitialPublicKey: botPublicKey,
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
+						Limit: 10,
+						Mode:  "insecure",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
+				Usage: joiningv1.UsageStatus_builder{
+					BoundKeypair: &joiningv1.BoundKeypairStatus{},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	sraResp, err := rootClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:     scopedaccess.KindScopedRoleAssignment,
+			Version:  types.V1,
+			SubKind:  scopedaccess.SubKindDynamic,
+			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
+			Scope:    scopeName,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(),
+						Scope: scopeName,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the SRA to be visible in the cache.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := process.GetAuthServer().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    sraResp.GetAssignment().GetMetadata().GetName(),
+			SubKind: sraResp.GetAssignment().GetSubKind(),
+			Scope:   sraResp.GetAssignment().GetScope(),
+		}.Build())
+		assert.NoError(ct, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	return &onboarding.Config{
+		TokenValue: scopes.QualifiedName{Scope: scopeName, Name: botTokenResp.GetToken().GetMetadata().GetName()}.String(),
+		JoinMethod: types.JoinMethodBoundKeypair,
+		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+			StaticPrivateKeyPath: botKeyPath,
+		},
+	}
+}
+
+// makeScopedAppAgent starts a Teleport process as an app-only agent, joining
+// with a scoped token so the app is visible to scoped bots.
+func makeScopedAppAgent(
+	t *testing.T,
+	ctx context.Context,
+	process *service.TeleportProcess,
+	log *slog.Logger,
+	scopeName, appName, appURI string,
+) *joiningv1.CreateScopedTokenResponse {
+	t.Helper()
+
+	tokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: appName + "-agent-token"}.Build(),
+			Scope:    scopeName,
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				AssignedScope: scopeName,
+				Roles:         []string{types.RoleApp.String()},
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
+	agentCfg.Hostname = appName + "-agent"
+	agentCfg.DataDir = t.TempDir()
+	agentCfg.SetToken(scopes.QualifiedName{
+		Scope: scopeName,
+		Name:  jointoken.EncodeScopedToken(tokenResp.GetToken().GetMetadata().GetName(), tokenResp.GetToken().GetStatus().GetSecret()),
+	}.String())
+	agentCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	agentCfg.Auth.Enabled = false
+	agentCfg.Proxy.Enabled = false
+	agentCfg.SSH.Enabled = false
+	agentCfg.Apps.Enabled = true
+	agentCfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: appName,
+			URI:  appURI,
+		},
+	}
+	agentCfg.CachePolicy.Enabled = false
+	agentCfg.InstanceMetadataClient = nil
+	agentCfg.DebugService.Enabled = false
+	agentCfg.Logger = log
+
+	agentProcess, err := service.NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, agentProcess.Close())
+		require.NoError(t, agentProcess.Wait())
+	})
+
+	_, err = agentProcess.WaitForEvent(ctx, service.AppsReady)
+	require.NoError(t, err)
+
+	return tokenResp
 }
