@@ -260,40 +260,40 @@ The following table identifies all metrics available for incoming connections.
 
 
 | Name                                                                 | Type      | Component     | Description                                                                                              |
-|-----------------------------------------------------------------------|-----------|---------------|----------------------------------------------------------------------------------------------------------|
+|-----------------------------------------------------------------------|-----------|---------------|---------------------------------------------------------------------------------------------------------|
 | `teleport_plugin_entra_id_directory_reconciliation_count`            | counter   | Teleport Auth | Number of times the Entra ID directory reconciliation ran. Labeled with `result` (`success` or `error`). |
 | `teleport_plugin_entra_id_directory_reconciliation_duration_seconds` | histogram | Teleport Auth | Duration of each Entra ID directory reconciliation run. Labeled with `section`.                          |
 
 The `section` label on `teleport_plugin_entra_id_directory_reconciliation_duration_seconds` breaks a sync down into its phases:
 
-| Value                     | Description                                                                       |
-|---------------------------|-----------------------------------------------------------------------------------|
-| `read_entra_groups`       | Reading groups from the Microsoft Graph API during a full sync. Emitted only on full sync.                  |
-| `read_entra_groups_delta` | Reading group changes from the Microsoft Graph API during a delta sync. Emitted only on delta sync.        |
-| `read_entra_members`      | Reading group memberships from the Microsoft Graph API.  Emitted only on full sync.                         |
-| `read_entra_users`        | Reading users from the Microsoft Graph API during a full sync.     Emitted only on full sync.               |
-| `read_entra_users_delta`  | Reading user changes from the Microsoft Graph API during a delta sync.   Emitted only on delta sync.         |
-| `reconcile_users`         | Reconciling discovered users into the Teleport backend.  Emitted on full and delta sync.                         |
-| `reconcile_access_lists`  | Reconciling discovered groups into Teleport Access Lists.      Emitted on full and delta sync.                   |
-| `total`                   | End-to-end duration of the reconciliation run, covering all sections above.   Emitted on full and delta sync.    |
+| Value                     | Description                                                                                                 |
+|---------------------------|-------------------------------------------------------------------------------------------------------------|
+| `read_entra_groups`       | Reading groups from the Microsoft Graph API. Emitted only on full sync.                                     |
+| `read_entra_groups_delta` | Reading group changes from the Microsoft Graph API. Emitted only on delta sync.                             |
+| `read_entra_members`      | Reading group memberships from the Microsoft Graph API. Emitted only on full sync.                          |
+| `read_entra_users`        | Reading users from the Microsoft Graph API. Emitted only on full sync.                                      |
+| `read_entra_users_delta`  | Reading user changes from the Microsoft Graph API. Emitted only on delta sync.                              |
+| `reconcile_users`         | Reconciling discovered users into the Teleport backend. Emitted on full and delta sync.                     |
+| `reconcile_access_lists`  | Reconciling discovered groups into Teleport Access Lists. Emitted on full and delta sync.                   |
+| `total`                   | End-to-end duration of the reconciliation run, covering all sections above. Emitted on full and delta sync. |
 
 Reconciliation is also measured for each individual resource:
 
-| Name                                                                            | Type      | Component     | Description                                                                             |
-|-----------------------------------------------------------------------------------|-----------|---------------|-------------------------------------------------------------------------------------------|
-| `teleport_plugin_entra_id_directory_user_reconciliation_total`                  | counter   | Teleport Auth | Total number of individual user reconciliations. Labeled with `operation` and `result`. |
-| `teleport_plugin_entra_id_directory_user_reconciliation_duration_seconds`       | histogram | Teleport Auth | Duration of individual user reconciliations, in seconds. Labeled with `operation`.      |
+| Name                                                                            | Type      | Component     | Description                                                                                    |
+|---------------------------------------------------------------------------------|-----------|---------------|------------------------------------------------------------------------------------------------|
+| `teleport_plugin_entra_id_directory_user_reconciliation_total`                  | counter   | Teleport Auth | Total number of individual user reconciliations. Labeled with `operation` and `result`.        |
+| `teleport_plugin_entra_id_directory_user_reconciliation_duration_seconds`       | histogram | Teleport Auth | Duration of individual user reconciliations, in seconds. Labeled with `operation`.             |
 | `teleport_plugin_entra_id_directory_accesslist_reconciliation_total`            | counter   | Teleport Auth | Total number of individual Access List reconciliations. Labeled with `operation` and `result`. |
-| `teleport_plugin_entra_id_directory_accesslist_reconciliation_duration_seconds` | histogram | Teleport Auth | Duration of individual Access List reconciliations, in seconds. Labeled with `operation`. |
-| `teleport_plugin_entra_id_directory_reconciled_nested_member_total`             | counter   | Teleport Auth | Number of Teleport nested Access Lists reconciled. Labeled with `result`.               |
-| `teleport_plugin_entra_id_directory_reconciled_nested_member_duration_seconds`  | histogram | Teleport Auth | Duration of each nested Access List reconciliation.                        |
+| `teleport_plugin_entra_id_directory_accesslist_reconciliation_duration_seconds` | histogram | Teleport Auth | Duration of individual Access List reconciliations, in seconds. Labeled with `operation`.      |
+| `teleport_plugin_entra_id_directory_reconciled_nested_member_total`             | counter   | Teleport Auth | Number of Teleport nested Access Lists reconciled. Labeled with `result`.                      |
+| `teleport_plugin_entra_id_directory_reconciled_nested_member_duration_seconds`  | histogram | Teleport Auth | Duration of each nested Access List reconciliation.                                            |
 
 The `operation` and `result` labels breaks down into the following values:
 
-| Label       | Values                                                                                                                                                            |
-|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `operation` | `create`, `update`, or `delete`.                                                                                                                                  |
-| `result`    | `success`, `error`, or `noop`. `noop` is emitted when user or Access List scheduled for deletion is not found.  |
+| Label       | Values                                                                                                           |
+|-------------|------------------------------------------------------------------------------------------------------------------|
+| `operation` | `create`, `update`, or `delete`.                                                                                 |
+| `result`    | `success`, `error`, or `noop`. `noop` is emitted when a user or Access List scheduled for deletion is not found. |
 
 
 ## All Teleport instances
