@@ -20,6 +20,10 @@ ssh_service:
   public_addr: {{ .SSHPublicHost }}:{{ .SSHServerPort }}
   labels:
     env: example
+{{- if .EnhancedRecording }}
+  enhanced_recording:
+    enabled: "yes"
+{{- end }}
 
 proxy_service:
   enabled: "no"

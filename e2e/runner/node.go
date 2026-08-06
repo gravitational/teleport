@@ -32,9 +32,19 @@ import (
 	apicontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const nodeImage = "debian:bookworm-slim"
+
+// nodeStartCommand is how the node is launched inside the container.
+const nodeStartCommand = "teleport start --insecure -c /etc/teleport/node.yaml"
+
+// mountTracefs mounts tracefs for the tracepoint and kprobe programs to attach through, since Docker
+// does not mount it even for a privileged container. Either mount point will do, so failures are left
+// for the node to report.
+const mountTracefs = "mount -t tracefs nodev /sys/kernel/tracing 2>/dev/null || " +
+	"mount -t debugfs nodev /sys/kernel/debug 2>/dev/null || true"
 
 type dockerNode struct {
 	log                *slog.Logger
@@ -48,11 +58,22 @@ type dockerNode struct {
 	configPath    string
 	teleportBin   string
 
+	arch              nodeArch
+	enhancedRecording bool
+
 	ctr *container.Container
 }
 
 func (d *dockerNode) start(ctx context.Context) error {
 	return d.runContainer(ctx)
+}
+
+func (d *dockerNode) entrypoint() []string {
+	if !d.enhancedRecording {
+		return strings.Fields(nodeStartCommand)
+	}
+
+	return []string{"sh", "-c", mountTracefs + "; exec " + nodeStartCommand}
 }
 
 func (d *dockerNode) removeStale(ctx context.Context) {
@@ -77,13 +98,13 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 	ctr, err := container.Run(ctx,
 		container.WithClient(sdk),
 		container.WithImage(d.imageName),
-		container.WithImagePlatform("linux/amd64"),
+		container.WithImagePlatform("linux/"+string(d.arch)),
 		container.WithPullHandler(func(r io.ReadCloser) error {
 			_, err := io.Copy(io.Discard, r)
 			return err
 		}),
 		container.WithName(d.containerName),
-		container.WithEntrypoint("teleport", "start", "--insecure", "-c", "/etc/teleport/node.yaml"),
+		container.WithEntrypoint(d.entrypoint()...),
 		container.WithExposedPorts(fmt.Sprintf("%d/tcp", d.sshPort)),
 		container.WithFiles(
 			container.File{
@@ -101,6 +122,11 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 			if os.Getenv("DOCKER_HOST") == "" {
 				hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
 			}
+
+			if d.enhancedRecording {
+				hc.Privileged = true
+			}
+
 			hc.PortBindings = network.PortMap{
 				network.MustParsePort(fmt.Sprintf("%d/tcp", d.sshPort)): []network.PortBinding{
 					{HostPort: fmt.Sprintf("%d", d.sshPort)},
@@ -181,15 +207,17 @@ func (d *dockerNode) stop(ctx context.Context) {
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
 }
 
-func pullImage(ctx context.Context, image string) error {
-	slog.Info("pulling docker image", "image", image)
+func pullImage(ctx context.Context, image string, arch nodeArch) error {
+	slog.Info("pulling docker image", "image", image, "arch", arch)
 
 	cli, err := dockerAPI()
 	if err != nil {
 		return err
 	}
 
-	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{})
+	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{
+		Platforms: []ocispec.Platform{{OS: "linux", Architecture: string(arch)}},
+	})
 	if err != nil {
 		return fmt.Errorf("pulling image: %w", err)
 	}

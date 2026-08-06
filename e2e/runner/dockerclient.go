@@ -32,7 +32,9 @@ import (
 
 	sdkclient "github.com/docker/go-sdk/client"
 	dockercontext "github.com/docker/go-sdk/context"
+	apicontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // dockerHostURL is the parsed DOCKER_HOST, or nil when talking to a local daemon.
@@ -175,6 +177,52 @@ type commandAddr struct{}
 
 func (commandAddr) Network() string { return "ssh" }
 func (commandAddr) String() string  { return "ssh" }
+
+// bpfPreconditions is run in a throwaway privileged container to decide whether the daemon's kernel
+// can support Enhanced Session Recordings.
+const bpfPreconditions = "test -e /sys/kernel/btf/vmlinux && test -e /proc/self/sessionid"
+
+// daemonSupportsBPF reports whether the docker daemon's kernel can load the enhanced recording programs.
+func daemonSupportsBPF(ctx context.Context, image string, arch nodeArch) (bool, error) {
+	api, err := dockerAPI()
+	if err != nil {
+		return false, err
+	}
+
+	created, err := api.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config: &apicontainer.Config{
+			Image:      image,
+			Entrypoint: []string{"sh", "-c", bpfPreconditions},
+		},
+		HostConfig: &apicontainer.HostConfig{Privileged: true},
+		Platform:   &ocispec.Platform{OS: "linux", Architecture: string(arch)},
+	})
+	if err != nil {
+		return false, fmt.Errorf("creating bpf probe container: %w", err)
+	}
+
+	defer func() {
+		_, _ = api.ContainerRemove(context.WithoutCancel(ctx), created.ID, client.ContainerRemoveOptions{Force: true})
+	}()
+
+	// Wait before starting so a container that exits immediately cannot be missed.
+	wait := api.ContainerWait(ctx, created.ID, client.ContainerWaitOptions{
+		Condition: apicontainer.WaitConditionNextExit,
+	})
+
+	if _, err := api.ContainerStart(ctx, created.ID, client.ContainerStartOptions{}); err != nil {
+		return false, fmt.Errorf("starting bpf probe container: %w", err)
+	}
+
+	select {
+	case err := <-wait.Error:
+		return false, fmt.Errorf("waiting for bpf probe container: %w", err)
+	case result := <-wait.Result:
+		return result.StatusCode == 0, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
 
 // nodePublicHost is the address the node advertises for its SSH port. The container publishes that port
 // on whichever machine runs the daemon, so with a remote DOCKER_HOST it is not the machine running the
