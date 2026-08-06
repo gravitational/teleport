@@ -113,6 +113,9 @@ func (a *App) WaitReady(ctx context.Context) (bool, error) {
 
 // init initializes the application
 func (a *App) init(ctx context.Context) error {
+	// Preserve the parent context without deadline for the client and its
+	// goroutines (IdentityFileWatcher) which will outlive init.
+	clientCtx := ctx
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
 
@@ -120,7 +123,7 @@ func (a *App) init(ctx context.Context) error {
 		a.apiClient = a.conf.Client
 	} else {
 		var err error
-		a.apiClient, err = common.GetTeleportClient(ctx, a.conf.Teleport)
+		a.apiClient, err = common.GetTeleportClient(clientCtx, a.conf.Teleport)
 		if err != nil {
 			return trace.Wrap(err)
 		}
