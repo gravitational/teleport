@@ -460,6 +460,12 @@ func preserveSAMLIdentities(dst, src *userloginstate.UserLoginState) {
 	dst.Spec.SAMLIdentities = ids1
 }
 
+// LoginHook will take the user and update the user login state in the backend.
+func (g *Generator) LoginHook(ctx context.Context, user types.User, ulsService services.UserLoginStates) error {
+	_, err := g.Refresh(ctx, user, ulsService)
+	return trace.Wrap(err)
+}
+
 // Refresh will take the user and update the user login state in the backend.
 func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
 	uls, err := g.generate(ctx, user, ulsService, false)
@@ -478,14 +484,6 @@ func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService ser
 
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)
-}
-
-// LoginHook creates a login hook from the Generator and the user login state service.
-func (g *Generator) LoginHook(ulsService services.UserLoginStates) func(context.Context, types.User) error {
-	return func(ctx context.Context, user types.User) error {
-		_, err := g.Refresh(ctx, user, ulsService)
-		return trace.Wrap(err)
-	}
 }
 
 // identifyMissingRoles is a helper function which identifies any roles from the provided list that don't exist, and returns nil if they all exist.

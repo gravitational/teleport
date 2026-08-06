@@ -978,8 +978,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	as.RegisterLoginHook(as.ULSGenerator.LoginHook(services.UserLoginStates))
-
 	as.pdp, err = decision.NewService(decision.Config{
 		AccessPoint:  as.Cache,
 		ULSGenerator: as.ULSGenerator,
@@ -1679,7 +1677,8 @@ func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
 	return a.loginRuleEvaluator
 }
 
-// RegisterLoginHook will register a login hook with the auth server.
+// RegisterLoginHook will register an additioanl login hook with the auth server to be called after
+// UserLoginState Generator hook.
 func (a *Server) RegisterLoginHook(hook LoginHook) {
 	a.loginHooksMu.Lock()
 	defer a.loginHooksMu.Unlock()
@@ -1687,7 +1686,10 @@ func (a *Server) RegisterLoginHook(hook LoginHook) {
 	a.loginHooks = append(a.loginHooks, hook)
 }
 
-// CallLoginHooks will call the registered login hooks.
+// CallLoginHooks will call the registered login hooks. UserLoginState Generator hook is fixed and
+// is always called before calling the regiesterd hooks, so the registered hooks are always called
+// with a freshly generated ULS. If the Generator hook fails, the other hooks are not called. An
+// aggregated erorr of all registered hook calls is returned.
 func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	// Make a copy of the login hooks to operate on.
 	a.loginHooksMu.RLock()
@@ -1695,9 +1697,6 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	copy(loginHooks, a.loginHooks)
 	a.loginHooksMu.RUnlock()
 
-	if len(loginHooks) == 0 {
-		return nil
-	}
 	// Clone the input user so that hooks never mutate the original object.
 	//
 	// Currently, login hook share state via UserLoginState resources.
@@ -1710,6 +1709,14 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	// these attributes in the future, we should first define a single source of
 	// truth and a clear reconciliation strategy.
 	user = user.Clone()
+
+	if err := a.ULSGenerator.LoginHook(ctx, user, a.UserLoginStates); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(loginHooks) == 0 {
+		return nil
+	}
 	var errs []error
 	for _, hook := range loginHooks {
 		errs = append(errs, hook(ctx, user))
@@ -1718,7 +1725,8 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	return trace.NewAggregate(errs...)
 }
 
-// ResetLoginHooks will clear out the login hooks.
+// ResetLoginHooks will clear out the login hooks. It does not reset UserLoginState Generator
+// hook. Used for testing.
 func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
