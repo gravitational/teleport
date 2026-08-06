@@ -56,31 +56,31 @@ type ProxyServiceConfig struct {
 }
 
 // GetName returns the user-given name of the service for reporting.
-func (c *ProxyServiceConfig) GetName() string {
-	return c.Name
+func (p *ProxyServiceConfig) GetName() string {
+	return p.Name
 }
 
 // SetName sets the service's name to an automatically generated one.
-func (o *ProxyServiceConfig) SetName(name string) {
-	o.Name = name
+func (p *ProxyServiceConfig) SetName(name string) {
+	p.Name = name
 }
 
 // Type returns the type of the service.
-func (c *ProxyServiceConfig) Type() string {
+func (p *ProxyServiceConfig) Type() string {
 	return ProxyServiceType
 }
 
 // MarshalYAML overrides the YAML representation of the service.
-func (c *ProxyServiceConfig) MarshalYAML() (any, error) {
+func (p *ProxyServiceConfig) MarshalYAML() (any, error) {
 	type raw ProxyServiceConfig
-	return encoding.WithTypeHeader((*raw)(c), ProxyServiceType)
+	return encoding.WithTypeHeader((*raw)(p), ProxyServiceType)
 }
 
 // UnmarshalYAML is used to override the YAML unmarshaling of the service.
-func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
+func (p *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Alias type to remove UnmarshalYAML to avoid recursion
 	type raw ProxyServiceConfig
-	if err := node.Decode((*raw)(c)); err != nil {
+	if err := node.Decode((*raw)(p)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -88,16 +88,16 @@ func (c *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 
 // CheckAndSetDefaults checks the user-provided configuration against validation
 // rules and sets any default values.
-func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
+func (p *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
 	if scoped {
 		return trace.BadParameter("service type %q is not supported in scoped mode", ProxyServiceType)
 	}
 	switch {
-	case c.Listen == "" && c.Listener == nil:
+	case p.Listen == "" && p.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
 	}
 
-	if _, err := url.Parse(c.Listen); err != nil {
+	if _, err := url.Parse(p.Listen); err != nil {
 		return trace.Wrap(err, "parsing listen")
 	}
 
@@ -105,6 +105,6 @@ func (c *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
 }
 
 // GetCredentialLifetime returns the embedded CredentialLifetime.
-func (c *ProxyServiceConfig) GetCredentialLifetime() bot.CredentialLifetime {
-	return c.CredentialLifetime
+func (p *ProxyServiceConfig) GetCredentialLifetime() bot.CredentialLifetime {
+	return p.CredentialLifetime
 }
