@@ -343,6 +343,9 @@ func (l *LocalProxy) makeHTTPReverseProxy(serverName string, certs ...tls.Certif
 		},
 		Transport: &http.Transport{
 			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(serverName, certs...)).DialContext,
+			// A new transport is created for each request, so keep-alives
+			// would only accumulate idle connections that are never reused.
+			DisableKeepAlives: true,
 		},
 	}
 }

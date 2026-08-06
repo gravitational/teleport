@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // ClientConfig contains configuration for the release client
@@ -64,7 +65,7 @@ type Client struct {
 }
 
 // NewClient returns a new release client with a client
-// to make https requests to the release server
+// to make HTTPS requests to the release server
 func NewClient(cfg ClientConfig) (*Client, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -74,6 +75,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: cfg.TLSConfig,
+			IdleConnTimeout: defaults.HTTPIdleTimeout,
 		},
 	}
 
