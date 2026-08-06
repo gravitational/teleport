@@ -634,6 +634,9 @@ func makeScopedAppAgent(
 	}.Build())
 	require.NoError(t, err)
 
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
 	agentCfg := servicecfg.MakeDefaultConfig()
 	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	agentCfg.Hostname = appName + "-agent"
@@ -642,7 +645,8 @@ func makeScopedAppAgent(
 		Scope: scopeName,
 		Name:  jointoken.EncodeScopedToken(tokenResp.GetToken().GetMetadata().GetName(), tokenResp.GetToken().GetStatus().GetSecret()),
 	}.String())
-	agentCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	agentCfg.SetAuthServerAddress(*proxyAddr)
+	agentCfg.InsecureMode = true
 	agentCfg.Auth.Enabled = false
 	agentCfg.Proxy.Enabled = false
 	agentCfg.SSH.Enabled = false

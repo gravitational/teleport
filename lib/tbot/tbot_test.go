@@ -1925,6 +1925,9 @@ func TestScopedBotApp(t *testing.T) {
 
 	// Start a second Teleport process as an App-only agent, joining with
 	// the scoped token so the app gets scope "/test-scope".
+	proxyAddr, err := process.ProxyWebAddr()
+	require.NoError(t, err)
+
 	appAgentCfg := servicecfg.MakeDefaultConfig()
 	appAgentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	appAgentCfg.Hostname = "scoped-app-agent"
@@ -1933,7 +1936,8 @@ func TestScopedBotApp(t *testing.T) {
 		Scope: scopeName,
 		Name:  jointoken.EncodeScopedToken(appTokenResp.GetToken().GetMetadata().GetName(), appTokenResp.GetToken().GetStatus().GetSecret()),
 	}.String())
-	appAgentCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	appAgentCfg.SetAuthServerAddress(*proxyAddr)
+	appAgentCfg.InsecureMode = true
 	appAgentCfg.Auth.Enabled = false
 	appAgentCfg.Proxy.Enabled = false
 	appAgentCfg.SSH.Enabled = false
