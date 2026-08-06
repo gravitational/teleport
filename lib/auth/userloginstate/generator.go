@@ -114,12 +114,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *slog.Logger
-	accessLists AccessListsAndLockGetter
-	access      services.Access
-	usageEvents UsageEventsClient
-	clock       clockwork.Clock
-	emitter     apievents.Emitter
+	Cfg GeneratorConfig
 }
 
 // NewGenerator creates a new user login state generator.
@@ -127,15 +122,7 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return &Generator{
-		log:         config.Log,
-		accessLists: config.AccessLists,
-		access:      config.Access,
-		usageEvents: config.UsageEvents,
-		clock:       config.Clock,
-		emitter:     config.Emitter,
-	}, nil
+	return &Generator{config}, nil
 }
 
 // GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
@@ -217,10 +204,10 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	if g.usageEvents != nil && !pure {
+	if g.Cfg.UsageEvents != nil && !pure {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
-			g.log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)
+			g.Cfg.Log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)
 		}
 	}
 
@@ -232,7 +219,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	locks, err := clientutils.CollectWithFallback(
 		ctx,
 		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
-			return g.accessLists.ListLocks(ctx, limit, start, &types.LockFilter{
+			return g.Cfg.AccessLists.ListLocks(ctx, limit, start, &types.LockFilter{
 				InForceOnly: true,
 				Targets:     []*types.LockTarget{{User: user.GetName()}},
 			})
@@ -240,7 +227,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		func(ctx context.Context) ([]types.Lock, error) {
 			// TODO(okraport): DELETE IN v21
 			const inForceOnlyTrue = true
-			return g.accessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
+			return g.Cfg.AccessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
 				User: user.GetName(),
 			})
 		},
@@ -270,15 +257,15 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
-		AccessListsService: g.accessLists,
-		Clock:              g.clock,
+		AccessListsService: g.Cfg.AccessLists,
+		Clock:              g.Cfg.Clock,
 		IgnoreScoped:       true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	for acl, err := range clientutils.Resources(ctx, g.accessLists.ListAccessLists) {
+	for acl, err := range clientutils.Resources(ctx, g.Cfg.AccessLists.ListAccessLists) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -370,7 +357,7 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 
 	// Make sure all the roles exist. If they don't, error out.
 	for _, role := range state.Spec.Roles {
-		if _, err := g.access.GetRole(ctx, role); err != nil {
+		if _, err := g.Cfg.Access.GetRole(ctx, role); err != nil {
 			if trace.IsNotFound(err) {
 				return trace.Wrap(types.ErrNonExistingRoleAssigned)
 			}
@@ -422,7 +409,7 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 		CountInheritedTraitsGranted: int32(countInheritedTraitsGranted),
 	}
 
-	if err := g.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{
+	if err := g.Cfg.UsageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{
 		Event: &usageeventsv1.UsageEventOneOf{
 			Event: &usageeventsv1.UsageEventOneOf_AccessListGrantsToUser{
 				AccessListGrantsToUser: grantsToUser,
@@ -506,7 +493,7 @@ func (g *Generator) identifyMissingRoles(ctx context.Context, roles []string) ([
 	var missingRoles []string
 
 	for _, role := range roles {
-		_, err := g.access.GetRole(ctx, role)
+		_, err := g.Cfg.Access.GetRole(ctx, role)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				missingRoles = append(missingRoles, role)
@@ -526,7 +513,7 @@ func (g *Generator) identifyMissingRoles(ctx context.Context, roles []string) ([
 // emitSkippedAccessListEvent emits an audit log event to indicate that an invalid
 // access list could not be applied during user login.
 func (g *Generator) emitSkippedAccessListEvent(ctx context.Context, accessListName string, missingRoles []string, username string) {
-	if err := g.emitter.EmitAuditEvent(ctx, &apievents.UserLoginAccessListInvalid{
+	if err := g.Cfg.Emitter.EmitAuditEvent(ctx, &apievents.UserLoginAccessListInvalid{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginAccessListInvalidEvent,
 			Code: events.UserLoginAccessListInvalidCode,
@@ -542,6 +529,6 @@ func (g *Generator) emitSkippedAccessListEvent(ctx context.Context, accessListNa
 			UserMessage: "access list skipped because it references non-existent role(s)",
 		},
 	}); err != nil {
-		g.log.WarnContext(ctx, "Failed to emit access list skipped warning audit event", "error", err)
+		g.Cfg.Log.WarnContext(ctx, "Failed to emit access list skipped warning audit event", "error", err)
 	}
 }

@@ -69,7 +69,7 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 	// We intentionally do not persist the ULS here (unlike the normal login
 	// path) to avoid leaving stale state if the user's roles are modified
 	// after the reset.
-	userState, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	userState, err := a.ULSGenerator.GeneratePureULS(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
