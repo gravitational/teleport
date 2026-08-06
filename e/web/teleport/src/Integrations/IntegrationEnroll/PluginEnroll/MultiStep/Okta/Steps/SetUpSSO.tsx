@@ -205,19 +205,19 @@ const MetadataURLForm = ({
         <Text>
           Follow the instructions in the Teleport documentation to{' '}
           <Link
-            href="https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/okta/#create-groups"
-            target="_blank"
-          >
-            create the required groups
-          </Link>{' '}
-          and{' '}
-          <Link
-            href="https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/okta/#create-and-configure-an-okta-app"
+            href="https://goteleport.com/docs/identity-governance/integrations/okta/guided-sso/#step-24-create-and-configure-an-okta-app"
             target="_blank"
           >
             create and configure
           </Link>{' '}
-          the SAML application in the Okta dashboard.
+          the SAML application and{' '}
+          <Link
+            href="https://goteleport.com/docs/identity-governance/integrations/okta/guided-sso/#step-34-assign-user-groups"
+            target="_blank"
+          >
+            assign the required groups
+          </Link>{' '}
+          in the Okta dashboard.
         </Text>
       </StyledBox>
       <Validation>
