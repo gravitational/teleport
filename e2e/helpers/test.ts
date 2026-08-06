@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { canonicalUserKey } from './canonicalKey';
 import { test as base } from './fixtures';
 import type { StorageState } from './login';
+import { AuditLogPage } from './pages/AuditLog';
 import { PlayerPage } from './pages/Player';
 import { RecordingsPage } from './pages/Recordings';
 import { RolesPage } from './pages/Roles';
@@ -89,6 +90,7 @@ interface E2EFixtures {
   username: string;
   loginAs: (index: number) => Promise<LoginAsResult>;
   recordingIds: Record<string, string>;
+  auditLogPage: AuditLogPage;
   unifiedResourcesPage: UnifiedResourcesPage;
   playerPage: PlayerPage;
   recordingsPage: RecordingsPage;
@@ -227,6 +229,9 @@ export const test = base.extend<E2EFixtures>({
     const browser = testInfo.project.name.split(':')[0];
 
     await use(join(authDir, `${browser}-${username}.json`));
+  },
+  auditLogPage: async ({ page }, use) => {
+    await use(new AuditLogPage(page));
   },
   unifiedResourcesPage: async ({ page }, use) => {
     await use(new UnifiedResourcesPage(page));
