@@ -70,7 +70,7 @@ func newTestListerFixture(n int, isDesc bool, defaultPageSize int) testListerFix
 		isDesc:          isDesc,
 		defaultPageSize: defaultPageSize,
 		upstreamList: func(_ context.Context, pageSize int, start string) ([]int, string, error) {
-			// We do not test the upstream list behaviour since that depends on the actual implementation,
+			// We do not test the upstream list behavior since that depends on the actual implementation,
 			// testing the mock has no value here.
 			panic("upstreamList should not be called in this test; the cache is healthy")
 		},
