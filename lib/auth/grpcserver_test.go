@@ -7773,3 +7773,83 @@ func TestScopedWatchEvents(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateUserCerts_unroutedKube covers
+// the shared unrouted Kubernetes certificate used by the multi-cluster kube local proxy.
+func TestGenerateUserCerts_unroutedKube(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t)
+
+	const username = "kube-multi-user"
+	_, _, err := authtest.CreateUserAndRole(testServer.Auth(), username, []string{username}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
+
+	for _, tt := range []struct {
+		name        string
+		requester   proto.UserCertsRequest_Requester
+		purpose     proto.UserCertsRequest_CertPurpose
+		mfaResponse *proto.MFAAuthenticateResponse
+		assertErr   require.ErrorAssertionFunc
+	}{
+		{
+			name:      "issued for the multi requester",
+			requester: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+			assertErr: require.NoError,
+		},
+		{
+			name:      "rejected for any other requester",
+			requester: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+				require.ErrorContains(t, err, "missing KubernetesCluster field")
+			},
+		},
+		{
+			name:        "rejected when carrying MFA state",
+			requester:   proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+			purpose:     proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+			mfaResponse: &proto.MFAAuthenticateResponse{},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter but got %v", err)
+				require.ErrorContains(t, err, "cannot request MFA-verified certificates without a Kubernetes cluster")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			userClient, err := testServer.NewClient(authtest.TestUser(username))
+			require.NoError(t, err, "NewClient failed")
+			t.Cleanup(func() { require.NoError(t, userClient.Close()) })
+
+			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				TLSPublicKey: publicKeyPEM,
+				Username:     username,
+				Expires:      testServer.Clock().Now().Add(time.Hour),
+				Usage:        proto.UserCertsRequest_Kubernetes,
+				// No KubernetesCluster. The target is chosen per request by path routing at the proxy.
+				RequesterName: tt.requester,
+				Purpose:       tt.purpose,
+				MFAResponse:   tt.mfaResponse,
+			})
+			tt.assertErr(t, err)
+			if err != nil {
+				return
+			}
+
+			cert, err := tlsca.ParseCertificatePEM(resp.TLS)
+			require.NoError(t, err, "ParseCertificatePEM failed")
+			identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+			require.NoError(t, err, "FromSubject failed")
+
+			require.Empty(t, identity.KubernetesCluster, "shared cert must carry no Kubernetes cluster route")
+			require.NotEmpty(t, identity.RouteToCluster, "shared cert must still be routed to a Teleport cluster")
+			require.Empty(t, identity.MFAVerified, "shared cert must carry no MFA state")
+			require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+		})
+	}
+}

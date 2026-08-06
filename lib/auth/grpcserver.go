@@ -750,6 +750,9 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
 		}
+		if req.KubernetesCluster == "" && req.MFAResponse != nil {
+			return trace.BadParameter("requester %s cannot request MFA-verified certificates without a Kubernetes cluster", req.RequesterName)
+		}
 	}
 
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
@@ -785,7 +788,7 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Kubernetes:
-		if req.KubernetesCluster == "" {
+		if req.KubernetesCluster == "" && req.RequesterName != authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
 	case authpb.UserCertsRequest_Database:
