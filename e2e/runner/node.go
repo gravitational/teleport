@@ -56,11 +56,10 @@ func (d *dockerNode) start(ctx context.Context) error {
 }
 
 func (d *dockerNode) removeStale(ctx context.Context) {
-	cli, err := client.New()
+	cli, err := dockerAPI()
 	if err != nil {
 		return
 	}
-	defer cli.Close()
 
 	_, _ = cli.ContainerRemove(ctx, d.containerName, client.ContainerRemoveOptions{Force: true})
 }
@@ -70,7 +69,13 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 
 	d.removeStale(ctx)
 
+	sdk, err := dockerSDK()
+	if err != nil {
+		return err
+	}
+
 	ctr, err := container.Run(ctx,
+		container.WithClient(sdk),
 		container.WithImage(d.imageName),
 		container.WithImagePlatform("linux/amd64"),
 		container.WithPullHandler(func(r io.ReadCloser) error {
@@ -179,11 +184,10 @@ func (d *dockerNode) stop(ctx context.Context) {
 func pullImage(ctx context.Context, image string) error {
 	slog.InfoContext(ctx, "pulling docker image", "image", image)
 
-	cli, err := client.New()
+	cli, err := dockerAPI()
 	if err != nil {
-		return fmt.Errorf("creating docker client: %w", err)
+		return err
 	}
-	defer cli.Close()
 
 	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{})
 	if err != nil {
@@ -191,6 +195,15 @@ func pullImage(ctx context.Context, image string) error {
 	}
 	defer rc.Close()
 
-	_, err = io.Copy(io.Discard, rc)
-	return err
+	// Wait surfaces failures reported inside the progress stream, which a plain copy would discard.
+	// A cached image is still usable when the registry refuses us, so that is only a warning.
+	if err := rc.Wait(ctx); err != nil {
+		if _, inspectErr := cli.ImageInspect(ctx, image); inspectErr != nil {
+			return fmt.Errorf("pulling image: %w", err)
+		}
+
+		slog.Warn("could not refresh docker image, using the cached one", "image", image, "error", err)
+	}
+
+	return nil
 }

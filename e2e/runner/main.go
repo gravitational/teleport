@@ -393,12 +393,18 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 				return fmt.Errorf("resolving docker host: %w", err)
 			}
 
+			sshPublicHost, err := nodePublicHost()
+			if err != nil {
+				return fmt.Errorf("resolving node public host: %w", err)
+			}
+
 			for _, inst := range config.instances {
 				outPath := filepath.Join(e2eDir, "node", inst.browser+"-node.yaml")
 				nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
 					AuthServerHost: dockerHost,
 					AuthServerPort: inst.authPort,
 					SSHServerPort:  inst.sshPort,
+					SSHPublicHost:  sshPublicHost,
 				})
 				if err != nil {
 					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
