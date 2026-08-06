@@ -17,8 +17,12 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -56,9 +60,14 @@ func NewScopedRoleResourceType() tfdriver.ResourceType[accessv1.ScopedRole, tfdr
 		},
 		Kind: scopedaccess.KindScopedRole,
 		Codec: tfdriver.ResourceCodecFuncs[accessv1.ScopedRole]{
-			SchemaFunc:   schemav1.GenSchemaScopedRole,
-			ToStateFunc:  schemav1.CopyScopedRoleToTerraform,
-			FromPlanFunc: schemav1.CopyScopedRoleFromTerraform,
+			SchemaFunc: schemav1.GenSchemaScopedRole,
+			ToConfigFunc: func(ctx context.Context, scopedRole *accessv1.ScopedRole, o *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return schemav1.CopyScopedRoleToTerraformPreserveUnknown(ctx, scopedRole, o, preserveUnknown)
+			},
+			ToStateFunc:    schemav1.CopyScopedRoleToTerraform,
+			FromConfigFunc: schemav1.CopyScopedRoleFromTerraform,
+			FromPlanFunc:   schemav1.CopyScopedRoleFromTerraform,
 		},
 		Normalizer: tfdriver.ForceKind[accessv1.ScopedRole](scopedaccess.KindScopedRole),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(

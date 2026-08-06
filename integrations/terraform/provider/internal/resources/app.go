@@ -17,8 +17,12 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 
@@ -50,9 +54,14 @@ func NewAppResourceType() tfdriver.ResourceType[apitypes.AppV3, tfdriver.NameIde
 		},
 		Kind: apitypes.KindApp,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.AppV3]{
-			SchemaFunc:   tfschema.GenSchemaAppV3,
-			ToStateFunc:  tfschema.CopyAppV3ToTerraform,
-			FromPlanFunc: tfschema.CopyAppV3FromTerraform,
+			SchemaFunc:     tfschema.GenSchemaAppV3,
+			FromConfigFunc: tfschema.CopyAppV3FromTerraform,
+			FromPlanFunc:   tfschema.CopyAppV3FromTerraform,
+			ToConfigFunc: func(ctx context.Context, app *apitypes.AppV3, object *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return tfschema.CopyAppV3ToTerraformPreserveUnknown(ctx, app, object, preserveUnknown)
+			},
+			ToStateFunc: tfschema.CopyAppV3ToTerraform,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[apitypes.AppV3](),
 		Identifier: tfdriver.NameIdentifierPolicy(path.Root("metadata").AtName("name"), func(av *apitypes.AppV3) string {

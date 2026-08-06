@@ -64,27 +64,16 @@ func NewAccessListMemberResourceType() tfdriver.ResourceType[accesslist.AccessLi
 		Kind: apitypes.KindAccessListMember,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessListMember]{
 			SchemaFunc: schemav1.GenSchemaMember,
+			ToConfigFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return schemav1.CopyMemberToTerraformPreserveUnknown(ctx, convertv1.ToMemberProto(alm), o, preserveUnknown)
+			},
 			ToStateFunc: func(ctx context.Context, alm *accesslist.AccessListMember, o *types.Object) diag.Diagnostics {
 				return schemav1.CopyMemberToTerraform(ctx, convertv1.ToMemberProto(alm), o)
 
 			},
-			FromPlanFunc: func(ctx context.Context, o types.Object, alm *accesslist.AccessListMember) diag.Diagnostics {
-				protoMember := new(accesslistv1.Member)
-				diags := schemav1.CopyMemberFromTerraform(ctx, o, protoMember)
-				if diags.HasError() {
-					return diags
-				}
-
-				converted, err := convertv1.FromMemberProto(protoMember)
-				if err != nil {
-					diags.AddError("Error converting access list member", err.Error())
-					return diags
-				}
-
-				*alm = *converted
-				return diags
-
-			},
+			FromConfigFunc: copyMemberFromTerraform,
+			FromPlanFunc:   copyMemberFromTerraform,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[accesslist.AccessListMember](),
 		Identifier: tfdriver.ScopeQualifiedCompositeIdentifierPolicy(
@@ -102,4 +91,21 @@ func NewAccessListMemberResourceType() tfdriver.ResourceType[accesslist.AccessLi
 			return st.GetMetadata().Revision
 		},
 	}
+}
+
+func copyMemberFromTerraform(ctx context.Context, o types.Object, alm *accesslist.AccessListMember) diag.Diagnostics {
+	protoMember := new(accesslistv1.Member)
+	diags := schemav1.CopyMemberFromTerraform(ctx, o, protoMember)
+	if diags.HasError() {
+		return diags
+	}
+
+	converted, err := convertv1.FromMemberProto(protoMember)
+	if err != nil {
+		diags.AddError("Error converting access list member", err.Error())
+		return diags
+	}
+
+	*alm = *converted
+	return diags
 }

@@ -60,6 +60,30 @@ func TestResourceCodecFuncsUsesSourceSpecificDecode(t *testing.T) {
 	require.Equal(t, "state:to-state", fromState)
 }
 
+func TestResourceCodecFuncsMissingFunctionsReturnDiagnostics(t *testing.T) {
+	codec := ResourceCodecFuncs[string]{}
+
+	_, diags := codec.Schema(t.Context())
+	requireMissingCodecFuncDiag(t, diags, "SchemaFunc")
+
+	var resource string
+
+	diags = codec.FromConfig(t.Context(), types.Object{}, &resource)
+	requireMissingCodecFuncDiag(t, diags, "FromConfigFunc")
+
+	diags = codec.FromPlan(t.Context(), types.Object{}, &resource)
+	requireMissingCodecFuncDiag(t, diags, "FromPlanFunc")
+
+	diags = codec.FromState(t.Context(), types.Object{}, &resource)
+	requireMissingCodecFuncDiag(t, diags, "FromStateFunc")
+
+	diags = codec.ToConfig(t.Context(), &resource, &types.Object{})
+	requireMissingCodecFuncDiag(t, diags, "ToConfigFunc")
+
+	diags = codec.ToState(t.Context(), &resource, &types.Object{})
+	requireMissingCodecFuncDiag(t, diags, "ToStateFunc")
+}
+
 func TestDataSourceCodecFuncsUsesConfigDecode(t *testing.T) {
 	codec := DataSourceCodecFuncs[string]{
 		SchemaFunc: func(context.Context) (tfsdk.Schema, diag.Diagnostics) {
@@ -83,4 +107,27 @@ func TestDataSourceCodecFuncsUsesConfigDecode(t *testing.T) {
 	diags = codec.ToState(t.Context(), &fromConfig, &types.Object{})
 	require.False(t, diags.HasError(), diags)
 	require.Equal(t, "config:to-state", fromConfig)
+}
+
+func TestDataSourceCodecFuncsMissingFunctionsReturnDiagnostics(t *testing.T) {
+	codec := DataSourceCodecFuncs[string]{}
+
+	_, diags := codec.Schema(t.Context())
+	requireMissingCodecFuncDiag(t, diags, "SchemaFunc")
+
+	var resource string
+	diags = codec.FromConfig(t.Context(), types.Object{}, &resource)
+	requireMissingCodecFuncDiag(t, diags, "FromConfigFunc")
+
+	diags = codec.ToState(t.Context(), &resource, &types.Object{})
+	requireMissingCodecFuncDiag(t, diags, "ToStateFunc")
+}
+
+func requireMissingCodecFuncDiag(t *testing.T, diags diag.Diagnostics, function string) {
+	t.Helper()
+
+	require.True(t, diags.HasError(), diags)
+	require.Len(t, diags, 1)
+	require.Equal(t, "Missing Terraform codec function", diags[0].Summary())
+	require.Contains(t, diags[0].Detail(), function)
 }

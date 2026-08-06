@@ -66,27 +66,15 @@ func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tf
 		Kind: apitypes.KindAccessList,
 		Codec: tfdriver.ResourceCodecFuncs[accesslist.AccessList]{
 			SchemaFunc: schemav1.GenSchemaAccessList,
+			ToConfigFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return schemav1.CopyAccessListToTerraformPreserveUnknown(ctx, convertv1.ToProto(al), o, preserveUnknown)
+			},
 			ToStateFunc: func(ctx context.Context, al *accesslist.AccessList, o *types.Object) diag.Diagnostics {
-
 				return schemav1.CopyAccessListToTerraform(ctx, convertv1.ToProto(al), o)
 			},
-			FromPlanFunc: func(ctx context.Context, o types.Object, al *accesslist.AccessList) diag.Diagnostics {
-				protoACL := new(accesslistv1.AccessList)
-				diags := schemav1.CopyAccessListFromTerraform(ctx, o, protoACL)
-				if diags.HasError() {
-					return diags
-				}
-
-				converted, err := convertv1.FromProto(protoACL)
-				if err != nil {
-					diags.AddError("Error converting access list", err.Error())
-					return diags
-				}
-
-				*al = *converted
-				return diags
-
-			},
+			FromConfigFunc: copyAccessListFromTerraform,
+			FromPlanFunc:   copyAccessListFromTerraform,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[accesslist.AccessList](),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(
@@ -105,4 +93,21 @@ func NewAccessListResourceType() tfdriver.ResourceType[accesslist.AccessList, tf
 			return st.GetMetadata().Revision
 		},
 	}
+}
+
+func copyAccessListFromTerraform(ctx context.Context, o types.Object, al *accesslist.AccessList) diag.Diagnostics {
+	protoACL := new(accesslistv1.AccessList)
+	diags := schemav1.CopyAccessListFromTerraform(ctx, o, protoACL)
+	if diags.HasError() {
+		return diags
+	}
+
+	converted, err := convertv1.FromProto(protoACL)
+	if err != nil {
+		diags.AddError("Error converting access list", err.Error())
+		return diags
+	}
+
+	*al = *converted
+	return diags
 }

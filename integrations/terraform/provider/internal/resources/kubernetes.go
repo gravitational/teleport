@@ -17,8 +17,12 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -56,9 +60,14 @@ func NewKubernetesClusterResourceType() tfdriver.ResourceType[apitypes.Kubernete
 		},
 		Kind: apitypes.KindKubernetesCluster,
 		Codec: tfdriver.ResourceCodecFuncs[apitypes.KubernetesClusterV3]{
-			SchemaFunc:   tfschema.GenSchemaKubernetesClusterV3,
-			ToStateFunc:  tfschema.CopyKubernetesClusterV3ToTerraform,
-			FromPlanFunc: tfschema.CopyKubernetesClusterV3FromTerraform,
+			SchemaFunc: tfschema.GenSchemaKubernetesClusterV3,
+			ToConfigFunc: func(ctx context.Context, kubeCluster *apitypes.KubernetesClusterV3, o *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return tfschema.CopyKubernetesClusterV3ToTerraformPreserveUnknown(ctx, kubeCluster, o, preserveUnknown)
+			},
+			ToStateFunc:    tfschema.CopyKubernetesClusterV3ToTerraform,
+			FromConfigFunc: tfschema.CopyKubernetesClusterV3FromTerraform,
+			FromPlanFunc:   tfschema.CopyKubernetesClusterV3FromTerraform,
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[apitypes.KubernetesClusterV3](),
 		Identifier: tfdriver.PossiblyUnscopedScopeQualifiedNameIdentifierPolicy(

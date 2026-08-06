@@ -17,8 +17,12 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
@@ -56,9 +60,14 @@ func NewScopedTokenResourceType() tfdriver.ResourceType[joiningv1.ScopedToken, t
 		},
 		Kind: apitypes.KindScopedToken,
 		Codec: tfdriver.ResourceCodecFuncs[joiningv1.ScopedToken]{
-			SchemaFunc:   schemav1.GenSchemaScopedToken,
-			ToStateFunc:  schemav1.CopyScopedTokenToTerraform,
-			FromPlanFunc: schemav1.CopyScopedTokenFromTerraform,
+			SchemaFunc:     schemav1.GenSchemaScopedToken,
+			FromConfigFunc: schemav1.CopyScopedTokenFromTerraform,
+			FromPlanFunc:   schemav1.CopyScopedTokenFromTerraform,
+			ToConfigFunc: func(ctx context.Context, token *joiningv1.ScopedToken, object *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return schemav1.CopyScopedTokenToTerraformPreserveUnknown(ctx, token, object, preserveUnknown)
+			},
+			ToStateFunc: schemav1.CopyScopedTokenToTerraform,
 		},
 		Normalizer: tfdriver.ForceKind[joiningv1.ScopedToken](apitypes.KindScopedToken),
 		Identifier: tfdriver.ScopeQualifiedNameIdentifierPolicy(

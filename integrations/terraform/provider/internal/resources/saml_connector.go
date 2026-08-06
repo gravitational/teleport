@@ -17,10 +17,14 @@
 package resources
 
 import (
+	"context"
+
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/gravitational/teleport/api/types"
+	apitypes "github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/teleport"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdriver"
@@ -28,13 +32,13 @@ import (
 )
 
 // NewSAMLConnectorDataSourceType returns SAML connector data source type.
-func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
-	return tfdriver.DataSourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier]{
-		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
+func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier] {
+	return tfdriver.DataSourceType[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier]{
+		NewDataSourceClient: func(p tfsdk.Provider) tfdriver.DataSourceClient[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier] {
 			return teleport.NewSAMLConnectorClient(clientFromProvider(p))
 		},
-		Kind: types.KindSAMLConnector,
-		Codec: tfdriver.DataSourceCodecFuncs[types.SAMLConnectorV2]{
+		Kind: apitypes.KindSAMLConnector,
+		Codec: tfdriver.DataSourceCodecFuncs[apitypes.SAMLConnectorV2]{
 			SchemaFunc:  tfschema.GenSchemaSAMLConnectorV2,
 			ToStateFunc: tfschema.CopySAMLConnectorV2ToTerraform,
 		},
@@ -45,25 +49,30 @@ func NewSAMLConnectorDataSourceType() tfdriver.DataSourceType[types.SAMLConnecto
 }
 
 // NewSAMLConnectorResourceType returns SAML connector resource type.
-func NewSAMLConnectorResourceType() tfdriver.ResourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
-	return tfdriver.ResourceType[types.SAMLConnectorV2, tfdriver.NameIdentifier]{
-		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[types.SAMLConnectorV2, tfdriver.NameIdentifier] {
+func NewSAMLConnectorResourceType() tfdriver.ResourceType[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier] {
+	return tfdriver.ResourceType[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier]{
+		NewResourceClient: func(p tfsdk.Provider) tfdriver.ResourceClient[apitypes.SAMLConnectorV2, tfdriver.NameIdentifier] {
 			return teleport.NewSAMLConnectorClient(clientFromProvider(p))
 		},
-		Kind: types.KindSAMLConnector,
-		Codec: tfdriver.ResourceCodecFuncs[types.SAMLConnectorV2]{
-			SchemaFunc:   tfschema.GenSchemaSAMLConnectorV2,
-			FromPlanFunc: tfschema.CopySAMLConnectorV2FromTerraform,
-			ToStateFunc:  tfschema.CopySAMLConnectorV2ToTerraform,
+		Kind: apitypes.KindSAMLConnector,
+		Codec: tfdriver.ResourceCodecFuncs[apitypes.SAMLConnectorV2]{
+			SchemaFunc:     tfschema.GenSchemaSAMLConnectorV2,
+			FromConfigFunc: tfschema.CopySAMLConnectorV2FromTerraform,
+			FromPlanFunc:   tfschema.CopySAMLConnectorV2FromTerraform,
+			ToConfigFunc: func(ctx context.Context, samlConnector *apitypes.SAMLConnectorV2, o *types.Object) diag.Diagnostics {
+				const preserveUnknown = true
+				return tfschema.CopySAMLConnectorV2ToTerraformPreserveUnknown(ctx, samlConnector, o, preserveUnknown)
+			},
+			ToStateFunc: tfschema.CopySAMLConnectorV2ToTerraform,
 		},
-		Normalizer: tfdriver.CheckAndSetDefaults[types.SAMLConnectorV2](),
+		Normalizer: tfdriver.CheckAndSetDefaults[apitypes.SAMLConnectorV2](),
 		Identifier: tfdriver.NameIdentifierPolicy(
 			path.Root("metadata").AtName("name"),
-			func(connector *types.SAMLConnectorV2) string {
+			func(connector *apitypes.SAMLConnectorV2) string {
 				return connector.GetMetadata().Name
 			},
 		),
-		ResourceRevision: func(connector *types.SAMLConnectorV2) string {
+		ResourceRevision: func(connector *apitypes.SAMLConnectorV2) string {
 			return connector.GetMetadata().Revision
 		},
 	}
