@@ -1,22 +1,25 @@
-<Admonition type="warning" title="Editing the generated roles">
-Avoid directly modifying the roles the guided flow creates for this Access
-List. Keep their names and their `teleport.internal/access-list-preset*` labels
-unchanged — the Web UI relies on both to recognize them as the roles generated
-for this Access List.
-To change what the list grants, update it through the Web UI Access List editor:
+<Admonition type="warning" title="Editing the supporting roles">
+However you created the list, keep the supporting roles' names and their
+`teleport.internal/access-list-preset*` labels unchanged. Both the Web UI Access
+List editor and `tctl acl update` rely on them to recognize which roles belong
+to this Access List.
 
-1. From the sidebar menu, click **Identity Governance** > **Access Lists**.
-2. Click on the target Access List.
-3. Click the **Access Definition** tab.
-4. Click **Edit Access**.
+To change what the list grants:
 
-If you created the list with Terraform produced by the Web UI editor, you can
-still use the web editor to update the Access List and copy the updated Terraform it
-generates.
+- **Web UI** — from the sidebar menu, click **Identity Governance** >
+  **Access Lists**, click the target Access List, open the **Access Definition**
+  tab, then click **Edit Access**.
+- **`tctl`** — rerun
+  [`tctl acl update`](../../../reference/cli/tctl.mdx#tctl-acl-update) with the
+  resource flags you want. It updates the supporting roles for you.
+- **Terraform** — rerun
+  [`tctl acl update`](../../../reference/cli/tctl.mdx#tctl-acl-update) with the
+  resource flags you want and `--output terraform` to regenerate the
+  configuration, then apply it.
 
-Editing the roles directly (via Terraform, `tctl`, or the role editor) may
-make the Access List editor in the Web UI unable to parse them (only a limited
-subset of role fields is supported by the editor) — at which point you can no
-longer use the Web UI editor to change the list's grants, and must update the
+Both tools support only a limited subset of role fields. If the roles end up
+outside that subset, neither can change the list's grants — the Web UI editor
+can no longer parse them, and `tctl acl update` rejects them rather than
+silently dropping the fields you added. From that point on you must manage the
 roles directly for the rest of the Access List's life.
 </Admonition>

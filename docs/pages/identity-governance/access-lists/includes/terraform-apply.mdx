@@ -1,0 +1,43 @@
+Note the `type = "static"` field. Access Lists managed with Terraform must be
+static so that Terraform can own their membership, and static lists do not
+support periodic auditing. To learn the differences, see
+[Static versus default Access Lists](../../../configuration/resource-guides/access-list.mdx#static-versus-default-access-lists).
+
+### Apply the configuration
+
+Log in to your cluster, assigning <Var name="teleport.example.com:443" /> to your
+Teleport proxy address and <Var name="email@example.com" /> to your Teleport
+username:
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="email@example.com" />
+```
+
+Generate temporary credentials for the Terraform provider:
+
+```code
+$ eval "$(tctl terraform env)"
+```
+
+Initialize Terraform, preview the changes, and apply them:
+
+```code
+$ terraform init
+$ terraform plan
+$ terraform apply
+```
+
+The Access List is created once `terraform apply` completes.
+
+<Admonition type="note">
+The steps above use `tctl terraform env` to issue short-lived credentials,
+which is convenient for trying things out locally. For remote environments
+such as CI/CD pipelines or cloud VMs, see the
+[Terraform provider documentation](../../../configuration/terraform-provider/terraform-provider.mdx)
+for guidance on setting up the provider.
+</Admonition>
+
+To write the configuration by hand instead of generating it, or for the full set
+of fields on the `teleport_access_list` and `teleport_access_list_member`
+resources, see
+[Creating Access Lists with IaC](../../../configuration/resource-guides/access-list.mdx).
