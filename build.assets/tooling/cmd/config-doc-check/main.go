@@ -22,6 +22,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -63,16 +64,10 @@ type checkerConfig struct {
 }
 
 // loadConfigFile reads the checker config from YAML and validates its contents.
-func loadConfigFile(path string) (*checkerConfig, error) {
-	conffile, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("opening configuration file %q: %w", path, err)
-	}
-	defer conffile.Close()
-
+func loadConfigFile(r io.Reader) (*checkerConfig, error) {
 	var config checkerConfig
-	if err := yaml.NewDecoder(conffile).Decode(&config); err != nil {
-		return nil, fmt.Errorf("parsing configuration file %q: %w", path, err)
+	if err := yaml.NewDecoder(r).Decode(&config); err != nil {
+		return nil, fmt.Errorf("parsing configuration file: %w", err)
 	}
 	if config.SourcePath == "" {
 		return nil, fmt.Errorf("checker config has no source path")
@@ -513,7 +508,14 @@ func main() {
 	configPath := flag.String("config", "config.yaml", configHelp)
 	flag.Parse()
 
-	config, err := loadConfigFile(*configPath)
+	rawConf, err := os.Open(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to open config file at %q: %v", *configPath, err)
+		os.Exit(1)
+	}
+	defer rawConf.Close()
+
+	config, err := loadConfigFile(rawConf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -528,6 +530,7 @@ func main() {
 	// Keep track of whether any differences were reported between the documented configuration examples
 	// and the actual configuration structs.
 	hasDifferences := false
+	configErrors := []error{}
 	treeBuilder := &configKeyTreeBuilder{
 		rootPath:        rootAbs,
 		sourcePackages:  make(map[string]*sourcePackage),
@@ -545,13 +548,14 @@ func main() {
 
 		data, err := os.ReadFile(examplePath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: cannot read the configuration example %s: %v\n", section.ExamplePath, err)
+			configErrors = append(configErrors, fmt.Errorf(
+				"warning: cannot read the configuration example %s: %v", section.ExamplePath, err))
 			continue
 		}
 
 		var unmarshaledExample map[string]any
 		if err := yaml.Unmarshal(preprocessExampleYAML(data), &unmarshaledExample); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: cannot parse the configuration example %s: %v\n", section.ExamplePath, err)
+			configErrors = append(configErrors, fmt.Errorf("warning: cannot parse the configuration example %s: %v", section.ExamplePath, err))
 			continue
 		}
 
@@ -561,8 +565,8 @@ func main() {
 			// Look up the section key in the unmarshaled example YAML.
 			exampleSectionValue, ok := unmarshaledExample[pair.SectionKey]
 			if !ok {
-				fmt.Printf("*** %s (%s):  WARNING: section %q not found ***\n\n",
-					section.Name, section.ExamplePath, pair.SectionKey)
+				configErrors = append(configErrors, fmt.Errorf("*** %s (%s):  WARNING: section %q not found ***",
+					section.Name, section.ExamplePath, pair.SectionKey))
 				failedToProcessSection = true
 				continue
 			}
@@ -572,7 +576,7 @@ func main() {
 			// Build the YAML key tree for the struct type corresponding to this service section.
 			structTree, err := treeBuilder.treeForTypeName(fmt.Sprintf("%s/lib/config", teleportPackagePrefix), pair.TypeName)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: cannot inspect config type %s: %v\n", pair.TypeName, err)
+				configErrors = append(configErrors, fmt.Errorf("warning: cannot inspect config type %s: %v", pair.TypeName, err))
 				failedToProcessSection = true
 				continue
 			}
@@ -612,6 +616,12 @@ func main() {
 		fmt.Println()
 	}
 
+	if len(configErrors) > 0 {
+		for _, err := range configErrors {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
+	}
 	if hasDifferences {
 		os.Exit(1)
 	}
