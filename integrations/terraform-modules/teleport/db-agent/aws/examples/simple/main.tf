@@ -24,6 +24,7 @@ module "teleport_db_agent" {
   vpc_id                     = module.vpc.vpc_id
 
   ecs_task_role_inline_policy           = data.aws_iam_policy_document.example_statement_override.json
+  allow_database_modification           = true
   database_types_for_default_iam_policy = ["rds"]
 }
 

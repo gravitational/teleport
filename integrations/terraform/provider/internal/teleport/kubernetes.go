@@ -41,8 +41,9 @@ type KubernetesClient struct {
 // Get reads a Kubernetes Cluster by name.
 func (r KubernetesClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*types.KubernetesClusterV3, error) {
 	cluster, err := r.client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
-		Name:  id.Name,
-		Scope: id.Scope,
+		Name:        id.Name,
+		Scope:       id.Scope,
+		WithSecrets: true,
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)

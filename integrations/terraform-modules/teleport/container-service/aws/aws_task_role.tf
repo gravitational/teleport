@@ -13,7 +13,7 @@ locals {
     one(random_string.name_suffix[*].result),
   )
   ecs_task_role_arn = format(
-    "arn:%s:iam::%s:role/%s",
+    "arn:%v:iam::%v:role/%v",
     one(data.aws_partition.this[*].partition),
     one(data.aws_caller_identity.this[*].account_id),
     local.ecs_task_role_name,
@@ -76,7 +76,7 @@ data "aws_iam_policy_document" "ecs_task_trust" {
       test = "ArnLike"
       values = [
         format(
-          "arn:%s:ecs:%s:%s:*",
+          "arn:%v:ecs:%v:%v:*",
           one(data.aws_partition.this[*].partition),
           one(data.aws_region.this[*].region),
           one(data.aws_caller_identity.this[*].account_id),
@@ -107,7 +107,7 @@ data "aws_iam_policy_document" "ecs_task_trust" {
 
       principals {
         identifiers = [format(
-          "arn:%s:iam::%s:root",
+          "arn:%v:iam::%v:root",
           one(data.aws_partition.this[*].partition),
           one(data.aws_caller_identity.this[*].account_id),
         )]

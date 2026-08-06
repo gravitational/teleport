@@ -1,6 +1,10 @@
 suite: Operator Deployment
 templates:
   - deployment.yaml
+# Override chart version so snapshots are stable across releases.
+chart:
+  version: "99.0.0"
+  appVersion: "99.0.0"
 tests:
   - it: creates no deployment when operator is not enabled
     values:

@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
@@ -50,6 +51,18 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter upstream (BotInstance)")
 	}
+	// The seed must select the same set as the event stream, which is filtered
+	// per-event by services.WatchKindMatchesScope; an unfiltered seed would leave
+	// permanently stale out-of-scope entries in the store.
+	scopeFilter := w.ScopeFilter.ToProto()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// An omitted filter means match-all here but identity-based defaults at the
+	// authz layer, so require the config to say which is meant.
+	if scopeFilter.GetMode() == scopesv1.Mode_MODE_UNSPECIFIED {
+		return nil, trace.BadParameter("bot instance cache requires an explicit scope filter mode")
+	}
 
 	return &collection[*machineidv1.BotInstance, botInstanceIndex]{
 		store: newStore(
@@ -68,7 +81,9 @@ func newBotInstanceCollection(upstream services.BotInstance, w types.WatchKind) 
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*machineidv1.BotInstance, error) {
 			out, err := stream.Collect(clientutils.Resources(ctx,
 				func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-					return upstream.ListBotInstances(ctx, limit, start, nil)
+					return upstream.ListBotInstances(ctx, limit, start, &services.ListBotInstancesRequestOptions{
+						ScopeFilter: scopeFilter,
+					})
 				},
 			))
 			return out, trace.Wrap(err)
@@ -89,8 +104,17 @@ func (c *Cache) GetBotInstance(ctx context.Context, req *machineidv1.GetBotInsta
 		cache:      c,
 		collection: c.collections.botInstances,
 		index:      botInstanceNameIndex,
-		upstreamGet: func(ctx context.Context, _ string) (*machineidv1.BotInstance, error) {
-			return c.Config.BotInstanceService.GetBotInstance(ctx, req)
+		upstreamGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
+			bi, err := c.Config.BotInstanceService.GetBotInstance(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Mirror the healthy path: an instance outside the collection's
+			// scope filter is never in the store.
+			if !scopes.MatchScope(c.collections.botInstances.watch.ScopeFilter.ToProto(), bi.GetScope()) {
+				return nil, trace.NotFound("%q %q does not exist", types.KindBotInstance, key)
+			}
+			return bi, nil
 		},
 	}
 
@@ -104,11 +128,17 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 	ctx, span := c.Tracer.Start(ctx, "cache/ListBotInstances")
 	defer span.End()
 
-	// A bot is identified by the pair (scope, name), so the scope filter only
-	// ever qualifies the name filter. Listing a whole scope will be a separate
-	// filter with explicit exact/descendant control.
+	// See the field docs on ListBotInstancesRequestOptions for the rules
+	// enforced here.
 	if options.GetFilterBotScope() != "" && options.GetFilterBotName() == "" {
 		return nil, "", trace.BadParameter("bot scope filter requires a bot name filter")
+	}
+	scopeFilter := options.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	if scopeFilter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED && options.GetFilterBotName() != "" {
+		return nil, "", trace.BadParameter("scope filter cannot be combined with a bot name filter")
 	}
 
 	index := botInstanceNameIndex
@@ -152,7 +182,19 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 		isDesc:          isDesc,
 		defaultPageSize: defaults.DefaultChunkSize,
 		upstreamList: func(ctx context.Context, limit int, start string) ([]*machineidv1.BotInstance, string, error) {
-			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, options)
+			// The backend enforces the request options but not the collection's
+			// scope filter; graft it onto the options' iteration filter so cache
+			// health doesn't change the visible set and pages still fill.
+			collectionFilter := c.collections.botInstances.watch.ScopeFilter.ToProto()
+			var opts services.ListBotInstancesRequestOptions
+			if options != nil {
+				opts = *options
+			}
+			inner := opts.FilterFn
+			opts.FilterFn = func(b *machineidv1.BotInstance) bool {
+				return scopes.MatchScope(collectionFilter, b.GetScope()) && (inner == nil || inner(b))
+			}
+			return c.Config.BotInstanceService.ListBotInstances(ctx, limit, start, &opts)
 		},
 		filter: func(b *machineidv1.BotInstance) bool {
 			// A bot is identified by (scope, name), so a by-bot filter also
@@ -161,6 +203,9 @@ func (c *Cache) ListBotInstances(ctx context.Context, pageSize int, lastToken st
 			// the backend's range routing in
 			// local.BotInstanceService.ListBotInstances.
 			if options.GetFilterBotName() != "" && b.GetScope() != options.GetFilterBotScope() {
+				return false
+			}
+			if !scopes.MatchScope(scopeFilter, b.GetScope()) {
 				return false
 			}
 			if !services.MatchBotInstance(b, options.GetFilterBotName(), options.GetFilterSearchTerm(), exp) {

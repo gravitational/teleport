@@ -132,6 +132,29 @@ func RoleNameForCertAuthority(name string) string {
 // NewImplicitRole is the default implicit role that gets added to all
 // RoleSets.
 func NewImplicitRole() types.Role {
+	return newImplicitRole(types.CopyRulesSlice(DefaultImplicitRules))
+}
+
+// newScopedImplicitRole is the default implicit role as it applies to scoped identities. It confers
+// the same privileges as [NewImplicitRole], except that secret-inclusive read is replaced with
+// secret-exclusive read.
+func newScopedImplicitRole() types.Role {
+	rules := types.CopyRulesSlice(DefaultImplicitRules)
+	for i, rule := range rules {
+		// CopyRulesSlice is a shallow copy, so build a replacement slice rather than assigning into it.
+		verbs := make([]string, len(rule.Verbs))
+		for j, verb := range rule.Verbs {
+			if verb == types.VerbRead {
+				verb = types.VerbReadNoSecrets
+			}
+			verbs[j] = verb
+		}
+		rules[i].Verbs = verbs
+	}
+	return newImplicitRole(rules)
+}
+
+func newImplicitRole(rules []types.Rule) types.Role {
 	return &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V3,
@@ -148,7 +171,7 @@ func NewImplicitRole() types.Role {
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{defaults.Namespace},
-				Rules:      types.CopyRulesSlice(DefaultImplicitRules),
+				Rules:      rules,
 			},
 		},
 	}
