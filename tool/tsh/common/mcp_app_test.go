@@ -36,10 +36,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -80,6 +82,47 @@ func TestMakeMCPReconnectUserMessage(t *testing.T) {
 			name:     "upstream internal error",
 			err:      errors.New("request failed with status 500: Internal Server Error"),
 			contains: []string{"[MCP_UPSTREAM_ERROR]", "HTTP 5xx", "Application Service logs"},
+		},
+		{
+			name: "attributed app service error",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Origin:     mcputils.ErrorOriginAppService,
+				Body:       "failed to rewrite headers",
+			}),
+			contains: []string{"[MCP_TELEPORT_ERROR]", "HTTP 500", "failed to rewrite headers", "Application Service logs"},
+		},
+		{
+			name: "attributed upstream error",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Origin:     mcputils.ErrorOriginUpstream,
+				Body:       "database connection lost",
+			}),
+			contains: []string{"[MCP_UPSTREAM_ERROR]", `"sentry" returned HTTP 500`, "database connection lost", "remote server's health"},
+		},
+		{
+			name: "attributed upstream unreachable",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 502,
+				Origin:     mcputils.ErrorOriginUpstreamUnreachable,
+			}),
+			contains: []string{"[MCP_UPSTREAM_UNREACHABLE]", "could not reach", "HTTP 502", "Bad Gateway"},
+		},
+		{
+			name: "unattributed HTTP 5xx",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Body:       "Internal Server Error",
+			}),
+			contains: []string{"[MCP_UPSTREAM_ERROR]", "or the Teleport Application Service", "HTTP 500"},
+		},
+		{
+			name: "unattributed gateway timeout",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 504,
+			}),
+			contains: []string{"[MCP_CONNECTION_TIMEOUT]", "timed out"},
 		},
 		{
 			name:     "null collection",
