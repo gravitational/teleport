@@ -118,7 +118,7 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		writeRequests, batchReadRequests, batchDeleteRequests,
-		writeRequestsDeduped, eventIDCollisions,
-		writeLatencies, batchWriteLatencies, batchReadLatencies, batchDeleteLatencies,
+		writeLatencies, batchWriteLatencies, batchReadLatencies,
+		batchDeleteLatencies, writeRequestsDeduped, eventIDCollisions,
 	}
 )
