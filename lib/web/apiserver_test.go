@@ -5879,7 +5879,7 @@ func TestCreatePrivilegeToken(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(context.Background(), endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 
@@ -5915,7 +5915,7 @@ func TestAddMFADevice(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 	var privilegeToken string
@@ -6010,7 +6010,7 @@ func TestDeleteMFA(t *testing.T) {
 	// Obtain a privilege token.
 	endpoint := pack.clt.Endpoint("webapi", "users", "privilege", "token")
 	re, err := pack.clt.PostJSON(ctx, endpoint, &privilegeTokenRequest{
-		SecondFactorToken: totpCode,
+		ExistingMFAResponse: &client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 

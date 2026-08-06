@@ -157,8 +157,3 @@ func (s *Service) agentSign(ctx context.Context, ref *hardwarekey.PrivateKeyRef,
 
 	return resp.Signature, nil
 }
-
-// TODO(Joerger): DELETE IN v19.0.0
-func (s *Service) GetFullKeyRef(serialNumber uint32, slotKey hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
-	return s.fallbackService.GetFullKeyRef(serialNumber, slotKey)
-}
