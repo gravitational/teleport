@@ -143,6 +143,9 @@ type e2eConfig struct {
 	// Empty when the teleport binary is overridden and no build is needed.
 	teleportBuildDir string
 
+	// browserRestrictions maps a spec path to the browsers it declared it should run against.
+	browserRestrictions map[string][]string
+
 	connectAppDir     string
 	connectTshBinPath string
 
@@ -296,6 +299,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 		}
 
+		// Left alone when nothing resolved, since an empty list would mean "run everything" instead of
+		// letting Playwright reject the selection.
+		if expanded := expandedTestFiles(targets); len(config.testFiles) > 0 && len(expanded) > 0 {
+			config.testFiles = expanded
+		}
+
 		scannedUsers, err := scanUsersFromTargets(targets)
 		if err != nil {
 			return fmt.Errorf("failed to scan users: %w", err)
@@ -305,6 +314,14 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		config.teleportConfigs, config.defaultTestFiles, err = scanTeleportConfigs(targets)
 		if err != nil {
 			return fmt.Errorf("failed to scan teleport configs: %w", err)
+		}
+
+		config.browserRestrictions, err = scanBrowserRestrictions(targets)
+		if err != nil {
+			return fmt.Errorf("failed to scan browser restrictions: %w", err)
+		}
+		if len(config.browserRestrictions) > 0 {
+			slog.Debug("discovered browser restrictions", "specs", config.browserRestrictions)
 		}
 
 		bootstrap, err := buildBootstrapState(e2eDir, scannedUsers)
