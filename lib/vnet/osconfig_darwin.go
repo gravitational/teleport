@@ -126,6 +126,8 @@ const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")
 
+// configureDNS writes resolver files for the zones to /etc/resolver, skipping
+// the write when nothing changed. A change in nameserver order triggers a rewrite.
 func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers []string, zones []string) error {
 	if len(nameservers) == 0 {
 		// There are no nameservers so VNet can't handle any DNS zones. Continue
@@ -133,7 +135,7 @@ func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers
 		zones = nil
 	}
 
-	desiredContents := resolverFileContents(nameservers)
+	desiredContents := desiredResolverFileContents(nameservers)
 	files := make([]string, 0, len(zones))
 	for _, zone := range zones {
 		files = append(files, filepath.Join(resolverPath, zone))
@@ -144,10 +146,10 @@ func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers
 		bytes.Equal(state.configuredDNS.fileContents, desiredContents) &&
 		slices.Equal(state.configuredDNS.files, files) {
 		// Read the managed files to catch external drift
-		if resolverFilesMatch(files, desiredContents) {
+		if resolverFilesMatch(ctx, files, desiredContents) {
 			return nil
 		}
-		log.InfoContext(ctx, "Resolver files changed externally, re-applying DNS configuration.")
+		log.InfoContext(ctx, "Resolver files no longer match the applied DNS configuration, re-applying.")
 	}
 
 	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
@@ -189,7 +191,7 @@ func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers
 	return trace.NewAggregate(allErrors...)
 }
 
-func resolverFileContents(nameservers []string) []byte {
+func desiredResolverFileContents(nameservers []string) []byte {
 	var fileContents bytes.Buffer
 	fileContents.WriteString(resolverFileComment)
 	fileContents.WriteByte('\n')
@@ -203,10 +205,15 @@ func resolverFileContents(nameservers []string) []byte {
 
 // resolverFilesMatch reports whether every managed resolver file still has
 // the expected contents.
-func resolverFilesMatch(files []string, wantContents []byte) bool {
+func resolverFilesMatch(ctx context.Context, files []string, wantContents []byte) bool {
 	for _, f := range files {
 		contents, err := os.ReadFile(f)
-		if err != nil || !bytes.Equal(contents, wantContents) {
+		if err != nil {
+			log.DebugContext(ctx, "Failed to read resolver file.", "file", f, "error", err)
+			return false
+		}
+		if !bytes.Equal(contents, wantContents) {
+			log.DebugContext(ctx, "Resolver file does not have the expected contents.", "file", f)
 			return false
 		}
 	}
