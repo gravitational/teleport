@@ -200,16 +200,18 @@ func TestStatusShowsMatchingPresets(t *testing.T) {
 	profile := &profileInfo{ProxyURL: "https://proxy.example.com:443"}
 	setMatchingPresets(map[string]client.TSHConfigPreset{
 		"z-last":      {Proxy: "https://PROXY.example.com:443"},
-		"a-first":     {Proxy: "proxy.example.com:443,3023"},
+		"a-first":     {Proxy: "proxy.example.com"},
+		"explicit":    {Proxy: "proxy.example.com:443,3023"},
+		"wrong-port":  {Proxy: "proxy.example.com:3080"},
 		"other":       {Proxy: "other.example.com:443"},
 		"no-proxy":    {},
 		"invalid-url": {Proxy: "https://proxy.example.com/path"},
 	}, profile)
-	require.Equal(t, []string{"a-first", "z-last"}, profile.Presets)
+	require.Equal(t, []string{"a-first", "explicit", "z-last"}, profile.Presets)
 
 	stdout := new(bytes.Buffer)
 	printStatus(stdout, false, profile, nil, true)
-	require.Contains(t, stdout.String(), "Presets:            a-first, z-last")
+	require.Contains(t, stdout.String(), "Presets:            a-first, explicit, z-last")
 
 	jsonOutput, err := serializeProfiles(profile, nil, nil, "json")
 	require.NoError(t, err)

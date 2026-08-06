@@ -1100,6 +1100,9 @@ presets, `tsh status` lists those preset names below the profile URL:
   Logged in as:       alice
 ```
 
+A preset proxy without an explicit web port matches profiles by hostname. If
+the preset specifies a web port, both the hostname and port must match.
+
 You can create a preset directly from a profile URL shown by `tsh status`:
 
 ```code

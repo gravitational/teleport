@@ -5961,8 +5961,7 @@ func setMatchingPresets(presets map[string]client.TSHConfigPreset, profiles ...*
 			continue
 		}
 		profile.Presets = nil
-		profileProxy, err := normalizePresetProxy(profile.ProxyURL)
-		if err != nil {
+		if _, err := normalizePresetProxy(profile.ProxyURL); err != nil {
 			continue
 		}
 
@@ -5970,8 +5969,7 @@ func setMatchingPresets(presets map[string]client.TSHConfigPreset, profiles ...*
 			if preset.Proxy == "" {
 				continue
 			}
-			presetProxy, err := normalizePresetProxy(preset.Proxy)
-			if err == nil && presetProxy == profileProxy {
+			if presetProxyMatchesProfile(preset.Proxy, profile.ProxyURL) {
 				profile.Presets = append(profile.Presets, name)
 			}
 		}

@@ -372,6 +372,43 @@ func normalizePresetProxy(raw string) (string, error) {
 	return canonicalProxyAddress(host, port)
 }
 
+// presetProxyMatchesProfile reports whether a preset proxy selects a profile's
+// web proxy endpoint. A preset without an explicit web port matches by host so
+// existing shorthand configurations such as "proxy.example.com" match status
+// URLs using either the cloud :443 port or the self-hosted :3080 default.
+func presetProxyMatchesProfile(presetProxy, profileURL string) bool {
+	profileAddress, err := normalizePresetProxy(profileURL)
+	if err != nil {
+		return false
+	}
+	presetAddress, err := normalizePresetProxy(presetProxy)
+	if err != nil {
+		return false
+	}
+	if presetAddress == profileAddress {
+		return true
+	}
+
+	// URL forms have a scheme-defined port even when it is omitted from the
+	// text, so only tsh's host-style proxy syntax can be port-agnostic.
+	if strings.Contains(presetProxy, "://") {
+		return false
+	}
+	parsedPreset, err := client.ParseProxyHost(strings.TrimSpace(presetProxy))
+	if err != nil || !parsedPreset.UsingDefaultWebProxyPort {
+		return false
+	}
+	presetHost, _, err := net.SplitHostPort(presetAddress)
+	if err != nil {
+		return false
+	}
+	profileHost, _, err := net.SplitHostPort(profileAddress)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(presetHost, profileHost)
+}
+
 func canonicalProxyAddress(host, port string) (string, error) {
 	if host == "" || strings.ContainsAny(host, "/,?#@") || strings.IndexFunc(host, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }) != -1 {
 		return "", trace.BadParameter("proxy host cannot be empty or contain whitespace")
