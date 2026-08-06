@@ -102,7 +102,7 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 			Computed:      true,
 			Description:   "The scope of the WorkloadIdentity. If unset, the WorkloadIdentity is unscoped (classic behavior). If set, the WorkloadIdentity is scoped and the SPIFFE ID defined in spec.spiffe.id must be a scoped SPIFFE ID prefixed with this scope. The scope of a WorkloadIdentity cannot be changed after creation.",
 			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
