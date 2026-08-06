@@ -57,8 +57,6 @@ func isValidKeyByte(b byte) bool {
 func IsKeySafe(key Key) bool {
 	for i, k := range key.components {
 		switch k {
-		case noEnd:
-			continue
 		case ".", "..":
 			return false
 		case "":
