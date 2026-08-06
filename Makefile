@@ -1189,6 +1189,17 @@ test-api:
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-api.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-api.json --raw-command -- cat
 
 #
+# Runs Go tests on the build.assets/tooling module. These have to be run separately as the package name is different.
+#
+.PHONY: test-build-assets-tooling
+test-build-assets-tooling: $(VERSRC) | $(TEST_LOG_DIR)
+test-build-assets-tooling: FLAGS ?= -race -shuffle on
+test-build-assets-tooling: SUBJECT ?= $(shell cd build.assets/tooling && go list ./...)
+test-build-assets-tooling:
+	cd build.assets/tooling && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-build-assets-tooling.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-build-assets-tooling.json --raw-command -- cat
+
+#
 # Runs Teleport Operator tests.
 # We have to run them using the makefile to ensure the installation of the k8s test tools (envtest)
 #

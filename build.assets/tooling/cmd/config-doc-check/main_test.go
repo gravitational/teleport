@@ -18,8 +18,8 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,9 +58,20 @@ func TestConfigKeyTreeBuilder(t *testing.T) {
 }
 
 func TestLoadCheckerConfig(t *testing.T) {
-	config, err := loadConfigFile("config.yaml")
+	conf := `source_path: .
+service_sections:
+  - name: Instance-wide settings
+    example_path: docs/pages/includes/config-reference/instance-wide.yaml
+    key_type_pairs:
+      - section_key: teleport
+        type_name: Global
+    dismissed_keys:
+      - teleport.pid_file
+      - teleport.shutdown_delay
+`
+	config, err := loadConfigFile(strings.NewReader(conf))
 	require.NoError(t, err)
-	require.Len(t, config.ServiceSections, 12)
+	require.Len(t, config.ServiceSections, 1)
 	require.Equal(t, serviceSectionInfo{
 		Name:        "Instance-wide settings",
 		ExamplePath: "docs/pages/includes/config-reference/instance-wide.yaml",
@@ -68,31 +79,20 @@ func TestLoadCheckerConfig(t *testing.T) {
 			{SectionKey: "teleport", TypeName: "Global"},
 		},
 		DismissedKeys: []string{
-			"teleport.auth_connection_config",
-			"teleport.auth_servers",
-			"teleport.ca_signature_algo",
-			"teleport.kex_algos",
-			"teleport.mac_algos",
 			"teleport.pid_file",
 			"teleport.shutdown_delay",
-			"teleport.cache",
-			"teleport.ciphers",
-			"teleport.ciphersuites",
-			"teleport.storage",
-			"teleport.connection_limits.max_users",
 		},
 	}, config.ServiceSections[0])
 }
 
 func TestLoadCheckerConfigWithScopedDismissedKeys(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte(`source_path: .
+	conf := `source_path: .
 service_sections:
   [{name: First Service, example_path: first.yaml, key_type_pairs: [{section_key: first_service, type_name: Shared}], dismissed_keys: [first_service.storage.type]},
 	{name: Second Service, example_path: second.yaml, key_type_pairs: [{section_key: first_service, type_name: Shared}]}]
-`), 0o600))
+`
 
-	config, err := loadConfigFile(configPath)
+	config, err := loadConfigFile(strings.NewReader(conf))
 	require.NoError(t, err)
 	require.Equal(t, []string{"first_service.storage.type"}, config.ServiceSections[0].DismissedKeys)
 	require.Empty(t, config.ServiceSections[1].DismissedKeys)
@@ -103,16 +103,10 @@ service_sections:
 func TestLoadCheckerConfigErrors(t *testing.T) {
 	validSection := ` [{name: Auth Service, example_path: auth-service.yaml, key_type_pairs: [{section_key: auth_service, type_name: Auth}]}]`
 	tests := []struct {
-		name        string
-		contents    string
-		missingFile bool
-		wantError   string
+		name      string
+		contents  string
+		wantError string
 	}{
-		{
-			name:        "file does not exist",
-			missingFile: true,
-			wantError:   "opening configuration file",
-		},
 		{
 			name:      "malformed YAML",
 			contents:  "source_path: [",
@@ -174,12 +168,7 @@ service_sections: [{name: Auth Service, example_path: auth-service.yaml, key_typ
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			configPath := filepath.Join(t.TempDir(), "config.yaml")
-			if !test.missingFile {
-				require.NoError(t, os.WriteFile(configPath, []byte(test.contents), 0o600))
-			}
-
-			config, err := loadConfigFile(configPath)
+			config, err := loadConfigFile(strings.NewReader(test.contents))
 			require.Nil(t, config)
 			require.ErrorContains(t, err, test.wantError)
 		})
