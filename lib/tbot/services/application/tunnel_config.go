@@ -102,9 +102,6 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 	if err := internal.CheckDeprecatedRoles(t.DeprecatedRoles); err != nil {
 		return trace.Wrap(err)
 	}
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", TunnelServiceType)
-	}
 	switch {
 	case t.Listen == "" && t.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
@@ -116,6 +113,9 @@ func (t *TunnelConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if t.clock == nil {
 		t.clock = clockwork.NewRealClock()
+	}
+	if scoped && t.DelegationSessionID != "" {
+		return trace.BadParameter("delegation_session_id: not supported with scopes")
 	}
 
 	return nil

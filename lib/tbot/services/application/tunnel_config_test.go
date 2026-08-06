@@ -115,9 +115,21 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 				return &TunnelConfig{
 					Listen:  "tcp://0.0.0.0:3621",
 					AppName: "my-app",
+					clock:   clock,
 				}
 			},
-			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name:   "scoped with delegation_session_id set",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					AppName:             "my-app",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: not supported with scopes",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)
