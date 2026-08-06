@@ -1595,7 +1595,9 @@ type InventoryHeartbeat struct {
 	// A relay_server to be heartbeated.
 	RelayServer *v11.RelayServer `protobuf:"bytes,5,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
 	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
-	LinuxDesktop  *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
+	LinuxDesktop *v12.LinuxDesktop `protobuf:"bytes,6,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
+	// AuditQueue reports the depth of the instance's audit-log queue.
+	AuditQueue    *types.AuditQueueStatus `protobuf:"bytes,7,opt,name=audit_queue,json=auditQueue,proto3" json:"audit_queue,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1667,6 +1669,13 @@ func (x *InventoryHeartbeat) GetLinuxDesktop() *v12.LinuxDesktop {
 	return nil
 }
 
+func (x *InventoryHeartbeat) GetAuditQueue() *types.AuditQueueStatus {
+	if x != nil {
+		return x.AuditQueue
+	}
+	return nil
+}
+
 func (x *InventoryHeartbeat) SetSSHServer(v *types.ServerV2) {
 	x.SSHServer = v
 }
@@ -1689,6 +1698,10 @@ func (x *InventoryHeartbeat) SetRelayServer(v *v11.RelayServer) {
 
 func (x *InventoryHeartbeat) SetLinuxDesktop(v *v12.LinuxDesktop) {
 	x.LinuxDesktop = v
+}
+
+func (x *InventoryHeartbeat) SetAuditQueue(v *types.AuditQueueStatus) {
+	x.AuditQueue = v
 }
 
 func (x *InventoryHeartbeat) HasSSHServer() bool {
@@ -1733,6 +1746,13 @@ func (x *InventoryHeartbeat) HasLinuxDesktop() bool {
 	return x.LinuxDesktop != nil
 }
 
+func (x *InventoryHeartbeat) HasAuditQueue() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuditQueue != nil
+}
+
 func (x *InventoryHeartbeat) ClearSSHServer() {
 	x.SSHServer = nil
 }
@@ -1757,6 +1777,10 @@ func (x *InventoryHeartbeat) ClearLinuxDesktop() {
 	x.LinuxDesktop = nil
 }
 
+func (x *InventoryHeartbeat) ClearAuditQueue() {
+	x.AuditQueue = nil
+}
+
 type InventoryHeartbeat_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1775,6 +1799,8 @@ type InventoryHeartbeat_builder struct {
 	RelayServer *v11.RelayServer
 	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
 	LinuxDesktop *v12.LinuxDesktop
+	// AuditQueue reports the depth of the instance's audit-log queue.
+	AuditQueue *types.AuditQueueStatus
 }
 
 func (b0 InventoryHeartbeat_builder) Build() *InventoryHeartbeat {
@@ -1787,6 +1813,7 @@ func (b0 InventoryHeartbeat_builder) Build() *InventoryHeartbeat {
 	x.KubernetesServer = b.KubernetesServer
 	x.RelayServer = b.RelayServer
 	x.LinuxDesktop = b.LinuxDesktop
+	x.AuditQueue = b.AuditQueue
 	return m0
 }
 
@@ -2620,14 +2647,16 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x06Labels\x18\x02 \x03(\v22.proto.DownstreamInventoryUpdateLabels.LabelsEntryR\x06Labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x90\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xca\x03\n" +
 	"\x12InventoryHeartbeat\x12-\n" +
 	"\tSSHServer\x18\x01 \x01(\v2\x0f.types.ServerV2R\tSSHServer\x120\n" +
 	"\tAppServer\x18\x02 \x01(\v2\x12.types.AppServerV3R\tAppServer\x12?\n" +
 	"\x0eDatabaseServer\x18\x03 \x01(\v2\x17.types.DatabaseServerV3R\x0eDatabaseServer\x12E\n" +
 	"\x10KubernetesServer\x18\x04 \x01(\v2\x19.types.KubernetesServerV3R\x10KubernetesServer\x12D\n" +
 	"\frelay_server\x18\x05 \x01(\v2!.teleport.presence.v1.RelayServerR\vrelayServer\x12K\n" +
-	"\rlinux_desktop\x18\x06 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\flinuxDesktop\"d\n" +
+	"\rlinux_desktop\x18\x06 \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopR\flinuxDesktop\x128\n" +
+	"\vaudit_queue\x18\a \x01(\v2\x17.types.AuditQueueStatusR\n" +
+	"auditQueue\"d\n" +
 	"\x18UpstreamInventoryGoodbye\x12(\n" +
 	"\x0fDeleteResources\x18\x01 \x01(\bR\x0fDeleteResources\x12\x1e\n" +
 	"\n" +
@@ -2694,6 +2723,7 @@ var file_teleport_legacy_client_proto_inventory_proto_goTypes = []any{
 	(*types.KubernetesServerV3)(nil), // 28: types.KubernetesServerV3
 	(*v11.RelayServer)(nil),          // 29: teleport.presence.v1.RelayServer
 	(*v12.LinuxDesktop)(nil),         // 30: teleport.linuxdesktop.v1.LinuxDesktop
+	(*types.AuditQueueStatus)(nil),   // 31: types.AuditQueueStatus
 }
 var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	6,  // 0: proto.UpstreamInventoryOneOf.Hello:type_name -> proto.UpstreamInventoryHello
@@ -2719,16 +2749,17 @@ var file_teleport_legacy_client_proto_inventory_proto_depIdxs = []int32{
 	28, // 20: proto.InventoryHeartbeat.KubernetesServer:type_name -> types.KubernetesServerV3
 	29, // 21: proto.InventoryHeartbeat.relay_server:type_name -> teleport.presence.v1.RelayServer
 	30, // 22: proto.InventoryHeartbeat.linux_desktop:type_name -> teleport.linuxdesktop.v1.LinuxDesktop
-	6,  // 23: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
-	19, // 24: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
-	20, // 25: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
-	21, // 26: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
-	1,  // 27: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
-	28, // [28:28] is the sub-list for method output_type
-	28, // [28:28] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	31, // 23: proto.InventoryHeartbeat.audit_queue:type_name -> types.AuditQueueStatus
+	6,  // 24: proto.InventoryStatusSummary.Connected:type_name -> proto.UpstreamInventoryHello
+	19, // 25: proto.InventoryStatusSummary.VersionCounts:type_name -> proto.InventoryStatusSummary.VersionCountsEntry
+	20, // 26: proto.InventoryStatusSummary.UpgraderCounts:type_name -> proto.InventoryStatusSummary.UpgraderCountsEntry
+	21, // 27: proto.InventoryStatusSummary.ServiceCounts:type_name -> proto.InventoryStatusSummary.ServiceCountsEntry
+	1,  // 28: proto.UpstreamInventoryStopHeartbeat.kind:type_name -> proto.StopHeartbeatKind
+	29, // [29:29] is the sub-list for method output_type
+	29, // [29:29] is the sub-list for method input_type
+	29, // [29:29] is the sub-list for extension type_name
+	29, // [29:29] is the sub-list for extension extendee
+	0,  // [0:29] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_inventory_proto_init() }
