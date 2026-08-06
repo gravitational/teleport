@@ -340,6 +340,7 @@ func TestMCPOAuthProxyMiddlewareInvalidTokenRetry(t *testing.T) {
 
 		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, []string{"Bearer rejected-token", "Bearer fresh-token"}, headers)
 		require.Equal(t, []string{`{"method":"tools/list"}`, `{"method":"tools/list"}`}, bodies)
@@ -368,6 +369,7 @@ func TestMCPOAuthProxyMiddlewareInvalidTokenRetry(t *testing.T) {
 
 		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		require.Equal(t, 1, requests)
 	})
@@ -390,6 +392,7 @@ func TestMCPOAuthProxyMiddlewareInvalidTokenRetry(t *testing.T) {
 
 		resp, err := middleware.WrapRoundTripper(base).RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)

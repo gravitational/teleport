@@ -108,7 +108,7 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 		requests = append(requests, req.URL.String())
 		var body string
 		switch {
-		case req.URL.Host == "localhost" && req.URL.Path == "/.well-known/oauth-protected-resource/v2/mcp":
+		case req.URL.Host == "mcp.example.com" && req.URL.Path == "/.well-known/oauth-protected-resource/v2/mcp":
 			body = `{"resource":"` + publicResource + `","authorization_servers":["https://auth.example.com"]}`
 		case req.URL.Host == "auth.example.com" && req.URL.Path == "/.well-known/oauth-authorization-server":
 			body = `{"issuer":"https://auth.example.com","authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
@@ -150,7 +150,7 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 	authorizationURL, err := handler.GetAuthorizationURL(t.Context(), "state", "challenge")
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"http://localhost/.well-known/oauth-protected-resource/v2/mcp",
+		"https://mcp.example.com/.well-known/oauth-protected-resource/v2/mcp",
 		"https://auth.example.com/.well-known/oauth-authorization-server",
 	}, requests)
 
