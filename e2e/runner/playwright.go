@@ -384,6 +384,10 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)
 
+	if p.config.skipEnhancedRecording {
+		env = append(env, "E2E_SKIP_ENHANCED_RECORDING=1")
+	}
+
 	return env, nil
 }
 
