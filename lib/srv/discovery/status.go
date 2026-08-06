@@ -379,18 +379,31 @@ func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) 
 	})
 }
 
-// ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
-// It will emit an audit event with the result and update the DiscoveryConfig status
-func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *server.SSMInstallationResult) error {
-	if err := s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent); err != nil {
-		return trace.Wrap(err)
-	}
-
+// reportEC2SSMInstallationResult is called when discovery gets the result of
+// running the installation script in an EC2 instance. It records the result in
+// the watcher-owned backoff, emits an audit event, and updates DiscoveryConfig
+// status.
+func (s *Server) reportEC2SSMInstallationResult(ctx context.Context, backoff *ec2InstallerBackoff, result *server.SSMInstallationResult) error {
 	// Only failed runs are counted.
 	// Successful ones only mean that the teleport was installed in the target host.
 	// If they succeed in joining the cluster, during the next iteration, they will be countd as "enrolled"
 	if result.SSMRunEvent.Metadata.Code == libevents.SSMRunSuccessCode {
-		return nil
+		if !result.Rotation {
+			backoff.recordSuccessfulAttempt(
+				newEC2InstallerBackoffTargetFromResult(result),
+				s.clock.Now(),
+			)
+		}
+		return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
+	}
+
+	syncTime := s.clock.Now()
+	if !result.Rotation {
+		backoff.recordFailedAttempt(
+			newEC2InstallerBackoffTargetFromResult(result),
+			result.IssueType,
+			syncTime,
+		)
 	}
 
 	s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
@@ -411,13 +424,13 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(s.clock.Now()),
+			SyncTime:        timestamppb.New(syncTime),
 			InstanceId:      result.SSMRunEvent.InstanceID,
 			Name:            result.InstanceName,
 		}.Build(),
 	)
 
-	return nil
+	return trace.Wrap(s.Emitter.EmitAuditEvent(ctx, result.SSMRunEvent))
 }
 
 // awsEC2Tasks contains the Discover EC2 User Tasks that must be reported to the user.

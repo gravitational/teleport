@@ -666,13 +666,25 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	}
 
 	s.caRotationCh = make(chan []types.Server)
+	configChangeCh := s.newDiscoveryConfigChangedSub()
+
+	backoff, err := newEC2InstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
 		s.Log.With("cloud", "AWS"),
 		server.WithMissedRotation(s.caRotationCh),
 		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
-		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
+		server.WithTriggerFetchC[*server.EC2Instances](configChangeCh),
+		server.WithTriggerFetchHookFn[*server.EC2Instances](func() {
+			s.Log.DebugContext(s.ctx, "EC2 fetch triggered by discovery config change")
+			// Users should be able to adjust discovery config to fix issues
+			// without waiting for backoff entries to expire.
+			backoff.reset()
+		}),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
 		server.WithClock[*server.EC2Instances](s.clock),
 		server.WithFetchErrorHookFn[*server.EC2Instances](s.handleEC2WatcherError),
@@ -683,18 +695,23 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 					integration:         group.Integration,
 				}, len(group.Instances))
 
-				if err := s.handleEC2Instances(group); err != nil {
+				if err := s.handleEC2Instances(group, backoff); err != nil {
 					s.logHandleInstancesErr(err)
 				}
 			}
 		}),
-		server.WithPostFetchHookFn[*server.EC2Instances](s.ec2WatcherIterationEnded),
+		server.WithPostFetchHookFn[*server.EC2Instances](func() {
+			s.ec2WatcherIterationEnded()
+			backoff.expireEntries(s.clock.Now())
+		}),
 	)
 	s.ec2Watcher.SetFetchers(noDiscoveryConfig, staticFetchers)
 
 	if s.ec2Installer == nil {
 		ec2installer, err := server.NewSSMInstaller(server.SSMInstallerConfig{
-			ReportSSMInstallationResultFunc: s.ReportEC2SSMInstallationResult,
+			ReportSSMInstallationResultFunc: func(ctx context.Context, result *server.SSMInstallationResult) error {
+				return s.reportEC2SSMInstallationResult(ctx, backoff, result)
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1276,7 +1293,7 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 	return "[" + result + "]"
 }
 
-func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+func (s *Server) handleEC2Instances(instances *server.EC2Instances, backoff *ec2InstallerBackoff) error {
 	log := s.Log.With("group", instances)
 	log.DebugContext(s.ctx, "Processing instance group")
 
@@ -1308,12 +1325,34 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
+	// AWS agentless OpenSSH CA refresh commands must reach every instance
+	// immediately, and EICE enrollment does not use the installer. Only filter
+	// regular script-based installation attempts.
+	if !instances.Rotation && instances.EnrollMode == types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT {
+		syncTime := s.clock.Now()
+		removed := backoff.filter(instances, syncTime)
+		for _, entry := range removed {
+			if !entry.isFailedAttempt() {
+				continue
+			}
+			s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
+				discoveryConfigName: instances.DiscoveryConfigName,
+				integration:         instances.Integration,
+			}, 1)
+			s.addEC2FailedEnrollment(instances, entry.target.instance, entry.issueType, "", syncTime)
+		}
+		if len(instances.Instances) == 0 {
+			log.DebugContext(s.ctx, "All EC2 installation attempts are backed off")
+			return nil
+		}
+	}
+
 	switch instances.EnrollMode {
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
 		s.heartbeatEICEInstance(instances)
 
 	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
-		if err := s.handleEC2RemoteInstallation(instances); err != nil {
+		if err := s.handleEC2RemoteInstallation(instances, backoff); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1407,7 +1446,7 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 	}
 }
 
-func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) error {
+func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances, backoff *ec2InstallerBackoff) error {
 	ssmClient, err := s.GetSSMClient(s.ctx,
 		instances.Region,
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: instances.Integration}),
@@ -1431,35 +1470,55 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		AccountID:           instances.AccountID,
 		IntegrationName:     instances.Integration,
 		DiscoveryConfigName: instances.DiscoveryConfigName,
+		Rotation:            instances.Rotation,
 	}
 	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
+		syncTime := s.clock.Now()
 		s.awsEC2ResourcesStatus.incrementFailed(awsResourceGroup{
 			discoveryConfigName: instances.DiscoveryConfigName,
 			integration:         instances.Integration,
 		}, len(req.Instances))
 
 		for _, instance := range req.Instances {
-			s.awsEC2Tasks.addFailedEnrollment(
-				awsEC2TaskKey{
-					accountID:       instances.AccountID,
-					integration:     instances.Integration,
-					issueType:       usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
-					region:          instances.Region,
-					ssmDocument:     req.DocumentName,
-					installerScript: req.InstallerScriptName(),
-				},
-				usertasksv1.DiscoverEC2Instance_builder{
-					DiscoveryConfig: instances.DiscoveryConfigName,
-					DiscoveryGroup:  s.DiscoveryGroup,
-					InstanceId:      instance.InstanceID,
-					Name:            instance.InstanceName,
-					SyncTime:        timestamppb.New(s.clock.Now()),
-				}.Build(),
+			if !instances.Rotation {
+				backoff.recordFailedAttempt(
+					newEC2InstallerBackoffTarget(instances, instance),
+					usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+					syncTime,
+				)
+			}
+			s.addEC2FailedEnrollment(
+				instances,
+				instance,
+				usertasks.AutoDiscoverEC2IssueSSMInvocationFailure,
+				"",
+				syncTime,
 			)
 		}
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (s *Server) addEC2FailedEnrollment(instances *server.EC2Instances, instance server.EC2Instance, issueType, invocationURL string, syncTime time.Time) {
+	s.awsEC2Tasks.addFailedEnrollment(
+		awsEC2TaskKey{
+			accountID:       instances.AccountID,
+			integration:     instances.Integration,
+			issueType:       issueType,
+			region:          instances.Region,
+			ssmDocument:     instances.DocumentName,
+			installerScript: instances.Parameters[server.ParamScriptName],
+		},
+		usertasksv1.DiscoverEC2Instance_builder{
+			InvocationUrl:   invocationURL,
+			DiscoveryConfig: instances.DiscoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			InstanceId:      instance.InstanceID,
+			Name:            instance.InstanceName,
+			SyncTime:        timestamppb.New(syncTime),
+		}.Build(),
+	)
 }
 
 func (s *Server) logHandleInstancesErr(err error) {
@@ -1697,7 +1756,7 @@ func (s *Server) startAzureServerDiscovery() {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize nodeWatcher", "error", err)
 		return
 	}
-	backoff, err := newInstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
+	backoff, err := newAzureInstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
 	if err != nil {
 		s.Log.ErrorContext(s.ctx, "Failed to initialize installer backoff (this is a bug)", "error", err)
 		return
@@ -1876,9 +1935,9 @@ func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discov
 	return status, nil
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *installerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *azureInstallerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
 	log := s.Log.With("group", instances)
-	addFailedAzureEnrollment := func(entry installerBackoffEntry, syncTime time.Time) {
+	addFailedAzureEnrollment := func(entry installerBackoffEntry[*azure.VirtualMachine], syncTime time.Time) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
@@ -1901,9 +1960,9 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				region:         instances.Metadata.Region,
 			},
 			usertasksv1.DiscoverAzureVMInstance_builder{
-				VmId:            entry.vm.VMID,
-				ResourceId:      entry.vm.ID,
-				Name:            entry.vm.Name,
+				VmId:            entry.target.VMID,
+				ResourceId:      entry.target.ID,
+				Name:            entry.target.Name,
 				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
 				SyncTime:        timestamppb.New(syncTime),
