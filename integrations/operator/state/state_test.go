@@ -50,7 +50,7 @@ func TestOperatorID(t *testing.T) {
 		require.NotEmpty(t, id)
 
 		// Test validation
-		require.NotEqual(t, id, uuid.NullUUID{})
+		require.NotEqual(t, uuid.NullUUID{}, id)
 		secret, err := kubeClient.CoreV1().Secrets(testNamespace).Get(t.Context(), stateSecretName, v1.GetOptions{})
 		require.NoError(t, err)
 		require.Equal(t, id.String(), string(secret.Data[operatorIDKey]))
@@ -111,7 +111,7 @@ func TestOperatorID(t *testing.T) {
 		require.NotEmpty(t, id)
 
 		// Test validation
-		require.NotEqual(t, id, uuid.NullUUID{})
+		require.NotEqual(t, uuid.NullUUID{}, id)
 		secret, err := kubeClient.CoreV1().Secrets(testNamespace).Get(t.Context(), stateSecretName, v1.GetOptions{})
 		require.NoError(t, err)
 		require.Equal(t, id.String(), string(secret.Data[operatorIDKey]))

@@ -177,10 +177,6 @@ func (r *fakeResource153) GetScope() string {
 }
 
 func TestResource153Adapter_CheckOwnership(t *testing.T) {
-	const (
-		testID        = "test-id"
-		conflictingID = "conflicting-id"
-	)
 	tests := []struct {
 		name           string
 		resource       *fakeResource153

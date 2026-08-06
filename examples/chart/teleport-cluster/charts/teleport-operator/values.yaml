@@ -47,7 +47,7 @@ teleportClusterName: ""
 # token(string) -- is the name of the token used by the operator to join the Teleport cluster.
 token: ""
 
-# scope(string) -- makes the operator run in scoped mode and specified the reocnciled scope.
+# scope(string) -- makes the operator run in scoped mode and specified the reconciled scope.
 # In scoped mode, the operator can only reconcile scoped resource such as
 # `TeleportScopedTokenV1`, `TeleportScopedRoleV1`, or `TeleportScopedRoleAssignmentV1`.
 # Scoped mode requires the operator to join using a scoped token and the experimental scope
@@ -64,8 +64,8 @@ scope: ""
 # ownerEmail(string) -- is the name of the owner of the operator.
 # This is used to tag the operator-created resources and know who created them.
 #
-# This is required when `scoped` is set to `true`.
-# This currently has no effect when `scoped` is set to `false`.
+# This is required when `scope` is specified..
+# This currently has no effect when `scope` is empty.
 ownerEmail: ""
 
 # teleportVersionOverride(string) -- controls the Teleport Kubernetes Operator

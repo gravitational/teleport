@@ -35,10 +35,8 @@ func New(ctx context.Context, client kubernetes.Interface) (*State, error) {
 // The ID is either retrieved from the kube state or created if it doesn't exist yet.
 // If the function returns no error, the state contains the ID.
 func (s *State) OperatorID(ctx context.Context) (uuid.UUID, error) {
-	var tries int
 	key := backend.KeyFromString(operatorIDKey)
-	for {
-		tries++
+	for tries := 0; ; tries++ {
 		item, err := s.bk.Get(ctx, key)
 		if err == nil {
 			// ID exists and we can read it.

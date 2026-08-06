@@ -365,7 +365,7 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 		// - error continually until the user manually adds the "keep" label.
 		// - silently skp the deletion to let the CR be removed.
 		// As it's unlikely that the operator was managing the resource to begin with, the second option seems saner.
-		// There's a small risk of an operator changing scope, the leaving leftovers. Today we cannot detect this edge
+		// There's a small risk of an operator changing scope, then leaving leftovers. Today we cannot detect this edge
 		// case, a potential workaround would be to introduce something in the CR status to track if it was reconciled
 		// once, and keep the last known SQN.
 		log := ctrllog.FromContext(ctx).V(0)
