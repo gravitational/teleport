@@ -397,25 +397,6 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Fail to update the status for an assignment due to a bad transition.
-	err = service.UpdateOktaAssignmentStatus(ctx, assignment1.GetName(), constants.OktaAssignmentStatusPending, 0)
-	require.ErrorIs(t, err, trace.BadParameter("invalid transition: processing -> pending"))
-
-	// Fail to update the status because not enough time has passed.
-	err = service.UpdateOktaAssignmentStatus(ctx, assignment1.GetName(), constants.OktaAssignmentStatusPending, time.Hour)
-	require.ErrorContains(t, err, "only 0s has passed since last transition")
-	require.True(t, trace.IsBadParameter(err))
-
-	// Successfully update the status for an assignment.
-	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusSuccessful))
-	err = service.UpdateOktaAssignmentStatus(ctx, assignment1.GetName(), constants.OktaAssignmentStatusSuccessful, 0)
-	require.NoError(t, err)
-	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(assignment1, assignment,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Delete an assignment
 	err = service.DeleteOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)

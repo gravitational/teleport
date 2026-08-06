@@ -18,4 +18,7 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}
+{{- if and (not (empty .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy)) (semverCompare ">=1.27.0-0" .Capabilities.KubeVersion.Version) }}
+  unhealthyPodEvictionPolicy: {{ .Values.highAvailability.podDisruptionBudget.unhealthyPodEvictionPolicy }}
+{{- end }}
 {{- end }}

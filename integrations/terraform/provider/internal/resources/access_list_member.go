@@ -47,9 +47,10 @@ func NewAccessListMemberDataSourceType() tfdriver.DataSourceType[accesslist.Acce
 				return schemav1.CopyMemberToTerraform(ctx, convertv1.ToMemberProto(alm), o)
 			},
 		},
-		Identifier: tfdriver.ScopeQualifiedCompositeIdentifierFromPath(
-			path.Root("spec").AtName("access_list"),
-			path.Root("header").AtName("metadata").AtName("name"),
+		Identifier: tfdriver.ScopeQualifiedCompositeIdentifierFromPath(tfdriver.CompositeIdentifierPath{
+			Prefix: path.Root("spec").AtName("access_list"),
+			Name:   path.Root("header").AtName("metadata").AtName("name"),
+		},
 		),
 	}
 }
@@ -87,10 +88,15 @@ func NewAccessListMemberResourceType() tfdriver.ResourceType[accesslist.AccessLi
 		},
 		Normalizer: tfdriver.CheckAndSetDefaults[accesslist.AccessListMember](),
 		Identifier: tfdriver.ScopeQualifiedCompositeIdentifierPolicy(
-			path.Root("spec").AtName("access_list"),
-			path.Root("header").AtName("metadata").AtName("name"),
-			func(av *accesslist.AccessListMember) (string, string) {
-				return av.Spec.AccessList, av.GetMetadata().Name
+			tfdriver.CompositeIdentifierPath{
+				Prefix: path.Root("spec").AtName("access_list"),
+				Name:   path.Root("header").AtName("metadata").AtName("name"),
+			},
+			func(av *accesslist.AccessListMember) tfdriver.CompositeIdentifier {
+				return tfdriver.CompositeIdentifier{
+					Prefix: av.Spec.AccessList,
+					Name:   av.GetMetadata().Name,
+				}
 			}),
 		ResourceRevision: func(st *accesslist.AccessListMember) string {
 			return st.GetMetadata().Revision

@@ -1236,7 +1236,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
+|name|*no default* (optional)|The name of the bot from which to list instances. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\]. If unset, lists instances from all bots.|
 
 ## tctl bots instances show
 
@@ -1252,7 +1252,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
+|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]. For an instance of a scoped bot, prefix the ID with the bot's scope: \[scope\]::\[bot name\]/\[uuid\].|
 
 ## tctl bots ls
 
@@ -1284,7 +1284,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|*no default* (required)|Name of an existing bot to remove.|
+|name|*no default* (required)|Name of an existing bot to remove. For a scoped bot, provide a scope-qualified name of the form \[scope\]::\[name\].|
 
 ## tctl bots update
 
@@ -1469,7 +1469,7 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Registers the current device. Overrides --os and --asset-tag.|
 |`--[no-]enroll`|`false`|If set, creates a device enrollment token|
-|`--os`|*no default* (one of: `linux`, `macos`, `windows`)|Operating system|
+|`--os`|*no default* (one of: `ios`, `ipados`, `linux`, `macos`, `windows`)|Operating system|
 
 ## tctl devices enroll
 

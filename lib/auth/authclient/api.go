@@ -22,7 +22,6 @@ import (
 	"context"
 	"io"
 	"iter"
-	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -1111,10 +1110,6 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-	// since the last transition.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
-
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
@@ -1556,8 +1551,10 @@ type Cache interface {
 	// ListRelayServers returns a paginated list of relay server heartbeats.
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
-	// GetBotInstance returns the specified BotInstance resource.
-	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
+	// GetBotInstance returns the specified BotInstance resource. A bot is
+	// identified by the request's (bot_scope, bot_name); bot_scope is empty
+	// for instances of unscoped bots.
+	GetBotInstance(ctx context.Context, req *machineidv1.GetBotInstanceRequest) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
 	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
@@ -1987,12 +1984,6 @@ func (w *OktaWrapper) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
-}
-
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-// since the last transition.
-func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
-	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

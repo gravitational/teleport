@@ -109,7 +109,7 @@ func updateScopedToken(ctx context.Context, client *authclient.Client, raw servi
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, token.GetMetadata().GetName())
+	fmt.Printf("%v %q has been updated\n", types.KindScopedToken, scopes.QualifiedName{Name: token.GetMetadata().GetName(), Scope: token.GetScope()}.String())
 	return nil
 }
 
@@ -193,7 +193,7 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		types.KindScopedToken,
-		sqn.Name,
+		sqn.String(),
 	)
 	return nil
 }

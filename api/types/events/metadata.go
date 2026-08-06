@@ -107,3 +107,9 @@ func (m *SessionMetadata) GetSessionID() string {
 func (m *UserMetadata) GetUser() string {
 	return m.User
 }
+
+// GetBeamID returns the identifier of the Beam this action is associated with,
+// if any.
+func (m *UserMetadata) GetBeamID() string {
+	return m.BeamID
+}

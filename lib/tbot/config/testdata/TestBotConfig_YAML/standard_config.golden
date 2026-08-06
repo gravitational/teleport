@@ -14,8 +14,6 @@ outputs:
     destination:
       type: directory
       path: /bot/output
-    roles:
-      - editor
     cluster: example.teleport.sh
   - type: identity
     destination:
@@ -37,8 +35,6 @@ services:
     renewal_interval: 15s
   - type: application-tunnel
     listen: tcp://127.0.0.1:123
-    roles:
-      - access
     app_name: my-app
     credential_ttl: 30s
     renewal_interval: 15s

@@ -89,6 +89,9 @@ message AutomaticReview {
   // decision specifies the proposed state of the access review. This can be
   // either 'APPROVED' or 'DENIED'.
   string decision = 2;
+  // reason specifies a reason for the review decision. This field is optional and if
+  // it is not supplied, a generic reason will be applied to reviews.
+  string reason = 3;
 }
 
 // Schedule specifies a schedule that can be used to configure rule conditions.

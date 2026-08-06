@@ -78,6 +78,7 @@ import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;
+  userDisplay?: UserDisplay;
   getFlags(accessRequest: AccessRequest): RequestFlags;
   fetchRequestAttempt: Attempt<AccessRequest>;
   fetchSuggestedAccessListsAttempt: Attempt<SuggestedAccessList[]>;
@@ -94,6 +95,7 @@ export interface RequestViewProps {
 
 export function RequestView({
   user,
+  userDisplay,
   fetchRequestAttempt,
   getFlags,
   confirmDelete,
@@ -312,6 +314,7 @@ export function RequestView({
                 <RequestReview
                   submitReview={submitReview}
                   user={user}
+                  userDisplay={userDisplay}
                   submitReviewAttempt={submitReviewAttempt}
                   fetchSuggestedAccessListsAttempt={
                     fetchSuggestedAccessListsAttempt

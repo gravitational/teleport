@@ -28,9 +28,15 @@ import (
 	"encoding/xml"
 
 	"github.com/beevik/etree"
+	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	apitypes "github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
 // samlIdPEntityDescriptorXML parses the SAML entity descriptor XML.
@@ -146,6 +152,8 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		return
 	}
 
+	r.modifyPlan(ctx, req, resp)
+
 	// Entity Descriptor values
 	var specEntityDescriptorPath = path.Root("spec").AtName("entity_descriptor")
 	var configEntityDescriptor types.String
@@ -240,4 +248,52 @@ func (r resourceTeleportSAMLIdPServiceProvider) ModifyPlan(ctx context.Context, 
 		// Note: if neither entity_id nor acs_url were null, this will be a no-op
 		resp.Plan.SetAttribute(ctx, specEntityDescriptorPath, types.String{Value: entityDescriptorXml})
 	}
+}
+
+// modifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportSAMLIdPServiceProvider) modifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	samlIdPServiceProvider := &apitypes.SAMLIdPServiceProviderV1{}
+	resp.Diagnostics.Append(tfschema.CopySAMLIdPServiceProviderV1FromTerraform(ctx, config, samlIdPServiceProvider)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	samlIdPServiceProviderResource := samlIdPServiceProvider
+
+	if err := samlIdPServiceProviderResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error setting SAMLIdPServiceProviderResource defaults", trace.Wrap(err), "samlIdPServiceProvider"))
+		return
+	}
+
+	samlIdPServiceProvider = samlIdPServiceProviderResource
+
+	resp.Diagnostics.Append(tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
