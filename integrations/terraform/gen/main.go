@@ -472,25 +472,6 @@ var (
 		WithoutModifyPlan: true,
 	}
 
-	deviceTrust = payload{
-		Name:                  "DeviceV1",
-		VarName:               "trustedDevice",
-		TypeName:              "DeviceV1",
-		GetMethod:             "GetDeviceResource",
-		CreateMethod:          "UpsertDeviceResource",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertDeviceResource",
-		DeleteMethod:          "DeleteDeviceResource",
-		Kind:                  "device",
-		ID:                    "trustedDevice.Metadata.Name",
-		HasStaticID:           true,
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/devicetrust/v1",
-		IsPlainStruct:         true,
-		UUIDMetadataName:      true,
-		TerraformResourceType: "teleport_trusted_device",
-	}
-
 	oktaImportRule = payload{
 		Name:                   "OktaImportRule",
 		TypeName:               "OktaImportRuleV1",
@@ -1056,8 +1037,6 @@ func genTFSchema() {
 	generateDataSource(uiConfig, singularDataSource)
 	generateResource(loginRule, pluralResource)
 	generateDataSource(loginRule, pluralDataSource)
-	generateResource(deviceTrust, pluralResource)
-	generateDataSource(deviceTrust, pluralDataSource)
 	generateResource(oktaImportRule, pluralResource)
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(server, pluralResource)
