@@ -33,6 +33,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/protoadapt"
 	sqlite "modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
@@ -60,6 +62,8 @@ const (
 	// throughput.
 	defaultMaxBatch  = 250
 	dequeueBatchSize = 25
+
+	defaultMaxBatchBytes = 1 * 1024 * 1024 // 1 MiB
 
 	defaultWriteLinger = time.Millisecond
 
@@ -129,6 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_corrupt_events_failed_at ON corrupt_events(failed
 // channel.
 type writeRequest struct {
 	oneOf *apievents.OneOf
+	size  int
 	resp  chan error
 }
 
@@ -145,6 +150,7 @@ type sqliteQueue struct {
 	runMu                   sync.Mutex
 	toBeWritten             chan writeRequest
 	maxBatch                int
+	maxBatchBytes           int
 	writeLinger             time.Duration
 	ctx                     context.Context
 	cancel                  context.CancelFunc
@@ -224,6 +230,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		drainCh:                 make(chan struct{}),
 		sweepCh:                 make(chan sweepRequest),
 		maxBatch:                defaultMaxBatch,
+		maxBatchBytes:           defaultMaxBatchBytes,
 		ctx:                     ctx,
 		cancel:                  cancel,
 		maxAttempts:             maxAttempts,
@@ -260,6 +267,7 @@ func (q *sqliteQueue) Enqueue(event apievents.AuditEvent) error {
 
 	req := writeRequest{
 		oneOf: oneOf,
+		size:  protodelimSize(oneOf),
 		resp:  make(chan error, 1),
 	}
 
@@ -292,19 +300,26 @@ func (q *sqliteQueue) writeLoop() {
 	linger.Stop()
 	defer linger.Stop()
 
+	var pending *writeRequest
 	for {
 		// Wait until we get the first event.
 		var first writeRequest
-		select {
-		case <-q.ctx.Done():
-			return
-		case first = <-q.toBeWritten:
+		if pending != nil {
+			first = *pending
+			pending = nil
+		} else {
+			select {
+			case <-q.ctx.Done():
+				return
+			case first = <-q.toBeWritten:
+			}
 		}
 
 		// We got at least one event. Let's collect any additional events into
 		// a buffer.
 		batch := make([]writeRequest, 0, q.maxBatch)
 		batch = append(batch, first)
+		totalBytes := first.size
 		if q.writeLinger > 0 {
 			linger.Reset(q.writeLinger)
 		}
@@ -313,8 +328,13 @@ func (q *sqliteQueue) writeLoop() {
 			if q.writeLinger <= 0 {
 				select {
 				case req := <-q.toBeWritten:
+					if totalBytes+req.size > q.maxBatchBytes {
+						pending = &req
+						break drain
+					}
 					// While we can still take events, collect them into a batch.
 					batch = append(batch, req)
+					totalBytes += req.size
 				default:
 					break drain
 				}
@@ -322,8 +342,13 @@ func (q *sqliteQueue) writeLoop() {
 			}
 			select {
 			case req := <-q.toBeWritten:
+				if totalBytes+req.size > q.maxBatchBytes {
+					pending = &req
+					break drain
+				}
 				// While we can still take events, collect them into a batch.
 				batch = append(batch, req)
+				totalBytes += req.size
 			case <-linger.C:
 				break drain
 			case <-q.ctx.Done():
@@ -337,6 +362,7 @@ func (q *sqliteQueue) writeLoop() {
 		// Update histogram metrics so we can observe what kind of batch sizes
 		// we get.
 		batchSize.Observe(float64(len(batch)))
+		batchBytes.Observe(float64(totalBytes))
 
 		// Commit entire batch within a single transaction. We've observed that
 		// larger batch sizes up to about 250 leads to noticeable performance
@@ -1096,6 +1122,11 @@ type corruptRow struct {
 	format     int
 	enqueuedAt int64
 	err        error
+}
+
+func protodelimSize(oneOf *apievents.OneOf) int {
+	n := proto.Size(protoadapt.MessageV2Of(oneOf))
+	return n + protowire.SizeVarint(uint64(n))
 }
 
 func encodeBatch(events []*apievents.OneOf) ([]byte, error) {

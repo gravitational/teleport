@@ -23,6 +23,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -392,6 +393,100 @@ func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 	items, err := q.fetch(N + 10)
 	require.NoError(t, err)
 	require.Len(t, flatEvents(items), N)
+}
+
+func newLargeTestEvent(t *testing.T, index int64, size int) apievents.AuditEvent {
+	t.Helper()
+	event, ok := newTestEvent(index).(*apievents.UserLogin)
+	require.True(t, ok)
+	event.UserAgent = strings.Repeat("x", size)
+	return event
+}
+
+func TestProtodelimSize_MatchesEncodedSize(t *testing.T) {
+	t.Parallel()
+
+	padSizes := []int{0, 1, 100, 127, 128, 1000, 16 * 1024, 300 * 1024}
+	var oneOfs []*apievents.OneOf
+	total := 0
+	for _, pad := range padSizes {
+		oneOf, err := apievents.ToOneOf(newLargeTestEvent(t, 0, pad))
+		require.NoError(t, err)
+
+		payload, err := encodeBatch([]*apievents.OneOf{oneOf})
+		require.NoError(t, err)
+		require.Len(t, payload, protodelimSize(oneOf), "pad size %d", pad)
+
+		total += protodelimSize(oneOf)
+		oneOfs = append(oneOfs, oneOf)
+	}
+
+	payload, err := encodeBatch(oneOfs)
+	require.NoError(t, err)
+	require.Len(t, payload, total)
+}
+
+func TestWriteLoop_BoundsBatchBytes(t *testing.T) {
+	t.Parallel()
+	q, err := newSQLiteQueue(Config{
+		Path:        filepath.Join(t.TempDir(), queueDir),
+		WriteLinger: 200 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, q.Close()) })
+
+	const eventCount = 8
+	const eventSize = 300 * 1024
+	var wg sync.WaitGroup
+	errs := make([]error, eventCount)
+	events := make([]apievents.AuditEvent, eventCount)
+	for i := range events {
+		events[i] = newLargeTestEvent(t, int64(i), eventSize)
+	}
+
+	for i := range eventCount {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = q.Enqueue(events[i])
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "Enqueue %d failed", i)
+	}
+
+	rows, err := q.db.QueryContext(t.Context(),
+		"SELECT payload, event_count FROM audit_queue ORDER BY id ASC")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	totalEvents := 0
+	rowCount := 0
+	for rows.Next() {
+		var payload []byte
+		var count int
+		require.NoError(t, rows.Scan(&payload, &count))
+		require.LessOrEqual(t, len(payload), defaultMaxBatchBytes)
+		totalEvents += count
+		rowCount++
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, eventCount, totalEvents)
+	require.GreaterOrEqual(t, rowCount, 3)
+}
+
+func TestEnqueue_EventLargerThanMaxBatchBytesCommitsAlone(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	require.NoError(t, q.Enqueue(newLargeTestEvent(t, 0, 2*defaultMaxBatchBytes)))
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, 1, items[0].EventCount)
 }
 
 func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
