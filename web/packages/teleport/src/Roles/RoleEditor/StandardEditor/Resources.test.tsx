@@ -763,7 +763,7 @@ describe('LinuxDesktopAccessSection', () => {
       kind: 'linux_desktop',
       labels: [{ name: 'os', value: 'ubuntu' }],
       logins: [
-        expect.objectContaining({ value: '{{internal.logins}}' }),
+        expect.objectContaining({ value: '{{internal.linux_desktop_logins}}' }),
         expect.objectContaining({ label: 'alice', value: 'alice' }),
       ],
       hideValidationErrors: true,

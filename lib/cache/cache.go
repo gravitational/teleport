@@ -39,6 +39,7 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -1814,6 +1815,23 @@ func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRe
 			filter,
 			func(d types.WindowsDesktopService) types.ResourceWithLabels {
 				return d.Clone()
+			},
+		)
+		return resp, trace.Wrap(err)
+	case types.KindLinuxDesktop:
+		resp, err := buildListResourcesResponse(
+			func(yield func(types.ResourceWithLabels) bool) {
+				for desktop := range c.collections.linuxDesktops.store.resources(linuxDesktopNameIndex, req.StartKey, "") {
+					if !yield(types.Resource153ToResourceWithLabels(desktop)) {
+						return
+					}
+				}
+			},
+			limit,
+			filter,
+			func(r types.ResourceWithLabels) types.ResourceWithLabels {
+				unwrapper := r.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
+				return types.Resource153ToResourceWithLabels(proto.CloneOf(unwrapper.UnwrapT()))
 			},
 		)
 		return resp, trace.Wrap(err)
