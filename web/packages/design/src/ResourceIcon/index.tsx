@@ -16,21 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentProps } from 'react';
-import styled, { useTheme } from 'styled-components';
+import { type ComponentProps, memo, type ReactElement } from 'react';
+import styled from 'styled-components';
 
 import { Flex, Image } from 'design';
-import { IconProps } from 'design/Icon/Icon';
+import type { IconProps } from 'design/Icon/Icon';
 
-import {
-  iconNames,
-  type ResourceIconName,
-  resourceIconSpecs,
-} from './resourceIconSpecs';
+import { iconNames, resourceIconSpecs } from './resourceIconSpecs';
+import type { IconSpec, ResourceIconName } from './resourceIconSpecs';
+import { ThemedImage } from './ThemedImage';
 
 interface ResourceIconProps extends ComponentProps<typeof Image> {
   /**
-   * Determines which icon will be displayed. See `iconSpecs` for the list of
+   * Determines which icon will be displayed. See `resourceIconSpecs` for the* list of
    * available names.
    */
   name: ResourceIconName;
@@ -45,34 +43,60 @@ interface ResourceIconProps extends ComponentProps<typeof Image> {
  * Displays a resource icon of a given name for current theme. The icon
  * component exposes props of the underlying `Image`.
  */
-export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
-  const theme = useTheme();
-  const icon = resourceIconSpecs[name]?.[theme.type];
-  if (!icon) {
+export const ResourceIcon = memo(function ResourceIcon({
+  name,
+  size,
+  width,
+  height,
+  ...rest
+}: ResourceIconProps) {
+  const spec: IconSpec | undefined = resourceIconSpecs[name];
+  if (!spec) {
     return null;
   }
-  if (props.size) {
-    const width = sizetoInnerPx(props.size);
-    const height = sizetoInnerPx(props.size);
-    return (
-      <Container $size={props.size}>
-        <Image
-          src={icon}
-          data-testid={`res-icon-${name}`}
-          {...props}
-          width={width}
-          height={height}
-        />
-      </Container>
-    );
+
+  // When a standard size is used, the icon renders at the "inner" size centered within an
+  // "outer" container, matching the historical ResourceIcon padding.
+  const innerWidth = size != null ? sizeToInnerPx(size) : (width as Dimension);
+  const innerHeight =
+    size != null ? sizeToInnerPx(size) : (height as Dimension);
+
+  const common = {
+    'data-testid': `res-icon-${name}`,
+    width: innerWidth,
+    height: innerHeight,
+    ...rest,
+  };
+
+  let element: ReactElement;
+  switch (spec.kind) {
+    case 'mono': {
+      const Component = spec.Icon;
+      element = <Component {...common} />;
+      break;
+    }
+
+    case 'themed':
+      element = <ThemedImage {...common} dark={spec.dark} light={spec.light} />;
+      break;
+
+    case 'static':
+      element = <Image {...common} src={spec.src} />;
+      break;
   }
 
-  return <Image src={icon} data-testid={`res-icon-${name}`} {...props} />;
-};
+  if (size != null) {
+    return <Container $size={size}>{element}</Container>;
+  }
+
+  return element;
+});
+
+type Dimension = number | string | undefined;
 
 const Container = styled(Flex)<{ $size: IconProps['size'] }>`
-  width: ${props => sizetoOuterPx(props.$size)};
-  height: ${props => sizetoOuterPx(props.$size)};
+  width: ${props => sizeToOuterPx(props.$size)};
+  height: ${props => sizeToOuterPx(props.$size)};
   align-items: center;
   justify-content: center;
 `;
@@ -84,9 +108,9 @@ const Container = styled(Flex)<{ $size: IconProps['size'] }>`
  * @param size the standard size to convert.
  * @returns the pixel size
  */
-function sizetoInnerPx(size: IconProps['size']) {
+function sizeToInnerPx(size: IconProps['size']) {
   if (typeof size === 'number') {
-    return `${Math.floor(size * 0.8)}}px`;
+    return `${Math.floor(size * 0.8)}px`;
   }
   if (size === 'small') return '14px';
   if (size === 'medium') return '16px';
@@ -95,7 +119,7 @@ function sizetoInnerPx(size: IconProps['size']) {
   return '24px';
 }
 
-function sizetoOuterPx(size: IconProps['size']) {
+function sizeToOuterPx(size: IconProps['size']) {
   if (typeof size === 'number') {
     return `${size}px`;
   }
@@ -106,4 +130,5 @@ function sizetoOuterPx(size: IconProps['size']) {
   return '32px';
 }
 
-export { type ResourceIconName, resourceIconSpecs, iconNames };
+export { resourceIconSpecs, iconNames };
+export type { ResourceIconName };

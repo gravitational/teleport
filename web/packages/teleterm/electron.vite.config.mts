@@ -21,7 +21,7 @@ import { builtinModules } from 'node:module';
 import path from 'node:path';
 
 import { defineConfig, UserConfig } from 'electron-vite';
-import type { Plugin, Rolldown } from 'vite';
+import type { BuildEnvironmentOptions, Plugin, Rolldown } from 'vite';
 
 import { reactPlugin } from '@gravitational/build/vite/react.mjs';
 
@@ -59,6 +59,17 @@ const commonRolldownOptions: Rolldown.RolldownOptions = {
   },
 };
 
+// ResourceIcon SVGs are imported as URLs and must never be inlined as data URIs -
+// they are served as cacheable asset files and kept out of the JS bundle.
+// This replaces the per-import `?no-inline` suffix that every icon export used to carry.
+// Other assets keep Vite's default, size-based inlining (return `undefined`).
+const assetsInlineOptions: BuildEnvironmentOptions = {
+  assetsInlineLimit: (filePath: string) =>
+    /[\\/]ResourceIcon[\\/]assets[\\/].+\.svg$/.test(filePath)
+      ? false
+      : undefined,
+};
+
 // Main and preload run in Node.js, so we externalize electron, Node.js built-in
 // modules, and package.json dependencies (they'll be included during packaging).
 const nodeExternalOptions: Rolldown.RolldownOptions = {
@@ -78,6 +89,7 @@ const config = defineConfig(env => {
         tsconfigPaths: true,
       },
       build: {
+        ...assetsInlineOptions,
         outDir: path.resolve(outputDirectory, 'main'),
         rolldownOptions: {
           ...commonRolldownOptions,
@@ -138,6 +150,7 @@ const config = defineConfig(env => {
       assetsInclude: ['**/shared/libs/ironrdp/**/*.wasm'],
       root: '.',
       build: {
+        ...assetsInlineOptions,
         outDir: path.resolve(outputDirectory, 'renderer'),
         rolldownOptions: {
           ...commonRolldownOptions,

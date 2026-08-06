@@ -1,0 +1,40 @@
+/**
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { MonoIcon, type MonoIconProps } from '../MonoIcon';
+
+/*
+
+THIS FILE IS GENERATED. DO NOT EDIT.
+
+*/
+
+export const Glean = (props: MonoIconProps) => (
+  <MonoIcon
+    className="resource-icon resource-icon-glean"
+    viewBox="0 0 72 72"
+    lightColor="#343ced"
+    {...props}
+  >
+    <path
+      fillRule="evenodd"
+      d="M40.015 8.622 46.792 0l8.225 6.386-6.728 8.56a23.6 23.6 0 0 1 5.563 15.245c0 13.133-10.712 23.78-23.926 23.78S6 43.324 6 30.191 16.712 6.41 29.926 6.41c3.605 0 7.023.792 10.089 2.21M29.926 43.758c-7.539 0-13.65-6.074-13.65-13.567s6.111-13.567 13.65-13.567 13.65 6.074 13.65 13.567-6.111 13.567-13.65 13.567m24.205 6.777a31.5 31.5 0 0 1-6.095 5.513 31 31 0 0 1-2.33 1.468 30 30 0 0 1-2.443 1.26 29 29 0 0 1-2.543 1.041q-1.291.47-2.63.816c-.88.24-1.778.435-2.685.59q-1.349.236-2.73.352a32.3 32.3 0 0 1-5.498 0 30 30 0 0 1-2.73-.353 28 28 0 0 1-2.685-.589l-2.685 9.958c1.167.313 2.361.575 3.57.784 1.189.208 2.401.367 3.628.467a42.3 42.3 0 0 0 7.302 0 40 40 0 0 0 3.629-.467 41 41 0 0 0 3.569-.784 38 38 0 0 0 3.491-1.087 42 42 0 0 0 6.628-3.058 41 41 0 0 0 3.086-1.957 40 40 0 0 0 2.908-2.207 41 41 0 0 0 2.703-2.451 42 42 0 0 0 4.718-5.555l-8.492-5.912a31 31 0 0 1-1.686 2.17"
+      clipRule="evenodd"
+    />
+  </MonoIcon>
+);

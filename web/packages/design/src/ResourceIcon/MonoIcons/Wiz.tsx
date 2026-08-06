@@ -1,0 +1,36 @@
+/**
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { MonoIcon, type MonoIconProps } from '../MonoIcon';
+
+/*
+
+THIS FILE IS GENERATED. DO NOT EDIT.
+
+*/
+
+export const Wiz = (props: MonoIconProps) => (
+  <MonoIcon
+    className="resource-icon resource-icon-wiz"
+    viewBox="0 0 72 72"
+    lightColor="#0254ec"
+    {...props}
+  >
+    <path d="M21.647 34.031c.05.107.203.103.245-.007l3.916-10.208a1.26 1.26 0 0 1 1.171-.81l3.652-.02a1.262 1.262 0 0 1 1.191 1.7l-8.99 23.835c-.319.795-1.19.368-1.437-.227l-4.712-11.358a.667.667 0 0 0-1.205-.024L9.57 48.73a.134.134 0 0 1-.198.048.13.13 0 0 1-.047-.06L.085 24.691a1.262 1.262 0 0 1 1.177-1.716h3.967c.523 0 .994.324 1.177.811l3.914 10.236c.043.11.2.116.247.01l4.933-10.74a.668.668 0 0 1 1.214 0zM66.59 13.32c-.03-.144-.337-.144-.368 0-.228 1.118-.705 2.804-1.6 3.7s-2.583 1.372-3.701 1.6c-.144.032-.144.339 0 .368 1.118.23 2.805.707 3.7 1.6 1.17 1.172 1.573 2.77 1.711 3.73.011.061.202.07.213.01.21-1.03.688-2.781 1.647-3.738.895-.895 2.582-1.372 3.7-1.602.144-.029.144-.336 0-.367-1.118-.229-2.805-.705-3.7-1.6-.896-.896-1.372-2.583-1.602-3.701M33.28 24.38c0-.699.565-1.263 1.262-1.263h3.815a1.26 1.26 0 0 1 1.263 1.261v23.36c0 .697-.566 1.262-1.263 1.262h-3.815a1.26 1.26 0 0 1-1.262-1.262v-23.36zm17.354 5.417a.333.333 0 0 0-.298-.482h-7.541a1.26 1.26 0 0 1-1.262-1.263V24.38c0-.697.565-1.261 1.262-1.261h17.393c.54 0 1.265.44 1.008.914l-10.05 18.801-.002.004a.335.335 0 0 0 .294.49h9.188c.697 0 1.261.566 1.261 1.263v3.145c0 .7-.564 1.264-1.261 1.264h-18.45c-.606 0-.727-.883-.455-1.428z" />
+  </MonoIcon>
+);
