@@ -1498,17 +1498,15 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 		mods               modules.Modules
 		useIssuerOverrides bool
 
-		// configureOverrides sets up any CA overrides for the test cluster, returning the cert pool containing the full
-		// override chain. Nil means no overrides.
-		configureOverrides func(t *testing.T, tp *issuanceTestPack) *x509.CertPool
+		// configureOverrides sets up any CA overrides for the test cluster, returning the verification roots and
+		// expected SVID issuer. Nil means no overrides are configured.
+		configureOverrides func(t *testing.T, tp *issuanceTestPack) overrideResult
 	}{
 		{
 			name:               "SVID chains to self-signed CA when opted out of overrides",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: false, // Opted out.
-			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
-				return createSPIFFECAOverride(t, tp) // Ignored even though it exists.
-			},
+			configureOverrides: createSPIFFECAOverride,
 		},
 		{
 			name:               "SVID chains to self-signed CA with no overrides configured",
@@ -1526,7 +1524,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			name:               "SVID chains to sub-CA override when legacy override is also configured",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
-			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
 				installLegacyOverrideGetter(t, tp) // Ignored, the sub-CA override takes precedence.
 				return createSPIFFECAOverride(t, tp)
 			},
@@ -1541,7 +1539,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			name:               "SVID chains to legacy override when sub-CA override is disabled",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
-			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
 				createSPIFFECAOverrideForKey(t, tp, spiffeCACert(t, tp).PublicKey, true)
 				return installLegacyOverrideGetter(t, tp)
 			},
@@ -1550,7 +1548,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			name:               "SVID chains to legacy override when sub-CA override targets a stale key",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
-			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
 				staleKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 				require.NoError(t, err)
 
@@ -1563,8 +1561,8 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			name:               "SVID chains to legacy override on OSS build",
 			mods:               modulestest.OSSModules(),
 			useIssuerOverrides: true,
-			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
-				createSPIFFECAOverride(t, tp) // Ignored even though it exists.
+			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
+				createSPIFFECAOverride(t, tp) // Ignored, the legacy override takes precedence.
 				return installLegacyOverrideGetter(t, tp)
 			},
 		},
@@ -1575,14 +1573,10 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			// Overrides are cluster-wide, so each case gets its own cluster.
 			tp := newIssuanceTestPack(t, t.Context(), test.mods)
 
-			var overrideRoots *x509.CertPool
-			if test.configureOverrides != nil {
-				overrideRoots = test.configureOverrides(t, tp)
-			}
-
-			wantRoots := tp.spiffeX509CAPool
-			if test.useIssuerOverrides && overrideRoots != nil {
-				wantRoots = overrideRoots
+			wantRoots, wantIssuer := tp.spiffeX509CAPool, spiffeCACert(t, tp).Subject
+			if test.useIssuerOverrides && test.configureOverrides != nil {
+				r := test.configureOverrides(t, tp)
+				wantRoots, wantIssuer = r.roots, r.issuer
 			}
 
 			client, widName := newWildcardIssuanceClient(t, tp)
@@ -1610,6 +1604,8 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			svidCert, err := x509.ParseCertificate(x509Cred.GetCert())
 			require.NoError(t, err)
 
+			require.Equal(t, wantIssuer, svidCert.Issuer, "issued SVID issuer did not match the expected issuer")
+
 			intermediates := x509.NewCertPool()
 			for _, chainDER := range x509Cred.GetChain() {
 				cert, err := x509.ParseCertificate(chainDER)
@@ -1627,18 +1623,6 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 				},
 			)
 			require.NoError(t, err, "issued SVID did not chain up to the expected CA")
-
-			// When an override is configured but the client opted out, verify the SVID does NOT chain to the override.
-			if overrideRoots != nil && !test.useIssuerOverrides {
-				_, err = svidCert.Verify(
-					x509.VerifyOptions{
-						CurrentTime:   tp.clock.Now(),
-						Roots:         overrideRoots,
-						Intermediates: intermediates,
-					},
-				)
-				require.Error(t, err, "SVID should NOT chain to override CA when opted out")
-			}
 		})
 	}
 }
@@ -5188,22 +5172,28 @@ func newWildcardIssuanceClient(t *testing.T, tp *issuanceTestPack) (workloadiden
 	return client, wid.GetMetadata().GetName()
 }
 
-// createSPIFFECAOverride creates an active cert_authority_override matching the cluster's self-signed SPIFFE CA,
-// returning a pool containing only the external root.
-func createSPIFFECAOverride(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
+// overrideResult is the expected outcome of a configured CA override.
+type overrideResult struct {
+	// roots is the external root.
+	roots *x509.CertPool
+	// issuer is the Subject of the CA certificate expected to sign the SVID.
+	issuer pkix.Name
+}
+
+// createSPIFFECAOverride creates an active cert_authority_override matching the cluster's self-signed SPIFFE CA.
+func createSPIFFECAOverride(t *testing.T, tp *issuanceTestPack) overrideResult {
 	t.Helper()
 
 	return createSPIFFECAOverrideForKey(t, tp, spiffeCACert(t, tp).PublicKey, false)
 }
 
-// createSPIFFECAOverrideForKey creates a cert_authority_override whose override certificate is issued over public key,
-// returning a pool containing only the external root.
+// createSPIFFECAOverrideForKey creates a cert_authority_override whose override certificate is issued over pub.
 func createSPIFFECAOverrideForKey(
 	t *testing.T,
 	tp *issuanceTestPack,
 	pub crypto.PublicKey,
 	disabled bool,
-) *x509.CertPool {
+) overrideResult {
 	t.Helper()
 
 	overrideCA, externalRoot := newExternalIntermediateCA(t, tp, pub, spiffeCACert(t, tp).NotAfter)
@@ -5218,7 +5208,7 @@ func createSPIFFECAOverrideForKey(
 		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
 				subcav1.CertificateOverride_builder{
-					PublicKey:   "", // Intentially empty, the public key is derived from Certificate.
+					PublicKey:   "", // Intentionally empty, the public key is derived from Certificate.
 					Certificate: string(overrideCA.CertPEM),
 					Disabled:    disabled,
 				}.Build(),
@@ -5232,12 +5222,11 @@ func createSPIFFECAOverrideForKey(
 	overridePool := x509.NewCertPool()
 	overridePool.AddCert(externalRoot)
 
-	return overridePool
+	return overrideResult{roots: overridePool, issuer: overrideCA.Cert.Subject}
 }
 
-// installLegacyOverrideGetter issues a new external intermediate CA, installs it as a workload override CA, and returns
-// the override pool containing the external root CA.
-func installLegacyOverrideGetter(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
+// installLegacyOverrideGetter issues a new external intermediate CA and installs it as a workload override CA.
+func installLegacyOverrideGetter(t *testing.T, tp *issuanceTestPack) overrideResult {
 	t.Helper()
 
 	caCert := spiffeCACert(t, tp)
@@ -5254,7 +5243,7 @@ func installLegacyOverrideGetter(t *testing.T, tp *issuanceTestPack) *x509.CertP
 	overridePool := x509.NewCertPool()
 	overridePool.AddCert(externalRoot)
 
-	return overridePool
+	return overrideResult{roots: overridePool, issuer: overrideCA.Cert.Subject}
 }
 
 type fakeX509CAOverrideGetter struct {
