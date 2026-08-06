@@ -91,7 +91,8 @@ func TestGenericLister_ReturnsEmptyTokenWhenNoMoreItems(t *testing.T) {
 		fixture := newTestListerFixture(n, isDesc, defaultPageSize)
 
 		token := ""
-		for returned := 0; returned < n; {
+		returned := 0
+		for returned < n {
 			pageSize := rapid.IntRange(-defaults.DefaultChunkSize, defaults.DefaultChunkSize*2).Draw(t, "pageSize")
 			items, next, err := fixture.lister.list(t.Context(), pageSize, token)
 			require.NoError(t, err)
@@ -99,6 +100,7 @@ func TestGenericLister_ReturnsEmptyTokenWhenNoMoreItems(t *testing.T) {
 			token = next
 		}
 		require.Empty(t, token, "next token should be empty when all items have been returned")
+		require.Equal(t, n, returned, "all items should have been returned")
 	})
 }
 
