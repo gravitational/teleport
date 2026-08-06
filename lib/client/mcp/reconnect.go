@@ -150,7 +150,9 @@ func ProxyStdioConn(ctx context.Context, cfg ProxyStdioConnConfig) error {
 				}
 				cfg.Logger.WarnContext(ctx, "failed to write request to server", "error", writeError)
 				userMessage := cfg.MakeReconnectUserMessage(writeError)
-				errResp := mcp.NewJSONRPCError(request.ID, mcp.INTERNAL_ERROR, userMessage, writeError)
+				// Pass the error as a string: a Go error value marshals to
+				// "{}", silently dropping the detail from the data field.
+				errResp := mcp.NewJSONRPCError(request.ID, mcp.INTERNAL_ERROR, userMessage, writeError.Error())
 				return trace.Wrap(cfg.clientResponseWriter.WriteMessage(ctx, errResp))
 			}
 			return nil
@@ -244,6 +246,7 @@ func (r *serverConnWithAutoReconnect) makeServerTransport(ctx context.Context) (
 				getHeader: r.GetHTTPAuthHeader,
 			}
 		}
+		roundTripper = &httpServerErrorRoundTripper{base: roundTripper}
 		httpReaderWriter, err := mcputils.NewHTTPReaderWriter(
 			r.closeCtx,
 			"http://localhost", // does not matter with the custom transport.

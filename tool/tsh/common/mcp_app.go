@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -555,6 +557,7 @@ func makeMCPReconnectUserMessageForApp(appName string, err error) string {
 	}
 
 	var loginRequiredErr *mcpOAuthLoginRequiredError
+	var httpServerErr *clientmcp.HTTPServerError
 	switch {
 	case errors.As(err, &loginRequiredErr):
 		return fmt.Sprintf("[MCP_AUTH_REQUIRED] Authentication with MCP server %q is required or has expired."+
@@ -575,9 +578,10 @@ func makeMCPReconnectUserMessageForApp(appName string, err error) string {
 	case errors.Is(err, mcpclienttransport.ErrLegacySSEServer):
 		return fmt.Sprintf("[MCP_TRANSPORT_MISMATCH] %s is configured as Streamable HTTP, but its endpoint responded like a legacy SSE server."+
 			" Ask your Teleport administrator to verify the MCP application URI and transport.", server)
+	case errors.As(err, &httpServerErr):
+		return makeMCPHTTPServerErrorMessage(server, httpServerErr)
 	case clientmcp.IsNetworkTimeoutError(err) || isMCPHTTPTimeout(err):
-		return fmt.Sprintf("[MCP_CONNECTION_TIMEOUT] The request to %s timed out before a response arrived."+
-			" Retry once. If it times out again, check the remote MCP server's health and the Teleport Application Service logs; restarting the MCP client will not fix a repeatedly slow upstream.", server)
+		return makeMCPTimeoutUserMessage(server)
 	case clientmcp.IsServerInfoChangedError(err):
 		return fmt.Sprintf("[MCP_SERVER_CHANGED] %s reported a different name or version after reconnecting."+
 			" Restart the MCP client so it can load the server's current tools and capabilities.", server)
@@ -593,6 +597,40 @@ func makeMCPReconnectUserMessageForApp(appName string, err error) string {
 	default:
 		return fmt.Sprintf("[MCP_REQUEST_FAILED] tsh could not complete the request to %s."+
 			" Check the tsh MCP logs for the underlying error. If `tsh status` shows an expired session, run `tsh login`; otherwise check the remote server and Teleport Application Service logs.", server)
+	}
+}
+
+func makeMCPTimeoutUserMessage(server string) string {
+	return fmt.Sprintf("[MCP_CONNECTION_TIMEOUT] The request to %s timed out before a response arrived."+
+		" Retry once. If it times out again, check the remote MCP server's health and the Teleport Application Service logs; restarting the MCP client will not fix a repeatedly slow upstream.", server)
+}
+
+// makeMCPHTTPServerErrorMessage builds the user message for an HTTP 5xx
+// failure, using the error origin reported by the Teleport Application Service
+// to attribute the failure instead of guessing.
+func makeMCPHTTPServerErrorMessage(server string, httpErr *clientmcp.HTTPServerError) string {
+	detail := httpErr.Body
+	if detail == "" {
+		detail = http.StatusText(httpErr.StatusCode)
+	}
+	switch httpErr.Origin {
+	case mcputils.ErrorOriginAppService:
+		return fmt.Sprintf("[MCP_TELEPORT_ERROR] The Teleport Application Service failed to proxy the request to %s (HTTP %d: %s)."+
+			" This is a Teleport-side failure; check the Teleport Application Service logs for details.", server, httpErr.StatusCode, detail)
+	case mcputils.ErrorOriginUpstreamUnreachable:
+		return fmt.Sprintf("[MCP_UPSTREAM_UNREACHABLE] The Teleport Application Service could not reach %s (HTTP %d: %s)."+
+			" Check the remote server's health and its network connectivity from the Application Service.", server, httpErr.StatusCode, detail)
+	case mcputils.ErrorOriginUpstream:
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s returned HTTP %d: %s."+
+			" Retry once, then check the remote server's health.", server, httpErr.StatusCode, detail)
+	default:
+		// No attribution header: the response came from an older Application
+		// Service or an intermediate proxy, so the origin cannot be determined.
+		if httpErr.StatusCode == http.StatusGatewayTimeout {
+			return makeMCPTimeoutUserMessage(server)
+		}
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s or the Teleport Application Service returned HTTP %d: %s."+
+			" Retry once, then check the remote server's health and the Application Service logs.", server, httpErr.StatusCode, detail)
 	}
 }
 

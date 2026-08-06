@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -613,4 +615,64 @@ func Test_Server_serveHTTPConn_closes_idle_connections(t *testing.T) {
 			}
 		})
 	})
+}
+
+func Test_makeProxyErrorHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantOrigin   string
+		wantBodyPart string
+	}{
+		{
+			name:         "teleport internal error",
+			err:          trace.Errorf("failed to rewrite headers"),
+			wantStatus:   http.StatusInternalServerError,
+			wantOrigin:   mcputils.ErrorOriginAppService,
+			wantBodyPart: "failed to rewrite headers",
+		},
+		{
+			name:         "teleport bad parameter",
+			err:          trace.BadParameter("invalid request body"),
+			wantStatus:   http.StatusBadRequest,
+			wantOrigin:   mcputils.ErrorOriginAppService,
+			wantBodyPart: "invalid request body",
+		},
+		{
+			name:         "upstream closed connection",
+			err:          io.EOF,
+			wantStatus:   http.StatusBadGateway,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "EOF",
+		},
+		{
+			name:         "upstream timeout",
+			err:          &net.DNSError{Err: "lookup timed out", IsTimeout: true},
+			wantStatus:   http.StatusGatewayTimeout,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "lookup timed out",
+		},
+		{
+			name:         "upstream unreachable",
+			err:          &net.OpError{Op: "dial", Err: fmt.Errorf("connection refused")},
+			wantStatus:   http.StatusBadGateway,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "connection refused",
+		},
+	}
+
+	handler := makeProxyErrorHandler(slog.New(slog.DiscardHandler))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
+			handler(w, req, test.err)
+			require.Equal(t, test.wantStatus, w.Code)
+			require.Equal(t, test.wantOrigin, w.Header().Get(mcputils.TeleportErrorOriginHeader))
+			require.Contains(t, w.Body.String(), test.wantBodyPart)
+		})
+	}
 }
