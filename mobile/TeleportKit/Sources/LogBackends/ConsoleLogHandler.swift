@@ -21,14 +21,17 @@ public import Logging
 public struct ConsoleLogHandler: LogHandler {
 	public let label: String
 
-	private static let clock = ContinuousClock()
-	private static let originTimestamp = clock.now
+	private let timestampFormmater = Date.ISO8601FormatStyle(
+		dateSeparator: .dash,
+		dateTimeSeparator: .space,
+		timeSeparator: .colon,
+		timeZoneSeparator: .colon,
+		includingFractionalSeconds: true,
+		timeZone: .current,
+	)
 
 	public init(label: String) {
 		self.label = label
-
-		// Static values are lazy, so we force the resolution of the timestamp on first initialization.
-		_ = Self.originTimestamp
 	}
 
 	// MARK: LogHandler Conformance
@@ -43,25 +46,11 @@ public struct ConsoleLogHandler: LogHandler {
 	}
 
 	public func log(event: LogEvent) {
-		let timeElapsed = Self.originTimestamp.duration(to: Self.clock.now)
+		let timestamp = timestampFormmater.format(.now)
 		let metadataToLog = metadata.merging(event.metadata ?? [:]) { _, new in new }
 
-		let output = "\(timeElapsed.logFormat) \(event.level.formatted) \(event.file):\(event.line) | \(event.message) \(metadataToLog.formatted)"
+		let output = "\(timestamp) \(event.level.formatted) \(event.file):\(event.line) | \(event.message) \(metadataToLog.formatted)"
 
 		print(output)
-	}
-}
-
-// MARK: - Duration Formatter
-
-extension Duration {
-	fileprivate var logFormat: String {
-		let milliseconds = components.attoseconds / 1_000_000_000_000_000
-
-		return String(
-			format: "+%03lld.%03llds",
-			components.seconds,
-			milliseconds,
-		)
 	}
 }
