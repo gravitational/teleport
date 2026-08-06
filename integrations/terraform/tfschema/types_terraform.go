@@ -3680,12 +3680,16 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"app_resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow_all": {
-								Description: "AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+								Computed:      true,
+								Description:   "AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								Type:          github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 							}}),
-							Description: "AppResources is the list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "AppResources is the list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"aws_role_arns": {
 							Computed:      true,
@@ -45547,13 +45551,15 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
 													}
 												}
-												if obj.AppResources != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.AppResources) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.AppResources {
-														v, ok := tf.Attrs["app_resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -45566,6 +45572,7 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 															}
 														}
 														{
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -45575,6 +45582,9 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																} else {
 																	v, ok := tf.Attrs["allow_all"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
 																	if !ok {
+																		if tf.Attrs["allow_all"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"RoleV6.Spec.Allow.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.AppResources.AllowAll", err})
@@ -45583,22 +45593,27 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
 																		}
-																		v.Null = bool(obj.AllowAll) == false
 																	}
+
+																	v.Null = false
 																	v.Value = bool(obj.AllowAll)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["allow_all"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.AppResources) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["app_resources"] = c
 											}
 										}
