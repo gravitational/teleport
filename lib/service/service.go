@@ -3779,6 +3779,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 			regular.SetStableUNIXUsers(conn.Client.StableUNIXUsersClient()),
 			regular.SetSELinuxEnabled(cfg.SSH.EnableSELinux),
+			regular.SetTestLoginShell(cfg.Testing.LoginShell),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -4192,12 +4193,17 @@ func (process *TeleportProcess) initUploaderService() error {
 	uploadsDir := filepath.Join(paths[0]...)
 	corruptedDir := filepath.Join(paths[1]...)
 
+	uploadScanInitialDelay := process.Config.Testing.UploadScanInitialDelay
+	if uploadScanInitialDelay == 0 {
+		uploadScanInitialDelay = 15 * time.Second
+	}
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		Streamer:                        uploaderClient,
 		ScanDir:                         uploadsDir,
 		CorruptedDir:                    corruptedDir,
 		EventsC:                         process.Config.Testing.UploadEventsC,
-		InitialScanDelay:                15 * time.Second,
+		InitialScanDelay:                uploadScanInitialDelay,
+		ScanPeriod:                      process.Config.Testing.UploadScanPeriod,
 		EncryptedRecordingUploader:      uploaderClient,
 		EncryptedRecordingUploadMaxSize: encryptedRecordingMaxUploadSize,
 	})
@@ -5995,6 +6001,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
 		regular.SetLabels(staticLabels, services.CommandLabels(nil), labels.Importer(nil)),
+		regular.SetTestLoginShell(cfg.Testing.LoginShell),
 	)
 	if err != nil {
 		return trace.Wrap(err)

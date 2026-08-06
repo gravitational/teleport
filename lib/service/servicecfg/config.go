@@ -329,6 +329,16 @@ type ConfigTesting struct {
 	// ShutdownTimeout is set to override default shutdown timeout.
 	ShutdownTimeout time.Duration
 
+	// LoginShell overrides the shell used for SSH sessions.
+	LoginShell string
+
+	// UploadScanInitialDelay is set to override the file uploader's initial scan
+	// delay.
+	UploadScanInitialDelay time.Duration
+
+	// UploadScanPeriod is set to override the file uploader's scan period.
+	UploadScanPeriod time.Duration
+
 	// KubeMultiplexerIgnoreSelfConnections signals that Proxy TLS server's listener should
 	// require PROXY header if 'proxyProtocolMode: true' even from self connections. Used in tests as all connections are self
 	// connections there.

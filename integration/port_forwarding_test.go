@@ -71,7 +71,7 @@ func waitForSessionToBeEstablished(t *testing.T, clt authclient.ClientI, partici
 		require.Len(t, trackers[0].GetParticipants(), participants, "got %d participants, expected %d", len(trackers[0].GetParticipants()), participants)
 
 		tracker = trackers[0]
-	}, 30*time.Second, 250*time.Millisecond)
+	}, 30*time.Second, 100*time.Millisecond)
 
 	return tracker
 }
@@ -87,7 +87,7 @@ func startSessionAndWaitForTracker(t *testing.T, auth authclient.ClientI, clt *c
 		errC <- clt.SSH(ctx, cmd)
 	}()
 
-	ticker := time.NewTicker(250 * time.Millisecond)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	timeout := time.NewTimer(30 * time.Second)
@@ -179,6 +179,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			cfg := suite.defaultServiceConfig()
+			setFastInteractiveSessionSettings(cfg)
 			cfg.Auth.Enabled = true
 			cfg.Auth.Preference.SetSecondFactor("off")
 			cfg.Auth.NoAudit = true
@@ -230,6 +231,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// Create node config.
 			nodeCfg := servicecfg.MakeDefaultConfig()
+			setFastInteractiveSessionSettings(nodeCfg)
 			nodeCfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true

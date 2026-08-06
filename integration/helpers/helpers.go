@@ -254,7 +254,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 			return nil
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)

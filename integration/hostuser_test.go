@@ -675,7 +675,7 @@ func TestRootLoginAsHostUser(t *testing.T) {
 		Roles:         []types.Role{role},
 	}
 
-	require.NoError(t, instance.Create(t, nil, true))
+	require.NoError(t, instance.CreateEx(t, nil, fastInteractiveSessionServiceConfig(instance.Log, true)))
 	require.NoError(t, instance.Start())
 	t.Cleanup(func() {
 		require.NoError(t, instance.StopAll())

@@ -60,8 +60,8 @@ func StartAndWait(process *service.TeleportProcess, expectedEvents []string) ([]
 	// Not all services follow a non-blocking Start/Wait pattern. This means a
 	// *Ready event may be emit slightly before the service actually starts for
 	// blocking services. Long term those services should be re-factored, until
-	// then sleep for 250ms to handle this situation.
-	time.Sleep(250 * time.Millisecond)
+	// then sleep briefly to handle this situation.
+	time.Sleep(50 * time.Millisecond)
 
 	return receivedEvents, nil
 }

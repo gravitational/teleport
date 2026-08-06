@@ -38,14 +38,14 @@ import (
 func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	t.Helper()
 	var conns []types.TunnelConnection
-	for range 30 {
+	for range 300 {
 		// to speed things up a bit, bypass the auth cache
 		conns, err := authServer.Services.GetTunnelConnections(t.Context(), clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(100 * time.Millisecond)
 	}
 	require.Len(t, conns, expectedCount)
 }
@@ -64,11 +64,11 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
@@ -88,11 +88,11 @@ func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
@@ -117,11 +117,11 @@ func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
@@ -174,8 +174,8 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Ser
 		require.NoError(t, err, "cluster not yet available")
 	},
 		90*time.Second,
-		time.Second,
-		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
+		250*time.Millisecond,
+		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 90*time.Second,
 	)
 }
 
@@ -201,7 +201,7 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
 
 	// Wait for both cluster to see each other via reverse tunnels.
-	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 250*time.Millisecond,
 		"Two clusters do not see each other: tunnels are not working.")
 
 	// Try and connect to a node in the Aux cluster from the Main cluster using
@@ -238,7 +238,7 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 
 	require.Eventually(t, func() bool {
 		return tc.SSH(ctx, cmd) == nil
-	}, 10*time.Second, 1*time.Second, "Two clusters cannot connect to each other")
+	}, 10*time.Second, 250*time.Millisecond, "Two clusters cannot connect to each other")
 
 	require.Equal(t, "hello world\n", output.String())
 }

@@ -1983,7 +1983,7 @@ func (i *TeleInstance) StopAll() error {
 func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
-		iterWaitTime = time.Second
+		iterWaitTime = 100 * time.Millisecond
 	)
 
 	if count <= 0 || i.Config == nil || !i.Config.Auth.Enabled || !i.Config.Proxy.Enabled {
