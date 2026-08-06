@@ -157,7 +157,7 @@ func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}
 
-	managedFiles, err := vnetManagedResolverFiles()
+	managedFiles, err := vnetManagedResolverFiles(ctx)
 	if err != nil {
 		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
 	}
@@ -220,7 +220,7 @@ func resolverFilesMatch(ctx context.Context, files []string, wantContents []byte
 	return true
 }
 
-func vnetManagedResolverFiles() (map[string]struct{}, error) {
+func vnetManagedResolverFiles(ctx context.Context) (map[string]struct{}, error) {
 	entries, err := os.ReadDir(resolverPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading %s", resolverPath)
@@ -232,7 +232,7 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 			continue
 		}
 		filePath := filepath.Join(resolverPath, entry.Name())
-		matches, err := fileStartsWithVNetComment(filePath)
+		matches, err := fileStartsWithVNetComment(ctx, filePath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -244,8 +244,9 @@ func vnetManagedResolverFiles() (map[string]struct{}, error) {
 }
 
 // fileStartsWithVNetComment reports whether the first line of the file at
-// path is the comment marking a VNet managed resolver file.
-func fileStartsWithVNetComment(path string) (bool, error) {
+// path is the comment marking a VNet managed resolver file. Files whose
+// first line cannot be read are treated as not managed by VNet.
+func fileStartsWithVNetComment(ctx context.Context, path string) (bool, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return false, trace.Wrap(err, "opening %s", path)
@@ -254,7 +255,11 @@ func fileStartsWithVNetComment(path string) (bool, error) {
 
 	scanner := bufio.NewScanner(file)
 	if !scanner.Scan() {
-		return false, trace.Wrap(scanner.Err(), "reading %s", path)
+		if err := scanner.Err(); err != nil {
+			log.DebugContext(ctx, "Failed to read first line of resolver file, treating it as not managed by VNet.",
+				"file", path, "error", err)
+		}
+		return false, nil
 	}
 	return scanner.Text() == resolverFileComment, nil
 }
