@@ -36,6 +36,7 @@ import (
 
 var (
 	fixtureArrayRe     = regexp.MustCompile(`fixtures:\s*\[+([^]]*)]`)
+	browsersArrayRe    = regexp.MustCompile(`browsers:\s*\[([^]]*)]`)
 	lineNumberSuffixRe = regexp.MustCompile(`:\d+$`)
 	fixtureRefRe       = regexp.MustCompile(`['"]([^'"]+)['"]`)
 	helperImportRe     = regexp.MustCompile(`from\s+['"]@gravitational/e2e/helpers/(\w+)['"]`)
@@ -248,6 +249,26 @@ func resolveFilesToScan(e2eDir string, testFiles []string) ([]scanTarget, error)
 	}
 
 	return targets, nil
+}
+
+// expandedTestFiles turns resolved targets back into Playwright selectors. Directory and substring
+// arguments are handed on as the specs they matched, so that per-spec settings can be keyed by path.
+func expandedTestFiles(targets []scanTarget) []string {
+	var files []string
+	for _, t := range targets {
+		if t.sourceFile == "" {
+			continue
+		}
+
+		file := filepath.ToSlash(t.sourceFile)
+		if t.line > 0 {
+			file = fmt.Sprintf("%s:%d", file, t.line)
+		}
+
+		files = append(files, file)
+	}
+
+	return files
 }
 
 func walkSpecFiles(root string) ([]string, error) {
@@ -1114,6 +1135,61 @@ func sortRoles(roles []scannedRole) {
 
 		return strings.Compare(a.file, b.file)
 	})
+}
+
+// scanBrowserRestrictions returns the browsers each spec file limited itself to, keyed by its path
+// relative to e2e/.
+//
+// The restriction applies to the whole file rather than to an enclosing describe, since the runner
+// picks instances per file.
+func scanBrowserRestrictions(targets []scanTarget) (map[string][]string, error) {
+	restrictions := make(map[string][]string)
+
+	for _, t := range targets {
+		// Skip helper modules, they cannot restrict themselves to an individual browser.
+		if t.sourceFile == "" {
+			continue
+		}
+
+		cleaned, ok := readCleaned(t.path)
+		if !ok {
+			continue
+		}
+		content := strings.Join(cleaned, "\n")
+
+		var browsers []string
+		for _, call := range findTestUseCalls(content) {
+			body := content[call.start:call.end]
+			for _, m := range browsersArrayRe.FindAllStringSubmatch(body, -1) {
+				for _, ref := range fixtureRefRe.FindAllStringSubmatch(m[1], -1) {
+					browsers = append(browsers, ref[1])
+				}
+			}
+		}
+
+		if len(browsers) == 0 {
+			continue
+		}
+
+		spec := filepath.ToSlash(t.sourceFile)
+
+		// A restriction that no instance can satisfy would silently run the spec nowhere, so both an
+		// unknown browser and a Connect spec naming one are rejected rather than dropped.
+		if strings.HasPrefix(spec, "tests/connect/") {
+			return nil, fmt.Errorf("%s is a Connect spec, which runs in Electron and cannot restrict browsers", spec)
+		}
+
+		for _, b := range browsers {
+			if !slices.Contains(validBrowsers, b) {
+				return nil, fmt.Errorf("%s declares invalid browser %q, must be one of: %s",
+					spec, b, strings.Join(validBrowsers, ", "))
+			}
+		}
+
+		restrictions[spec] = browsers
+	}
+
+	return restrictions, nil
 }
 
 // uniqueTeleportConfig is a distinct custom Teleport config declared by one or more

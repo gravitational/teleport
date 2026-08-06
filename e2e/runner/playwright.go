@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -121,6 +122,16 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 	testErr := g.Wait()
 
+	// Nothing ran, so there is no report to merge and the previous run's results are still on disk.
+	// Reporting success here would read as green.
+	if blobs, err := filepath.Glob(filepath.Join(blobBaseDir, "*.zip")); err == nil && len(blobs) == 0 {
+		if testErr != nil {
+			return testErr
+		}
+
+		return fmt.Errorf("no specs ran, every selected spec was restricted to other browsers")
+	}
+
 	slog.Info("merging blob reports")
 	mergeArgs := []string{"exec", "playwright", "merge-reports", p.configFlag(), blobBaseDir}
 	mergeEnv := os.Environ()
@@ -145,19 +156,35 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 }
 
 func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, blobBaseDir string, debug bool, extraArgs []string) error {
+	hasConfigs := len(p.config.teleportConfigs) > 0
+	selected := p.config.testFiles
+	if hasConfigs {
+		selected = p.config.defaultTestFiles
+	}
+	defaultFiles := p.filesForProject(inst, selected)
+
+	// An empty list tells Playwright to run everything, so a selection that filtered down to nothing
+	// has to skip the pass rather than widen it.
+	runDefault := len(defaultFiles) > 0 || (!hasConfigs && len(selected) == 0)
+
+	configFiles := make([][]string, len(p.config.teleportConfigs))
+	anyConfigFiles := false
+	for i, cfg := range p.config.teleportConfigs {
+		configFiles[i] = p.filesForProject(inst, cfg.files)
+		anyConfigFiles = anyConfigFiles || len(configFiles[i]) > 0
+	}
+
+	if !runDefault && !anyConfigFiles {
+		inst.log.Info("no selected specs run against this browser, skipping")
+		return nil
+	}
+
 	if err := inst.start(ctx); err != nil {
 		return err
 	}
 	defer inst.stop()
 
-	hasConfigs := len(p.config.teleportConfigs) > 0
-	defaultFiles := filesForProject(inst, p.config.testFiles)
-	if hasConfigs {
-		defaultFiles = filesForProject(inst, p.config.defaultTestFiles)
-	}
-
-	// Skip the default pass if this instance has nothing to run against the base config
-	if !hasConfigs || len(defaultFiles) > 0 {
+	if runDefault {
 		blobPath := filepath.Join(blobBaseDir, inst.browser+".zip")
 		if err := p.runInstanceTests(ctx, inst, defaultFiles, blobPath, debug, extraArgs); err != nil {
 			return err
@@ -166,7 +193,7 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 
 	baseConfigPath := inst.teleportConfigPath
 	for i, cfg := range p.config.teleportConfigs {
-		files := filesForProject(inst, cfg.files)
+		files := configFiles[i]
 		if len(files) == 0 {
 			continue // no tests for this instance's project
 		}
@@ -177,17 +204,25 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 	return nil
 }
 
-// filesForProject picks the connect specs or browser specs for a testInstance
-func filesForProject(inst *testInstance, files []string) []string {
+// filesForProject picks the connect specs or browser specs for a testInstance, dropping any spec
+// that restricted itself to other browsers.
+func (p *playwrightRunner) filesForProject(inst *testInstance, files []string) []string {
 	if len(files) == 0 {
 		return files
 	}
 	var out []string
 	for _, f := range files {
 		isConnect := strings.HasPrefix(filepath.ToSlash(f), "tests/connect/")
-		if isConnect == (inst.browser == "connect") {
-			out = append(out, f)
+		if isConnect != (inst.browser == "connect") {
+			continue
 		}
+
+		spec := lineNumberSuffixRe.ReplaceAllString(filepath.ToSlash(f), "")
+		if allowed, ok := p.config.browserRestrictions[spec]; ok && !slices.Contains(allowed, inst.browser) {
+			continue
+		}
+
+		out = append(out, f)
 	}
 	return out
 }
