@@ -20,9 +20,15 @@ import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router-dom';
 
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
+import { MarkInverse } from 'design/Mark';
+import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
-import Validation from 'shared/components/Validation';
-import { requiredIntegrationName } from 'shared/components/Validation/rules';
+import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
+import Validation, { useRule } from 'shared/components/Validation';
+import {
+  requiredField,
+  requiredIntegrationName,
+} from 'shared/components/Validation/rules';
 
 import cfg from 'teleport/config';
 import { Header } from 'teleport/Discover/Shared';
@@ -50,6 +56,8 @@ import { InfoGuideContent } from './InfoGuide';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
 import {
+  AwsOrganizationalUnits,
+  AwsScope,
   buildMatchers,
   ServiceConfig,
   ServiceConfigs,
@@ -72,6 +80,12 @@ export function EnrollAws() {
     cancelCheckIntegration,
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
+  const [scope, setScope] = useState<AwsScope>('account');
+  const [orgUnits, setOrgUnits] = useState<AwsOrganizationalUnits>({
+    include: ['*'],
+    exclude: [],
+  });
+
   const [configs, setConfigs] = useState<ServiceConfigs>({
     ec2: { enabled: true, regions: [], tags: [] },
     eks: { enabled: false, regions: [], tags: [], kubeAppDiscovery: true },
@@ -84,14 +98,28 @@ export function EnrollAws() {
     }));
   };
 
+  const isOrganization = scope === 'organization';
+
+  // TF module currently supports EC2 only
+  const supportedConfigs: ServiceConfigs = isOrganization
+    ? { ...configs, eks: { ...configs.eks, enabled: false } }
+    : configs;
+
   const terraformConfig = useMemo(
     () =>
       buildTerraformConfig({
         integrationName,
-        matchers: buildMatchers(configs),
+        matchers: buildMatchers(supportedConfigs),
         version: clusterVersion,
+        orgUnits: isOrganization ? orgUnits : null,
       }),
-    [integrationName, configs, clusterVersion]
+    [
+      integrationName,
+      supportedConfigs,
+      clusterVersion,
+      isOrganization,
+      orgUnits,
+    ]
   );
 
   const {
@@ -125,12 +153,21 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
+              <ScopeSection
+                scope={scope}
+                onScopeChange={setScope}
+                orgUnits={orgUnits}
+                onOrgUnitsChange={setOrgUnits}
+              />
+              <Divider />
               <ResourcesSection
-                configs={configs}
+                configs={supportedConfigs}
                 onConfigChange={updateConfig}
+                isOrganization={isOrganization}
               />
               <Divider />
               <DeploymentMethodSection
+                isOrganization={isOrganization}
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
@@ -218,6 +255,96 @@ export function IntegrationSection({
         disabled={disabled}
         onChange={e => onChange(e.target.value.trim())}
       />
+    </>
+  );
+}
+
+type ScopeSectionProps = {
+  scope: AwsScope;
+  onScopeChange: (scope: AwsScope) => void;
+  orgUnits: AwsOrganizationalUnits;
+  onOrgUnitsChange: (config: AwsOrganizationalUnits) => void;
+};
+
+const includeOrgUnitsRule = requiredField(
+  'At least one organizational unit is required.'
+);
+
+export function ScopeSection({
+  scope,
+  onScopeChange,
+  orgUnits,
+  onOrgUnitsChange,
+}: ScopeSectionProps) {
+  const isOrganization = scope === 'organization';
+  const includeValidationResult = useRule(
+    isOrganization
+      ? includeOrgUnitsRule(orgUnits.include)
+      : () => ({
+          valid: true,
+        })
+  );
+
+  return (
+    <>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+        <CircleNumber>2</CircleNumber>
+        Scope
+      </Flex>
+      <Text ml={4} mb={3}>
+        Discover resources in a single AWS account or across multiple accounts
+        using AWS Organizations.
+      </Text>
+      <Box ml={4} mb={3}>
+        <RadioGroup
+          name="awsScope"
+          options={[
+            { value: 'account', label: 'Single Account' },
+            { value: 'organization', label: 'Organization' },
+          ]}
+          value={scope}
+          size="small"
+          onChange={value => onScopeChange(value as AwsScope)}
+        />
+      </Box>
+      {isOrganization && (
+        <>
+          <Box ml={4} mb={3} maxWidth={432}>
+            <FieldMultiInput
+              label="Include Organizational Units"
+              required
+              tooltipContent={
+                <>
+                  Use <MarkInverse>*</MarkInverse> or the root organizational
+                  unit <MarkInverse>r-&#60;ID&#62;</MarkInverse> to include
+                  every account in the organization.
+                </>
+              }
+              value={orgUnits.include}
+              placeholder="r-abcd"
+              onChange={include => onOrgUnitsChange({ ...orgUnits, include })}
+            />
+            {!includeValidationResult.valid && (
+              <Text
+                color="interactive.solid.danger.default"
+                fontSize={1}
+                mt={1}
+              >
+                {includeValidationResult.message}
+              </Text>
+            )}
+          </Box>
+          <Box ml={4} mb={3} maxWidth={432}>
+            <FieldMultiInput
+              label="Exclude Organizational Units"
+              tooltipContent="Accounts under an excluded organizational unit will be ignored."
+              value={orgUnits.exclude}
+              placeholder="ou-abcd-xyz12345"
+              onChange={exclude => onOrgUnitsChange({ ...orgUnits, exclude })}
+            />
+          </Box>
+        </>
+      )}
     </>
   );
 }
