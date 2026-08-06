@@ -228,7 +228,7 @@ func TestBuildResourceConstraintMatchers(t *testing.T) {
 				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
 				Constraints: sshConstraints,
 			},
-		}, node)
+		}, node, "cluster")
 		require.NoError(t, err)
 		require.Len(t, matchers, 1)
 
@@ -244,7 +244,7 @@ func TestBuildResourceConstraintMatchers(t *testing.T) {
 	t.Run("entries without constraints yield no matchers", func(t *testing.T) {
 		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
 			{Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"}},
-		}, node)
+		}, node, "cluster")
 		require.NoError(t, err)
 		require.Empty(t, matchers)
 	})
@@ -259,7 +259,7 @@ func TestBuildResourceConstraintMatchers(t *testing.T) {
 				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "node-1"},
 				Constraints: sshConstraints,
 			},
-		}, node)
+		}, node, "cluster")
 		require.NoError(t, err)
 		require.Empty(t, matchers)
 	})
@@ -274,8 +274,70 @@ func TestBuildResourceConstraintMatchers(t *testing.T) {
 					},
 				},
 			},
-		}, node)
+		}, node, "cluster")
 		require.Error(t, err)
+	})
+
+	t.Run("foreign-cluster entries for a same-named resource yield no matchers", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "leaf", Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node, "cluster")
+		require.NoError(t, err)
+		require.Empty(t, matchers)
+	})
+
+	t.Run("cross-cluster same-named pair only contributes the local entry", func(t *testing.T) {
+		rootConstraints := &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Ssh{
+				Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+			},
+		}
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "leaf", Kind: types.KindNode, Name: "node-1"},
+				Constraints: rootConstraints,
+			},
+			{
+				Id:          types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node, "cluster")
+		require.NoError(t, err)
+		require.Len(t, matchers, 1)
+
+		// Only the local entry's login matches. The foreign entry's does not.
+		ok, err := matchers[0].Match(roleAllowingSSHLogins("ubuntu"), types.Allow)
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		ok, err = matchers[0].Match(roleAllowingSSHLogins("root"), types.Allow)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("entries without a cluster name are treated as local", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node, "cluster")
+		require.NoError(t, err)
+		require.Len(t, matchers, 1)
+	})
+
+	t.Run("unknown local cluster keeps all entries", func(t *testing.T) {
+		matchers, err := BuildResourceConstraintMatchers([]types.ResourceAccessID{
+			{
+				Id:          types.ResourceID{ClusterName: "leaf", Kind: types.KindNode, Name: "node-1"},
+				Constraints: sshConstraints,
+			},
+		}, node, "")
+		require.NoError(t, err)
+		require.Len(t, matchers, 1)
 	})
 }
 

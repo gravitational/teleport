@@ -1795,7 +1795,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 	constraintMatchers := make([][]RoleMatcher, 0, len(underlyingResources))
 	for _, resource := range underlyingResources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
-			matchers, err := BuildResourceConstraintMatchers(resourceAccessIDs, resource)
+			matchers, err := BuildResourceConstraintMatchers(resourceAccessIDs, resource, cluster.GetClusterName())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

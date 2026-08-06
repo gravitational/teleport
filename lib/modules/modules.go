@@ -235,6 +235,12 @@ type AccessResourcesGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
+	// GetClusterName returns the name of the cluster the getter reads from.
+	// The getter lists resources from that cluster whatever cluster a
+	// requested resource ID names. Callers correlating IDs back to those
+	// resources need the name (see services.BuildResourceConstraintMatchers).
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
 
