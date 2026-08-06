@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -263,16 +264,17 @@ func resolverFileForZone(zone string) string {
 	return filepath.Join(resolverPath, zone)
 }
 
-func requireResolverFiles(t *testing.T, nameservers []string, zones ...string) {
+func assertResolverFiles(t *testing.T, nameservers []string, zones ...string) {
 	t.Helper()
-	want := string(resolverFileContents(nameservers))
+	want := string(desiredResolverFileContents(nameservers))
 	entries, err := os.ReadDir(resolverPath)
 	require.NoError(t, err)
-	require.Len(t, entries, len(zones))
+	assert.Len(t, entries, len(zones))
 	for _, zone := range zones {
 		contents, err := os.ReadFile(resolverFileForZone(zone))
-		require.NoError(t, err)
-		require.Equal(t, want, string(contents))
+		if assert.NoError(t, err) {
+			assert.Equal(t, want, string(contents))
+		}
 	}
 }
 
@@ -283,7 +285,7 @@ func TestConfigureDNSWritesResolverFiles(t *testing.T) {
 
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
 
-	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+	assertResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
 }
 
 func TestConfigureDNSSkipsRewriteWhenUnchanged(t *testing.T) {
@@ -319,7 +321,7 @@ func TestConfigureDNSRestoresDeletedResolverFile(t *testing.T) {
 	require.NoError(t, os.Remove(resolverFileForZone("example.com")))
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
 
-	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+	assertResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
 }
 
 func TestConfigureDNSRestoresModifiedResolverFile(t *testing.T) {
@@ -328,14 +330,12 @@ func TestConfigureDNSRestoresModifiedResolverFile(t *testing.T) {
 	cfg := dnsTestOSConfig()
 
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
-	// Tamper without changing the file size to make sure drift detection
-	// doesn't rely on cheap size checks.
-	tampered := bytes.ToUpper(resolverFileContents(cfg.dnsAddrs))
+	tampered := bytes.ToUpper(desiredResolverFileContents(cfg.dnsAddrs))
 	require.NoError(t, os.WriteFile(
 		resolverFileForZone("example.com"), tampered, 0644))
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
 
-	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
+	assertResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")
 }
 
 func TestConfigureDNSReappliesOnZoneChange(t *testing.T) {
@@ -348,7 +348,7 @@ func TestConfigureDNSReappliesOnZoneChange(t *testing.T) {
 	cfg.dnsZones = []string{"example.com", "other.example.org"}
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
 
-	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "other.example.org")
+	assertResolverFiles(t, cfg.dnsAddrs, "example.com", "other.example.org")
 }
 
 func TestConfigureDNSDeconfigureRemovesResolverFiles(t *testing.T) {
