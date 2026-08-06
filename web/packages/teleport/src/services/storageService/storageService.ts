@@ -399,29 +399,17 @@ export const storageService = {
   },
 
   /**
-   * Returns true if the user has dismissed the BYOI banner in the current
-   * browser session.
-   *
-   * NOTE: uses session storage instead of local storage
+   * Returns true if the user has dismissed the BYOI banner.
    */
   getBeamsByoiBannerDismissed(): boolean {
-    const item = window.sessionStorage.getItem(
-      KeysEnum.BEAMS_BYOI_BANNER_DISMISSED
-    );
-    if (item) {
-      return JSON.parse(item);
-    }
-    return false;
+    return this.getParsedJSONValue(KeysEnum.BEAMS_BYOI_BANNER_DISMISSED, false);
   },
 
   /**
-   * Sets whether the user has dismissed the BYOI banner in the current browser
-   * session.
-   *
-   * NOTE: uses session storage instead of local storage
+   * Sets whether the user has dismissed the BYOI banner.
    */
   setBeamsByoiBannerDismissed(dismissed: boolean) {
-    window.sessionStorage.setItem(
+    window.localStorage.setItem(
       KeysEnum.BEAMS_BYOI_BANNER_DISMISSED,
       JSON.stringify(dismissed)
     );
