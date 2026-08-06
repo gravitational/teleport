@@ -58,6 +58,12 @@ on:
         type: string
         default: stage/build
 
+      managed-updates-signing-key:
+        description: "Which managed updates signing key to use for artifact signing (`primary` or `backup`)."
+        required: false
+        type: string
+        default: primary
+
   # The workflow_dispatch event duplicates the workflow_call input parameters, without descriptions.
   workflow_dispatch:
     inputs:
@@ -87,6 +93,9 @@ on:
       environment:
         type: string
         default: stage/build
+      managed-updates-signing-key:
+        type: string
+        default: primary
 
 run-name: "Linux build ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
 
@@ -168,7 +177,9 @@ jobs:
         with:
           tool-version: v0.0.5
           environment-name: ${{ inputs.environment }}
-          value-sets: gpg-signing
+          value-sets: |
+            gpg-signing
+            auto-updates
           environments-directory: e/.environments
 
       - name: Determine FIPS
@@ -235,6 +246,178 @@ jobs:
         run: |
           VERSION=$(grep -oP '^VERSION=\K.*' Makefile)
           echo "VERSION=${RELEASE_VERSION:-$VERSION}" >> "$GITHUB_ENV"
+
+      - name: Assume primary managed updates signing role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-primary-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch primary managed updates signing public key
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+        run: |
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-primary-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-primary-signing-key.der \
+            -out /tmp/teleport-managed-updates-primary-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-primary-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume backup managed updates signing role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-backup-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch backup managed updates signing public key
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE" ]; then
+            echo "AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-backup-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-backup-signing-key.der \
+            -out /tmp/teleport-managed-updates-backup-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_BACKUP_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-backup-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume additional primary managed updates signing role
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE != ''
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-additional-primary-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch additional primary managed updates signing public key
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE != ''
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_AWS_ROLE }}
+        run: |
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_PRIMARY_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-additional-primary-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-additional-primary-signing-key.der \
+            -out /tmp/teleport-managed-updates-additional-primary-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-additional-primary-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Assume additional backup managed updates signing role
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE != ''
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE }}
+          role-session-name: managed-updates-additional-backup-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Fetch additional backup managed updates signing public key
+        if: env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN != '' && env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE != ''
+        env:
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          aws kms get-public-key \
+            --key-id "$AUTO_UPDATES_LINUX_ARTIFACT_ADDITIONAL_BACKUP_SIGNING_KEY_ARN" \
+            --query PublicKey \
+            --output text | base64 -d > /tmp/teleport-managed-updates-additional-backup-signing-key.der
+
+          openssl pkey -pubin -inform DER \
+            -in /tmp/teleport-managed-updates-additional-backup-signing-key.der \
+            -out /tmp/teleport-managed-updates-additional-backup-signing-key.pem
+
+          {
+            echo -n 'TELEPORT_UPDATE_ARTIFACT_SIGNATURE_ADDITIONAL_BACKUP_PUBLIC_KEY_B64='
+            base64 < /tmp/teleport-managed-updates-additional-backup-signing-key.pem | tr -d '\n'
+            echo
+          } >> "$GITHUB_ENV"
+
+      - name: Re-assume teleport build user AWS role
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          aws-region: us-west-2
+          role-to-assume: ${{ env.ECR_READ_ONLY_ROLE }}
+          role-session-name: "gha-build-linux-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Select managed updates signing key
+        id: select-managed-updates-signing-key
+        env:
+          MANAGED_UPDATES_SIGNING_KEY: ${{ inputs.managed-updates-signing-key }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN }}
+          AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE: ${{ env.AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE }}
+        run: |
+          case "${MANAGED_UPDATES_SIGNING_KEY}" in
+          primary)
+            echo "active_signing_key_arn=${AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_KEY_ARN}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_aws_role=${AUTO_UPDATES_LINUX_ARTIFACT_PRIMARY_SIGNING_AWS_ROLE}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_public_key_pem=/tmp/teleport-managed-updates-primary-signing-key.pem" >> "$GITHUB_OUTPUT"
+            ;;
+          backup)
+            echo "active_signing_key_arn=${AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_KEY_ARN}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_aws_role=${AUTO_UPDATES_LINUX_ARTIFACT_BACKUP_SIGNING_AWS_ROLE}" >> "$GITHUB_OUTPUT"
+            echo "active_signing_public_key_pem=/tmp/teleport-managed-updates-backup-signing-key.pem" >> "$GITHUB_OUTPUT"
+            ;;
+          *)
+            echo "Unknown managed updates signing key selection: ${MANAGED_UPDATES_SIGNING_KEY}" >&2
+            exit 1
+            ;;
+          esac
 
       - name: Build Release
         env:
@@ -337,9 +520,18 @@ jobs:
           role-to-assume: ${{ env.RELCLI_IMAGE_PULL_ROLE_ARN }}
           role-session-name: "pull-relcli-build-linux-${{ github.run_attempt }}"
           role-duration-seconds: 900
-  
+
       - name: Log into ECR
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Install cosign prerequisites
+        run: |
+          if ! command -v envsubst &>/dev/null; then
+            sudo apt-get install -y gettext-base
+          fi
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Generate release server manifests
         working-directory: build/artifacts
@@ -359,6 +551,9 @@ jobs:
           for file in *; do
             # Checksums are still created via Makefile for tarballs. This should be removed eventually.
             [[ "${file##*.}" == sha256 ]] && continue
+            [[ "${file##*.}" == sha512 ]] && continue
+            # Detached signatures are published alongside artifacts but are not release assets.
+            [[ "${file##*.}" == sig ]] && continue
             # Don't treat existing manifest files as artifacts.
             [[ "${file##*.}" == manifest ]] && continue
             # Skip files if a manifest for them already exists.
@@ -431,7 +626,53 @@ jobs:
 
           ls -lah
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials for managed updates signing
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          role-session-name: managed-updates-signing-${{ github.run_number }}
+          role-duration-seconds: 3600
+
+      - name: Sign managed updates Linux tarballs
+        working-directory: build/artifacts
+        env:
+          ACTIVE_SIGNING_KEY_ARN: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_key_arn }}
+          ACTIVE_SIGNING_AWS_ROLE: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_aws_role }}
+          ACTIVE_SIGNING_PUBLIC_KEY_PEM: ${{ steps.select-managed-updates-signing-key.outputs.active_signing_public_key_pem }}
+        run: |
+          if [ -z "$ACTIVE_SIGNING_AWS_ROLE" ]; then
+            echo "ACTIVE_SIGNING_AWS_ROLE is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_KEY_ARN" ]; then
+            echo "ACTIVE_SIGNING_KEY_ARN is unset or empty, aborting"
+            exit 1
+          fi
+          if [ -z "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" ]; then
+            echo "ACTIVE_SIGNING_PUBLIC_KEY_PEM is unset or empty, aborting"
+            exit 1
+          fi
+          for file in ./teleport-*-linux-*-bin.tar.gz; do
+            [[ -e "$file" ]] || continue
+            cosign sign-blob --yes \
+              --key "awskms:///${ACTIVE_SIGNING_KEY_ARN}" \
+              --tlog-upload=false \
+              --use-signing-config=false \
+              --output-signature "${file}.sig" \
+              "$file"
+
+            cosign verify-blob \
+              --key "$ACTIVE_SIGNING_PUBLIC_KEY_PEM" \
+              --insecure-ignore-tlog \
+              --signature "${file}.sig" \
+              "$file"
+          done
+
+          ls -lah ./*.sig
+
+      - name: Configure AWS credentials for artifact upload
         uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-skip-session-tagging: true
@@ -439,7 +680,7 @@ jobs:
           role-to-assume: ${{ env.ARTIFACT_UPLOAD_AWS_ROLE }}
           role-session-name: upload-artifacts-${{ github.run_number }}
           role-duration-seconds: 3600
-  
+
       - name: Copy artifacts to S3 bucket
         working-directory: build/artifacts
         env:

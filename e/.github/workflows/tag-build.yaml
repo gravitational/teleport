@@ -30,7 +30,13 @@ on:
         description: Perform a cloud-only release (distroless OCI only)
         type: boolean
         default: false
-  # The workflow_call event duplicates the workflow_dispatch input parameters, without descriptions. 
+
+      managed-updates-signing-key:
+        description: Which signing key to use for managed updates Linux artifact signatures(`primary` or `backup`)
+        type: string
+        default: primary
+
+  # The workflow_call event duplicates the workflow_dispatch input parameters, without descriptions.
   workflow_call:
     inputs:
       oss-teleport-repo:
@@ -46,6 +52,9 @@ on:
       cloud-only:
         type: boolean
         default: false
+      managed-updates-signing-key:
+        type: string
+        default: primary
 
 jobs:
   setup:
@@ -94,7 +103,7 @@ jobs:
           edition: "oss"
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-  
+
       - name: Reject Tag/Version Mismatch
         env:
           TAG: ${{ inputs.oss-teleport-ref }}
@@ -147,6 +156,7 @@ jobs:
       build-deb: true
       build-rpm: true
       environment: ${{ inputs.environment }}
+      managed-updates-signing-key: ${{ inputs.managed-updates-signing-key }}
 
   build-darwin:
     name: Build Darwin (macOS) Artifacts
