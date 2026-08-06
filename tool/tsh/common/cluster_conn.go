@@ -116,14 +116,13 @@ func (c *clusterConn) scheduleClose(ctx context.Context) {
 	c.closeTimer = time.AfterFunc(clusterConnLinger, func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		// The conn was reacquired between the timer firing and this lock.
-		if c.holders > 0 || c.conn != conn {
-			return
+		// Close c.conn exactly once if it's unused after the timer passed.
+		if c.holders == 0 && c.conn == conn {
+			if err := c.conn.Close(); err != nil {
+				logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
+			}
+			c.conn = nil
+			c.closeTimer = nil
 		}
-		if err := conn.Close(); err != nil {
-			logger.WarnContext(ctx, "Failed to close cluster connection", "error", err)
-		}
-		c.conn = nil
-		c.closeTimer = nil
 	})
 }
