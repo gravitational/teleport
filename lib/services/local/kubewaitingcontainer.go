@@ -76,7 +76,7 @@ func (k *KubeWaitingContainerService) ListKubernetesWaitingContainers(ctx contex
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	out, err := k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName).GetResource(ctx, req.ContainerName)
+	out, err := k.svc.WithPrefix(req.GetUsername(), req.GetCluster(), req.GetNamespace(), req.GetPodName()).GetResource(ctx, req.GetContainerName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -88,7 +88,7 @@ func (k *KubeWaitingContainerService) GetKubernetesWaitingContainer(ctx context.
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	svc := k.svc.WithPrefix(in.Spec.Username, in.Spec.Cluster, in.Spec.Namespace, in.Spec.PodName)
+	svc := k.svc.WithPrefix(in.GetSpec().GetUsername(), in.GetSpec().GetCluster(), in.GetSpec().GetNamespace(), in.GetSpec().GetPodName())
 	out, err := svc.CreateResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -101,7 +101,7 @@ func (k *KubeWaitingContainerService) CreateKubernetesWaitingContainer(ctx conte
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx context.Context, in *kubewaitingcontainerpb.KubernetesWaitingContainer) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
-	svc := k.svc.WithPrefix(in.Spec.Username, in.Spec.Cluster, in.Spec.Namespace, in.Spec.PodName)
+	svc := k.svc.WithPrefix(in.GetSpec().GetUsername(), in.GetSpec().GetCluster(), in.GetSpec().GetNamespace(), in.GetSpec().GetPodName())
 	out, err := svc.UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,7 +114,7 @@ func (k *KubeWaitingContainerService) UpsertKubernetesWaitingContainer(ctx conte
 // container that are waiting to be created until moderated
 // session conditions are met.
 func (k *KubeWaitingContainerService) DeleteKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.DeleteKubernetesWaitingContainerRequest) error {
-	return trace.Wrap(k.svc.WithPrefix(req.Username, req.Cluster, req.Namespace, req.PodName).DeleteResource(ctx, req.ContainerName))
+	return trace.Wrap(k.svc.WithPrefix(req.GetUsername(), req.GetCluster(), req.GetNamespace(), req.GetPodName()).DeleteResource(ctx, req.GetContainerName()))
 }
 
 // DeleteAllKubernetesWaitingContainers deletes all Kubernetes ephemeral

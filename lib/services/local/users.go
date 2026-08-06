@@ -106,9 +106,9 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 
 // ListUsers returns a page of users.
 func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.PageToken))
+	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.GetPageToken()))
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
-	pageSize := req.PageSize
+	pageSize := req.GetPageSize()
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
@@ -118,15 +118,15 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
 
 	var userStream iter.Seq2[*types.UserV2, error]
-	if req.WithSecrets {
+	if req.GetWithSecrets() {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
 		userStream = s.streamUsersWithoutSecrets(itemStream)
 	}
 
-	if req.Filter != nil {
+	if req.HasFilter() {
 		userStream = stream.FilterMap(userStream, func(user *types.UserV2) (*types.UserV2, bool) {
-			if !req.Filter.Match(user) {
+			if !req.GetFilter().Match(user) {
 				return nil, false
 			}
 
@@ -140,12 +140,12 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 			return nil, trace.Wrap(err)
 		}
 
-		if len(resp.Users) >= int(pageSize) {
-			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
+		if len(resp.GetUsers()) >= int(pageSize) {
+			resp.SetNextPageToken(nextUserToken(resp.GetUsers()[len(resp.GetUsers())-1]))
 			return &resp, nil
 		}
 
-		resp.Users = append(resp.Users, user)
+		resp.SetUsers(append(resp.GetUsers(), user))
 	}
 	return &resp, nil
 }
@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1234,6 +1233,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1328,7 +1328,7 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	if localAuthSecrets != nil {
 		upsertingMFA = localAuthSecrets.MFA
 	}
-	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
+	state, err := s.buildWeakestMFADeviceKind(ctx, user, upsertingMFA...)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to determine weakest mfa device kind for user", "error", err)
 		return
@@ -1336,24 +1336,30 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	user.SetWeakestDevice(state)
 }
 
-func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user string, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
-	devs, err := s.GetMFADevices(ctx, user, false)
+func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user types.User, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
+	devs, err := s.getMFADevices(ctx, user.GetName(), false /* MFA secrets not needed */, func() (types.CreatedBy, error) {
+		return user.GetCreatedBy(), nil
+	})
 	if err != nil {
 		return types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, trace.Wrap(err)
 	}
 	return GetWeakestMFADeviceKind(append(devs, upsertingMFA...)), nil
 }
 
-// GetWeakestMFADeviceKind returns the weakest MFA state based on the devices the user
-// has.
-// When a user has no MFA device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
-// When a user has at least one TOTP device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
-// When a user ONLY has webauthn devices, it's set to `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
-func GetWeakestMFADeviceKind(devs []*types.MFADevice) types.MFADeviceKind {
+// GetWeakestMFADeviceKind returns the weakest MFA device kind.
+// Device ranking, from weakest to strongest: TOTP < SSO MFA < WebAuthn/U2F.
+//   - If `in` has zero MFA devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
+//   - If `in` has at least one TOTP device, it returns `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
+//   - If `in` has at least one SSO MFA device and no TOTP devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_SSO`.
+//   - If `in` has only WebAuthn/U2F devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
+func GetWeakestMFADeviceKind(in []*types.MFADevice) types.MFADeviceKind {
 	mfaState := types.MFADeviceKind_MFA_DEVICE_KIND_UNSET
-	for _, d := range devs {
+	for _, d := range in {
 		if (d.GetWebauthn() != nil || d.GetU2F() != nil) && mfaState == types.MFADeviceKind_MFA_DEVICE_KIND_UNSET {
 			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN
+		}
+		if d.GetSso() != nil && mfaState != types.MFADeviceKind_MFA_DEVICE_KIND_TOTP {
+			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_SSO
 		}
 		if d.GetTotp() != nil {
 			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_TOTP
@@ -1383,7 +1389,13 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 
 	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
 	if trace.IsNotFound(err) {
-		if _, err := s.getSSOMFADevice(ctx, user); err == nil {
+		if _, err := s.getSSOMFADevice(ctx, func() (types.CreatedBy, error) {
+			user, err := s.GetUser(ctx, user, false /* user secrets not required */)
+			if err != nil {
+				return types.CreatedBy{}, trace.Wrap(err)
+			}
+			return user.GetCreatedBy(), nil
+		}); err == nil {
 			return trace.BadParameter("cannot delete ephemeral SSO MFA device")
 		}
 		return trace.Wrap(err)
@@ -1402,20 +1414,36 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
+	devices, err := s.getMFADevices(ctx, user, withSecrets, func() (types.CreatedBy, error) {
+		user, err := s.GetUser(ctx, user, false /* user secrets not required */)
+		if err != nil {
+			return types.CreatedBy{}, trace.Wrap(err)
+		}
+		return user.GetCreatedBy(), nil
+	})
+
+	return devices, trace.Wrap(err)
+}
+
+func (s *IdentityService) getMFADevices(ctx context.Context, user string, withMFASecrets bool, userCreatedByFn func() (types.CreatedBy, error)) ([]*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
 	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	var devices []*types.MFADevice
 	eg.Go(func() error {
 		var err error
-		devices, err = s.getMFADevices(egCtx, user, withSecrets)
+		devices, err = s.getPersistedMFADevices(egCtx, user, withMFASecrets)
 		return trace.Wrap(err)
 	})
 
 	var ssoDev *types.MFADevice
 	eg.Go(func() error {
 		var err error
-		ssoDev, err = s.getSSOMFADevice(egCtx, user)
+		ssoDev, err = s.getSSOMFADevice(egCtx, userCreatedByFn)
 		if trace.IsNotFound(err) {
 			return nil // OK, SSO device may not exist.
 		}
@@ -1433,10 +1461,10 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	return devices, nil
 }
 
-// getMFADevices reads devices from storage. Devices from other sources, such as
+// getPersistedMFADevices reads devices from storage. Devices from other sources, such as
 // the ephemeral SSO devices, are not returned by it.
 // See getSSOMFADevice and GetMFADevices (which returns all devices).
-func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
+func (s *IdentityService) getPersistedMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user, mfaDevicePrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -1463,17 +1491,14 @@ func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSe
 // getSSOMFADevice returns the user's SSO MFA device. This device is ephemeral, meaning it
 // does not actually appear in the backend under the user's mfa key. Instead it is fetched
 // by checking related user and cluster configuration settings.
-func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*types.MFADevice, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
+func (s *IdentityService) getSSOMFADevice(ctx context.Context, userCreatedByFn func() (types.CreatedBy, error)) (*types.MFADevice, error) {
+	if userCreatedByFn == nil {
+		return nil, trace.BadParameter("missing parameter userCreatedByFn")
 	}
-
-	u, err := s.GetUser(ctx, user, false /* withSecrets */)
+	cb, err := userCreatedByFn()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cb := u.GetCreatedBy()
 	if cb.Connector == nil {
 		return nil, trace.NotFound("no SSO MFA device found; user was not created by an auth connector")
 	}
@@ -1483,12 +1508,16 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		GetDisplay() string
 	}
 
+	const withSecrets = false
 	const ssoMFADisabledErr = "no SSO MFA device found; user's auth connector does not have MFA enabled"
 	switch cb.Connector.Type {
 	case constants.SAML:
-		mfaConnector, err = s.GetSAMLConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+		// Using NoFollowURLs below because getSSOMFADevice only needs connector ID, display and type
+		// to determine if the user has an SSO MFA device.
+		// The URL is followed during connector write and SSO MFA ceremony paths.
+		mfaConnector, err = s.GetSAMLConnectorWithValidationOptions(ctx, cb.Connector.ID, withSecrets, types.SAMLConnectorValidationFollowURLs(false))
 	case constants.OIDC:
-		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, withSecrets)
 	case constants.Github:
 		// Github connectors do not support SSO MFA.
 		return nil, trace.NotFound("%s", ssoMFADisabledErr)
@@ -1638,7 +1667,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1675,7 +1703,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1716,7 +1743,7 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rev := connector.GetRevision()
@@ -1740,7 +1767,7 @@ func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector typ
 
 // UpdateSAMLConnector updates an existing SAML connector
 func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1763,7 +1790,7 @@ func (s *IdentityService) UpdateSAMLConnector(ctx context.Context, connector typ
 
 // CreateSAMLConnector creates a new SAML connector.
 func (s *IdentityService) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil, types.SAMLConnectorValidationWithAttributesToRoles(true)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1857,7 +1884,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -2071,6 +2097,11 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
@@ -2095,6 +2126,11 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2118,6 +2154,11 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2155,7 +2196,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2190,7 +2230,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.

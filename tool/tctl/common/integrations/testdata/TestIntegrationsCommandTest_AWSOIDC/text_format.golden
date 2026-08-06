@@ -1,0 +1,8 @@
+AWS STS get-caller-identity response:
+
+Integration Name: my-integration
+AWS Account ID:   123456789012
+Assumed Role ARN: arn:aws:sts::123456789012:assumed-role/teleport/test
+User ID:          AROAEXAMPLE:test
+
+[1mAWS OIDC integration is healthy.[0m

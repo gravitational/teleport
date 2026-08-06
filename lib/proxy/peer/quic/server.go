@@ -278,9 +278,9 @@ func (s *Server) handleStream(stream *quic.Stream, conn *quic.Conn, log *slog.Lo
 
 	sendErr := func(toSend error) {
 		stream.CancelRead(noStreamErrorCode)
-		errBuf, err := marshalSized(&quicpeeringv1a.DialResponse{
+		errBuf, err := marshalSized(quicpeeringv1a.DialResponse_builder{
 			Status: status.Convert(trail.ToGRPC(toSend)).Proto(),
-		})
+		}.Build())
 		if err != nil {
 			return
 		}

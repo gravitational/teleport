@@ -17,10 +17,15 @@
 package subca_test
 
 import (
+	"bytes"
 	"crypto/x509"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -75,6 +80,303 @@ func TestCalculateOverrideResult_ToClientOverrideDetailsProto(t *testing.T) {
 			got := test.res.ToClientOverrideDetailsProto()
 			if diff := cmp.Diff(test.want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("ToOverrideDetailsProto mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadCAOverrideResolver_errors(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.WindowsCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{caType},
+	})
+	clusterName := env.ClusterName
+	subCA := env.SubCA
+
+	tests := []struct {
+		name    string
+		id      types.CertAuthorityOverrideID
+		wantErr string
+	}{
+		{
+			name: "empty id.ClusterName",
+			id: types.CertAuthorityOverrideID{
+				CAType: string(caType),
+			},
+			wantErr: "clusterName",
+		},
+		{
+			name: "empty id.CAType",
+			id: types.CertAuthorityOverrideID{
+				ClusterName: clusterName,
+			},
+			wantErr: "caType",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			const isEnterpriseBuild = true
+			_, err := subca.LoadCAOverrideResolver(t.Context(), subCA, isEnterpriseBuild, test.id)
+			assert.ErrorContains(t, err, test.wantErr)
+		})
+	}
+
+}
+
+func TestCAOverrideResolver_ApplyOverrides(t *testing.T) {
+	t.Parallel()
+
+	const ca1Type = types.WindowsCA
+	const ca2Type = types.DatabaseClientCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{
+			ca1Type,
+			ca2Type,
+		},
+	})
+	subCA := env.SubCA
+
+	ca1ID := types.CertAuthorityOverrideID{
+		ClusterName: env.ClusterName,
+		CAType:      string(ca1Type),
+	}
+	ca2ID := types.CertAuthorityOverrideID{
+		ClusterName: env.ClusterName,
+		CAType:      string(ca2Type),
+	}
+
+	// Add multiple certificates to CA1:
+	// - cert2 and cert3 to active keys. (cert1 already active)
+	// - cert4 and cert5 to additional keys
+	var ca1Cert1, ca1Cert2, ca1Cert3, ca1Cert4, ca1Cert5 []byte
+	{
+		const loadKeys = true
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       ca1Type,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+
+		cert1 := ca.GetActiveKeys().TLS[0].Cert
+
+		cfg := tlscatest.GenerateCAConfig{ClusterName: env.ClusterName}
+		key2, cert2, err := tlscatest.GenerateSelfSignedCA(cfg)
+		require.NoError(t, err)
+		key3, cert3, err := tlscatest.GenerateSelfSignedCA(cfg)
+		require.NoError(t, err)
+		key4, cert4, err := tlscatest.GenerateSelfSignedCA(cfg)
+		require.NoError(t, err)
+		key5, cert5, err := tlscatest.GenerateSelfSignedCA(cfg)
+		require.NoError(t, err)
+
+		aks := ca.GetActiveKeys()
+		aks.TLS = append(aks.TLS,
+			&types.TLSKeyPair{Cert: cert2, Key: key2, KeyType: types.PrivateKeyType_RAW},
+			&types.TLSKeyPair{Cert: cert3, Key: key3, KeyType: types.PrivateKeyType_RAW},
+		)
+		ca.SetActiveKeys(aks)
+
+		tks := ca.GetAdditionalTrustedKeys()
+		tks.TLS = append(tks.TLS,
+			&types.TLSKeyPair{Cert: cert4, Key: key4, KeyType: types.PrivateKeyType_RAW},
+			&types.TLSKeyPair{Cert: cert5, Key: key5, KeyType: types.PrivateKeyType_RAW},
+		)
+		ca.SetAdditionalTrustedKeys(tks)
+
+		// Technically we don't need to persist the modified CA, as it's not queried.
+		// This makes the scenario more realistic, though.
+		_, err = env.Trust.UpdateCertAuthority(t.Context(), ca)
+		require.NoError(t, err)
+
+		ca1Cert1 = cert1
+		ca1Cert2 = cert2
+		ca1Cert3 = cert3
+		ca1Cert4 = cert4
+		ca1Cert5 = cert5
+	}
+
+	// Prepare overrides for CA1:
+	// - cert2, cert4 and cert5 have disabled overrides.
+	var ca1Override *subcav1.CertAuthorityOverride
+	{
+		cert2, err := tlsutils.ParseCertificatePEM(ca1Cert2)
+		require.NoError(t, err)
+		cert4, err := tlsutils.ParseCertificatePEM(ca1Cert4)
+		require.NoError(t, err)
+		cert5, err := tlsutils.ParseCertificatePEM(ca1Cert5)
+		require.NoError(t, err)
+
+		ca1Override, err = subCA.CreateCertAuthorityOverride(t.Context(), subcav1.CertAuthorityOverride_builder{
+			Kind:    types.KindCertAuthorityOverride,
+			SubKind: string(ca1Type),
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: env.ClusterName,
+			}.Build(),
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcav1.CertificateOverride{
+					env.NewDisabledCertificateOverride(t, cert2, nil),
+					env.NewDisabledCertificateOverride(t, cert4, nil),
+					env.NewDisabledCertificateOverride(t, cert5, nil),
+				},
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	t.Run("all overrides inactive", func(t *testing.T) {
+		const isEnterpriseBuild = true
+		r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, isEnterpriseBuild, ca1ID)
+		require.NoError(t, err, "LoadCAOverrideResolver errored")
+
+		want := [][]byte{
+			ca1Cert1,
+			ca1Cert2,
+			ca1Cert3,
+			ca1Cert4,
+			ca1Cert5,
+		}
+		got, err := r.ApplyOverrides(want)
+		require.NoError(t, err, "ApplyOverrides errored")
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("ApplyOverrides mismatch (-want +got)\n%s", diff)
+		}
+	})
+
+	// Active overrides for:
+	// - cert2 and cert5
+	// - (cert4 remains disabled)
+	var ca1Override2, ca1Override5 []byte
+	{
+		ca1Override.GetSpec().GetCertificateOverrides()[0].SetDisabled(false)
+		ca1Override.GetSpec().GetCertificateOverrides()[2].SetDisabled(false)
+		var err error
+		_, err = subCA.UpdateCertAuthorityOverride(t.Context(), ca1Override)
+		require.NoError(t, err)
+
+		ca1Override2 = []byte(ca1Override.GetSpec().GetCertificateOverrides()[0].GetCertificate())
+		ca1Override5 = []byte(ca1Override.GetSpec().GetCertificateOverrides()[2].GetCertificate())
+	}
+
+	// Fetch CA2 certificates.
+	var ca2Cert1 []byte
+	{
+		const loadKeys = false
+		ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       ca2Type,
+			DomainName: env.ClusterName,
+		}, loadKeys)
+		require.NoError(t, err)
+		ca2Cert1 = ca.GetActiveKeys().TLS[0].Cert
+	}
+
+	tests := []struct {
+		name               string
+		notEntepriseBuild  bool // Inverse because most tests want enterprise.
+		id                 types.CertAuthorityOverrideID
+		certPEMs, wantPEMs [][]byte
+	}{
+		{
+			name: "active and disabled overrides",
+			id:   ca1ID,
+			certPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert2,
+				ca1Cert3,
+				ca1Cert4,
+				ca1Cert5,
+			},
+			wantPEMs: [][]byte{
+				ca1Cert1,
+				ca1Override2, // active override
+				ca1Cert3,
+				ca1Cert4,     // disabled override
+				ca1Override5, // active override
+			},
+		},
+		{
+			name: "input targets no active overrides",
+			id:   ca1ID,
+			certPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert3,
+				ca1Cert4,
+			},
+			wantPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert3,
+				ca1Cert4, // disabled override
+			},
+		},
+		{
+			name: "input targets only active overrides",
+			id:   ca1ID,
+			certPEMs: [][]byte{
+				ca1Cert2,
+				ca1Cert5,
+			},
+			wantPEMs: [][]byte{
+				ca1Override2,
+				ca1Override5,
+			},
+		},
+		{
+			name: "input targets no overrides",
+			id:   ca1ID,
+			certPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert3,
+			},
+			wantPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert3,
+			},
+		},
+		{
+			name:              "non enterprise build",
+			notEntepriseBuild: true,
+			id:                ca1ID,
+			certPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert2,
+				ca1Cert3,
+				ca1Cert4,
+				ca1Cert5,
+			},
+			wantPEMs: [][]byte{
+				ca1Cert1,
+				ca1Cert2, // overrides not applied
+				ca1Cert3,
+				ca1Cert4,
+				ca1Cert5,
+			},
+		},
+		{
+			name: "CA without a CA override resource",
+			id:   ca2ID,
+			certPEMs: [][]byte{
+				ca2Cert1,
+			},
+			wantPEMs: [][]byte{
+				ca2Cert1,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, !test.notEntepriseBuild, test.id)
+			require.NoError(t, err, "LoadCAOverrideResolver errored")
+
+			gotPEMs, err := r.ApplyOverrides(test.certPEMs)
+			require.NoError(t, err, "ApplyOverrides errored")
+			if diff := cmp.Diff(test.wantPEMs, gotPEMs); diff != "" {
+				t.Errorf("ApplyOverrides mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}
@@ -145,15 +447,15 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	}
 
 	// Prepare and test an "empty" CA override.
-	caOverride, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcav1.CertAuthorityOverride{
+	caOverride, err := subCA.CreateCertAuthorityOverride(t.Context(), subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(ca.GetType()),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ca.GetClusterName(),
-		},
+		}.Build(),
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	caID := types.CertAuthorityOverrideID{
@@ -163,10 +465,9 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 
 	t.Run("ok: empty CA override", func(t *testing.T) {
 		const isEnterpriseBuild = true
-		const featureEnabled = true
-		r, err := subca.NewCAOverrideResolver(subCA, isEnterpriseBuild, featureEnabled)
-		require.NoError(t, err, "NewCAOverrideResolver errored")
-		got, err := r.CalculateOverride(t.Context(), caID, subca.Certificate{PEM: caCert1PEM})
+		r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, isEnterpriseBuild, caID)
+		require.NoError(t, err, "LoadCAOverrideResolver errored")
+		got, err := r.CalculateOverride(subca.Certificate{PEM: caCert1PEM})
 		require.NoError(t, err, "CalculateCAOverride errored")
 
 		want := &subca.CalculateOverrideResult{
@@ -183,16 +484,16 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	//   - (o3 doesn't exist)
 	//   - o4: target caCert4, enabled, has chain
 	o1 := env.NewDisabledCertificateOverride(t, caCert1, nil)
-	o1.Disabled = false
+	o1.SetDisabled(false)
 	o2 := env.NewDisabledCertificateOverride(t, caCert2, nil)
 	o4 := env.NewDisabledCertificateOverride(t, caCert4, nil)
-	o4.Disabled = false
-	o4.Chain = caChain.LeafToRootPEMs()[:caChainLen-1] // skip root
-	caOverride.Spec.CertificateOverrides = []*subcav1.CertificateOverride{
+	o4.SetDisabled(false)
+	o4.SetChain(caChain.LeafToRootPEMs()[:caChainLen-1]) // skip root
+	caOverride.GetSpec().SetCertificateOverrides([]*subcav1.CertificateOverride{
 		o1,
 		o2,
 		o4,
-	}
+	})
 	_, err = subCA.UpdateCertAuthorityOverride(t.Context(), caOverride)
 	require.NoError(t, err)
 
@@ -205,7 +506,6 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	tests := []struct {
 		name              string
 		notEntepriseBuild bool // Inverse because most tests want enterprise.
-		featureDisabled   bool // Inverse because most tests want enabled.
 		id                types.CertAuthorityOverrideID
 		caCert            subca.Certificate
 		wantErr           string
@@ -227,10 +527,10 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			want: &subca.CalculateOverrideResult{
 				// caCert1 is targeted by o1.
 				OverrideActive: true,
-				PublicKeyHash:  o1.PublicKey,
-				CACertificate:  subca.Certificate{PEM: []byte(o1.Certificate)},
+				PublicKeyHash:  o1.GetPublicKey(),
+				CACertificate:  subca.Certificate{PEM: []byte(o1.GetCertificate())},
 				CAChain: []subca.Certificate{
-					{PEM: []byte(o1.Certificate)},
+					{PEM: []byte(o1.GetCertificate())},
 				},
 			},
 		},
@@ -241,12 +541,12 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			want: &subca.CalculateOverrideResult{
 				// caCert4 is targeted by o4.
 				OverrideActive: true,
-				PublicKeyHash:  o4.PublicKey,
-				CACertificate:  subca.Certificate{PEM: []byte(o4.Certificate)},
+				PublicKeyHash:  o4.GetPublicKey(),
+				CACertificate:  subca.Certificate{PEM: []byte(o4.GetCertificate())},
 				CAChain: []subca.Certificate{
-					{PEM: []byte(o4.Certificate)},
-					{PEM: []byte(o4.Chain[0])},
-					{PEM: []byte(o4.Chain[1])},
+					{PEM: []byte(o4.GetCertificate())},
+					{PEM: []byte(o4.GetChain()[0])},
+					{PEM: []byte(o4.GetChain()[1])},
 				},
 			},
 		},
@@ -255,16 +555,6 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			notEntepriseBuild: true,
 			id:                caID,
 			caCert:            subca.Certificate{PEM: caCert1PEM},
-			want: &subca.CalculateOverrideResult{
-				// If enabled then o1 would apply, per test above.
-				CACertificate: subca.Certificate{PEM: caCert1PEM},
-			},
-		},
-		{
-			name:            "ok: feature disabled",
-			featureDisabled: true,
-			id:              caID,
-			caCert:          subca.Certificate{PEM: caCert1PEM},
 			want: &subca.CalculateOverrideResult{
 				// If enabled then o1 would apply, per test above.
 				CACertificate: subca.Certificate{PEM: caCert1PEM},
@@ -289,28 +579,6 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			},
 		},
 		{
-			name: "empty id.ClusterName",
-			id: types.CertAuthorityOverrideID{
-				CAType: string(caType),
-			},
-			caCert: subca.Certificate{PEM: caCert3PEM},
-			want: &subca.CalculateOverrideResult{
-				CACertificate: subca.Certificate{PEM: caCert3PEM},
-			},
-			wantErr: "clusterName",
-		},
-		{
-			name: "empty id.CAType",
-			id: types.CertAuthorityOverrideID{
-				ClusterName: env.ClusterName,
-			},
-			caCert: subca.Certificate{PEM: caCert3PEM},
-			want: &subca.CalculateOverrideResult{
-				CACertificate: subca.Certificate{PEM: caCert3PEM},
-			},
-			wantErr: "caType",
-		},
-		{
 			name:   "empty caCert.PEM",
 			id:     caID,
 			caCert: subca.Certificate{},
@@ -333,10 +601,10 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			r, err := subca.NewCAOverrideResolver(subCA, !test.notEntepriseBuild, !test.featureDisabled)
-			require.NoError(t, err, "NewCAOverrideResolver errored")
+			r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, !test.notEntepriseBuild, test.id)
+			require.NoError(t, err, "LoadCAOverrideResolver errored")
 
-			got, err := r.CalculateOverride(t.Context(), test.id, test.caCert)
+			got, err := r.CalculateOverride(test.caCert)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr)
 				return
@@ -346,4 +614,112 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCAOverrideResolver_metrics(t *testing.T) {
+	// Don't t.Parallel, metrics are global.
+
+	const (
+		readMetricName  = "teleport_ca_override_read_seconds"
+		applyMetricName = "teleport_ca_override_apply_seconds"
+	)
+
+	subca.OverrideReadHist.Reset()
+	subca.OverrideApplyHist.Reset()
+
+	const caType = types.WindowsCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{
+			caType,
+		},
+	})
+	clusterName := env.ClusterName
+	subCA := env.SubCA
+
+	// Read CA so we have a potential overridden cert.
+	const loadKeys = false
+	ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+		Type:       caType,
+		DomainName: env.ClusterName,
+	}, loadKeys)
+	require.NoError(t, err)
+	caCertPEM := ca.GetActiveKeys().TLS[0].Cert
+
+	_, unrelatedCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+
+	// runOverrides runs the Load, Apply and Calculate functions so we can
+	// assert their effects on the metrics.
+	runOverrides := func(t *testing.T) {
+		t.Helper()
+
+		const isEnterprise = true
+		r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, isEnterprise, types.CertAuthorityOverrideID{
+			ClusterName: clusterName,
+			CAType:      string(caType),
+		})
+		require.NoError(t, err)
+		// 2 certs so it creates a distinct metric count.
+		_, err = r.ApplyOverrides([][]byte{caCertPEM, unrelatedCertPEM})
+		require.NoError(t, err)
+		_, err = r.CalculateOverride(subca.Certificate{PEM: caCertPEM})
+		require.NoError(t, err)
+	}
+
+	t.Run("no overrides", func(t *testing.T) {
+		runOverrides(t)
+
+		collectAndCompareCount(t, subca.OverrideReadHist, readMetricName, `
+teleport_ca_override_read_seconds_count{ca_type="windows",result="success"} 1
+`)
+		// No applies recorded.
+		collectAndCompareCount(t, subca.OverrideApplyHist, applyMetricName, ``)
+	})
+
+	t.Run("active overrides", func(t *testing.T) {
+		// Create an active override.
+		caOverride := env.NewOverrideForCAType(t, caType)
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			co.SetDisabled(false)
+		}
+		_, err = subCA.CreateCertAuthorityOverride(t.Context(), caOverride)
+		require.NoError(t, err)
+
+		runOverrides(t)
+
+		// +1 read
+		collectAndCompareCount(t, subca.OverrideReadHist, readMetricName, `
+teleport_ca_override_read_seconds_count{ca_type="windows",result="success"} 2
+`)
+		// +2 applies: count=1 (CalculateOverride) and count=2 (ApplyOverrides).
+		collectAndCompareCount(t, subca.OverrideApplyHist, applyMetricName, `
+teleport_ca_override_apply_seconds_count{ca_type="windows",num_certificates="1",result="success"} 1
+teleport_ca_override_apply_seconds_count{ca_type="windows",num_certificates="2",result="success"} 1
+`)
+	})
+}
+
+func collectAndCompareCount(t *testing.T, col prometheus.Collector, metricName, want string) {
+	t.Helper()
+
+	val, err := testutil.CollectAndFormat(col, expfmt.TypeTextPlain, metricName)
+	require.NoError(t, err)
+
+	countName := []byte(metricName + "_count")
+
+	var buf strings.Builder
+	buf.WriteRune('\n') // start with a newline to mimic usual prometheus asserts
+	for line := range bytes.Lines(val) {
+		if bytes.HasPrefix(line, countName) {
+			buf.Write(line)
+		}
+	}
+	if buf.Len() == 1 {
+		buf.Reset() // Only \n present, so the output is empty.
+	}
+
+	got := buf.String()
+	assert.Empty(t, cmp.Diff(want, got))
 }

@@ -4,6 +4,10 @@ run-name: Benchmarks Diff (Go) - ${{ github.run_id }} - @${{ github.actor }}
 on:
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Check for relevant changes

@@ -21,6 +21,7 @@ package test
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -36,8 +37,6 @@ const (
 )
 
 func runPutBatch(t *testing.T, newBackend Constructor) {
-	t.Helper()
-
 	bk, _, err := newBackend()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
@@ -47,15 +46,11 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 		t.Skip("backend does not implement PutBatch; skipping PutBatch suite")
 	}
 
-	prefix := MakePrefix()
-	rangeStart := prefix("")
-	rangeEnd := backend.RangeEnd(prefix(""))
-
 	itemEqual := func(a, b backend.Item) bool {
 		return a.Key.Compare(b.Key) == 0 &&
 			a.Revision == b.Revision &&
 			bytes.Equal(a.Value, b.Value) &&
-			a.Expires.Equal(b.Expires)
+			a.Expires.Sub(b.Expires) < time.Second && b.Expires.Sub(a.Expires) < time.Second
 	}
 
 	assertItemsEqual := func(t *testing.T, want, got []backend.Item) {
@@ -79,7 +74,7 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 		return out
 	}
 
-	newTestItems := func() []backend.Item {
+	newTestItems := func(prefix func(components ...string) backend.Key) []backend.Item {
 		return []backend.Item{
 			{Key: prefix("a"), Value: []byte("A"), Expires: time.Now().Add(1 * time.Hour)},
 			{Key: prefix("b"), Value: []byte("B")},
@@ -87,6 +82,10 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 		}
 	}
 	t.Run("put batch items should be propagated in event stream", func(t *testing.T) {
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(rangeStart)
+
 		w, err := bk.NewWatcher(t.Context(), backend.Watch{})
 		require.NoError(t, err)
 		t.Cleanup(func() { w.Close() })
@@ -98,19 +97,25 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 			require.Equal(t, types.OpInit, ev.Type)
 		}
 
-		items := newTestItems()
+		items := newTestItems(prefix)
+		slices.SortFunc(items, func(a, b backend.Item) int { return a.Key.Compare(b.Key) })
 		rev, err := batcher.PutBatch(t.Context(), items)
 		require.NoError(t, err)
 		require.NotEmpty(t, rev)
 
-		got := waitForEvents(t, w, len(items), watchEventTimeout)
+		got := waitForEvents(t, w, len(items), rangeStart, rangeEnd, watchEventTimeout)
+		slices.SortFunc(got, func(a, b backend.Item) int { return a.Key.Compare(b.Key) })
 		want := buildWant(items, rev)
 		assertItemsEqual(t, want, got)
 		require.NoError(t, bk.DeleteRange(t.Context(), rangeStart, rangeEnd))
 	})
 
 	t.Run("put-create-update", func(t *testing.T) {
-		items := newTestItems()
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(rangeStart)
+
+		items := newTestItems(prefix)
 		rev1, err := batcher.PutBatch(t.Context(), items)
 		require.NoError(t, err)
 		require.NotEmpty(t, rev1)
@@ -142,6 +147,10 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 	})
 
 	t.Run("over-chunk-size", func(t *testing.T) {
+		prefix := MakePrefix()
+		rangeStart := prefix("")
+		rangeEnd := backend.RangeEnd(prefix(""))
+
 		const itemCount = 1000
 		const payloadSize = 300 * 1024 // 300 KiB
 		items := make([]backend.Item, 0, itemCount)
@@ -168,7 +177,7 @@ func runPutBatch(t *testing.T, newBackend Constructor) {
 	})
 }
 
-func waitForEvents(t *testing.T, w backend.Watcher, wantCount int, timeout time.Duration) []backend.Item {
+func waitForEvents(t *testing.T, w backend.Watcher, wantCount int, rangeStart backend.Key, rangeEnd backend.Key, timeout time.Duration) []backend.Item {
 	t.Helper()
 
 	var out []backend.Item
@@ -177,15 +186,14 @@ func waitForEvents(t *testing.T, w backend.Watcher, wantCount int, timeout time.
 
 	for len(out) < wantCount {
 		select {
-		case ev, ok := <-w.Events():
-			if !ok {
-				t.Fatalf("watcher closed before receiving all events: got=%d want=%d", len(out), wantCount)
-			}
-			if ev.Type == types.OpPut {
+		case ev := <-w.Events():
+			if ev.Type == types.OpPut && rangeStart.Compare(ev.Item.Key) <= 0 && ev.Item.Key.Compare(rangeEnd) <= 0 {
 				out = append(out, ev.Item)
 			}
 		case <-w.Done():
 			t.Fatalf("watcher done before receiving all events: got=%d want=%d", len(out), wantCount)
+		case <-deadline.C:
+			t.Fatalf("hit timeout before receiving all events: got=%d want=%d", len(out), wantCount)
 		}
 	}
 	return out

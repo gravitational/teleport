@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -61,35 +59,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, tunnel := range r.tunnels {
 		t.AddRow([]string{
 			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type trustedClusterCollection struct {
-	trustedClusters []types.TrustedCluster
-}
-
-func (c *trustedClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.trustedClusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{
-		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map",
-	})
-	for _, tc := range c.trustedClusters {
-		t.AddRow([]string{
-			tc.GetName(),
-			strconv.FormatBool(tc.GetEnabled()),
-			tc.GetToken(),
-			tc.GetProxyAddress(),
-			tc.GetReverseTunnelAddress(),
-			fmt.Sprintf("%v", tc.CombinedMapping()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -256,7 +225,7 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.items {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
+		rows = append(rows, []string{item.GetMetadata().GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
 	var t asciitable.Table
@@ -267,37 +236,6 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type integrationCollection struct {
-	integrations []types.Integration
-}
-
-func (c *integrationCollection) Resources() (r []types.Resource) {
-	for _, ig := range c.integrations {
-		r = append(r, ig)
-	}
-	return r
-}
-
-func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
-	sort.Sort(types.Integrations(c.integrations))
-	var rows [][]string
-	for _, ig := range c.integrations {
-		specProps := []string{}
-		switch ig.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
-		}
-
-		rows = append(rows, []string{
-			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
-		})
-	}
-	headers := []string{"Name", "Type", "Spec"}
-	t := asciitable.MakeTable(headers, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -371,12 +309,12 @@ func (c *deviceCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
 	for _, device := range c.devices {
 		t.AddRow([]string{
-			device.Id,
-			devicetrust.FriendlyOSType(device.OsType),
-			device.AssetTag,
-			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
-			device.CreateTime.AsTime().Format(time.RFC3339),
-			device.UpdateTime.AsTime().Format(time.RFC3339),
+			device.GetId(),
+			devicetrust.FriendlyOSType(device.GetOsType()),
+			device.GetAssetTag(),
+			devicetrust.FriendlyDeviceEnrollStatus(device.GetEnrollStatus()),
+			device.GetCreateTime().AsTime().Format(time.RFC3339),
+			device.GetUpdateTime().AsTime().Format(time.RFC3339),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

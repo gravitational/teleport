@@ -46,10 +46,10 @@ func Test_makeGatewayCLICommand(t *testing.T) {
 
 	gatewayCmd := makeGatewayCLICommand(cmd.Cmds{Exec: command, Preview: command})
 
-	require.Equal(t, &api.GatewayCLICommand{
+	require.Equal(t, api.GatewayCLICommand_builder{
 		Path:    absPath,
 		Args:    []string{"test-binary", "arg1", "arg2"},
 		Env:     []string{"FOO=bar"},
 		Preview: "FOO=bar test-binary arg1 arg2",
-	}, gatewayCmd)
+	}.Build(), gatewayCmd)
 }

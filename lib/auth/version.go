@@ -61,7 +61,7 @@ func validateAndUpdateTeleportVersion(
 		backendInfo, err := backendStorage.GetBackendInfo(ctx)
 		if trace.IsNotFound(err) {
 			createNewResource = true
-			backendInfo, err = backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{TeleportVersion: teleportVersion.String()})
+			backendInfo, err = backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{TeleportVersion: teleportVersion.String()}.Build())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -94,7 +94,7 @@ func validateAndUpdateTeleportVersion(
 				lastKnownVersion, currentVersion.String())
 		}
 
-		backendInfo.GetSpec().TeleportVersion = currentVersion.String()
+		backendInfo.GetSpec().SetTeleportVersion(currentVersion.String())
 
 		if createNewResource {
 			_, err = backendStorage.CreateBackendInfo(ctx, backendInfo)
@@ -135,9 +135,9 @@ func upsertTeleportVersion(
 	backendStorage services.BackendInfoService,
 	currentVersion semver.Version,
 ) error {
-	backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+	backendInfo, err := backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{
 		TeleportVersion: currentVersion.String(),
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

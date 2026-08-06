@@ -1,0 +1,84 @@
+{
+  "tsh": {
+    "profile_url": "https://azure-tenant.teleport.sh:443",
+    "cluster": "azure-tenant.teleport.sh",
+    "username": "eval"
+  },
+  "tctl": {
+    "cluster": "azure-tenant.teleport.sh",
+    "version": "18.8.0",
+    "discovery_config": {
+      "kind": "discovery_config",
+      "version": "v1",
+      "metadata": { "name": "discovery-eval" },
+      "spec": {
+        "discovery_group": "cloud-discovery-group",
+        "azure": [
+          { "types": ["vm"], "subscriptions": ["00000000-0000-0000-0000-000000000001"], "integration": "discovery" }
+        ]
+      },
+      "status": {
+        "state": "DISCOVERY_CONFIG_STATE_RUNNING",
+        "integrationDiscoveredResources": {
+          "discovery": { "azureVms": { "found": 2, "enrolled": 0, "failed": 2 } }
+        }
+      }
+    },
+    "user_tasks": [
+      {
+        "kind": "user_task",
+        "metadata": { "name": "task-vm-stopped" },
+        "spec": {
+          "integration": "discovery",
+          "task_type": "discover-azure-vm",
+          "issue_type": "azure-vm-not-running",
+          "state": "OPEN",
+          "discover_azure_vm": {
+            "subscription_id": "00000000-0000-0000-0000-000000000001",
+            "resource_group": "my-rg",
+            "region": "eastus",
+            "instances": { "vm-stopped-id": { "name": "vm-stopped", "vm_id": "vm-stopped-id" } }
+          }
+        }
+      },
+      {
+        "kind": "user_task",
+        "metadata": { "name": "task-vm-no-perms" },
+        "spec": {
+          "integration": "discovery",
+          "task_type": "discover-azure-vm",
+          "issue_type": "azure-vm-missing-run-commands-permission",
+          "state": "OPEN",
+          "discover_azure_vm": {
+            "subscription_id": "00000000-0000-0000-0000-000000000001",
+            "resource_group": "my-rg",
+            "region": "eastus",
+            "instances": { "vm-no-perms-id": { "name": "vm-no-perms", "vm_id": "vm-no-perms-id" } }
+          }
+        }
+      },
+      {
+        "kind": "user_task",
+        "metadata": { "name": "task-vm-healthy" },
+        "spec": {
+          "integration": "discovery",
+          "task_type": "discover-azure-vm",
+          "issue_type": "azure-vm-not-running",
+          "state": "RESOLVED",
+          "discover_azure_vm": {
+            "subscription_id": "00000000-0000-0000-0000-000000000001",
+            "resource_group": "my-rg",
+            "region": "eastus",
+            "instances": { "vm-healthy-id": { "name": "vm-healthy", "vm_id": "vm-healthy-id" } }
+          }
+        }
+      }
+    ],
+    "discovery_nodes": [
+      { "name": "vm-stopped", "status": "Failed (exit code=1)", "last_seen": "2026-06-17T09:28:00Z" },
+      { "name": "vm-no-perms", "status": "Failed (exit code=1)", "last_seen": "2026-06-17T09:28:00Z" }
+    ],
+    "tokens": [{ "name": "discovery-azure-abc", "type": "azure,node", "expiry": "never" }],
+    "inventory_discovery": [{ "id": "discovery-svc-1" }]
+  }
+}

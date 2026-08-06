@@ -33,8 +33,8 @@ func TestCache(t *testing.T) {
 
 	// Ensure rules are cached
 	rules := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		{Metadata: &headerv1.Metadata{Name: "test-rule-1"}},
-		{Metadata: &headerv1.Metadata{Name: "test-rule-2"}},
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-1"}.Build()}.Build(),
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-2"}.Build()}.Build(),
 	}
 	cache.Put(rules)
 	require.Len(t, cache.Get(), 2)
@@ -42,14 +42,14 @@ func TestCache(t *testing.T) {
 
 	// Ensure rules are updated
 	updatedRules := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		{Metadata: &headerv1.Metadata{
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{
 			Name:        "test-rule-1",
 			Description: "updated-rule-1",
-		}},
-		{Metadata: &headerv1.Metadata{
+		}.Build()}.Build(),
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{
 			Name:        "test-rule-2",
 			Description: "updated-rule-2",
-		}},
+		}.Build()}.Build(),
 	}
 	cache.Put(updatedRules)
 	require.Len(t, cache.Get(), 2)
@@ -66,12 +66,12 @@ func TestInitializeCache(t *testing.T) {
 	cache := NewCache()
 
 	rulesPageOne := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		{Metadata: &headerv1.Metadata{Name: "test-rule-1"}},
-		{Metadata: &headerv1.Metadata{Name: "test-rule-2"}},
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-1"}.Build()}.Build(),
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-2"}.Build()}.Build(),
 	}
 	rulesPageTwo := []*accessmonitoringrulesv1.AccessMonitoringRule{
-		{Metadata: &headerv1.Metadata{Name: "test-rule-3"}},
-		{Metadata: &headerv1.Metadata{Name: "test-rule-4"}},
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-3"}.Build()}.Build(),
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{Metadata: headerv1.Metadata_builder{Name: "test-rule-4"}.Build()}.Build(),
 	}
 	mockFetchPages := func(ctx context.Context, pageSize int64, pageToken string) (
 		[]*accessmonitoringrulesv1.AccessMonitoringRule,

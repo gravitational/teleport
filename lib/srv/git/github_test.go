@@ -53,32 +53,32 @@ type fakeGitHubUserCertGenerator struct {
 }
 
 func (f fakeGitHubUserCertGenerator) GenerateGitHubUserCert(_ context.Context, input *integrationv1.GenerateGitHubUserCertRequest, _ ...grpc.CallOption) (*integrationv1.GenerateGitHubUserCertResponse, error) {
-	if f.checkTTL != 0 && f.checkTTL != input.Ttl.AsDuration() {
-		return nil, trace.CompareFailed("expect ttl %v but got %v", f.checkTTL, input.Ttl.AsDuration())
+	if f.checkTTL != 0 && f.checkTTL != input.GetTtl().AsDuration() {
+		return nil, trace.CompareFailed("expect ttl %v but got %v", f.checkTTL, input.GetTtl().AsDuration())
 	}
 
 	caSigner, err := apisshutils.MakeTestSSHCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(input.PublicKey)
+	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(input.GetPublicKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user
-		KeyId:       input.KeyId,
+		KeyId:       input.GetKeyId(),
 		Key:         pubKey,
 		ValidAfter:  uint64(f.clock.Now().Add(-time.Minute).Unix()),
-		ValidBefore: uint64(f.clock.Now().Add(input.Ttl.AsDuration()).Unix()),
+		ValidBefore: uint64(f.clock.Now().Add(input.GetTtl().AsDuration()).Unix()),
 		CertType:    ssh.UserCert,
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &integrationv1.GenerateGitHubUserCertResponse{
+	return integrationv1.GenerateGitHubUserCertResponse_builder{
 		AuthorizedKey: ssh.MarshalAuthorizedKey(cert),
-	}, nil
+	}.Build(), nil
 }
 
 func TestMakeGitHubSigner(t *testing.T) {

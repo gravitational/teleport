@@ -63,14 +63,14 @@ func TestUnixAttestor_Attest(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t,
 		cmp.Diff(
-			&workloadidentityv1pb.WorkloadAttrsUnix{
+			workloadidentityv1pb.WorkloadAttrsUnix_builder{
 				Attested:   true,
 				Pid:        int32(pid),
 				Uid:        uint32(uid),
 				Gid:        uint32(gid),
 				BinaryPath: proto.String("/path/to/executable"),
 				BinaryHash: proto.String("b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"),
-			},
+			}.Build(),
 			att,
 			protocmp.Transform(),
 		),
@@ -97,7 +97,7 @@ func TestUnixAttestor_BinaryTooLarge(t *testing.T) {
 
 	att, err := attestor.Attest(ctx, os.Getpid())
 	require.NoError(t, err)
-	require.Nil(t, att.BinaryHash)
+	require.Nil(t, proto.ValueOrNil(att.HasBinaryHash(), att.GetBinaryHash))
 }
 
 type testOS struct {

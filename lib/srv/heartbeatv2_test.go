@@ -119,10 +119,10 @@ func (h *fakeHeartbeatDriver) newStream(ctx context.Context, t *testing.T) clien
 
 	require.IsType(t, *new(*proto.UpstreamInventoryHello), msg)
 
-	err := upstream.Send(ctx, &proto.DownstreamInventoryHello{
+	err := upstream.Send(ctx, proto.DownstreamInventoryHello_builder{
 		ServerID: "test-auth",
 		Version:  teleport.Version,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return upstream
@@ -132,11 +132,11 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 	// streamC is used to pass a fake control stream to the downstream handle's create func.
 	streamC := make(chan client.DownstreamInventoryControlStream)
 
-	hello := &proto.UpstreamInventoryHello{
+	hello := proto.UpstreamInventoryHello_builder{
 		ServerID: "test-node",
 		Version:  teleport.Version,
 		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
-	}
+	}.Build()
 
 	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		// we're emulating an inventory.DownstreamCreateFunc here, but those are typically

@@ -172,6 +172,15 @@ export type WindowsDesktopResourceAccess = {
 };
 
 /**
+ * Fields related to linux desktop access.
+ */
+export type LinuxDesktopResourceAccess = {
+  linux_desktop_labels?: Labels;
+
+  linux_desktop_logins?: string[];
+};
+
+/**
  * A set of conditions that must be matched to allow or deny access. Fields
  * follow the snake case convention to match the wire format.
  */
@@ -182,7 +191,8 @@ export type RoleConditions = {
   GitHubResourceAccess &
   KubernetesResourceAccess &
   ServerResourceAccess &
-  WindowsDesktopResourceAccess;
+  WindowsDesktopResourceAccess &
+  LinuxDesktopResourceAccess;
 
 export type Labels = Record<string, string | string[]>;
 
@@ -216,7 +226,8 @@ export type KubernetesVerb =
   | 'watch'
   | 'deletecollection'
   | 'exec'
-  | 'portforward';
+  | 'portforward'
+  | 'proxy';
 
 export type Rule = {
   /**
@@ -312,6 +323,7 @@ export enum ResourceKind {
   Lock = 'lock',
   LoginRule = 'login_rule',
   MFADevice = 'mfa_device',
+  MobileDevice = 'mobile_device',
   // Ignoring duplicate: KindNamespace = "namespace"
   NetworkRestrictions = 'network_restrictions',
   Node = 'node',

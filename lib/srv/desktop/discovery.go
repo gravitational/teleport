@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -295,9 +296,43 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 	}
 
 	// apply any custom labels per the discovery configuration
+	const maxAttributeLabelLen = 512
 	for _, attr := range cfg.LabelAttributes {
-		if v := entry.GetAttributeValue(attr); v != "" {
-			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
+		values := slices.Clone(entry.GetAttributeValues(attr))
+
+		switch cfg.LabelAttributeMode {
+		case "", servicecfg.LabelAttributeModeFirst:
+			// Take only the first value
+			if len(values) > 1 {
+				values = values[:1]
+			}
+		case servicecfg.LabelAttributeModeJoin:
+			// Prune empty/whitespace values.
+			// (Ideally, we'd do this in all modes, but for backwards compatibility we leave
+			// "first" mode with the legacy behavior)
+			values = slices.DeleteFunc(values, func(v string) bool { return strings.TrimSpace(v) == "" })
+			if len(values) == 0 {
+				continue
+			}
+		}
+
+		// Sort the attributes so the Teleport label is consistent even if AD
+		// returns them in a different order.
+		slices.Sort(values)
+
+		// At this point we can do an unconditional join, because
+		// strings.Join is a no-op on a single-element slice.
+		if value := strings.Join(values, cmp.Or(cfg.LabelAttributeJoinSeparator, "|")); len(value) > 0 {
+			switch cfg.LabelAttributeMode {
+			case "", servicecfg.LabelAttributeModeFirst:
+				// Don't enforce the maximum label attribute length in first mode.
+				// This preserves backwards compatibility.
+			default:
+				if len(value) > maxAttributeLabelLen {
+					continue
+				}
+			}
+			labels[types.DiscoveryLabelLDAPPrefix+attr] = value
 		}
 	}
 }

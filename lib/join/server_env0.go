@@ -55,9 +55,9 @@ func (s *Server) validateEnv0Token(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return verifiedIdentity, &workloadidentityv1.JoinAttrs{
+	return verifiedIdentity, workloadidentityv1.JoinAttrs_builder{
 		Env0: verifiedIdentity.JoinAttrs(),
-	}, nil
+	}.Build(), nil
 }
 
 func checkEnv0AllowRules(token *types.ProvisionTokenV2, claims *env0.IDTokenClaims) error {

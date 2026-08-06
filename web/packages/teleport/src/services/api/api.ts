@@ -17,6 +17,8 @@
  */
 
 import 'whatwg-fetch';
+import { getErrorMessage } from 'shared/utils/error';
+
 import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
 import websession from 'teleport/services/websession';
 
@@ -32,6 +34,10 @@ type RequestOptions = {
    * challenge.
    */
   skipAuthnRetry?: boolean;
+  /**
+   * If set to `true`, the MFA response on an authn retry will be reusable.
+   */
+  allowReuse?: boolean;
 };
 
 const api = {
@@ -273,7 +279,7 @@ const api = {
         !options.skipAuthnRetry &&
         isAdminActionRequiresMfaError(err)
       ) {
-        mfaResponse = await api.getAdminActionMfaResponse();
+        mfaResponse = await api.getAdminActionMfaResponse(options.allowReuse);
         const response = await api.fetch(url, customOptions, mfaResponse);
         return await api.getJsonFromFetchResponse(response);
       } else {
@@ -289,7 +295,7 @@ const api = {
     } catch (err) {
       // error reading JSON
       const message = response.ok
-        ? err.message
+        ? getErrorMessage(err)
         : `${response.status} - ${response.url}`;
       throw new ApiError({ message, response, opts: { cause: err } });
     }
@@ -318,9 +324,10 @@ const api = {
     });
   },
 
-  async getAdminActionMfaResponse() {
+  async getAdminActionMfaResponse(allowReuse?: boolean) {
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
     });
 
     if (!challenge) {
@@ -450,8 +457,8 @@ export function getHostName() {
   return location.hostname + (location.port ? ':' + location.port : '');
 }
 
-export function isAdminActionRequiresMfaError(err: Error) {
-  return err.message.includes(
+export function isAdminActionRequiresMfaError(err: unknown) {
+  return getErrorMessage(err).includes(
     'admin-level API request requires MFA verification'
   );
 }

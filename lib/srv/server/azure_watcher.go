@@ -38,8 +38,8 @@ import (
 
 const azureEventPrefix = "azure/"
 
-// AzureInstances contains information about discovered Azure virtual machines.
-type AzureInstances struct {
+// AzureInstancesMetadata contains information about discovered Azure virtual machines.
+type AzureInstancesMetadata struct {
 	// DiscoveryConfigName is the name of discovery config.
 	DiscoveryConfigName string
 	// Integration is the optional name of the integration to use for auth.
@@ -54,43 +54,37 @@ type AzureInstances struct {
 
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
-	// Instances is a list of discovered Azure virtual machines.
-	Instances []*azure.VirtualMachine
 }
 
-func (instances *AzureInstances) LogValue() slog.Value {
-	if instances == nil {
-		return slog.StringValue("<nil>")
-	}
+func (md AzureInstancesMetadata) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.Int("total_instances", len(instances.Instances)),
-		slog.String("discovery_config", instances.DiscoveryConfigName),
-		slog.String("integration", instances.Integration),
-		slog.String("region", instances.Region),
-		slog.String("resource_group", instances.ResourceGroup),
-		slog.String("subscription_id", instances.SubscriptionID),
+		slog.String("discovery_config", md.DiscoveryConfigName),
+		slog.String("integration", md.Integration),
+		slog.String("region", md.Region),
+		slog.String("resource_group", md.ResourceGroup),
+		slog.String("subscription_id", md.SubscriptionID),
 	)
 }
 
-func (instances *AzureInstances) resourceType() string {
-	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
+func (md *AzureInstancesMetadata) resourceType() string {
+	if md.InstallerParams != nil && md.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		return types.DiscoveredResourceAgentlessNode
 	}
 	return types.DiscoveredResourceNode
 }
 
 // MakeUsageEvent builds usage event for a single installation result.
-func (instances *AzureInstances) MakeUsageEvent(instance *azure.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
+func (md *AzureInstancesMetadata) MakeUsageEvent(instance *azure.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
 	return azureEventPrefix + instance.ID, &usageeventsv1.ResourceCreateEvent{
-		ResourceType:        instances.resourceType(),
+		ResourceType:        md.resourceType(),
 		ResourceOrigin:      types.OriginCloud,
 		CloudProvider:       types.CloudAzure,
-		DiscoveryConfigName: instances.DiscoveryConfigName,
+		DiscoveryConfigName: md.DiscoveryConfigName,
 	}
 }
 
 // MakeRunEvent builds run event for a single command run.
-func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apievents.AzureRun {
+func (md *AzureInstancesMetadata) MakeRunEvent(result AzureInstallResult) *apievents.AzureRun {
 	eventCode := libevents.AzureRunSuccessCode
 
 	if result.Failure() {
@@ -110,10 +104,10 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 			Code: eventCode,
 		},
 		AzureMetadata: apievents.AzureMetadata{
-			SubscriptionID: instances.SubscriptionID,
-			ResourceGroup:  instances.ResourceGroup,
+			SubscriptionID: md.SubscriptionID,
+			ResourceGroup:  md.ResourceGroup,
 			ResourceID:     resourceID,
-			Region:         instances.Region,
+			Region:         md.Region,
 		},
 		AzureVMMetadata: apievents.AzureVMMetadata{
 			VMID:   vmID,
@@ -143,17 +137,31 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 	return evt
 }
 
+// AzureInstances contains a list of discovered Azure virtual machines and
+// metadata.
+type AzureInstances struct {
+	Metadata AzureInstancesMetadata
+
+	// Instances is a list of discovered Azure virtual machines.
+	Instances []*azure.VirtualMachine
+}
+
+// LogValue implements [slog.LogValuer].
+func (instances *AzureInstances) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int("count", len(instances.Instances)),
+		slog.Any("metadata", instances.Metadata),
+	)
+}
+
 // FilterExistingNodes removes instances matching existing nodes in place.
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
-		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.SubscriptionID {
+		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabelInternal]
-		if vmID != "" {
+		if vmID := types.GetAzureVMID(node); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}
@@ -168,44 +176,44 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
-// MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(
+// MatcherToAzureInstanceFetchers converts an Azure VM matcher into Azure VM fetchers.
+func MatcherToAzureInstanceFetchers(
 	ctx context.Context,
 	logger *slog.Logger,
-	matchers []types.AzureMatcher,
+	matcher types.AzureMatcher,
 	getClient azureClientGetter,
 	discoveryConfigName string,
 	listSubs listSubscriptionsFunc,
-) []Fetcher[*AzureInstances] {
-	ret := make([]Fetcher[*AzureInstances], 0)
-	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
-		for _, subscription := range matcher.Subscriptions {
-			for _, resourceGroup := range matcher.ResourceGroups {
-				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-					Matcher:             matcher,
-					Subscription:        subscription,
-					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   getClient,
-					DiscoveryConfigName: discoveryConfigName,
-					Logger:              logger,
-				})
-				ret = append(ret, fetcher)
-			}
+) ([]Fetcher[*AzureInstances], error) {
+	subscriptions, err := expandAzureMatcherSubscriptions(ctx, matcher.Subscriptions, matcher.Integration, listSubs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fetchers := make([]Fetcher[*AzureInstances], 0, len(subscriptions)*len(matcher.ResourceGroups))
+	for _, subscription := range subscriptions {
+		for _, resourceGroup := range matcher.ResourceGroups {
+			fetchers = append(fetchers, newAzureInstanceFetcher(azureFetcherConfig{
+				Matcher:             matcher,
+				Subscription:        subscription,
+				ResourceGroup:       resourceGroup,
+				AzureClientGetter:   getClient,
+				DiscoveryConfigName: discoveryConfigName,
+				Logger:              logger,
+			}))
 		}
 	}
-	return ret
+	return fetchers, nil
 }
 
 // expandAzureMatcherSubscriptions fetches the subscriptions for any wildcard
 // subscriptions and replaces the wildcard with the subscriptions list.
 func expandAzureMatcherSubscriptions(
 	ctx context.Context,
-	logger *slog.Logger,
 	subscriptions []string,
 	integration string,
 	listSubs listSubscriptionsFunc,
-) []string {
+) ([]string, error) {
 	var out []string
 	for _, sub := range subscriptions {
 		if sub != types.Wildcard {
@@ -213,17 +221,18 @@ func expandAzureMatcherSubscriptions(
 			continue
 		}
 		subs, err := listSubs(ctx, integration)
+		// Azure can return a successful response with no subscriptions when the
+		// identity has no subscription-scoped access. Treat this as a resolution
+		// failure so wildcard discovery doesn't silently produce 0 fetchers.
+		if err == nil && len(subs) == 0 {
+			err = trace.NotFound("Azure returned no subscriptions for wildcard in discovery configuration")
+		}
 		if err != nil {
-			// TODO(gavin): make a user task
-			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
-				"integration", integration,
-				"error", err,
-			)
-			continue
+			return nil, trace.Wrap(err)
 		}
 		out = append(out, subs...)
 	}
-	return utils.Deduplicate(out)
+	return utils.Deduplicate(out), nil
 }
 
 type azureFetcherConfig struct {
@@ -301,7 +310,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
+	nonLinuxVMIDs := make([]string, 0)
 	for _, vm := range vms {
+		// Teleport only supports Linux nodes, so we filter out non-Linux VMs.
+		// If the OS is unknown, we allow it because the OS type might not always be present in the API response.
+		if !vm.IsLinuxOrUnknown() {
+			nonLinuxVMIDs = append(nonLinuxVMIDs, vm.ID)
+			continue
+		}
+
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
@@ -316,17 +333,32 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 		instanceGroups[batchGroup] = append(instanceGroups[batchGroup], vm)
 	}
+	if len(nonLinuxVMIDs) > 0 {
+		// Show at most 10 non-Linux VM IDs in the log message to avoid spamming the logs.
+		sampleSize := min(len(nonLinuxVMIDs), 10)
+		nonLinuxVMIDsSample := make([]string, sampleSize)
+		copy(nonLinuxVMIDsSample, nonLinuxVMIDs[:sampleSize])
+
+		f.Logger.DebugContext(ctx, "Skipped non Linux VMs in Azure Server Discovery",
+			"fetcher", f,
+			"total_vms", len(vms),
+			"skipped_vms", len(nonLinuxVMIDs),
+			"skipped_vms_sample", nonLinuxVMIDsSample,
+		)
+	}
 
 	var instances []*AzureInstances
 	for batchGroup, vms := range instanceGroups {
 		instances = append(instances, &AzureInstances{
-			SubscriptionID:      f.Subscription,
-			Region:              batchGroup.location,
-			ResourceGroup:       batchGroup.resourceGroup,
-			Instances:           vms,
-			Integration:         f.Integration,
-			InstallerParams:     f.InstallerParams,
-			DiscoveryConfigName: f.DiscoveryConfigName,
+			Metadata: AzureInstancesMetadata{
+				SubscriptionID:      f.Subscription,
+				Region:              batchGroup.location,
+				ResourceGroup:       batchGroup.resourceGroup,
+				Integration:         f.Integration,
+				InstallerParams:     f.InstallerParams,
+				DiscoveryConfigName: f.DiscoveryConfigName,
+			},
+			Instances: vms,
 		})
 	}
 

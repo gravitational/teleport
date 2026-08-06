@@ -27,6 +27,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -171,6 +172,164 @@ func assumeRoleRequest(requestDuration time.Duration) makeRequest {
 	}
 }
 
+func assumeRoleRequestByAssumedRole(requestDuration time.Duration) makeRequest {
+	return func(ctx context.Context, url string, region string, provider aws.CredentialsProvider, awsHost string) error {
+		stsClient := stsutils.NewFromConfig(aws.Config{
+			Credentials:      provider,
+			BaseEndpoint:     &url,
+			Region:           region,
+			RetryMaxAttempts: 0,
+			HTTPClient: &http.Client{
+				Timeout:   5 * time.Second,
+				Transport: &requestByAssumedRoleTransport{xForwardedHost: awsHost},
+			},
+		})
+		_, err := stsClient.AssumeRole(ctx, &sts.AssumeRoleInput{
+			DurationSeconds: aws.Int32(int32(requestDuration.Seconds())),
+			RoleSessionName: aws.String("test-session"),
+			RoleArn:         aws.String("arn:aws:iam::123456789012:role/test-role"),
+		})
+		return err
+	}
+}
+
+func assumeRoleQueryRequest(requestDuration time.Duration) makeRequest {
+	return func(ctx context.Context, urlString string, region string, provider aws.CredentialsProvider, awsHost string) error {
+		requestURL, err := url.Parse(urlString)
+		if err != nil {
+			return err
+		}
+		query := requestURL.Query()
+		query.Set("Action", "AssumeRole")
+		query.Set("Version", "2011-06-15")
+		query.Set("RoleArn", "arn:aws:iam::123456789012:role/test-role")
+		query.Set("RoleSessionName", "test-session")
+		query.Set("DurationSeconds", strconv.Itoa(int(requestDuration.Seconds())))
+		requestURL.RawQuery = query.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), http.NoBody)
+		if err != nil {
+			return err
+		}
+		creds, err := provider.Retrieve(ctx)
+		if err != nil {
+			return err
+		}
+		if err := awsutils.NewSigner("sts").SignHTTP(ctx, creds, req, awsutils.EmptyPayloadHash, "sts", region, time.Now()); err != nil {
+			return err
+		}
+		req.Host = awsHost
+		req.Header.Add("X-Forwarded-Host", awsHost)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if resp.StatusCode >= http.StatusBadRequest {
+			return trace.BadParameter("unexpected status %v", resp.Status)
+		}
+		return nil
+	}
+}
+
+func assumeRoleQueryRequestByAssumedRole(requestDuration time.Duration) makeRequest {
+	return func(ctx context.Context, urlString string, region string, provider aws.CredentialsProvider, awsHost string) error {
+		requestURL, err := url.Parse(urlString)
+		if err != nil {
+			return err
+		}
+		query := requestURL.Query()
+		query.Set("Action", "AssumeRole")
+		query.Set("Version", "2011-06-15")
+		query.Set("RoleArn", "arn:aws:iam::123456789012:role/test-role")
+		query.Set("RoleSessionName", "test-session")
+		query.Set("DurationSeconds", strconv.Itoa(int(requestDuration.Seconds())))
+		requestURL.RawQuery = query.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), http.NoBody)
+		if err != nil {
+			return err
+		}
+		creds, err := provider.Retrieve(ctx)
+		if err != nil {
+			return err
+		}
+		if err := awsutils.NewSigner("sts").SignHTTP(ctx, creds, req, awsutils.EmptyPayloadHash, "sts", region, time.Now()); err != nil {
+			return err
+		}
+		req.Host = awsHost
+		req.Header.Add("X-Forwarded-Host", awsHost)
+		req.Header.Add(common.TeleportAWSAssumedRole, fakeAssumedRoleARN)
+		utils.RenameHeader(req.Header, awsutils.AuthorizationHeader, common.TeleportAWSAssumedRoleAuthorization)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if resp.StatusCode >= http.StatusBadRequest {
+			return trace.BadParameter("unexpected status %v", resp.Status)
+		}
+		return nil
+	}
+}
+
+func assumeRoleMixedRequest(queryDuration, bodyDuration time.Duration) makeRequest {
+	return func(ctx context.Context, urlString string, region string, provider aws.CredentialsProvider, awsHost string) error {
+		requestURL, err := url.Parse(urlString)
+		if err != nil {
+			return err
+		}
+		query := requestURL.Query()
+		query.Set("Action", "AssumeRole")
+		query.Set("Version", "2011-06-15")
+		query.Set("RoleArn", "arn:aws:iam::123456789012:role/test-role")
+		query.Set("RoleSessionName", "test-session")
+		query.Set("DurationSeconds", strconv.Itoa(int(queryDuration.Seconds())))
+		requestURL.RawQuery = query.Encode()
+
+		form := url.Values{
+			"Action":          {"AssumeRole"},
+			"Version":         {"2011-06-15"},
+			"RoleArn":         {"arn:aws:iam::123456789012:role/test-role"},
+			"RoleSessionName": {"test-session"},
+			"DurationSeconds": {strconv.Itoa(int(bodyDuration.Seconds()))},
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), strings.NewReader(form.Encode()))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		creds, err := provider.Retrieve(ctx)
+		if err != nil {
+			return err
+		}
+		payloadHash, err := awsutils.GetV4PayloadHash(req)
+		if err != nil {
+			return err
+		}
+		if err := awsutils.NewSigner("sts").SignHTTP(ctx, creds, req, payloadHash, "sts", region, time.Now()); err != nil {
+			return err
+		}
+		req.Host = awsHost
+		req.Header.Add("X-Forwarded-Host", awsHost)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if resp.StatusCode >= http.StatusBadRequest {
+			return trace.BadParameter("unexpected status %v", resp.Status)
+		}
+		return nil
+	}
+}
+
 type requestByHTTPSProxy struct {
 	xForwardedHost string
 }
@@ -200,6 +359,13 @@ func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
 		var respErr *transporthttp.ResponseError
 		require.ErrorAs(t, err, &respErr, msgAndArgs...)
 		require.Equal(t, wantStatusCode, respErr.Response.StatusCode, msgAndArgs...)
+	}
+}
+
+func hasUnexpectedStatus(wantStatusCode int) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.Error(t, err, msgAndArgs...)
+		require.Contains(t, err.Error(), strconv.Itoa(wantStatusCode)+" "+http.StatusText(wantStatusCode), msgAndArgs...)
 	}
 }
 
@@ -428,6 +594,40 @@ func TestAWSSignerHandler(t *testing.T) {
 			},
 		},
 		{
+			name:                   "AssumeRole query success (shorter identity duration)",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleQueryRequest(12 * time.Hour),
+			advanceClock:           30 * time.Minute,
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
+			verifySentRequest:      verifyAssumeRoleDuration(30 * time.Minute), // 1h (suite default for identity) - 30m
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name:                   "AssumeRole query and body success (shorter identity duration)",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForClient,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleMixedRequest(12*time.Hour, 45*time.Minute),
+			advanceClock:           30 * time.Minute,
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      "FAKEACCESSKEYID",
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
+			verifySentRequest:      verifyAssumeRoleDuration(30 * time.Minute), // 1h (suite default for identity) - 30m
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
 			name:                   "AssumeRole success (shorter requested duration)",
 			app:                    consoleApp,
 			awsCredentialsProvider: staticAWSCredentialsForClient,
@@ -441,6 +641,46 @@ func TestAWSSignerHandler(t *testing.T) {
 			verifySentRequest:      verifyAssumeRoleDuration(32 * time.Minute), // matches the request
 			errAssertionFns: []require.ErrorAssertionFunc{
 				require.NoError,
+			},
+		},
+		{
+			name:                   "AssumeRole by assumed role success (shorter requested duration)",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForAssumedRole,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequestByAssumedRole(32 * time.Minute),
+			wantHost:               "sts.amazonaws.com",
+			wantAuthCredKeyID:      assumedRoleKeyID, // not using service's access key ID
+			wantAuthCredService:    "sts",
+			wantAuthCredRegion:     "us-east-1",
+			wantEventType:          &events.AppSessionRequest{},
+			wantAssumedRole:        fakeAssumedRoleARN, // verifies assumed role is recorded in audit
+			skipVerifySignature:    true,               // not re-signing
+			verifySentRequest:      verifyAssumeRoleDuration(32 * time.Minute),
+			errAssertionFns: []require.ErrorAssertionFunc{
+				require.NoError,
+			},
+		},
+		{
+			name:                   "AssumeRole query by assumed role denied",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForAssumedRole,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleQueryRequestByAssumedRole(2 * time.Hour),
+			wantHost:               "sts.amazonaws.com",
+			errAssertionFns: []require.ErrorAssertionFunc{
+				hasUnexpectedStatus(http.StatusForbidden),
+			},
+		},
+		{
+			name:                   "AssumeRole by assumed role denied",
+			app:                    consoleApp,
+			awsCredentialsProvider: staticAWSCredentialsForAssumedRole,
+			awsRegion:              "us-east-1",
+			request:                assumeRoleRequestByAssumedRole(2 * time.Hour),
+			wantHost:               "sts.amazonaws.com",
+			errAssertionFns: []require.ErrorAssertionFunc{
+				hasStatusCode(http.StatusForbidden),
 			},
 		},
 		{
@@ -472,7 +712,6 @@ func TestAWSSignerHandler(t *testing.T) {
 				assert.Equal(t, tc.wantAuthCredRegion, awsAuthHeader.Region)
 				assert.Equal(t, tc.wantAuthCredKeyID, awsAuthHeader.KeyID)
 				assert.Equal(t, tc.wantAuthCredService, awsAuthHeader.Service)
-
 				// check that the signature is valid.
 				if !tc.skipVerifySignature {
 					err := awsutils.VerifyAWSSignature(r,
@@ -677,10 +916,10 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 
 func verifyAssumeRoleDuration(wantDuration time.Duration) func(*testing.T, *http.Request) {
 	return func(t *testing.T, req *http.Request) {
-		clone, err := cloneRequest(req)
+		assumeRoleReq, err := getAssumeRoleRequest(req)
 		require.NoError(t, err)
-		require.NoError(t, clone.ParseForm())
-		require.Equal(t, wantDuration, getAssumeRoleQueryDuration(clone.PostForm))
+		require.NotNil(t, assumeRoleReq)
+		require.Equal(t, wantDuration, assumeRoleReq.getDuration())
 	}
 }
 

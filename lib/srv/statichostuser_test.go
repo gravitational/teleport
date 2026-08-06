@@ -141,23 +141,23 @@ func TestStaticHostUserHandler(t *testing.T) {
 	makeStaticHostUser := func(name string, labels map[string]string, groups []string) *userprovisioningv2.StaticHostUser {
 		nodeLabels := make([]*labelv1.Label, 0, len(labels))
 		for k, v := range labels {
-			nodeLabels = append(nodeLabels, &labelv1.Label{
+			nodeLabels = append(nodeLabels, labelv1.Label_builder{
 				Name:   k,
 				Values: []string{v},
-			})
+			}.Build())
 		}
-		return userprovisioning.NewStaticHostUser(name, &userprovisioningv2.StaticHostUserSpec{
+		return userprovisioning.NewStaticHostUser(name, userprovisioningv2.StaticHostUserSpec_builder{
 			Matchers: []*userprovisioningv2.Matcher{
-				{
+				userprovisioningv2.Matcher_builder{
 					NodeLabels:   nodeLabels,
 					Groups:       groups,
 					Uid:          1234,
 					Gid:          5678,
 					Sudoers:      []string{"abcd1234"},
 					DefaultShell: "/bin/bash",
-				},
+				}.Build(),
 			},
-		})
+		}.Build())
 	}
 
 	tests := []struct {
@@ -187,20 +187,20 @@ func TestStaticHostUserHandler(t *testing.T) {
 			},
 			assert: assert.NoError,
 			wantUsers: map[string]*decisionpb.HostUsersInfo{
-				"test-1": {
+				"test-1": decisionpb.HostUsersInfo_builder{
 					Groups: []string{"foo", "bar"},
 					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 					Uid:    "1234",
 					Gid:    "5678",
 					Shell:  "/bin/bash",
-				},
-				"test-2": {
+				}.Build(),
+				"test-2": decisionpb.HostUsersInfo_builder{
 					Groups: []string{"baz", "quux"},
 					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 					Uid:    "1234",
 					Gid:    "5678",
 					Shell:  "/bin/bash",
-				},
+				}.Build(),
 			},
 			wantSudoers: map[string][]string{
 				"test-1": {"abcd1234"},
@@ -228,23 +228,23 @@ func TestStaticHostUserHandler(t *testing.T) {
 		{
 			name: "ignore multiple matches",
 			existingUsers: []*userprovisioningv2.StaticHostUser{
-				userprovisioning.NewStaticHostUser("test", &userprovisioningv2.StaticHostUserSpec{
+				userprovisioning.NewStaticHostUser("test", userprovisioningv2.StaticHostUserSpec_builder{
 					Matchers: []*userprovisioningv2.Matcher{
-						{
+						userprovisioningv2.Matcher_builder{
 							NodeLabels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "foo",
 									Values: []string{"bar"},
-								},
+								}.Build(),
 							},
 							Groups: []string{"foo", "bar"},
-						},
-						{
+						}.Build(),
+						userprovisioningv2.Matcher_builder{
 							NodeLabelsExpression: "labels.foo == 'bar'",
 							Groups:               []string{"baz", "quux"},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			events: []types.Event{
 				{
@@ -280,13 +280,13 @@ func TestStaticHostUserHandler(t *testing.T) {
 			},
 			assert: assert.NoError,
 			wantUsers: map[string]*decisionpb.HostUsersInfo{
-				"test": {
+				"test": decisionpb.HostUsersInfo_builder{
 					Groups: []string{"bar"},
 					Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
 					Uid:    "1234",
 					Gid:    "5678",
 					Shell:  "/bin/bash",
-				},
+				}.Build(),
 			},
 			wantSudoers: map[string][]string{
 				"test": {"abcd1234"},

@@ -329,8 +329,8 @@ func TestHandshaker(t *testing.T) {
 		require.IsType(t, &tdpb.ClientHello{}, msg)
 		// Make sure everything got translated correctly.
 		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
-		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
-		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
+		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.GetWidth())
+		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.GetHeight())
 	})
 
 	t.Run("tdpb-client", func(t *testing.T) {
@@ -348,10 +348,10 @@ func TestHandshaker(t *testing.T) {
 
 		// Send Client Hello plus a random message to be withheld
 		hello := &tdpb.ClientHello{
-			ScreenSpec: &tdpbv1.ClientScreenSpec{
+			ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 				Width:  1,
 				Height: 2,
-			},
+			}.Build(),
 			KeyboardLayout: 12,
 		}
 		require.NoError(t, tdp.EncodeTo(&clientConn, hello))
@@ -366,8 +366,8 @@ func TestHandshaker(t *testing.T) {
 		// Should get the Client Hello back
 		require.IsType(t, &tdpb.ClientHello{}, msg)
 		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
-		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
-		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
+		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.GetWidth())
+		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.GetHeight())
 		assert.Equal(t, uint32(12), msg.(*tdpb.ClientHello).KeyboardLayout)
 
 		// Should be empty
@@ -401,10 +401,10 @@ func TestHandshaker(t *testing.T) {
 	t.Run("withheld-tdpb-messages-are-translated", func(t *testing.T) {
 		tdpbHandshaker := tdpbHandshaker{
 			hello: &tdpb.ClientHello{
-				ScreenSpec: &tdpbv1.ClientScreenSpec{
+				ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 					Width:  10,
 					Height: 10,
-				},
+				}.Build(),
 				KeyboardLayout: 1,
 			},
 			withheld: []tdp.Message{&tdpb.MouseMove{X: 1, Y: 2}},

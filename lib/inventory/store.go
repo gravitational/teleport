@@ -72,12 +72,12 @@ func (s *Store) Handles(serverID string) iter.Seq[UpstreamHandle] {
 
 // Insert adds a new handle to the store.
 func (s *Store) Insert(handle UpstreamHandle) {
-	s.getShard(handle.Hello().ServerID).insert(handle)
+	s.getShard(handle.Hello().GetServerID()).insert(handle)
 }
 
 // Remove removes the handle from the store.
 func (s *Store) Remove(handle UpstreamHandle) {
-	s.getShard(handle.Hello().ServerID).remove(handle)
+	s.getShard(handle.Hello().GetServerID()).remove(handle)
 }
 
 // UniqueHandles iterates across unique handles registered with this store.
@@ -194,10 +194,10 @@ func (s *shard) iterWithDuplicates(fn func(UpstreamHandle)) {
 func (s *shard) insert(handle UpstreamHandle) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	e, ok := s.m[handle.Hello().ServerID]
+	e, ok := s.m[handle.Hello().GetServerID()]
 	if !ok {
 		e = &entry{}
-		s.m[handle.Hello().ServerID] = e
+		s.m[handle.Hello().GetServerID()] = e
 	}
 	e.handles = append(e.handles, handle)
 }
@@ -205,7 +205,7 @@ func (s *shard) insert(handle UpstreamHandle) {
 func (s *shard) remove(handle UpstreamHandle) {
 	s.rw.Lock()
 	defer s.rw.Unlock()
-	e, ok := s.m[handle.Hello().ServerID]
+	e, ok := s.m[handle.Hello().GetServerID()]
 	if !ok {
 		return
 	}
@@ -213,7 +213,7 @@ func (s *shard) remove(handle UpstreamHandle) {
 		if handle == h {
 			e.handles = swapRemove(e.handles, i)
 			if len(e.handles) == 0 {
-				delete(s.m, handle.Hello().ServerID)
+				delete(s.m, handle.Hello().GetServerID())
 			}
 			return
 		}

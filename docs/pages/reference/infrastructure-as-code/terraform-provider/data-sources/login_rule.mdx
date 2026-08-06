@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_login_rule Terraform data-source
 sidebar_label: login_rule
-description: This page describes the supported values of the teleport_login_rule data-source of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_login_rule data-source of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_login_rule
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the `teleport_login_rule` data source of the
+This page lists the supported values of the `teleport_login_rule` data source of the
 Teleport Terraform provider.
 
 
@@ -23,12 +24,12 @@ Teleport Terraform provider.
 
 ### Required
 
+- `metadata` (Attributes) Metadata is resource metadata. (see [below for nested schema](#nested-schema-for-metadata))
 - `priority` (Number) Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first.
 - `version` (String) Version is the resource version.
 
 ### Optional
 
-- `metadata` (Attributes) Metadata is resource metadata. (see [below for nested schema](#nested-schema-for-metadata))
 - `traits_expression` (String) TraitsExpression is a predicate expression which should return the desired traits for the user upon login.
 - `traits_map` (Attributes Map) TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait. (see [below for nested schema](#nested-schema-for-traits_map))
 

@@ -236,12 +236,119 @@ variable "discovery_service_iam_credential_source" {
     )
     error_message = "The discovery service AWS IAM credential source must be configured to assume the AWS IAM role for discovery either via OIDC integration or by assuming the role with an external ID, but not both."
   }
+}
+
+variable "aws_organization_iam_policies" {
+  description = "AWS IAM policy customizations for organization-wide discovery to be created in AWS management account."
+  type = object({
+    account_enumeration = optional(object({
+      name            = optional(string, "teleport-organization-account-enumeration")
+      use_name_prefix = optional(bool, true)
+      document        = optional(string, "")
+    }), {})
+    join_validation = optional(object({
+      name            = optional(string, "teleport-organization-join-validation")
+      use_name_prefix = optional(bool, true)
+      document        = optional(string, "")
+    }), {})
+  })
+  default  = {}
+  nullable = false
 
   validation {
-    condition = !(
-      !var.discovery_service_iam_credential_source.use_oidc_integration
-      && try(var.discovery_service_iam_credential_source.trust_role.role_arn, "") == ""
+    condition = can(regex("^[\\w+=,.@-]{1,128}$", var.aws_organization_iam_policies.account_enumeration.name))
+    # Regex can be found at:
+    # https://docs.aws.amazon.com/IAM/latest/APIReference/API_Policy.html
+    error_message = "Provide a valid AWS IAM Policy name for account_enumeration."
+  }
+  validation {
+    condition = can(regex("^[\\w+=,.@-]{1,128}$", var.aws_organization_iam_policies.join_validation.name))
+    # Regex can be found at:
+    # https://docs.aws.amazon.com/IAM/latest/APIReference/API_Policy.html
+    error_message = "Provide a valid AWS IAM Policy name for join_validation."
+  }
+}
+
+variable "aws_organization_discovery" {
+  description = <<EOT
+Discover resources in accounts under the organization, filtered by Organizational Units (the Organization's Root ID or `*` can be used to include the entire organization).
+A specific IAM role must be created in each account, to be assumed by the Discovery Service. Check the module outputs for the trust relationship and permissions required for the role.
+Limitations: only EC2 is supported.
+EOT
+
+  type = object({
+    organizational_units = object({
+      include = list(string)
+      exclude = optional(list(string), null)
+    })
+  })
+  default  = null
+  nullable = true
+
+  validation {
+    condition = var.aws_organization_discovery == null ? true : (
+      length(var.aws_organization_discovery.organizational_units.include) > 0
     )
-    error_message = "If the discovery service is to assume the discovery IAM role without OIDC (`use_oidc_integration` is set to false), then `trust_role.role_arn` must be set to a non-empty value."
+    error_message = "When enabling AWS Organization discovery, at least one organizational unit must be included - the root ID or `*` can be used to include the entire organization."
+  }
+
+  validation {
+    condition = var.aws_organization_discovery == null ? true : (
+      !contains(var.aws_organization_discovery.organizational_units.include, "*")
+      || length(var.aws_organization_discovery.organizational_units.include) == 1
+    )
+    error_message = "When using `*` to include all Organizational Units, it must be the only entry in organizational_units.include."
+  }
+
+  validation {
+    condition = var.aws_organization_discovery == null ? true : alltrue([
+      for ou in var.aws_organization_discovery.organizational_units.include :
+      ou == "*" || can(regex("^(r-[a-z0-9]{4,32}|ou-[a-z0-9]{4,32}-[a-z0-9]{8,32})$", ou))
+    ])
+    # Regex can be found at:
+    # https://docs.aws.amazon.com/organizations/latest/APIReference/API_Root.html
+    # https://docs.aws.amazon.com/organizations/latest/APIReference/API_OrganizationalUnit.html
+    error_message = "Included Organizational Units must each be `*`, the Organization Root ID (`r-xy`), or an Organizational Unit ID (`ou-xy-abcdefgh`)."
+  }
+
+  validation {
+    condition = var.aws_organization_discovery == null ? true : (
+      var.aws_organization_discovery.organizational_units.exclude == null ? true : alltrue([
+        for ou in var.aws_organization_discovery.organizational_units.exclude :
+        can(regex("^(r-[a-z0-9]{4,32}|ou-[a-z0-9]{4,32}-[a-z0-9]{8,32})$", ou))
+      ])
+    )
+    # Regex can be found at:
+    # https://docs.aws.amazon.com/organizations/latest/APIReference/API_Root.html
+    # https://docs.aws.amazon.com/organizations/latest/APIReference/API_OrganizationalUnit.html
+    error_message = "Excluded Organizational Units must each be an Organization Root ID (`r-xy`) or an Organizational Unit ID (`ou-xy-abcdefgh`). Wildcards are not allowed in exclude."
+  }
+}
+
+variable "aws_child_account_iam_role_name" {
+  description = "Name for the AWS IAM role to assume in child accounts. This role must be created manually in each account. Check the module outputs `aws_child_account_iam_role_template` for the trust relationship and permissions required."
+  type        = string
+  default     = "teleport-organization-discovery-child-account-role"
+  nullable    = false
+  validation {
+    condition = can(regex("^[\\w+=,.@-]{1,64}$", var.aws_child_account_iam_role_name))
+    # Regex can be found at:
+    # https://docs.aws.amazon.com/IAM/latest/APIReference/API_Role.html
+    error_message = "Provide a valid AWS IAM Role name."
+  }
+}
+
+variable "aws_organization_discovery_iam_principal_arn" {
+  description = "ARN of the AWS IAM principal used by the Discovery Service when AWS Organization discovery is configured without an OIDC integration. Required only when aws_organization_discovery is set and discovery_service_iam_credential_source.use_oidc_integration is false; this ARN is used in the child-account IAM role trust policy template."
+  type        = string
+  default     = ""
+  nullable    = false
+
+  validation {
+    condition = (
+      var.aws_organization_discovery_iam_principal_arn == ""
+      || can(regex("^arn:aws[a-zA-Z-]*:iam::[0-9]{12}:(role|user)/[^*?]+$", var.aws_organization_discovery_iam_principal_arn))
+    )
+    error_message = "Provide a valid AWS IAM role or user ARN for aws_organization_discovery_iam_principal_arn."
   }
 }

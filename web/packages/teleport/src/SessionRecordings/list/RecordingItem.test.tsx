@@ -58,6 +58,7 @@ async function setupTest({
   viewMode = ViewMode.List,
   density = Density.Comfortable,
   actionComponent,
+  badgeComponent,
 }: Partial<RecordingItemProps>) {
   const ctx = createTeleportContext();
 
@@ -66,6 +67,7 @@ async function setupTest({
       <ContextProvider ctx={ctx}>
         <RecordingItem
           actionComponent={actionComponent}
+          badgeComponent={badgeComponent}
           recording={recording}
           viewMode={viewMode}
           density={density}
@@ -123,6 +125,18 @@ test('renders with comfortable density', async () => {
 
   expect(screen.getByTestId('recording-item')).toBeInTheDocument();
   expect(screen.getByText('SSH Session')).toBeInTheDocument();
+});
+
+test('renders the badge component with the recording details', async () => {
+  await setupTest({
+    badgeComponent: ({ sessionId }) => (
+      <div data-testid="badge-component">{sessionId}</div>
+    ),
+  });
+
+  expect(screen.getByTestId('badge-component')).toHaveTextContent(
+    'test-session'
+  );
 });
 
 test('renders SSH recording type correctly', async () => {

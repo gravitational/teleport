@@ -120,3 +120,28 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		})
 	}
 }
+
+func TestAppServerV3(t *testing.T) {
+	t.Parallel()
+
+	app, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://example.com"})
+	require.NoError(t, err)
+
+	t.Run("set with scope", func(t *testing.T) {
+		server, err := NewAppServerV3(Metadata{Name: "myapp"}, AppServerSpecV3{
+			HostID: "host-1",
+			App:    app,
+		}, "/staging/test")
+		require.NoError(t, err)
+		require.Equal(t, "/staging/test", server.GetScope())
+	})
+
+	// TODO (williamo/scopes) temp test - delete this once we migrate from the variadic params for scopes.
+	t.Run("set with multiple scopes", func(t *testing.T) {
+		_, err := NewAppServerV3(Metadata{Name: "myapp"}, AppServerSpecV3{
+			HostID: "host-1",
+			App:    app,
+		}, "/staging/test", "/staging/test2")
+		require.ErrorContains(t, err, "expected at most 1 scope, got 2")
+	})
+}

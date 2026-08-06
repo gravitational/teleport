@@ -95,17 +95,17 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "in schedule",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:00",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.True,
@@ -113,11 +113,11 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "schedule does not contain any shifts",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.False,
@@ -125,18 +125,18 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "invalid timezone",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Timezone: "invalid",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:00",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "unknown time zone")
@@ -146,18 +146,18 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "different timezone",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Timezone: "America/Los_Angeles",
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:00",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.False,
@@ -165,17 +165,17 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "different weekday",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Tuesday.String(),
 								Start:   "14:00",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.False,
@@ -183,17 +183,17 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "before schedule",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:31",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.False,
@@ -201,17 +201,17 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "exact start time",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:30",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.True,
@@ -219,28 +219,28 @@ func TestInSchedule(t *testing.T) {
 		{
 			description: "multiple schedules",
 			schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"schedule1": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+				"schedule1": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Monday.String(),
 								Start:   "14:30",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
-				"schedule2": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
+					}.Build(),
+				}.Build(),
+				"schedule2": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
 						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-							{
+							accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 								Weekday: time.Tuesday.String(),
 								Start:   "14:30",
 								End:     "15:00",
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			assertErr:        require.NoError,
 			assertInSchedule: require.True,

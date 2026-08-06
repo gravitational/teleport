@@ -38,10 +38,6 @@ logged into the cluster via SAML SSO before SCIM provisioning was enabled), the
 temporary account will automatically be adopted by the SAML integration and
 promoted to a long-lived SCIM-managed account.
 
-<Admonition type="note">
-Currently none of the SCIM user profile traits are stored in the Teleport user, although this may change in the future.
-</Admonition>
-
 When a user is unassigned from the Okta app, or is deactivated by the Okta admin, Teleport will immediately delete the user in question, and create a lock that will both immediately terminate any existing sessions and prevent that user from re-using any credentials that have already been issued. This lock will be automatically revoked if the user is subsequently re-provisioned via SCIM, otherwise the lock is permanent and will have to be explicitly deleted to remove.
 
 <Admonition type="warning">
@@ -80,9 +76,7 @@ This step assumes you are still in the **Okta Integration** configuration wizard
 
 ## Step 2/2. Configure SCIM details in the Okta app
 
-Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
-
-<Tabs groupId="scim-app" defaultValue="legacy">
+<Tabs groupId="scim-app" defaultValue="oin">
 <TabItem label="Okta Integration Network" value="oin">
 
    1. In Okta Console, go to **Applications** and find the Teleport application created during the [guided Okta single sign-on integration](./guided-sso.mdx).
@@ -163,7 +157,13 @@ Supported *To App* provisioning features include:
 - **Update User Attributes** - Okta updates a user's attributes in Teleport when the SAML app is assigned. Future attribute changes made to the Okta user profile will automatically overwrite the corresponding attribute value in Teleport.
 - **Deactivate Users** - Deletes the Teleport user when it is unassigned in Okta or their Okta account is deactivated. A session lock for the user is created for the maximum session duration. The Teleport user will be recreated if the SAML app is reassigned to a user in Okta.
  
-Please note Teleport doesn't display SCIM attributes in the UI. They are stored in an internal user label which is subject to change. The attributes are currently only used to construct compliant SCIM resource responses. All attributes sent to Teleport are stored and then replied in the subsequent SCIM resource responses. The only exception is the "password" attribute.
+Please note that SCIM attributes are stored in an internal user label,
+`teleport.internal/scim-attrs`, which is subject to change. Teleport uses the
+name and email attributes to derive [display
+names](../../../reference/access-controls/user-display-names.mdx). The remaining
+attributes are only used to construct compliant SCIM resource responses.
+All attributes sent to Teleport are stored and then replied in subsequent SCIM
+resource responses. The only exception is the "password" attribute.
 
 ## Retrospective user provisioning
 

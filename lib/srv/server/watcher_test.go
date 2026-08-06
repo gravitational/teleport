@@ -47,7 +47,7 @@ type mockFetcher struct {
 
 func (m *mockFetcher) GetInstances(ctx context.Context, rotation bool) ([]mockInstance, error) {
 	if m.err != nil {
-		return nil, m.err
+		return m.instances, m.err
 	}
 	return m.instances, nil
 }
@@ -69,6 +69,41 @@ func (m *mockFetcher) LogValue() slog.Value {
 		slog.Any("instances", m.instances),
 		slog.Any("error", m.err),
 	)
+}
+
+type captureLogHandler struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (h *captureLogHandler) Enabled(context.Context, slog.Level) bool {
+	return true
+}
+
+func (h *captureLogHandler) Handle(_ context.Context, record slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.records = append(h.records, record.Clone())
+	return nil
+}
+
+func (h *captureLogHandler) WithAttrs([]slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *captureLogHandler) WithGroup(string) slog.Handler {
+	return h
+}
+
+func (h *captureLogHandler) hasMessage(message string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, record := range h.records {
+		if record.Message == message {
+			return true
+		}
+	}
+	return false
 }
 
 func TestWatcherFetchAndSubmit(t *testing.T) {
@@ -115,6 +150,18 @@ func TestWatcherFetchAndSubmit(t *testing.T) {
 				},
 			},
 			expectedIDs: []string{"good"},
+		},
+		{
+			name: "fetcher with unhandled error does not send instances",
+			fetchers: map[string][]Fetcher[mockInstance]{
+				"dc1": {
+					&mockFetcher{
+						instances: []mockInstance{{ID: "bad"}},
+						err:       trace.BadParameter("fail"),
+					},
+				},
+			},
+			expectedIDs: nil,
 		},
 		{
 			name: "fetcher with NotFound error silent",
@@ -167,6 +214,66 @@ func TestWatcherFetchAndSubmit(t *testing.T) {
 			assert.ElementsMatch(t, tt.expectedIDs, ids)
 		})
 	}
+}
+
+func TestWatcherFetchErrorHookHandlesPartialResults(t *testing.T) {
+	t.Parallel()
+
+	fetchErr := trace.BadParameter("partial failure")
+	var gotErr error
+	var gotInstances []mockInstance
+
+	w := NewWatcher[mockInstance](t.Context(), logtest.NewLogger(),
+		WithFetchErrorHookFn[mockInstance](func(err error) bool {
+			gotErr = err
+			return true
+		}),
+		WithPerInstanceHookFn[mockInstance](func(instances []mockInstance) {
+			gotInstances = append(gotInstances, instances...)
+		}),
+	)
+	w.SetFetchers("dc1", []Fetcher[mockInstance]{
+		&mockFetcher{
+			instances: []mockInstance{{ID: "partial"}},
+			err:       fetchErr,
+		},
+	})
+
+	w.fetchAndSubmit()
+
+	assert.Equal(t, fetchErr, gotErr)
+	assert.Equal(t, []mockInstance{{ID: "partial"}}, gotInstances)
+}
+
+func TestWatcherFetchErrorHookFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
+	fetchErr := trace.BadParameter("failure")
+	var gotErr error
+	var gotInstances []mockInstance
+	logHandler := &captureLogHandler{}
+
+	w := NewWatcher[mockInstance](t.Context(), slog.New(logHandler),
+		WithFetchErrorHookFn[mockInstance](func(err error) bool {
+			gotErr = err
+			return false
+		}),
+		WithPerInstanceHookFn[mockInstance](func(instances []mockInstance) {
+			gotInstances = append(gotInstances, instances...)
+		}),
+	)
+	w.SetFetchers("dc1", []Fetcher[mockInstance]{
+		&mockFetcher{
+			instances: []mockInstance{{ID: "partial"}},
+			err:       fetchErr,
+		},
+	})
+
+	w.fetchAndSubmit()
+
+	assert.Equal(t, fetchErr, gotErr)
+	assert.Empty(t, gotInstances)
+	assert.True(t, logHandler.hasMessage("Failed to fetch instances"))
 }
 
 func TestWatcherRunLoop(t *testing.T) {

@@ -82,7 +82,7 @@ func TestReadProxyLine(t *testing.T) {
 		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("GIBBERISH\r\n"))))
 		require.ErrorIs(t, err, trace.BadParameter("malformed PROXY line protocol string"))
 	})
-	t.Run("successfully read proxy v1 line", func(t *testing.T) {
+	t.Run("successfully read proxy v1 IPv4 line", func(t *testing.T) {
 		pl, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(sampleProxyV1Line))))
 		require.NoError(t, err)
 
@@ -91,6 +91,29 @@ func TestReadProxyLine(t *testing.T) {
 		require.Equal(t, "127.0.0.2:42", pl.Destination.String())
 		require.Nil(t, pl.TLVs)
 		require.Equal(t, sampleProxyV1Line, pl.String())
+	})
+	t.Run("successfully read proxy v1 IPv6 line", func(t *testing.T) {
+		line := "PROXY TCP6 fe80::a00:27ff:fe8e:8aa8 fe80::a00:27ff:fe8e:8aa9 12345 42\r\n"
+		pl, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.NoError(t, err)
+
+		require.Equal(t, TCP6, pl.Protocol)
+		require.Equal(t, "[fe80::a00:27ff:fe8e:8aa8]:12345", pl.Source.String())
+		require.Equal(t, "[fe80::a00:27ff:fe8e:8aa9]:42", pl.Destination.String())
+		require.Nil(t, pl.TLVs)
+		require.Equal(t, line, pl.String())
+	})
+	t.Run("IPv6 address with TCP4 protocol is rejected", func(t *testing.T) {
+		line := "PROXY TCP4 fe80::a00:27ff:fe8e:8aa8 fe80::a00:27ff:fe8e:8aa9 12345 42\r\n"
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "for IPV4 proto")
+	})
+	t.Run("IPv4 address with TCP6 protocol is rejected", func(t *testing.T) {
+		line := "PROXY TCP6 127.0.0.1 127.0.0.2 12345 42\r\n"
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "for IPV6 proto")
 	})
 }
 

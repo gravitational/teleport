@@ -43,13 +43,31 @@ type osConfigProviderConfig struct {
 	ipv6Prefix    string
 	dnsIPv6       string
 	addDNSAddress func(net.IP) error
+	// checkHostIPv6Disabled reports whether IPv6 is disabled host-wide.
+	// Defaults to the platform-specific hostIPv6Disabled, overridable in tests.
+	checkHostIPv6Disabled func(tunName string) (bool, error)
 }
 
 type targetOSConfigGetter interface {
 	GetTargetOSConfiguration(context.Context) (*vnetv1.TargetOSConfiguration, error)
 }
 
-func newOSConfigProvider(cfg osConfigProviderConfig) (*osConfigProvider, error) {
+func newOSConfigProvider(ctx context.Context, cfg osConfigProviderConfig) (*osConfigProvider, error) {
+	checkHostIPv6Disabled := cfg.checkHostIPv6Disabled
+	if checkHostIPv6Disabled == nil {
+		checkHostIPv6Disabled = hostIPv6Disabled
+	}
+	ipv6Disabled, err := checkHostIPv6Disabled(cfg.tunName)
+	if err != nil {
+		// Could not determine, assume IPv6 is enabled. If it is actually
+		// disabled, the address assignment will fail and the error will
+		// surface there.
+		log.WarnContext(ctx, "Failed to check whether IPv6 is disabled on the host, assuming it is enabled.",
+			"error", err)
+	} else if ipv6Disabled {
+		log.WarnContext(ctx, "IPv6 is disabled on this host, VNet will skip IPv6 configuration and work over IPv4 only.")
+		return &osConfigProvider{cfg: cfg}, nil
+	}
 	tunIPv6, err := tunIPv6ForPrefix(cfg.ipv6Prefix)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -66,12 +84,12 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
 	}
-	if p.tunIPv4 == "" && len(targetOSConfig.Ipv4CidrRanges) > 0 {
+	if p.tunIPv4 == "" && len(targetOSConfig.GetIpv4CidrRanges()) > 0 {
 		// Choose an IPv4 address for the TUN interface and the IPv4 DNS server
 		// from the CIDR range of one arbitrary currently logged-in cluster.
 		// We currently only assign one V4 address to the interface and only
 		// advertise DNS on one V4 address.
-		if err := p.setV4IPsFromFirstCIDR(targetOSConfig.Ipv4CidrRanges[0]); err != nil {
+		if err := p.setV4IPsFromFirstCIDR(targetOSConfig.GetIpv4CidrRanges()[0]); err != nil {
 			return nil, trace.Wrap(err, "setting TUN IPv4 address")
 		}
 	}

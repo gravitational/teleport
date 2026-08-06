@@ -113,7 +113,7 @@ type IDTokenClaims struct {
 }
 
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsEnv0 {
-	return &workloadidentityv1pb.JoinAttrsEnv0{
+	return workloadidentityv1pb.JoinAttrsEnv0_builder{
 		Sub:             c.Subject,
 		OrganizationId:  c.OrganizationID,
 		ProjectId:       c.ProjectID,
@@ -127,5 +127,5 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsEnv0 {
 		DeploymentType:  c.DeploymentType,
 		DeployerEmail:   c.DeployerEmail,
 		Env0Tag:         c.Env0Tag,
-	}
+	}.Build()
 }

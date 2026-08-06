@@ -32,13 +32,13 @@ func newAPIWindowsDesktop(clusterDesktop clusters.WindowsDesktop) *api.WindowsDe
 	desktop := clusterDesktop.WindowsDesktop
 	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(desktop.GetAllLabels()))
 
-	return &api.WindowsDesktop{
+	return api.WindowsDesktop_builder{
 		Uri:    clusterDesktop.URI.String(),
 		Name:   desktop.GetName(),
 		Addr:   desktop.GetAddr(),
 		Logins: clusterDesktop.Logins,
 		Labels: apiLabels,
-	}
+	}.Build()
 }
 
 // ConnectToDesktop establishes a desktop connection.
@@ -76,6 +76,6 @@ func (s *Handler) SetSharedDirectoryForDesktopSession(ctx context.Context, in *a
 		return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 	}
 
-	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath())
+	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath(), in.GetDirectoryId())
 	return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 }

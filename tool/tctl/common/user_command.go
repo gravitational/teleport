@@ -56,6 +56,7 @@ type UserCommand struct {
 	login                     string
 	allowedLogins             []string
 	allowedWindowsLogins      []string
+	allowedLinuxDesktopLogins []string
 	allowedKubeUsers          []string
 	allowedKubeGroups         []string
 	allowedDatabaseUsers      []string
@@ -75,7 +76,7 @@ type UserCommand struct {
 
 	ttl time.Duration
 
-	// format is the output format, e.g. text or json
+	// format is the output format, e.g. text, json, or yaml.
 	format string
 
 	userAdd           *kingpin.CmdClause
@@ -97,6 +98,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
 	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
+	u.userAdd.Flag("linux-desktop-logins", "List of allowed Linux desktop logins for the new user").StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userAdd.Flag("kubernetes-users", "List of allowed Kubernetes users for the new user").StringsVar(&u.allowedKubeUsers)
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
@@ -115,7 +117,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
-	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
@@ -126,6 +128,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		StringsVar(&u.allowedLogins)
 	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
 		StringsVar(&u.allowedWindowsLogins)
+	u.userUpdate.Flag("set-linux-desktop-logins", "List of allowed Linux desktop logins for the user, replaces current Linux logins").
+		StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
 		StringsVar(&u.allowedKubeUsers)
 	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
@@ -148,7 +152,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
-	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -159,7 +163,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -237,10 +241,12 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
+	case teleport.YAML:
+		err = printTokenAsYAML(token)
 	case teleport.Text:
 		err = printTokenAsText(token, messageFormat)
 	default:
-		err = printTokenAsText(token, messageFormat)
+		err = trace.BadParameter("unknown format %q", u.format)
 	}
 
 	if err != nil {
@@ -256,6 +262,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
+	u.allowedLinuxDesktopLogins = flattenSlice(u.allowedLinuxDesktopLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.allowedRoles {
@@ -295,6 +302,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
+		constants.TraitLinuxDesktopLogins: u.allowedLinuxDesktopLogins,
 		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
 		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
 		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
@@ -374,6 +382,10 @@ func printTokenAsJSON(token types.UserToken) error {
 	return nil
 }
 
+func printTokenAsYAML(token types.UserToken) error {
+	return trace.Wrap(utils.WriteYAML(os.Stdout, token), "failed to marshal reset password token")
+}
+
 func printTokenAsText(token types.UserToken, messageFormat string) error {
 	url, err := url.Parse(token.GetURL())
 	if err != nil {
@@ -413,6 +425,11 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		windowsLogins := flattenSlice(u.allowedWindowsLogins)
 		user.SetWindowsLogins(windowsLogins)
 		updateMessages["Windows logins"] = windowsLogins
+	}
+	if len(u.allowedLinuxDesktopLogins) > 0 {
+		linuxDesktopLogins := flattenSlice(u.allowedLinuxDesktopLogins)
+		user.SetLinuxDesktopLogins(linuxDesktopLogins)
+		updateMessages["Linux desktop logins"] = linuxDesktopLogins
 	}
 	if len(u.allowedKubeUsers) > 0 {
 		kubeUsers := flattenSlice(u.allowedKubeUsers)
@@ -528,7 +545,8 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 		return trace.Wrap(err)
 	}
 
-	if u.format == teleport.Text {
+	switch u.format {
+	case teleport.Text:
 		if len(users) == 0 {
 			fmt.Println("No users found")
 			return nil
@@ -540,11 +558,18 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(os.Stdout, users)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", u.format)
 	}
 	return nil
 }

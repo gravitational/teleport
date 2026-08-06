@@ -27,6 +27,8 @@ import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/devicetrust/v1/enroll_pairing.proto";
+import "teleport/devicetrust/v1/os_type.proto";
 import "teleport/devicetrust/v1/tpm.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
@@ -165,6 +167,23 @@ service DeviceTrustService {
   // Authorized either by a valid MDM service certificate or the appropriate
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
+
+  // CreateEnrollPairing creates an enroll pairing for the calling user. The
+  // returned EnrollPairing carries the pairing token that the Web UI encodes
+  // into a QR code.
+  //
+  // Each user can have only one EnrollPairing at a time. The server overwrites
+  // metadata.name with the caller's username.
+  //
+  // Returns AlreadyExists if an EnrollPairing already exists for the caller.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission.
+  rpc CreateEnrollPairing(CreateEnrollPairingRequest) returns (CreateEnrollPairingResponse);
+
+  // GetCurrentEnrollPairing returns the EnrollPairing for the calling user.
+  //
+  // Returns NotFound if the caller has no EnrollPairing.
+  rpc GetCurrentEnrollPairing(GetCurrentEnrollPairingRequest) returns (GetCurrentEnrollPairingResponse);
 }
 
 // Request for CreateDevice.
@@ -630,6 +649,16 @@ message SyncInventoryStart {
   // upserts.
   // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
   bool track_missing_devices = 4;
+
+  // os_types declares the OS types this sync covers.
+  //
+  // track_missing_devices only reports devices whose os_type is in this list.
+  // Upserts and removals whose os_type is not in this list are rejected with a
+  // per-device error.
+  //
+  // Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+  // backwards compatibility.
+  repeated OSType os_types = 5;
 }
 
 // SyncInventoryEnd ends the inventory sync, signaling that no more
@@ -671,4 +700,21 @@ message SyncInventoryMissingDevices {
   // Guaranteed to have the following fields: id, os_type, asset_tag and
   // profile.external_id.
   repeated Device devices = 1;
+}
+
+// Request for CreateEnrollPairing.
+message CreateEnrollPairingRequest {}
+
+// Response for CreateEnrollPairing.
+message CreateEnrollPairingResponse {
+  EnrollPairing enroll_pairing = 1;
+}
+
+// Request for GetCurrentEnrollPairing.
+message GetCurrentEnrollPairingRequest {}
+
+// Response for GetCurrentEnrollPairing.
+message GetCurrentEnrollPairingResponse {
+  // Current EnrollPairing for the calling user.
+  EnrollPairing enroll_pairing = 1;
 }

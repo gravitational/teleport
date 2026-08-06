@@ -98,13 +98,13 @@ func createRetrievalModel(ctx context.Context, clt *authclient.Client, raw servi
 
 	sclt := clt.SummarizerServiceClient()
 	if opts.Force {
-		_, err = sclt.UpsertRetrievalModel(ctx, &summarizerv1.UpsertRetrievalModelRequest{
+		_, err = sclt.UpsertRetrievalModel(ctx, summarizerv1.UpsertRetrievalModelRequest_builder{
 			Model: model,
-		})
+		}.Build())
 	} else {
-		_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1.CreateRetrievalModelRequest{
+		_, err = sclt.CreateRetrievalModel(ctx, summarizerv1.CreateRetrievalModelRequest_builder{
 			Model: model,
-		})
+		}.Build())
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -120,9 +120,9 @@ func updateRetrievalModel(ctx context.Context, clt *authclient.Client, raw servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := clt.SummarizerServiceClient().UpdateRetrievalModel(ctx, &summarizerv1.UpdateRetrievalModelRequest{
+	if _, err := clt.SummarizerServiceClient().UpdateRetrievalModel(ctx, summarizerv1.UpdateRetrievalModelRequest_builder{
 		Model: model,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("retrieval_model %q has been updated\n", model.GetMetadata().GetName())

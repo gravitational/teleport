@@ -25,10 +25,12 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
@@ -53,7 +55,7 @@ func (c *ScopedRoleAssignmentCollection) Resources() []types.Resource {
 }
 
 func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"SubKind", "Scope", "Name", "User", "Assigns"}
+	headers := []string{"SubKind", "ID", "Assignee", "Assigns"}
 	rows := make([][]string, len(c.roleAssignments))
 
 	for i, item := range c.roleAssignments {
@@ -61,12 +63,10 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 		for j, subAssignment := range item.GetSpec().GetAssignments() {
 			assigns[j] = fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope())
 		}
-
 		rows[i] = []string{
 			item.GetSubKind(),
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-			item.GetSpec().GetUser(),
+			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
+			scopedRoleAssignmentAssignee(item),
 			strings.Join(assigns, ", "),
 		}
 	}
@@ -77,8 +77,22 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 	return trace.Wrap(err)
 }
 
-func scopedRoleAssignmentHandler() Handler {
-	return Handler{
+// scopedRoleAssignmentAssignee describes the identity that an assignment applies to,
+// kind-prefixed to disambiguate the two forms (e.g. "user: alice", "bot: /staging::mybot").
+// Assignments apply to either a user (by name) or a bot (by scope-qualified name), and the
+// two are mutually exclusive.
+func scopedRoleAssignmentAssignee(assignment *scopedaccessv1.ScopedRoleAssignment) string {
+	if bot := assignment.GetSpec().GetBot(); bot != "" {
+		return fmt.Sprintf("%s: %s", types.KindBot, bot)
+	}
+	if user := assignment.GetSpec().GetUser(); user != "" {
+		return fmt.Sprintf("%s: %s", types.KindUser, user)
+	}
+	return ""
+}
+
+func scopedRoleAssignmentScopedHandler() ScopedHandler {
+	return ScopedHandler{
 		getHandler:    getScopedRoleAssignment,
 		createHandler: createScopedRoleAssignment,
 		updateHandler: updateScopedRoleAssignment,
@@ -97,23 +111,23 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	// created and the user is re-applying the same resource file). if there is no name, fall through
 	// to create, which will generate one server-side.
 	if opts.Force && r.GetMetadata().GetName() != "" {
-		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, scopedaccessv1.UpsertScopedRoleAssignmentRequest_builder{
 			Assignment: r,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf(
 			"%v %q has been upserted\n",
 			scopedaccess.KindScopedRoleAssignment,
-			rsp.GetAssignment().GetMetadata().GetName(),
+			scopes.QualifiedName{Name: rsp.GetAssignment().GetMetadata().GetName(), Scope: rsp.GetAssignment().GetScope()}.String(),
 		)
 		return nil
 	}
 
-	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: r,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,61 +147,76 @@ func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, scopedaccessv1.UpdateScopedRoleAssignmentRequest_builder{
 		Assignment: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Printf(
 		"%v %q has been updated\n",
 		scopedaccess.KindScopedRoleAssignment,
-		r.GetMetadata().GetName(),
+		scopes.QualifiedName{Name: r.GetMetadata().GetName(), Scope: r.GetScope()}.String(),
 	)
 
 	return nil
 }
 
-func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	if ref.Name != "" {
-		if ref.SubKind == "" {
-			return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", ref.Name)
+func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if sqn != nil {
+		if subKind == "" {
+			return nil, trace.BadParameter(
+				"%s requires a sub-kind to get a specific resource, try:\n  tctl get %s/%s %s::%s",
+				scopedaccess.KindScopedRoleAssignment,
+				scopedaccess.KindScopedRoleAssignment, scopedaccess.SubKindDynamic,
+				sqn.Scope, sqn.Name,
+			)
 		}
-		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-			Name:    ref.Name,
-			SubKind: ref.SubKind,
-		})
+		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    sqn.Name,
+			SubKind: subKind,
+			Scope:   sqn.Scope,
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.GetAssignment()}}, nil
 	}
 
-	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
+	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return NewScopedRoleAssignmentCollection(items), nil
 }
 
-func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if ref.SubKind == "" {
-		return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, ref.Name)
+func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind == "" {
+		return trace.BadParameter(
+			"%s requires a sub-kind to delete a resource, try:\n  tctl rm %s/%s %s",
+			scopedaccess.KindScopedRoleAssignment,
+			scopedaccess.KindScopedRoleAssignment, scopedaccess.SubKindDynamic,
+			sqn.String(),
+		)
 	}
-	if ref.SubKind == scopedaccess.SubKindMaterialized {
+	if subKind == scopedaccess.SubKindMaterialized {
 		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
 	}
-	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    ref.Name,
-		SubKind: ref.SubKind,
-	}); err != nil {
+
+	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:    sqn.Name,
+		SubKind: subKind,
+		Scope:   sqn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		scopedaccess.KindScopedRoleAssignment,
-		ref.Name,
+		sqn.String(),
 	)
 	return nil
 }

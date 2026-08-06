@@ -28,7 +28,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	webauthnv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webauthn/v2"
 	"github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 )
@@ -118,46 +119,44 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 
 	for _, test := range []struct {
 		name                        string
-		createResp                  *mfav1.CreateSessionChallengeResponse
+		createResp                  *mfav2.CreateSessionChallengeResponse
 		promptResp                  *proto.MFAAuthenticateResponse
 		wantPromptChal              *proto.MFAAuthenticateChallenge
-		wantValidateResp            *mfav1.AuthenticateResponse
+		wantValidateResp            *mfav2.AuthenticateResponse
 		callbackCeremonyConstructor mfa.MFACeremonyConstructor
 	}{
 		{
 			name: "webauthn response",
-			createResp: func() *mfav1.CreateSessionChallengeResponse {
-				resp := newSessionBindingCreateResp("challenge-webauthn")
-				resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-				return resp
-			}(),
+			createResp: mfav2.CreateSessionChallengeResponse_builder{
+				MfaChallenge: mfav2.AuthenticateChallenge_builder{
+					Name:              "challenge-webauthn",
+					WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+				}.Build(),
+			}.Build(),
 			promptResp: &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: newWebauthnResponse(mockCredentialID),
+					Webauthn: newProtoWebauthnResponse(mockCredentialID),
 				},
 			},
 			wantPromptChal: func() *proto.MFAAuthenticateChallenge {
 				chal := newProtoMFAChallenge()
-				chal.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
+				chal.WebauthnChallenge = newProtoWebauthnChallenge(mockWebauthnChallenge)
 
 				return chal
 			}(),
-			wantValidateResp: &mfav1.AuthenticateResponse{
-				Name: "challenge-webauthn",
-				Response: &mfav1.AuthenticateResponse_Webauthn{
-					Webauthn: newWebauthnResponse(mockCredentialID),
-				},
-			},
+			wantValidateResp: mfav2.AuthenticateResponse_builder{
+				Name:     "challenge-webauthn",
+				Webauthn: newWebauthnResponse(mockCredentialID),
+			}.Build(),
 		},
 		{
 			name: "sso response",
-			createResp: func() *mfav1.CreateSessionChallengeResponse {
-				resp := newSessionBindingCreateResp("challenge-sso")
-				resp.MfaChallenge.SsoChallenge = newMFASSOChallenge()
-
-				return resp
-			}(),
+			createResp: mfav2.CreateSessionChallengeResponse_builder{
+				MfaChallenge: mfav2.AuthenticateChallenge_builder{
+					Name:         "challenge-sso",
+					SsoChallenge: newMFASSOChallenge(),
+				}.Build(),
+			}.Build(),
 			promptResp: &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_SSO{
 					SSO: newProtoSSOResponse(mockSSOToken),
@@ -169,15 +168,13 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 
 				return chal
 			}(),
-			wantValidateResp: &mfav1.AuthenticateResponse{
+			wantValidateResp: mfav2.AuthenticateResponse_builder{
 				Name: "challenge-sso",
-				Response: &mfav1.AuthenticateResponse_Sso{
-					Sso: &mfav1.SSOChallengeResponse{
-						RequestId: mockSSORequestID,
-						Token:     mockSSOToken,
-					},
-				},
-			},
+				Sso: mfav2.SSOChallengeResponse_builder{
+					RequestId: mockSSORequestID,
+					Token:     mockSSOToken,
+				}.Build(),
+			}.Build(),
 			callbackCeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
 				return &mockMFACeremony{
 					clientCallbackURL: mockCallbackURL,
@@ -187,17 +184,17 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 		},
 		{
 			name: "browser response",
-			createResp: func() *mfav1.CreateSessionChallengeResponse {
-				resp := newSessionBindingCreateResp("challenge-browser")
-				resp.MfaChallenge.BrowserChallenge = &mfav1.BrowserMFAChallenge{
-					RequestId: mockBrowserRequestID,
-				}
-
-				return resp
-			}(),
+			createResp: mfav2.CreateSessionChallengeResponse_builder{
+				MfaChallenge: mfav2.AuthenticateChallenge_builder{
+					Name: "challenge-browser",
+					BrowserChallenge: mfav2.BrowserMFAChallenge_builder{
+						RequestId: mockBrowserRequestID,
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			promptResp: &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Browser{
-					Browser: newProtoBrowserResponse(mockBrowserRequestID, newWebauthnResponse(mockBrowserCredentialID)),
+					Browser: newProtoBrowserResponse(mockBrowserRequestID, newProtoWebauthnResponse(mockBrowserCredentialID)),
 				},
 			},
 			wantPromptChal: func() *proto.MFAAuthenticateChallenge {
@@ -208,12 +205,10 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 
 				return chal
 			}(),
-			wantValidateResp: &mfav1.AuthenticateResponse{
-				Name: "challenge-browser",
-				Response: &mfav1.AuthenticateResponse_Browser{
-					Browser: newMFABrowserResponse(mockBrowserRequestID, newWebauthnResponse(mockBrowserCredentialID)),
-				},
-			},
+			wantValidateResp: mfav2.AuthenticateResponse_builder{
+				Name:    "challenge-browser",
+				Browser: newMFABrowserResponse(mockBrowserRequestID, newWebauthnResponse(mockBrowserCredentialID)),
+			}.Build(),
 			callbackCeremonyConstructor: func(context.Context) (mfa.CallbackCeremony, error) {
 				return &mockMFACeremony{
 					clientCallbackURL: mockCallbackURL,
@@ -226,7 +221,7 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 			config := newSessionBindingConfig()
 
 			ceremony, err := mfa.NewSessionBoundCeremony(mfa.SessionBoundCeremonyConfig{
-				CreateSessionChallenge: func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+				CreateSessionChallenge: func(_ context.Context, req *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
 					require.Equal(t, config.TargetCluster, req.GetTargetCluster())
 
 					if test.callbackCeremonyConstructor == nil {
@@ -261,19 +256,19 @@ func TestSessionBoundCeremonyRun(t *testing.T) {
 						},
 					)
 				},
-				ValidateSessionChallenge: func(_ context.Context, req *mfav1.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
+				ValidateSessionChallenge: func(_ context.Context, req *mfav2.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error) {
 					require.Empty(t, cmp.Diff(test.wantValidateResp, req.GetMfaResponse(), protocmp.Transform()))
 
-					return &mfav1.ValidateSessionChallengeResponse{}, nil
+					return &mfav2.ValidateSessionChallengeResponse{}, nil
 				},
 				CallbackCeremonyConstructor: test.callbackCeremonyConstructor,
 				TargetCluster:               config.TargetCluster,
 			})
 			require.NoError(t, err)
 
-			gotName, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
+			gotName, err := ceremony.Run(t.Context(), &mfav2.SessionIdentifyingPayload{})
 			require.NoError(t, err)
-			require.Equal(t, test.createResp.MfaChallenge.GetName(), gotName, "expected challenge name to be returned")
+			require.Equal(t, test.createResp.GetMfaChallenge().GetName(), gotName, "expected challenge name to be returned")
 		})
 	}
 }
@@ -299,15 +294,17 @@ func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 			},
 		}, nil
 	}
-	config.CreateSessionChallenge = func(_ context.Context, req *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+	config.CreateSessionChallenge = func(_ context.Context, req *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
 		require.Equal(t, mockCallbackURL, req.GetSsoClientRedirectUrl())
 		require.Equal(t, mockCallbackProxyAddress, req.GetProxyAddressForSso())
 		require.Equal(t, mockCallbackURL, req.GetBrowserMfaTshRedirectUrl())
 
-		resp := newSessionBindingCreateResp(mockChallengeName)
-		resp.MfaChallenge.SsoChallenge = newMFASSOChallenge()
-
-		return resp, nil
+		return mfav2.CreateSessionChallengeResponse_builder{
+			MfaChallenge: mfav2.AuthenticateChallenge_builder{
+				Name:         mockChallengeName,
+				SsoChallenge: newMFASSOChallenge(),
+			}.Build(),
+		}.Build(), nil
 	}
 	config.PromptConstructor = func(opts ...mfa.PromptOpt) mfa.Prompt {
 		cfg := new(mfa.PromptConfig)
@@ -325,7 +322,7 @@ func TestSessionBoundCeremonyRun_CallbackCeremony(t *testing.T) {
 	ceremony, err := mfa.NewSessionBoundCeremony(config)
 	require.NoError(t, err)
 
-	gotName, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
+	gotName, err := ceremony.Run(t.Context(), &mfav2.SessionIdentifyingPayload{})
 	require.NoError(t, err)
 	require.Equal(t, mockChallengeName, gotName)
 }
@@ -342,7 +339,7 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "create session challenge returns error",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
 					return nil, trace.ConnectionProblem(nil, "create failed")
 				}
 
@@ -354,11 +351,13 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "prompt returns error",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					resp := newSessionBindingCreateResp(mockChallengeName)
-					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-					return resp, nil
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+					return mfav2.CreateSessionChallengeResponse_builder{
+						MfaChallenge: mfav2.AuthenticateChallenge_builder{
+							Name:              mockChallengeName,
+							WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+						}.Build(),
+					}.Build(), nil
 				}
 				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(
@@ -376,8 +375,8 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "missing authenticate challenge in create response",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					return &mfav1.CreateSessionChallengeResponse{}, nil
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+					return &mfav2.CreateSessionChallengeResponse{}, nil
 				}
 
 				return config
@@ -388,11 +387,13 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "prompt returns response with empty challenge name",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					resp := newSessionBindingCreateResp("")
-					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-					return resp, nil
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+					return mfav2.CreateSessionChallengeResponse_builder{
+						MfaChallenge: mfav2.AuthenticateChallenge_builder{
+							Name:              "",
+							WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+						}.Build(),
+					}.Build(), nil
 				}
 				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(
@@ -414,11 +415,13 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "prompt returns unsupported or nil MFA response",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					resp := newSessionBindingCreateResp(mockChallengeName)
-					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-					return resp, nil
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+					return mfav2.CreateSessionChallengeResponse_builder{
+						MfaChallenge: mfav2.AuthenticateChallenge_builder{
+							Name:              mockChallengeName,
+							WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+						}.Build(),
+					}.Build(), nil
 				}
 				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(
@@ -436,11 +439,13 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			name: "validate session challenge returns error",
 			buildConfig: func() mfa.SessionBoundCeremonyConfig {
 				config := newSessionBindingConfig()
-				config.CreateSessionChallenge = func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-					resp := newSessionBindingCreateResp(mockChallengeName)
-					resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-					return resp, nil
+				config.CreateSessionChallenge = func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+					return mfav2.CreateSessionChallengeResponse_builder{
+						MfaChallenge: mfav2.AuthenticateChallenge_builder{
+							Name:              mockChallengeName,
+							WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+						}.Build(),
+					}.Build(), nil
 				}
 				config.PromptConstructor = func(_ ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(
@@ -454,7 +459,7 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 					)
 				}
 
-				config.ValidateSessionChallenge = func(_ context.Context, _ *mfav1.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
+				config.ValidateSessionChallenge = func(_ context.Context, _ *mfav2.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error) {
 					return nil, trace.CompareFailed("validate failed")
 				}
 
@@ -467,18 +472,18 @@ func TestSessionBoundCeremonyRunErrors(t *testing.T) {
 			ceremony, err := mfa.NewSessionBoundCeremony(test.buildConfig())
 			require.NoError(t, err)
 
-			name, err := ceremony.Run(t.Context(), &mfav1.SessionIdentifyingPayload{})
+			name, err := ceremony.Run(t.Context(), &mfav2.SessionIdentifyingPayload{})
 			require.ErrorIs(t, err, test.wantErr)
 			require.Empty(t, name)
 		})
 	}
 }
 
-func newMFASSOChallenge() *mfav1.SSOChallenge {
-	return &mfav1.SSOChallenge{
+func newMFASSOChallenge() *mfav2.SSOChallenge {
+	return mfav2.SSOChallenge_builder{
 		RequestId:   mockSSORequestID,
 		RedirectUrl: mockRedirectURL,
-	}
+	}.Build()
 }
 
 func newProtoSSOChallenge() *proto.SSOChallenge {
@@ -488,7 +493,15 @@ func newProtoSSOChallenge() *proto.SSOChallenge {
 	}
 }
 
-func newWebauthnChallenge(challenge string) *webauthnpb.CredentialAssertion {
+func newWebauthnChallenge(challenge string) *webauthnv2.CredentialAssertion {
+	return webauthnv2.CredentialAssertion_builder{
+		PublicKey: webauthnv2.PublicKeyCredentialRequestOptions_builder{
+			Challenge: []byte(challenge),
+		}.Build(),
+	}.Build()
+}
+
+func newProtoWebauthnChallenge(challenge string) *webauthnpb.CredentialAssertion {
 	return &webauthnpb.CredentialAssertion{
 		PublicKey: &webauthnpb.PublicKeyCredentialRequestOptions{
 			Challenge: []byte(challenge),
@@ -496,7 +509,14 @@ func newWebauthnChallenge(challenge string) *webauthnpb.CredentialAssertion {
 	}
 }
 
-func newWebauthnResponse(rawID string) *webauthnpb.CredentialAssertionResponse {
+func newWebauthnResponse(rawID string) *webauthnv2.CredentialAssertionResponse {
+	return webauthnv2.CredentialAssertionResponse_builder{
+		RawId:    []byte(rawID),
+		Response: webauthnv2.AuthenticatorAssertionResponse_builder{}.Build(),
+	}.Build()
+}
+
+func newProtoWebauthnResponse(rawID string) *webauthnpb.CredentialAssertionResponse {
 	return &webauthnpb.CredentialAssertionResponse{
 		RawId: []byte(rawID),
 	}
@@ -516,19 +536,11 @@ func newProtoBrowserResponse(requestID string, webauthnResp *webauthnpb.Credenti
 	}
 }
 
-func newMFABrowserResponse(requestID string, webauthnResp *webauthnpb.CredentialAssertionResponse) *mfav1.BrowserMFAResponse {
-	return &mfav1.BrowserMFAResponse{
+func newMFABrowserResponse(requestID string, webauthnResp *webauthnv2.CredentialAssertionResponse) *mfav2.BrowserMFAResponse {
+	return mfav2.BrowserMFAResponse_builder{
 		RequestId:        requestID,
 		WebauthnResponse: webauthnResp,
-	}
-}
-
-func newSessionBindingCreateResp(name string) *mfav1.CreateSessionChallengeResponse {
-	return &mfav1.CreateSessionChallengeResponse{
-		MfaChallenge: &mfav1.AuthenticateChallenge{
-			Name: name,
-		},
-	}
+	}.Build()
 }
 
 func newProtoMFAChallenge() *proto.MFAAuthenticateChallenge {
@@ -537,23 +549,25 @@ func newProtoMFAChallenge() *proto.MFAAuthenticateChallenge {
 
 func newSessionBindingConfig() mfa.SessionBoundCeremonyConfig {
 	return mfa.SessionBoundCeremonyConfig{
-		CreateSessionChallenge: func(_ context.Context, _ *mfav1.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error) {
-			resp := newSessionBindingCreateResp(mockChallengeName)
-			resp.MfaChallenge.WebauthnChallenge = newWebauthnChallenge(mockWebauthnChallenge)
-
-			return resp, nil
+		CreateSessionChallenge: func(_ context.Context, _ *mfav2.CreateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error) {
+			return mfav2.CreateSessionChallengeResponse_builder{
+				MfaChallenge: mfav2.AuthenticateChallenge_builder{
+					Name:              mockChallengeName,
+					WebauthnChallenge: newWebauthnChallenge(mockWebauthnChallenge),
+				}.Build(),
+			}.Build(), nil
 		},
 		PromptConstructor: func(_ ...mfa.PromptOpt) mfa.Prompt {
 			return mfa.PromptFunc(func(_ context.Context, _ *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 				return &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_Webauthn{
-						Webauthn: newWebauthnResponse(mockCredentialID),
+						Webauthn: newProtoWebauthnResponse(mockCredentialID),
 					},
 				}, nil
 			})
 		},
-		ValidateSessionChallenge: func(_ context.Context, _ *mfav1.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error) {
-			return &mfav1.ValidateSessionChallengeResponse{}, nil
+		ValidateSessionChallenge: func(_ context.Context, _ *mfav2.ValidateSessionChallengeRequest, _ ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error) {
+			return &mfav2.ValidateSessionChallengeResponse{}, nil
 		},
 		TargetCluster: mockTargetCluster,
 	}

@@ -1392,7 +1392,8 @@ Where applicable nodes used should be configured as follows:
 ### Ansible-like Test
 
 Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
-test against a Cloud tenant with 60k nodes dispersed geographically in multiple regions.
+test against a Cloud tenant with at least 120k nodes dispersed geographically in multiple regions. During the test, the cluster should be manually
+tested to confirm that the ansible-like load does not slow down the control plane beyond the point of usability.
 
  - [ ] DynamoDB
  - [ ] CRDB
@@ -2443,6 +2444,28 @@ Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
   - [ ] Verify users can only see MCP servers allowed by `allow.app_labels`
   - [ ] Verify MCP client can only see allowed tools
   - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
+
+## CA overrides
+
+Validate downstream configuration and protocol access, using an enabled
+override, for each supported CA.
+
+- [ ] Create an override for the "db_client" CA
+- [ ] Create an override for the "windows" CA
+- [ ] Exercise CA rotation
+- [ ] Exercise Cloud tenant
+- [ ] Exercise multi-Auth, PKCS#11 deployment
+  - [ ] Async CRL creation works
+- [ ] Exercise tctl commands, verify that audit events are issued
+  - [ ] tctl auth create-override-csr
+  - [ ] tctl auth create-override
+  - [ ] tctl auth update-override
+  - [ ] tctl auth delete-override
+  - [ ] tctl create
+  - [ ] tctl edit
+  - [ ] tctl delete
+  - [ ] tctl auth pub-key-hash (no audit)
+  - [ ] tctl get (no audit)
 
 ## Resources
 

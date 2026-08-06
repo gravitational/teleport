@@ -38,12 +38,16 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -144,6 +148,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAppServerV3Parser()
 		case types.KindBeam:
 			parser = newBeamParser()
+		case types.KindBeamsConfig:
+			parser = newBeamsConfigParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSnowflakeSession:
@@ -189,7 +195,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
-			parser = newKubeClusterParser()
+			parser = newKubeClusterParser(kind.LoadSecrets)
 		case types.KindCrownJewel:
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
@@ -221,6 +227,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
+		case types.KindAccessListMember:
+			parser = newAccessListMemberParser()
+		case types.KindAccessListReview:
+			parser = newAccessListReviewParser()
 		case types.KindAuditQuery:
 			parser = newAuditQueryParser()
 		case types.KindSecurityReport:
@@ -229,10 +239,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSecurityReportStateParser()
 		case types.KindUserLoginState:
 			parser = newUserLoginStateParser()
-		case types.KindAccessListMember:
-			parser = newAccessListMemberParser()
-		case types.KindAccessListReview:
-			parser = newAccessListReviewParser()
 		case types.KindKubeWaitingContainer:
 			parser = newKubeWaitingContainerParser()
 		case types.KindNotification:
@@ -291,12 +297,16 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInferencePolicyParser()
 		case types.KindInferenceSecret:
 			parser = newInferenceSecretParser()
+		case types.KindClassifier:
+			parser = newClassifierParser()
 		case types.KindRetrievalModel:
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:
 			parser = newCertAuthorityOverrideParser()
+		case types.KindPendingCSRRequest:
+			parser = newPendingCSRRequestParser()
 		case types.KindValidatedMFAChallenge:
-			parser = newValidatedMFAChallengeParser()
+			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -304,6 +314,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
 		prefixes = append(prefixes, parser.prefixes()...)
+
+		// NOTE: we rely on parsers[<some-index>] being the parser associated with validKinds[<some-index>] and vise-versa.
 		parsers = append(parsers, parser)
 		validKinds = append(validKinds, kind)
 	}
@@ -363,7 +375,7 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 	}
 	events := []types.Event{}
 	errs := []error{}
-	for _, p := range w.parsers {
+	for i, p := range w.parsers {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
@@ -376,6 +388,10 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 			}
 			// if resource is nil, then it was well-formed but is being filtered out.
 			if resource == nil {
+				continue
+			}
+			// apply the watch kind's scope filter. parsers[i] always correponds to kinds[i].
+			if !services.WatchKindMatchesScope(w.kinds[i], resource) {
 				continue
 			}
 			events = append(events, types.Event{Type: e.Type, Resource: resource})
@@ -1074,6 +1090,9 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := services.ValidateRole(resource); err != nil {
+			slog.WarnContext(context.Background(), "Role has invalid expressions", "role", resource.GetName(), "error", err)
+		}
 		return resource, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1093,16 +1112,22 @@ type scopedRoleParser struct {
 func (p *scopedRoleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).String(), backend.SeparatorString)
-		if name == "" || strings.Contains(name, "/") {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		// delete events must use full type instead of resource header in order to propagate scope
+		components := event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("malformed scoped role key %q", event.Item.Key.String())
 		}
-		return &types.ResourceHeader{
+		scope, err := scopes.DecodeFromKey(components[0])
+		if err != nil {
+			return nil, trace.Wrap(err, "failed decoding scope from scoped role key %q", event.Item.Key.String())
+		}
+		return types.Resource153ToLegacy(scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: types.Metadata{
-				Name: name,
-			},
-		}, nil
+			Metadata: headerv1.Metadata_builder{
+				Name: components[1],
+			}.Build(),
+			Scope: scope,
+		}.Build()), nil
 	case types.OpPut:
 		role, err := scopedRoleFromItem(&event.Item)
 		if err != nil {
@@ -1127,34 +1152,30 @@ type scopedRoleAssignmentParser struct {
 func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// delete events must use full type instead of resource header in order to propagate scope
 		components := event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).Components()
-		name := ""
-		subKind := ""
-		switch len(components) {
-		case 1:
-			name = components[0]
-		case 2:
-			name = components[0]
-			subKind = components[1]
-		default:
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		if len(components) != 3 {
+			return nil, trace.NotFound("malformed scoped role assignment key %q", event.Item.Key.String())
 		}
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
+		encodedScope, name, subKind := components[0], components[1], components[2]
 		if subKind == scopedaccess.SubKindMaterialized {
 			// Materialized assignments are filtered out from backend events in
 			// case a future version persists materialized assignments to the
 			// backend.
 			return nil, nil
 		}
-		return &types.ResourceHeader{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			SubKind: subKind,
-			Metadata: types.Metadata{
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed decoding scope from scoped role assignment key %q", event.Item.Key.String())
+		}
+		return types.Resource153ToLegacy(scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind: scopedaccess.KindScopedRoleAssignment,
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-		}, nil
+			}.Build(),
+			SubKind: subKind,
+			Scope:   scope,
+		}.Build()), nil
 	case types.OpPut:
 		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
 		if err != nil {
@@ -1488,7 +1509,10 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(
+			backend.NewKey(appServersPrefix, apidefaults.Namespace),
+			backend.NewKey(scopedPrefix, appServersPrefix),
+		),
 	}
 }
 
@@ -1499,6 +1523,34 @@ type appServerV3Parser struct {
 func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Scoped app servers live under
+		// /scoped/appServers/<encoded-scope>/<host-id>/<name>.
+		scopedAppServersKey := backend.NewKey(scopedPrefix, appServersPrefix)
+		if event.Item.Key.HasPrefix(scopedAppServersKey) {
+			components := event.Item.Key.TrimPrefix(scopedAppServersKey).Components()
+			if len(components) != 3 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			scope, err := scopes.DecodeFromKey(components[0])
+			if err != nil {
+				return nil, trace.Wrap(err, "failed decoding scope from app server key %q", event.Item.Key.String())
+			}
+			return &types.AppServerV3{
+				Kind:    types.KindAppServer,
+				Version: types.V3,
+				Metadata: types.Metadata{
+					Name: components[2],
+					// The host ID is stored in the description for compatibility
+					// with resource header stubs; some caches rely on it
+					Description: components[1],
+				},
+				Scope: scope,
+				Spec: types.AppServerSpecV3{
+					HostID: components[1],
+				},
+			}, nil
+		}
+
 		components := event.Item.Key.TrimPrefix(backend.NewKey(appServersPrefix, apidefaults.Namespace)).Components()
 		if len(components) != 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -1641,7 +1693,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
+		baseParser: newBaseParser(kubeServersUnscopedPrefix(), kubeServersScopedPrefix()),
 	}
 }
 
@@ -1652,18 +1704,24 @@ type kubeServerParser struct {
 func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		components := event.Item.Key.Components()
-		if len(components) != 3 {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		// Scoped kube servers live under
+		// /scoped/kubeServers/<encoded-scope>/<host-id>/<name>.
+		sqn, hostID, err := kubeServerNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		return &types.ResourceHeader{
+		return &types.KubernetesServerV3{
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:        components[2],
+				Name:        sqn.Name,
 				Namespace:   apidefaults.Namespace,
-				Description: components[1],
+				Description: hostID,
+			},
+			Scope: sqn.Scope,
+			Spec: types.KubernetesServerSpecV3{
+				HostID: hostID,
 			},
 		}, nil
 	case types.OpPut:
@@ -1751,38 +1809,110 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 	}
 }
 
-func newKubeClusterParser() *kubeClusterParser {
+func newKubeClusterParser(loadSecrets bool) *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
+		loadSecrets: loadSecrets,
+		baseParser: newBaseParser(
+			kubeUnscopedPrefix(),
+			kubeScopedPrefix(),
+		),
 	}
 }
 
 type kubeClusterParser struct {
 	baseParser
+	loadSecrets bool
 }
 
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(kubernetesPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		sqn, err := kubeNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return &types.ResourceHeader{
+
+		return &types.KubernetesClusterV3{
 			Kind:    types.KindKubernetesCluster,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      sqn.Name,
 				Namespace: apidefaults.Namespace,
 			},
+			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
-		return services.UnmarshalKubeCluster(event.Item.Value,
+		cluster, err := services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !p.loadSecrets {
+			return cluster.WithoutSecrets(), nil
+		}
+		return cluster, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func kubeNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(kubeScopedPrefix()):
+		components := key.TrimPrefix(kubeScopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(kubeUnscopedPrefix()):
+		components := key.TrimPrefix(kubeUnscopedPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+	}
+}
+
+func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+	switch {
+	case key.HasPrefix(kubeServersScopedPrefix()):
+		components := key.TrimPrefix(kubeServersScopedPrefix()).Components()
+		if len(components) != 3 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, hostID, name := components[0], components[1], components[2]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, "", trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, hostID, nil
+	case key.HasPrefix(kubeServersUnscopedPrefix()):
+		components := key.TrimPrefix(kubeServersUnscopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[1],
+		}, components[0], nil
+	default:
+		return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 	}
 }
 
@@ -2606,9 +2736,25 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 	}
 }
 
+func trimScopePrefix(key backend.Key) (scope string, remaining []string, err error) {
+	parts := key.Components()
+	if len(parts) < 2 {
+		return "", nil, trace.NotFound("failed parsing %v", key.String())
+	}
+	encodedScope := parts[0]
+	scope, err = scopes.DecodeFromKey(encodedScope)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	return scope, parts[1:], nil
+}
+
 func newAccessListParser() *accessListParser {
 	return &accessListParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListPrefix),
+			backend.ExactKey(scopedPrefix, accessListPrefix),
+		),
 	}
 }
 
@@ -2619,6 +2765,29 @@ type accessListParser struct {
 func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListPrefix)); found {
+			scope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 1 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			name := remaining[0]
+			// Delete events for scoped resources use an AccessList rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.AccessList{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessList,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: name,
+					},
+				},
+				Scope: scope,
+			}, nil
+		}
+
 		name := event.Item.Key.TrimPrefix(backend.NewKey(accessListPrefix)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -2785,7 +2954,10 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 
 func newAccessListMemberParser() *accessListMemberParser {
 	return &accessListMemberParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListMemberPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListMemberPrefix),
+			backend.ExactKey(scopedPrefix, accessListMemberPrefix),
+		),
 	}
 }
 
@@ -2796,6 +2968,49 @@ type accessListMemberParser struct {
 func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListMemberPrefix)); found {
+			listScope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 3 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			listName, encodedMemberScope, memberName := remaining[0], remaining[1], remaining[2]
+			memberScope, err := scopes.DecodeFromKey(encodedMemberScope)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listSQN := scopes.QualifiedName{
+				Scope: listScope,
+				Name:  listName,
+			}
+			memberSQN := scopes.QualifiedName{
+				Scope: memberScope,
+				Name:  memberName,
+			}
+			membershipKind := accesslist.MembershipKindUnspecified
+			if memberScope != "" {
+				membershipKind = accesslist.MembershipKindScopedList
+			}
+			// Delete events for scoped resources use an AccessListMember rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.AccessListMember{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessListMember,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: memberSQN.String(),
+					},
+				},
+				Scope: listScope,
+				Spec: accesslist.AccessListMemberSpec{
+					AccessList:     listSQN.String(),
+					Name:           memberSQN.String(),
+					MembershipKind: membershipKind,
+				},
+			}, nil
+		}
 		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListMemberPrefix))
 		if len(key.Components()) < 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -2823,7 +3038,10 @@ func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, err
 
 func newAccessListReviewParser() *accessListReviewParser {
 	return &accessListReviewParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListReviewPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListReviewPrefix),
+			backend.ExactKey(scopedPrefix, accessListReviewPrefix),
+		),
 	}
 }
 
@@ -2834,6 +3052,35 @@ type accessListReviewParser struct {
 func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListReviewPrefix)); found {
+			listScope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 2 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			listName, reviewName := remaining[0], remaining[1]
+			listSQN := scopes.QualifiedName{
+				Scope: listScope,
+				Name:  listName,
+			}
+			// Delete events for scoped resources use a Review rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.Review{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessListReview,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: reviewName,
+					},
+				},
+				Scope: listScope,
+				Spec: accesslist.ReviewSpec{
+					AccessList: listSQN.String(),
+				},
+			}, nil
+		}
 		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListReviewPrefix))
 		if len(key.Components()) < 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -2879,7 +3126,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			parts[5],
-			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+			kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 				Username:      parts[1],
 				Cluster:       parts[2],
 				Namespace:     parts[3],
@@ -2887,7 +3134,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 				ContainerName: parts[5],
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2966,16 +3213,16 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
 
-		notification := &notificationsv1.Notification{
+		notification := notificationsv1.Notification_builder{
 			Kind:    types.KindNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.NotificationSpec{
+			Spec: notificationsv1.NotificationSpec_builder{
 				Username: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[3],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
@@ -3010,18 +3257,18 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
 
-		globalNotification := &notificationsv1.GlobalNotification{
+		globalNotification := notificationsv1.GlobalNotification_builder{
 			Kind:    types.KindGlobalNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.GlobalNotificationSpec{
-				Notification: &notificationsv1.Notification{
+			Spec: notificationsv1.GlobalNotificationSpec_builder{
+				Notification: notificationsv1.Notification_builder{
 					Spec: &notificationsv1.NotificationSpec{},
-				},
-			},
-			Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[2],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(globalNotification), nil
 	case types.OpPut:
@@ -3040,7 +3287,10 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 
 func newBotInstanceParser() *botInstanceParser {
 	return &botInstanceParser{
-		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
+		baseParser: newBaseParser(
+			botInstanceUnscopedWatchPrefix(),
+			botInstanceScopedWatchPrefix(),
+		),
 	}
 }
 
@@ -3051,23 +3301,22 @@ type botInstanceParser struct {
 func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		parts := event.Item.Key.Components()
-		if len(parts) != 3 {
-			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
+		bot, instanceID, err := botInstanceNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		botInstance := &machineidv1.BotInstance{
+		botInstance := machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
-			Spec: &machineidv1.BotInstanceSpec{
-				BotName:    parts[1],
-				InstanceId: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
-				Name: parts[2],
-			},
-		}
-
+			Scope:   bot.Scope,
+			Spec: machineidv1.BotInstanceSpec_builder{
+				BotName:    bot.Name,
+				InstanceId: instanceID,
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
+				Name: instanceID,
+			}.Build(),
+		}.Build()
 		return types.Resource153ToLegacy(botInstance), nil
 	case types.OpPut:
 		botInstance, err := services.UnmarshalBotInstance(
@@ -3080,6 +3329,49 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 		return types.Resource153ToLegacy(botInstance), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+// botInstanceNameFromKey parses a bot instance backend key into the qualified
+// name of the owning bot and the instance ID. The scope must be carried on
+// delete events: consumers (e.g. the cache) key their stores by
+// (scope, bot name, instance id).
+func botInstanceNameFromKey(key backend.Key) (scopes.QualifiedName, string, error) {
+	switch {
+	case key.HasPrefix(botInstanceScopedWatchPrefix()):
+		components := key.TrimPrefix(botInstanceScopedWatchPrefix()).Components()
+		if len(components) != 3 {
+			return scopes.QualifiedName{}, "", trace.BadParameter(
+				"expected 3 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		encodedScope, botName, instanceID := components[0], components[1], components[2]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, "", trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  botName,
+		}, instanceID, nil
+	case key.HasPrefix(botInstanceUnscopedWatchPrefix()):
+		components := key.TrimPrefix(botInstanceUnscopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, "", trace.BadParameter(
+				"expected 2 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, components[1], nil
+	default:
+		return scopes.QualifiedName{}, "", trace.BadParameter(
+			"unexpected prefix parsing backend key %v", key.String(),
+		)
 	}
 }
 
@@ -3260,16 +3552,16 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 		}
 		deviceID := key.Components()[0]
 
-		privateKey := &accessgraphsecretsv1pb.PrivateKey{
+		privateKey := accessgraphsecretsv1pb.PrivateKey_builder{
 			Kind:    types.KindAccessGraphSecretPrivateKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(deviceID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.PrivateKeySpec_builder{
 				DeviceId: deviceID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(privateKey), nil
 	case types.OpPut:
@@ -3305,16 +3597,16 @@ func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types
 		}
 		hostID := key.Components()[0]
 
-		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+		authorizedKey := accessgraphsecretsv1pb.AuthorizedKey_builder{
 			Kind:    types.KindAccessGraphSecretAuthorizedKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId: hostID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(authorizedKey), nil
 	case types.OpPut:
@@ -3409,16 +3701,16 @@ func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, er
 		downstreamID := keyComponents[0]
 		resourceID := keyComponents[1]
 
-		pseudoState := &provisioningv1.PrincipalState{
+		pseudoState := provisioningv1.PrincipalState_builder{
 			Kind:    types.KindProvisioningPrincipalState,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: resourceID,
-			},
-			Spec: &provisioningv1.PrincipalStateSpec{
+			}.Build(),
+			Spec: provisioningv1.PrincipalStateSpec_builder{
 				DownstreamId: downstreamID,
-			},
-		}
+			}.Build(),
+		}.Build()
 		return types.Resource153ToLegacy(pseudoState), nil
 
 	case types.OpPut:

@@ -47,7 +47,7 @@ func (c *sigstorePolicyCollection) Resources() []types.Resource {
 func (c *sigstorePolicyCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, policy := range c.items {
-		t.AddRow([]string{policy.Metadata.Name})
+		t.AddRow([]string{policy.GetMetadata().GetName()})
 	}
 	return trace.Wrap(t.WriteTo(w))
 }
@@ -74,9 +74,9 @@ func getSigstorePolicy(
 	if ref.Name != "" {
 		r, err := c.GetSigstorePolicy(
 			ctx,
-			&workloadidentityv1pb.GetSigstorePolicyRequest{
+			workloadidentityv1pb.GetSigstorePolicyRequest_builder{
 				Name: ref.Name,
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -90,10 +90,10 @@ func getSigstorePolicy(
 		clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.SigstorePolicy, string, error) {
 			resp, err := c.ListSigstorePolicies(
 				ctx,
-				&workloadidentityv1pb.ListSigstorePoliciesRequest{
+				workloadidentityv1pb.ListSigstorePoliciesRequest_builder{
 					PageSize:  int32(limit),
 					PageToken: pageToken,
-				},
+				}.Build(),
 			)
 
 			return resp.GetSigstorePolicies(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -114,9 +114,9 @@ func deleteSigstorePolicy(
 	c := client.SigstorePolicyResourceServiceClient()
 	if _, err := c.DeleteSigstorePolicy(
 		ctx,
-		&workloadidentityv1pb.DeleteSigstorePolicyRequest{
+		workloadidentityv1pb.DeleteSigstorePolicyRequest_builder{
 			Name: ref.Name,
-		},
+		}.Build(),
 	); err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,18 +144,18 @@ func createSigstorePolicy(
 	if opts.Force {
 		if _, err := c.UpsertSigstorePolicy(
 			ctx,
-			&workloadidentityv1pb.UpsertSigstorePolicyRequest{
+			workloadidentityv1pb.UpsertSigstorePolicyRequest_builder{
 				SigstorePolicy: r,
-			},
+			}.Build(),
 		); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		if _, err := c.CreateSigstorePolicy(
 			ctx,
-			&workloadidentityv1pb.CreateSigstorePolicyRequest{
+			workloadidentityv1pb.CreateSigstorePolicyRequest_builder{
 				SigstorePolicy: r,
-			},
+			}.Build(),
 		); err != nil {
 			return trace.Wrap(err)
 		}
@@ -184,9 +184,9 @@ func updateSigstorePolicy(
 	c := client.SigstorePolicyResourceServiceClient()
 	if _, err = c.UpdateSigstorePolicy(
 		ctx,
-		&workloadidentityv1pb.UpdateSigstorePolicyRequest{
+		workloadidentityv1pb.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: r,
-		},
+		}.Build(),
 	); err != nil {
 		return trace.Wrap(err)
 	}

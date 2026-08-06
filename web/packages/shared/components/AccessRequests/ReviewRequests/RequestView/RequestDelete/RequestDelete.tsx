@@ -25,8 +25,9 @@ import Dialog, {
 } from 'design/Dialog';
 import { P } from 'design/Text/Text';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 import { Attempt } from 'shared/hooks/useAsync';
-import type { RequestState } from 'shared/services/accessRequests';
+import type { RequestState, UserDisplay } from 'shared/services/accessRequests';
 
 import RolesRequested from '../RolesRequested';
 
@@ -34,6 +35,7 @@ export interface RequestDeleteProps {
   requestId: string;
   requestState: RequestState;
   user: string;
+  userDisplay?: UserDisplay;
   roles: string[];
   onClose(): void;
   deleteRequestAttempt: Attempt<void>;
@@ -43,6 +45,7 @@ export interface RequestDeleteProps {
 export function RequestDelete({
   deleteRequestAttempt,
   user,
+  userDisplay,
   roles,
   requestId,
   requestState,
@@ -65,8 +68,16 @@ export function RequestDelete({
         )}
         <Flex flexWrap="wrap" gap={1} alignItems="baseline">
           <P>
-            You are about to delete a request from <strong>{user}</strong> for
-            the following roles:
+            You are about to delete a request from{' '}
+            <strong>
+              <UserDisplayName
+                username={user}
+                primaryText={userDisplay?.primary}
+                primaryTextProps={{ style: { font: 'inherit' } }}
+                layout="inline"
+              />
+            </strong>{' '}
+            for the following roles:
           </P>
           <RolesRequested roles={roles} />
         </Flex>

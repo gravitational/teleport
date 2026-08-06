@@ -83,11 +83,11 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsCircleCI {
-	return &workloadidentityv1pb.JoinAttrsCircleCI{
+	return workloadidentityv1pb.JoinAttrsCircleCI_builder{
 		Sub:        c.Sub,
 		ContextIds: c.ContextIDs,
 		ProjectId:  c.ProjectID,
-	}
+	}.Build()
 }
 
 // CheckIDTokenParams are parameters used to validate CircleCI OIDC tokens.

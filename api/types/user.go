@@ -95,6 +95,8 @@ type User interface {
 	GetKubeGroups() []string
 	// GetWindowsLogins gets the list of Windows Logins for the user
 	GetWindowsLogins() []string
+	// GetLinuxDesktopLogins gets the list of Linux desktop logins for the user
+	GetLinuxDesktopLogins() []string
 	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
 	GetAWSRoleARNs() []string
 	// GetAzureIdentities gets a list of Azure identities for the user
@@ -127,6 +129,8 @@ type User interface {
 	SetKubeGroups(kubeGroups []string)
 	// SetWindowsLogins sets a list of Windows Logins for user
 	SetWindowsLogins(logins []string)
+	// SetLinuxDesktopLogins sets a list of Linux desktop logins for user
+	SetLinuxDesktopLogins(logins []string)
 	// SetAWSRoleARNs sets a list of AWS role ARNs for user
 	SetAWSRoleARNs(awsRoleARNs []string)
 	// SetAzureIdentities sets a list of Azure identities for the user
@@ -147,6 +151,8 @@ type User interface {
 	SetCreatedBy(CreatedBy)
 	// GetUserType indicates if the User was created by an SSO Provider or locally.
 	GetUserType() UserType
+	// GetDisplay returns display values derived from the user.
+	GetDisplay() UserDisplay
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -485,6 +491,11 @@ func (u *UserV2) SetWindowsLogins(logins []string) {
 	u.setTrait(constants.TraitWindowsLogins, logins)
 }
 
+// SetLinuxDesktopLogins sets the LinuxLogins trait for the user
+func (u *UserV2) SetLinuxDesktopLogins(logins []string) {
+	u.setTrait(constants.TraitLinuxDesktopLogins, logins)
+}
+
 // SetAWSRoleARNs sets the AWSRoleARNs trait for the user
 func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
 	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
@@ -617,6 +628,11 @@ func (u UserV2) GetKubeGroups() []string {
 // GetWindowsLogins gets the list of Windows Logins for the user
 func (u UserV2) GetWindowsLogins() []string {
 	return u.getTrait(constants.TraitWindowsLogins)
+}
+
+// GetLinuxDesktopLogins gets the list of Linux desktop logins for the user
+func (u UserV2) GetLinuxDesktopLogins() []string {
+	return u.getTrait(constants.TraitLinuxDesktopLogins)
 }
 
 // GetAWSRoleARNs gets the list of AWS role ARNs for the user

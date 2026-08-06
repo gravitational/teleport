@@ -66,37 +66,37 @@ func TestUsers(t *testing.T) {
 			},
 			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
-				req := &userspb.ListUsersRequest{
+				req := userspb.ListUsersRequest_builder{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
-				}
+				}.Build()
 				resp, err := p.usersS.ListUsers(ctx, req)
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
 
-				for _, u := range resp.Users {
+				for _, u := range resp.GetUsers() {
 					out = append(out, u)
 				}
 
-				return out, resp.NextPageToken, nil
+				return out, resp.GetNextPageToken(), nil
 			},
 			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.User, string, error) {
 				var out []types.User
-				req := &userspb.ListUsersRequest{
+				req := userspb.ListUsersRequest_builder{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
-				}
+				}.Build()
 				resp, err := p.cache.ListUsers(ctx, req)
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
 
-				for _, u := range resp.Users {
+				for _, u := range resp.GetUsers() {
 					out = append(out, u)
 				}
 
-				return out, resp.NextPageToken, nil
+				return out, resp.GetNextPageToken(), nil
 			},
 			update: func(ctx context.Context, user types.User) error {
 				_, err := p.usersS.UpdateUser(ctx, user)
@@ -134,19 +134,19 @@ func TestUsers(t *testing.T) {
 		waitForUsersCacheLen(len(usersToCreate))
 
 		var allUsers []*types.UserV2
-		req := &userspb.ListUsersRequest{
+		req := userspb.ListUsersRequest_builder{
 			PageSize: 1,
-		}
+		}.Build()
 		for {
 			resp, err := p.cache.ListUsers(t.Context(), req)
 			require.NoError(t, err)
-			require.Len(t, resp.Users, 1)
+			require.Len(t, resp.GetUsers(), 1)
 
-			allUsers = append(allUsers, resp.Users...)
-			if resp.NextPageToken == "" {
+			allUsers = append(allUsers, resp.GetUsers()...)
+			if resp.GetNextPageToken() == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
+			req.SetPageToken(resp.GetNextPageToken())
 		}
 		require.Len(t, allUsers, len(usersToCreate))
 	})

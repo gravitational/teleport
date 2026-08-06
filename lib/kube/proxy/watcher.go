@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -93,7 +94,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.Scope != "" {
+	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}
@@ -105,6 +106,9 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 			Client:    s.AccessPoint,
 		},
 		KubernetesClusterGetter: s.AccessPoint,
+		// dynamically registered clusters may contain secrets which are necessary in order
+		// for the agent to connect to the cluster.
+		LoadSecrets: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -233,8 +237,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 		// Manual deletion per cluster is only required if the auth server
 		// doesn't support actively cleaning up database resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.KubernetesCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.GetKubernetesCleanup()
 		}
 	}
 
@@ -264,7 +268,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 
 // deleteKubernetesServer deletes kubernetes server for the specified cluster.
 func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) error {
-	err := s.AuthClient.DeleteKubernetesServer(ctx, s.HostID, name)
+	err := s.AuthClient.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  s.GetScope(),
+		HostId: s.HostID,
+		Name:   name,
+	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}

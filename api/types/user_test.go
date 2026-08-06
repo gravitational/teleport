@@ -511,6 +511,159 @@ func TestUserMatchTraits(t *testing.T) {
 	}
 }
 
+func TestUserDisplayValues(t *testing.T) {
+	tests := []struct {
+		name          string
+		username      string
+		traits        map[string][]string
+		labels        map[string]string
+		wantPrimary   string
+		wantSecondary string
+	}{
+		{
+			name:     "Okta traits take precedence over Entra ID, generic, and SCIM attrs",
+			username: "123456",
+			traits: map[string][]string{
+				displayNameTrait:        {"Alice Generic"},
+				emailTrait:              {"generic@example.com"},
+				entraIDDisplayNameTrait: {"Alice Entra"},
+				entraIDEmailTrait:       {"entra@example.com"},
+				oktaDisplayNameTrait:    {"Alice Adams"},
+				oktaEmailTrait:          {"alice@example.com"},
+			},
+			labels: map[string]string{
+				scimAttrsLabel: `{"displayName":"Alice SCIM","emails":[{"primary":true,"value":"scim@example.com"}]}`,
+			},
+			wantPrimary:   "Alice Adams",
+			wantSecondary: "alice@example.com",
+		},
+		{
+			name:     "Okta given and family fallback",
+			username: "123456",
+			traits: map[string][]string{
+				oktaGivenNameTrait:  {"Alice"},
+				oktaFamilyNameTrait: {"Adams"},
+			},
+			wantPrimary: "Alice Adams",
+		},
+		{
+			name:     "Okta first and last name fallback",
+			username: "123456",
+			traits: map[string][]string{
+				oktaFirstNameTrait: {"Alice"},
+				oktaLastNameTrait:  {"Adams"},
+			},
+			wantPrimary: "Alice Adams",
+		},
+		{
+			name:     "single Okta name part fallback",
+			username: "123456",
+			traits: map[string][]string{
+				oktaGivenNameTrait: {"Alice"},
+			},
+			wantPrimary: "Alice",
+		},
+		{
+			name:     "generic traits take precedence over SCIM attrs",
+			username: "123456",
+			traits: map[string][]string{
+				displayNameTrait: {"Generic Person"},
+				emailTrait:       {"generic@example.com"},
+			},
+			labels: map[string]string{
+				scimAttrsLabel: `{"displayName":"Alice SCIM","emails":[{"value":"backup@example.com"},{"primary":true,"value":"alice@example.com"}]}`,
+			},
+			wantPrimary:   "Generic Person",
+			wantSecondary: "generic@example.com",
+		},
+		{
+			name:     "SCIM display attrs",
+			username: "123456",
+			labels: map[string]string{
+				scimAttrsLabel: `{"displayName":"Alice SCIM","emails":[{"value":"backup@example.com"},{"primary":true,"value":"alice@example.com"}]}`,
+			},
+			wantPrimary:   "Alice SCIM",
+			wantSecondary: "alice@example.com",
+		},
+		{
+			name:     "SCIM name fallback and first email",
+			username: "123456",
+			labels: map[string]string{
+				scimAttrsLabel: `{"name":{"givenName":"Alice","familyName":"SCIM"},"emails":[{"value":"alice@example.com"},{"value":"backup@example.com"}]}`,
+			},
+			wantPrimary:   "Alice SCIM",
+			wantSecondary: "alice@example.com",
+		},
+		{
+			name:     "Entra ID synced traits take precedence over generic traits and SCIM attrs",
+			username: "123456",
+			traits: map[string][]string{
+				nameTrait:               {"Alice Name"},
+				displayNameTrait:        {"Alice Generic"},
+				emailTrait:              {"generic@example.com"},
+				entraIDDisplayNameTrait: {"Alice Entra"},
+				entraIDEmailTrait:       {"alice@example.com"},
+			},
+			labels: map[string]string{
+				scimAttrsLabel: `{"displayName":"Alice SCIM","emails":[{"primary":true,"value":"scim@example.com"}]}`,
+			},
+			wantPrimary:   "Alice Entra",
+			wantSecondary: "alice@example.com",
+		},
+		{
+			name:     "username dedupe",
+			username: "alice@example.com",
+			traits: map[string][]string{
+				oktaDisplayNameTrait: {"alice@example.com"},
+				oktaEmailTrait:       {"alice@example.com"},
+			},
+			wantPrimary:   "",
+			wantSecondary: "",
+		},
+		{
+			name:     "username dedupe falls through to next display candidates",
+			username: "alice@example.com",
+			traits: map[string][]string{
+				oktaDisplayNameTrait: {"alice@example.com"},
+				oktaGivenNameTrait:   {"Alice"},
+				oktaFamilyNameTrait:  {"Adams"},
+				oktaEmailTrait:       {"alice@example.com"},
+				emailTrait:           {"alice.alt@example.com"},
+			},
+			wantPrimary:   "Alice Adams",
+			wantSecondary: "alice.alt@example.com",
+		},
+		{
+			name:     "malformed SCIM attrs",
+			username: "123456",
+			labels: map[string]string{
+				scimAttrsLabel: `{"displayName"`,
+			},
+			wantPrimary:   "",
+			wantSecondary: "",
+		},
+		{
+			name:          "missing values",
+			username:      "123456",
+			wantPrimary:   "",
+			wantSecondary: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := NewUser(tt.username)
+			require.NoError(t, err)
+			u.SetTraits(tt.traits)
+			u.SetStaticLabels(tt.labels)
+
+			display := u.GetDisplay()
+			require.Equal(t, tt.wantPrimary, display.Primary)
+			require.Equal(t, tt.wantSecondary, display.Secondary)
+		})
+	}
+}
+
 func BenchmarkMatchSearch(b *testing.B) {
 	const count = 50
 

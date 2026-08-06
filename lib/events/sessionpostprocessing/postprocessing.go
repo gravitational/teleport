@@ -76,6 +76,9 @@ func Process(ctx context.Context, cfg Config) error {
 			summarizerErr = trace.Wrap(err, "failed to summarize upload")
 		}
 	case *apievents.WindowsDesktopSessionEnd:
+		if err := summarizer.SummarizeWindowsDesktop(ctx, o); err != nil {
+			summarizerErr = trace.Wrap(err, "failed to summarize upload")
+		}
 		metadataSvc := cfg.RecordingMetadataProvider.Service()
 		if !o.EndTime.IsZero() && !o.StartTime.IsZero() {
 			duration := o.EndTime.Sub(o.StartTime)

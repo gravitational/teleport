@@ -42,153 +42,137 @@ func TestRequestToMessage(t *testing.T) {
 		},
 		{
 			desc: "empty ClientInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_ClientInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				ClientInit: &joinv1.ClientInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty TokenInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TokenInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				TokenInit: &joinv1.TokenInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty BoundKeypairInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_BoundKeypairInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				BoundKeypairInit: &joinv1.BoundKeypairInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty IAMInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_IamInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				IamInit: &joinv1.IAMInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty EC2Init",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Ec2Init{},
-			},
+			req: joinv1.JoinRequest_builder{
+				Ec2Init: &joinv1.EC2Init{},
+			}.Build(),
 		},
 		{
 			desc: "empty OIDCInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_OidcInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				OidcInit: &joinv1.OIDCInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty OracleInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_OracleInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				OracleInit: &joinv1.OracleInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty TpmInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TpmInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				TpmInit: &joinv1.TPMInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty AzureInit",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_AzureInit{},
-			},
+			req: joinv1.JoinRequest_builder{
+				AzureInit: &joinv1.AzureInit{},
+			}.Build(),
 		},
 		{
 			desc: "empty HostParams",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TokenInit{
-					TokenInit: &joinv1.TokenInit{
-						ClientParams: &joinv1.ClientParams{
-							Payload: &joinv1.ClientParams_HostParams{},
-						},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				TokenInit: joinv1.TokenInit_builder{
+					ClientParams: joinv1.ClientParams_builder{
+						HostParams: &joinv1.HostParams{},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty BotParams",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TokenInit{
-					TokenInit: &joinv1.TokenInit{
-						ClientParams: &joinv1.ClientParams{
-							Payload: &joinv1.ClientParams_BotParams{},
-						},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				TokenInit: joinv1.TokenInit_builder{
+					ClientParams: joinv1.ClientParams_builder{
+						BotParams: &joinv1.BotParams{},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty Solution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{},
+			}.Build(),
 		},
 		{
 			desc: "empty BoundKeypairChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_BoundKeypairChallengeSolution{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					BoundKeypairChallengeSolution: &joinv1.BoundKeypairChallengeSolution{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty BoundKeypairRotationResponse",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					BoundKeypairRotationResponse: &joinv1.BoundKeypairRotationResponse{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty IamChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_IamChallengeSolution{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					IamChallengeSolution: &joinv1.IAMChallengeSolution{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty OracleChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					OracleChallengeSolution: &joinv1.OracleChallengeSolution{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty TpmSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_TpmSolution{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					TpmSolution: &joinv1.TPMSolution{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty AzureSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{},
-					},
-				},
-			},
+			req: joinv1.JoinRequest_builder{
+				Solution: joinv1.ChallengeSolution_builder{
+					AzureChallengeSolution: &joinv1.AzureChallengeSolution{},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty GivingUp",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_GivingUp{},
-			},
+			req: joinv1.JoinRequest_builder{
+				GivingUp: &joinv1.GivingUp{},
+			}.Build(),
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

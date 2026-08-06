@@ -16,10 +16,6 @@
 
 package decoder
 
-import (
-	"image"
-)
-
 // This file contains types and functions that are shared between the nop decoder (built without RDP decoder flag) and
 // the decoder built with the RDP decoder flag.
 
@@ -27,13 +23,6 @@ import (
 type CursorState struct {
 	Visible bool
 	X, Y    uint16
-}
-
-// CursorBitmapData holds the cursor bitmap image and hotspot offset.
-type CursorBitmapData struct {
-	Image    *image.RGBA
-	HotspotX int
-	HotspotY int
 }
 
 type decoderConfig struct {

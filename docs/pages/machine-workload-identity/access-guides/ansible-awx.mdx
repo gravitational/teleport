@@ -6,6 +6,7 @@ tags:
  - how-to
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
 
 Ansible AWX, formerly known as Ansible Tower, is an interface on top of Ansible
@@ -19,13 +20,13 @@ This guide applies both to open-source Ansible AWX as well as Red Hat's
 commercial Ansible Automation Platform automation controller, which is
 built on top of the open-source Ansible AWX engine.
 
-## How it works
-
 In this guide, you will configure a container group in Ansible AWX to run the
 Machine & Workload Identity agent, `tbot`, as a sidecar, which will provide
 credentials and a high-performance multiplexing proxy to your Ansible AWX jobs.
 You'll then configure Ansible to use these credentials to connect to SSH nodes
 through the Teleport Proxy Service.
+
+{/*lint ignore page-structure remark-lint*/}
 
 ## Prerequisites
 

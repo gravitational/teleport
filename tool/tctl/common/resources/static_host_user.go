@@ -59,25 +59,25 @@ func (c *staticHostUserCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.items {
 
-		for _, matcher := range item.Spec.Matchers {
-			labelMap := label.ToMap(matcher.NodeLabels)
+		for _, matcher := range item.GetSpec().GetMatchers() {
+			labelMap := label.ToMap(matcher.GetNodeLabels())
 			labelStringMap := make(map[string]string, len(labelMap))
 			for k, vals := range labelMap {
 				labelStringMap[k] = fmt.Sprintf("[%s]", printSortedStringSlice(vals))
 			}
 			var uid string
-			if matcher.Uid != 0 {
-				uid = strconv.Itoa(int(matcher.Uid))
+			if matcher.GetUid() != 0 {
+				uid = strconv.Itoa(int(matcher.GetUid()))
 			}
 			var gid string
-			if matcher.Gid != 0 {
-				gid = strconv.Itoa(int(matcher.Gid))
+			if matcher.GetGid() != 0 {
+				gid = strconv.Itoa(int(matcher.GetGid()))
 			}
 			rows = append(rows, []string{
-				item.GetMetadata().Name,
+				item.GetMetadata().GetName(),
 				common.FormatLabels(labelStringMap, verbose),
-				matcher.NodeLabelsExpression,
-				printSortedStringSlice(matcher.Groups),
+				matcher.GetNodeLabelsExpression(),
+				printSortedStringSlice(matcher.GetGroups()),
 				uid,
 				gid,
 			})
@@ -151,12 +151,12 @@ func createStaticHostUser(
 		if _, err := c.UpsertStaticHostUser(ctx, hostUser); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+		fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().GetName())
 	} else {
 		if _, err := c.CreateStaticHostUser(ctx, hostUser); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().Name)
+		fmt.Printf("static host user %q has been created\n", hostUser.GetMetadata().GetName())
 	}
 
 	return nil
@@ -175,7 +175,7 @@ func updateStaticHostUser(
 	if _, err := client.StaticHostUserClient().UpdateStaticHostUser(ctx, hostUser); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().Name)
+	fmt.Printf("static host user %q has been updated\n", hostUser.GetMetadata().GetName())
 	return nil
 }
 

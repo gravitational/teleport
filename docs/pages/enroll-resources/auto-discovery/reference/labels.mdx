@@ -2,12 +2,16 @@
 title: Labels
 sidebar_label: Labels
 description: Learn about resource labels applied during auto-discovery
+page_type: reference
 ---
 
 Cloud resources such as AWS EC2 instances, EKS clusters, RDS databases and similar
 resources in Azure and Google Cloud enrolled in a Teleport cluster during
 auto-discovery get a set of default labels applied to them which can then be
 used in RBAC.
+
+This page lists the default labels that Teleport applies to auto-discovered
+resources.
 
 ## AWS
 
@@ -122,6 +126,27 @@ See the GCP VM auto-discovery [guide](../../../enroll-resources/auto-discovery/s
 | `teleport.dev/name`       | GCP VM name                         |
 | `teleport.dev/project-id` | GCP project ID the VM is running in |
 | `teleport.dev/zone`       | GCP zone where the VM is running    |
+
+### Databases
+
+See the Google Cloud database auto-discovery
+[guide](../../../enroll-resources/auto-discovery/databases/gcp.mdx).
+
+| Label                                     | Description                                                                                               |
+|-------------------------------------------|-----------------------------------------------------------------------------------------------------------|
+| `endpoint-type`                           | Endpoint Teleport routes to: one of `public`, `private` (PSA), or `psc`.                                  |
+| `engine-version`                          | Cloud SQL database version, e.g. `POSTGRES_16` or `MYSQL_8_4`.                                            |
+| `engine`                                  | Database protocol: `postgres` or `mysql`.                                                                 |
+| `instance-type`                           | Instance role: `primary` or `read-replica`.                                                               |
+| `project-id`                              | GCP project ID the instance is running in.                                                                |
+| `region`                                  | GCP region where the instance is running.                                                                 |
+| `status`                                  | Instance state at discovery time, e.g. `RUNNABLE`.                                                        |
+| `teleport.dev/cloud`                      | Always `GCP`.                                                                                             |
+| `teleport.dev/discovery-type`             | `cloudsql` for Cloud SQL databases.                                                                       |
+| `teleport.dev/origin`                     | Always `cloud`.                                                                                           |
+| `teleport.internal/discovered-name`       | Original instance name when Teleport adds a suffix; otherwise absent.                                     |
+| `teleport.internal/discovery-config-name` | Dynamic discovery configuration name. Absent for static Discovery Service matchers.                       |
+| `teleport.internal/discovery-group-name`  | Discovery group name; absent when unset.                                                                  |
 
 ### Kubernetes clusters
 

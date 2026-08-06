@@ -25,7 +25,6 @@ import (
 	"math"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/image/draw"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -88,6 +87,12 @@ func (d *desktopThumbnailGenerator) handleDesktopRecording(evt *apievents.Deskto
 	return err
 }
 
+// decoderAvailable reports whether the RDP decoder is present. It is false in nop builds, where the decoder returns
+// NotImplemented and the generator disables itself, leaving no frame activity to analyze.
+func (d *desktopThumbnailGenerator) decoderAvailable() bool {
+	return !d.disabled
+}
+
 // produceThumbnail generates a thumbnail from the current RDP state. If the cursor is visible, the thumbnail is zoomed
 // to the area around the cursor. maxDim caps the longer side (in pixels) of the encoded PNG.
 // NOTE: If the decoder is not available (e.g. in nop builds without desktop_access_rdp), this will return nil without
@@ -97,18 +102,14 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		return nil, nil
 	}
 
-	img := d.rdpstate.Image()
-	if img == nil {
+	screenW, screenH := d.rdpstate.Dimensions()
+	if screenW == 0 || screenH == 0 {
 		return nil, trace.BadParameter("rdp state has no image")
 	}
 
 	cursor := d.rdpstate.CursorState()
 
-	bounds := img.Bounds()
-
-	screenWidth := bounds.Dx()
-	screenHeight := bounds.Dy()
-
+	bounds := image.Rect(0, 0, int(screenW), int(screenH))
 	if cursor.Visible {
 		bounds = calculateCropBounds(bounds, cursor)
 	}
@@ -130,26 +131,86 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		}
 	}
 
-	thumbImg := image.NewRGBA(image.Rect(0, 0, thumbW, thumbH))
-	draw.CatmullRom.Scale(thumbImg, thumbImg.Bounds(), img, bounds, draw.Over, nil)
+	// The integer division above can floor a dimension to 0 for extreme aspect
+	// ratios; clamp to at least 1px so we still produce a valid thumbnail.
+	thumbW = max(thumbW, 1)
+	thumbH = max(thumbH, 1)
+
+	//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+	thumbImg, err := d.rdpstate.ResizeCrop(
+		uint16(bounds.Min.X), uint16(bounds.Min.Y),
+		uint16(cropW), uint16(cropH),
+		uint16(thumbW), uint16(thumbH),
+		true,
+	)
+	if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		return nil, trace.Wrap(err, "resizing thumbnail crop")
+	}
 
 	d.buf.Reset()
 	if err := d.pngEncoder.Encode(&d.buf, thumbImg); err != nil {
 		return nil, trace.Wrap(err, "encoding thumbnail PNG")
 	}
 
-	return &pb.SessionRecordingThumbnail{
+	return pb.SessionRecordingThumbnail_builder{
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: cursor.Visible,
-		ScreenWidth:   int32(screenWidth),
-		ScreenHeight:  int32(screenHeight),
+		ScreenWidth:   int32(screenW),
+		ScreenHeight:  int32(screenH),
 		Png:           bytes.Clone(d.buf.Bytes()),
-	}, nil
+	}.Build(), nil
 }
 
 func (d *desktopThumbnailGenerator) release() {
 	d.rdpstate.Release()
+}
+
+// frameActivity captures the per-frame signals the desktop processor uses to decide whether a frame represents real user
+// activity: how much of the screen changed, where the cursor is, and the screen size.
+type frameActivity struct {
+	changedPixels int
+	// regions are the rectangles that changed this frame; their positions let the processor tell typing
+	// apart from a fixed clock or caret.
+	regions []image.Rectangle
+	// mouseButton is set when this frame carried a mouse button press or release.
+	mouseButton      bool
+	cursorX, cursorY uint16
+	screenW, screenH uint16
+}
+
+// consumeFrameActivity returns the activity signals for the frame just handled and resets the decoder's updated-region
+// accumulator so the next call reflects only the next frame.
+// It returns the zero value when the generator is disabled.
+func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
+	if d.disabled {
+		return frameActivity{}
+	}
+	defer d.rdpstate.ResetUpdatedRegions()
+	defer d.rdpstate.ResetMouseButtonInput()
+
+	regions := d.rdpstate.UpdatedRegions()
+
+	// UpdatedRegions can overlap, so a pixel changed twice is counted twice and changed
+	// can exceed the true changed area. We accept the overcount as a worthwhile trade-off
+	// for keeping the comparison simple, rather than computing the exact union area.
+	var changed int
+	for _, r := range regions {
+		changed += r.Dx() * r.Dy()
+	}
+
+	cursor := d.rdpstate.CursorState()
+	w, h := d.rdpstate.Dimensions()
+
+	return frameActivity{
+		changedPixels: changed,
+		regions:       regions,
+		mouseButton:   d.rdpstate.MouseButtonInput(),
+		cursorX:       cursor.X,
+		cursorY:       cursor.Y,
+		screenW:       w,
+		screenH:       h,
+	}
 }
 
 func calculateCropBounds(bounds image.Rectangle, cursor decoder.CursorState) image.Rectangle {

@@ -38,35 +38,35 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var autoUpdateConfigSpec = &autoupdatev1pb.AutoUpdateConfigSpec{
+var autoUpdateConfigSpec = autoupdatev1pb.AutoUpdateConfigSpec_builder{
 	Tools: nil,
-	Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+	Agents: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 		Mode:     autoupdate.AgentsUpdateModeEnabled,
 		Strategy: autoupdate.AgentsStrategyHaltOnError,
-		Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+		Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 			Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "dev",
 					Days:      []string{"*"},
 					StartHour: 12,
 					WaitHours: 0,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "stage",
 					Days:      []string{"*"},
 					StartHour: 12,
 					WaitHours: 24,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "prod",
 					Days:      []string{"Mon", "Tue", "Wed", "Thu"},
 					StartHour: 12,
 					WaitHours: 24,
-				},
+				}.Build(),
 			},
-		},
-	},
-}
+		}.Build(),
+	}.Build(),
+}.Build()
 
 type autoUpdateConfigTestingPrimitives struct {
 	setup *testSetup
@@ -82,17 +82,17 @@ func (g *autoUpdateConfigTestingPrimitives) SetupTeleportFixtures(ctx context.Co
 }
 
 func (g *autoUpdateConfigTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	autoUpdateConfig := &autoupdatev1pb.AutoUpdateConfig{
+	autoUpdateConfig := autoupdatev1pb.AutoUpdateConfig_builder{
 		Kind:    types.KindAutoUpdateConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameAutoUpdateConfig,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Spec: autoUpdateConfigSpec,
-	}
+	}.Build()
 	_, err := g.setup.TeleportClient.
 		CreateAutoUpdateConfig(ctx, autoUpdateConfig)
 	return trace.Wrap(err)
@@ -147,10 +147,10 @@ func (g *autoUpdateConfigTestingPrimitives) ModifyKubernetesResource(ctx context
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	autoUpdateConfig.Spec.Agents.Mode = autoupdate.AgentsUpdateModeSuspended
-	autoUpdateConfig.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{
+	autoUpdateConfig.Spec.Agents.SetMode(autoupdate.AgentsUpdateModeSuspended)
+	autoUpdateConfig.Spec.Tools = autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 		Mode: autoupdate.ToolsUpdateModeEnabled,
-	}
+	}.Build()
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, autoUpdateConfig))
 }
 

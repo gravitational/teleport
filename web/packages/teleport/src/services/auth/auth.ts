@@ -116,11 +116,12 @@ const auth = {
       .then(parseMfaChallengeJson);
   },
 
-  login(userId: string, password: string, otpCode: string) {
+  login(userId: string, password: string, otpCode: string, scope: string) {
     const data = {
       user: userId,
       pass: password,
       second_factor_token: otpCode,
+      scope,
     };
 
     return api.postWithOptions(cfg.api.webSessionPath, {
@@ -132,7 +133,7 @@ const auth = {
     });
   },
 
-  loginWithWebauthn(creds?: UserCredentials) {
+  loginWithWebauthn(creds?: UserCredentials, scope: string = '') {
     return auth
       .checkWebauthnSupport()
       .then(() => auth.mfaLoginBegin(creds))
@@ -145,6 +146,7 @@ const auth = {
         const request = {
           user: creds?.username,
           webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          scope,
         };
 
         return api.postWithOptions(cfg.api.mfaLoginFinish, {
@@ -412,22 +414,23 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
   },
 
-  getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
-    // If the client is checking if MFA is required for an admin action,
-    // but we know admin action MFA is not enforced, return early.
-    if (!cfg.isAdminActionMfaEnforced()) {
+  async getMfaChallengeResponseForAdminAction(allowReuse?: boolean) {
+    // Skip the challenge if we know it's not enforced.
+    if (cfg.isAdminActionMfaEnforced() === false) {
       return;
     }
 
-    return auth
-      .getMfaChallenge({
-        scope: MfaChallengeScope.ADMIN_ACTION,
-        allowReuse: allowReuse,
-        isMfaRequiredRequest: {
-          admin_action: {},
-        },
-      })
-      .then(auth.getMfaChallengeResponse);
+    const challenge = await auth.getMfaChallenge({
+      scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse: allowReuse,
+      isMfaRequiredRequest: {
+        admin_action: {},
+      },
+    });
+    if (!challenge) {
+      return;
+    }
+    return auth.getMfaChallengeResponse(challenge);
   },
 };
 

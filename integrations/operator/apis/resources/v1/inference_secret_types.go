@@ -60,16 +60,16 @@ type TeleportInferenceSecretList struct {
 
 // ToTeleport returns a Teleport representation of this Kubernetes resource.
 func (s *TeleportInferenceSecret) ToTeleport() *summarizerv1.InferenceSecret {
-	resource := &summarizerv1.InferenceSecret{
+	resource := summarizerv1.InferenceSecret_builder{
 		Kind:    types.KindInferenceSecret,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        s.Name,
 			Description: s.Annotations[teleportcr.DescriptionKey],
 			Labels:      s.Labels,
-		},
+		}.Build(),
 		Spec: (*summarizerv1.InferenceSecretSpec)(s.Spec),
-	}
+	}.Build()
 	return resource
 }
 

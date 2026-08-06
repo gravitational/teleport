@@ -219,7 +219,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{name: "TrustedClusterV2"},
-		{name: "Bot", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
+		{
+			name: "Bot",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
 		{
 			name: "WorkloadIdentity",
 			opts: []resourceSchemaOption{

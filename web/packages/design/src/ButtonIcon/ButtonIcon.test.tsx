@@ -16,29 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import ButtonIcon from './index';
 
 describe('design/ButtonIcon', () => {
   it('renders a <button> and respects default "size" to 1', () => {
-    const { container } = render(<ButtonIcon />);
-    expect(container.firstChild?.nodeName).toBe('BUTTON');
-    expect(container.firstChild).toHaveStyle('font-size: 16px');
+    render(<ButtonIcon />);
+    expect(screen.getByRole('button')).toHaveStyle('font-size: 16px');
   });
 
   test('"size" 0 maps to font-size 12px', () => {
-    const { container } = render(<ButtonIcon size={0} />);
-    expect(container.firstChild).toHaveStyle('font-size: 12px');
+    render(<ButtonIcon size={0} />);
+    expect(screen.getByRole('button')).toHaveStyle('font-size: 12px');
   });
 
   test('"size" 1 maps to font-size 16px', () => {
-    const { container } = render(<ButtonIcon size={1} />);
-    expect(container.firstChild).toHaveStyle('font-size: 16px');
+    render(<ButtonIcon size={1} />);
+    expect(screen.getByRole('button')).toHaveStyle('font-size: 16px');
   });
 
   test('"size" 2 maps to font-size 24px', () => {
-    const { container } = render(<ButtonIcon size={2} />);
-    expect(container.firstChild).toHaveStyle('font-size: 24px');
+    render(<ButtonIcon size={2} />);
+    expect(screen.getByRole('button')).toHaveStyle('font-size: 24px');
   });
 });

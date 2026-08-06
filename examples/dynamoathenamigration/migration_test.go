@@ -26,6 +26,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -39,7 +40,6 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/prompt"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -181,26 +181,44 @@ type mockEmitter struct {
 
 	// failAfterNCalls if greater than 0, will cause failure of emitter after n calls
 	failAfterNCalls int
+
+	// barrierOnceN, if greater than 0, blocks the first N concurrent calls until
+	// all N calls are waiting. This is used to make multi-worker tests
+	// deterministic by ensuring that every worker emits at least one event.
+	barrierOnceN   int
+	barrierWaiting int
+	barrierCh      chan struct{}
 }
 
-func (m *mockEmitter) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
+func (m *mockEmitter) EmitAuditEvent(_ context.Context, in apievents.AuditEvent) error {
+	m.waitBarrier()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failAfterNCalls > 0 && len(m.events) >= m.failAfterNCalls {
 		return errors.New("emitter failure")
 	}
 	m.events = append(m.events, in)
-	// Simulate some work by sleeping during emitting.
-	// It helps redistribute task processing among all workers and requires
-	// less iterations in tests to generate checkpoint file from all workers.
-	// Without it, in rare cases after 50 events still some worker were not able
-	// to read message because of other processing it immediately.
-	select {
-	case <-time.After(retryutils.HalfJitter(100 * time.Microsecond)):
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	return nil
+}
+
+func (m *mockEmitter) waitBarrier() {
+	m.mu.Lock()
+	if m.barrierOnceN == 0 || m.barrierWaiting >= m.barrierOnceN {
+		m.mu.Unlock()
+		return
 	}
+	if m.barrierCh == nil {
+		m.barrierCh = make(chan struct{})
+	}
+	ch := m.barrierCh
+	m.barrierWaiting++
+	if m.barrierWaiting == m.barrierOnceN {
+		close(ch)
+	}
+	m.mu.Unlock()
+
+	<-ch
 }
 
 // requireEventsEqualInAnyOrder compares slices of auditevents ignoring order.
@@ -216,172 +234,182 @@ func requireEventsEqualInAnyOrder(t *testing.T, want, got []apievents.AuditEvent
 }
 
 func TestMigrationCheckpoint(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	// There is confirmation prompt in migration when reusing checkpoint, that's why
 	// Stdin is overwritten in tests.
 	oldStdin := prompt.Stdin()
 	t.Cleanup(func() { prompt.SetStdin(oldStdin) })
 
-	noOfWorkers := 3
-	defaultConfig := Config{
-		Logger:          logtest.NewLogger(),
-		NoOfEmitWorkers: noOfWorkers,
-		bufferSize:      noOfWorkers * 5,
-		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
+	newConfig := func(t *testing.T) Config {
+		tmpDir := t.TempDir()
+		return Config{
+			Logger:          logtest.NewLogger(),
+			NoOfEmitWorkers: 1,
+			bufferSize:      5,
+			CheckpointPath:  filepath.Join(tmpDir, "migration-tests.json"),
+			ExportLocalDir:  tmpDir,
+		}
+	}
+	newTask := func(dataObjects map[string]string, emitter *mockEmitter, cfg Config) *task {
+		return &task{
+			s3Downloader: &fakeDownloader{
+				dataObjects: dataObjects,
+			},
+			eventsEmitter: emitter,
+			Config:        cfg,
+		}
+	}
+	newExportInfo := func(exportARN string, keys ...string) *exportInfo {
+		dataObjectsInfo := make([]dataObjectInfo, 0, len(keys))
+		for _, key := range keys {
+			dataObjectsInfo = append(dataObjectsInfo, dataObjectInfo{DataFileS3Key: key})
+		}
+		return &exportInfo{
+			ExportARN:       exportARN,
+			DataObjectsInfo: dataObjectsInfo,
+		}
+	}
+	collectExportEvents := func(t *testing.T, mt *task, exportInfo *exportInfo) []apievents.AuditEvent {
+		var events []apievents.AuditEvent
+		for _, dataObj := range exportInfo.DataObjectsInfo {
+			sortedExportFile, err := mt.downloadFromS3AndSort(t.Context(), dataObj)
+			require.NoError(t, err)
+
+			decoder := json.NewDecoder(sortedExportFile)
+			for decoder.More() {
+				ev, err := exportedDynamoItemToAuditEvent(t.Context(), decoder)
+				require.NoError(t, err)
+				events = append(events, ev)
+			}
+			require.NoError(t, sortedExportFile.Close())
+		}
+		return events
+	}
+	countEventsAfterFirstCheckpoint := func(t *testing.T, events []apievents.AuditEvent, checkpoint *checkpointData) int {
+		checkpointValues := checkpoint.checkpointValues()
+		require.NotEmpty(t, checkpointValues)
+
+		var afterCheckpoint bool
+		var count int
+		for _, ev := range events {
+			if !afterCheckpoint {
+				if slices.Contains(checkpointValues, ev.GetID()) {
+					afterCheckpoint = true
+				}
+				continue
+			}
+			count++
+		}
+		require.True(t, afterCheckpoint, "checkpoint not found in export data")
+		return count
 	}
 
 	t.Run("no migration checkpoint, emit every event", func(t *testing.T) {
 		prompt.SetStdin(prompt.NewFakeReader())
 		testDataObjects := map[string]string{
-			"testdata/dataObj1.json.gz": generateDynamoExportData(100),
-			"testdata/dataObj2.json.gz": generateDynamoExportData(100),
+			"testdata/dataObj.json.gz": generateDynamoExportData(200),
 		}
 		emitter := &mockEmitter{}
-		mt := &task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: emitter,
-			Config:        defaultConfig,
-		}
-		err := mt.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: uuid.NewString(),
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		mt := newTask(testDataObjects, emitter, newConfig(t))
+		err := mt.ProcessDataObjects(t.Context(), newExportInfo(uuid.NewString(), "testdata/dataObj.json.gz"))
 		require.NoError(t, err)
 		require.Len(t, emitter.events, 200, "unexpected number of emitted events")
 	})
 
 	t.Run("failure after 50 calls, reuse checkpoint", func(t *testing.T) {
-		// y to prompt on if reuse checkpoint
-		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
 		exportARN := uuid.NewString()
 		testDataObjects := map[string]string{
-			"testdata/dataObj1.json.gz": generateDynamoExportData(100),
-			"testdata/dataObj2.json.gz": generateDynamoExportData(100),
+			"testdata/dataObj.json.gz": generateDynamoExportData(200),
 		}
-		emitter := &mockEmitter{
-			failAfterNCalls: 50,
-		}
-		mt := &task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: emitter,
-			Config:        defaultConfig,
-		}
-		err := mt.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		cfg := newConfig(t)
+		emitter := &mockEmitter{failAfterNCalls: 50}
+		mt := newTask(testDataObjects, emitter, cfg)
+		exportInfo := newExportInfo(exportARN, "testdata/dataObj.json.gz")
+		err := mt.ProcessDataObjects(t.Context(), exportInfo)
 		require.Error(t, err)
 		require.Len(t, emitter.events, 50, "unexpected number of emitted events")
 
+		// y to prompt on if reuse checkpoint.
+		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
 		newEmitter := &mockEmitter{}
-		newMigration := task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: newEmitter,
-			Config:        defaultConfig,
-		}
-		err = newMigration.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		newMigration := newTask(testDataObjects, newEmitter, cfg)
+		err = newMigration.ProcessDataObjects(t.Context(), exportInfo)
 		require.NoError(t, err)
-		// There was 200 events, first migration finished after 50, so this one should emit at least 150.
-		// We are using range (150,199) to check because of checkpoint is stored per worker and we are using
-		// first from list so we expect up to noOfWorkers-1 more events, but in some condition it can be more (on worker processing faster).
-		require.GreaterOrEqual(t, len(newEmitter.events), 150, "unexpected number of emitted events")
-		require.Less(t, len(newEmitter.events), 199, "unexpected number of emitted events")
+		require.Len(t, newEmitter.events, 150, "unexpected number of emitted events")
 	})
 	t.Run("failure after 150 calls (from 2nd export file), reuse checkpoint", func(t *testing.T) {
-		// y to prompt on if reuse checkpoint
-		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
 		exportARN := uuid.NewString()
 		testDataObjects := map[string]string{
 			"testdata/dataObj1.json.gz": generateDynamoExportData(100),
 			"testdata/dataObj2.json.gz": generateDynamoExportData(100),
 		}
-		emitter := &mockEmitter{
-			failAfterNCalls: 150,
-		}
-		mt := &task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: emitter,
-			Config:        defaultConfig,
-		}
-		err := mt.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		cfg := newConfig(t)
+		emitter := &mockEmitter{failAfterNCalls: 150}
+		mt := newTask(testDataObjects, emitter, cfg)
+		exportInfo := newExportInfo(exportARN, "testdata/dataObj1.json.gz", "testdata/dataObj2.json.gz")
+		err := mt.ProcessDataObjects(t.Context(), exportInfo)
 		require.Error(t, err)
 		require.Len(t, emitter.events, 150, "unexpected number of emitted events")
 
+		// y to prompt on if reuse checkpoint.
+		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
 		newEmitter := &mockEmitter{}
-		newMigration := task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: newEmitter,
-			Config:        defaultConfig,
-		}
-		err = newMigration.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		newMigration := newTask(testDataObjects, newEmitter, cfg)
+		err = newMigration.ProcessDataObjects(t.Context(), exportInfo)
 		require.NoError(t, err)
-		// There was 200 events, first migration finished after 150, so this one should emit at least 50.
-		// We are using range (50,99) to check because of checkpoint is stored per worker and we are using
-		// first from list so we expect up to noOfWorkers-1 more events, but in some condition it can be more (on worker processing faster).
-		require.GreaterOrEqual(t, len(newEmitter.events), 50, "unexpected number of emitted events")
-		require.Less(t, len(newEmitter.events), 99, "unexpected number of emitted events")
+		require.Len(t, newEmitter.events, 50, "unexpected number of emitted events")
+	})
+	t.Run("failure with multiple emit workers, reuse checkpoint", func(t *testing.T) {
+		exportARN := uuid.NewString()
+		testDataObjects := map[string]string{
+			"testdata/dataObj.json.gz": generateDynamoExportData(200),
+		}
+		cfg := newConfig(t)
+		cfg.NoOfEmitWorkers = 3
+		cfg.bufferSize = cfg.NoOfEmitWorkers * 5
+		emitter := &mockEmitter{failAfterNCalls: 150, barrierOnceN: cfg.NoOfEmitWorkers}
+		mt := newTask(testDataObjects, emitter, cfg)
+		exportInfo := newExportInfo(exportARN, "testdata/dataObj.json.gz")
+		err := mt.ProcessDataObjects(t.Context(), exportInfo)
+		require.Error(t, err)
+		require.Len(t, emitter.events, 150, "unexpected number of emitted events")
+
+		checkpoint, err := mt.loadEmitterCheckpoint(t.Context(), exportARN)
+		require.NoError(t, err)
+		require.NotNil(t, checkpoint)
+		require.True(t, checkpoint.FinishedWithError)
+		require.Len(t, checkpoint.Checkpoints, cfg.NoOfEmitWorkers)
+		expectedEvents := collectExportEvents(t, mt, exportInfo)
+		expectedEventsAfterCheckpoint := countEventsAfterFirstCheckpoint(t, expectedEvents, checkpoint)
+		require.Positive(t, expectedEventsAfterCheckpoint)
+		require.Less(t, expectedEventsAfterCheckpoint, len(expectedEvents))
+
+		// y to prompt on if reuse checkpoint.
+		prompt.SetStdin(prompt.NewFakeReader().AddString("y"))
+		newEmitter := &mockEmitter{}
+		newMigration := newTask(testDataObjects, newEmitter, cfg)
+		err = newMigration.ProcessDataObjects(t.Context(), exportInfo)
+		require.NoError(t, err)
+		require.Len(t, newEmitter.events, expectedEventsAfterCheckpoint, "unexpected number of emitted events")
+
+		emittedIDs := make(map[string]struct{}, len(emitter.events)+len(newEmitter.events))
+		for _, event := range append(slices.Clone(emitter.events), newEmitter.events...) {
+			emittedIDs[event.GetID()] = struct{}{}
+		}
+		for _, event := range expectedEvents {
+			require.Contains(t, emittedIDs, event.GetID(), "event %q was not emitted before or after resume", event.GetID())
+		}
 	})
 	t.Run("checkpoint from export1 is not reused on export2", func(t *testing.T) {
 		prompt.SetStdin(prompt.NewFakeReader())
+		cfg := newConfig(t)
 		exportARN1 := uuid.NewString()
 		testDataObjects1 := map[string]string{
 			"testdata/dataObj11.json.gz": generateDynamoExportData(100),
 			"testdata/dataObj12.json.gz": generateDynamoExportData(100),
 		}
-		emitter := &mockEmitter{
-			// To use checkpoint.
-			failAfterNCalls: 50,
-		}
-		mt := &task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects1,
-			},
-			eventsEmitter: emitter,
-			Config:        defaultConfig,
-		}
-		err := mt.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN1,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj11.json.gz"},
-				{DataFileS3Key: "testdata/dataObj12.json.gz"},
-			},
-		})
+		emitter := &mockEmitter{failAfterNCalls: 50}
+		mt := newTask(testDataObjects1, emitter, cfg)
+		err := mt.ProcessDataObjects(t.Context(), newExportInfo(exportARN1, "testdata/dataObj11.json.gz", "testdata/dataObj12.json.gz"))
 		require.Error(t, err)
 		require.Len(t, emitter.events, 50, "unexpected number of emitted events")
 
@@ -391,66 +419,29 @@ func TestMigrationCheckpoint(t *testing.T) {
 			"testdata/dataObj22.json.gz": generateDynamoExportData(100),
 		}
 		newEmitter := &mockEmitter{}
-		newMigration := task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects2,
-			},
-			eventsEmitter: newEmitter,
-			Config:        defaultConfig,
-		}
-		err = newMigration.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN2,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj21.json.gz"},
-				{DataFileS3Key: "testdata/dataObj22.json.gz"},
-			},
-		})
+		newMigration := newTask(testDataObjects2, newEmitter, cfg)
+		err = newMigration.ProcessDataObjects(t.Context(), newExportInfo(exportARN2, "testdata/dataObj21.json.gz", "testdata/dataObj22.json.gz"))
 		require.NoError(t, err)
 		require.Len(t, newEmitter.events, 200, "unexpected number of emitted events")
 	})
 	t.Run("failure after 50 calls, refuse to reuse checkpoint", func(t *testing.T) {
-		// y to prompt on if reuse checkpoint
-		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
 		exportARN := uuid.NewString()
 		testDataObjects := map[string]string{
-			"testdata/dataObj1.json.gz": generateDynamoExportData(100),
-			"testdata/dataObj2.json.gz": generateDynamoExportData(100),
+			"testdata/dataObj.json.gz": generateDynamoExportData(200),
 		}
-		emitter := &mockEmitter{
-			failAfterNCalls: 50,
-		}
-		mt := &task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: emitter,
-			Config:        defaultConfig,
-		}
-		err := mt.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		cfg := newConfig(t)
+		emitter := &mockEmitter{failAfterNCalls: 50}
+		mt := newTask(testDataObjects, emitter, cfg)
+		exportInfo := newExportInfo(exportARN, "testdata/dataObj.json.gz")
+		err := mt.ProcessDataObjects(t.Context(), exportInfo)
 		require.Error(t, err)
 		require.Len(t, emitter.events, 50, "unexpected number of emitted events")
 
+		// n to prompt on if reuse checkpoint.
+		prompt.SetStdin(prompt.NewFakeReader().AddString("n"))
 		newEmitter := &mockEmitter{}
-		newMigration := task{
-			s3Downloader: &fakeDownloader{
-				dataObjects: testDataObjects,
-			},
-			eventsEmitter: newEmitter,
-			Config:        defaultConfig,
-		}
-		err = newMigration.ProcessDataObjects(ctx, &exportInfo{
-			ExportARN: exportARN,
-			DataObjectsInfo: []dataObjectInfo{
-				{DataFileS3Key: "testdata/dataObj1.json.gz"},
-				{DataFileS3Key: "testdata/dataObj2.json.gz"},
-			},
-		})
+		newMigration := newTask(testDataObjects, newEmitter, cfg)
+		err = newMigration.ProcessDataObjects(t.Context(), exportInfo)
 		require.NoError(t, err)
 		require.Len(t, newEmitter.events, 200, "unexpected number of emitted events")
 	})

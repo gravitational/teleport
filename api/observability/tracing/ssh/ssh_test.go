@@ -427,8 +427,9 @@ func TestWrapPayload(t *testing.T) {
 func TestNewClientConnTimeout(t *testing.T) {
 	t.Parallel()
 
-	// This test ensure that NewClientConnWithTimeout respects the context
-	// timeout and does not hang indefinitely.
+	// This test ensures that NewClientConnWithTimeout respects the context timeout and does not hang indefinitely.
+	// Sub-tests use elapsed time assertions to distinguish which timeout fired, since both context deadline and config
+	// timeout produce context.DeadlineExceeded.
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
@@ -458,19 +459,23 @@ func TestNewClientConnTimeout(t *testing.T) {
 	t.Run("context timeout is respected", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
-		t.Cleanup(cancel)
-
 		conn, err := net.Dial("tcp", listener.Addr().String())
 		require.NoError(t, err)
+
+		start := time.Now()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
+		t.Cleanup(cancel)
 
 		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
 			Timeout:         -1,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+		elapsed := time.Since(start)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(5))
 	})
 
 	t.Run("config timeout is respected", func(t *testing.T) {
@@ -479,13 +484,43 @@ func TestNewClientConnTimeout(t *testing.T) {
 		conn, err := net.Dial("tcp", listener.Addr().String())
 		require.NoError(t, err)
 
+		start := time.Now()
+
 		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
 			Timeout:         5 * time.Millisecond,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 
-		require.Error(t, err)
-		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
+		elapsed := time.Since(start)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(5))
 	})
 
+	t.Run("non-nil AuthCallback extends timeout", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		start := time.Now()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		t.Cleanup(cancel)
+
+		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         5 * time.Millisecond,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+				return nil, nil // no-op
+			},
+		})
+
+		elapsed := time.Since(start)
+
+		// AuthCallback extends timeout to sessionMFAAuthTimeout (3 min). The 50 ms context deadline fires first,
+		// proving the extension was applied. Without the extension, config.Timeout (5 ms) would fire instead.
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(50))
+	})
 }

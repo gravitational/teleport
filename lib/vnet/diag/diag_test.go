@@ -38,15 +38,15 @@ func TestGenerateReport_FailedCheck(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, report.Checks, 1)
-	checkAttempt := report.Checks[0]
-	require.Equal(t, diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR, checkAttempt.Status)
+	require.Len(t, report.GetChecks(), 1)
+	checkAttempt := report.GetChecks()[0]
+	require.Equal(t, diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR, checkAttempt.GetStatus())
 
 	// Verify that commands are still included even if the check itself failed.
-	require.Len(t, checkAttempt.Commands, 1)
+	require.Len(t, checkAttempt.GetCommands(), 1)
 	// Verify that CheckReport is not empty, as otherwise it'd be impossible to tell the kind of the
 	// check that failed.
-	require.NotNil(t, checkAttempt.CheckReport)
+	require.NotNil(t, checkAttempt.GetCheckReport())
 }
 
 func TestGenerateReport_SkipCommands(t *testing.T) {
@@ -60,10 +60,10 @@ func TestGenerateReport_SkipCommands(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, report.Checks, 1)
-	checkAttempt := report.Checks[0]
-	require.Equal(t, diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK, checkAttempt.Status)
-	require.Empty(t, checkAttempt.Commands)
+	require.Len(t, report.GetChecks(), 1)
+	checkAttempt := report.GetChecks()[0]
+	require.Equal(t, diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK, checkAttempt.GetStatus())
+	require.Empty(t, checkAttempt.GetCommands())
 }
 
 type FakeDiagCheck struct {
@@ -75,13 +75,11 @@ func (f *FakeDiagCheck) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 		return nil, trace.Errorf("something went wrong")
 	}
 
-	return &diagv1.CheckReport{
-		Report: &diagv1.CheckReport_RouteConflictReport{
-			RouteConflictReport: &diagv1.RouteConflictReport{
-				RouteConflicts: []*diagv1.RouteConflict{},
-			},
-		},
-	}, nil
+	return diagv1.CheckReport_builder{
+		RouteConflictReport: diagv1.RouteConflictReport_builder{
+			RouteConflicts: []*diagv1.RouteConflict{},
+		}.Build(),
+	}.Build(), nil
 }
 
 func (f *FakeDiagCheck) Commands(ctx context.Context) []*exec.Cmd {

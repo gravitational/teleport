@@ -1,6 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportroles.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -1542,6 +1544,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:
@@ -3145,6 +3152,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:

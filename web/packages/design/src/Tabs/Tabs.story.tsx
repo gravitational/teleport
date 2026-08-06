@@ -28,7 +28,7 @@ type StoryProps = {
 
 const meta: Meta<StoryProps> = {
   title: 'Design/Tabs',
-  component: Controls,
+  component: Default,
   argTypes: {
     withBottomBorder: {
       control: { type: 'boolean' },
@@ -47,7 +47,7 @@ enum Tab {
   Example3,
 }
 
-export function Controls(props: StoryProps) {
+export function Default(props: StoryProps) {
   const [activeTab, setActiveTab] = useState(Tab.Example1);
 
   const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
@@ -79,6 +79,49 @@ export function Controls(props: StoryProps) {
           onClick={() => setActiveTab(Tab.Example3)}
         >
           Example Tab 3
+        </TabContainer>
+        <TabBorder ref={borderRef} />
+      </TabsContainer>
+
+      {activeTab === Tab.Example1 && <div>Example 1 content</div>}
+      {activeTab === Tab.Example2 && <div>Example 2 content</div>}
+      {activeTab === Tab.Example3 && <div>Example 3 content</div>}
+    </>
+  );
+}
+
+export function Small() {
+  const [activeTab, setActiveTab] = useState(Tab.Example1);
+
+  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
+
+  return (
+    <>
+      <TabsContainer ref={parentRef} mb={3} size="small">
+        <TabContainer
+          size="small"
+          data-tab-id={Tab.Example1}
+          selected={activeTab === Tab.Example1}
+          onClick={() => setActiveTab(Tab.Example1)}
+        >
+          Example Tab 1
+        </TabContainer>
+        <TabContainer
+          size="small"
+          data-tab-id={Tab.Example2}
+          selected={activeTab === Tab.Example2}
+          onClick={() => setActiveTab(Tab.Example2)}
+        >
+          Example Tab 2
+        </TabContainer>
+        <TabContainer
+          size="small"
+          disabled
+          data-tab-id={Tab.Example3}
+          selected={activeTab === Tab.Example3}
+          onClick={() => setActiveTab(Tab.Example3)}
+        >
+          Disabled Tab
         </TabContainer>
         <TabBorder ref={borderRef} />
       </TabsContainer>

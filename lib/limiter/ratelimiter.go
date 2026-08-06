@@ -113,9 +113,9 @@ func (l *RateLimiter) IsRateLimited(token string) bool {
 }
 
 // RegisterRequest increases number of requests for the provided token.
-// It returns an error if there are too many requests with the provided
-// token. If no rates are configured, the request passes through
-// without any limiting.
+// It returns a [*RateLimitExceededError] (which satisfies [trace.IsLimitExceeded])
+// if there are too many requests with the provided token. If no rates are
+// configured, the request passes through without any limiting.
 func (l *RateLimiter) RegisterRequest(token string) error {
 	if l.rates.Len() == 0 {
 		return nil
@@ -125,7 +125,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 	defer l.mu.Unlock()
 
 	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
-	// per client IP, the counters for this IP will expire after 10 seconds of inactivity.
+	// per client IP, the counters for this IP will expire after 10 seconds.
 	ttl := l.rates.MaxPeriod()*10 + 1
 	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
 		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
@@ -143,7 +143,10 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 		return err
 	}
 	if delay > 0 {
-		return trace.LimitExceeded("rate limit exceeded, try again in %v", delay)
+		return &RateLimitExceededError{
+			Delay: delay,
+			err:   trace.LimitExceeded("rate limit exceeded, try again in %v", delay),
+		}
 	}
 	return nil
 }

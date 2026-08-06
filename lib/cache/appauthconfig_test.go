@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -29,25 +30,21 @@ import (
 )
 
 func newAppAuthConfigJWT(name string) *appauthconfigv1.AppAuthConfig {
-	return &appauthconfigv1.AppAuthConfig{
+	return appauthconfigv1.AppAuthConfig_builder{
 		Kind:    types.KindAppAuthConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &appauthconfigv1.AppAuthConfigSpec{
-			AppLabels: []*labelv1.Label{{Name: "*", Values: []string{"*"}}},
-			SubKindSpec: &appauthconfigv1.AppAuthConfigSpec_Jwt{
-				Jwt: &appauthconfigv1.AppAuthConfigJWTSpec{
-					Issuer:   "https://issuer",
-					Audience: "teleport",
-					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-						JwksUrl: "https://issuer/.well-known/jwks.json",
-					},
-				},
-			},
-		},
-	}
+		}.Build(),
+		Spec: appauthconfigv1.AppAuthConfigSpec_builder{
+			AppLabels: []*labelv1.Label{labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build()},
+			Jwt: appauthconfigv1.AppAuthConfigJWTSpec_builder{
+				Issuer:   "https://issuer",
+				Audience: "teleport",
+				JwksUrl:  proto.String("https://issuer/.well-known/jwks.json"),
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func TestAppAuthConfigs(t *testing.T) {

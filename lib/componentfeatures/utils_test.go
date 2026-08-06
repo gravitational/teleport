@@ -339,7 +339,9 @@ func TestGetEffectiveServerFeatures(t *testing.T) {
 	t.Parallel()
 	rcv1 := FeatureResourceConstraintsV1
 	otherFeature := FeatureID(9999)
-	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+
+	makeVersionedAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+		t.Helper()
 		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
 		require.NoError(t, err)
 		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
@@ -350,19 +352,60 @@ func TestGetEffectiveServerFeatures(t *testing.T) {
 	}
 
 	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.5", New(rcv1, otherFeature))
+		srv := makeVersionedAppServer(t, "18.7.5", New(rcv1, otherFeature))
 		result := GetEffectiveServerFeatures(srv)
 		require.ElementsMatch(t, New(otherFeature).GetFeatures(), result.GetFeatures())
 	})
 	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.6", New(rcv1, otherFeature))
+		srv := makeVersionedAppServer(t, "18.7.6", New(rcv1, otherFeature))
 		result := GetEffectiveServerFeatures(srv)
 		require.ElementsMatch(t, New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
 	})
 	t.Run("nil features on old app server returns empty", func(t *testing.T) {
-		srv := makeAppServer(t, "18.6.4", nil)
+		srv := makeVersionedAppServer(t, "18.6.4", nil)
 		result := GetEffectiveServerFeatures(srv)
 		require.Empty(t, result.GetFeatures())
+	})
+
+	makeAppServer := func(t *testing.T, uri, integration string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: "test-app"}, types.AppSpecV3{
+			URI:         uri,
+			Cloud:       "AWS",
+			Integration: integration,
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
+		require.NoError(t, err)
+		srv.SetComponentFeatures(features)
+		return srv
+	}
+
+	t.Run("agentless AWS Console app computes features from type", func(t *testing.T) {
+		srv := makeAppServer(t, "https://console.aws.amazon.com", "some-integration", nil)
+		result := GetEffectiveServerFeatures(srv)
+		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("agentless non-AWS app gets no Resource Constraints feature", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "non-aws-app"}, types.AppSpecV3{
+			URI:         "https://example.com",
+			Integration: "some-integration",
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
+		require.NoError(t, err)
+		result := GetEffectiveServerFeatures(srv)
+		require.Empty(t, result.GetFeatures())
+	})
+	t.Run("agent-backed app uses features from presence heartbeat", func(t *testing.T) {
+		srv := makeAppServer(t, "https://console.aws.amazon.com", "", New(rcv1))
+		result := GetEffectiveServerFeatures(srv)
+		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("agent-backed app with nil features returns nil", func(t *testing.T) {
+		srv := makeAppServer(t, "https://console.aws.amazon.com", "", nil)
+		result := GetEffectiveServerFeatures(srv)
+		require.Nil(t, result)
 	})
 }
 

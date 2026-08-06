@@ -1393,7 +1393,7 @@ type server struct {
 }
 
 func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
-	return &test.Response{Payload: "grpc backend"}, nil
+	return test.Response_builder{Payload: "grpc backend"}.Build(), nil
 }
 
 // clientConfig returns tls client config from test http server

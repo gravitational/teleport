@@ -90,6 +90,7 @@ const (
 
 	uiPageViewEvent                    = "tp.ui.page_view"
 	uiUsageReportingAlertCtaClickEvent = "tp.ui.usage_reporting.alert_cta_click"
+	uiInteractionEvent                 = "tp.ui.interaction"
 )
 
 // Events that require extra metadata.
@@ -125,6 +126,7 @@ var eventsWithDataRequired = []string{
 	uiAccessListIntegrateEvent,
 	uiAccessListStartEvent,
 	uiAccessListCustomEvent,
+	uiInteractionEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -622,6 +624,25 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 					Alert:       req.Alert,
 					UtmSource:   req.UtmSource,
 					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiInteractionEvent:
+		event := struct {
+			Path   string            `json:"path"`
+			PageID string            `json:"page_id"`
+			Params map[string]string `json:"params"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiInteraction{
+				UiInteraction: &usageeventsv1.UIInteractionEvent{
+					Path:   event.Path,
+					PageId: event.PageID,
+					Params: event.Params,
 				},
 			},
 		}, nil

@@ -44,9 +44,9 @@ type ToastNotificationContextState = {
   remove(id: string): void;
   /**
    * adds new notification to the beginning of
-   * an existing list of notifications.
+   * an existing list of notifications and returns its id.
    */
-  add(entry: NotificationEntry): void;
+  add(entry: NotificationEntry): string;
 };
 
 const ToastNotificationContext =
@@ -67,14 +67,16 @@ export const ToastNotificationProvider: FC<PropsWithChildren> = ({
   }, []);
 
   const add = useCallback((entry: NotificationEntry) => {
+    const id = crypto.randomUUID();
     setNotifications(n => [
       {
-        id: crypto.randomUUID(),
+        id,
         content: entry.content,
         severity: entry.severity,
       },
       ...n,
     ]);
+    return id;
   }, []);
 
   return (

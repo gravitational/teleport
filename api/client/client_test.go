@@ -986,6 +986,86 @@ func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
 	return p.event
 }
 
+func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	reqA := clientAccessRequest("request-a", "alice")
+	service := &accessRequestListService{
+		pages: []*proto.ListAccessRequestsResponse{
+			{
+				AccessRequests: []*types.AccessRequestV3{reqA},
+				UserDisplays: map[string]*proto.UserDisplay{
+					"alice": {
+						Primary:   "Alice",
+						Secondary: "alice@example.com",
+					},
+					"plain": nil,
+				},
+			},
+		},
+	}
+
+	srv := startMockServer(t, mockServices{auth: service})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	rsp, err := clt.ListAccessRequests(t.Context(), &proto.ListAccessRequestsRequest{
+		Limit: 1,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []*types.AccessRequestV3{reqA}, rsp.AccessRequests)
+	require.Equal(t, map[string]*proto.UserDisplay{
+		"alice": {
+			Primary:   "Alice",
+			Secondary: "alice@example.com",
+		},
+		"plain": nil,
+	}, rsp.UserDisplays)
+	require.Equal(t, []string{""}, service.startKeys)
+}
+
+type accessRequestListService struct {
+	proto.UnimplementedAuthServiceServer
+
+	pages          []*proto.ListAccessRequestsResponse
+	startKeys      []string
+	listErr        error
+	compatRequests []*types.AccessRequestV3
+}
+
+func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	if s.listErr != nil {
+		return nil, trail.ToGRPC(s.listErr)
+	}
+
+	s.startKeys = append(s.startKeys, req.StartKey)
+	pageIndex := len(s.startKeys) - 1
+	if pageIndex >= len(s.pages) {
+		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))
+	}
+	return s.pages[pageIndex], nil
+}
+
+func (s *accessRequestListService) GetAccessRequestsV2(filter *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
+	for _, req := range s.compatRequests {
+		if err := stream.Send(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func clientAccessRequest(name, user string) *types.AccessRequestV3 {
+	return &types.AccessRequestV3{
+		Metadata: types.Metadata{Name: name},
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+		},
+	}
+}
+
 func TestWindowsCAFallback(t *testing.T) {
 	t.Parallel()
 

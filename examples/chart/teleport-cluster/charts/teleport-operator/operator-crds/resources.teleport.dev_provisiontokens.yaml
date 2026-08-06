@@ -1,6 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportprovisiontokens.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -332,6 +334,130 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                type: object
+              generic_oidc:
+                description: GenericOIDC allows the configuration of generic OIDC
+                  join tokens.
+                nullable: true
+                properties:
+                  allow_any:
+                    description: AllowAny evaluates complex rules using "OR" semantics.
+                      If any rules are specified, at least one rule must evaluate
+                      to `true` for the join attempt to be allowed. These rules are
+                      evaluated after `must_match_fields`, if any field matchers are
+                      specified in that block.  Note that at least one rule, either
+                      in `must_match_fields` or `allow_any`, must be specified for
+                      any join attempts to succeed.
+                    items:
+                      properties:
+                        conditions:
+                          items:
+                            properties:
+                              attribute:
+                                type: string
+                              eq:
+                                nullable: true
+                                properties:
+                                  value:
+                                    type: string
+                                type: object
+                              in:
+                                nullable: true
+                                properties:
+                                  values:
+                                    items:
+                                      type: string
+                                    nullable: true
+                                    type: array
+                                type: object
+                              not_eq:
+                                nullable: true
+                                properties:
+                                  value:
+                                    type: string
+                                type: object
+                              not_in:
+                                nullable: true
+                                properties:
+                                  values:
+                                    items:
+                                      type: string
+                                    nullable: true
+                                    type: array
+                                type: object
+                            type: object
+                          nullable: true
+                          type: array
+                        expression:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: 'Audience is the expected audience value (required).
+                      This must match or be included in the list of `aud` values in
+                      the JWT provided by the client when joining. For providers that
+                      do not allow you to configure this value yourself (this is technically
+                      an OIDC spec violation, but is common), use the value they provide.
+                      Otherwise, we recommend using a value that uniquely identifies
+                      the Teleport cluster and join token. For example, you can use
+                      this scheme: $clusterName/$tokenName For a cluster named `example.teleport.sh`
+                      and a token named `example`, this would result in an audience
+                      of `example.teleport.sh/example`. If you prefer, you can also
+                      use a UUID instead of the token name. Note that you will need
+                      to configure the matching value with the issuer, usually at
+                      request time.'
+                    type: string
+                  insecure_allow_http_issuer:
+                    description: InsecureAllowHTTPIssuer is a flag that, if set, disables
+                      the requirement that the issuer must use HTTPS.
+                    type: boolean
+                  issuer:
+                    description: Issuer contains the expected `iss` value as written
+                      in the JWT you wish to trust. Unless `static_jwks` is configured,
+                      this issuer must be accessible over HTTPS to the Teleport cluster
+                      and must serve valid OIDC metadata, including discovery configuration
+                      and JWKS keys.
+                    type: string
+                  must_match_fields:
+                    additionalProperties: true
+                    description: 'MustMatchFields perform simple comparison matches
+                      using "AND" semantics. Rules are specified by mirroring the
+                      structure of the JWT, using values that are expected to be equal
+                      to those on the incoming token. These field matching rules can
+                      only be used to compare simple values: strings, numbers, booleans,
+                      and nested fields. Complex values, including lists, will need
+                      to use `allow_any` expression rules instead.  If any field match
+                      rules are specified, all must be equal to corresponding JWT
+                      fields for the join attempt to succeed. If complex rules are
+                      specified in `allow_any`, those are evaluated after `must_match_fields`.
+                      If `must_match_fields` is not specified or is empty, only rules
+                      in `allow_any` are evaluated.  These rules can be used as "global"
+                      rules that apply to all join attempts. For example, you can
+                      use these to ensure all attempts originate from your organization,
+                      then use `allow_any` rules to allow individual repositories,
+                      pipelines, or workspaces.  Note that at least one rule, either
+                      in `must_match_fields` or `allow_any`, must be specified for
+                      any join attempts to succeed.'
+                    nullable: true
+                    type: object
+                  static_jwks:
+                    description: StaticJWKS is an optional static JWKS value that
+                      can be used to specify JWKS keys when either OIDC discovery
+                      is either not supported by the provider or the discovery configuration
+                      is not accessible to Teleport. When set, configuration and JWKS
+                      keys will not be fetched from the URL contained in `issuer`
+                      and JWTs will be validated using the key set specified here.
+                    type: string
+                  tls_ca:
+                    description: TLSCA is a TLS CA certificate that should be used
+                      to verify requests for OIDC metadata from the issuer instead
+                      of Teleport's CA store, useful if the issuer is not public or
+                      otherwise uses a self-signed certificate. Note that this value
+                      only applies to requests using this token, and will be used
+                      instead of and not in addition to the system CA store, and will
+                      need to be updated manually if the remote CA is updated.
+                    type: string
                 type: object
               github:
                 description: GitHub allows the configuration of options specific to

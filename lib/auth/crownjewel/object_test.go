@@ -45,184 +45,184 @@ func TestValidateCrownJewel(t *testing.T) {
 		},
 		{
 			name: "ValidCrownJewel",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
-				Spec: &crownjewelv1.CrownJewelSpec{
+				}.Build(),
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-						{
+						crownjewelv1.TeleportMatcher_builder{
 							Kinds: []string{"db"},
 							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "label1",
 									Values: []string{"value1"},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
-						{
+						crownjewelv1.AWSMatcher_builder{
 							Types: []string{"type1"},
 							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
-								{
+								crownjewelv1.AWSTag_builder{
 									Key:    "key1",
 									Values: []*wrapperspb.StringValue{wrapperspb.String("value1")},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.NoError,
 		},
 		{
 			name: "ValidCrownJewelWithQuery",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
-				Spec: &crownjewelv1.CrownJewelSpec{
+				}.Build(),
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					Query: "SELECT * FROM nodes",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.NoError,
 		},
 		{
 			name: "MissingMatchers",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Spec: &crownjewelv1.CrownJewelSpec{},
-			},
+			}.Build(),
 			wantErr: require.Error,
 		},
 		{
 			name: "MissingMetadata",
-			jewel: &crownjewelv1.CrownJewel{
-				Spec: &crownjewelv1.CrownJewelSpec{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-						{
+						crownjewelv1.TeleportMatcher_builder{
 							Kinds: []string{"kind1"},
 							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "label1",
 									Values: []string{"value1"},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.Error,
 		},
 		{
 			name: "EmptyName",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "",
-				},
-				Spec: &crownjewelv1.CrownJewelSpec{
+				}.Build(),
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-						{
+						crownjewelv1.TeleportMatcher_builder{
 							Kinds: []string{"kind1"},
 							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "label1",
 									Values: []string{"value1"},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
-						{
+						crownjewelv1.AWSMatcher_builder{
 							Types: []string{"type1"},
 							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
-								{
+								crownjewelv1.AWSTag_builder{
 									Key:    "key1",
 									Values: []*wrapperspb.StringValue{wrapperspb.String("value1")},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.Error,
 		},
 		{
 			name: "EmptyTeleportMatcherKinds",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
-				Spec: &crownjewelv1.CrownJewelSpec{
+				}.Build(),
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-						{
+						crownjewelv1.TeleportMatcher_builder{
 							Kinds: []string{},
 							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "label1",
 									Values: []string{"value1"},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
-						{
+						crownjewelv1.AWSMatcher_builder{
 							Types: []string{"type1"},
 							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
-								{
+								crownjewelv1.AWSTag_builder{
 									Key:    "key1",
 									Values: []*wrapperspb.StringValue{wrapperspb.String("value1")},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.Error,
 		},
 		{
 			name: "EmptyAWSMatcherKinds",
-			jewel: &crownjewelv1.CrownJewel{
-				Metadata: &headerv1.Metadata{
+			jewel: crownjewelv1.CrownJewel_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
-				Spec: &crownjewelv1.CrownJewelSpec{
+				}.Build(),
+				Spec: crownjewelv1.CrownJewelSpec_builder{
 					TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-						{
+						crownjewelv1.TeleportMatcher_builder{
 							Kinds: []string{"type2"},
 							Names: []string{"name1"},
 							Labels: []*labelv1.Label{
-								{
+								labelv1.Label_builder{
 									Name:   "label1",
 									Values: []string{"value1"},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
 					AwsMatchers: []*crownjewelv1.AWSMatcher{
-						{
+						crownjewelv1.AWSMatcher_builder{
 							Types: []string{},
 							Arns:  []string{"arn1"},
 							Tags: []*crownjewelv1.AWSTag{
-								{
+								crownjewelv1.AWSTag_builder{
 									Key:    "key1",
 									Values: []*wrapperspb.StringValue{wrapperspb.String("value1")},
-								},
+								}.Build(),
 							},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: require.Error,
 		},
 	}

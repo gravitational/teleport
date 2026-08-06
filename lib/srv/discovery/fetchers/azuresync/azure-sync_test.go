@@ -314,26 +314,26 @@ func TestPoll(t *testing.T) {
 			require.Equal(t, tt.feats.RoleDefinitions == false || len(tt.roleDefs) == 0, len(resources.RoleDefinitions) == 0)
 			for idx, resource := range resources.RoleDefinitions {
 				roleDef := tt.roleDefs[idx]
-				require.Equal(t, *roleDef.ID, resource.Id)
-				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-				require.Equal(t, *roleDef.Properties.RoleName, resource.Name)
-				require.Len(t, roleDef.Properties.Permissions, len(resource.Permissions))
+				require.Equal(t, *roleDef.ID, resource.GetId())
+				require.Equal(t, fetcher.SubscriptionID, resource.GetSubscriptionId())
+				require.Equal(t, *roleDef.Properties.RoleName, resource.GetName())
+				require.Len(t, roleDef.Properties.Permissions, len(resource.GetPermissions()))
 			}
 			require.Equal(t, tt.feats.RoleAssignments == false || len(tt.roleAssigns) == 0, len(resources.RoleAssignments) == 0)
 			for idx, resource := range resources.RoleAssignments {
 				roleAssign := tt.roleAssigns[idx]
-				require.Equal(t, *roleAssign.ID, resource.Id)
-				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-				require.Equal(t, *roleAssign.Properties.PrincipalID, resource.PrincipalId)
-				require.Equal(t, *roleAssign.Properties.RoleDefinitionID, resource.RoleDefinitionId)
-				require.Equal(t, *roleAssign.Properties.Scope, resource.Scope)
+				require.Equal(t, *roleAssign.ID, resource.GetId())
+				require.Equal(t, fetcher.SubscriptionID, resource.GetSubscriptionId())
+				require.Equal(t, *roleAssign.Properties.PrincipalID, resource.GetPrincipalId())
+				require.Equal(t, *roleAssign.Properties.RoleDefinitionID, resource.GetRoleDefinitionId())
+				require.Equal(t, *roleAssign.Properties.Scope, resource.GetScope())
 			}
 			require.Equal(t, tt.feats.VirtualMachines == false || len(tt.vms) == 0, len(resources.VirtualMachines) == 0)
 			for idx, resource := range resources.VirtualMachines {
 				vm := tt.vms[idx]
-				require.Equal(t, vm.ID, resource.Id)
-				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-				require.Equal(t, vm.Name, resource.Name)
+				require.Equal(t, vm.ID, resource.GetId())
+				require.Equal(t, fetcher.SubscriptionID, resource.GetSubscriptionId())
+				require.Equal(t, vm.Name, resource.GetName())
 			}
 		})
 	}

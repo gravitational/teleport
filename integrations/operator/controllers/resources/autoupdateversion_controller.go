@@ -37,7 +37,7 @@ type autoUpdateVersionClient struct {
 }
 
 // Get gets the Teleport autoUpdateVersion of a given name
-func (l autoUpdateVersionClient) Get(ctx context.Context, name string) (*autoupdatev1pb.AutoUpdateVersion, error) {
+func (l autoUpdateVersionClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*autoupdatev1pb.AutoUpdateVersion, error) {
 	resp, err := l.teleportClient.
 		GetAutoUpdateVersion(ctx)
 	if err != nil {
@@ -61,7 +61,7 @@ func (l autoUpdateVersionClient) Update(ctx context.Context, resource *autoupdat
 }
 
 // Delete deletes a Teleport autoUpdateVersion
-func (l autoUpdateVersionClient) Delete(ctx context.Context, name string) error {
+func (l autoUpdateVersionClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	return trace.Wrap(l.teleportClient.DeleteAutoUpdateVersion(ctx))
 }
 
@@ -77,6 +77,7 @@ func NewAutoUpdateVersionV1Reconciler(client kclient.Client, tClient *client.Cli
 	](
 		client,
 		autoUpdateVersionClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

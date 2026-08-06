@@ -44,15 +44,18 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -617,6 +620,11 @@ func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return c.APIClient.AccessMonitoringRulesClient()
 }
 
+// ClientIPRestrictionClient returns the client IP restriction client.
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return c.APIClient.ClientIPRestrictionClient()
+}
+
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -650,9 +658,16 @@ func (c *Client) NotificationServiceClient() notificationsv1.NotificationService
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
 
-// MFAClient returns a client for the MFA service.
-func (c *Client) MFAClient() mfav1.MFAServiceClient {
+// MFAServiceClient returns a client for the MFA v1 service.
+//
+// Deprecated: Use MFAServiceClientV2 for new code.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
 	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
+}
+
+// MFAServiceClientV2 returns a client for the MFA v2 service.
+func (c *Client) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
@@ -698,50 +713,50 @@ func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
+	return c.APIClient.UpsertUserNotificationState(ctx, notificationsv1.UpsertUserNotificationStateRequest_builder{
 		Username:              username,
 		UserNotificationState: uns,
-	})
+	}.Build())
 }
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	return c.APIClient.UpsertUserLastSeenNotification(ctx, &notificationsv1.UpsertUserLastSeenNotificationRequest{
+	return c.APIClient.UpsertUserLastSeenNotification(ctx, notificationsv1.UpsertUserLastSeenNotificationRequest_builder{
 		Username:                 username,
 		UserLastSeenNotification: ulsn,
-	})
+	}.Build())
 }
 
 // CreateGlobalNotification creates a global notification.
 func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, notificationsv1.CreateGlobalNotificationRequest_builder{
 		GlobalNotification: gn,
-	})
+	}.Build())
 	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+	rsp, err := c.APIClient.CreateUserNotification(ctx, notificationsv1.CreateUserNotificationRequest_builder{
 		Notification: notification,
-	})
+	}.Build())
 	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+	err := c.APIClient.DeleteGlobalNotification(ctx, notificationsv1.DeleteGlobalNotificationRequest_builder{
 		NotificationId: notificationId,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 // DeleteUserNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
-	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+	err := c.APIClient.DeleteUserNotification(ctx, notificationsv1.DeleteUserNotificationRequest_builder{
 		Username:       username,
 		NotificationId: notificationId,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
@@ -860,8 +875,6 @@ type WebService interface {
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
 	// AppSessionReader defines application session features available to remote clients.
 	services.AppSessionReader
@@ -1646,6 +1659,14 @@ type ClientI interface {
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
 
+	// UpsertProxyServerWithoutReturn registers a proxy server heartbeat.
+	// The upserted server is not returned because the HTTP fallback path
+	// cannot provide it.
+	//
+	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once
+	// the HTTP fallback is removed.
+	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
+
 	types.WebSessionsGetter
 	services.WebToken
 
@@ -1654,6 +1675,7 @@ type ClientI interface {
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
 	LinuxDesktopClient() *linuxdesktop.Client
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1816,6 +1838,12 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	AccessMonitoringRuleClient() services.AccessMonitoringRules
 
+	// ClientIPRestrictionClient returns a client IP restriction client.
+	// Clients connecting to older Teleport versions still get a client when calling
+	// this method, but all RPCs will return "not implemented" errors (as per the
+	// default gRPC behavior).
+	ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient
+
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
 
@@ -1907,7 +1935,10 @@ type ClientI interface {
 	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
 
 	// MFAServiceClient returns a client for the MFA service.
-	MFAServiceClient() mfav1.MFAServiceClient
+	MFAServiceClient() mfav1.MFAServiceClient //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
+
+	// MFAServiceClientV2 returns a client for the MFA v2 service.
+	MFAServiceClientV2() mfav2.MFAServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

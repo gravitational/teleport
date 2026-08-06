@@ -156,13 +156,14 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 
 	var out []T
 	for sf := range fetchFn(l.index, startToken, endToken) {
+		if l.filter != nil && !l.filter(sf) {
+			continue
+		}
+
 		if len(out) == pageSize {
 			return out, l.nextToken(sf), nil
 		}
 
-		if l.filter != nil && !l.filter(sf) {
-			continue
-		}
 		out = append(out, l.collection.store.clone(sf))
 	}
 

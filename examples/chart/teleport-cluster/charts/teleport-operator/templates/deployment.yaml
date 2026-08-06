@@ -56,6 +56,9 @@ spec:
             - '{{ .Values.joinMethod }}'
             - -token
             - '{{ .Values.token }}'
+  {{- if .Values.scoped }}
+            - -scoped
+  {{- end }}
   {{- if .Values.caPins }}
             - -ca-pin
             - '{{ join "," .Values.caPins }}'

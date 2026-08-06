@@ -110,24 +110,24 @@ func TestPollAWSEKSClusters(t *testing.T) {
 		accountID = "12345678"
 	)
 	regions := []string{"eu-west-1"}
-	cluster := &accessgraphv1alpha.AWSEKSClusterV1{
+	cluster := accessgraphv1alpha.AWSEKSClusterV1_builder{
 		Name:      "cluster1",
 		Arn:       "arn:us-west1:eks:cluster1",
 		CreatedAt: timestamppb.New(date),
 		Status:    "ACTIVE",
 		Tags: []*accessgraphv1alpha.AWSTag{
-			{
+			accessgraphv1alpha.AWSTag_builder{
 				Key:   "tag1",
 				Value: wrapperspb.String(""),
-			},
-			{
+			}.Build(),
+			accessgraphv1alpha.AWSTag_builder{
 				Key:   "tag2",
 				Value: wrapperspb.String("val2"),
-			},
+			}.Build(),
 		},
 		Region:    "eu-west-1",
 		AccountId: "12345678",
-	}
+	}.Build()
 	tests := []struct {
 		name string
 		want *Resources
@@ -139,7 +139,7 @@ func TestPollAWSEKSClusters(t *testing.T) {
 					cluster,
 				},
 				AccessEntries: []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1{
-					{
+					accessgraphv1alpha.AWSEKSClusterAccessEntryV1_builder{
 						Cluster:          cluster,
 						AccessEntryArn:   "arn:iam:access_entry",
 						CreatedAt:        timestamppb.New(date),
@@ -147,29 +147,29 @@ func TestPollAWSEKSClusters(t *testing.T) {
 						ModifiedAt:       timestamppb.New(date),
 						PrincipalArn:     "arn:iam:teleport",
 						Tags: []*accessgraphv1alpha.AWSTag{
-							{
+							accessgraphv1alpha.AWSTag_builder{
 								Key:   "t1",
 								Value: wrapperspb.String("t2"),
-							},
+							}.Build(),
 						},
 						Type:      "cluster",
 						Username:  "teleport",
 						AccountId: "12345678",
-					},
+					}.Build(),
 				},
 				AssociatedAccessPolicies: []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1{
-					{
+					accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1_builder{
 						Cluster:      cluster,
 						PrincipalArn: principalARN,
-						Scope: &accessgraphv1alpha.AWSEKSAccessScopeV1{
+						Scope: accessgraphv1alpha.AWSEKSAccessScopeV1_builder{
 							Type:       string(ekstypes.AccessScopeTypeCluster),
 							Namespaces: []string{"ns1"},
-						},
+						}.Build(),
 						AssociatedAt: timestamppb.New(date),
 						ModifiedAt:   timestamppb.New(date),
 						PolicyArn:    "policy_arn",
 						AccountId:    "12345678",
-					},
+					}.Build(),
 				},
 			},
 		},
@@ -216,7 +216,7 @@ func TestPollAWSEKSClusters(t *testing.T) {
 				// Tags originate from a map so we must sort them before comparing.
 				protocmp.SortRepeated(
 					func(a, b *accessgraphv1alpha.AWSTag) bool {
-						return a.Key < b.Key
+						return a.GetKey() < b.GetKey()
 					},
 				),
 			))

@@ -31,15 +31,15 @@ import (
 func TestMarshalCertAuthorityOverrideRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	want := &subcav1.CertAuthorityOverride{
+	want := subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.DatabaseClientCA),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "zarquon",
-		},
+		}.Build(),
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	}
+	}.Build()
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
@@ -56,8 +56,6 @@ func TestMarshalCertAuthorityOverrideRoundtrip(t *testing.T) {
 
 	t.Run("dynamic", func(t *testing.T) {
 		t.Parallel()
-		initSubCA()
-		initSubCA() // check that a duplicate call is harmless
 
 		val, err := MarshalResource(types.Resource153ToLegacy(want))
 		require.NoError(t, err)

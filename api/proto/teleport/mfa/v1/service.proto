@@ -24,7 +24,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
+//
+// Deprecated: Use teleport.mfa.v2.
 service MFAService {
+  option deprecated = true;
+
   // CreateSessionChallenge creates an MFA challenge that is tied to a user session.
   rpc CreateSessionChallenge(CreateSessionChallengeRequest) returns (CreateSessionChallengeResponse);
   // ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
@@ -54,7 +58,11 @@ service MFAService {
 }
 
 // CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message CreateSessionChallengeRequest {
+  option deprecated = true;
+
   // Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
   // verify it matches the payload supplied to CreateSessionChallengeRequest.
   SessionIdentifyingPayload payload = 1;
@@ -76,28 +84,48 @@ message CreateSessionChallengeRequest {
 }
 
 // CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message CreateSessionChallengeResponse {
+  option deprecated = true;
+
   // MFA challenge that the user must respond to.
   AuthenticateChallenge mfa_challenge = 1;
 }
 
 // ValidateSessionChallengeRequest is the request message for ValidateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ValidateSessionChallengeRequest {
+  option deprecated = true;
+
   // MFA challenge response provided by the user.
   AuthenticateResponse mfa_response = 1;
 }
 
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
-message ValidateSessionChallengeResponse {}
+//
+// Deprecated: Use teleport.mfa.v2.
+message ValidateSessionChallengeResponse {
+  option deprecated = true;
+}
 
 // ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ListValidatedMFAChallengesFilter {
+  option deprecated = true;
+
   // If set, only return validated MFA challenges for the specified target cluster.
   optional string target_cluster = 1;
 }
 
 // ListValidatedMFAChallengesRequest is the request message for ListValidatedMFAChallenges.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ListValidatedMFAChallengesRequest {
+  option deprecated = true;
+
   // The maximum number of items to return. The server may impose a different page size at its discretion.
   int32 page_size = 1;
   // The next_page_token value returned from a previous List request, if any.
@@ -109,7 +137,11 @@ message ListValidatedMFAChallengesRequest {
 }
 
 // ListValidatedMFAChallengesResponse is the response message for ListValidatedMFAChallenges.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ListValidatedMFAChallengesResponse {
+  option deprecated = true;
+
   // List of validated MFA challenges that have been created for user sessions.
   repeated ValidatedMFAChallenge validated_challenges = 1;
   // Token to retrieve the next page of results, or empty if there are no more results exist.
@@ -117,7 +149,11 @@ message ListValidatedMFAChallengesResponse {
 }
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ReplicateValidatedMFAChallengeRequest {
+  option deprecated = true;
+
   // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
   // challenge.
   string name = 1;
@@ -135,13 +171,21 @@ message ReplicateValidatedMFAChallengeRequest {
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message ReplicateValidatedMFAChallengeResponse {
+  option deprecated = true;
+
   // Validated MFA challenge that was replicated.
   ValidatedMFAChallenge replicated_challenge = 1;
 }
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.
 message VerifyValidatedMFAChallengeRequest {
+  option deprecated = true;
+
   // Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
   // challenge.
   string name = 1;
@@ -159,17 +203,29 @@ message VerifyValidatedMFAChallengeRequest {
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
-message VerifyValidatedMFAChallengeResponse {}
+//
+// Deprecated: Use teleport.mfa.v2.
+message VerifyValidatedMFAChallengeResponse {
+  option deprecated = true;
+}
 
 // CompleteBrowserMFAChallengeRequest is used to complete an MFA response
 // during a browser-based MFA authentication flow.
+//
+// Deprecated: Use teleport.mfa.v2.
 message CompleteBrowserMFAChallengeRequest {
+  option deprecated = true;
+
   BrowserMFAResponse browser_mfa_response = 1;
 }
 
 // CompleteBrowserMFAChallengeResponse contains the redirect URL to send
 // the user back to after successfully completing browser-based MFA authentication.
+//
+// Deprecated: Use teleport.mfa.v2.
 message CompleteBrowserMFAChallengeResponse {
+  option deprecated = true;
+
   // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
   // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
   string tsh_redirect_url = 1;

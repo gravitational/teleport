@@ -118,6 +118,7 @@ export type IntegrationSpecAzureOidc = {
   managedIdentity?: {
     region: string;
     resourceGroup: string;
+    managementGroupId?: string;
   };
 };
 
@@ -174,6 +175,10 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+  organization?: {
+    includeUnits: string[];
+    excludeUnits: string[];
+  };
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]
@@ -568,6 +573,7 @@ export type Filters = {
 export type PluginEntraIDStatusDetails = {
   imported_users?: number;
   imported_groups?: number;
+  sync_mode?: 'full' | 'delta';
 };
 
 export type IntegrationOAuthCredentials = {
@@ -855,6 +861,12 @@ export type ResourceTypeSummary = {
   resourcesEnrollmentSuccess: number;
   // discoverLastSync contains the time when this integration tried to auto-enroll resources.
   discoverLastSync: number;
+  // syncStart is when the current or most recent discovery scan started.
+  syncStart?: string;
+  // syncEnd is when the most recent discovery scan ended.
+  syncEnd?: string;
+  // pollIntervalSeconds is the interval in seconds between discovery scans.
+  pollIntervalSeconds?: number;
   // unresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
   unresolvedUserTasks?: number;
   // ecsDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.

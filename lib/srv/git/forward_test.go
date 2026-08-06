@@ -34,7 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -415,10 +415,10 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
 }
 
-func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
+func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
 	return &mockMFAServiceClient{}
 }
 

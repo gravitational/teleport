@@ -41,10 +41,10 @@ func LegacyEvent(data []byte) *apievents.DesktopRecording {
 // dimensions.
 func EncodeTDPBServerHello(width, height uint32) (*apievents.DesktopRecording, error) {
 	data, err := (&tdpb.ServerHello{
-		ActivationSpec: &tdpbv1.ConnectionActivated{
+		ActivationSpec: tdpbv1.ConnectionActivated_builder{
 			ScreenWidth:  width,
 			ScreenHeight: height,
-		},
+		}.Build(),
 	}).Encode()
 	if err != nil {
 		return nil, err
@@ -57,6 +57,16 @@ func EncodeTDPBServerHello(width, height uint32) (*apievents.DesktopRecording, e
 // PDU bytes.
 func EncodeTDPBFastPathPDU(pdu []byte) (*apievents.DesktopRecording, error) {
 	data, err := (&tdpb.FastPathPDU{Pdu: pdu}).Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return TDPBEvent(data), nil
+}
+
+// EncodeTDPBMouseButton creates a DesktopRecording event containing a TDPB MouseButton message.
+func EncodeTDPBMouseButton(pressed bool) (*apievents.DesktopRecording, error) {
+	data, err := (&tdpb.MouseButton{Pressed: pressed}).Encode()
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +99,12 @@ func LegacyMouseMove(x, y uint32) (*apievents.DesktopRecording, error) {
 // given screen dimensions and channel IDs.
 func EncodeTDPBServerHelloWithChannels(width, height, ioChannelID, userChannelID uint32) (*apievents.DesktopRecording, error) {
 	data, err := (&tdpb.ServerHello{
-		ActivationSpec: &tdpbv1.ConnectionActivated{
+		ActivationSpec: tdpbv1.ConnectionActivated_builder{
 			ScreenWidth:   width,
 			ScreenHeight:  height,
 			IoChannelId:   ioChannelID,
 			UserChannelId: userChannelID,
-		},
+		}.Build(),
 	}).Encode()
 	if err != nil {
 		return nil, err

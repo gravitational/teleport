@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -31,6 +32,214 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+func TestSetAccessRequestState(t *testing.T) {
+	service, _ := setupDynamicAccessService(t)
+	cases := []struct {
+		name         string
+		initialState types.RequestState
+		updatedState types.RequestState
+		wantState    types.RequestState
+		wantErr      bool
+	}{
+		{
+			name:         "none to pending",
+			initialState: types.RequestState_NONE,
+			updatedState: types.RequestState_PENDING,
+			wantState:    types.RequestState_PENDING,
+		},
+		{
+			name:         "none to approved",
+			initialState: types.RequestState_NONE,
+			updatedState: types.RequestState_APPROVED,
+			wantState:    types.RequestState_APPROVED,
+		},
+		{
+			name:         "none to denied",
+			initialState: types.RequestState_NONE,
+			updatedState: types.RequestState_DENIED,
+			wantState:    types.RequestState_DENIED,
+		},
+		{
+			name:         "none to promoted",
+			initialState: types.RequestState_NONE,
+			updatedState: types.RequestState_PROMOTED,
+			wantState:    types.RequestState_PROMOTED,
+		},
+		{
+			name:         "pending to approved",
+			initialState: types.RequestState_PENDING,
+			updatedState: types.RequestState_APPROVED,
+			wantState:    types.RequestState_APPROVED,
+		},
+		{
+			name:         "pending to denied",
+			initialState: types.RequestState_PENDING,
+			updatedState: types.RequestState_DENIED,
+			wantState:    types.RequestState_DENIED,
+		},
+		{
+			name:         "pending to promoted",
+			initialState: types.RequestState_PENDING,
+			updatedState: types.RequestState_PROMOTED,
+			wantState:    types.RequestState_PROMOTED,
+		},
+		{
+			name:         "approved to pending",
+			initialState: types.RequestState_APPROVED,
+			updatedState: types.RequestState_PENDING,
+			wantState:    types.RequestState_APPROVED,
+			wantErr:      true,
+		},
+		{
+			name:         "approved to approved",
+			initialState: types.RequestState_APPROVED,
+			updatedState: types.RequestState_APPROVED,
+			wantState:    types.RequestState_APPROVED,
+			wantErr:      true,
+		},
+		{
+			name:         "approved to denied",
+			initialState: types.RequestState_APPROVED,
+			updatedState: types.RequestState_DENIED,
+			wantState:    types.RequestState_APPROVED,
+			wantErr:      true,
+		},
+		{
+			name:         "approved to promoted",
+			initialState: types.RequestState_APPROVED,
+			updatedState: types.RequestState_PROMOTED,
+			wantState:    types.RequestState_APPROVED,
+			wantErr:      true,
+		},
+		{
+			name:         "denied to denied",
+			initialState: types.RequestState_DENIED,
+			updatedState: types.RequestState_DENIED,
+			wantState:    types.RequestState_DENIED,
+			wantErr:      true,
+		},
+		{
+			name:         "promoted to pending",
+			initialState: types.RequestState_PROMOTED,
+			updatedState: types.RequestState_PENDING,
+			wantState:    types.RequestState_PROMOTED,
+			wantErr:      true,
+		},
+		{
+			name:         "promoted to approved",
+			initialState: types.RequestState_PROMOTED,
+			updatedState: types.RequestState_APPROVED,
+			wantState:    types.RequestState_PROMOTED,
+			wantErr:      true,
+		},
+		{
+			name:         "promoted to denied",
+			initialState: types.RequestState_PROMOTED,
+			updatedState: types.RequestState_DENIED,
+			wantState:    types.RequestState_PROMOTED,
+			wantErr:      true,
+		},
+		{
+			name:         "promoted to promoted",
+			initialState: types.RequestState_PROMOTED,
+			updatedState: types.RequestState_PROMOTED,
+			wantState:    types.RequestState_PROMOTED,
+			wantErr:      true,
+		},
+		{
+			name:         "none to none",
+			initialState: types.RequestState_NONE,
+			updatedState: types.RequestState_NONE,
+			wantState:    types.RequestState_PENDING,
+			wantErr:      true,
+		},
+		{
+			name:         "pending to none",
+			initialState: types.RequestState_PENDING,
+			updatedState: types.RequestState_NONE,
+			wantState:    types.RequestState_PENDING,
+			wantErr:      true,
+		},
+		{
+			name:         "pending to pending",
+			initialState: types.RequestState_PENDING,
+			updatedState: types.RequestState_PENDING,
+			wantState:    types.RequestState_PENDING,
+		},
+		{
+			name:         "approved to none",
+			initialState: types.RequestState_APPROVED,
+			updatedState: types.RequestState_NONE,
+			wantState:    types.RequestState_APPROVED,
+			wantErr:      true,
+		},
+		{
+			name:         "denied to none",
+			initialState: types.RequestState_DENIED,
+			updatedState: types.RequestState_NONE,
+			wantState:    types.RequestState_DENIED,
+			wantErr:      true,
+		},
+		{
+			name:         "denied to pending",
+			initialState: types.RequestState_DENIED,
+			updatedState: types.RequestState_PENDING,
+			wantState:    types.RequestState_DENIED,
+			wantErr:      true,
+		},
+		{
+			name:         "denied to approved",
+			initialState: types.RequestState_DENIED,
+			updatedState: types.RequestState_APPROVED,
+			wantState:    types.RequestState_DENIED,
+			wantErr:      true,
+		},
+		{
+			name:         "denied to promoted",
+			initialState: types.RequestState_DENIED,
+			updatedState: types.RequestState_PROMOTED,
+			wantState:    types.RequestState_DENIED,
+			wantErr:      true,
+		},
+		{
+			name:         "promoted to none",
+			initialState: types.RequestState_PROMOTED,
+			updatedState: types.RequestState_NONE,
+			wantState:    types.RequestState_PROMOTED,
+			wantErr:      true,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := types.NewAccessRequest(uuid.NewString(), "alice", "test_role_1")
+			require.NoError(t, err)
+			require.NoError(t, req.SetState(test.initialState))
+
+			err = service.CreateAccessRequest(t.Context(), req)
+			require.NoError(t, err)
+
+			final, err := service.SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: req.GetName(),
+				State:     test.updatedState,
+			})
+			if test.wantErr {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				final, err = service.GetAccessRequest(t.Context(), req.GetName())
+				require.NoError(t, err)
+				require.Equal(t, test.wantState, final.GetState())
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantState, final.GetState())
+				final, err = service.GetAccessRequest(t.Context(), req.GetName())
+				require.NoError(t, err)
+				require.Equal(t, test.wantState, final.GetState())
+			}
+		})
+	}
+}
 
 func Test_DynamicAccessService_ListExpiredAccessRequests(t *testing.T) {
 	t.Parallel()

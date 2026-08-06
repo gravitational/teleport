@@ -37,9 +37,9 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 	// Usually it's one item per nameset. OK if not.
 	estimatedLen := len(rdns)
 
-	dn := &subcav1.DistinguishedName{
+	dn := subcav1.DistinguishedName_builder{
 		Names: make([]*subcav1.AttributeTypeAndValue, 0, estimatedLen),
-	}
+	}.Build()
 	for i, nameSet := range rdns {
 		for j, atv := range nameSet {
 			oid := make([]int32, len(atv.Type))
@@ -64,10 +64,10 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 					atv.Type, atv.Value, atv.Value,
 				)
 			}
-			dn.Names = append(dn.Names, &subcav1.AttributeTypeAndValue{
+			dn.SetNames(append(dn.GetNames(), subcav1.AttributeTypeAndValue_builder{
 				Oid:   oid,
 				Value: &val,
-			})
+			}.Build()))
 		}
 	}
 	return dn, nil
@@ -82,21 +82,21 @@ func RDNSequenceToDistinguishedNameProto(rdns pkix.RDNSequence) (*subcav1.Distin
 //
 // A nil or empty DistinguishedName is considered invalid.
 func DistinguishedNameProtoToRDNSequence(dn *subcav1.DistinguishedName) (pkix.RDNSequence, error) {
-	if dn == nil || len(dn.Names) == 0 {
+	if dn == nil || len(dn.GetNames()) == 0 {
 		return nil, trace.BadParameter("empty distinguished name")
 	}
 
-	rdns := make(pkix.RDNSequence, 0, len(dn.Names))
-	for i, atv := range dn.Names {
+	rdns := make(pkix.RDNSequence, 0, len(dn.GetNames()))
+	for i, atv := range dn.GetNames() {
 		switch {
 		case len(atv.GetOid()) == 0:
 			return nil, trace.BadParameter("names[%d]: empty OID", i)
-		case atv.Value == nil:
+		case !atv.HasValue():
 			return nil, trace.BadParameter("names[%d]: nil Value", i)
 		}
 
-		oid := make([]int, len(atv.Oid))
-		for j, x := range atv.Oid {
+		oid := make([]int, len(atv.GetOid()))
+		for j, x := range atv.GetOid() {
 			if x < 0 {
 				return nil, trace.BadParameter("names[%d]: OID component out of bounds: %d (must be >= 0)", i, x)
 			}
@@ -105,7 +105,7 @@ func DistinguishedNameProtoToRDNSequence(dn *subcav1.DistinguishedName) (pkix.RD
 		rdns = append(rdns, pkix.RelativeDistinguishedNameSET{
 			pkix.AttributeTypeAndValue{
 				Type:  oid,
-				Value: *atv.Value,
+				Value: atv.GetValue(),
 			},
 		})
 	}

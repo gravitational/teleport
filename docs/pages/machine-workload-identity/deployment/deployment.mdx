@@ -5,12 +5,16 @@ tags:
  - conceptual
  - mwi
  - infrastructure-identity
+page_type: conceptual
 ---
 
 The first step to set up Machine & Workload Identity is to deploy the `tbot`
 agent and join it as a Bot to your Teleport cluster. You can run the `tbot`
 binary on a number of platforms, from AWS and GitHub Actions to a generic Linux
 server or Kubernetes cluster.
+
+This page describes how to choose a method of deploying `tbot` and helps you
+choose the appropriate guide to completing your deployment.
 
 ## Choosing a deployment method
 
@@ -171,12 +175,12 @@ and continuous deployment platform.
     },
     {
       icon: <Icon name="spacelift" size="xl" />,
-      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      to: "../../configuration/terraform-provider/spacelift",
       name: "Spacelift",
     },
     {
       icon: <Icon name="terraform" size="xl" />,
-      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-cloud",
+      to: "../../configuration/terraform-provider/terraform-cloud",
       name: "Terraform Cloud",
     },
     {

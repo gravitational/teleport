@@ -92,7 +92,7 @@ func TestEvaluateRules(t *testing.T) {
 			rules := EvaluateRules(ctx, logtest.NewLogger(), test.env, test.rules)
 			require.Len(t, rules, len(test.expected))
 			for _, rule := range rules {
-				require.Contains(t, test.expected, rule.Metadata.GetName())
+				require.Contains(t, test.expected, rule.GetMetadata().GetName())
 			}
 		})
 	}
@@ -103,26 +103,26 @@ func makeRule(
 	weekday time.Weekday,
 	start, end string,
 ) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return &accessmonitoringrulesv1.AccessMonitoringRule{
+	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+		}.Build(),
+		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 			Subjects:  []string{types.KindAccessRequest},
 			Condition: condition,
 			Schedules: map[string]*accessmonitoringrulesv1.Schedule{
-				"default": {
-					Time: &accessmonitoringrulesv1.TimeSchedule{
-						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{{
+				"default": accessmonitoringrulesv1.Schedule_builder{
+					Time: accessmonitoringrulesv1.TimeSchedule_builder{
+						Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 							Weekday: weekday.String(),
 							Start:   start,
 							End:     end,
-						}},
-					},
-				},
+						}.Build()},
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 }

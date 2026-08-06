@@ -1,7 +1,8 @@
 ---
 title: Reference for the teleport_access_list_member Terraform resource
 sidebar_label: access_list_member
-description: This page describes the supported values of the teleport_access_list_member resource of the Teleport Terraform provider.
+description: This page lists the supported values of the teleport_access_list_member resource of the Teleport Terraform provider.
+page_type: reference
 ---
 
 {/*Auto-generated file. Do not edit.*/}
@@ -11,7 +12,7 @@ description: This page describes the supported values of the teleport_access_lis
 to refer to these. */}
 {/* vale 3rd-party-products.former-names = NO */}
 
-This page describes the supported values of the teleport_access_list_member resource of the Teleport Terraform provider.
+This page lists the supported values of the teleport_access_list_member resource of the Teleport Terraform provider.
 
 
 
@@ -99,6 +100,7 @@ resource "teleport_access_list_member" "npcs" {
 ### Optional
 
 - `header` (Attributes) header is the header for the resource. (see [below for nested schema](#nested-schema-for-header))
+- `scope` (String) scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.
 - `spec` (Attributes) spec is the specification for the Access List member. (see [below for nested schema](#nested-schema-for-spec))
 
 ### Nested Schema for `header`
@@ -125,7 +127,6 @@ Optional:
 - `expires` (String) expires is a global expiry time header can be set on any resource in the system.
 - `labels` (Map of String) labels is a set of labels.
 - `namespace` (String) namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.
-- `revision` (String) revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.
 
 
 
@@ -134,12 +135,9 @@ Optional:
 Required:
 
 - `access_list` (String) associated Access List
-- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
 
 Optional:
 
-- `added_by` (String) added_by is the user that added this user to the Access List.
 - `expires` (String) expires is when the user's membership to the Access List expires.
-- `joined` (String) joined is when the user joined the Access List.
-- `name` (String) name is the name of the member of the Access List.
 - `reason` (String) reason is the reason this user was added to the Access List.

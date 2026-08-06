@@ -24,10 +24,12 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,6 +52,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodOracle),
 	string(types.JoinMethodBoundKeypair),
 	string(types.JoinMethodEnv0),
+	string(types.JoinMethodGenericOIDC),
 }
 
 const (
@@ -197,6 +200,23 @@ type KubernetesOnboardingConfig struct {
 	TokenPath string `yaml:"token_path,omitempty"`
 }
 
+// GenericOIDCOnboardingConfig contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCOnboardingConfig struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env,omitempty"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command,omitempty"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+}
+
 // Config contains values relevant to how the bot authenticates with
 // and joins the Teleport cluster.
 type Config struct {
@@ -232,6 +252,10 @@ type Config struct {
 
 	// Kubernetes holds the configuration relevant to the `kubernetes` join method.
 	Kubernetes KubernetesOnboardingConfig `yaml:"kubernetes,omitempty"`
+
+	// GenericOIDC contains configuration relevant to the `generic_oidc` join
+	// method.
+	GenericOIDC GenericOIDCOnboardingConfig `yaml:"generic_oidc,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -259,6 +283,14 @@ func (conf *Config) SetToken(token string) {
 func (conf *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(conf.TokenValue)
 	if err != nil {
+		// A scoped token with a Scope Qualified Name looks like a file path
+		// and will result in file not found errors. If the provided token is
+		// a SQN, then the request is rejected. Scoped tokens can only be used
+		// in the new join service.
+		if _, err := scopes.ParseQualifiedName(conf.TokenValue); err == nil {
+			return conf.TokenValue, nil
+		}
+
 		return "", trace.Wrap(err)
 	}
 

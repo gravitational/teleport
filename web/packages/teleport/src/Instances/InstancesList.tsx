@@ -309,6 +309,7 @@ function getServiceIcon(service: string): React.ComponentType<any> {
     kube: Icons.Kubernetes,
     app: Icons.Application,
     db: Icons.Database,
+    linuxdesktop: Icons.Desktop,
     windowsdesktop: Icons.Desktop,
     proxy: Icons.Network,
     auth: Icons.Keypair,
@@ -324,6 +325,7 @@ function getServiceDisplayName(service: string): string {
     app: 'Application',
     db: 'Database',
     windowsdesktop: 'Windows Desktop',
+    linuxdesktop: 'Linux Desktop',
     proxy: 'Proxy',
     auth: 'Auth',
   };

@@ -39,10 +39,10 @@ func TestNewDatabaseObjectImportRule(t *testing.T) {
 	}{
 		{
 			name: "valid rule",
-			spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+			spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 				DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 				Mappings:       []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
-			},
+			}.Build(),
 			expectedError: nil,
 		},
 		{
@@ -68,18 +68,18 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 	}{
 		{
 			name: "valid rule",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build(),
+				Spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
 					Mappings:       []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectedError: nil,
 		},
 		{
@@ -89,117 +89,117 @@ func TestValidateDatabaseObjectImportRule(t *testing.T) {
 		},
 		{
 			name: "missing metadata",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:     types.KindDatabaseObjectImportRule,
 				Version:  types.V1,
 				Metadata: nil,
 				Spec:     &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{},
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("metadata: must be non-nil"),
 		},
 		{
 			name: "missing name",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "",
 					Namespace: defaults.Namespace,
-				},
+				}.Build(),
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{},
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("metadata.name: must be non-empty"),
 		},
 		{
 			name: "invalid kind",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    "InvalidKind",
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
+				}.Build(),
 				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{},
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("invalid kind InvalidKind, expected db_object_import_rule"),
 		},
 		{
 			name: "missing spec",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
+				}.Build(),
 				Spec: nil,
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("missing spec"),
 		},
 		{
 			name: "missing database_labels",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build(),
+				Spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{}},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("missing database_labels"),
 		},
 		{
 			name: "missing mappings",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build(),
+				Spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("missing mappings"),
 		},
 		{
 			name: "invalid mapping key",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build(),
+				Spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
-					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
+					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
 						AddLabels: map[string]string{"    ": "dummy"},
-					}},
-				},
-			},
+					}.Build()},
+				}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("invalid mapping: label name is empty or whitespace"),
 		},
 		{
 			name: "invalid template in mapping",
-			rule: &dbobjectimportrulev1.DatabaseObjectImportRule{
+			rule: dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 				Kind:    types.KindDatabaseObjectImportRule,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "test",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build(),
+				Spec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"key": {"value"}}),
-					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
+					Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
 						AddLabels: map[string]string{"dummy": "  {{  "},
-					}},
-				},
-			},
+					}.Build()},
+				}.Build(),
+			}.Build(),
 			expectedError: trace.Wrap(trace.BadParameter("\"  {{  \" is using template brackets '{{' or '}}', however expression does not parse, make sure the format is {{expression}}"), "mapping value failed to parse as template"),
 		},
 	}

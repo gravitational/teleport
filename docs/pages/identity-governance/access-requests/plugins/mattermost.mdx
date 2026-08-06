@@ -8,11 +8,12 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 import BotLogo from "/static/avatar_logo.png";
 
-This guide explains how to integrate Access Requests with Mattermost, an open 
+This guide shows you how to integrate Access Requests with Mattermost, an open
 source messaging platform. 
 
 <details>
@@ -90,7 +91,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-mattermost-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-mattermost-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="mattermost" secret="teleport-plugin-mattermost-identity"!)
 </TabItem>
 </Tabs>
 
@@ -365,4 +366,8 @@ $ sudo systemctl start teleport-mattermost
 
 (!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
 
+## Next steps
 
+- To see all of the options you can set in the values file for the
+`teleport-plugin-mattermost` Helm chart, consult our [Helm chart reference
+guide](../../../reference/helm-reference/teleport-plugin-mattermost.mdx).

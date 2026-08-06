@@ -130,10 +130,10 @@ func (s *Service) ListAppAuthConfigs(ctx context.Context, req *appauthconfigv1.L
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &appauthconfigv1.ListAppAuthConfigsResponse{
+	return appauthconfigv1.ListAppAuthConfigsResponse_builder{
 		Configs:       page,
 		NextPageToken: token,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateAppAuthConfig implements appauthconfigv1.AppAuthConfigServiceServer.

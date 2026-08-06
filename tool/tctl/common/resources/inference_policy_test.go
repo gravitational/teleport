@@ -25,11 +25,11 @@ import (
 )
 
 func makeInferencePolicy(name, modelSuffix string) *summarizerv1.InferencePolicy {
-	return summarizer.NewInferencePolicy(name, &summarizerv1.InferencePolicySpec{
+	return summarizer.NewInferencePolicy(name, summarizerv1.InferencePolicySpec_builder{
 		Kinds:  []string{"ssh"},
 		Filter: `resource.metadata.labels["env"] == "prod"`,
 		Model:  "some-model" + modelSuffix,
-	})
+	}.Build())
 }
 
 func TestInferencePolicyCollection_writeText(t *testing.T) {

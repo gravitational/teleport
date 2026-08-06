@@ -149,11 +149,11 @@ func (t *testCommand) run(ctx context.Context, c *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
-	result, err := c.LoginRuleClient().TestLoginRule(ctx, &loginrulepb.TestLoginRuleRequest{
+	result, err := c.LoginRuleClient().TestLoginRule(ctx, loginrulepb.TestLoginRuleRequest_builder{
 		LoginRules:      loginRules,
 		Traits:          traitsMapResourceToProto(traits),
 		LoadFromCluster: t.loadFromCluster,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return trace.NotImplemented("the server does not support testing login rules - try downgrading your client to match the server version")
@@ -164,9 +164,9 @@ func (t *testCommand) run(ctx context.Context, c *authclient.Client) error {
 
 	switch t.outputFormat {
 	case teleport.YAML:
-		utils.WriteYAML(os.Stdout, traitsMapProtoToResource(result.Traits))
+		utils.WriteYAML(os.Stdout, traitsMapProtoToResource(result.GetTraits()))
 	case teleport.JSON:
-		utils.WriteJSONObject(os.Stdout, traitsMapProtoToResource(result.Traits))
+		utils.WriteJSONObject(os.Stdout, traitsMapProtoToResource(result.GetTraits()))
 	default:
 		return trace.BadParameter("unsupported output format %q, supported values are %s and %s", t.outputFormat, teleport.YAML, teleport.JSON)
 	}

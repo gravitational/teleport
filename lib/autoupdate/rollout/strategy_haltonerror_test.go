@@ -52,80 +52,80 @@ func Test_canStartHaltOnError(t *testing.T) {
 	}{
 		{
 			name: "first group, no wait_hours",
-			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			group: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 0,
-			},
+			}.Build(),
 			want:    true,
 			wantErr: require.NoError,
 		},
 		{
 			name: "first group, wait_days (invalid)",
-			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			group: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 1,
-			},
+			}.Build(),
 			want:    false,
 			wantErr: require.Error,
 		},
 		{
 			name: "second group, no wait_days",
-			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			group: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 0,
-			},
-			previousGroup: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			}.Build(),
+			previousGroup: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "previous-group",
 				StartTime:       timestamppb.New(now),
 				State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 0,
-			},
+			}.Build(),
 			want:    true,
 			wantErr: require.NoError,
 		},
 		{
 			name: "second group, wait_days not over",
-			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			group: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 48,
-			},
-			previousGroup: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			}.Build(),
+			previousGroup: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "previous-group",
 				StartTime:       timestamppb.New(yesterday),
 				State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 0,
-			},
+			}.Build(),
 			want:    false,
 			wantErr: require.NoError,
 		},
 		{
 			name: "second group, wait_days over",
-			group: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			group: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "test-group",
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 24,
-			},
-			previousGroup: &autoupdate.AutoUpdateAgentRolloutStatusGroup{
+			}.Build(),
+			previousGroup: autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:            "previous-group",
 				StartTime:       timestamppb.New(yesterday),
 				State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 				ConfigDays:      everyWeekday,
 				ConfigStartHour: int32(now.Hour()),
 				ConfigWaitHours: 0,
-			},
+			}.Build(),
 			want:    true,
 			wantErr: require.NoError,
 		},
@@ -159,74 +159,74 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 	group3Name := "group3"
 
 	testReports := []*autoupdate.AutoUpdateAgentReport{
-		{
-			Metadata: &headerv1.Metadata{Name: "auth1"},
-			Spec: &autoupdate.AutoUpdateAgentReportSpec{
+		autoupdate.AutoUpdateAgentReport_builder{
+			Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
+			Spec: autoupdate.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(fewSecondsAgo),
 				Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-					group1Name: {
+					group1Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 4},
-							targetVersion: {Count: 5},
-							otherVersion:  {Count: 1},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 4}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+							otherVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					group2Name: {
+					}.Build(),
+					group2Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 3},
-							targetVersion: {Count: 5},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 3}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
+			}.Build(),
+		}.Build(),
+		autoupdate.AutoUpdateAgentReport_builder{
 			// This report is expired, it must be ignored
-			Metadata: &headerv1.Metadata{Name: "auth2"},
-			Spec: &autoupdate.AutoUpdateAgentReportSpec{
+			Metadata: headerv1.Metadata_builder{Name: "auth2"}.Build(),
+			Spec: autoupdate.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(fewMinutesAgo),
 				Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-					group1Name: {
+					group1Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 123},
-							targetVersion: {Count: 123},
-							otherVersion:  {Count: 123},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							otherVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
 						},
-					},
-					group2Name: {
+					}.Build(),
+					group2Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 123},
-							targetVersion: {Count: 123},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	// canaryTestReports contain more agents, so it triggers the canary logic
 	canaryTestReports := []*autoupdate.AutoUpdateAgentReport{
-		{
-			Metadata: &headerv1.Metadata{Name: "auth1"},
-			Spec: &autoupdate.AutoUpdateAgentReportSpec{
+		autoupdate.AutoUpdateAgentReport_builder{
+			Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
+			Spec: autoupdate.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(fewSecondsAgo),
 				Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-					group1Name: {
+					group1Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 20},
-							targetVersion: {Count: 5},
-							otherVersion:  {Count: 1},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 20}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+							otherVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					group2Name: {
+					}.Build(),
+					group2Name: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 3},
-							targetVersion: {Count: 5},
+							startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 3}.Build(),
+							targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	var (
@@ -237,18 +237,18 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 		updaterId := uuid.NewString()
 		hostID := uuid.NewString()
 		hostName := fmt.Sprintf("canary-%d", i)
-		testCanaries = append(testCanaries, &autoupdate.Canary{
+		testCanaries = append(testCanaries, autoupdate.Canary_builder{
 			UpdaterId: updaterId,
 			HostId:    hostID,
 			Hostname:  hostName,
 			Success:   false,
-		})
-		healthyTestCanaries = append(healthyTestCanaries, &autoupdate.Canary{
+		}.Build())
+		healthyTestCanaries = append(healthyTestCanaries, autoupdate.Canary_builder{
 			UpdaterId: updaterId,
 			HostId:    hostID,
 			Hostname:  hostName,
 			Success:   true,
-		})
+		}.Build())
 	}
 
 	testCanariesLookupNotFound := make(map[string][]callAnswer[[]*proto.UpstreamInventoryHello])
@@ -257,54 +257,54 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 	testCanariesLookupTargetVersionDualHandles := make(map[string][]callAnswer[[]*proto.UpstreamInventoryHello])
 
 	for _, canary := range testCanaries {
-		testCanariesLookupNotFound[canary.HostId] = []callAnswer[[]*proto.UpstreamInventoryHello]{
+		testCanariesLookupNotFound[canary.GetHostId()] = []callAnswer[[]*proto.UpstreamInventoryHello]{
 			{err: trace.NotFound("handle not found")},
 		}
-		testCanariesLookupStartVersion[canary.HostId] = []callAnswer[[]*proto.UpstreamInventoryHello]{
+		testCanariesLookupStartVersion[canary.GetHostId()] = []callAnswer[[]*proto.UpstreamInventoryHello]{
 			{
 				result: []*proto.UpstreamInventoryHello{
-					{
+					proto.UpstreamInventoryHello_builder{
 						Version:                 startVersion,
-						ServerID:                canary.HostId,
-						Hostname:                canary.Hostname,
+						ServerID:                canary.GetHostId(),
+						Hostname:                canary.GetHostname(),
 						ExternalUpgrader:        types.UpgraderKindTeleportUpdate,
 						ExternalUpgraderVersion: startVersion,
-					},
+					}.Build(),
 				},
 				err: nil,
 			},
 		}
-		testCanariesLookupTargetVersion[canary.HostId] = []callAnswer[[]*proto.UpstreamInventoryHello]{
+		testCanariesLookupTargetVersion[canary.GetHostId()] = []callAnswer[[]*proto.UpstreamInventoryHello]{
 			{
 				result: []*proto.UpstreamInventoryHello{
-					{
+					proto.UpstreamInventoryHello_builder{
 						Version:                 targetVersion,
-						ServerID:                canary.HostId,
-						Hostname:                canary.Hostname,
+						ServerID:                canary.GetHostId(),
+						Hostname:                canary.GetHostname(),
 						ExternalUpgrader:        types.UpgraderKindTeleportUpdate,
 						ExternalUpgraderVersion: targetVersion,
-					},
+					}.Build(),
 				},
 				err: nil,
 			},
 		}
-		testCanariesLookupTargetVersionDualHandles[canary.HostId] = []callAnswer[[]*proto.UpstreamInventoryHello]{
+		testCanariesLookupTargetVersionDualHandles[canary.GetHostId()] = []callAnswer[[]*proto.UpstreamInventoryHello]{
 			{
 				result: []*proto.UpstreamInventoryHello{
-					{
+					proto.UpstreamInventoryHello_builder{
 						Version:                 startVersion,
-						ServerID:                canary.HostId,
-						Hostname:                canary.Hostname,
+						ServerID:                canary.GetHostId(),
+						Hostname:                canary.GetHostname(),
 						ExternalUpgrader:        types.UpgraderKindTeleportUpdate,
 						ExternalUpgraderVersion: startVersion,
-					},
-					{
+					}.Build(),
+					proto.UpstreamInventoryHello_builder{
 						Version:                 targetVersion,
-						ServerID:                canary.HostId,
-						Hostname:                canary.Hostname,
+						ServerID:                canary.GetHostId(),
+						Hostname:                canary.GetHostname(),
 						ExternalUpgrader:        types.UpgraderKindTeleportUpdate,
 						ExternalUpgraderVersion: targetVersion,
-					},
+					}.Build(),
 				},
 				err: nil,
 			},
@@ -323,64 +323,64 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 		{
 			name: "single group unstarted -> unstarted",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonCannotStart,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group unstarted -> unstarted because rollout changed in window",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			rolloutStartTime: timestamppb.New(clock.Now()),
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonRolloutChanged,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group unstarted -> active",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -388,13 +388,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group active -> active",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(fewMinutesAgo),
@@ -402,10 +402,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonCanStart,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(fewMinutesAgo),
@@ -413,13 +413,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateInProgress,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group active -> done",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(yesterday),
@@ -427,10 +427,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateInProgress,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -438,13 +438,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateComplete,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group done -> done",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -452,10 +452,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateComplete,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -463,13 +463,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateComplete,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group rolledback -> rolledback",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -477,10 +477,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -488,13 +488,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "first group done, second should activate, third should not progress",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -502,8 +502,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateComplete,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -511,8 +511,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  24,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -520,10 +520,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -531,8 +531,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: updateReasonUpdateComplete,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -541,8 +541,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  24,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -550,13 +550,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "first group rolledback, second should not start",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -564,8 +564,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -573,10 +573,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  24,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -584,8 +584,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -593,13 +593,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  24,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "first group rolledback, second is active and should become done, third should not progress",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -607,8 +607,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(yesterday),
@@ -617,8 +617,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -626,10 +626,10 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					StartTime:        timestamppb.New(yesterday),
@@ -637,8 +637,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					LastUpdateReason: "manual_rollback",
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -647,8 +647,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -656,24 +656,24 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group unstarted -> unstarted with reports",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			reports: testReports,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -683,13 +683,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					// Group1 is the catch-all group, so it should count group2 agents
 					PresentCount:  18,
 					UpToDateCount: 10,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group active -> active with reports",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(fewMinutesAgo),
@@ -700,11 +700,11 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:     25,
 					UpToDateCount:    0,
 					PresentCount:     10,
-				},
+				}.Build(),
 			},
 			reports: testReports,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(fewMinutesAgo),
@@ -717,13 +717,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					// InitialCount must not be changed during active -> active transitions
 					InitialCount: 25,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group unstarted -> active with reports",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -732,11 +732,11 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigStartHour:  matchingStartHour,
 					PresentCount:     12,
 					UpToDateCount:    3,
-				},
+				}.Build(),
 			},
 			reports: testReports,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -748,13 +748,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:  18,
 					PresentCount:  18,
 					UpToDateCount: 10,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "first group done, second should activate, third should not progress, with reports",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -765,8 +765,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:     10,
 					PresentCount:     8,
 					UpToDateCount:    5,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -776,8 +776,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigWaitHours:  24,
 					PresentCount:     2,
 					UpToDateCount:    2,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -785,11 +785,11 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 			reports: testReports,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        timestamppb.New(yesterday),
@@ -800,8 +800,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:     10,
 					PresentCount:     10,
 					UpToDateCount:    5,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group2Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -813,8 +813,8 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					InitialCount:     8,
 					PresentCount:     8,
 					UpToDateCount:    5,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group3Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -822,13 +822,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
 					ConfigWaitHours:  0,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group unstarted -> canary, no canaries sampled",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(yesterday),
@@ -838,12 +838,12 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					PresentCount:     12,
 					UpToDateCount:    3,
 					CanaryCount:      5,
-				},
+				}.Build(),
 			},
 			reports:       canaryTestReports,
 			canarySamples: []callAnswer[[]*autoupdate.Canary]{{}},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -856,13 +856,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					PresentCount:  34,
 					UpToDateCount: 10,
 					CanaryCount:   5,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> canary, sampling agents, agents not found",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -874,13 +874,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					PresentCount:  34,
 					UpToDateCount: 10,
 					CanaryCount:   5,
-				},
+				}.Build(),
 			},
 			reports:       canaryTestReports,
 			canarySamples: mockResponseForCanaries(testCanaries[:5]),
 			agentLookups:  testCanariesLookupNotFound,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -893,13 +893,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      testCanaries[:5],
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> canary, sampling agents, agents running old version",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -911,13 +911,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					PresentCount:  34,
 					UpToDateCount: 10,
 					CanaryCount:   5,
-				},
+				}.Build(),
 			},
 			reports:       canaryTestReports,
 			canarySamples: mockResponseForCanaries(testCanaries[:5]),
 			agentLookups:  testCanariesLookupStartVersion,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -930,13 +930,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      testCanaries[:5],
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> active, sampling agents, agents running target version",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -949,13 +949,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					PresentCount:  34,
 					UpToDateCount: 10,
 					CanaryCount:   5,
-				},
+				}.Build(),
 			},
 			reports:       canaryTestReports,
 			canarySamples: mockResponseForCanaries(testCanaries[:5]),
 			agentLookups:  testCanariesLookupTargetVersion,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -969,13 +969,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      healthyTestCanaries[:5],
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> active, already sampled agents, agents running target version",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -989,13 +989,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      testCanaries[:5],
-				},
+				}.Build(),
 			},
 			reports: canaryTestReports,
 			// no canarySamples set, we don't expect a sampling call
 			agentLookups: testCanariesLookupTargetVersion,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -1009,13 +1009,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      healthyTestCanaries[:5],
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> canary, incomplete sampled agents, agents running start version",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -1029,13 +1029,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					CanaryCount:   5,
 					// Only 2 canaries
 					Canaries: testCanaries[8:10],
-				},
+				}.Build(),
 			},
 			reports:       canaryTestReports,
 			canarySamples: mockResponseForCanaries(testCanaries[:5]),
 			agentLookups:  testCanariesLookupStartVersion,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -1049,13 +1049,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					CanaryCount:   5,
 					// We expect the 2 initial agents to stay here, and 3 additional agents
 					Canaries: append(testCanaries[8:10], testCanaries[0:3]...),
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "single group canary -> active, already sampled agents, agents running target version, several handles",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -1069,13 +1069,13 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      testCanaries[:5],
-				},
+				}.Build(),
 			},
 			reports: canaryTestReports,
 			// no canarySamples set, we don't expect a sampling call
 			agentLookups: testCanariesLookupTargetVersionDualHandles,
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             group1Name,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -1089,21 +1089,21 @@ func Test_progressGroupsHaltOnError(t *testing.T) {
 					UpToDateCount: 10,
 					CanaryCount:   5,
 					Canaries:      healthyTestCanaries[:5],
-				},
+				}.Build(),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status := &autoupdate.AutoUpdateAgentRolloutStatus{
+			status := autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups:    tt.initialState,
 				State:     0,
 				StartTime: tt.rolloutStartTime,
-			}
-			spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+			}.Build()
+			spec := autoupdate.AutoUpdateAgentRolloutSpec_builder{
 				StartVersion:  startVersion,
 				TargetVersion: targetVersion,
-			}
+			}.Build()
 
 			stubs := mockClientStubs{
 				agentSamples:          tt.canarySamples,
@@ -1159,44 +1159,44 @@ func TestCountCatchAll(t *testing.T) {
 	}{
 		{
 			name: "all group hit",
-			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+			rolloutStatus: autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-					{Name: "dev"},
-					{Name: "stage"},
-					{Name: "prod"},
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "dev"}.Build(),
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "stage"}.Build(),
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "prod"}.Build(),
 				},
-			},
+			}.Build(),
 			expectedCount:    countByGroup["prod"],
 			expectedUpToDate: upToDateByGroup["prod"],
 		},
 		{
 			name: "one group miss",
-			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+			rolloutStatus: autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-					{Name: "dev"},
-					{Name: "prod"},
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "dev"}.Build(),
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "prod"}.Build(),
 				},
-			},
+			}.Build(),
 			expectedCount:    countByGroup["stage"] + countByGroup["prod"],
 			expectedUpToDate: upToDateByGroup["stage"] + upToDateByGroup["prod"],
 		},
 		{
 			name: "only catch-all group hit",
-			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+			rolloutStatus: autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-					{Name: "prod"},
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "prod"}.Build(),
 				},
-			},
+			}.Build(),
 			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
 			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
 		},
 		{
 			name: "no common group",
-			rolloutStatus: &autoupdate.AutoUpdateAgentRolloutStatus{
+			rolloutStatus: autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-					{Name: "foobar"},
+					autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{Name: "foobar"}.Build(),
 				},
-			},
+			}.Build(),
 			expectedCount:    countByGroup["dev"] + countByGroup["stage"] + countByGroup["prod"],
 			expectedUpToDate: upToDateByGroup["dev"] + upToDateByGroup["stage"] + upToDateByGroup["prod"],
 		},

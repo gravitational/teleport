@@ -127,7 +127,7 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 		imageDigest: "sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012",
 	})
 	require.NoError(t, err)
-	require.Len(t, att.Payloads, 2)
+	require.Len(t, att.GetPayloads(), 2)
 }
 
 func TestSigstoreAttestor_Attest_Caching(t *testing.T) {

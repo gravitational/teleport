@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -1134,7 +1135,8 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUs
 	}
 
 	for i, certPEM := range resp.TrustChain {
-		block, rest := pem.Decode(certPEM)
+		trimmedPEM := bytes.TrimSpace(certPEM)
+		block, rest := pem.Decode(trimmedPEM)
 		if block == nil {
 			return nil, nil, trace.BadParameter("failed to decode trust chain certificate PEM (index %d)", i)
 		}

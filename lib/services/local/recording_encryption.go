@@ -80,22 +80,22 @@ func NewRecordingEncryptionService(b backend.Backend) (*RecordingEncryptionServi
 
 // CreateRecordingEncryption creates a new RecordingEncryption in the backend.
 func (s *RecordingEncryptionService) CreateRecordingEncryption(ctx context.Context, encryption *recordingencryptionv1.RecordingEncryption) (*recordingencryptionv1.RecordingEncryption, error) {
-	if encryption.Metadata == nil {
-		encryption.Metadata = &headerv1.Metadata{}
+	if !encryption.HasMetadata() {
+		encryption.SetMetadata(&headerv1.Metadata{})
 	}
-	encryption.Metadata.Name = types.MetaNameRecordingEncryption
-	encryption.Kind = types.KindRecordingEncryption
+	encryption.GetMetadata().SetName(types.MetaNameRecordingEncryption)
+	encryption.SetKind(types.KindRecordingEncryption)
 	created, err := s.encryption.CreateResource(ctx, encryption)
 	return created, trace.Wrap(err)
 }
 
 // UpdateRecordingEncryption replaces the RecordingEncryption resource with the given one.
 func (s *RecordingEncryptionService) UpdateRecordingEncryption(ctx context.Context, encryption *recordingencryptionv1.RecordingEncryption) (*recordingencryptionv1.RecordingEncryption, error) {
-	if encryption.Metadata == nil {
-		encryption.Metadata = &headerv1.Metadata{}
+	if !encryption.HasMetadata() {
+		encryption.SetMetadata(&headerv1.Metadata{})
 	}
-	encryption.Metadata.Name = types.MetaNameRecordingEncryption
-	encryption.Kind = types.KindRecordingEncryption
+	encryption.GetMetadata().SetName(types.MetaNameRecordingEncryption)
+	encryption.SetKind(types.KindRecordingEncryption)
 	updated, err := s.encryption.ConditionalUpdateResource(ctx, encryption)
 	return updated, trace.Wrap(err)
 }
@@ -122,15 +122,15 @@ func (s *RecordingEncryptionService) CreateRotatedKey(ctx context.Context, key *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	created, err := s.rotatedKey.CreateResource(ctx, &recordingencryptionv1.RotatedKey{
-		Metadata: &headerv1.Metadata{
+	created, err := s.rotatedKey.CreateResource(ctx, recordingencryptionv1.RotatedKey_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: fp,
-		},
+		}.Build(),
 		Kind: types.KindRotatedKey,
-		Spec: &recordingencryptionv1.RotatedKeySpec{
+		Spec: recordingencryptionv1.RotatedKeySpec_builder{
 			EncryptionKeyPair: key,
-		},
-	})
+		}.Build(),
+	}.Build())
 	return created, trace.Wrap(err)
 }
 
