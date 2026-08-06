@@ -23,7 +23,7 @@ module.exports = {
   moduleNameMapper: {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
-    '\\.(png|svg|svg\\?no-inline|yaml|yaml\\?raw)$': path.join(
+    '\\.(png|png\\?no-inline|svg|svg\\?no-inline|yaml|yaml\\?raw)$': path.join(
       __dirname,
       'mockFiles.js'
     ),
