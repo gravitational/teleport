@@ -494,23 +494,6 @@ var (
 		GetCanReturnNil:        true,
 	}
 
-	user = payload{
-		Name:                   "User",
-		TypeName:               "UserV2",
-		VarName:                "user",
-		GetMethod:              "GetUser",
-		CreateMethod:           "CreateUser",
-		UpdateMethod:           "UpsertUser",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteUser",
-		WithSecrets:            "false",
-		ID:                     "user.Metadata.Name",
-		Kind:                   "user",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_user",
-		HasCheckAndSetDefaults: true,
-	}
-
 	loginRule = payload{
 		Name:                  "LoginRule",
 		TypeName:              "LoginRule",
@@ -1149,8 +1132,6 @@ func genTFSchema() {
 	generateDataSource(sessionRecording, singularDataSource)
 	generateResource(uiConfig, singularResource)
 	generateDataSource(uiConfig, singularDataSource)
-	generateResource(user, pluralResource)
-	generateDataSource(user, pluralDataSource)
 	generateResource(loginRule, pluralResource)
 	generateDataSource(loginRule, pluralDataSource)
 	generateResource(deviceTrust, pluralResource)
