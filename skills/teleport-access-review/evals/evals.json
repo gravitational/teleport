@@ -97,7 +97,7 @@
     {
       "id": 6,
       "prompt": "Who can access the staging-db database, and how is that access granted? Show me each grant. tctl is at evals/files/mock-tctl and tsh is at evals/files/mock-tsh.",
-      "expected_output": "frank@example.com has standing access to staging-db. The access is backed by more than one grant: the primary grant (backing the resolved standing level) is the 'platform-admins' role, and a second, temporary/self-expiring path is granted by the 'jit-staging' access request at request level. The two grants are shown distinctly (e.g. via --detailed) with their own levels, and the primary grant is identified as the standing one \u2014 not the request one that happens to sort first by name. Because more than one grant backs the access, removing a single grant is not presented as a complete revocation. No write/mutating commands are run.",
+      "expected_output": "frank@example.com has standing access to staging-db, backed by three grants (2 standing, 1 request) shown at their own levels, e.g. via --detailed. The primary grant is the permanent 'platform-admins' role. The other standing grant is an active access request \u2014 a synthetic, temporary ar_user_group_<uuid> node \u2014 reported as a live request rather than a role to fix. The request-level grant is the 'staging-db-jit' access list, named by its alias, which confers the ability to request. The pair is not called temporary overall, since a permanent grant also backs the standing level. Removing 'platform-admins' is therefore not an immediate revocation: the request keeps granting standing until it expires. No write/mutating commands are run.",
       "files": [
         "evals/files/mock-tctl",
         "evals/files/mock-tsh",
@@ -105,10 +105,12 @@
         "evals/files/tsh-status.txt"
       ],
       "assertions": [
-        "frank's resolved access to staging-db is reported as standing",
-        "The primary grant backing the standing level is named as 'platform-admins' (granted_by[0]), i.e. the standing grant is treated as the one to act on",
-        "The 'jit-staging' access request is shown as a separate, temporary/request-level path (e.g. via --detailed), not conflated with the standing grant",
-        "Because more than one grant backs the access, removing a single grant is not presented as a complete revocation",
+        "frank's access to staging-db is reported as standing, with all three grants shown at their own levels",
+        "The grant to act on is named as the permanent 'platform-admins' role (granted_by[0]), not the one that sorts first by name",
+        "The temporary standing grant is identified as an active access request (ar_user_group_<uuid>), not as a role to remediate",
+        "'staging-db-jit' is identified as an access list granting request-level access, referred to by its alias",
+        "The pair is not called temporary overall, since a permanent grant also backs the standing level",
+        "Removing 'platform-admins' is not presented as an immediate revocation, because the access request keeps granting standing until it expires",
         "access-review is invoked with `--format json`; the skill parses JSON and does not rely on the default text-table output.",
         "No write/mutating command is executed"
       ]

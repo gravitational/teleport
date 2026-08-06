@@ -23,7 +23,7 @@ object:
 | ---------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `resource`       | Node          | The resource reached.                                                                                                                                     |
 | `level`          | string        | Resolved access level: `standing`, `impersonate`, `request`, or `denied` (see _Levels_).                                                                  |
-| `temporary`      | bool          | `true` when the access is self-expiring (granted by an access request). Rendered as a `*` in text.                                                        |
+| `temporary`      | bool          | `true` only when **every** grant at the resolved `level` is self-expiring. Omitted from JSON when `false`. Rendered as a `*` in text. |
 | `grant_counts`   | GrantCounts   | How many grants back this access at each level (`standing`/`impersonate`/`request`). Denied grants are listed in `granted_by` but **not** counted here. |
 | `granted_by`     | Grant[]       | The identity-group node(s) (access list / role / access request) that grant or deny the access. Ordered primary-first: `granted_by[0]` is the grant backing the resolved `level`. |
 | `activity`       | Activity      | Access count and last-access time over the window (default last 24h; widen with `--from`/`--to`). Omitted when `--no-activity` is passed or the activity lookup failed. |
@@ -33,8 +33,9 @@ object:
 `{ standing, impersonate, request }` — the number of grants backing the access
 at each level (denied grants excluded; they appear in `granted_by`). More than
 one at a level means multiple grants back it, so removing a single grant won't
-revoke the access. In text, shown under the `Grants` column as e.g.
-`3 standing, 1 request`.
+revoke the access — but temporary grants are counted too, so check
+`granted_by[].node.temporary` first. In text, shown under the `Grants` column as
+e.g. `3 standing, 1 request`.
 
 ### Grant
 
@@ -47,13 +48,18 @@ name, then `id` — so `granted_by[0]` is the strongest-priority grant, i.e. the
 one whose `level` equals the resolved `level`. Act on it when acting on the
 resolved access.
 
+An access-request grant is a synthetic node — `sub_kind: role`, `origin:
+teleport_access_request`, `temporary: true`, named
+`ar_user_group_<request-uuid>`. Don't report it as a role to remediate.
+
 ### Activity
 
-`{ count: number, last_access?: string (RFC3339) }`. Absent or null
-`last_access` renders as `never`; a zero count renders as `0`. Requires Identity
-Activity Center; if the activity lookup can't run, `activity` is omitted, the
-top-level `activity_unavailable` field is set (shown in text as a note, with the
-activity columns omitted), and the access decisions are still returned.
+`{ count: number, last_access?: string (RFC3339) }`. Unused pairs are omitted
+from the JSON/YAML representation, so filter with `has("activity")`; text renders
+them as `0` / `never`. Requires Identity Activity Center; if the activity lookup
+can't run, `activity` is dropped from **every** row, the top-level
+`activity_unavailable` field is set (shown in text as a note, with the activity
+columns omitted), and the access decisions are still returned.
 
 Counts come from **session-start audit events**, so activity only covers
 resources reached through a Teleport session (SSH, database, Kubernetes, app,
@@ -71,7 +77,7 @@ Used for identities, resources, and grants.
 | `name`      | string | The node's name **as stored** — what `=`/`IN` match against (exactly, case-sensitively).                                                                 |
 | `alias`     | string | Optional friendly alias; also matched by name filters.                                                                                                   |
 | `kind`      | string | `identity`, `resource`, `identity_group`, `resource_group`, `sub_resource`, …                                                                            |
-| `sub_kind`  | string | e.g. identity → `user`/`bot`; resource → `ssh`/`database`/`kubernetes`/`app`/`desktop`; group → `role`/`access_list`/`access_request`. The text `Kind` columns show this. |
+| `sub_kind`  | string | e.g. identity → `user`/`bot`; resource → `ssh`/`database`/`kubernetes`/`app`/`desktop`; group → `role`/`access_list`. The text `Kind` columns show this. |
 | `source`    | string | Origin system, e.g. `TELEPORT`, `OKTA`.                                                                                                                  |
 | `origin`    | string | Finer origin, e.g. `teleport_user`.                                                                                                                      |
 | `temporary` | bool   | For a grant, `true` if created by an access request (self-expiring).                                                                                     |
@@ -80,14 +86,18 @@ Used for identities, resources, and grants.
 
 | Level         | Meaning                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------- |
-| `standing`    | The identity holds the access directly, no action required.                                   |
-| `impersonate` | Reachable only by minting a certificate to impersonate another identity (no approval needed). |
-| `request`     | Reachable only after an approved access request.                                              |
+| `standing`    | The identity holds the grant directly, no request or impersonation needed.                    |
+| `impersonate` | Held only by minting a certificate to impersonate another identity (no approval needed).      |
+| `request`     | Held only after an approved access request.                                                   |
 | `denied`      | A deny rule blocks the access. Any denied path wins over everything else.                     |
 
 A trailing `*` on the level in text output marks `temporary` (self-expiring)
 access — distinguish it from standing membership so you don't trim access that
 will lapse on its own.
+
+Every level is a **grant**, not connectability — Access Graph does not currently
+resolve traits, so it can't tell whether the identity holds the principals to
+authenticate.
 
 ## Empty rows
 
