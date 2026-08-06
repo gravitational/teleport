@@ -18,6 +18,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -135,7 +136,8 @@ func TestCreateBeam(t *testing.T) {
 	require.True(t, types.IsSystemResource(token), "beam join token must be a system resource")
 	require.Equal(t, computeReq.GetTbot().GetRegistrationSecret(), token.GetBoundKeypairStatus().RegistrationSecret)
 
-	botResourceName := services.BotResourceName(beam.GetStatus().GetBotName())
+	botResourceName, err := services.BotResourceName(scopes.QualifiedName{Name: beam.GetStatus().GetBotName()})
+	require.NoError(t, err)
 	user, err := pack.identity.GetUser(t.Context(), botResourceName, false)
 	require.NoError(t, err)
 	require.Equal(t, botResourceName, user.GetName())

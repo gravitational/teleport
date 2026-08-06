@@ -13,9 +13,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
@@ -92,9 +92,13 @@ func (s *BeamsService) deleteBeam(ctx context.Context, beam *beamsv1.Beam) error
 	}
 
 	// Delete the bot user and role.
+	botResourceName, err := services.BotResourceName(scopes.QualifiedName{Name: beam.GetStatus().GetBotName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	actions, err = s.userWriter.AppendDeleteUserParamsActions(
 		actions,
-		machineidv1.BotResourceName(beam.GetStatus().GetBotName()),
+		botResourceName,
 		backend.Whatever(),
 	)
 	if err != nil {
@@ -102,7 +106,7 @@ func (s *BeamsService) deleteBeam(ctx context.Context, beam *beamsv1.Beam) error
 	}
 	actions, err = s.roleWriter.AppendDeleteRoleActions(
 		actions,
-		machineidv1.BotResourceName(beam.GetStatus().GetBotName()),
+		botResourceName,
 		backend.Whatever(),
 	)
 	if err != nil {

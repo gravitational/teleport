@@ -13,6 +13,7 @@ import (
 	beamsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	compute "github.com/gravitational/teleport/e/api/beamservice/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -67,7 +68,8 @@ func TestDeleteBeam(t *testing.T) {
 	_, err = pack.token.GetToken(t.Context(), beam.GetStatus().GetJoinTokenName())
 	require.True(t, trace.IsNotFound(err))
 
-	botResourceName := services.BotResourceName(beam.GetStatus().GetBotName())
+	botResourceName, err := services.BotResourceName(scopes.QualifiedName{Name: beam.GetStatus().GetBotName()})
+	require.NoError(t, err)
 	_, err = pack.identity.GetUser(t.Context(), botResourceName, false)
 	require.True(t, trace.IsNotFound(err))
 
