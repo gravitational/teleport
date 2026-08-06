@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -51,7 +52,16 @@ type proxyReqRes struct {
 }
 
 func TestE2E_ApplicationProxyService(t *testing.T) {
-	t.Parallel()
+	// Not parallel: the ALPN upgrade case relies on t.Setenv.
+	t.Run("direct", func(t *testing.T) {
+		testApplicationProxyService(t, false)
+	})
+	t.Run("alpn conn upgrade", func(t *testing.T) {
+		testApplicationProxyService(t, true)
+	})
+}
+
+func testApplicationProxyService(t *testing.T, forceALPNUpgrade bool) {
 	ctx := t.Context()
 	log := utils.NewSlogLoggerForTests()
 
@@ -150,6 +160,17 @@ func TestE2E_ApplicationProxyService(t *testing.T) {
 
 	proxyAddr, err := process.ProxyWebAddr()
 	require.NoError(t, err)
+
+	if forceALPNUpgrade {
+		// The service probes with the ping-returned web address, which may
+		// name the host differently to proxyAddr, so cover both forms.
+		_, port, err := net.SplitHostPort(proxyAddr.Addr)
+		require.NoError(t, err)
+		t.Setenv(
+			apidefaults.TLSRoutingConnUpgradeEnvVar,
+			"localhost:"+port+"=yes,127.0.0.1:"+port+"=yes",
+		)
+	}
 
 	proxyServiceConfig := &ProxyServiceConfig{
 		Listen:   "localhost:12345",
