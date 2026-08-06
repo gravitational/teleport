@@ -38,6 +38,7 @@ func Handlers() map[string]Handler {
 	return map[string]Handler{
 		types.KindBeamsConfig:         beamsConfigHandler(),
 		types.KindAccessList:          accessListHandler(),
+		types.KindBot:                 botHandler(),
 		types.KindBotInstance:         botInstanceHandler(),
 		types.KindClientIPRestriction: clientIPRestrictionHandler(),
 		types.KindNode:                serverHandler(),

@@ -343,6 +343,11 @@ func TestSet(t *testing.T) {
 			val:  "!bad::test",
 			ok:   false,
 		},
+		{
+			name: "scope prefix without separator",
+			val:  "/staging",
+			ok:   false,
+		},
 	}
 
 	for _, tt := range tts {
