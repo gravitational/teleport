@@ -2098,6 +2098,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = mcpCmd.config.run()
 	case mcpCmd.login.FullCommand():
 		err = mcpCmd.login.run()
+	case mcpCmd.logout.FullCommand():
+		err = mcpCmd.logout.run()
 	case updateCommand.update.FullCommand():
 		err = updateCommand.update.run(&cf)
 	default:
