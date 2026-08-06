@@ -15,34 +15,19 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 #if DEBUG
-
-	import Dependencies
 	import Foundation
-	import Sharing
-	import SwiftUI
-	import SystemClients
 
-	@Observable @MainActor
-	final class DebugSettingsViewModel {
-		@ObservationIgnored
-		@Dependency(\.serialNumberClient)
-		var serialNumberClient
+	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
+	public enum FakeSerialNumberGenerator {
+		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-		@ObservationIgnored
-		@Shared(.debugStorage(.debugSerialNumber))
-		var debugSerialNumber: String? = nil
-	}
-
-	// MARK: - Serial Number
-
-	extension DebugSettingsViewModel {
-		var debugSerialNumberBinding: Binding<String> {
-			Binding($debugSerialNumber.emptyIfNil)
-		}
-
-		func regenerateSerialNumber() {
-			$debugSerialNumber.withLock { $0 = FakeSerialNumberGenerator.generate() }
+		public static func generate() -> String {
+			func chunk() -> String {
+				(0 ..< 4)
+					.compactMap { _ in Self.base.randomElement() }
+					.reduce(into: "") { $0.append($1) }
+			}
+			return "\(chunk())-\(chunk())"
 		}
 	}
-
 #endif

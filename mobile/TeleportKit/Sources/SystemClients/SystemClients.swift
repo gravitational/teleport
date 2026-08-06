@@ -14,20 +14,10 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-#if DEBUG
-	import Foundation
+public import Dependencies
+import DependenciesMacros
 
-	/// A small utility for generating a fake serial number, mostly to support the debug-only serial number setting.
-	enum FakeSerialNumberGenerator {
-		private static let base: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-		static func generate() -> String {
-			func chunk() -> String {
-				(0 ..< 4)
-					.compactMap { _ in Self.base.randomElement() }
-					.reduce(into: "") { $0.append($1) }
-			}
-			return "\(chunk())-\(chunk())"
-		}
-	}
-#endif
+extension DependencyValues {
+	@DependencyEntry(liveValue: SerialNumberClient.liveValue)
+	public nonisolated var serialNumberClient = SerialNumberClient()
+}
