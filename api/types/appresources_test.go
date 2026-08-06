@@ -110,6 +110,22 @@ func TestIsAllowAllOnly(t *testing.T) {
 	require.False(t, withUnknownField.IsAllowAllOnly())
 }
 
+func TestRoleHasUnknownAppResourcesFields(t *testing.T) {
+	unknown := AppResource{AllowAll: true, XXX_unrecognized: []byte{0x0a, 0x01, 0x2f}}
+	role := func(allow, deny []AppResource) Role {
+		return &RoleV6{
+			Metadata: Metadata{Name: "test"},
+			Version:  V9,
+			Spec:     RoleSpecV6{Allow: RoleConditions{AppResources: allow}, Deny: RoleConditions{AppResources: deny}},
+		}
+	}
+	require.False(t, RoleHasUnknownAppResourcesFields(role(nil, nil)))
+	require.False(t, RoleHasUnknownAppResourcesFields(role([]AppResource{{AllowAll: true}, {}}, nil)))
+	require.True(t, RoleHasUnknownAppResourcesFields(role([]AppResource{{AllowAll: true}, unknown}, nil)))
+	// A newer auth server may permit deny rules, which drop just as silently.
+	require.True(t, RoleHasUnknownAppResourcesFields(role(nil, []AppResource{unknown})))
+}
+
 func TestAppResourcesAllowAll(t *testing.T) {
 	allowAll := AppResource{AllowAll: true}
 	require.True(t, AppResourcesAllowAll([]AppResource{allowAll}, nil))

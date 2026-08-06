@@ -79,6 +79,9 @@ type ResourceCommand struct {
 	ttl         string
 	labels      string
 
+	// forUpdate is set by tctl edit, which writes back what it reads.
+	forUpdate bool
+
 	// filename is the name of the resource, used for 'create'
 	filename string
 
@@ -271,7 +274,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 		if err := performMFAIfNeeded(withSecrets && slices.Contains(mfaKinds, sr.Kind)); err != nil {
 			return trace.Wrap(err)
 		}
-		collection, err := rc.getCollectionByScopedRef(ctx, client, sr, resources.GetOpts{WithSecrets: withSecrets})
+		collection, err := rc.getCollectionByScopedRef(ctx, client, sr, resources.GetOpts{WithSecrets: withSecrets, ForUpdate: rc.forUpdate})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -300,7 +303,7 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 	if len(refs) != 1 {
 		return rc.getMany(ctx, client, false, refs)
 	}
-	collection, err := rc.getCollectionByRef(ctx, client, refs[0], resources.GetOpts{WithSecrets: withSecrets})
+	collection, err := rc.getCollectionByRef(ctx, client, refs[0], resources.GetOpts{WithSecrets: withSecrets, ForUpdate: rc.forUpdate})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,7 +320,7 @@ func (rc *ResourceCommand) getMany(
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
 
-	opts := resources.GetOpts{WithSecrets: rc.withSecrets}
+	opts := resources.GetOpts{WithSecrets: rc.withSecrets, ForUpdate: rc.forUpdate}
 	var allResources []types.Resource
 	for _, ref := range refs {
 		collection, err := rc.getCollectionByRef(ctx, client, ref, opts)
