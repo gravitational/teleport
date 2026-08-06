@@ -96,6 +96,15 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherDocumentDB,
 }
 
+// SupportedAWSOrganizationMatchers is the list of AWS matcher types whose
+// fetchers discover resources in every matching account of an AWS Organization.
+// Any other type ignores the organization matcher and discovers a single
+// account.
+var SupportedAWSOrganizationMatchers = []string{
+	AWSMatcherEC2,
+	AWSMatcherEKS,
+}
+
 // RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
 // require AWS IAM roles as database users.
 // IMPORTANT: if you add database matchers for AWS keyspaces, OpenSearch, or
@@ -298,6 +307,13 @@ func (m *AWSMatcher) HasOrganizationMatcher() bool {
 func (m *AWSMatcher) validateOrganizationAccountDiscovery() error {
 	if m.Organization.IsEmpty() {
 		return nil
+	}
+
+	for _, matcherType := range m.Types {
+		if !slices.Contains(SupportedAWSOrganizationMatchers, matcherType) {
+			return trace.BadParameter("discovery service AWS matcher organization does not support %q, supported resource types are: %v",
+				matcherType, SupportedAWSOrganizationMatchers)
+		}
 	}
 
 	if m.Organization.OrganizationID == "" {

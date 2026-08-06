@@ -438,6 +438,83 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
+			name: "valid eks organization matcher",
+			in: &AWSMatcher{
+				Types:   []string{"eks"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleName: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "valid ec2 and eks organization matcher",
+			in: &AWSMatcher{
+				Types:   []string{"ec2", "eks"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleName: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+					},
+				},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "organization matcher on a database type fails",
+			in: &AWSMatcher{
+				Types:   []string{"rds"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleName: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "organization matcher mixing eks and a database type fails",
+			in: &AWSMatcher{
+				Types:   []string{"eks", "redshift"},
+				Regions: []string{"us-east-1"},
+				AssumeRole: &AssumeRole{
+					RoleName: "MyRole",
+				},
+				Organization: &AWSOrganizationMatcher{
+					OrganizationID: "o-123",
+					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
+						Include: []string{"ou-123"},
+					},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "empty organization matcher on a database type is allowed",
+			in: &AWSMatcher{
+				Types:        []string{"rds"},
+				Regions:      []string{"us-east-1"},
+				Organization: &AWSOrganizationMatcher{},
+			},
+			errCheck: require.NoError,
+		},
+		{
 			name: "eks matcher with integration does not trigger EICE logic",
 			in: &AWSMatcher{
 				Types:       []string{"eks"},

@@ -39,7 +39,7 @@ spec:
     tags:
       "*": "*"
     # Optional AWS role that the Discovery Service will assume to discover
-    # and register AWS-hosted databases and EKS clusters.
+    # and register AWS-hosted resources.
     assume_role:
       role_arn: "arn:aws:iam::123456789012:role/example-role-name"
       # AWS role name that the Discovery Service will assume to discover resources in other accounts
@@ -49,7 +49,7 @@ spec:
       # a role in an external AWS account.
       external_id: "example-external-id"
     # Organization sections enables AWS organization account discovery.
-    # Only applicable for EC2 discovery.
+    # Only applicable for EC2 and EKS discovery.
     organization:
       # Organization ID used for discovering accounts in the AWS organization.
       organization_id: "o-exampleorgid"
@@ -59,12 +59,12 @@ spec:
         # Accounts that belong to these OUs, and their children, will be included.
         # Only exact matches or wildcard (*) are supported.
         # Required.
-        include_ous: ["*"]
+        include: ["*"]
         # Exclude is a list of AWS Organizational Unit IDs and children OUs to exclude.
         # Accounts that belong to these OUs, and their children, will be excluded, even if they were included.
         # Only exact matches are supported.
         # Optional. If empty, no OUs are excluded.
-        exclude_ous: []
+        exclude: []
     # Optional section: install is used to provide parameters to the installer script.
     # Only applicable for EC2 discovery.
     install:
