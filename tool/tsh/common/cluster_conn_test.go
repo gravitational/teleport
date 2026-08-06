@@ -29,7 +29,7 @@ import (
 )
 
 // TestClusterConn_HoldersShareOneConnection verifies that
-// concurrent holders share one dialed connection and it closes one linger after the last release.
+// concurrent holders share one dialed connection and it closes one linger period after the last release.
 func TestClusterConn_HoldersShareOneConnection(t *testing.T) {
 	t.Parallel()
 
@@ -52,7 +52,7 @@ func TestClusterConn_HoldersShareOneConnection(t *testing.T) {
 		release2()
 		time.Sleep(clusterConnLinger)
 		synctest.Wait()
-		require.Equal(t, 1, dialer.conns[0].closes, "the connection must close one linger after the last release")
+		require.Equal(t, 1, dialer.conns[0].closes, "the connection must close one linger period after the last release")
 	})
 }
 
