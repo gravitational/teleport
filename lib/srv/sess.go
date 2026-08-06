@@ -361,9 +361,8 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 }
 
 // OpenSession either joins an existing active session or starts a new session.
-func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
-	session := scx.getSession()
-	if session != nil && !session.isStopped() {
+func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) (err error) {
+	if session, found := s.findSession(scx.SessionID()); found && !session.isStopped() {
 		scx.Infof("Joining existing session %v.", session.id)
 		mode := types.SessionParticipantMode(scx.env[teleport.EnvSSHJoinMode])
 		if mode == "" {
@@ -399,14 +398,27 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(sess, ch)
+
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
+
 	s.addSession(sess)
 	scx.Infof("Creating (interactive) session %v.", sid)
+
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Inform the client of the session ID that is being used.
+	scx.sendCurrentSessionID(ch, sess)
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	if err := sess.startInteractive(ctx, scx, p); err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 	return nil
@@ -458,9 +470,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return errCannotStartUnattendedSession
 	}
 
-	// Start a non-interactive session (TTY attached). Close the session if an error
-	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(sess, channel)
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Inform the client of the session ID that is being used.
+	scx.sendCurrentSessionID(channel, sess)
 
 	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
@@ -470,13 +485,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	return nil
 }
 
-func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
-	sess := ctx.getSession()
-	if sess == nil {
-		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, no session found in context.")
-		return nil
-	}
-
+func (s *SessionRegistry) ForceTerminate(sess *session) error {
 	sess.BroadcastMessage("Forcefully terminating session...")
 
 	// Stop session, it will be cleaned up in the background to ensure
@@ -493,7 +502,7 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 
 	sess := s.sessions[rsession.ID(sessionID)]
 	if sess == nil {
-		return nil, trace.NotFound("No session found in context.")
+		return nil, trace.NotFound("session not found")
 	}
 
 	return sess.term.GetWinSize()
@@ -783,6 +792,7 @@ type session struct {
 
 	initiator string
 
+	// scx is the host context for the session.
 	scx *ServerContext
 
 	presenceEnabled bool
@@ -881,7 +891,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
-			err := sess.registry.ForceTerminate(sess.scx)
+			err := sess.registry.ForceTerminate(sess)
 			if err != nil {
 				sess.logger.ErrorContext(sess.serverCtx, "Failed to terminate session.", "error", err)
 			}
@@ -1721,7 +1731,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	if !canRun {
 		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
-			go s.registry.ForceTerminate(s.scx)
+			go s.registry.ForceTerminate(s)
 			return nil
 		}
 
@@ -2019,7 +2029,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
-	p.ctx.AddCloser(p)
 
 	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
@@ -2110,6 +2119,10 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 	// create a new "party" (connected client) and launch/join the session.
 	p := newParty(s, mode, ch, scx)
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := s.addParty(p, mode); err != nil {
 		return trace.Wrap(err)
 	}
