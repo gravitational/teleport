@@ -1,0 +1,19 @@
+clusterName: test-cluster
+authServer: teleport-auth.example.com
+joinParams:
+  method: kubernetes
+  tokenName: teleport-proxy
+chartMode: aws
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  auditLogTable: test-dynamodb-auditlog-table
+  sessionRecordingBucket: test-s3-session-storage-bucket
+highAvailability:
+  replicaCount: 3
+  certManager:
+    addCommonName: true
+    enabled: true
+    issuerGroup: custom.cert-manager.io
+    issuerName: custom
+    issuerKind: CustomClusterIssuer

@@ -1,0 +1,283 @@
+suite: Proxy Deployment
+templates:
+  - proxy.yaml
+tests:
+  - it: sets extraLabels on Deployment
+    template: proxy.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        deployment:
+          foo: bar
+          baz: extra
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: extra
+
+  - it: sets projected token audience and ttl for kubernetes join
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: proxy-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    audience: teleport.example.com
+                    expirationSeconds: 600
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+
+  - it: derives projected token audience and ttl from overridden teleport join method
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: iam
+        tokenName: placeholder
+      teleportConfig:
+        teleport:
+          join_params:
+            method: kubernetes
+            token_name: real-token
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.audience
+          pattern: "^teleport\\.example\\.com$"
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 600
+
+  - it: preserves explicit projected token audience and ttl overrides
+    template: proxy.yaml
+    set:
+      clusterName: teleport.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: iam
+        tokenName: placeholder
+      serviceAccountTokenAudience: custom-audience
+      serviceAccountTokenExpirationSeconds: 1200
+      teleportConfig:
+        teleport:
+          join_params:
+            method: kubernetes
+            token_name: real-token
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.audience
+          value: custom-audience
+      - equal:
+          path: spec.template.spec.volumes[0].projected.sources[0].serviceAccountToken.expirationSeconds
+          value: 1200
+
+  - it: sets extraLabels on Deployment Pods
+    template: proxy.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        pod:
+          foo: bar
+          baz: override
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: override
+
+  - it: sets readinessProbe values on Deployment Pods
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      readinessProbe:
+        initialDelaySeconds: 9
+        periodSeconds: 10
+        failureThreshold: 11
+        successThreshold: 12
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 9
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 11
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.successThreshold
+          value: 12
+
+  - it: does not set GOMEMLIMIT if ratio is 0
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      # we set an extra env so contrainers[0].env always exists
+      # this makes testing easier
+      extraEnv:
+        - name: FOO
+          value: bar
+      resources:
+        limits:
+          memory: "10.5G"
+      goMemLimitRatio: 0
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
+
+  - it: should honor user-provided replicaCount
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      highAvailability:
+        replicaCount: 3
+      tls:
+        existingSecretName: my-certs
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 3
+
+  - it: should default to multiple replicas when replicaCount is not set but deployment is not replicable
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should default to multiple replicas when replicaCount is not set but deployment is replicable
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      tls:
+        existingSecretName: my-certs
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should fail if replicaCount is set but not a postitive integer
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      authServer: teleport-auth.example.com
+      joinParams:
+        method: kubernetes
+        tokenName: teleport-proxy
+      tls:
+        existingSecretName: my-certs
+      highAvailability:
+        replicaCount: 0
+    asserts:
+      - failedTemplate:
+          errorMessage: "highAvailability.replicaCount must be >= 1"
