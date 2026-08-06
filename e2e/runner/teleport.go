@@ -48,6 +48,7 @@ type teleportInstance struct {
 	stateFile       string
 	logFile         string // empty means stdout/stderr
 	recordingOwners recordingOwners
+	envOverrides    map[string]string
 
 	cmd      *exec.Cmd
 	logF     *os.File
@@ -57,6 +58,7 @@ type teleportInstance struct {
 
 func (t *teleportInstance) start(ctx context.Context) error {
 	t.cmd = exec.CommandContext(ctx, t.teleportBin, "start", "-c", t.configPath, "--bootstrap", t.stateFile)
+	t.cmd.Env = instanceEnv(t.envOverrides)
 
 	if t.logFile != "" {
 		f, err := os.Create(t.logFile)
