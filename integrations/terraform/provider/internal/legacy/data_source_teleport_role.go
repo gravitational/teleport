@@ -27,8 +27,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 	"github.com/gravitational/teleport/integrations/terraform/provider/internal/tfdiag"
+	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
 
 // dataSourceTeleportRoleType is the data source metadata type
@@ -60,7 +60,13 @@ func (r dataSourceTeleportRole) Read(ctx context.Context, req tfsdk.ReadDataSour
 		return
 	}
 
-	roleI, err := r.p.Client().GetRole(ctx, id.Value)
+	roleClient, err := roleRegistryClient(r.p)
+	if err != nil {
+		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error preparing Role client", trace.Wrap(err), "role"))
+		return
+	}
+
+	roleI, err := roleClient.Get(ctx, registryNameID(id.Value))
 	if err != nil {
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Role", trace.Wrap(err), "role"))
 		return
@@ -81,7 +87,6 @@ func (r dataSourceTeleportRole) Read(ctx context.Context, req tfsdk.ReadDataSour
 		state.Attrs["id"] = id
 	}
 
-	
 	role := roleI.(*apitypes.RoleV6)
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &state)
 	resp.Diagnostics.Append(diags...)

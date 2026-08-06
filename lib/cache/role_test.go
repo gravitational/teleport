@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -46,20 +45,22 @@ func TestRoles(t *testing.T) {
 	p := newTestPack(t, ForNode)
 	t.Cleanup(p.Close)
 
+	newRole := func(name string) (types.Role, error) {
+		return types.NewRole(name, types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+			},
+			Allow: types.RoleConditions{
+				Logins:     []string{"root", "bob"},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+			Deny: types.RoleConditions{},
+		})
+	}
+
 	t.Run("GetRoles", func(t *testing.T) {
 		testResources(t, p, testFuncs[types.Role]{
-			newResource: func(name string) (types.Role, error) {
-				return types.NewRole(name, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(time.Hour),
-					},
-					Allow: types.RoleConditions{
-						Logins:     []string{"root", "bob"},
-						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					},
-					Deny: types.RoleConditions{},
-				})
-			},
+			newResource: newRole,
 			create: func(ctx context.Context, role types.Role) error {
 				_, err := p.accessS.UpsertRole(ctx, role)
 				return err
@@ -76,64 +77,11 @@ func TestRoles(t *testing.T) {
 	})
 
 	t.Run("ListRoles", func(t *testing.T) {
-		testResources(t, p, testFuncs[types.Role]{
-			newResource: func(name string) (types.Role, error) {
-				return types.NewRole(name, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						MaxSessionTTL: types.Duration(time.Hour),
-					},
-					Allow: types.RoleConditions{
-						Logins:     []string{"root", "bob"},
-						NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-					},
-					Deny: types.RoleConditions{},
-				})
-			},
-			create: func(ctx context.Context, role types.Role) error {
-				_, err := p.accessS.UpsertRole(ctx, role)
-				return err
-			},
-			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
-				var out []types.Role
-				req := &proto.ListRolesRequest{
-					Limit:    int32(pageSize),
-					StartKey: pageToken,
-				}
-				resp, err := p.accessS.ListRoles(ctx, req)
-				if err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-
-				for _, r := range resp.Roles {
-					out = append(out, r)
-				}
-
-				return out, resp.NextKey, nil
-			},
-			cacheGet: p.cache.GetRole,
-			cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]types.Role, string, error) {
-				var out []types.Role
-				req := &proto.ListRolesRequest{
-					Limit:    int32(pageSize),
-					StartKey: pageToken,
-				}
-				resp, err := p.cache.ListRoles(ctx, req)
-				if err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-
-				for _, r := range resp.Roles {
-					out = append(out, r)
-				}
-
-				return out, resp.NextKey, nil
-			},
-			update: func(ctx context.Context, role types.Role) error {
-				_, err := p.accessS.UpsertRole(ctx, role)
-				return err
-			},
-			deleteAll: p.accessS.DeleteAllRoles,
-		})
+		testRegisteredResources(
+			t, p, registeredRoleCacheSpec(), p.accessS, p.cache,
+			newRole,
+			p.accessS.DeleteAllRoles,
+		)
 	})
 
 }

@@ -27,11 +27,10 @@ import (
 
 	accessmonitoringrulesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/resourceregistry"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -72,37 +71,40 @@ func accessMonitoringRuleHandler() Handler {
 	}
 }
 
-func getAccessMonitoringRule(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	if ref.Name != "" {
-		rule, err := client.AccessMonitoringRuleClient().GetAccessMonitoringRule(ctx, ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &accessMonitoringRuleCollection{items: []*accessmonitoringrulesv1pb.AccessMonitoringRule{rule}}, nil
-	}
+func registeredAccessMonitoringRuleSpec() resourceregistry.Spec[*accessmonitoringrulesv1pb.AccessMonitoringRule, resourceregistry.NameID] {
+	return resourceregistry.MustGet[*accessmonitoringrulesv1pb.AccessMonitoringRule, resourceregistry.NameID](
+		resourceregistry.Default(),
+		types.KindAccessMonitoringRule,
+	)
+}
 
-	rules, err := stream.Collect(clientutils.Resources(ctx, client.AccessMonitoringRuleClient().ListAccessMonitoringRules))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &accessMonitoringRuleCollection{items: rules}, nil
+func getAccessMonitoringRule(ctx context.Context, client *authclient.Client, ref services.Ref, _ GetOpts) (Collection, error) {
+	return getRegisteredResources(ctx, client, ref, registeredAccessMonitoringRuleSpec(), func(items []*accessmonitoringrulesv1pb.AccessMonitoringRule) Collection {
+		return &accessMonitoringRuleCollection{items: items}
+	})
 }
 
 func createAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
+	spec := registeredAccessMonitoringRuleSpec()
+	in, err := decodeRegisteredResource(raw, spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resourceClient, err := registeredClient(client, spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if opts.Force {
-		if _, err = client.AccessMonitoringRuleClient().UpsertAccessMonitoringRule(ctx, in); err != nil {
+		if _, err = upsertRegisteredResource(ctx, resourceClient, in); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("access monitoring rule %q has been created\n", in.GetMetadata().GetName())
 		return nil
 	}
 
-	if _, err = client.AccessMonitoringRuleClient().CreateAccessMonitoringRule(ctx, in); err != nil {
+	if _, err = resourceClient.Create(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -111,11 +113,16 @@ func createAccessMonitoringRule(ctx context.Context, client *authclient.Client, 
 }
 
 func updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource, _ CreateOpts) error {
-	in, err := services.UnmarshalAccessMonitoringRule(raw.Raw, services.DisallowUnknown())
+	spec := registeredAccessMonitoringRuleSpec()
+	in, err := decodeRegisteredResource(raw, spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.AccessMonitoringRuleClient().UpdateAccessMonitoringRule(ctx, in); err != nil {
+	resourceClient, err := registeredClient(client, spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := resourceClient.Update(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("access monitoring rule %q has been updated\n", in.GetMetadata().GetName())
@@ -123,7 +130,11 @@ func updateAccessMonitoringRule(ctx context.Context, client *authclient.Client, 
 }
 
 func deleteAccessMonitoringRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.AccessMonitoringRuleClient().DeleteAccessMonitoringRule(ctx, ref.Name); err != nil {
+	resourceClient, err := registeredClient(client, registeredAccessMonitoringRuleSpec())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := resourceClient.Delete(ctx, resourceregistry.NameID(ref.Name)); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Access monitoring rule %q has been deleted\n", ref.Name)

@@ -93,6 +93,7 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/services/resourceregistry"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -1464,10 +1465,113 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	testResourcesInternal(t, p, funcs, opts...)
 }
 
+func testRegisteredResources[T types.Resource](
+	t *testing.T,
+	p *testPack,
+	spec resourceregistry.Spec[T, resourceregistry.NameID],
+	backend any,
+	cache any,
+	newResource func(string) (T, error),
+	deleteAll func(context.Context) error,
+	opts ...optionsFunc,
+) {
+	funcs := registeredTestFuncs(t, spec, backend, cache, newResource, deleteAll)
+	funcs.resource = resourceOpsFromSpec(defaultResourceOps[T](), spec)
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
+}
+
+func testRegisteredResources153[T types.Resource153](
+	t *testing.T,
+	p *testPack,
+	spec resourceregistry.Spec[T, resourceregistry.NameID],
+	backend any,
+	cache any,
+	newResource func(string) (T, error),
+	deleteAll func(context.Context) error,
+	opts ...optionsFunc,
+) {
+	funcs := registeredTestFuncs(t, spec, backend, cache, newResource, deleteAll)
+	funcs.resource = resourceOpsFromSpec(defaultResource153Ops[T](), spec)
+	testResourcesInternal(t, p, funcs, opts...)
+}
+
+func registeredTestFuncs[T any](
+	t *testing.T,
+	spec resourceregistry.Spec[T, resourceregistry.NameID],
+	backend any,
+	cache any,
+	newResource func(string) (T, error),
+	deleteAll func(context.Context) error,
+) testFuncs[T] {
+	t.Helper()
+	require.NotNil(t, newResource)
+	require.NotNil(t, deleteAll)
+
+	backendClient, err := spec.Client(backend)
+	require.NoError(t, err)
+	cacheReader, err := spec.ReaderFor(cache)
+	require.NoError(t, err)
+
+	return testFuncs[T]{
+		newResource: newResource,
+		create: func(ctx context.Context, resource T) error {
+			_, err := backendClient.Create(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
+			resources, next, err := backendClient.List(ctx, resourceregistry.Page{
+				Size:  pageSize,
+				Token: pageToken,
+			})
+			return resources, next, trace.Wrap(err)
+		},
+		cacheGet: func(ctx context.Context, name string) (T, error) {
+			resource, err := cacheReader.Get(ctx, resourceregistry.NameID(name))
+			return resource, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
+			resources, next, err := cacheReader.List(ctx, resourceregistry.Page{
+				Size:  pageSize,
+				Token: pageToken,
+			})
+			return resources, next, trace.Wrap(err)
+		},
+		update: func(ctx context.Context, resource T) error {
+			_, err := backendClient.Update(ctx, resource)
+			return trace.Wrap(err)
+		},
+		delete: func(ctx context.Context, name string) error {
+			return trace.Wrap(backendClient.Delete(ctx, resourceregistry.NameID(name)))
+		},
+		deleteAll: deleteAll,
+	}
+}
+
+func resourceOpsFromSpec[T any](ops *resourceOps[T], spec resourceregistry.Spec[T, resourceregistry.NameID]) *resourceOps[T] {
+	ops.Name = func(resource T) string {
+		return spec.ID(resource).String()
+	}
+	return ops
+}
+
+func registeredRoleCacheSpec() resourceregistry.Spec[types.Role, resourceregistry.NameID] {
+	return resourceregistry.MustGet[types.Role, resourceregistry.NameID](
+		resourceregistry.Default(),
+		types.KindRole,
+	)
+}
+
+func registeredAccessMonitoringRuleCacheSpec() resourceregistry.Spec[*accessmonitoringrulesv1.AccessMonitoringRule, resourceregistry.NameID] {
+	return resourceregistry.MustGet[*accessmonitoringrulesv1.AccessMonitoringRule, resourceregistry.NameID](
+		resourceregistry.Default(),
+		types.KindAccessMonitoringRule,
+	)
 }
 
 // testResourcesInternal is a generic tester for resources.

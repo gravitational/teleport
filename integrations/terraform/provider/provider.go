@@ -564,6 +564,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 	resourceTypes := legacy.ResourceTypes()
 
 	genericResourceTypes := map[string]tfsdk.ResourceType{
+		"teleport_access_monitoring_rule": resources.NewAccessMonitoringRuleResourceType(),
 		"teleport_access_list":            resources.NewAccessListResourceType(),
 		"teleport_access_list_member":     resources.NewAccessListMemberResourceType(),
 		"teleport_app":                    resources.NewAppResourceType(),
@@ -584,6 +585,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 	dataSourceTypes := legacy.DataSourceTypes()
 
 	genericDataSourceTypes := map[string]tfsdk.DataSourceType{
+		"teleport_access_monitoring_rule": resources.NewAccessMonitoringRuleDataSourceType(),
 		"teleport_access_list":            resources.NewAccessListDataSourceType(),
 		"teleport_access_list_member":     resources.NewAccessListMemberDataSourceType(),
 		"teleport_app":                    resources.NewAppDataSourceType(),

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/resourceregistry"
 )
 
 func NewRoleCollection(roles []types.Role) Collection {
@@ -106,15 +107,26 @@ func roleHandler() Handler {
 	}
 }
 
+func registeredRoleSpec() resourceregistry.Spec[types.Role, resourceregistry.NameID] {
+	return resourceregistry.MustGet[types.Role, resourceregistry.NameID](
+		resourceregistry.Default(),
+		types.KindRole,
+	)
+}
+
 func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
+	spec := registeredRoleSpec()
 	if ref.Name == "" {
-		roles, err := client.GetRoles(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &roleCollection{roles: roles}, nil
+		return getRegisteredResources(ctx, client, ref, spec, func(items []types.Role) Collection {
+			return &roleCollection{roles: items}
+		})
 	}
-	role, err := client.GetRole(ctx, ref.Name)
+
+	resourceClient, err := registeredClient(client, spec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := resourceClient.Get(ctx, resourceregistry.NameID(ref.Name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,7 +136,8 @@ func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, o
 }
 
 func createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
+	spec := registeredRoleSpec()
+	role, err := decodeRegisteredResource(raw, spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -138,8 +151,13 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 
+	resourceClient, err := registeredClient(client, spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	roleName := role.GetName()
-	_, err = client.GetRole(ctx, roleName)
+	_, err = resourceClient.Get(ctx, resourceregistry.NameID(roleName))
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -147,7 +165,7 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 	if roleExists && !opts.Force {
 		return trace.AlreadyExists("role %q already exists", roleName)
 	}
-	if _, err := client.UpsertRole(ctx, role); err != nil {
+	if _, err := upsertRegisteredResource(ctx, resourceClient, role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role %q has been %s\n", roleName, upsertVerb(roleExists, opts.Force))
@@ -155,7 +173,8 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 }
 
 func updateRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	role, err := services.UnmarshalRole(raw.Raw, services.DisallowUnknown())
+	spec := registeredRoleSpec()
+	role, err := decodeRegisteredResource(raw, spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -163,7 +182,12 @@ func updateRole(ctx context.Context, client *authclient.Client, raw services.Unk
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
 
-	if _, err := client.UpdateRole(ctx, role); err != nil {
+	resourceClient, err := registeredClient(client, spec)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := resourceClient.Update(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role %q has been updated\n", role.GetName())
@@ -191,7 +215,11 @@ func warnAboutKubernetesResources(ctx context.Context, logger *slog.Logger, r ty
 }
 
 func deleteRole(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteRole(ctx, ref.Name); err != nil {
+	resourceClient, err := registeredClient(client, registeredRoleSpec())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := resourceClient.Delete(ctx, resourceregistry.NameID(ref.Name)); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("role %q has been deleted\n", ref.Name)
