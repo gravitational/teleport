@@ -3713,10 +3713,21 @@ func TestLocksCRUD(t *testing.T) {
 		return filter
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	clusterName, err := srv.Auth().GetClusterName(ctx)
+	require.NoError(t, err)
+
+	const (
+		scope        = "/aa"
+		scopedHostID = "scoped-host"
+	)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopePinnedHost(clusterName.GetClusterName(), scopedHostID, scope, types.RoleNode))
 	require.NoError(t, err)
 
 	now := srv.Clock().Now()
@@ -3756,145 +3767,154 @@ func TestLocksCRUD(t *testing.T) {
 
 	// Run LockGetters in nested subtests to allow parallelization.
 	t.Run("LockGetters", func(t *testing.T) {
-		t.Run("GetLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, err := clt.GetLocks(ctx, false)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("ListLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, next, err := clt.ListLocks(ctx, 0, "", nil)
-			require.Empty(t, next)
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		for _, clt := range []*authclient.Client{clt, scopedClient} {
+			makeTestName := func(name string) string {
+				if clt == scopedClient {
+					return name + " - scoped"
+				}
+				return name
+			}
+			t.Run(makeTestName("GetLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, err := clt.GetLocks(ctx, false)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("ListLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, next, err := clt.ListLocks(ctx, 0, "", nil)
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page1, page2Start, err := clt.ListLocks(ctx, 1, "", nil)
-			require.NotEmpty(t, page2Start)
-			require.NoError(t, err)
-			require.Len(t, page1, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page1, page2Start, err := clt.ListLocks(ctx, 1, "", nil)
+				require.NotEmpty(t, page2Start)
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page2, next, err := clt.ListLocks(ctx, 0, page2Start, nil)
-			require.Empty(t, next)
-			require.NoError(t, err)
-			require.Len(t, page2, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page2, next, err := clt.ListLocks(ctx, 0, page2Start, nil)
+				require.Empty(t, next)
+				require.NoError(t, err)
+				require.Len(t, page2, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("RangeLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("RangeLocks"), func(t *testing.T) {
+				t.Parallel()
+				locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
+				_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
 
-			page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
-			require.NoError(t, err)
-			require.Len(t, page1, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
+				require.NoError(t, err)
+				require.Len(t, page1, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
-			require.NoError(t, err)
-			require.Len(t, page2, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("GetLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
+				require.NoError(t, err)
+				require.Len(t, page2, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			})
+			t.Run(makeTestName("GetLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, err := clt.GetLocks(ctx, false, lock1.Target(), lock2.Target())
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
-			require.NoError(t, err)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, err = clt.GetLocks(ctx, false, lock1.Target(), roleTarget)
+				require.NoError(t, err)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, err = clt.GetLocks(ctx, false, roleTarget)
-			require.NoError(t, err)
-			require.Empty(t, locks)
-		})
+				// Match none of the locks.
+				locks, err = clt.GetLocks(ctx, false, roleTarget)
+				require.NoError(t, err)
+				require.Empty(t, locks)
+			})
 
-		t.Run("ListLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, next, err := clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			t.Run(makeTestName("ListLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, next, err := clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), lock2.Target()))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, lock1.Target(), roleTarget))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
-			require.NoError(t, err)
-			require.Empty(t, next)
-			require.Empty(t, locks)
-		})
-		t.Run("RangeLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match none of the locks.
+				locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
+				require.NoError(t, err)
+				require.Empty(t, next)
+				require.Empty(t, locks)
+			})
+			t.Run(makeTestName("RangeLocks with targets"), func(t *testing.T) {
+				t.Parallel()
+				// Match both locks with the targets.
+				locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
+				require.NoError(t, err)
+				require.Len(t, locks, 2)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
-			require.NoError(t, err)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match only one of the locks.
+				roleTarget := types.LockTarget{Role: "role-A"}
+				locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
+				require.NoError(t, err)
+				require.Len(t, locks, 1)
+				require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			// Match none of the locks.
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
-			require.NoError(t, err)
-			require.Empty(t, locks)
-		})
-		t.Run("GetLock", func(t *testing.T) {
-			t.Parallel()
-			// Get one of the locks.
-			lock, err := clt.GetLock(ctx, lock1.GetName())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(lock1, lock,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				// Match none of the locks.
+				locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
+				require.NoError(t, err)
+				require.Empty(t, locks)
+			})
 
-			// Attempt to get a nonexistent lock.
-			_, err = clt.GetLock(ctx, "lock3")
-			require.Error(t, err)
-			require.True(t, trace.IsNotFound(err))
-		})
+			t.Run("GetLock", func(t *testing.T) {
+				t.Parallel()
+				// Get one of the locks.
+				lock, err := clt.GetLock(ctx, lock1.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(lock1, lock,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+				// Attempt to get a nonexistent lock.
+				_, err = clt.GetLock(ctx, "lock3")
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			})
+		}
 	})
 
 	t.Run("UpsertLock", func(t *testing.T) {
