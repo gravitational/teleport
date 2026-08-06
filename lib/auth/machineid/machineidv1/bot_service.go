@@ -508,6 +508,17 @@ func UpsertBot(
 		return nil, trace.Wrap(err, "fetching existing bot user")
 	}
 
+	// An unscoped bot's name can mimic a scoped bot's encoded user name, so
+	// refuse to write through a user that belongs to a different (scope, name)
+	// or to no bot at all.
+	if existingUser != nil {
+		existingBotName, _ := existingUser.GetLabel(types.BotLabel)
+		existingBotScope, _ := existingUser.GetLabel(types.BotScopeLabel)
+		if existingBotName != bot.GetMetadata().GetName() || existingBotScope != bot.GetScope() {
+			return nil, trace.AlreadyExists("bot %q: backing user is held by a different bot or user", bot.GetMetadata().GetName())
+		}
+	}
+
 	// Create User (and maybe Role if unscoped) from the Bot.
 	var user types.User
 	var role types.Role

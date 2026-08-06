@@ -2837,12 +2837,12 @@ func TestBotScopeNamespacing(t *testing.T) {
 
 	const botName = "shared-name"
 
-	newBot := func(scope, description string) *machineidv1pb.Bot {
+	newBot := func(name, scope, description string) *machineidv1pb.Bot {
 		return machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
-				Name:        botName,
+				Name:        name,
 				Description: description,
 			}.Build(),
 			Spec:  &machineidv1pb.BotSpec{},
@@ -2875,7 +2875,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	created := map[string]*machineidv1pb.Bot{}
 	for _, v := range variants {
 		bot, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
-			Bot: newBot(v.scope, v.description),
+			Bot: newBot(botName, v.scope, v.description),
 		}.Build())
 		require.NoError(t, err, "creating bot in scope %q", v.scope)
 		require.Equal(t, v.wantUserName, bot.GetStatus().GetUserName(), "backing user for scope %q", v.scope)
@@ -2891,7 +2891,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	// A duplicate within the same namespace is still rejected.
 	for _, scope := range []string{"", "/scopes/alpha"} {
 		_, err = botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
-			Bot: newBot(scope, "duplicate"),
+			Bot: newBot(botName, scope, "duplicate"),
 		}.Build())
 		require.True(t, trace.IsAlreadyExists(err), "duplicate in scope %q: expected already exists, got: %v", scope, err)
 	}
@@ -2921,7 +2921,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 
 	// Upsert addresses a single namespace: only the alpha bot changes.
 	upserted, err := botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
-		Bot: newBot("/scopes/alpha", "alpha updated"),
+		Bot: newBot(botName, "/scopes/alpha", "alpha updated"),
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "alpha updated", upserted.GetMetadata().GetDescription())
@@ -2974,6 +2974,41 @@ func TestBotScopeNamespacing(t *testing.T) {
 		_, err := getBot(scope)
 		require.NoError(t, err, "bot in scope %q must survive the delete", scope)
 	}
+
+	// An unscoped bot's name is not charset validated, so it can mimic a
+	// scoped bot's encoded user name. Upsert must refuse to write through the
+	// collision in either direction rather than clobber the other bot.
+	squatter, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: newBot("++scopes+alpha+victim", "", "unscoped squatter"),
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, "bot-++scopes+alpha+victim", squatter.GetStatus().GetUserName())
+	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
+		Bot: newBot("victim", "/scopes/alpha", "clobber attempt"),
+	}.Build())
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
+	got, err := botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+		BotName: "++scopes+alpha+victim",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(squatter, got, protocmp.Transform()),
+		"unscoped bot must be untouched by the colliding scoped upsert")
+
+	scopedVictim, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: newBot("victim2", "/scopes/alpha", "scoped victim"),
+	}.Build())
+	require.NoError(t, err)
+	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
+		Bot: newBot("++scopes+alpha+victim2", "", "clobber attempt"),
+	}.Build())
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
+	got, err = botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
+		BotName: "victim2",
+		Scope:   "/scopes/alpha",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(scopedVictim, got, protocmp.Transform()),
+		"scoped bot must be untouched by the colliding unscoped upsert")
 }
 
 func TestStrongValidateBot(t *testing.T) {
