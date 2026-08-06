@@ -36,7 +36,6 @@ func TestKeyAgentService_YAML(t *testing.T) {
 				Destination: &destination.Directory{
 					Path: "/opt/machine-id",
 				},
-				Roles:        []string{"access"},
 				Cluster:      "leaf.example.com",
 				AllowReissue: true,
 				CredentialLifetime: bot.CredentialLifetime{
@@ -75,7 +74,7 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "valid with roles",
+			name: "roles is no longer supported",
 			in: func() *KeyAgentConfig {
 				return &KeyAgentConfig{
 					Destination: &destination.Directory{
@@ -83,9 +82,10 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 						ACLs:     botfs.ACLOff,
 						Symlinks: botfs.SymlinksInsecure,
 					},
-					Roles: []string{"access"},
+					DeprecatedRoles: []string{"access"},
 				}
 			},
+			wantErr: "roles: the roles field is no longer supported",
 		},
 		{
 			name: "valid with delegation session id",
@@ -115,19 +115,6 @@ func TestKeyAgentService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "destination: must be a filesystem directory",
-		},
-		{
-			name: "delegation session id conflicts with roles",
-			in: func() *KeyAgentConfig {
-				return &KeyAgentConfig{
-					Destination: &destination.Directory{
-						Path: "/opt/machine-id",
-					},
-					Roles:               []string{"access"},
-					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
-				}
-			},
-			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 		{
 			name:   "scoped",

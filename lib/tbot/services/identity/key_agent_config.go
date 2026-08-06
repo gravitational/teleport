@@ -45,15 +45,10 @@ type KeyAgentConfig struct {
 	// DelegationSessionID optionally identifies the delegation session the
 	// generated credentials will be associated with, enabling the bot to act
 	// on a (human) user's behalf.
-	//
-	// It is mutually exclusive with Roles.
 	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
-	// Roles is the list of roles to request for the generated credentials. If
-	// empty, it defaults to all the bot's roles.
-	//
-	// It is mutually exclusive with DelegationSessionID.
-	Roles []string `yaml:"roles,omitempty"`
+	// DeprecatedRoles is the removed `roles` field; see internal.CheckDeprecatedRoles.
+	DeprecatedRoles []string `yaml:"roles,omitempty"`
 
 	// Cluster allows certificates to be generated for a leaf cluster of the
 	// cluster that the bot is connected to. These certificates can be used
@@ -79,6 +74,10 @@ type KeyAgentConfig struct {
 
 // CheckAndSetDefaults satisfies the config.ServiceConfig interface.
 func (c *KeyAgentConfig) CheckAndSetDefaults(scoped bool) error {
+	if err := internal.CheckDeprecatedRoles(c.DeprecatedRoles); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// TODO(boxofrad): Add support for scopes (and support for the WithPrivateKey
 	// identity generator option to GenerateScoped). Scope support was omitted
 	// from the initial version because we do not need it in Beams yet.
@@ -94,10 +93,6 @@ func (c *KeyAgentConfig) CheckAndSetDefaults(scoped bool) error {
 	}
 	if _, isDir := c.Destination.(*destination.Directory); !isDir {
 		return trace.BadParameter("destination: must be a filesystem directory")
-	}
-
-	if c.DelegationSessionID != "" && len(c.Roles) > 0 {
-		return trace.BadParameter("delegation_session_id: is mutually-exclusive with roles")
 	}
 
 	return nil
