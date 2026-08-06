@@ -121,3 +121,20 @@ func TestAppResourcesAllowAll(t *testing.T) {
 	require.False(t, AppResourcesAllowAll([]AppResource{allowAll, allowAll}, nil))
 	require.False(t, AppResourcesAllowAll([]AppResource{allowAll}, []AppResource{{}}))
 }
+
+func TestRoleHasUnknownAppResourcesFields(t *testing.T) {
+	// Field 10 is not declared in any version.
+	unknown := AppResource{AllowAll: true, XXX_unrecognized: []byte{0x50, 0x01}}
+	role := func(allow, deny []AppResource) Role {
+		return &RoleV6{
+			Metadata: Metadata{Name: "test"},
+			Version:  V9,
+			Spec:     RoleSpecV6{Allow: RoleConditions{AppResources: allow}, Deny: RoleConditions{AppResources: deny}},
+		}
+	}
+	require.False(t, RoleHasUnknownAppResourcesFields(role(nil, nil)))
+	require.False(t, RoleHasUnknownAppResourcesFields(role([]AppResource{{AllowAll: true}, {}}, nil)))
+	require.True(t, RoleHasUnknownAppResourcesFields(role([]AppResource{{AllowAll: true}, unknown}, nil)))
+	// A newer version may write deny rules.
+	require.True(t, RoleHasUnknownAppResourcesFields(role(nil, []AppResource{unknown})))
+}

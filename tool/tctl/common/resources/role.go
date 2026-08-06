@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -112,6 +113,9 @@ func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, o
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		for _, role := range roles {
+			warnAboutUnknownAppResourcesFields(os.Stderr, role)
+		}
 		return &roleCollection{roles: roles}, nil
 	}
 	role, err := client.GetRole(ctx, ref.Name)
@@ -119,8 +123,8 @@ func getRole(ctx context.Context, client *authclient.Client, ref services.Ref, o
 		return nil, trace.Wrap(err)
 	}
 	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
+	warnAboutUnknownAppResourcesFields(os.Stderr, role)
 	return &roleCollection{roles: []types.Role{role}}, nil
-
 }
 
 func createRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
@@ -139,13 +143,18 @@ func createRole(ctx context.Context, client *authclient.Client, raw services.Unk
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 
 	roleName := role.GetName()
-	_, err = client.GetRole(ctx, roleName)
+	stored, err := client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	roleExists := (err == nil)
-	if roleExists && !opts.Force {
-		return trace.AlreadyExists("role %q already exists", roleName)
+	if roleExists {
+		if !opts.Force {
+			return trace.AlreadyExists("role %q already exists", roleName)
+		}
+		if err := checkUnknownAppResourcesFields(stored); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if _, err := client.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -162,6 +171,14 @@ func updateRole(ctx context.Context, client *authclient.Client, raw services.Unk
 
 	warnAboutKubernetesResources(ctx, slog.Default(), role)
 	warnAboutDynamicLabelsInDenyRule(ctx, slog.Default(), role)
+
+	stored, err := client.GetRole(ctx, role.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkUnknownAppResourcesFields(stored); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if _, err := client.UpdateRole(ctx, role); err != nil {
 		return trace.Wrap(err)
@@ -214,4 +231,22 @@ func warnAboutDynamicLabelsInDenyRule(ctx context.Context, logger *slog.Logger, 
 	} else {
 		logger.WarnContext(ctx, "error checking deny rules labels", "error", err)
 	}
+}
+
+// warnAboutUnknownAppResourcesFields writes a warning when a role has
+// app_resources sub-fields this version of tctl does not recognize.
+func warnAboutUnknownAppResourcesFields(w io.Writer, r types.Role) {
+	if !types.RoleHasUnknownAppResourcesFields(r) {
+		return
+	}
+	fmt.Fprintf(w, "WARNING: role %q has app_resources sub-fields this version of tctl does not recognize. Writing the role back with this version would drop them and can widen app access.\n", r.GetName())
+}
+
+// checkUnknownAppResourcesFields returns an error when a role has
+// app_resources sub-fields this version of tctl does not recognize.
+func checkUnknownAppResourcesFields(r types.Role) error {
+	if types.RoleHasUnknownAppResourcesFields(r) {
+		return trace.BadParameter("role %q has app_resources sub-fields this version of tctl does not recognize. Writing the role back would drop them and can widen app access. Use a tctl version matching the auth server", r.GetName())
+	}
+	return nil
 }

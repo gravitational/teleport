@@ -35,3 +35,20 @@ func (a AppResource) IsAllowAllOnly() bool {
 func AppResourcesAllowAll(allow, deny []AppResource) bool {
 	return len(deny) == 0 && len(allow) == 1 && allow[0].IsAllowAllOnly()
 }
+
+// RoleHasUnknownAppResourcesFields reports whether any app_resources
+// rule on the role, allow or deny, has a proto field this version does
+// not recognize. It looks inside the rules only, so an unrecognized
+// field beside app_resources is not reported.
+func RoleHasUnknownAppResourcesFields(r Role) bool {
+	return appResourcesHaveUnknownFields(r.GetAppResources(Allow)) || appResourcesHaveUnknownFields(r.GetAppResources(Deny))
+}
+
+func appResourcesHaveUnknownFields(rules []AppResource) bool {
+	for _, rule := range rules {
+		if len(rule.XXX_unrecognized) > 0 {
+			return true
+		}
+	}
+	return false
+}
