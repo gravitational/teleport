@@ -67,6 +67,7 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, "Bearer rejected-token", rejectedHeader)
 		require.Equal(t, []string{"Bearer rejected-token", "Bearer fresh-token"}, headers)
@@ -91,6 +92,7 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		require.Equal(t, 2, requests)
 		require.Equal(t, 1, refreshes)
@@ -113,6 +115,7 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		require.Equal(t, 1, requests)
 	})
@@ -136,6 +139,7 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		require.Equal(t, 1, requests)
 	})
@@ -158,6 +162,7 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		require.Equal(t, 1, requests)
 	})
@@ -176,6 +181,9 @@ func TestOAuthRetryRoundTripper(t *testing.T) {
 		require.NoError(t, err)
 
 		resp, err := transport.RoundTrip(req)
+		if resp != nil {
+			defer resp.Body.Close()
+		}
 		require.Nil(t, resp)
 		require.ErrorIs(t, err, refreshErr)
 	})
