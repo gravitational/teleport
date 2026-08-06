@@ -22,7 +22,9 @@ import "flag"
 
 var (
 	SSHNode = register("ssh-node")
-	Connect = register("connect")
+	// SSHNodeBPF is a superset of SSHNode that runs the node with Enhanced Session Recording enabled.
+	SSHNodeBPF = register("ssh-node-bpf")
+	Connect    = register("connect")
 )
 
 type Fixture struct {

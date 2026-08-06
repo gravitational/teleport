@@ -168,6 +168,12 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		}
 	}
 
+	// The BPF node is the regular SSH node with Enhanced Session Recording turned on, so it needs all of
+	// the ssh-node infrastructure too.
+	if fixtures.SSHNodeBPF.Enabled {
+		fixtures.SSHNode.Enabled = true
+	}
+
 	// Auto-enable Connect if intent is explicit via mode or selected test paths.
 	if mode == modeBrowseConnect {
 		fixtures.Connect.Enabled = true

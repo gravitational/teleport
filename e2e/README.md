@@ -60,13 +60,55 @@ automatically starts the required infrastructure.
 
 Available fixtures:
 
-| Fixture      | Description                                                                          |
-|--------------|--------------------------------------------------------------------------------------|
-| `ssh-node`   | Start and connect a Teleport SSH node (runs in Docker)                               |
-| `connect`    | Build Teleport Connect. Auto-detected from Connect test helpers.                     |
+| Fixture        | Description                                                                        |
+|----------------|------------------------------------------------------------------------------------|
+| `ssh-node`     | Start and connect a Teleport SSH node (runs in Docker)                             |
+| `ssh-node-bpf` | The same node with Enhanced Session Recording enabled. Implies `ssh-node`.         |
+| `connect`      | Build Teleport Connect. Auto-detected from Connect test helpers.                   |
 
 Fixtures can also be enabled manually with `--with-<name>` flags (e.g. `--with-ssh-node`, `--with-connect`),
 which is useful for modes like `--codegen` or `--browse` where auto-detection does not run.
+
+#### `ssh-node-bpf` needs a Linux docker host
+
+**This fixture almost certainly will not work against Docker on macOS.** A container does not have its own kernel, and
+BPF programs are loaded into the docker host's. On macOS that host is a minimal VM kernel, and both OrbStack and
+Docker Desktop build theirs without `CONFIG_AUDIT`, so `task_struct` has no `sessionid` field for the command hooks to
+read. It is absent from the kernel's BTF, the CO-RE relocation cannot be resolved, and the programs fail to load. No
+container setting can add a struct field to a kernel that was not built with it.
+
+Point `DOCKER_HOST` at a Linux machine running docker instead. The kernel needs BTF and `CONFIG_AUDIT`; a stock Ubuntu
+or Debian kernel has both. The runner's own probe checks for both, in a privileged container, and you can run the same
+check by hand:
+
+```bash
+docker run --rm --privileged debian:bookworm-slim \
+  sh -c 'test -e /sys/kernel/btf/vmlinux && test -e /proc/self/sessionid'
+```
+
+`ssh://` works, including a `Host` alias from `~/.ssh/config`, so the browsers can keep running locally:
+
+```bash
+DOCKER_HOST=ssh://user@linux-box ./e2e/run.sh --with-ssh-node-bpf e2e/tests/web/authenticated/ssh.spec.ts
+```
+
+The node is built for the daemon's architecture rather than pinned to amd64, because the `bpf()` syscall is not proxied
+through architecture emulation. On macOS that means a cross-compiler matching the daemon, which the runner picks for the
+architecture it detected (`x86_64-unknown-linux-gnu-gcc` for an amd64 host, `aarch64-unknown-linux-gnu-gcc` for arm64).
+`CC` overrides it.
+
+The runner probes the daemon's kernel before starting the node. Outside CI an unsupported kernel downgrades to a plain
+node and exports `E2E_SKIP_ENHANCED_RECORDING=1`, so running the whole suite locally stays green. A spec that needs BPF
+opts into that skip:
+
+```ts
+import { skipEnhancedRecording } from '@gravitational/e2e/helpers/env';
+
+test.skip(skipEnhancedRecording, "docker daemon's kernel cannot run enhanced session recording");
+```
+
+In CI the unsupported kernel is a hard error instead, so the coverage cannot quietly disappear. If the node fails for
+some other reason it exits rather than degrading, so check `e2e/docker-node-<browser>.log`.
 
 ### Users and Roles
 
