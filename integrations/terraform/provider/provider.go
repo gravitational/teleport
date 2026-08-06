@@ -570,6 +570,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_kube_cluster":           resources.NewKubernetesClusterResourceType(),
 		"teleport_saml_connector":         resources.NewSAMLConnectorResourceType(),
 		"teleport_scoped_role":            resources.NewScopedRoleResourceType(),
+		"teleport_static_host_user":       resources.NewStaticHostUserResourceType(),
 		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentResourceType(),
 		"teleport_scoped_token":           resources.NewScopedTokenResourceType(),
 	}
@@ -590,6 +591,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_kube_cluster":           resources.NewKubernetesClusterDataSourceType(),
 		"teleport_saml_connector":         resources.NewSAMLConnectorDataSourceType(),
 		"teleport_scoped_role":            resources.NewScopedRoleDataSourceType(),
+		"teleport_static_host_user":       resources.NewStaticHostUserDataSourceType(),
 		"teleport_scoped_role_assignment": resources.NewScopedRoleAssignmentDataSourceType(),
 		"teleport_scoped_token":           resources.NewScopedTokenDataSourceType(),
 	}
