@@ -3629,10 +3629,14 @@ func (a *Server) submitCertificateIssuedEvent(req *cert.Request, attestedKeyPoli
 	// Unfortunately the only clue we have about Windows certs is the usage
 	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
 	// certRequest.
+	// The same is true of the kube local proxy's shared certificate,
+	// which carries no KubernetesCluster because the target is chosen per request via path routing.
 	for _, usage := range req.Usage {
 		switch usage {
 		case teleport.UsageWindowsDesktopOnly:
 			desktop = true
+		case teleport.UsageKubeOnly:
+			kubernetes = true
 		}
 	}
 
