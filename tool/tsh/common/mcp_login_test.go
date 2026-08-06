@@ -51,22 +51,22 @@ func TestMCPOAuthDiscoveryBaseURL(t *testing.T) {
 		{
 			name:   "root endpoint",
 			appURI: "mcp+https://mcp.example.com",
-			want:   "http://localhost",
+			want:   "https://mcp.example.com",
 		},
 		{
 			name:   "standard MCP path",
 			appURI: "mcp+https://mcp.example.com/mcp",
-			want:   "http://localhost/mcp",
+			want:   "https://mcp.example.com/mcp",
 		},
 		{
 			name:   "nested provider path",
 			appURI: "mcp+https://mcp.example.com/v2/mcp?tenant=ignored#fragment",
-			want:   "http://localhost/v2/mcp",
+			want:   "https://mcp.example.com/v2/mcp",
 		},
 		{
 			name:   "escaped path",
 			appURI: "mcp+https://mcp.example.com/tenant%2Fone/mcp",
-			want:   "http://localhost/tenant%2Fone/mcp",
+			want:   "https://mcp.example.com/tenant%2Fone/mcp",
 		},
 		{
 			name:    "non MCP scheme",
@@ -104,7 +104,7 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 	)
 
 	var requests []string
-	httpClient := &http.Client{Transport: mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	mockTransport := mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		requests = append(requests, req.URL.String())
 		var body string
 		switch {
@@ -126,10 +126,19 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(body)),
 			Request:    req,
 		}, nil
-	})}
+	})
 
 	baseURL, err := mcpOAuthDiscoveryBaseURL(appURI)
 	require.NoError(t, err)
+	// Same wiring as newMCPOAuthHTTPClient: metadata requests for the MCP
+	// server origin are rewritten to the tunnel's localhost address.
+	parsedBaseURL, err := url.Parse(baseURL)
+	require.NoError(t, err)
+	httpClient := &http.Client{Transport: &hostRoutingTransport{
+		tunneled:        mockTransport,
+		direct:          mockTransport,
+		mcpServerOrigin: parsedBaseURL,
+	}}
 	handler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
 		ClientID:    "pre-registered-client",
 		RedirectURI: "http://localhost:12345/callback",
