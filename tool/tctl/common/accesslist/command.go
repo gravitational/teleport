@@ -954,10 +954,11 @@ func (c *Command) collectAllReviews(ctx context.Context, client *authclient.Clie
 
 func withReusableAdminActionMFA(ctx context.Context, client *authclient.Client) (context.Context, error) {
 	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
-	if err == nil {
-		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
-	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+	if err != nil {
+		if errors.Is(err, &mfa.ErrMFANotRequired) || errors.Is(err, &mfa.ErrMFANotSupported) {
+			return ctx, nil
+		}
 		return nil, trace.Wrap(err)
 	}
-	return ctx, nil
+	return mfa.ContextWithMFAResponse(ctx, mfaResponse), nil
 }
