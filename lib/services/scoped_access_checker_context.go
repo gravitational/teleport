@@ -669,4 +669,25 @@ var (
 		kind:          types.KindRole,
 		verbs:         []scopedaccess.Verb{scopedaccess.Read},
 	}
+	// UnpinnedReadAndListLock is a special authorization to complete an unscoped access check
+	// to read a lock.
+	UnpinnedReadAndListLock = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindLock,
+		verbs:         []scopedaccess.Verb{scopedaccess.List, scopedaccess.Read},
+	}
+	// UnpinnedReadLock is a special authorization to complete an unscoped access check
+	// to read a lock.
+	UnpinnedReadLock = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindLock,
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
+	}
+	// UnpinnedReadClusterAuditConfig is a special authorization to complete an unscoped access check
+	// to read a cluster audit config.
+	UnpinnedReadClusterAuditConfig = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindClusterAuditConfig,
+		verbs:         []scopedaccess.Verb{scopedaccess.Read},
+	}
 )
