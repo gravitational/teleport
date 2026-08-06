@@ -810,13 +810,13 @@ func (s *IssuanceService) getX509CA(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+	selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	if !useIssuerOverrides {
-		return tlsCA, nil, nil
+		return selfSignedCA, nil, nil
 	}
 
 	subCAResolver, err := subca.LoadCAOverrideResolver(
@@ -832,35 +832,36 @@ func (s *IssuanceService) getX509CA(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Returns the override cert if active for this key, or the original self-signed cert otherwise.
+	// Returns the override CA if active for this key, or the original self-signed CA otherwise.
 	result, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsCA, err = tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	if result.OverrideActive {
+		overrideCA, err := tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
 		chain, err := pemChainToDER(result.CAChain.ToPEMs())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return tlsCA, chain, nil
+		return overrideCA, chain, nil
 	}
 
-	// No sub-CA override active for this key, fall back to the legacy override.
+	// No sub-CA override active for this key, fall back to the legacy override. If no override is found, return the
+	// self-signed CA.
 	//
 	// TODO(cthach): DELETE IN v20.0 fall back path once all clusters have migrated from workload to sub-CA overrides.
-	tlsCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", tlsCA)
+	signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCA, chain, nil
+	return signingCA, chain, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {

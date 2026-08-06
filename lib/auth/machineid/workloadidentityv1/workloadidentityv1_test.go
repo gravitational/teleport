@@ -1503,7 +1503,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 		configureOverrides func(t *testing.T, tp *issuanceTestPack) *x509.CertPool
 	}{
 		{
-			name:               "SVID chains to cluster CA when opted out of overrides",
+			name:               "SVID chains to self-signed CA when opted out of overrides",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: false, // Opted out.
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
@@ -1511,7 +1511,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:               "SVID chains to cluster CA with no overrides configured",
+			name:               "SVID chains to self-signed CA with no overrides configured",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: nil, // No overrides configured.
@@ -1523,7 +1523,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			configureOverrides: createSPIFFECAOverride, // Active sub-CA override.
 		},
 		{
-			name:               "SVID chains to sub-CA override when legacy getter is also configured",
+			name:               "SVID chains to sub-CA override when legacy override is also configured",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
@@ -1532,13 +1532,13 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:               "SVID chains to legacy getter without sub-CA override",
+			name:               "SVID chains to legacy override when no sub-CA override exists",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: installLegacyOverrideGetter, // Active legacy workload override.
 		},
 		{
-			name:               "SVID chains to legacy getter when sub-CA override is disabled",
+			name:               "SVID chains to legacy override when sub-CA override is disabled",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
@@ -1547,7 +1547,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:               "SVID chains to legacy getter when sub-CA override targets a stale key",
+			name:               "SVID chains to legacy override when sub-CA override targets a stale key",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
@@ -1560,11 +1560,11 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:               "SVID chains to legacy getter on OSS build (sub-CA override ignored)",
+			name:               "SVID chains to legacy override on OSS build",
 			mods:               modulestest.OSSModules(),
 			useIssuerOverrides: true,
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) *x509.CertPool {
-				createSPIFFECAOverride(t, tp)
+				createSPIFFECAOverride(t, tp) // Ignored even though it exists.
 				return installLegacyOverrideGetter(t, tp)
 			},
 		},
