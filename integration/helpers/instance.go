@@ -524,7 +524,6 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Logger = i.Log
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
-	tconf.CachePolicy.Enabled = true
 	tconf.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: i.Secrets.SiteName,
 	})
@@ -786,9 +785,6 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *servicecfg.Config, authPor
 
 	tconf.SetToken("token")
 	tconf.Testing.UploadEventsC = i.UploadEventsC
-	tconf.CachePolicy = servicecfg.CachePolicy{
-		Enabled: true,
-	}
 	tconf.SSH.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -1092,9 +1088,6 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	tconf.Hostname = name
 	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.DataDir = dataDir
-	tconf.CachePolicy = servicecfg.CachePolicy{
-		Enabled: true,
-	}
 
 	tconf.Auth.Enabled = false
 	tconf.InsecureMode = true
@@ -1185,7 +1178,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	tconf.Logger = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
 	tconf.SetAuthServerAddress(*authServer)
-	tconf.CachePolicy = servicecfg.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.Testing.UploadEventsC = i.UploadEventsC
 	tconf.Hostname = cfg.Name

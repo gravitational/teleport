@@ -1384,9 +1384,6 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.SetAuthServerAddress(*utils.MustParseAddr(net.JoinHostPort(i.Hostname, helpers.PortStr(t, i.Web))))
 			conf.Hostname = name
 			conf.SSH.Enabled = true
-			conf.CachePolicy = servicecfg.CachePolicy{
-				Enabled: true,
-			}
 			conf.SSH.Addr = utils.NetAddr{
 				Addr: helpers.NewListenerOn(t, Host, service.ListenerNodeSSH, &conf.FileDescriptors),
 			}
@@ -3030,7 +3027,6 @@ func createAndUpdateTrustedClusters(t *testing.T, suite *integrationTestSuite, t
 		tconf, err := instance.GenerateConfig(t, nil, tconf)
 		require.NoError(t, err)
 		tconf.InsecureMode = true
-		tconf.CachePolicy.Enabled = false
 		return t, tconf
 	}
 
@@ -3393,7 +3389,6 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 		tconf, err := instance.GenerateConfig(t, nil, tconf)
 		require.NoError(t, err)
 
-		tconf.CachePolicy.Enabled = false
 		tconf.InsecureMode = true
 		return t, tconf
 	}
@@ -3529,7 +3524,6 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 		tconf, err := instance.GenerateConfig(t, nil, tconf)
 		require.NoError(t, err)
 		tconf.InsecureMode = true
-		tconf.CachePolicy.Enabled = false
 		return t, tconf
 	}
 
@@ -8771,7 +8765,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			nodeCfg.Modules = authCfg.Modules
 			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
-			nodeCfg.CachePolicy.Enabled = true
 			nodeCfg.DataDir = t.TempDir()
 			nodeCfg.Logger = logtest.NewLogger()
 			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -8911,7 +8904,6 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	nodeCfg := servicecfg.MakeDefaultConfig()
 	nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
 	nodeCfg.SetToken("token")
-	nodeCfg.CachePolicy.Enabled = true
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.Logger = logtest.NewLogger()
 	nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()

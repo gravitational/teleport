@@ -103,9 +103,6 @@ type AuthorizerOpts struct {
 	// support device trust to disable it.
 	// Most services should not set this field.
 	DeviceAuthorization DeviceAuthorizationOpts
-	// PermitCaching opts into the authorizer setting up its own internal
-	// caching when ReadOnlyAccessPoint is not provided.
-	PermitCaching bool
 }
 
 // NewAuthorizer returns new authorizer using backends
@@ -133,7 +130,6 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		var err error
 		opts.ReadOnlyAccessPoint, err = readonly.NewCache(readonly.CacheConfig{
 			Upstream: accessPointWrapper{opts.AccessPoint},
-			Disabled: !opts.PermitCaching,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

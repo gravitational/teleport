@@ -784,23 +784,11 @@ type CachePolicy struct {
 	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
-// Enabled determines if a given "_service" section has been set to 'true'
-func (c *CachePolicy) Enabled() bool {
-	if c.EnabledFlag == "" {
-		return true
-	}
-	enabled, _ := apiutils.ParseBool(c.EnabledFlag)
-	return enabled
-}
-
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	out := servicecfg.CachePolicy{
-		Enabled:        c.Enabled(),
+		Enabled:        true,
 		MaxRetryPeriod: c.MaxBackoff,
-	}
-	if err := out.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	return &out, nil
 }

@@ -1178,7 +1178,7 @@ func TestScopedAndUnscopedBotInstanceResource(t *testing.T) {
 			},
 		},
 	}
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })

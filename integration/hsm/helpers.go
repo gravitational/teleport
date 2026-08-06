@@ -257,7 +257,6 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, log *slog.Logger, cloc
 	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV3
 	config.DataDir = t.TempDir()
-	config.CachePolicy.Enabled = true
 	config.Auth.Enabled = false
 	config.SSH.Enabled = false
 	config.SetToken("foo")

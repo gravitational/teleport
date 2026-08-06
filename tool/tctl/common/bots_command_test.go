@@ -605,7 +605,7 @@ func TestListBotInstances(t *testing.T) {
 			},
 		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
@@ -755,7 +755,7 @@ func TestBotInstancesScoped(t *testing.T) {
 			},
 		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
@@ -979,7 +979,7 @@ func TestListBotInstancesFallback(t *testing.T) {
 			},
 		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableCache(true))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
