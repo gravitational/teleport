@@ -89,12 +89,11 @@ func (p *ProxyServiceConfig) UnmarshalYAML(node *yaml.Node) error {
 // CheckAndSetDefaults checks the user-provided configuration against validation
 // rules and sets any default values.
 func (p *ProxyServiceConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", ProxyServiceType)
-	}
 	switch {
 	case p.Listen == "" && p.Listener == nil:
 		return trace.BadParameter("listen: should not be empty")
+	case scoped && p.DelegationSessionID != "":
+		return trace.BadParameter("delegation_session_id: not supported with scopes")
 	}
 
 	if _, err := url.Parse(p.Listen); err != nil {

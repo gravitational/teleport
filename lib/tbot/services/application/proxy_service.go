@@ -69,6 +69,7 @@ func ProxyServiceBuilder(
 			alpnUpgradeCache:          alpnUpgradeCache,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -95,6 +96,7 @@ type ProxyService struct {
 	cache               *utils.FnCache
 	proxyAddr           string
 	alpnUpgradeRequired bool
+	scoped              bool
 }
 
 // Run runs the service until the context is closed or an error occurs.
@@ -176,7 +178,7 @@ func (s *ProxyService) Run(ctx context.Context) error {
 	})
 	s.log.InfoContext(ctx, "Finished initializing")
 
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		s.log.DebugContext(ctx, "Starting proxy request handler goroutine")
 		errCh <- httpSrv.Serve(l)
@@ -212,16 +214,30 @@ func (s *ProxyService) issueCert(
 	ctx, span := tracer.Start(ctx, "ProxyService/issueCert")
 	defer span.End()
 
+	var (
+		routedIdent *identity.Identity
+		app         types.Application
+		err         error
+	)
+
+	if s.scoped {
+		routedIdent, app, err = s.routedIdentityScoped(ctx, appName)
+	} else {
+		routedIdent, app, err = s.routedIdentityUnscoped(ctx, appName)
+	}
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return routedIdent.TLSCert, app, nil
+}
+
+func (s *ProxyService) routedIdentityUnscoped(ctx context.Context, appName string) (*identity.Identity, types.Application, error) {
 	// TODO(noah): At a later date, we should consider running a background
 	// goroutine that maintains a role-impersonated client. We should probably
 	// make this a generic helper since we have a few services that do this now.
 	// This will avoid the need to create and destroy a client for each new
 	// upstream.
-
-	// Right now we have to redetermine the route to app each time as the
-	// session ID may need to change. Once v17 hits, this will be automagically
-	// calculated by the auth server on cert generation, and we can fetch the
-	// routeToApp once.
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
@@ -253,14 +269,50 @@ func (s *ProxyService) issueCert(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	routedIdent, err := s.identityGenerator.Generate(
+	routedIdentity, err := s.identityGenerator.Generate(
 		ctx, append(identityOpts, identity.WithRouteToApp(route))...,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return routedIdent.TLSCert, app, nil
+	return routedIdentity, app, nil
+}
+
+func (s *ProxyService) routedIdentityScoped(ctx context.Context, appName string) (*identity.Identity, types.Application, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+
+	// An unrouted scoped identity, used only to look the app up.
+	lookupIdentity, err := s.identityGenerator.GenerateScopedFacade(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		identity.UsageIdentity(),
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "generating scoped identity")
+	}
+	clt, err := s.clientBuilder.Build(ctx, lookupIdentity)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err := clt.Close(); err != nil {
+			s.log.ErrorContext(ctx, "Failed to close client.", "error", err)
+		}
+	}()
+
+	route, app, err := getRouteToApp(ctx, s.getBotIdentity(), clt, appName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	routedIdent, err := s.identityGenerator.GenerateScoped(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval, identity.UsageApp(route),
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return routedIdent, app, nil
 }
 
 // handleProxyRequest handles incoming HTTP requests to the server.
