@@ -1244,7 +1244,9 @@ func (s *session) emitSessionEndEvent() {
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
 			Protocol:   events.EventProtocolSSH,
 		},
-		EnhancedRecording: s.hasEnhancedRecording,
+		// In proxy recording mode this event is emitted by the forwarding node, which never runs BPF
+		// itself, so fall back to what the target Node reported.
+		EnhancedRecording: s.hasEnhancedRecording || s.scx.RemoteEnhancedRecording(),
 		Interactive:       s.term != nil,
 		StartTime:         start,
 		EndTime:           end,
@@ -1318,6 +1320,20 @@ func (s *session) setHasEnhancedRecording(val bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.hasEnhancedRecording = val
+}
+
+// reportEnhancedRecording tells the forwarding node that Enhanced Session Recording is active for
+// this session. Only needed in proxy recording mode, where the forwarding node emits session.end
+// but never runs BPF, so it would otherwise report enhanced_recording as false. Best effort: an
+// outdated forwarding node ignores the request, leaving it to report false as it did before.
+func (s *session) reportEnhancedRecording(ctx context.Context, ch ssh.Channel) {
+	if s.shouldHandleRecording() {
+		return
+	}
+
+	if _, err := ch.SendRequest(teleport.EnhancedRecordingRequest, false, nil); err != nil {
+		s.logger.DebugContext(ctx, "Failed to report enhanced recording to the forwarding node.", "error", err)
+	}
 }
 
 // launchUnderLock launches the session. Must be called under session Lock.
@@ -1506,6 +1522,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			return trace.Wrap(err)
 		}
 		s.setHasEnhancedRecording(true)
+		s.reportEnhancedRecording(ctx, p.ch)
 		go func() {
 			// Close the BPF recording session once the session is closed
 			<-s.stopC
@@ -1705,6 +1722,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		}
 
 		s.setHasEnhancedRecording(true)
+		s.reportEnhancedRecording(ctx, channel)
 	}
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")

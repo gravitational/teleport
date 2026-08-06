@@ -106,6 +106,11 @@ type Server struct {
 	// forwarding, subsystems.
 	remoteClient *tracessh.Client
 
+	// remoteSessionOpenMu serializes opening remote sessions. Handlers for the requests the Node
+	// sends are registered on remoteClient and claimed by the next session opened on it, so two
+	// channels opening at once would pair a Node's report with the wrong session.
+	remoteSessionOpenMu sync.Mutex
+
 	// connectionContext is used to construct ServerContext instances
 	// and supports registration of connection-scoped resource closers.
 	connectionContext *sshutils.ConnectionContext
@@ -1226,8 +1231,22 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// events, and session trackers) to avoid duplicates.
 	//
 	// Register handler to receive the current session ID before starting the session.
+	//
+	// Held until the session exists, since the handlers registered below are claimed by the next
+	// session opened on remoteClient rather than tied to this channel.
+	s.remoteSessionOpenMu.Lock()
+	unlockRemoteSessionOpen := sync.OnceFunc(s.remoteSessionOpenMu.Unlock)
+	defer unlockRemoteSessionOpen()
+
 	var newSessionIDFromServer chan string
 	if s.targetServer.GetSubKind() == types.SubKindTeleportNode {
+		// BPF only runs on the Node, so the Node has to tell us whether Enhanced Session Recording
+		// is active in order for the session.end event we emit to report it accurately. Registered
+		// before the session starts, since the Node reports as soon as it opens the BPF session.
+		s.remoteClient.HandleSessionRequest(ctx, teleport.EnhancedRecordingRequest, func(ctx context.Context, req *ssh.Request) {
+			scx.SetRemoteEnhancedRecording()
+		})
+
 		// Check if the Teleport Node is outdated and won't actually send the session ID.
 		//
 		// TODO(Joerger): DELETE IN v20.0.0
@@ -1278,6 +1297,8 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		}
 		return
 	}
+	unlockRemoteSessionOpen()
+
 	scx.RemoteSession = remoteSession
 
 	if newSessionIDFromServer != nil {
