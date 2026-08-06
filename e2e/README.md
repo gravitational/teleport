@@ -196,6 +196,18 @@ test.describe('custom license', () => {
 Note that the e2e runner will only restart Teleport with the different config and not re-initialize it from fresh, so the data directory
 will remains the same for all tests which means the cluster's identity like cluster name, CA, bootstrapped users, and roles will carry over unchanged.
 
+### Restricting a spec to certain browsers
+
+Web specs run against every browser by default. A test whose subject is not the browser can opt out:
+
+```ts
+test.use({ browsers: ['chromium'] });
+```
+
+This is worth doing for a test that also declares a Teleport config, since the runner otherwise repeats that config's
+Teleport restart once per browser. The restriction applies to the whole file rather than to an enclosing describe, and
+the runner enforces it when choosing which specs each browser runs.
+
 ### Session Recordings
 
 The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
