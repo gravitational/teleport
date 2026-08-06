@@ -558,21 +558,6 @@ var (
 		ForceSetKind:           "apitypes.KindNode",
 	}
 
-	installer = payload{
-		Name:                   "Installer",
-		TypeName:               "InstallerV1",
-		VarName:                "installer",
-		GetMethod:              "GetInstaller",
-		CreateMethod:           "SetInstaller",
-		UpdateMethod:           "SetInstaller",
-		DeleteMethod:           "DeleteInstaller",
-		ID:                     `"installer"`,
-		Kind:                   "installer",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_installer",
-		HasCheckAndSetDefaults: true,
-	}
-
 	accessMonitoringRule = payload{
 		Name:                  "AccessMonitoringRule",
 		TypeName:              "AccessMonitoringRule",
@@ -1124,8 +1109,6 @@ func genTFSchema() {
 	generateDataSource(oktaImportRule, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
-	generateResource(installer, pluralResource)
-	generateDataSource(installer, pluralDataSource)
 	generateResource(accessMonitoringRule, pluralResource)
 	generateDataSource(accessMonitoringRule, pluralDataSource)
 	generateResource(staticHostUser, pluralResource)
