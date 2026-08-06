@@ -1325,9 +1325,9 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances, backoff *ec2
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
 
-	// CA rotation commands must reach every instance immediately, and EICE
-	// enrollment does not use the installer. Only filter regular script-based
-	// installation attempts.
+	// AWS agentless OpenSSH CA refresh commands must reach every instance
+	// immediately, and EICE enrollment does not use the installer. Only filter
+	// regular script-based installation attempts.
 	if !instances.Rotation && instances.EnrollMode == types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT {
 		syncTime := s.clock.Now()
 		removed := backoff.filter(instances, syncTime)

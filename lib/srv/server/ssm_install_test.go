@@ -204,6 +204,7 @@ func TestSSMInstaller(t *testing.T) {
 				DiscoveryConfigName: "dc001",
 				Region:              "eu-central-1",
 				AccountID:           "account-id",
+				Rotation:            true,
 			},
 			client: &mockSSMClient{
 				commandOutput: &ssm.SendCommandOutput{
@@ -241,6 +242,7 @@ func TestSSMInstaller(t *testing.T) {
 				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument",
 				InstanceName:    "my-instance-name",
+				Rotation:        true,
 			}},
 		},
 		{

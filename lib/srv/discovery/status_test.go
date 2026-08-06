@@ -37,9 +37,84 @@ import (
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/usertasks"
+	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestReportEC2SSMInstallationResultBackoff(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		eventCode  string
+		rotation   bool
+		wantEntry  bool
+		wantFailed bool
+	}{
+		{
+			name:      "successful installation is recorded",
+			eventCode: libevents.SSMRunSuccessCode,
+			wantEntry: true,
+		},
+		{
+			name:       "failed installation is recorded",
+			eventCode:  libevents.SSMRunFailCode,
+			wantEntry:  true,
+			wantFailed: true,
+		},
+		{
+			name:      "successful rotation is not recorded",
+			eventCode: libevents.SSMRunSuccessCode,
+			rotation:  true,
+		},
+		{
+			name:      "failed rotation is not recorded",
+			eventCode: libevents.SSMRunFailCode,
+			rotation:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := clockwork.NewFakeClock()
+			backoff, err := newEC2InstallerBackoff(time.Minute, nil)
+			require.NoError(t, err)
+
+			s := &Server{Config: &Config{
+				Emitter: &mockEmitter{},
+				clock:   clock,
+			}}
+			result := &server.SSMInstallationResult{
+				SSMRunEvent: &apievents.SSMRun{
+					Metadata:   apievents.Metadata{Code: tt.eventCode},
+					AccountID:  "account-1",
+					Region:     "region-1",
+					InstanceID: "instance-1",
+				},
+				IssueType: "issue",
+				Rotation:  tt.rotation,
+			}
+
+			require.NoError(t, s.reportEC2SSMInstallationResult(t.Context(), backoff, result))
+
+			key := ec2InstallerBackoffKey{
+				accountID:  "account-1",
+				region:     "region-1",
+				instanceID: "instance-1",
+			}
+			entry, ok := backoff.entries[key]
+			require.Equal(t, tt.wantEntry, ok)
+			if tt.wantEntry {
+				require.Equal(t, tt.wantFailed, entry.isFailedAttempt())
+			}
+		})
+	}
+}
 
 func TestTruncateErrorMessage(t *testing.T) {
 	for _, tt := range []struct {
