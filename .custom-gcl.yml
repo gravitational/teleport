@@ -1,0 +1,5 @@
+version: v2.10.1
+plugins:
+  - module: github.com/gravitational/teleport/build.assets/tools/linters/nostructfieldassign
+    import: github.com/gravitational/teleport/build.assets/tools/linters/nostructfieldassign/cmd/gclplugin
+    path: build.assets/tools/linters/nostructfieldassign

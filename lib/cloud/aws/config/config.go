@@ -60,6 +60,6 @@ func ConfigureRegion(cfg *aws.Config, region string) error {
 			return trace.Wrap(err)
 		}
 	}
-	cfg.Region = region
+	cfg.Region = region //nolint:nostructfieldassign // we already enforced validation.
 	return nil
 }

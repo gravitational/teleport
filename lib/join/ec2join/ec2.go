@@ -90,7 +90,9 @@ func checkInstanceRunning(ctx context.Context, params *CheckEC2RequestParams, in
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		awsClientConfig.Region = region
+		if err := config.ConfigureRegion(&awsClientConfig, region); err != nil {
+			return trace.Wrap(err)
+		}
 
 		// assume the configured IAM role if necessary
 		if IAMRole != "" {

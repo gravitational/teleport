@@ -94,13 +94,15 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 				slog.Any("error", err))
 			region = "us-east-1"
 		}
-		awsConfig.Region = region
+		if err := config.ConfigureRegion(&awsConfig, region); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if options.useFIPS && !slices.Contains(FIPSSTSRegions(), awsConfig.Region) {
 		slog.InfoContext(ctx, "AWS region does not have a FIPS STS endpoint, attempting to use us-east-1 instead. This will fail in non-default AWS partitions.",
 			slog.String("region", awsConfig.Region))
-		awsConfig.Region = "us-east-1"
+		awsConfig.Region = "us-east-1" //nolint:nostructfieldassign // this is a valid aws region
 	}
 
 	var signedRequest bytes.Buffer
