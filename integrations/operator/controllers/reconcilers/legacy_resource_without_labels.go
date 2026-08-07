@@ -19,6 +19,8 @@
 package reconcilers
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -52,9 +54,17 @@ func (a ResourceWithoutLabelsAdapter[T]) GetResourceRevision(res T) string {
 	return res.GetRevision()
 }
 
-// GetResourceOrigin implements the Adapter interface.
-func (a ResourceWithoutLabelsAdapter[T]) GetResourceOrigin(res T) string {
-	return res.Origin()
+// CheckOwnership implements the Adapter interface.
+func (a ResourceWithoutLabelsAdapter[T]) CheckOwnership(res T, _ OperatorMetadata) (bool, string) {
+	origin := res.Origin()
+	switch origin {
+	case types.OriginKubernetes:
+		return true, ""
+	case "":
+		return false, ownershipIssueMissingOriginLabel
+	default:
+		return false, fmt.Sprintf(ownershipIssueMismatchOriginLabel, origin)
+	}
 }
 
 // SetResourceRevision implements the Adapter interface.
@@ -64,11 +74,10 @@ func (a ResourceWithoutLabelsAdapter[T]) SetResourceRevision(res T, revision str
 
 // SetResourceLabels implements the Adapter interface. As the resource does not
 // support labels, it only sets the origin label.
-func (a ResourceWithoutLabelsAdapter[T]) SetResourceLabels(res T, labels map[string]string) {
+func (a ResourceWithoutLabelsAdapter[T]) SetResourceLabels(res T, labels map[string]string, _ OperatorMetadata, _ customResourceMetadata) {
 	// We don't set all labels as the Resource doesn't support them
 	// Only the origin
-	origin := labels[types.OriginLabel]
-	res.SetOrigin(origin)
+	res.SetOrigin(types.OriginKubernetes)
 }
 
 // NewTeleportResourceWithoutLabelsReconciler instantiates a resourceReconciler for a
