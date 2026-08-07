@@ -497,6 +497,27 @@ func TestDefaultPrintUsage(t *testing.T) {
 	require.Equal(t, string(flagOutput), string(commandOutput))
 }
 
+// TestGlobalPresetFlagInUsage verifies that the global --preset flag is
+// listed in the top-level usage/help output (regression test: a visible
+// global flag must appear in `tsh --help`).
+func TestGlobalPresetFlagInUsage(t *testing.T) {
+	t.Parallel()
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, testExecutable, "--help")
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	output, err := cmd.CombinedOutput()
+	// kingpin's --help exits 0 via Terminate; CombinedOutput returns the text.
+	require.NoError(t, trace.NewAggregate(err, ctx.Err()))
+
+	require.Contains(t, string(output), "--preset",
+		"global --preset flag must be listed in top-level help; got:\n%s", string(output))
+	require.Contains(t, string(output), "TELEPORT_PRESET",
+		"--preset help must mention the TELEPORT_PRESET env var")
+}
+
 func TestFailedLogin(t *testing.T) {
 	t.Parallel()
 	tmpHomePath := t.TempDir()
@@ -7161,6 +7182,175 @@ func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
   Cluster:            proxy`)
 	require.True(t, trace.IsNotFound(err))
 	require.ErrorContains(t, err, "No active profile.")
+}
+
+func TestApplySelectedPreset(t *testing.T) {
+	boolPtr := func(value bool) *bool { return &value }
+	clearOverrideEnvars := func(t *testing.T) {
+		t.Helper()
+		t.Setenv(mfaModeEnvVar, "")
+		t.Setenv(headlessEnvVar, "")
+		t.Setenv(addKeysToAgentEnvVar, "")
+		t.Setenv(useLocalSSHAgentEnvVar, "")
+	}
+
+	preset := client.TSHConfigPreset{
+		Proxy:            "preset.example.com:443",
+		Cluster:          "preset-cluster",
+		User:             "preset-user",
+		Login:            "preset-login",
+		AuthConnector:    "preset-auth",
+		KubeCluster:      "preset-kube",
+		MFAMode:          mfaModeSSO,
+		Headless:         boolPtr(true),
+		AddKeysToAgent:   client.AddKeysToAgentOnly,
+		UseLocalSSHAgent: boolPtr(false),
+		Home:             filepath.Join("preset", "..", "home"),
+	}
+
+	t.Run("selected preset supplies unset values", func(t *testing.T) {
+		clearOverrideEnvars(t)
+		cf := &CLIConf{
+			SelectedPreset:   "prod",
+			MFAMode:          mfaModeAuto,
+			AddKeysToAgent:   client.AddKeysToAgentAuto,
+			UseLocalSSHAgent: true,
+			TSHConfig: client.TSHConfig{
+				Presets: map[string]client.TSHConfigPreset{"prod": preset},
+			},
+		}
+
+		require.NoError(t, applySelectedPreset(context.Background(), cf))
+		require.Equal(t, "preset.example.com:443", cf.Proxy)
+		require.Equal(t, "preset-cluster", cf.SiteName)
+		require.Equal(t, "preset-user", cf.Username)
+		require.Equal(t, "preset-login", cf.NodeLogin)
+		require.Equal(t, "preset-auth", cf.AuthConnector)
+		require.Equal(t, "preset-kube", cf.KubernetesCluster)
+		require.Equal(t, mfaModeSSO, cf.MFAMode)
+		require.True(t, cf.Headless)
+		require.Equal(t, client.AddKeysToAgentOnly, cf.AddKeysToAgent)
+		require.False(t, cf.UseLocalSSHAgent)
+		require.Equal(t, "home", cf.HomePath)
+		require.Equal(t, "prod", cf.activeConfigPreset)
+	})
+
+	t.Run("default preset is used", func(t *testing.T) {
+		clearOverrideEnvars(t)
+		cf := &CLIConf{TSHConfig: client.TSHConfig{
+			Presets:       map[string]client.TSHConfigPreset{"prod": preset},
+			DefaultPreset: "prod",
+		}}
+
+		require.NoError(t, applySelectedPreset(context.Background(), cf))
+		require.Equal(t, "preset.example.com:443", cf.Proxy)
+		require.Equal(t, "prod", cf.activeConfigPreset)
+	})
+
+	t.Run("explicit flags win", func(t *testing.T) {
+		clearOverrideEnvars(t)
+		cf := &CLIConf{
+			SelectedPreset:            "prod",
+			Proxy:                     "explicit.example.com:443",
+			SiteName:                  "explicit-cluster",
+			Username:                  "explicit-user",
+			NodeLogin:                 "explicit-login",
+			AuthConnector:             "explicit-auth",
+			KubernetesCluster:         "explicit-kube",
+			MFAMode:                   mfaModeOTP,
+			mfaModeSetByUser:          true,
+			Headless:                  false,
+			headlessSetByUser:         true,
+			AddKeysToAgent:            client.AddKeysToAgentNo,
+			addKeysToAgentSetByUser:   true,
+			UseLocalSSHAgent:          true,
+			useLocalSSHAgentSetByUser: true,
+			HomePath:                  "explicit-home",
+			TSHConfig:                 client.TSHConfig{Presets: map[string]client.TSHConfigPreset{"prod": preset}},
+		}
+
+		require.NoError(t, applySelectedPreset(context.Background(), cf))
+		require.Equal(t, "explicit.example.com:443", cf.Proxy)
+		require.Equal(t, "explicit-cluster", cf.SiteName)
+		require.Equal(t, "explicit-user", cf.Username)
+		require.Equal(t, "explicit-login", cf.NodeLogin)
+		require.Equal(t, "explicit-auth", cf.AuthConnector)
+		require.Equal(t, "explicit-kube", cf.KubernetesCluster)
+		require.Equal(t, mfaModeOTP, cf.MFAMode)
+		require.False(t, cf.Headless)
+		require.Equal(t, client.AddKeysToAgentNo, cf.AddKeysToAgent)
+		require.True(t, cf.UseLocalSSHAgent)
+		require.Equal(t, "explicit-home", cf.HomePath)
+	})
+
+	t.Run("environment values win for defaulted flags", func(t *testing.T) {
+		t.Setenv(mfaModeEnvVar, mfaModeOTP)
+		t.Setenv(headlessEnvVar, "false")
+		t.Setenv(addKeysToAgentEnvVar, client.AddKeysToAgentNo)
+		t.Setenv(useLocalSSHAgentEnvVar, "true")
+		cf := &CLIConf{
+			SelectedPreset:   "prod",
+			MFAMode:          mfaModeOTP,
+			Headless:         false,
+			AddKeysToAgent:   client.AddKeysToAgentNo,
+			UseLocalSSHAgent: true,
+			TSHConfig:        client.TSHConfig{Presets: map[string]client.TSHConfigPreset{"prod": preset}},
+		}
+
+		require.NoError(t, applySelectedPreset(context.Background(), cf))
+		require.Equal(t, mfaModeOTP, cf.MFAMode)
+		require.False(t, cf.Headless)
+		require.Equal(t, client.AddKeysToAgentNo, cf.AddKeysToAgent)
+		require.True(t, cf.UseLocalSSHAgent)
+	})
+
+	t.Run("missing preset fails", func(t *testing.T) {
+		clearOverrideEnvars(t)
+		cf := &CLIConf{
+			SelectedPreset: "missing",
+			TSHConfig: client.TSHConfig{Presets: map[string]client.TSHConfigPreset{
+				"prod": {},
+			}},
+		}
+
+		err := applySelectedPreset(context.Background(), cf)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+}
+
+// TestStatusPrintsActiveConfigPreset verifies that `tsh status` shows the
+// active config preset selected via --preset when one is applied.
+func TestStatusPrintsActiveConfigPreset(t *testing.T) {
+	t.Parallel()
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err := Run(context.Background(), []string{
+		"--preset", "prod",
+		"status",
+	}, setHomePath(t.TempDir()), func(c *CLIConf) error {
+		c.OverrideStdout = buf
+		// Inject a tsh config defining a "prod" preset. setHomePath resets
+		// TSHConfig (since it is loaded before options are applied), so we set
+		// it here; the preset is applied after options run.
+		c.TSHConfig = client.TSHConfig{
+			Presets: map[string]client.TSHConfigPreset{
+				"prod": {Proxy: "proxy:3080", Cluster: "proxy"},
+			},
+		}
+		p := &profile.Profile{
+			WebProxyAddr: "proxy:3080",
+			Username:     "testuser",
+		}
+		// setCurrent is false, so there is no active login profile; we only
+		// care that the selected config preset is printed.
+		return trace.Wrap(c.getClientStore().SaveProfile(p, false))
+	})
+
+	require.Contains(t, buf.String(), "Active Config Preset: prod")
+	// status returns an error because the injected login profile is not a valid
+	// active login session; the assertion of interest is the printed line above.
+	require.Error(t, err)
 }
 
 // TestProxyTemplates verifies proxy templates apply properly to client config.

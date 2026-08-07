@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -49,15 +50,100 @@ type TSHConfig struct {
 	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
 	// Aliases are custom commands extending baseline tsh functionality.
 	Aliases map[string]string `yaml:"aliases,omitempty"`
+	// Presets are named sets of tsh global overrides selectable via
+	// `tsh --preset <name>`. The map key is the preset name.
+	Presets map[string]TSHConfigPreset `yaml:"presets,omitempty"`
+	// DefaultPreset is the name of the preset to use when none is
+	// explicitly selected on the command line. It must reference a key in
+	// Presets.
+	DefaultPreset string `yaml:"default_preset,omitempty"`
 }
 
 // Check validates the tsh config.
 func (config *TSHConfig) Check() error {
+	return config.check(true)
+}
+
+// check validates the tsh config. When validateDefault is false, validation
+// of DefaultPreset is deferred until global and user configs have been merged.
+func (config *TSHConfig) check(validateDefault bool) error {
 	for _, template := range config.ProxyTemplates {
 		if err := template.Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
+	for name, preset := range config.Presets {
+		if err := preset.Check(); err != nil {
+			return trace.Wrap(err, "invalid preset %q", name)
+		}
+	}
+
+	if validateDefault && config.DefaultPreset != "" {
+		if _, ok := config.Presets[config.DefaultPreset]; !ok {
+			return trace.BadParameter("default_preset %q is not defined in presets", config.DefaultPreset)
+		}
+	}
+
+	return nil
+}
+
+// TSHConfigPreset represents a single named set of tsh global overrides
+// selectable via `tsh --preset <name>`. All fields are optional overrides;
+// the most common use case is setting Proxy, but any of the fields may be set
+// to override the corresponding tsh global flag.
+//
+// A preset is purely a convenience bundle of connection settings selected at
+// invocation time; it does not contain credentials or login state.
+type TSHConfigPreset struct {
+	// Proxy is the proxy address override (equivalent to --proxy).
+	Proxy string `yaml:"proxy,omitempty"`
+	// Cluster is the cluster name override (equivalent to --cluster).
+	Cluster string `yaml:"cluster,omitempty"`
+	// User is the Teleport user override (equivalent to --user).
+	User string `yaml:"user,omitempty"`
+	// Login is the local login override (equivalent to --login).
+	Login string `yaml:"login,omitempty"`
+	// AuthConnector is the auth connector override (equivalent to --auth).
+	AuthConnector string `yaml:"auth,omitempty"`
+	// KubeCluster is the Kubernetes cluster override (equivalent to --kube-cluster).
+	KubeCluster string `yaml:"kube_cluster,omitempty"`
+	// MFAMode is the MFA mode override (equivalent to --mfa-mode). If set, it
+	// must be one of "auto", "cross-platform", "platform", "otp", or "sso".
+	MFAMode string `yaml:"mfa_mode,omitempty"`
+	// Headless toggles headless authentication (equivalent to --headless). It
+	// is a pointer so an unset value is distinguishable from an explicit false.
+	Headless *bool `yaml:"headless,omitempty"`
+	// AddKeysToAgent is the add-keys-to-agent mode override (equivalent to
+	// --add-keys-to-agent). If set, it must be one of "auto", "yes", "no", or
+	// "only".
+	AddKeysToAgent string `yaml:"add_keys_to_agent,omitempty"`
+	// UseLocalSSHAgent toggles use of the local SSH agent (equivalent to
+	// --use-local-ssh-agent). It is a pointer so an unset value is
+	// distinguishable from an explicit false.
+	UseLocalSSHAgent *bool `yaml:"use_local_ssh_agent,omitempty"`
+	// Home is the tsh home directory override (equivalent to TELEPORT_HOME).
+	Home string `yaml:"home,omitempty"`
+}
+
+// Check validates the preset.
+func (p *TSHConfigPreset) Check() error {
+	if p.MFAMode != "" {
+		switch p.MFAMode {
+		case "auto", "cross-platform", "platform", "otp", "sso":
+		default:
+			return trace.BadParameter("invalid mfa_mode %q, must be one of: auto, cross-platform, platform, otp, sso", p.MFAMode)
+		}
+	}
+
+	if p.AddKeysToAgent != "" {
+		switch p.AddKeysToAgent {
+		case "auto", "yes", "no", "only":
+		default:
+			return trace.BadParameter("invalid add_keys_to_agent %q, must be one of: auto, yes, no, only", p.AddKeysToAgent)
+		}
+	}
+
 	return nil
 }
 
@@ -89,7 +175,46 @@ func (config *TSHConfig) Merge(otherConfig *TSHConfig) TSHConfig {
 	maps.Copy(newConfig.Aliases, baseConfig.Aliases)
 	maps.Copy(newConfig.Aliases, otherConfig.Aliases)
 
+	// Only allocate the presets map when at least one side defines presets,
+	// so an all-empty merge yields a nil map (matching zero-value semantics).
+	if len(baseConfig.Presets) > 0 || len(otherConfig.Presets) > 0 {
+		newConfig.Presets = map[string]TSHConfigPreset{}
+		maps.Copy(newConfig.Presets, baseConfig.Presets)
+		maps.Copy(newConfig.Presets, otherConfig.Presets)
+	}
+
+	if otherConfig.DefaultPreset != "" {
+		newConfig.DefaultPreset = otherConfig.DefaultPreset
+	} else {
+		newConfig.DefaultPreset = baseConfig.DefaultPreset
+	}
+
 	return newConfig
+}
+
+// GetPreset returns the named preset from the config. It returns a
+// trace.BadParameter error if name is empty, and a trace.NotFound error if no
+// presets are defined or if the named preset does not exist.
+func (config *TSHConfig) GetPreset(name string) (TSHConfigPreset, error) {
+	if name == "" {
+		return TSHConfigPreset{}, trace.BadParameter("preset name is empty")
+	}
+
+	if len(config.Presets) == 0 {
+		return TSHConfigPreset{}, trace.NotFound("no presets are defined in tsh config")
+	}
+
+	preset, ok := config.Presets[name]
+	if !ok {
+		available := make([]string, 0, len(config.Presets))
+		for presetName := range config.Presets {
+			available = append(available, presetName)
+		}
+		sort.Strings(available)
+		return TSHConfigPreset{}, trace.NotFound("preset %q not found; available presets: %s", name, strings.Join(available, ", "))
+	}
+
+	return preset, nil
 }
 
 // ProxyTemplates represents a list of individual proxy templates.
@@ -224,6 +349,10 @@ func (t *ProxyTemplate) Apply(fullHostname string) (_ *ExpandedTemplate, matched
 
 // LoadTSHConfig loads a single config file from the given path. If the path does not exist, an empty config is returned instead.
 func LoadTSHConfig(fullConfigPath string) (*TSHConfig, error) {
+	return loadTSHConfig(fullConfigPath, true)
+}
+
+func loadTSHConfig(fullConfigPath string, validateDefault bool) (*TSHConfig, error) {
 	bs, err := os.ReadFile(fullConfigPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -235,7 +364,7 @@ func LoadTSHConfig(fullConfigPath string) (*TSHConfig, error) {
 	if err := yaml.Unmarshal(bs, &cfg); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	if err := cfg.Check(); err != nil {
+	if err := cfg.check(validateDefault); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &cfg, nil
@@ -250,7 +379,7 @@ func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
 	switch {
 	// prefer using explicitly provided config paths
 	case globalTshConfigPath != "":
-		cfg, err := LoadTSHConfig(globalTshConfigPath)
+		cfg, err := loadTSHConfig(globalTshConfigPath, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalTshConfigPath)
 		}
@@ -261,7 +390,7 @@ func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
 		globalConf = &TSHConfig{}
 	// fallback to the global default on all other operating systems
 	default:
-		cfg, err := LoadTSHConfig(globalTshConfigPathDefault)
+		cfg, err := loadTSHConfig(globalTshConfigPathDefault, false)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalTshConfigPathDefault)
 		}
@@ -269,11 +398,14 @@ func LoadAllConfigs(globalTshConfigPath, homePath string) (*TSHConfig, error) {
 	}
 
 	fullConfigPath := filepath.Join(profile.FullProfilePath(homePath), TSHConfigPath)
-	userConf, err := LoadTSHConfig(fullConfigPath)
+	userConf, err := loadTSHConfig(fullConfigPath, false)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to load tsh config from %q", fullConfigPath)
 	}
 
 	confOptions := globalConf.Merge(userConf)
+	if err := confOptions.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &confOptions, nil
 }
