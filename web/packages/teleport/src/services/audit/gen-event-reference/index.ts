@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'node:fs';
+import fs from "node:fs";
+import config from "./config.json";
+import { events } from "teleport/Audit/fixtures";
 
-import { events } from 'teleport/Audit/fixtures';
-
-import { formatters } from '../makeEvent';
+import { formatters } from "../makeEvent";
 import {
   createReferencePages,
   eventsWithoutExamples,
@@ -61,6 +61,7 @@ if (mismatches.length > 0) {
 
 const referencePages = createReferencePages(
   removeUnknowns(events, formatters).concat(noExampleEvents),
+  config,
 );
 
 referencePages.forEach((page) => {
