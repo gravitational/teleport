@@ -51,6 +51,7 @@ import (
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1107,27 +1108,12 @@ func (a *ScopedServerWithRoles) UpsertNode(ctx context.Context, s types.Server) 
 		}
 	}
 
-	if a.scopedContext.HasBuiltinRole(types.RoleNode) {
-		callerID, _ := getLocalServerID(a.scopedContext.Identity)
-		if s.GetName() != callerID {
-			return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
-		}
-	}
-
 	return a.authServer.UpsertNode(ctx, s)
 }
 
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	scopedServer := a.ScopedServerWithRoles()
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("access denied")
-	}
 
 	switch handle.GetType() {
 	case constants.KeepAliveNode:
@@ -1135,16 +1121,11 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveApp:
-		if handle.HostID != "" {
-			if serverName != handle.HostID {
-				return trace.AccessDenied("access denied")
-			}
-		} else { // DELETE IN 9.0. Legacy app server is heartbeating back.
-			if serverName != handle.Name {
-				return trace.AccessDenied("access denied")
-			}
+		hostID := handle.HostID
+		if hostID == "" { // DELETE IN 9.0. Legacy app server is heartbeating back.
+			hostID = handle.Name
 		}
-		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleApp, types.RoleOkta); err != nil {
+		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", hostID, types.RoleApp, types.RoleOkta); err != nil {
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveDatabase:
@@ -1159,11 +1140,6 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if handle.HostID == "" {
-			return trace.BadParameter("hostID is required for kubernetes keep alive")
-		} else if serverName != handle.HostID {
-			return trace.AccessDenied("access denied")
-		}
 		// Legacy kube proxy can heartbeat kube servers from the proxy itself so
 		// we need to check if the host has the Kube or Proxy role.
 		if err := scopedServer.scopedContext.AgentOwnedResourceAction("", handle.HostID, types.RoleKube, types.RoleProxy); err != nil {
@@ -8394,7 +8370,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	case *proto.CreateAuthenticateChallengeRequest_Passwordless:
 	default: // nil or *proto.CreateAuthenticateChallengeRequest_ContextUser:
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to issue authentication challenges using ContextUser")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedContextUser)
 		}
 	}
 
@@ -8406,7 +8382,7 @@ func (a *ServerWithRoles) CreateAuthenticateChallenge(ctx context.Context, req *
 	if req.MFARequiredCheck != nil {
 		// Return a nicer error message.
 		if !isLocalOrRemoteUser {
-			return nil, trace.BadParameter("only end users are allowed to supply MFARequiredCheck")
+			return nil, trace.Wrap(&mfa.ErrMFANotSupportedMFARequiredCheck)
 		}
 
 		mfaRequiredResp, err := a.IsMFARequired(ctx, req.MFARequiredCheck)

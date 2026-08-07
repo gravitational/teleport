@@ -14,30 +14,34 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package plugin
+package resources
 
 import (
-	"time"
+	"bytes"
+	"testing"
 
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-func OktaParseTimeBetweenImports(syncSettings *types.PluginOktaSyncSettings) (time.Duration, error) {
-	if syncSettings == nil {
-		return 0, nil
-	}
-	raw := syncSettings.TimeBetweenImports
-	if raw == "" {
-		return 0, nil
-	}
-	parsed, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, trace.BadParameter("time_between_imports is not valid: %s", err)
-	}
-	if parsed < 0 {
-		return 0, trace.BadParameter("time_between_imports %q cannot be a negative value", raw)
-	}
-	return parsed, nil
+func collectionFormatTest(t *testing.T, collection Collection, wantVerbose, wantNonVerbose string) {
+	t.Helper()
+
+	t.Run("verbose mode", func(t *testing.T) {
+		t.Helper()
+		w := &bytes.Buffer{}
+		err := collection.WriteText(w, true)
+		require.NoError(t, err)
+		diff := cmp.Diff(wantVerbose, w.String())
+		require.Empty(t, diff)
+	})
+
+	t.Run("non-verbose mode", func(t *testing.T) {
+		t.Helper()
+		w := &bytes.Buffer{}
+		err := collection.WriteText(w, false)
+		require.NoError(t, err)
+		diff := cmp.Diff(wantNonVerbose, w.String())
+		require.Empty(t, diff)
+	})
 }

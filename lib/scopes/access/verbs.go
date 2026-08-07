@@ -18,6 +18,21 @@ package access
 
 import "github.com/gravitational/teleport/api/types"
 
+// Verb is an alias that allows current teleport code to import a scopedaccess.Verb type
+// compatible with the current ScopedAccessChecker.CheckAccessToRules signature. A future commit
+// will switch this over to being a proper enum type, but we need this intermediate state to
+// avoid breaking CI.
+type Verb = string
+
+const (
+	Create  Verb = types.VerbCreate
+	Read    Verb = types.VerbReadNoSecrets
+	Update  Verb = types.VerbUpdate
+	Delete  Verb = types.VerbDelete
+	List    Verb = types.VerbList
+	Secrets Verb = types.VerbRead
+)
+
 // isAllowedScopedVerb returns true if the given verb is allowed for the given scoped resource kind. Scoped roles are not sane
 // for use with all resource kind/verb combinations, so we restrict the allowed combinations here.
 func isAllowedScopedRule(kind string, verb string) bool {

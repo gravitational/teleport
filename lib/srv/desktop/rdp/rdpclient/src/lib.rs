@@ -796,6 +796,7 @@ extern "C" {
         user_channel_id: u16,
         screen_width: u16,
         screen_height: u16,
+        share_id: u32,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,

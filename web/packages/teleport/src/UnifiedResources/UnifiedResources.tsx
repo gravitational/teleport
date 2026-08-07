@@ -19,8 +19,9 @@
 import { useCallback, useMemo, useState, type JSX } from 'react';
 import styled from 'styled-components';
 
-import { Box, Flex } from 'design';
 import { Danger } from 'design/Alert';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
 import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import {
@@ -52,6 +53,7 @@ import {
 import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
+import { shouldHideInaccessibleFeatures } from 'teleport/features';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   SamlAppActionProvider,
@@ -105,7 +107,7 @@ function expandDesktopKinds(kinds?: string[]): string[] | undefined {
 }
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
-  return [
+  const kinds: FilterKind[] = [
     {
       kind: 'node',
       disabled: !flags.nodes,
@@ -135,6 +137,13 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       disabled: !flags.applications,
     },
   ];
+
+  // When feature hiding is enabled, kinds the user can't access are removed from the filter entirely.
+  if (shouldHideInaccessibleFeatures(cfg)) {
+    return kinds.filter(kind => !kind.disabled);
+  }
+
+  return kinds;
 };
 
 export function ClusterResources({

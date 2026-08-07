@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen, theme } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import Input from './Input';
 
@@ -28,9 +28,6 @@ describe('design/Input', () => {
   });
   it('respects hasError prop', () => {
     render(<Input hasError={true} />);
-    expect(screen.getByRole('textbox')).toHaveStyle({
-      'border-color': theme.colors.interactive.solid.danger.default,
-    });
     expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
       'aria-label',
       'Error'

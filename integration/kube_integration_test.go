@@ -2589,10 +2589,10 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 }
 
 func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) error {
-	var prev string
-	out := make([]byte, int64(len(expected)*3))
+	var out strings.Builder
+	chunk := make([]byte, int64(len(expected)*2))
 	defer func() {
-		slog.DebugContext(ctx, "waitForOutput final read", "output", prev, "expected", expected)
+		slog.DebugContext(ctx, "waitForOutput final read", "output", removeSpace(out.String()), "expected", expected)
 	}()
 	for {
 		select {
@@ -2607,25 +2607,26 @@ func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) e
 				return trace.Wrap(err)
 			}
 		}
-		n, err := r.Read(out)
-		outStr := removeSpace(string(out[:n]))
+		n, err := r.Read(chunk)
+		out.Write(chunk[:n])
 
-		prev += outStr
-		slog.DebugContext(ctx, "waitForOutput read", "output", prev, "expected", expected)
+		normalized := removeSpace(out.String())
+		slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", expected)
+
 		// Check for [expected] before checking the error,
 		// as it's valid for n > 0 even when there is an error.
 		// The [expected] is checked against the current and previous
 		// output to account for scenarios where the [expected] is split
-		// across two reads. While we try to prevent this by reading
+		// across 2+ reads. While we try to prevent this by reading
 		// twice the length of [expected] there are no guarantees the
-		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev, expected) {
+		// whole thing will arrive in a single read since there is no
+		// minimum chunk length.
+		if n > 0 && strings.Contains(normalized, expected) {
 			return nil
 		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 	}
 }
 

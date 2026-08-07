@@ -17,8 +17,13 @@
  */
 import * as styledComponents from 'styled-components';
 
-import { lightTheme } from 'design/theme';
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import {
+  fireEvent,
+  render,
+  screen,
+  theme,
+  waitFor,
+} from 'design/utils/testing';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import {
   ToastNotificationProvider,
@@ -150,7 +155,7 @@ describe('Account/Preferences', () => {
 
   it("theme selection isn't shown if a custom theme is set", () => {
     jest.spyOn(styledComponents, 'useTheme').mockReturnValue({
-      ...lightTheme,
+      ...theme,
       isCustomTheme: true,
     });
 

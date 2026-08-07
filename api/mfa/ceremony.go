@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -51,6 +52,14 @@ type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+
+// isMFANotSupportedForClient reports whether err is the Auth server's response
+// indicating that the caller is not an end user and therefore cannot perform an
+// MFA ceremony.
+func isMFANotSupportedForClient(err error) bool {
+	return errors.Is(err, &ErrMFANotSupportedContextUser) ||
+		errors.Is(err, &ErrMFANotSupportedMFARequiredCheck)
+}
 
 // Run the MFA ceremony.
 //
@@ -91,10 +100,10 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
-		// CreateAuthenticateChallenge returns a bad parameter error when the client
-		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
-		// not supported error so the client knows when it can be ignored.
-		if trace.IsBadParameter(err) {
+		// CreateAuthenticateChallenge returns a "NotSupported" error when the client
+		// user is not a Teleport user - for example, the AdminRole. Treat this as an
+		// MFA not supported error so the client knows when it can be ignored.
+		if isMFANotSupportedForClient(err) {
 			return nil, &ErrMFANotSupported
 		}
 		return nil, trace.Wrap(err)
