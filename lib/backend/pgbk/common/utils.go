@@ -145,11 +145,11 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		_ = errors.As(err, &pgErr)
 
 		isSerializationConflict := pgErr != nil && isSerializationErrorCode(pgErr.Code)
-		isIdempotentDDLConflic := pgErr != nil && isIdempotent && isIdempotentDDLConflictErrorCode(pgErr.Code)
+		isIdempotentDDLConflict := pgErr != nil && isIdempotent && isIdempotentDDLConflictErrorCode(pgErr.Code)
 		isRetryable := (isIdempotent && pgErr == nil) || pgconn.SafeToRetry(err)
 
 		// Check for fast retryable errors first
-		if isSerializationConflict || isIdempotentDDLConflic {
+		if isSerializationConflict || isIdempotentDDLConflict {
 			log.LogAttrs(ctx, slog.LevelDebug,
 				"Operation failed due to conflicts, retrying quickly.",
 				slog.Int("attempt", i),
