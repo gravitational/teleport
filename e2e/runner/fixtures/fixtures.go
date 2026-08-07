@@ -22,7 +22,7 @@ import "flag"
 
 var (
 	SSHNode = register("ssh-node")
-	// SSHNodeBPF is a superset of SSHNode that runs the node with Enhanced Session Recording enabled.
+	// SSHNodeBPF runs a second node, docker-node-bpf, with Enhanced Session Recording enabled.
 	SSHNodeBPF = register("ssh-node-bpf")
 	Connect    = register("connect")
 )

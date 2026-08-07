@@ -266,8 +266,8 @@ func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInst
 		return fmt.Errorf("teleport for %s not ready after config change: %w", inst.browser, err)
 	}
 
-	if inst.node != nil {
-		if err := inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+	for _, node := range inst.nodes {
+		if err := node.waitJoined(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("node for %s failed to rejoin: %w", inst.browser, err)
 		}
 	}

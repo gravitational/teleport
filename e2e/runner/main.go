@@ -248,8 +248,11 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	var portTargets []*int
 	for _, inst := range config.instances {
 		portTargets = append(portTargets, &inst.proxyPort, &inst.authPort)
-		if fixtures.SSHNode.Enabled {
-			portTargets = append(portTargets, &inst.sshPort)
+		if variants := nodeVariants(); len(variants) > 0 {
+			inst.sshPorts = make([]int, len(variants))
+			for i := range inst.sshPorts {
+				portTargets = append(portTargets, &inst.sshPorts[i])
+			}
 		}
 	}
 	if ci := config.connectInstance; ci != nil {
@@ -261,20 +264,20 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	for _, inst := range config.instances {
-		inst.log.DebugContext(ctx, "allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPort)
+		inst.log.DebugContext(ctx, "allocated ports", "proxy", inst.proxyPort, "auth", inst.authPort, "ssh", inst.sshPorts)
 	}
 	if ci := config.connectInstance; ci != nil {
 		ci.log.DebugContext(ctx, "allocated ports", "proxy", ci.proxyPort, "auth", ci.authPort)
 	}
 
-	if fixtures.SSHNode.Enabled {
+	if sshNodeEnabled() {
 		nodeArch, err := resolveNodeArch(ctx)
 		if err != nil {
 			return err
 		}
 
 		config.nodeArch = nodeArch
-		slog.Debug("resolved docker node architecture", "arch", config.nodeArch)
+		slog.DebugContext(ctx, "resolved docker node architecture", "arch", config.nodeArch)
 	}
 
 	if err := build(ctx, config); err != nil {
@@ -337,7 +340,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			return fmt.Errorf("failed to scan browser restrictions: %w", err)
 		}
 		if len(config.browserRestrictions) > 0 {
-			slog.Debug("discovered browser restrictions", "specs", config.browserRestrictions)
+			slog.DebugContext(ctx, "discovered browser restrictions", "specs", config.browserRestrictions)
 		}
 
 		bootstrap, err := buildBootstrapState(e2eDir, scannedUsers)
@@ -409,8 +412,8 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			inst.teleport = teleport
 		}
 
-		if fixtures.SSHNode.Enabled {
-			slog.InfoContext(ctx, "running with SSH node fixture enabled")
+		if sshNodeEnabled() {
+			slog.InfoContext(ctx, "running with SSH node fixture enabled", "nodes", nodeVariantNames())
 
 			nodeBin := config.teleportBin
 			if needsNodeBuild(config) {
@@ -437,9 +440,9 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 
 			enhancedRecording := fixtures.SSHNodeBPF.Enabled
 			if enhancedRecording {
-				supported, err := daemonSupportsBPF(ctx, nodeImage, config.nodeArch)
-				if err != nil {
-					return fmt.Errorf("checking enhanced recording support: %w", err)
+				supported, probeErr := daemonSupportsBPF(ctx, nodeImage, config.nodeArch)
+				if probeErr != nil {
+					return fmt.Errorf("checking enhanced recording support: %w", probeErr)
 				}
 
 				if !supported {
@@ -448,7 +451,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 							"it needs BTF at /sys/kernel/btf/vmlinux and CONFIG_AUDIT for task_struct.sessionid")
 					}
 
-					slog.Warn("docker daemon's kernel cannot run enhanced session recording, skipping those tests",
+					slog.WarnContext(ctx, "docker daemon's kernel cannot run enhanced session recording, skipping those tests",
 						"needs", "BTF and CONFIG_AUDIT")
 
 					enhancedRecording = false
@@ -457,31 +460,39 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			}
 
 			for _, inst := range config.instances {
-				outPath := filepath.Join(e2eDir, "node", inst.browser+"-node.yaml")
-				nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
-					AuthServerHost:    dockerHost,
-					AuthServerPort:    inst.authPort,
-					SSHServerPort:     inst.sshPort,
-					SSHPublicHost:     sshPublicHost,
-					EnhancedRecording: enhancedRecording,
-				})
-				if err != nil {
-					return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
-				}
-				inst.log.DebugContext(ctx, "generated Teleport node config", "path", nodeConfigPath)
+				for i, variant := range nodeVariants() {
+					// Only the BPF variant carries enhanced recording, and it loses it when the daemon's
+					// kernel cannot run the programs.
+					nodeEnhancedRecording := variant.enhancedRecording && enhancedRecording
 
-				inst.node = &dockerNode{
-					log:                inst.log,
-					sshPort:            inst.sshPort,
-					tctlBin:            config.tctlBin,
-					teleportConfigPath: inst.teleportConfigPath,
-					logFilePath:        filepath.Join(config.e2eDir, "docker-node-"+inst.browser+".log"),
-					imageName:          nodeImage,
-					containerName:      "teleport-e2e-node-" + inst.browser,
-					configPath:         nodeConfigPath,
-					teleportBin:        nodeBin,
-					arch:               config.nodeArch,
-					enhancedRecording:  enhancedRecording,
+					outPath := filepath.Join(e2eDir, "node", inst.browser+"-"+variant.name+".yaml")
+					nodeConfigPath, err := generateTeleportNodeConfig(config.nodeConfigTemplate, outPath, &TeleportNodeConfig{
+						NodeName:          variant.name,
+						AuthServerHost:    dockerHost,
+						AuthServerPort:    inst.authPort,
+						SSHServerPort:     inst.sshPorts[i],
+						SSHPublicHost:     sshPublicHost,
+						EnhancedRecording: nodeEnhancedRecording,
+					})
+					if err != nil {
+						return fmt.Errorf("failed to generate node config for %s: %w", inst.browser, err)
+					}
+					inst.log.DebugContext(ctx, "generated Teleport node config", "path", nodeConfigPath)
+
+					inst.nodes = append(inst.nodes, &dockerNode{
+						log:                inst.log,
+						nodeName:           variant.name,
+						sshPort:            inst.sshPorts[i],
+						tctlBin:            config.tctlBin,
+						teleportConfigPath: inst.teleportConfigPath,
+						logFilePath:        filepath.Join(config.e2eDir, variant.name+"-"+inst.browser+".log"),
+						imageName:          nodeImage,
+						containerName:      "teleport-e2e-" + variant.name + "-" + inst.browser,
+						configPath:         nodeConfigPath,
+						teleportBin:        nodeBin,
+						arch:               config.nodeArch,
+						enhancedRecording:  nodeEnhancedRecording,
+					})
 				}
 			}
 		}
