@@ -294,23 +294,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	dynamicWindowsDesktop = payload{
-		Name:                   "DynamicWindowsDesktop",
-		TypeName:               "DynamicWindowsDesktopV1",
-		VarName:                "desktop",
-		IfaceName:              "DynamicWindowsDesktop",
-		GetMethod:              "DynamicDesktopClient().GetDynamicWindowsDesktop",
-		CreateMethod:           "DynamicDesktopClient().CreateDynamicWindowsDesktop",
-		UpdateMethod:           "DynamicDesktopClient().UpsertDynamicWindowsDesktop",
-		DeleteMethod:           "DynamicDesktopClient().DeleteDynamicWindowsDesktop",
-		UpsertMethodArity:      2,
-		ID:                     `desktop.Metadata.Name`,
-		Kind:                   "dynamic_windows_desktop",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_dynamic_windows_desktop",
-		HasCheckAndSetDefaults: true,
-	}
-
 	githubConnector = payload{
 		Name:                   "GithubConnector",
 		TypeName:               "GithubConnectorV3",
@@ -1005,8 +988,6 @@ func genTFSchema() {
 	generateDataSource(clusterMaintenance, singularDataSource)
 	generateResource(clusterNetworking, singularResource)
 	generateDataSource(clusterNetworking, singularDataSource)
-	generateResource(dynamicWindowsDesktop, pluralResource)
-	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
