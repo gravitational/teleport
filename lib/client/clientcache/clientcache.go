@@ -44,10 +44,34 @@ type Cache struct {
 
 type clientWithMetadata struct {
 	client *client.ClusterClient
+	// tc is the TeleportClient the cached client was built from. The cache owns
+	// it and must close it on eviction to release the connection it holds to the
+	// system SSH agent.
+	tc *client.TeleportClient
 	// tlsCert is the certificate that was loaded when the client was created.
 	tlsCert []byte
 	// getProfile reads the fresh profile for the client from disk.
 	getProfile func() (profile, error)
+}
+
+// close releases the cached client and the TeleportClient it was built from.
+func (c *clientWithMetadata) close() error {
+	return trace.NewAggregate(c.client.Close(), closeClientAgent(c.tc))
+}
+
+// closeClientAgent closes the connection tc holds to the system SSH agent, if
+// any. It is separate from [client.ClusterClient.Close] because a ClusterClient
+// does not own its TeleportClient's agent – only the code that built the
+// TeleportClient may close it.
+func closeClientAgent(tc *client.TeleportClient) error {
+	if tc == nil {
+		return nil
+	}
+	localAgent := tc.LocalAgent()
+	if localAgent == nil {
+		return nil
+	}
+	return trace.Wrap(localAgent.Close())
 }
 
 type profile interface {
@@ -153,17 +177,22 @@ func (c *Cache) Get(ctx context.Context, profileName, leafClusterName string) (*
 			newClient = clt
 			return nil
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			// tc never made it into the cache, so nothing else will close its
+			// connection to the system SSH agent. This path is hit on every poll
+			// while certs are expired, so failing to close here leaks a
+			// connection each time until the agent stops responding.
+			return nil, trace.NewAggregate(err, closeClientAgent(tc))
 		}
 
 		keyRing, err := tc.LocalAgent().GetCoreKeyRing()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.NewAggregate(err, newClient.Close(), closeClientAgent(tc))
 		}
 
 		// Save the client in the cache, so we don't have to build a new connection next time.
 		c.addToCache(k, &clientWithMetadata{
 			client:  newClient,
+			tc:      tc,
 			tlsCert: keyRing.TLSCert,
 			getProfile: func() (profile, error) {
 				return tc.GetProfile(tc.WebProxyAddr)
@@ -208,7 +237,7 @@ func (c *Cache) ClearStaleClientsForRoot(profileName string) error {
 		} else if !stale {
 			continue
 		}
-		if err = clt.client.Close(); err != nil {
+		if err = clt.close(); err != nil {
 			errors = append(errors, err)
 		}
 		deleted = append(deleted, k.String())
@@ -230,7 +259,7 @@ func (c *Cache) Clear() error {
 
 	var errors []error
 	for _, clt := range c.clients {
-		if err := clt.client.Close(); err != nil {
+		if err := clt.close(); err != nil {
 			errors = append(errors, err)
 		}
 	}
