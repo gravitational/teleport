@@ -19,6 +19,8 @@
 package common
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -119,21 +121,33 @@ func (c *mcpLoginCommand) run() error {
 		redirectURI = fmt.Sprintf("http://localhost:%d/callback", c.callbackPort)
 	}
 
+	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(app.GetURI())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	scopes := c.scopes
+	if len(scopes) == 0 {
+		advertised, err := fetchAdvertisedMCPOAuthScopes(ctx, httpClient, oauthBaseURL)
+		if err != nil {
+			logger.DebugContext(ctx, "Failed to fetch advertised OAuth scopes; omitting scope from the authorization request", "error", err)
+		} else if len(advertised) > 0 {
+			fmt.Fprintf(c.cf.Stdout(), "Requesting scopes advertised by the MCP server: %s\n", strings.Join(advertised, " "))
+			scopes = advertised
+		}
+	}
+
 	tokenStore := mcpclienttransport.NewMemoryTokenStore()
 	oauthHandler := mcpclienttransport.NewOAuthHandler(mcpclienttransport.OAuthConfig{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		ClientURI:    mcpOAuthClientURI,
 		RedirectURI:  redirectURI,
-		Scopes:       c.scopes,
+		Scopes:       scopes,
 		PKCEEnabled:  true,
 		HTTPClient:   httpClient,
 		TokenStore:   tokenStore,
 	})
-	oauthBaseURL, err := mcpOAuthDiscoveryBaseURL(app.GetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	oauthHandler.SetBaseURL(oauthBaseURL)
 
 	if clientID == "" {
@@ -207,6 +221,38 @@ func (c *mcpLoginCommand) run() error {
 	fmt.Fprintf(c.cf.Stdout(), "Authorization complete. Tokens stored in %v.\n", credsPath)
 	fmt.Fprintf(c.cf.Stdout(), "MCP server %q is ready — restart your MCP clients if already running.\n", c.cf.AppSQN.Name)
 	return nil
+}
+
+func fetchAdvertisedMCPOAuthScopes(ctx context.Context, httpClient *http.Client, baseURL string) ([]string, error) {
+	metadataURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	metadataURL.Path = "/.well-known/oauth-protected-resource" + strings.TrimSuffix(metadataURL.EscapedPath(), "/")
+	metadataURL.RawPath = ""
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer closeOAuthResponse(resp)
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.BadParameter("protected resource metadata request failed with status %v", resp.StatusCode)
+	}
+
+	var metadata struct {
+		ScopesSupported []string `json:"scopes_supported"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1024*1024)).Decode(&metadata); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return metadata.ScopesSupported, nil
 }
 
 // wrapMCPClientRegistrationError adds instructions for using a pre-registered

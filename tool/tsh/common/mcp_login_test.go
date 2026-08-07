@@ -243,6 +243,79 @@ func TestMCPOAuthPathAwareDiscoveryUsesPublicResource(t *testing.T) {
 	require.NotContains(t, parsedAuthorizationURL.Query().Get("resource"), "localhost")
 }
 
+func TestFetchAdvertisedMCPOAuthScopes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+		wantScopes []string
+		wantErr    bool
+	}{
+		{
+			name:       "scopes advertised",
+			statusCode: http.StatusOK,
+			body:       `{"resource":"https://mcp.example.com/v2/mcp","scopes_supported":["mcp:tools","mcp:resources"]}`,
+			wantScopes: []string{"mcp:tools", "mcp:resources"},
+		},
+		{
+			name:       "no scopes advertised",
+			statusCode: http.StatusOK,
+			body:       `{"resource":"https://mcp.example.com/v2/mcp"}`,
+		},
+		{
+			name:       "metadata unavailable",
+			statusCode: http.StatusNotFound,
+			body:       "not found",
+			wantErr:    true,
+		},
+		{
+			name:       "malformed metadata",
+			statusCode: http.StatusOK,
+			body:       "not json",
+			wantErr:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			httpClient := &http.Client{Transport: mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				// RFC 9728 path-aware well-known URL, same as mcp-go's own
+				// discovery request.
+				require.Equal(t, "https://mcp.example.com/.well-known/oauth-protected-resource/v2/mcp", req.URL.String())
+				return &http.Response{
+					StatusCode: test.statusCode,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(test.body)),
+					Request:    req,
+				}, nil
+			})}
+
+			scopes, err := fetchAdvertisedMCPOAuthScopes(t.Context(), httpClient, "https://mcp.example.com/v2/mcp")
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, test.wantScopes, scopes)
+		})
+	}
+}
+
+func TestFetchAdvertisedMCPOAuthScopesTransportError(t *testing.T) {
+	t.Parallel()
+
+	httpClient := &http.Client{Transport: mcpOAuthRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, errors.New("connection refused")
+	})}
+	scopes, err := fetchAdvertisedMCPOAuthScopes(t.Context(), httpClient, "https://mcp.example.com/mcp")
+	require.ErrorContains(t, err, "connection refused")
+	require.Nil(t, scopes)
+}
+
 func TestMCPLoginOAuthClientCredentials(t *testing.T) {
 	newCommand := func() *mcpLoginCommand {
 		return &mcpLoginCommand{
