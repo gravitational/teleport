@@ -4754,17 +4754,43 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
+// convertResourcePrincipalSets converts proto principal sets to their api/types form.
+func convertResourcePrincipalSets(sets []*proto.ResourcePrincipalSet) []types.ResourcePrincipalSet {
+	if len(sets) == 0 {
+		return nil
+	}
+	out := make([]types.ResourcePrincipalSet, 0, len(sets))
+	for _, s := range sets {
+		if s == nil {
+			continue
+		}
+		rps := types.ResourcePrincipalSet{PrincipalType: s.PrincipalType, Granted: s.Granted, Requestable: s.Requestable}
+		for _, br := range s.ByRole {
+			if br == nil {
+				continue
+			}
+			rps.ByRole = append(rps.ByRole, types.RolePrincipalValues{
+				Role:            br.Role,
+				RequiresRequest: br.RequiresRequest,
+				Values:          br.Values,
+			})
+		}
+		out = append(out, rps)
+	}
+	return out
+}
+
 // convertEnrichedResource extracts the resource and any enriched information from the
 // PaginatedResource returned from the rpc ListUnifiedResources.
 func convertEnrichedResource(resource *proto.PaginatedResource) (*types.EnrichedResource, error) {
 	if r := resource.GetNode(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetDatabaseService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetKubeCluster(); r != nil {
@@ -4774,14 +4800,14 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetUserGroup(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetAppServer(); r != nil {
-		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetSAMLIdPServiceProvider(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetLinuxDesktop(); r != nil {
 		desktop := proto.UnpackLinuxDesktop(r)
-		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, Principals: convertResourcePrincipalSets(resource.Principals), RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
@@ -4908,7 +4934,7 @@ func GetEnrichedResourcePage(ctx context.Context, clt GetResourcesClient, req *p
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 			}
 
-			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins})
+			out.Resources = append(out.Resources, &types.EnrichedResource{ResourceWithLabels: resource, Logins: respResource.Logins, Principals: convertResourcePrincipalSets(respResource.Principals)})
 		}
 
 		out.NextKey = resp.NextKey
