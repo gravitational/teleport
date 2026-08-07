@@ -39,6 +39,7 @@ func Handlers() map[string]Handler {
 		types.KindBeamsConfig:         beamsConfigHandler(),
 		types.KindAccessList:          accessListHandler(),
 		types.KindClientIPRestriction: clientIPRestrictionHandler(),
+		types.KindIntegration:         integrationHandler(),
 		types.KindNode:                serverHandler(),
 		types.KindKubeServer:          kubeServerHandler(),
 		types.KindKubernetesCluster:   kubeClusterHandler(),

@@ -164,7 +164,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindSAMLIdPServiceProvider:             rc.createSAMLIdPServiceProvider,
 		types.KindDevice:                             rc.createDevice,
 		types.KindOktaImportRule:                     rc.createOktaImportRule,
-		types.KindIntegration:                        rc.createIntegration,
 		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
 		types.KindLinuxDesktop:                       rc.createLinuxDesktop,
@@ -1698,60 +1697,6 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	integration, err := services.UnmarshalIntegration(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists {
-		if !rc.force {
-			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
-		}
-
-		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch integration.GetSubKind() {
-		case types.IntegrationSubKindAWSOIDC:
-			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
-		case types.IntegrationSubKindGitHub:
-			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		case types.IntegrationSubKindAWSRolesAnywhere:
-			existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
-		case types.IntegrationSubKindAzureOIDC:
-			existingIntegration.SetAzureOIDCIntegrationSpec(integration.GetAzureOIDCIntegrationSpec())
-		default:
-			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
-		}
-
-		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q has been updated\n", integration.GetName())
-		return nil
-	}
-
-	igV1, ok := integration.(*types.IntegrationV1)
-	if !ok {
-		return trace.BadParameter("unexpected Integration type %T", integration)
-	}
-
-	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Integration %q has been created\n", integration.GetName())
-
-	return nil
-}
-
 func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	discoveryConfig, err := services.UnmarshalDiscoveryConfig(raw.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -2171,12 +2116,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Device %q removed\n", ref.Name)
-
-	case types.KindIntegration:
-		if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Integration %q removed\n", ref.Name)
 
 	case types.KindUserTask:
 		if err := client.UserTasksServiceClient().DeleteUserTask(ctx, ref.Name); err != nil {
@@ -3303,21 +3242,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 		default:
 			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
 		}
-	case types.KindIntegration:
-		if ref.Name != "" {
-			ig, err := client.GetIntegration(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &integrationCollection{integrations: []types.Integration{ig}}, nil
-		}
-
-		resources, err := stream.Collect(clientutils.Resources(ctx, client.ListIntegrations))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &integrationCollection{integrations: resources}, nil
 	case types.KindUserTask:
 		userTasksClient := client.UserTasksClient()
 		if ref.Name != "" {
