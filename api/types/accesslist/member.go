@@ -135,3 +135,8 @@ func (a *AccessListMember) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
 	return types.MatchSearch(fieldVals, values, nil)
 }
+
+// IsExpired checks if the access list member is expired based on the current time.
+func (a *AccessListMember) IsExpired(t time.Time) bool {
+	return !a.Spec.Expires.IsZero() && !t.Before(a.Spec.Expires)
+}
