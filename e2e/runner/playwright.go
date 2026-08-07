@@ -184,10 +184,15 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 	}
 	defer inst.stop()
 
+	// Every pass runs even after an earlier one fails. Each re-initializes Teleport from the base
+	// config, so they do not depend on each other, and stopping early would report a failing spec as
+	// the only result while silently dropping the coverage of the passes behind it.
+	var errs []error
+
 	if runDefault {
 		blobPath := filepath.Join(blobBaseDir, inst.browser+".zip")
 		if err := p.runInstanceTests(ctx, inst, defaultFiles, blobPath, debug, extraArgs); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
@@ -197,11 +202,17 @@ func (p *playwrightRunner) runInstance(ctx context.Context, inst *testInstance, 
 		if len(files) == 0 {
 			continue // no tests for this instance's project
 		}
+		// An interrupted run is the one case worth abandoning, since the remaining passes can only
+		// fail on the dead context.
+		if ctx.Err() != nil {
+			break
+		}
 		if err := p.runTeleportConfig(ctx, inst, baseConfigPath, cfg, files, i, blobBaseDir, debug, extraArgs); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+
+	return errors.Join(errs...)
 }
 
 // filesForProject picks the connect specs or browser specs for a testInstance, dropping any spec
