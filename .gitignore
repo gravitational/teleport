@@ -135,3 +135,6 @@ unit-tests*.json
 # Local Claude config, except shared skills
 .claude/*
 !.claude/skills
+
+# Failure repro files written by pgregory.net/rapid property tests
+**/testdata/rapid/
