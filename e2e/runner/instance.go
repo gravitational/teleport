@@ -30,13 +30,13 @@ type testInstance struct {
 	log                *slog.Logger
 	proxyPort          int
 	authPort           int
-	sshPort            int
+	sshPorts           []int
 	e2eDir             string
 	dataDir            string
 	tctlBin            string
 	teleportConfigPath string
 	teleport           *teleportInstance
-	node               *dockerNode
+	nodes              []*dockerNode
 }
 
 // start starts the Teleport instance and SSH node for this test instance.
@@ -65,11 +65,11 @@ func (inst *testInstance) start(ctx context.Context) error {
 		}
 	}
 
-	if inst.node != nil {
-		if err = inst.node.start(ctx); err != nil {
+	for _, node := range inst.nodes {
+		if err = node.start(ctx); err != nil {
 			return fmt.Errorf("failed to start docker node for %s: %w", inst.browser, err)
 		}
-		if err = inst.node.waitJoined(ctx, 30*time.Second); err != nil {
+		if err = node.waitJoined(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("docker node for %s failed to join cluster: %w", inst.browser, err)
 		}
 	}
@@ -78,8 +78,8 @@ func (inst *testInstance) start(ctx context.Context) error {
 }
 
 func (inst *testInstance) stop() {
-	if inst.node != nil {
-		inst.node.stop(context.Background())
+	for _, node := range inst.nodes {
+		node.stop(context.Background())
 	}
 
 	if inst.teleport != nil {

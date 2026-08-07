@@ -46,7 +46,7 @@ func build(ctx context.Context, config *e2eConfig) error {
 	}
 
 	var buildNode bool
-	if fixtures.SSHNode.Enabled && runtime.GOOS != "linux" {
+	if sshNodeEnabled() && needsNodeBuild(config) {
 		buildNode = shouldBuild(filepath.Join(nodeBuildDir, "build", "teleport-node"), config.noBuild)
 	}
 
@@ -95,18 +95,27 @@ func build(ctx context.Context, config *e2eConfig) error {
 
 	if buildNode {
 		g.Go(func() error {
-			slog.Info("cross-compiling teleport for linux (docker node)", "dir", nodeBuildDir)
+			arch := config.nodeArch
+			slog.Info("building teleport for linux (docker node)", "dir", nodeBuildDir, "arch", arch)
 
 			output := filepath.Join(nodeBuildDir, "build", "teleport-node")
-			cmd := exec.CommandContext(ctx, "go", "build",
-				"-o", output,
-				"-buildvcs=false",
-				"./tool/teleport",
-			)
+
+			args := []string{"build", "-o", output, "-buildvcs=false"}
+			if fixtures.SSHNodeBPF.Enabled {
+				args = append(args, "-tags", "bpf")
+			}
+			args = append(args, "./tool/teleport")
+
+			cmd := exec.CommandContext(ctx, "go", args...)
 			cmd.Dir = nodeBuildDir
-			env := append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
+			env := append(os.Environ(), "GOOS=linux", "GOARCH="+string(arch), "CGO_ENABLED=1")
 			if os.Getenv("CC") == "" {
-				env = append(env, "CC=x86_64-unknown-linux-gnu-gcc")
+				cc, ok := crossCompilers[arch]
+				if !ok {
+					return fmt.Errorf("no cross-compiler known for GOARCH %s, set CC to override", arch)
+				}
+
+				env = append(env, "CC="+cc)
 			}
 			cmd.Env = env
 			cmd.Stdout = os.Stdout
@@ -167,6 +176,13 @@ func build(ctx context.Context, config *e2eConfig) error {
 	}
 
 	return g.Wait()
+}
+
+// needsNodeBuild reports whether the docker node needs a binary of its own rather than the host's,
+// which is whenever the host build does not target the platform the container runs. A native linux
+// build already carries the bpf tag (see BPF_TAG in common.mk), so it needs nothing extra.
+func needsNodeBuild(config *e2eConfig) bool {
+	return runtime.GOOS != "linux" || config.nodeArch != nodeArch(runtime.GOARCH)
 }
 
 func runMake(ctx context.Context, dir string, targets ...string) error {

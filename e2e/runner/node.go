@@ -32,12 +32,57 @@ import (
 	apicontainer "github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
+	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
 const nodeImage = "debian:bookworm-slim"
 
+// nodeVariant is one docker node the run needs. A spec asks for a variant by declaring its fixture, and
+// only the variants that were asked for are started, so a run that wants both gets two nodes to target.
+type nodeVariant struct {
+	name              string
+	enhancedRecording bool
+}
+
+func sshNodeEnabled() bool {
+	return fixtures.SSHNode.Enabled || fixtures.SSHNodeBPF.Enabled
+}
+
+func nodeVariants() []nodeVariant {
+	var variants []nodeVariant
+	if fixtures.SSHNode.Enabled {
+		variants = append(variants, nodeVariant{name: "docker-node"})
+	}
+	if fixtures.SSHNodeBPF.Enabled {
+		variants = append(variants, nodeVariant{name: "docker-node-bpf", enhancedRecording: true})
+	}
+
+	return variants
+}
+
+func nodeVariantNames() []string {
+	var names []string
+	for _, v := range nodeVariants() {
+		names = append(names, v.name)
+	}
+
+	return names
+}
+
+// nodeStartCommand is how the node is launched inside the container.
+const nodeStartCommand = "teleport start --insecure -c /etc/teleport/node.yaml"
+
+// mountTracefs mounts tracefs for the tracepoint and kprobe programs to attach through, since Docker
+// does not mount it even for a privileged container. Either mount point will do, so failures are left
+// for the node to report.
+const mountTracefs = "mount -t tracefs nodev /sys/kernel/tracing 2>/dev/null || " +
+	"mount -t debugfs nodev /sys/kernel/debug 2>/dev/null || true"
+
 type dockerNode struct {
 	log                *slog.Logger
+	nodeName           string
 	sshPort            int
 	tctlBin            string
 	teleportConfigPath string
@@ -48,6 +93,9 @@ type dockerNode struct {
 	configPath    string
 	teleportBin   string
 
+	arch              nodeArch
+	enhancedRecording bool
+
 	ctr *container.Container
 }
 
@@ -55,30 +103,43 @@ func (d *dockerNode) start(ctx context.Context) error {
 	return d.runContainer(ctx)
 }
 
+func (d *dockerNode) entrypoint() []string {
+	if !d.enhancedRecording {
+		return strings.Fields(nodeStartCommand)
+	}
+
+	return []string{"sh", "-c", mountTracefs + "; exec " + nodeStartCommand}
+}
+
 func (d *dockerNode) removeStale(ctx context.Context) {
-	cli, err := client.New(client.WithAPIVersionNegotiation())
+	cli, err := dockerAPI()
 	if err != nil {
 		return
 	}
-	defer cli.Close()
 
 	_, _ = cli.ContainerRemove(ctx, d.containerName, client.ContainerRemoveOptions{Force: true})
 }
 
 func (d *dockerNode) runContainer(ctx context.Context) error {
-	d.log.Info("starting docker SSH node")
+	d.log.Info("starting docker SSH node", "node", d.nodeName)
 
 	d.removeStale(ctx)
 
+	sdk, err := dockerSDK()
+	if err != nil {
+		return err
+	}
+
 	ctr, err := container.Run(ctx,
+		container.WithClient(sdk),
 		container.WithImage(d.imageName),
-		container.WithImagePlatform("linux/amd64"),
+		container.WithImagePlatform("linux/"+string(d.arch)),
 		container.WithPullHandler(func(r io.ReadCloser) error {
 			_, err := io.Copy(io.Discard, r)
 			return err
 		}),
 		container.WithName(d.containerName),
-		container.WithEntrypoint("teleport", "start", "--insecure", "-c", "/etc/teleport/node.yaml"),
+		container.WithEntrypoint(d.entrypoint()...),
 		container.WithExposedPorts(fmt.Sprintf("%d/tcp", d.sshPort)),
 		container.WithFiles(
 			container.File{
@@ -96,6 +157,11 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 			if os.Getenv("DOCKER_HOST") == "" {
 				hc.ExtraHosts = []string{"host.docker.internal:host-gateway"}
 			}
+
+			if d.enhancedRecording {
+				hc.Privileged = true
+			}
+
 			hc.PortBindings = network.PortMap{
 				network.MustParsePort(fmt.Sprintf("%d/tcp", d.sshPort)): []network.PortBinding{
 					{HostPort: fmt.Sprintf("%d", d.sshPort)},
@@ -114,7 +180,7 @@ func (d *dockerNode) runContainer(ctx context.Context) error {
 }
 
 func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) error {
-	d.log.Debug("waiting for docker node to join cluster")
+	d.log.Debug("waiting for docker node to join cluster", "node", d.nodeName)
 
 	probe := func(ctx context.Context) (bool, error) {
 		cmd := exec.CommandContext(ctx, d.tctlBin, "nodes", "ls",
@@ -124,14 +190,21 @@ func (d *dockerNode) waitJoined(ctx context.Context, timeout time.Duration) erro
 			return false, nil
 		}
 
-		return strings.Contains(string(out), "docker-node"), nil
+		// Exact field match, since one node's name can be a prefix of another's.
+		for line := range strings.Lines(string(out)) {
+			if fields := strings.Fields(line); len(fields) > 0 && fields[0] == d.nodeName {
+				return true, nil
+			}
+		}
+
+		return false, nil
 	}
 
 	if err := pollUntil(ctx, timeout, 1*time.Second, probe); err != nil {
-		return fmt.Errorf("docker node failed to join cluster: %w", err)
+		return fmt.Errorf("docker node %s failed to join cluster: %w", d.nodeName, err)
 	}
 
-	d.log.Info("docker SSH node is ready")
+	d.log.Info("docker SSH node is ready", "node", d.nodeName)
 
 	return nil
 }
@@ -170,27 +243,37 @@ func (d *dockerNode) stop(ctx context.Context) {
 		return
 	}
 
-	d.log.Info("stopping docker SSH node")
+	d.log.Info("stopping docker SSH node", "node", d.nodeName)
 
 	d.saveLogs(ctx)
 	_ = d.ctr.Terminate(ctx, container.TerminateTimeout(10*time.Second))
 }
 
-func pullImage(ctx context.Context, image string) error {
-	slog.Info("pulling docker image", "image", image)
+func pullImage(ctx context.Context, image string, arch nodeArch) error {
+	slog.Info("pulling docker image", "image", image, "arch", arch)
 
-	cli, err := client.New(client.WithAPIVersionNegotiation())
+	cli, err := dockerAPI()
 	if err != nil {
-		return fmt.Errorf("creating docker client: %w", err)
+		return err
 	}
-	defer cli.Close()
 
-	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{})
+	rc, err := cli.ImagePull(ctx, image, client.ImagePullOptions{
+		Platforms: []ocispec.Platform{{OS: "linux", Architecture: string(arch)}},
+	})
 	if err != nil {
 		return fmt.Errorf("pulling image: %w", err)
 	}
 	defer rc.Close()
 
-	_, err = io.Copy(io.Discard, rc)
-	return err
+	// Wait surfaces failures reported inside the progress stream, which a plain copy would discard.
+	// A cached image is still usable when the registry refuses us, so that is only a warning.
+	if err := rc.Wait(ctx); err != nil {
+		if _, inspectErr := cli.ImageInspect(ctx, image); inspectErr != nil {
+			return fmt.Errorf("pulling image: %w", err)
+		}
+
+		slog.Warn("could not refresh docker image, using the cached one", "image", image, "error", err)
+	}
+
+	return nil
 }
