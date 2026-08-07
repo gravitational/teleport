@@ -27,6 +27,8 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -46,6 +48,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -126,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -135,6 +139,8 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -142,6 +148,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -196,6 +203,66 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestShouldForwardToAppHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "DBSC refresh without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc/refresh", nil),
+			want: true,
+		},
+		{
+			name: "DBSC registration without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc", nil),
+			want: true,
+		},
+		{
+			name: "normal app request without app cookies",
+			req:  httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			want: false,
+		},
+		{
+			name: "normal app request with app cookie",
+			req: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
+				req.AddCookie(&http.Cookie{Name: app.CookieName, Value: "session-id"})
+				return req
+			}(),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldForwardToAppHandler(tt.req))
+		})
+	}
+}
+
+//go:embed testdata/no-history-shell.sh
+var noHistoryShellScript []byte
+
+// noHistoryShell writes a wrapper shell script that disables history to a temp
+// file and returns its path.
+//
+// Tests in this package open interactive shell sessions on a local node service
+// running as the current OS user. Pointing the node at this shell via
+// [regular.SetTestLoginShell] keeps those sessions from polluting the shell
+// history. The script is embedded rather than referenced on disk so the path
+// doesn't depend on the working directory.
+func noHistoryShell(t *testing.T) string {
+	t.Helper()
+	shell := filepath.Join(t.TempDir(), "no-history-shell.sh")
+	require.NoError(t, os.WriteFile(shell, noHistoryShellScript, 0o700))
+	return shell
+}
+
 func newWebSuite(t *testing.T) *WebSuite {
 	return newWebSuiteWithConfig(t, webSuiteConfig{})
 }
@@ -234,6 +301,7 @@ type webSuiteConfig struct {
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
+	t.Helper()
 	mockU2F, err := mocku2f.Create()
 	require.NoError(t, err)
 	require.NotNil(t, mockU2F)
@@ -380,6 +448,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -450,6 +519,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 	t.Cleanup(databaseServerWatcher.Close)
 
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    s.proxyClient,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -467,6 +545,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		NodeWatcher:           proxyNodeWatcher,
 		GitServerWatcher:      proxyGitServerWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
+		AppServerWatcher:      appServerWatcher,
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{s.server.TLS.Addr().String()},
@@ -571,7 +650,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
-		handlerConfig.HealthCheckAppServer = func(context.Context, string, string) error { return nil }
+		handlerConfig.HealthCheckAppServer = func(context.Context, string, string, string) error { return nil }
 	}
 
 	handler, err := NewHandler(handlerConfig, SetClock(s.clock))
@@ -700,6 +779,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -1427,6 +1507,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	username := "test-user@example.com"
@@ -1470,7 +1551,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), awsAppServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, awsAppServer)
 	require.NoError(t, err)
 
 	app, err := types.NewAppV3(
@@ -1490,7 +1571,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"host-id",
 	)
 	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), appServer)
+	_, err = env.server.Auth().UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
 	// add a SAMLIdPServiceProvider
@@ -1507,7 +1588,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().CreateSAMLIdPServiceProvider(context.Background(), samlapp)
+	err = env.server.Auth().CreateSAMLIdPServiceProvider(ctx, samlapp)
 	require.NoError(t, err)
 
 	// Add nodes
@@ -1517,7 +1598,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			Hostname: name,
 		})
 		require.NoError(t, err)
-		_, err = env.server.Auth().UpsertNode(context.Background(), node)
+		_, err = env.server.Auth().UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
 
@@ -1542,7 +1623,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		})
 		require.NoError(t, err)
 		dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
-		_, err = env.server.Auth().UpsertDatabaseServer(context.Background(), dbServer)
+		_, err = env.server.Auth().UpsertDatabaseServer(ctx, dbServer)
 		require.NoError(t, err)
 	}
 
@@ -1553,7 +1634,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		types.WindowsDesktopSpecV3{Addr: "localhost", HostID: "win1-host-id"},
 	)
 	require.NoError(t, err)
-	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), win)
+	err = env.server.Auth().UpsertWindowsDesktop(ctx, win)
 	require.NoError(t, err)
 
 	// add git server
@@ -1562,15 +1643,36 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		Integration:  "org1",
 	})
 	require.NoError(t, err)
-	_, err = env.server.Auth().GitServers.UpsertGitServer(context.Background(), gitServer)
+	_, err = env.server.Auth().GitServers.UpsertGitServer(ctx, gitServer)
 	require.NoError(t, err)
 
 	clusterName := env.server.ClusterName()
 	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
 
+	expectedKinds := map[string]int{
+		types.KindApp:            3,  // my-app, my-aws-app and the SAML IdP service provider
+		types.KindDatabase:       1,  // 3 db servers, single resource
+		types.KindNode:           21, // 20 created above, plus SSH node in newWebPack
+		types.KindWindowsDesktop: 1,
+		types.KindGitServer:      1,
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, url.Values{})
+		require.NoError(t, err)
+
+		res := clusterNodesGetResponse{}
+		require.NoError(t, json.Unmarshal(re.Bytes(), &res))
+
+		gotKinds := make(map[string]int, len(expectedKinds))
+		for _, item := range res.Items {
+			gotKinds[item.Kind]++
+		}
+		require.Equal(t, expectedKinds, gotKinds)
+	}, 15*time.Second, 100*time.Millisecond, "unified resource cache did not converge")
+
 	// test sort type ascend
 	query := url.Values{"sort": []string{"kind:asc"}}
-	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	re, err := pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res := clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1581,7 +1683,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// test sort type desc
 	query = url.Values{"sort": []string{"kind:desc"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1594,7 +1696,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// shouldnt get any results with no access
 	query = url.Values{"sort": []string{"name:asc"}}
-	re, err = noAccessPack.clt.Get(context.Background(), endpoint, query)
+	re, err = noAccessPack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1606,7 +1708,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		TotalCount int              `json:"totalCount"`
 	}
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"1"}, "kinds": []string{types.KindDatabase}, "query": []string{`health.status == "mixed"`}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	dbRes := dbResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &dbRes))
@@ -1624,7 +1726,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 	// should return first page and have a second page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1634,7 +1736,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 	// should return second page and have no third page
 	query = url.Values{"sort": []string{"name"}, "limit": []string{"15"}}
 	query.Add("startKey", res.StartKey)
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	res = clusterNodesGetResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &res))
@@ -1646,7 +1748,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 		"search": []string{"my-aws-app"},
 		"sort":   []string{"name"},
 	}
-	re, err = pack.clt.Get(context.Background(), endpoint, query)
+	re, err = pack.clt.Get(ctx, endpoint, query)
 	require.NoError(t, err)
 	listResp := struct {
 		Items []webui.App `json:"Items"`
@@ -1665,7 +1767,7 @@ func TestUnifiedResourcesGet(t *testing.T) {
 			TotalCount int         `json:"totalCount"`
 		}
 		query := url.Values{"kinds": []string{types.KindApp}}
-		re, err := pack.clt.Get(context.Background(), endpoint, query)
+		re, err := pack.clt.Get(ctx, endpoint, query)
 		require.NoError(t, err)
 		appRes := appResponse{}
 		require.NoError(t, json.Unmarshal(re.Bytes(), &appRes))
@@ -1693,6 +1795,94 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 		require.ElementsMatch(t, appRes.Items, expected)
 	})
+}
+
+// TestUnifiedResourcesGet_DesktopLoginFiltering verifies that the logins
+// returned for Windows/Linux Desktop resources in the unified resources endpoint
+// only include logins from the user's currently-granted roles, not logins
+// from roles reachable via search_as_roles when includedResourceMode=all.
+func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	const username = "desktop-login-test@example.com"
+
+	// requestableRole has desktop logins the user can only get via access request.
+	requestableRole, err := types.NewRole("emg-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"requestable-login"},
+		},
+	})
+	require.NoError(t, err)
+
+	// assignedRole is the user's default role with search_as_roles pointing
+	// at requestableRole so the user can discover resources for access requests.
+	assignedRole, err := types.NewRole("assigned-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			// Give wildcard node/desktop access so the resource is visible.
+			NodeLabels:           types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"granted-login"},
+			Logins:               []string{"granted-login"},
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{requestableRole.GetName()},
+				SearchAsRoles: []string{requestableRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertRole(ctx, requestableRole)
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, username, []types.Role{assignedRole})
+
+	// Create a Windows Desktop resource.
+	desktop, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
+		Addr:   "1.2.3.4:3389",
+		HostID: "host-1",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(ctx, desktop))
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	type desktopResponse struct {
+		Items []webui.Desktop `json:"items"`
+	}
+
+	// Fetch with includedResourceMode=all, which enables IncludeRequestable on
+	// the backend and causes the auth layer to use search_as_roles when
+	// computing logins.
+	query := url.Values{
+		"kinds":                []string{types.KindWindowsDesktop},
+		"includedResourceMode": []string{"all"},
+	}
+	// Wait for the desktop created above to show up before asserting on the logins it reports.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		re, err := pack.clt.Get(ctx, endpoint, query)
+		require.NoError(t, err)
+
+		var resp desktopResponse
+		require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+		require.Len(t, resp.Items, 1)
+	}, 15*time.Second, 100*time.Millisecond, "desktop did not appear in the unified resource cache")
+
+	re, err := pack.clt.Get(ctx, endpoint, query)
+	require.NoError(t, err)
+
+	var resp desktopResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1, "expected exactly one desktop")
+
+	// The logins present should only be ones the user currently can access,
+	// not ones from requestable roles.
+	require.ElementsMatch(t, []string{"granted-login"}, resp.Items[0].Logins,
+		"desktop logins should only contain granted logins, not requestable ones")
 }
 
 type clusterAlertsGetResponse struct {
@@ -1883,7 +2073,7 @@ func TestFileTransferEvents(t *testing.T) {
 	// Create file transfer event
 	data, err := json.Marshal(events.EventFields{
 		"download": true,
-		"location": "~/myfile.txt",
+		"location": "/home/alice/myfile.txt",
 	})
 
 	require.NoError(t, err)
@@ -2067,15 +2257,9 @@ func TestUIConfig(t *testing.T) {
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 	t.Cleanup(cancel)
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
+	cfg := testGRVConfig(t, re.Bytes())
 	require.Equal(t, uiConfig, cfg.UI)
 }
 
@@ -2446,7 +2630,7 @@ func TestTerminalRouting(t *testing.T) {
 			// for is not present in the command itself
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, tt.output))
+			waitForOutput(t, term, tt.output)
 		})
 	}
 }
@@ -2537,9 +2721,31 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			// Test we can write.
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, "teleport"))
+			waitForOutput(t, term, "teleport")
 		})
 	}
+}
+
+// TestTerminalNoHistoryShell verifies that interactive sessions opened by tests
+// that use [newWebSuite] don't record shell history thanks to [noHistoryShell].
+func TestTerminalNoHistoryShell(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	t.Cleanup(cancel)
+
+	term, err := connectToHost(ctx, connectConfig{
+		pack:  s.authPack(t, "foo"),
+		host:  s.node.ID(),
+		proxy: s.webServer.Listener.Addr().String(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	_, err = io.WriteString(term, `echo "histfile=[$HISTFILE]"`+"\r\n")
+	require.NoError(t, err)
+	waitForOutput(t, term, "histfile=[]")
 }
 
 type windowsDesktopServiceMock struct {
@@ -2595,7 +2801,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn)
+	tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2606,17 +2812,17 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 
 	msg, err := tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientUsername{}, msg)
+	require.IsType(t, legacy.ClientUsername{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientScreenSpec{}, msg)
+	require.IsType(t, legacy.ClientScreenSpec{}, msg)
 
 	msg, err = tdpConn.ReadMessage()
 	require.NoError(t, err)
-	require.IsType(t, tdp.ClientKeyboardLayout{}, msg, "%v", msg)
+	require.IsType(t, legacy.ClientKeyboardLayout{}, msg, "%v", msg)
 
-	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
+	err = tdpConn.WriteMessage(legacy.Alert{Message: "test", Severity: legacy.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -2689,49 +2895,49 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			// Before the session can proceed to the MFA ceremony, the proxy expects the
 			// web UI to send both the screen size and keyboard layout over the websocket.
-			ss, err := tdp.ClientScreenSpec{
+			ss, err := legacy.ClientScreenSpec{
 				Width:  1920,
 				Height: 1080,
 			}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
-			kl, err := tdp.ClientKeyboardLayout{}.Encode()
+			kl, err := legacy.ClientKeyboardLayout{}.Encode()
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws})
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
 
 			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
-			if _, ok := msg.(tdp.LatencyStats); ok {
+			if _, ok := msg.(legacy.LatencyStats); ok {
 				msg, err = tdpClient.ReadMessage()
 				require.NoError(t, err)
 			}
-			require.IsType(t, tdp.Alert{}, msg)
+			require.IsType(t, legacy.Alert{}, msg)
 		})
 	}
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode, legacy.WarningConstructor)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
 	require.NoError(t, err)
-	require.Equal(t, tdp.TypeMFA, tdp.MessageType(mt))
+	require.Equal(t, legacy.TypeMFA, legacy.MessageType(mt))
 
-	mfaChallange, err := tdp.DecodeMFAChallenge(br)
+	mfaChallange, err := legacy.DecodeMFAChallenge(br)
 	require.NoError(t, err)
 	res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 		WebauthnChallenge: wantypes.CredentialAssertionToProto(mfaChallange.WebauthnChallenge),
 	})
 	require.NoError(t, err)
-	err = tdpConn.WriteMessage(tdp.MFA{
+	err = tdpConn.WriteMessage(legacy.MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateResponse: &authproto.MFAAuthenticateResponse{
 			Response: &authproto.MFAAuthenticateResponse_Webauthn{
@@ -2760,8 +2966,7 @@ func TestWebAgentForward(t *testing.T) {
 	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
 
-	err = waitForOutput(term, "/")
-	require.NoError(t, err)
+	waitForOutput(t, term, "/")
 }
 
 func TestActiveSessions(t *testing.T) {
@@ -3336,6 +3541,37 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			)
 		})
 	})
+}
+
+func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	require.NoError(t, s.server.Auth().SetInstaller(
+		s.ctx,
+		types.MustNewInstallerV1("custom", `{{ .AzureClientID }}`),
+	))
+
+	const azureClientID = `abc&<>'";$(touch /tmp/pwn)`
+
+	re, err := wc.Get(
+		s.ctx,
+		wc.Endpoint("webapi", "scripts", "installer", "custom"),
+		url.Values{"azure-client-id": []string{azureClientID}},
+	)
+	require.NoError(t, err)
+
+	response := string(re.Bytes())
+
+	require.Equal(t, `abc\&\<\>\'\"\;\$\(touch\ /tmp/pwn\)`, response)
+
+	// Assert that HTML escaping did not occur.
+	require.NotContains(t, response, "&amp;")
+	require.NotContains(t, response, "&lt;")
+	require.NotContains(t, response, "&gt;")
+	require.NotContains(t, response, "&#39;")
+	require.NotContains(t, response, "&#34;")
 }
 
 func TestMultipleConnectors(t *testing.T) {
@@ -4771,11 +5007,43 @@ func TestGetAppDetails(t *testing.T) {
 
 	clientFQDN := "client.example.com"
 
+	const scope = "/staging/west"
+	const proxyDNS = "localhost"
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name: "scoped-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer, err := types.NewAppServerV3FromApp(scopedApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer)
+	require.NoError(t, err)
+
+	scopedAppWithRequiredApp, err := types.NewAppV3(types.Metadata{
+		Name: "bad-app",
+	}, types.AppSpecV3{
+		URI:                   "http://127.0.0.1:8080",
+		PublicAddr:            scopedapp.ScopedAppPublicAddr(scope, "bad-app", proxyDNS),
+		UseAnyProxyPublicAddr: true,
+		RequiredAppNames:      []string{"scoped-dependency"},
+	}, scope)
+	require.NoError(t, err)
+	scopedClientServer2, err := types.NewAppServerV3FromApp(scopedAppWithRequiredApp, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertApplicationServer(s.ctx, scopedClientServer2)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name             string
 		endpoint         string
 		fqdn             string
 		expectedResponse GetAppDetailsResponse
+		wantErr          string
 	}{
 		{
 			name:     "request app details with clientName and publicAddr",
@@ -4809,6 +5077,19 @@ func TestGetAppDetails(t *testing.T) {
 				RequiredAppFQDNs: []string{"client.web.localhost"},
 			},
 		},
+		{
+			name:     "scoped app derives hash FQDNs for itself",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedApp.GetPublicAddr(), s.server.ClusterName(), scopedApp.GetPublicAddr()),
+			expectedResponse: GetAppDetailsResponse{
+				FQDN:             scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS),
+				RequiredAppFQDNs: []string{scopedapp.ScopedAppPublicAddr(scope, "scoped-app", proxyDNS)},
+			},
+		},
+		{
+			name:     "scoped app with required apps fails",
+			endpoint: pack.clt.Endpoint("webapi", "apps", scopedAppWithRequiredApp.GetPublicAddr(), s.server.ClusterName(), scopedAppWithRequiredApp.GetPublicAddr()),
+			wantErr:  "scoped apps do not support required app redirects",
+		},
 	}
 
 	for _, tc := range tests {
@@ -4816,12 +5097,84 @@ func TestGetAppDetails(t *testing.T) {
 			t.Parallel()
 
 			re, err := pack.clt.Get(ctx, tc.endpoint, url.Values{})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			resp := GetAppDetailsResponse{}
 
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Equal(t, tc.expectedResponse, resp)
 		})
+	}
+}
+
+// TestCreateAppSessionRBACAware verifies that when a user navigates directly to
+// a public address shared by multiple apps (the FQDN-only flow, with no app name),
+// the resulting session is pinned to an app the user can actually access.
+func TestCreateAppSessionRBACAware(t *testing.T) {
+	s := newWebSuite(t)
+
+	const sharedPublicAddr = "dup.example.com"
+
+	// Two apps share a public address but have distinct names and labels.
+	for _, app := range []struct{ name, label string }{
+		{"dup-app-1", "dup-app-1"},
+		{"dup-app-2", "dup-app-2"},
+	} {
+		a, err := types.NewAppV3(types.Metadata{
+			Name:   app.name,
+			Labels: map[string]string{"app_name": app.label},
+		}, types.AppSpecV3{
+			URI:        "http://127.0.0.1:8080",
+			PublicAddr: sharedPublicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(a, "host-"+app.name, uuid.New().String())
+		require.NoError(t, err)
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	// The default user role grants wildcard app access, so deny dup-app-2 to
+	// ensure the user can reach dup-app-1 but not dup-app-2.
+	denyRole, err := types.NewRole("deny-dup-app-2", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			AppLabels: types.Labels{"app_name": []string{"dup-app-2"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertRole(s.ctx, denyRole)
+	require.NoError(t, err)
+
+	pack := s.authPack(t, "foo@example.com", denyRole.GetName())
+
+	// Create an app session with FQDN hint only (no app name).
+	// Repeat this multiple times to make sure we always get the correct app
+	// in the app session's cert.
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	for range 20 {
+		resp, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+			ResolveAppParams: ResolveAppParams{FQDNHint: sharedPublicAddr},
+		})
+		require.NoError(t, err)
+
+		var response CreateAppSessionResponse
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &response))
+
+		sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+			SessionID: response.CookieValue,
+		})
+		require.NoError(t, err)
+
+		certificate, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+		require.NoError(t, err)
+
+		require.Equal(t, "dup-app-1", identity.RouteToApp.Name)
+		require.Equal(t, sharedPublicAddr, identity.RouteToApp.PublicAddr)
 	}
 }
 
@@ -4865,6 +5218,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
 			SecondFactor: constants.SecondFactorOn,
+			SecondFactors: []types.SecondFactorType{
+				types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+				types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			},
 			Providers: []webclient.WebConfigAuthProvider{{
 				Name:      "test-github",
 				Type:      constants.Github,
@@ -4889,6 +5246,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			string(entitlements.AccessMonitoring):           {Enabled: false},
 			string(entitlements.AccessRequests):             {Enabled: false},
 			string(entitlements.App):                        {Enabled: true},
+			string(entitlements.Beams):                      {Enabled: false},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 			string(entitlements.DB):                         {Enabled: true},
 			string(entitlements.Desktop):                    {Enabled: true},
@@ -4926,6 +5284,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		IsStripeManaged:                false,
 		PremiumSupport:                 false,
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+		BeamsUI:                        false,
 	}
 
 	// Make a request.
@@ -4933,14 +5292,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	endpoint := clt.Endpoint("web", "config.js")
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
+	cfg := testGRVConfig(t, re.Bytes())
 	require.Equal(t, expectedCfg, cfg)
 
 	// update features and assert that it is properly updated on the config object
@@ -4989,10 +5342,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		err = parseGRVConfig(re.Bytes(), &cfg)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
@@ -5026,10 +5377,8 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		err = parseGRVConfig(re.Bytes(), &cfg)
+		require.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
@@ -5078,6 +5427,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 10},
 			string(entitlements.AccessRequests):             {Enabled: false},
 			string(entitlements.App):                        {Enabled: false},
+			string(entitlements.Beams):                      {Enabled: false},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 			string(entitlements.DB):                         {Enabled: false},
 			string(entitlements.Desktop):                    {Enabled: false},
@@ -5115,17 +5465,108 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
-		// Response is type application/javascript, we need to strip off the variable name
-		// and the semicolon at the end, then we are left with json like object.
 		var cfg webclient.WebConfig
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(t, err)
+		err = parseGRVConfig(re.Bytes(), &cfg)
+		require.NoError(t, err)
+
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
+}
+
+func TestGetWebConfig_Beams(t *testing.T) {
+	env := newWebPack(t, 1)
+	clt := env.proxies[0].newClient(t)
+	endpoint := clt.Endpoint("web", "config.js")
+
+	testCases := []struct {
+		name                   string
+		hasBeamsEntitlement    bool
+		hasBeamsUI             bool
+		expectBeamsEntitlement bool
+		expectBeamsUI          bool
+	}{
+		{
+			name:                   "Beams entitlement and UI",
+			hasBeamsEntitlement:    true,
+			hasBeamsUI:             true,
+			expectBeamsEntitlement: true,
+			expectBeamsUI:          true,
+		},
+		{
+			name:                   "Beams entitlement and no UI",
+			hasBeamsEntitlement:    true,
+			hasBeamsUI:             false,
+			expectBeamsEntitlement: true,
+			expectBeamsUI:          false,
+		},
+		{
+			name:                   "No beams entitlement and no UI",
+			hasBeamsEntitlement:    false,
+			hasBeamsUI:             false,
+			expectBeamsEntitlement: false,
+			expectBeamsUI:          false,
+		},
+		{
+			name:                   "No beams entitlement, but has UI",
+			hasBeamsEntitlement:    false,
+			hasBeamsUI:             true,
+			expectBeamsEntitlement: false,
+			expectBeamsUI:          false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.Beams: {Enabled: tc.hasBeamsEntitlement},
+					},
+					BeamsUI: tc.hasBeamsUI,
+				},
+			})
+			env.clock.Advance(DefaultFeatureWatchInterval * 2)
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				re, err := clt.Get(ctx, endpoint, nil)
+				require.NoError(t, err)
+
+				var cfg webclient.WebConfig
+				err = parseGRVConfig(re.Bytes(), &cfg)
+				require.NoError(t, err)
+
+				require.Equal(t, webclient.EntitlementInfo{
+					Enabled: tc.expectBeamsEntitlement,
+					Limit:   0,
+				}, cfg.Entitlements[string(entitlements.Beams)])
+				require.Equal(t, tc.expectBeamsUI, cfg.BeamsUI)
+			}, time.Second*5, time.Millisecond*50)
+		})
+	}
+}
+
+func testGRVConfig(t *testing.T, data []byte) webclient.WebConfig {
+	require.True(t, strings.HasPrefix(string(data), "var GRV_CONFIG"))
+	var cfg webclient.WebConfig
+	err := parseGRVConfig(data, &cfg)
+	require.NoError(t, err)
+	return cfg
+}
+
+func parseGRVConfig(data []byte, cfg *webclient.WebConfig) error {
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	str := strings.ReplaceAll(string(data), "var GRV_CONFIG = ", "")
+	if len(str) > 0 {
+		// Remove the training semi-colon
+		str = str[:len(str)-1]
+	}
+	err := json.Unmarshal([]byte(str), &cfg)
+	return err
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
@@ -5710,7 +6151,7 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		HealthCheckAppServer: func(_ context.Context, publicAddr string, _ string) error {
+		HealthCheckAppServer: func(_ context.Context, _, publicAddr, _ string) error {
 			// Can only serve "validApp".
 			if publicAddr == validApp.GetPublicAddr() {
 				return nil
@@ -7257,6 +7698,17 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	)
 
 	rt := http.NewServeMux()
+	// Serve core API discovery so the proxy can resolve the "pods" kind it probes.
+	// Otherwise the proxy treats pods as an unknown resource kind.
+	rt.HandleFunc("/api/v1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(&metav1.APIResourceList{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", SingularName: "pod", Namespaced: true, Kind: "Pod", Verbs: metav1.Verbs{"get", "list"}},
+			},
+		}))
+	})
 	rt.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if slices.Contains(r.Header.Values("Impersonate-Group"), invalidKubeGroups[0]) {
 			marshalRBACError(t, w)
@@ -8286,55 +8738,51 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
+func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {
+	t.Helper()
+	require.NoError(t, waitForOutputWithDuration(t.Context(), r, substr, 30*time.Second), msgAndArgs...)
+}
+
+func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
+	errC := make(chan error, 1)
+	go func() {
+		var out strings.Builder
+		chunk := make([]byte, int64(len(substr)*2))
+		for {
+			n, err := r.Read(chunk)
+			out.Write(chunk[:n])
 
-	var prev string
-	out := make([]byte, int64(len(substr)*3))
-	for {
-		select {
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
-		default:
-		}
+			normalized := removeSpace(out.String())
+			slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", substr)
 
-		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return trace.Wrap(err)
+			// Check for [substr] before checking the error,
+			// as it's valid for n > 0 even when there is an error.
+			// The [substr] is checked against the current and previous
+			// output to account for scenarios where the [substr] is split
+			// across 2+ reads. While we try to prevent this by reading
+			// twice the length of [substr] there are no guarantees the
+			// whole thing will arrive in a single read since there is no
+			// minimum chunk length.
+			if n > 0 && strings.Contains(normalized, substr) {
+				errC <- nil
+				return
+			}
+			if err != nil {
+				errC <- err
+				return
+			}
 		}
-		n, err := r.Read(out)
-		outStr := removeSpace(string(out[:n]))
+	}()
 
-		// Check for [substr] before checking the error,
-		// as it's valid for n > 0 even when there is an error.
-		// The [substr] is checked against the current and previous
-		// output to account for scenarios where the [substr] is split
-		// across two reads. While we try to prevent this by reading
-		// twice the length of [substr] there are no guarantees the
-		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev+outStr, substr) {
-			return nil
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		prev = outStr
+	select {
+	case <-timeoutCh:
+		// The read goroutine is still blocked in the case of a timeout, but it will be
+		// unblocked once the test harness is torn down and the reader closed.
+		return fmt.Errorf("timeout waiting on terminal for output: %v", substr)
+	case err := <-errC:
+		return trace.Wrap(err)
 	}
-}
-
-type ReaderWithDeadline interface {
-	io.Reader
-	SetReadDeadline(time.Time) error
-}
-
-type ReadWriterWithDeadline interface {
-	io.Reader
-	io.Writer
-	SetReadDeadline(time.Time) error
-	SetWriteDeadline(time.Time) error
-}
-
-func waitForOutput(r ReaderWithDeadline, substr string) error {
-	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -8392,6 +8840,7 @@ func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 type WebPackOptions struct {
 	proxyOptions    []proxyOption
 	enableAuthCache bool
+	scopesFeatures  scopes.Features
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8408,6 +8857,12 @@ func withWebPackAuthCacheEnabled(enable bool) webPackOptions {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.scopesFeatures = scopesFeatures
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	options := &WebPackOptions{}
 
@@ -8420,11 +8875,12 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName:  "localhost",
-			Dir:          t.TempDir(),
-			Clock:        clock,
-			AuditLog:     events.NewDiscardAuditLog(),
-			CacheEnabled: options.enableAuthCache,
+			ClusterName:    "localhost",
+			Dir:            t.TempDir(),
+			Clock:          clock,
+			AuditLog:       events.NewDiscardAuditLog(),
+			CacheEnabled:   options.enableAuthCache,
+			ScopesFeatures: options.scopesFeatures,
 		},
 	})
 	require.NoError(t, err)
@@ -8522,6 +8978,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -8538,7 +8995,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.scopesFeatures, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8594,8 +9051,9 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, scopesFeatures scopes.Features, opts ...proxyOption,
 ) *testProxy {
+	t.Helper()
 	cfg := proxyConfig{}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -8675,6 +9133,15 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(databaseServerWatcher.Close)
 
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+
 	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ID:       node.ID(),
 		Listener: revTunListener,
@@ -8693,6 +9160,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		GitServerWatcher:      proxyGitServerWatcher,
 		CertAuthorityWatcher:  proxyCAWatcher,
 		DatabaseServerWatcher: databaseServerWatcher,
+		AppServerWatcher:      appServerWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 		LocalAuthAddresses:    []string{authServer.Addr().String()},
 	})
@@ -8805,15 +9273,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(_ context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, client, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, client, client, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),
@@ -8859,6 +9324,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
 	require.NoError(t, err)
+
+	handlerCfg := servicecfg.MakeDefaultConfig()
+	handlerCfg.ScopesFeatures = scopesFeatures
+
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -8870,7 +9339,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		ProxySettings: &ProxySettings{
-			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ServiceConfig: handlerCfg,
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   client,
 		},
@@ -8880,7 +9349,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			return ctx, trace.Wrap(err)
 		}),
 		Router:                         router,
-		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
+		HealthCheckAppServer:           func(context.Context, string, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
 		GetProxyClientCertificate: func() (*tls.Certificate, error) {
 			return &proxyClientCert, nil
@@ -9156,14 +9625,14 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
+func validateTerminal(t *testing.T, term io.ReadWriter) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(term, "teleport"))
+	waitForOutput(t, term, "teleport")
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9621,10 +10090,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: cfg.authServer.ClusterName(),
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
+	proxyAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      cfg.authServer.ClusterName(),
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -9650,20 +10120,15 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	clock := clockwork.NewRealClock()
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: component,
-			Client:    client,
-			Clock:     clock,
-		},
-		KubernetesServerGetter: client,
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(ctx, kubewatcher.ProxyKubeServerWatcherConfig{
+		AccessPoint:    client,
+		FallbackGetter: client,
 	})
 	require.NoError(t, err)
-	t.Cleanup(watcher.Close)
+	t.Cleanup(kubeServersWatcher.Close)
 
 	// wait for the watcher to init before continuing
-	require.NoError(t, watcher.WaitInitialization())
+	require.NoError(t, kubeServersWatcher.WaitInitialization())
 
 	healthCheckManager, err := healthcheck.NewManager(
 		ctx,
@@ -9695,7 +10160,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Namespace:         apidefaults.Namespace,
 			Keygen:            keyGen,
 			ClusterName:       cfg.authServer.ClusterName(),
-			Authz:             proxyAuthorizer,
+			ScopedAuthz:       proxyAuthorizer,
 			AuthClient:        client,
 			Emitter:           client,
 			DataDir:           t.TempDir(),
@@ -9747,7 +10212,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		ResourceMatchers:         nil,
 		OnReconcile:              func(kc types.KubeClusters) {},
-		KubernetesServersWatcher: watcher,
+		KubernetesServersWatcher: kubeServersWatcher,
 		InventoryHandle:          inventoryHandle,
 		HealthCheckManager:       healthCheckManager,
 	})
@@ -10555,9 +11020,14 @@ func TestModeratedSession(t *testing.T) {
 		proxy: s.webServer.Listener.Addr().String(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -10566,24 +11036,32 @@ func TestModeratedSession(t *testing.T) {
 		sessionID:       peerTerm.GetSession().ID,
 		participantMode: types.SessionModeratorMode,
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output on peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
+	// During forced termination, terminal output is not deterministic for the moderator client, which force
+	// closes its own connection without waiting for the session to end, so we only check peer output.
+	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
+	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -10673,9 +11151,15 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to start session")
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -10704,22 +11188,27 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for i := 0; i < 3; i++ {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
@@ -10746,9 +11235,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s.clock.Advance(3 * time.Minute)
-		assert.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		assert.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 500*time.Millisecond)
+		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
+	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {
@@ -11384,6 +11873,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 99},
 					string(entitlements.AccessRequests):             {Enabled: true, Limit: 99},
 					string(entitlements.App):                        {Enabled: true, Limit: 99},
+					string(entitlements.Beams):                      {Enabled: true, Limit: 99},
 					string(entitlements.CloudAuditLogRetention):     {Enabled: true, Limit: 99},
 					string(entitlements.DB):                         {Enabled: true, Limit: 99},
 					string(entitlements.Desktop):                    {Enabled: true, Limit: 99},
@@ -11450,6 +11940,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 99},
 					string(entitlements.AccessRequests):             {Enabled: true, Limit: 99},
 					string(entitlements.App):                        {Enabled: true, Limit: 99},
+					string(entitlements.Beams):                      {Enabled: true, Limit: 99},
 					string(entitlements.CloudAuditLogRetention):     {Enabled: true, Limit: 99},
 					string(entitlements.DB):                         {Enabled: true, Limit: 99},
 					string(entitlements.Desktop):                    {Enabled: true, Limit: 99},
@@ -11567,6 +12058,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				Entitlements: map[string]webclient.EntitlementInfo{
 					// no equivalent legacy feature; defaults to false
 					string(entitlements.App):                        {Enabled: false},
+					string(entitlements.Beams):                      {Enabled: false},
 					string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 					string(entitlements.DB):                         {Enabled: false},
 					string(entitlements.Desktop):                    {Enabled: false},
@@ -11690,6 +12182,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 				Entitlements: map[string]webclient.EntitlementInfo{
 					// no equivalent legacy feature; defaults to false
 					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.Beams):                  {Enabled: false},
 					string(entitlements.CloudAuditLogRetention): {Enabled: false},
 					string(entitlements.DB):                     {Enabled: false},
 					string(entitlements.Desktop):                {Enabled: false},
@@ -11801,6 +12294,7 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 					string(entitlements.AccessMonitoring):           {Enabled: false},
 					string(entitlements.AccessRequests):             {Enabled: false},
 					string(entitlements.App):                        {Enabled: false},
+					string(entitlements.Beams):                      {Enabled: false},
 					string(entitlements.CloudAuditLogRetention):     {Enabled: false},
 					string(entitlements.DB):                         {Enabled: false},
 					string(entitlements.Desktop):                    {Enabled: false},
@@ -11946,6 +12440,7 @@ func TestGetLocksV2(t *testing.T) {
 			User: "test-user-1",
 			Role: "test-role-1",
 		}),
+		newLock(t, "test-lock-11", false, types.LockTarget{LinuxDesktop: "test-linux-desktop-1"}),
 	}
 
 	for _, l := range locks {
@@ -11997,6 +12492,113 @@ func newLock(t *testing.T, name string, expired bool, target types.LockTarget) t
 	require.NoError(t, err)
 
 	return lock
+}
+func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
+	t.Parallel()
+
+	caKeyPEM, caCertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, nil, time.Hour)
+	require.NoError(t, err)
+	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClock()
+
+	makeCert := func(t *testing.T, identity tlsca.Identity) *x509.Certificate {
+		t.Helper()
+		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		subj, err := identity.Subject()
+		require.NoError(t, err)
+		certPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+			Clock:     clock,
+			PublicKey: key.Public(),
+			Subject:   subj,
+			NotAfter:  clock.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+		cert, err := tlsca.ParseCertificatePEM(certPEM)
+		require.NoError(t, err)
+		return cert
+	}
+
+	newRequestWithCert := func(cert *x509.Certificate) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}
+		return req
+	}
+
+	h := &Handler{}
+
+	t.Run("no TLS returns access denied", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		_, err := h.AuthenticateReqForAccessGraphAPI(req)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate required")
+	})
+
+	t.Run("TLS without peer certificate returns access denied", func(t *testing.T) {
+		t.Parallel()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.TLS = &tls.ConnectionState{}
+		_, err := h.AuthenticateReqForAccessGraphAPI(req)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate required")
+	})
+
+	t.Run("cert without access graph usage returns access denied", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username: "user",
+			Groups:   []string{"access"},
+		})
+		_, err := h.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "client certificate is not valid for Access Graph API")
+	})
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "access-graph-user@example.com", nil)
+
+	// Create a web session with Access Graph API usage for testing.
+	userInfo, err := proxy.auth.Auth().GetUser(context.Background(), pack.user, false)
+	require.NoError(t, err)
+	agSession, err := proxy.auth.Auth().CreateWebSessionFromReq(context.Background(), auth.NewWebSessionRequest{
+		User:   pack.user,
+		Roles:  userInfo.GetRoles(),
+		Traits: userInfo.GetTraits(),
+		Usage:  types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
+	})
+	require.NoError(t, err)
+	agSessionID := agSession.GetName()
+
+	t.Run("cert with access graph usage but unknown session returns access denied", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username:     pack.user,
+			Groups:       []string{"access"},
+			Usage:        []string{teleport.UsageAccessGraphAPIOnly},
+			WebSessionID: "non-existent-session-id",
+		})
+		_, err := proxy.handler.handler.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+		require.ErrorContains(t, err, "need auth")
+	})
+
+	t.Run("cert with access graph usage and valid session returns session context", func(t *testing.T) {
+		t.Parallel()
+		cert := makeCert(t, tlsca.Identity{
+			Username:     pack.user,
+			Groups:       []string{"access"},
+			Usage:        []string{teleport.UsageAccessGraphAPIOnly},
+			WebSessionID: agSessionID,
+		})
+		sctx, err := proxy.handler.handler.AuthenticateReqForAccessGraphAPI(newRequestWithCert(cert))
+		require.NoError(t, err)
+		require.NotNil(t, sctx)
+		require.Equal(t, pack.user, sctx.GetUser())
+	})
 }
 
 func TestIPPinning(t *testing.T) {

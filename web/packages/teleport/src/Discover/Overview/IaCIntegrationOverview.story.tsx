@@ -53,7 +53,8 @@ function Component({
 
 const statsHandler = (overrides = {}) =>
   http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
-    const lastSync = Date.now() - 2 * 60 * 1000;
+    const syncEnd = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const syncStart = new Date(Date.now() - 3 * 60 * 1000).toISOString();
 
     return HttpResponse.json({
       name: integrationName,
@@ -84,9 +85,30 @@ const statsHandler = (overrides = {}) =>
       awsoidc: {
         roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
       },
-      awsec2: { enrolled: 5, failed: 1, discoverLastSync: lastSync },
-      awsrds: { enrolled: 3, failed: 0, discoverLastSync: lastSync },
-      awseks: { enrolled: 2, failed: 0, discoverLastSync: lastSync },
+      awsec2: {
+        rulesCount: 1,
+        resourcesFound: 10,
+        resourcesEnrollmentSuccess: 10,
+        resourcesEnrollmentFailed: 0,
+        syncStart,
+        syncEnd,
+        pollIntervalSeconds: 300,
+      },
+      awsrds: {
+        rulesCount: 1,
+        resourcesFound: 5,
+        resourcesEnrollmentSuccess: 1,
+        resourcesEnrollmentFailed: 0,
+        syncStart,
+        syncEnd,
+        pollIntervalSeconds: 300,
+      },
+      awseks: {
+        rulesCount: 0,
+        resourcesFound: 0,
+        resourcesEnrollmentSuccess: 0,
+        resourcesEnrollmentFailed: 0,
+      },
       isManagedByTerraform: true,
       ...overrides,
     });
@@ -218,19 +240,66 @@ Healthy.parameters = {
         unresolvedUserTasks: 0,
         userTasks: [],
         awsec2: {
-          enrolled: 10,
-          failed: 0,
-          discoverLastSync: Date.now() - 2 * 60 * 1000,
+          rulesCount: 1,
+          resourcesFound: 10,
+          resourcesEnrollmentSuccess: 10,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
         },
         awsrds: {
-          enrolled: 5,
-          failed: 0,
-          discoverLastSync: Date.now() - 2 * 60 * 1000,
+          rulesCount: 1,
+          resourcesFound: 5,
+          resourcesEnrollmentSuccess: 5,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
         },
         awseks: {
-          enrolled: 3,
-          failed: 0,
-          discoverLastSync: Date.now() - 2 * 60 * 1000,
+          rulesCount: 1,
+          resourcesFound: 3,
+          resourcesEnrollmentSuccess: 3,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+      }),
+      rulesHandler,
+    ],
+  },
+};
+
+export function CurrentlyScanning() {
+  return <Component />;
+}
+CurrentlyScanning.parameters = {
+  msw: {
+    handlers: [
+      statsHandler({
+        unresolvedUserTasks: 0,
+        userTasks: [],
+        awsec2: {
+          rulesCount: 1,
+          resourcesFound: 10,
+          resourcesEnrollmentSuccess: 10,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awsrds: {
+          rulesCount: 1,
+          resourcesFound: 5,
+          resourcesEnrollmentSuccess: 1,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 30 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awseks: {
+          rulesCount: 0,
         },
       }),
       rulesHandler,
@@ -280,8 +349,13 @@ AzureWithWildcardSubscription.parameters = {
           unresolvedUserTasks: 0,
           userTasks: [],
           azurevm: {
-            resourcesFound: 3,
-            discoverLastSync: Date.now() - 2 * 60 * 1000,
+            rulesCount: 1,
+            resourcesFound: 8,
+            resourcesEnrollmentSuccess: 6,
+            resourcesEnrollmentFailed: 0,
+            syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+            syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+            pollIntervalSeconds: 300,
           },
           isManagedByTerraform: true,
         })

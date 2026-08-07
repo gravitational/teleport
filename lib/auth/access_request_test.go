@@ -41,6 +41,8 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -126,6 +128,30 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 				},
 			},
 		},
+		// requesters-threshold can request everything possible, with threshold of 2 approvals
+		"requesters-threshold": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"admins", "superadmins"},
+					SearchAsRoles: []string{"admins", "superadmins"},
+					MaxDuration:   types.Duration(services.MaxAccessDuration),
+					Thresholds: []types.AccessReviewThreshold{
+						{Approve: 2},
+					},
+				},
+			},
+		},
+		// plugin-reviewers can submit reviews for every user
+		"plugin-reviewers": {
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"*"},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUser, services.RO()),
+				},
+			},
+		},
 		"empty": {},
 	}
 	for roleName, roleSpec := range roles {
@@ -137,11 +163,14 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	}
 
 	users := map[string][]string{
-		"admin":     {"admins"},
-		"responder": {"responders"},
-		"operator":  {"operators"},
-		"requester": {"requesters"},
-		"nobody":    {"empty"},
+		"admin":               {"admins"},
+		"responder":           {"responders"},
+		"operator":            {"operators"},
+		"requester":           {"requesters"},
+		"nobody":              {"empty"},
+		"admin2":              {"admins"},
+		"requester-threshold": {"requesters-threshold"},
+		"plugin-reviewer":     {"plugin-reviewers", "requesters"}, // "requesters" tests edge case where plugin reviewer applys a review on its own request
 	}
 	for name, roles := range users {
 		user, err := types.NewUser(name)
@@ -195,9 +224,11 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
 	t.Run("multi", func(t *testing.T) { testMultiAccessRequests(t, testPack) })
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
+	t.Run("drop requests keeps access list grants", func(t *testing.T) { testDropRequestsKeepsAccessListGrants(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
 	t.Run("cert extension resource IDs", func(t *testing.T) { testCertExtensionResourceIDs(t, testPack) })
+	t.Run("submit_for_users review", func(t *testing.T) { testSubmitAccessReview_SubmitForUsers(t, testPack) })
 }
 
 // waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
@@ -1362,6 +1393,123 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	checkCerts(t, certs, []string{"requesters", "operators"}, nil, nil, nil)
 }
 
+// testDropRequestsKeepsAccessListGrants verifies that dropping access requests
+// resets the certificate roles and traits to the user login state, which
+// includes roles and traits granted by access lists, rather than to the bare
+// backend user. See https://github.com/gravitational/teleport/issues/45797.
+func testDropRequestsKeepsAccessListGrants(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	username := "requester-with-access-list"
+	authServer := testPack.tlsServer.Auth()
+
+	// Create a user with the base "requesters" role.
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.AddRole("requesters")
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Create a role that is granted only through an access list.
+	aclRole, err := types.NewRole("access-list-granted", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"acl-login"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, aclRole)
+	require.NoError(t, err)
+
+	// Grant the role through a real access list. Dropping access requests
+	// regenerates the user login state from the backend user and access
+	// lists, so the grant must be backed by an actual list membership.
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "requester-acl",
+		},
+		accesslist.Spec{
+			Title:  "requester-acl",
+			Owners: []accesslist.Owner{{Name: "acl-owner"}},
+			Audit:  accesslist.Audit{NextAuditDate: time.Now().Add(24 * time.Hour).UTC()},
+			Grants: accesslist.Grants{
+				Roles: []string{aclRole.GetName()},
+			},
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, acl)
+	require.NoError(t, err)
+
+	member, err := accesslist.NewAccessListMember(
+		header.Metadata{
+			Name: username,
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList: acl.GetName(),
+			Name:       username,
+			Joined:     time.Now().UTC(),
+			AddedBy:    "acl-owner",
+			Expires:    time.Now().Add(24 * time.Hour).UTC(),
+		},
+	)
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create an approved access request for the "admins" role.
+	accessRequest, err := services.NewAccessRequest(username, "admins")
+	require.NoError(t, err)
+	accessRequest.SetState(types.RequestState_APPROVED)
+	accessRequest.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+	require.NoError(t, authServer.UpsertAccessRequest(ctx, accessRequest))
+
+	clt, err := testPack.tlsServer.NewClient(authtest.TestUser(username))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	// Assume the access request.
+	certs, err := clt.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:   testPack.sshPubKey,
+		TLSPublicKey:   testPack.tlsPubKey,
+		Username:       username,
+		Expires:        time.Now().Add(time.Hour).UTC(),
+		AccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+
+	tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
+	require.NoError(t, err)
+	elevatedClient, err := testPack.tlsServer.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
+	defer elevatedClient.Close()
+
+	// Drop all access requests. The reissued certs must keep the roles and
+	// traits granted by access lists via the user login state.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{"*"},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
+
+	// Dropping a single request by ID must behave the same way.
+	certs, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+		SSHPublicKey:       testPack.sshPubKey,
+		TLSPublicKey:       testPack.tlsPubKey,
+		Username:           username,
+		Expires:            time.Now().Add(time.Hour).UTC(),
+		DropAccessRequests: []string{accessRequest.GetName()},
+	})
+	require.NoError(t, err)
+	checkCerts(t, certs, []string{"requesters", aclRole.GetName()}, []string{"acl-login"}, nil, nil)
+}
+
 // checkCerts checks that the ssh and tls certs include the given roles, logins,
 // accessRequests, and resourceIDs
 func checkCerts(t *testing.T,
@@ -1973,4 +2121,168 @@ func testCertExtensionResourceIDs(t *testing.T, testPack *accessRequestTestPack)
 		require.Equal(t, want, sshCert)
 		require.Equal(t, want, tlsCert)
 	})
+}
+
+type reviewState struct {
+	author    string
+	wantState types.RequestState
+	wantErr   error
+}
+
+// testSubmitAccessReview_SubmitForUsers tests if plugin users with the `review_requests.submit_for_users` rule
+// can submit reviews for other users.
+func testSubmitAccessReview_SubmitForUsers(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Create access plugin reviewer without "submit for" review permissions.
+	_, err := authtest.CreateUser(ctx, testPack.tlsServer.Auth(), "plugin-no-review", services.NewPresetAccessPluginRole())
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		reviewStates []reviewState
+		requester    string
+		reviewer     string // (plugin) identity submitting the review request to Auth Service
+	}{
+		{
+			name:     "access-plugin without review",
+			reviewer: "plugin-no-review",
+			reviewStates: []reviewState{
+				{
+					author:  "admin",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews for %q", "plugin-no-review", "admin"),
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for admin",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_APPROVED,
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for nobody",
+			reviewStates: []reviewState{
+				{
+					author:  "nobody",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews", "nobody"),
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for non-existent user",
+			reviewStates: []reviewState{
+				{
+					author: "fake-user",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews for %q, user could not be fetched from local store",
+						"plugin-reviewer",
+						"fake-user",
+					),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; submitted for same user",
+			requester: "requester-threshold",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_PENDING,
+				},
+				{
+					author:  "admin",
+					wantErr: trace.AlreadyExists("user %q has already reviewed this request", "admin"),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; submitted for multiple users",
+			requester: "requester-threshold",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_PENDING,
+				},
+				{
+					author:    "admin2",
+					wantState: types.RequestState_APPROVED,
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for multiple users, but already approved",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_APPROVED,
+				},
+				{
+					author:  "admin2",
+					wantErr: trace.AccessDenied("the access request has been already approved"),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; cannot apply on own request",
+			requester: "plugin-reviewer",
+			reviewStates: []reviewState{
+				{
+					author:  "admin2",
+					wantErr: trace.AccessDenied("review submitter %q cannot apply a review on their own request", "plugin-reviewer"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.requester == "" {
+				tt.requester = "requester"
+			}
+			if tt.reviewer == "" {
+				tt.reviewer = "plugin-reviewer"
+			}
+
+			// Create requester client.
+			requesterClient, err := testPack.tlsServer.NewClient(authtest.TestUser(tt.requester))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+			// Create access request.
+			request, err := services.NewAccessRequest(tt.requester, "admins")
+			require.NoError(t, err)
+			request, err = requesterClient.CreateAccessRequestV2(ctx, request)
+			require.NoError(t, err)
+
+			// Create plugin reviewer client.
+			reviewerClient, err := testPack.tlsServer.NewClient(authtest.TestUser(tt.reviewer))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, reviewerClient.Close()) })
+
+			// Plugin reviewer should be able to submit for multiple human authors.
+			for _, r := range tt.reviewStates {
+				review := types.AccessReviewSubmission{
+					RequestID: request.GetName(),
+					Review: types.AccessReview{
+						Author:                    r.author,
+						SubmittedOnBehalfOfAuthor: true,
+						ProposedState:             types.RequestState_APPROVED,
+					},
+				}
+				updatedRequest, err := reviewerClient.SubmitAccessReview(ctx, review)
+				if r.wantErr != nil {
+					require.ErrorIs(t, err, r.wantErr)
+					continue
+				}
+				require.NoError(t, err)
+				require.Equal(t, r.wantState, updatedRequest.GetState())
+			}
+		})
+	}
 }

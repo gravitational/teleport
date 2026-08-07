@@ -35,6 +35,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -170,6 +171,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindUser, nil
 	case types.KindCertAuthority, "cert_authorities", "cas":
 		return types.KindCertAuthority, nil
+	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
+		return types.KindCertAuthorityOverride, nil
+	case types.KindClientIPRestriction, types.KindClientIPRestriction + "s":
+		return types.KindClientIPRestriction, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
@@ -210,6 +215,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktop, nil
 	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
 		return types.KindDynamicWindowsDesktop, nil
+	case types.KindLinuxDesktop, types.KindLinuxDesktop + "s":
+		return types.KindLinuxDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:
@@ -308,6 +315,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadCluster, nil
 	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
 		return scopedaccess.KindScopedToken, nil
+	case types.KindBeamsConfig:
+		return types.KindBeamsConfig, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -820,6 +829,29 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(wid), nil
+	})
+
+	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+		if !ok {
+			return nil, trace.BadParameter("expected wrapped CertAuthorityOverride resource, got %T", resource)
+		}
+		caOverride := unwrapper.UnwrapT()
+		if caOverride == nil {
+			return nil, trace.BadParameter("nil CertAuthorityOverride resource")
+		}
+		bytes, err := MarshalCertAuthorityOverride(caOverride, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindCertAuthorityOverride, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		caOverride, err := UnmarshalCertAuthorityOverride(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(caOverride), nil
 	})
 }
 

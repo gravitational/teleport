@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	gitserverclient "github.com/gravitational/teleport/api/client/gitserver"
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
@@ -74,6 +75,7 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -92,6 +94,7 @@ import (
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -105,9 +108,11 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
 	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -998,6 +1003,11 @@ func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSession
 	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
+// BeamsConfigServiceClient returns a client for the beams config service.
+func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
+	return beamsv1.NewBeamsConfigServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
@@ -1524,11 +1534,29 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 }
 
 // DeleteKubernetesServer deletes a named kubernetes server.
+//
+// TODO (eriktate): remove in v20
 func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	_, err := c.grpc.DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
-		HostID: hostID,
+	return c.DeleteKubeServer(ctx, presencepb.DeleteKubeServerRequest_builder{
+		HostId: hostID,
 		Name:   name,
-	})
+	}.Build())
+}
+
+// DeleteKubeServer deletes a named kubernetes server with respect to scopes.
+func (c *Client) DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteKubeServer(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of scoped kube server from an outdated Teleport control plane that does not support it")
+		}
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		_, err := c.grpc.DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
+			HostID: req.GetHostId(),
+			Name:   req.GetName(),
+		})
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -1576,13 +1604,23 @@ func (c *Client) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return keepAlive, nil
 }
 
-// DeleteApplicationServer removes specified application server.
+// DeleteApplicationServer removes an unscoped application server.
+//
+// Deprecated: Use [Client.DeleteAppServer] instead, which supports
+// scoped application servers.
+// TODO (williamo): Remove in v20
 func (c *Client) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	_, err := c.grpc.DeleteApplicationServer(ctx, &proto.DeleteApplicationServerRequest{
 		Namespace: namespace,
 		HostID:    hostID,
 		Name:      name,
 	})
+	return trace.Wrap(err)
+}
+
+// DeleteAppServer removes a scoped or unscoped application server.
+func (c *Client) DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteAppServer(ctx, req)
 	return trace.Wrap(err)
 }
 
@@ -1672,6 +1710,27 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	return resp.GetSession(), nil
 }
 
+// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+// resulting public key to an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: responseJWT,
+	})
+	return trace.Wrap(err)
+}
+
+// SignDBSCChallenge signs a DBSC challenge.
+func (c *Client) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	resp, err := c.grpc.SignDBSCChallenge(ctx, &proto.SignDBSCChallengeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.Challenge, nil
+}
+
 // CreateSnowflakeSession creates a Snowflake web session.
 func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.CreateSnowflakeSession(ctx, &proto.CreateSnowflakeSessionRequest{
@@ -1747,6 +1806,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -2123,10 +2183,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
 func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
@@ -2150,10 +2207,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // GetSAMLConnectorsWithoutURLValidation returns a list of SAML connectors.
 func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	req := &types.ResourcesWithSecretsRequest{
 		WithSecrets:                withSecrets,
@@ -2173,10 +2227,7 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
 		PageSize:     int32(limit),
@@ -3026,6 +3077,18 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 	return c.DynamicDesktopClient().GetDynamicWindowsDesktop(ctx, name)
 }
 
+// LinuxDesktopClient returns a LinuxDesktop client.
+// Clients connecting to older Teleport versions, still get a LinuxDesktop client
+// when calling this method, but all RPCs will return "unknown service" errors
+// (as per the default gRPC behavior).
+func (c *Client) LinuxDesktopClient() *linuxdesktop.Client {
+	return linuxdesktop.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
+}
+
+func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().GetLinuxDesktop(ctx, name)
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -3769,19 +3832,42 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 	return trace.Wrap(err)
 }
 
-// GetKubernetesCluster returns the specified kubernetes resource.
+// GetKubernetesCluster returns the specified kubernetes resource by name.
+//
+// Deprecated: Use GetKubeCluster instead.
+// TODO (eriktate): remove in v20
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	if name == "" {
+	return c.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
+}
+
+// GetKubeCluster returns the specified kubernetes resource by scope and name.
+func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error) {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing kubernetes cluster name")
 	}
-	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	res, err := c.PresenceServiceClient().GetKubeCluster(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			// only allow fallback if the request is for an unscoped resource
+			return nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it")
+
+		}
+
+		// fallback to legacy GetKubernetesCluster API
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		return c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{
+			Name: req.GetName(),
+		})
 	}
-	return cluster, nil
+	return res.GetCluster(), trace.Wrap(err)
 }
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
+//
+// Deprecated: Prefer paginated variant such as [ListKubeClusters] or [RangeKubeClusters]
 func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
 	items, err := c.grpc.GetKubernetesClusters(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -3795,29 +3881,169 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters instead.
+// TODO (eriktate): remove in v20
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 		PageSize:  int32(limit),
 		PageToken: start,
+	}.Build())
+}
+
+func (c *Client) legacyListKubeClusters(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+	//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+	res, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
-	for i := range resp.KubernetesClusters {
-		kubeClusters[i] = resp.KubernetesClusters[i]
+
+	return res.GetKubernetesClusters(), res.GetNextPageToken(), nil
+}
+
+// ListKubeClusters returns a page of registered kubernetes clusters.
+func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	var clusters []*types.KubernetesClusterV3
+	var nextPageToken string
+	if res, err := c.PresenceServiceClient().ListKubeClusters(ctx, req); err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// only allow fallback if the request is not expecting results to be scope filtered
+		if req.GetScopeFilter().GetScope() != "" {
+			return nil, "", trace.BadParameter("requesting list of scoped kube cluster from an outdated Teleport control plane that does not support it")
+		}
+		// fallback to legacy ListKubernetesClusters
+		clusters, nextPageToken, err = c.legacyListKubeClusters(ctx, int(req.GetPageSize()), req.GetPageToken())
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+	} else {
+		clusters = res.GetClusters()
+		nextPageToken = res.GetNextPageToken()
+
 	}
-	return kubeClusters, resp.NextPageToken, nil
+	kubeClusters := make([]types.KubeCluster, len(clusters))
+	for i, cluster := range clusters {
+		kubeClusters[i] = cluster
+	}
+	return kubeClusters, nextPageToken, nil
 }
 
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+//
+// Deprecated: Use RangeKubeClusters instead.
+// TODO (eriktate): remove in v20
 func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	return clientutils.RangeResources(ctx, start, end, c.ListKubernetesClusters, types.KubeCluster.GetName)
+	kubeClient := c.PresenceServiceClient()
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+		res, err := kubeClient.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_UNSCOPED,
+			}.Build(),
+		}.Build())
+		return res.GetClusters(), res.GetNextPageToken(), err
+	}
+
+	return func(yield func(cluster types.KubeCluster, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, start, end, pageFn, (*types.KubernetesClusterV3).GetName) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListKubeClusters, we should try to fallback to the
+				// legacy ListKubernetesClusters API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, start, end, c.legacyListKubeClusters, (*types.KubernetesClusterV3).GetName) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
+}
+
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	kubeClient := c.PresenceServiceClient()
+	if req == nil {
+		req = presencepb.ListKubeClustersRequest_builder{}.Build()
+	}
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
+		req.SetPageToken(pageToken)
+		req.PageSize = int32(pageSize)
+		res, err := kubeClient.ListKubeClusters(ctx, req)
+		return res.GetClusters(), res.GetNextPageToken(), err
+	}
+
+	return func(yield func(cluster types.KubeCluster, err error) bool) {
+		var fallback bool
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, nil) {
+			if trace.IsNotImplemented(err) {
+				// if control plane does not support ListKubeClusters, we should try to fallback to the
+				// legacy ListKubernetesClusters API
+				fallback = true
+				break
+			}
+			if !yield(cluster, err) {
+				return
+			}
+		}
+		if !fallback {
+			return
+		}
+		if req.GetScopeFilter().GetScope() != "" {
+			// only allow fallback if the request is not expecting results to be scope filtered
+			yield(nil, trace.BadParameter("requesting range of scoped kube cluster from an outdated Teleport control plane that does not support it"))
+			return
+		}
+		// fallback iterator
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", c.legacyListKubeClusters, nil) {
+			if !yield(cluster, err) {
+				return
+			}
+		}
+	}
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+//
+// Deprecated: Use DeleteKubeCluster instead.
+// TODO (eriktate): remove in v20
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
+	return c.DeleteKubeCluster(ctx, presencepb.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
+}
+
+// DeleteKubeCluster deletes specified kubernetes cluster resource by scope and name.
+func (c *Client) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error {
+	_, err := c.PresenceServiceClient().DeleteKubeCluster(ctx, req)
+	if trace.IsNotImplemented(err) {
+		if req.GetScope() != "" {
+			return trace.BadParameter("requesting deletion of scoped kube cluster from an outdated Teleport control plane that does not support it")
+		}
+		//nolint:staticcheck // TODO(eriktate): deprecated, to be removed in v20
+		_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{
+			Name: req.GetName(),
+		})
+		return trace.Wrap(err)
+	}
 	return trace.Wrap(err)
 }
 
@@ -4484,6 +4710,9 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetGitServer(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetLinuxDesktop(); r != nil {
+		desktop := proto.UnpackLinuxDesktop(r)
+		return &types.EnrichedResource{ResourceWithLabels: desktop, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", resource.Resource)
 	}
@@ -6082,6 +6311,51 @@ func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServi
 	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
 }
 
+// ClientIPRestrictionClient returns a [clientiprestrictionv1.ClientIPRestrictionServiceClient].
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return clientiprestrictionv1.NewClientIPRestrictionServiceClient(c.conn)
+}
+
+// GetClientIPRestriction returns the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) GetClientIPRestriction(ctx context.Context) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	resp, err := c.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// CreateClientIPRestriction creates the ClientIPRestriction singleton. It fails if
+// one already exists.
+func (c *Client) CreateClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.CreateClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().CreateClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// UpsertClientIPRestriction creates or replaces the ClientIPRestriction singleton.
+func (c *Client) UpsertClientIPRestriction(ctx context.Context, cir *clientiprestrictionv1.ClientIPRestriction) (*clientiprestrictionv1.ClientIPRestriction, error) {
+	req := &clientiprestrictionv1.UpsertClientIPRestrictionRequest{}
+	req.SetClientIpRestriction(cir)
+	resp, err := c.ClientIPRestrictionClient().UpsertClientIPRestriction(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetClientIpRestriction(), nil
+}
+
+// DeleteClientIPRestriction deletes the ClientIPRestriction singleton. The name is
+// resolved server-side, so no name needs to be provided.
+func (c *Client) DeleteClientIPRestriction(ctx context.Context) error {
+	_, err := c.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
+	return trace.Wrap(err)
+}
+
 // ListWorkloadClusters returns a list of WorkloadClusters.
 func (c *Client) ListWorkloadClusters(ctx context.Context, pageSize int, nextToken string) ([]*workloadclusterv1.WorkloadCluster, string, error) {
 	resp, err := c.WorkloadClustersClient().ListWorkloadClusters(ctx, &workloadclusterv1.ListWorkloadClustersRequest{
@@ -6145,6 +6419,59 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+// SubCAClient returns an unadorned Sub CA client, using the underlying Auth
+// gRPC connection.
+func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
+	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// GetCertAuthorityOverride reads a CA override resource by ID.
+//
+// It's equivalent to `c.SubCAClient().GetCertAuthorityOverride(ctx, req)`.
+//
+// If the cluster name is empty it's assumed that the default cluster is being
+// queried (like its namesake RPC). If the cluster name is non-empty, then it's
+// checked against the RPC response.
+func (c *Client) GetCertAuthorityOverride(
+	ctx context.Context,
+	id types.CertAuthorityOverrideID,
+) (*subcav1.CertAuthorityOverride, error) {
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, subcav1.GetCertAuthorityOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
+			CaType: id.CAType,
+		}.Build(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Consider adding ClusterName to requests so the server
+	//  can handle them appropriately/uniformly.
+	if id.ClusterName != "" && resp.GetCaOverride().GetMetadata().GetName() != id.ClusterName {
+		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
+	}
+
+	return resp.GetCaOverride(), nil
+}
+
+// ListCertAuthorityOverrides lists all CA overrides.
+//
+// It's equivalent to `c.SubCAClient().ListCertAuthorityOverrides(ctx, req)`.
+func (c *Client) ListCertAuthorityOverrides(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, subcav1.ListCertAuthorityOverrideRequest_builder{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	}.Build())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.GetCaOverrides(), resp.GetNextPageToken(), nil
 }
 
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].

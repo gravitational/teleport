@@ -49,9 +49,14 @@ func TestIdentityConversion(t *testing.T) {
 		SystemRole:  types.RoleNode,
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    "node",
+				Additional: []string{"proxy"},
+			},
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
 		},
 		Impersonator:            "impersonator",
@@ -78,6 +83,7 @@ func TestIdentityConversion(t *testing.T) {
 		Generation:    3,
 		BotName:       "bot",
 		BotInstanceID: "instance",
+		BotScope:      "/foo",
 		JoinToken:     "join-token",
 		AllowedResourceAccessIDs: []types.ResourceAccessID{{
 			Id: types.ResourceID{
@@ -136,7 +142,8 @@ func TestIdentityConversion(t *testing.T) {
 		"RoleNode.XXX_NoUnkeyedLiteral",
 		"RoleNode.XXX_unrecognized",
 		"RoleNode.XXX_sizecache",
-		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.Children",  // has to be empty in leaf nodes because of how trees work
+		"RolesByScope.Depth", // 0 is the only valid depth for root role assignments
 		"ResourceAccessID.XXX_NoUnkeyedLiteral",
 		"ResourceAccessID.XXX_unrecognized",
 		"ResourceAccessID.XXX_sizecache",

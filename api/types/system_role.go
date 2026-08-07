@@ -84,6 +84,8 @@ const (
 	RoleDatabase SystemRole = "Db"
 	// RoleWindowsDesktop is a role for a Windows desktop service.
 	RoleWindowsDesktop SystemRole = "WindowsDesktop"
+	// RoleLinuxDesktop is a role for a Linux desktop service.
+	RoleLinuxDesktop SystemRole = "LinuxDesktop"
 	// RoleBot is a role for a bot.
 	RoleBot SystemRole = "Bot"
 	// RoleInstance is a role implicitly held by teleport servers (i.e. any teleport
@@ -128,6 +130,8 @@ var roleMappings = map[string]SystemRole{
 	"db":                RoleDatabase,
 	"windowsdesktop":    RoleWindowsDesktop,
 	"windows_desktop":   RoleWindowsDesktop,
+	"linux_desktop":     RoleLinuxDesktop,
+	"linuxdesktop":      RoleLinuxDesktop,
 	"bot":               RoleBot,
 	"instance":          RoleInstance,
 	"discovery":         RoleDiscovery,
@@ -163,6 +167,7 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleApp:               {},
 	RoleDatabase:          {},
 	RoleWindowsDesktop:    {},
+	RoleLinuxDesktop:      {},
 	RoleDiscovery:         {},
 	RoleOkta:              {},
 	RoleMDM:               {},
@@ -197,15 +202,15 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 // of teleport roles, or an error if parsing failed
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
-	for _, s := range strings.Split(str, ",") {
-		if r := normalizedSystemRole(s); r.Check() == nil {
+	for s := range strings.SplitSeq(str, ",") {
+		if r := normalizedSystemRole(s); r.IsValid() {
 			roles = append(roles, r)
 			continue
 		}
-		return nil, trace.BadParameter("invalid role %q", s)
+		return nil, trace.BadParameter("invalid role %+q", s)
 	}
 	if len(roles) == 0 {
-		return nil, trace.BadParameter("no valid roles in $%q", str)
+		return nil, trace.BadParameter("no valid roles in %+q", str)
 	}
 
 	return roles, roles.Check()
@@ -299,17 +304,19 @@ func (r SystemRole) String() string {
 	}
 }
 
-// Check checks if this a a valid teleport role value, returns nil
-// if it's ok, false otherwise
-// Check checks if this a a valid teleport role value, returns nil
-// if it's ok, false otherwise
-func (r SystemRole) Check() error {
+// IsValid returns true if this is a valid Teleport system role.
+func (r SystemRole) IsValid() bool {
 	sr, ok := roleMappings[strings.ToLower(string(r))]
-	if ok && string(r) == string(sr) {
-		return nil
-	}
+	return ok && r == sr
+}
 
-	return trace.BadParameter("role %v is not registered", r)
+// Check checks if this a valid Teleport system role, returning an error
+// otherwise.
+func (r SystemRole) Check() error {
+	if !r.IsValid() {
+		return trace.BadParameter("role %+q is not a valid system role", r)
+	}
+	return nil
 }
 
 // IsLocalService checks if the given system role is a teleport service (e.g. auth),

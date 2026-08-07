@@ -208,6 +208,10 @@ type AccessChecker interface {
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
 
+	// CheckSubmitForUser checks whether the current user is allowed to
+	// submit reviews for other users, to be used by plugins.
+	CheckSubmitForUser(currentUser, submitForUser types.User) error
+
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
 	// number of concurrent connections is unconstrained.
@@ -299,6 +303,12 @@ type AccessChecker interface {
 
 	// DelegationSessionID returns the ID of the current Delegation Session.
 	DelegationSessionID() string
+
+	// MaxKubernetesConnections returns the maximum number of concurrent
+	// Kubernetes connections allowed. If MaxKubernetesConnections is zero then
+	// no maximum was defined and the number of concurrent connections is
+	// unconstrained.
+	MaxKubernetesConnections() int64
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -1086,6 +1096,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			loginGetter = role.GetLogins
 		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
+		case types.KindLinuxDesktop:
+			loginGetter = role.GetLinuxDesktopLogins
 		case types.KindApp:
 			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
@@ -1126,6 +1138,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		newLoginMatcher = NewLoginMatcher
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher
+	case types.KindLinuxDesktop:
+		newLoginMatcher = NewLinuxDesktopLoginMatcher
 	case types.KindApp:
 		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
 			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)
@@ -1278,7 +1292,10 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 		}
 	}
 
-	return groups.Elements(), nil
+	// These groups get encoded into a certificate that's parsed by
+	// Rust code on Windows. That code expects an empty JSON array,
+	// not a null value.
+	return groups.ElementsNotNil(), nil
 }
 
 func convertHostUserMode(mode types.CreateHostUserMode) decisionpb.HostUserMode {

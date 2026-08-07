@@ -125,6 +125,10 @@ type Server struct {
 	// this gets set to true for unit testing
 	isTestStub bool
 
+	// testLoginShell overrides the shell used for sessions. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	testLoginShell string
+
 	// cancel cancels all operations
 	cancel context.CancelFunc
 	// ctx is broadcasting context closure
@@ -250,7 +254,7 @@ type Server struct {
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
-	remoteForwardingMap utils.SyncMap[string, io.Closer]
+	remoteForwardingMap utils.SyncMap[remoteForwardingMapKey, io.Closer]
 
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
@@ -267,6 +271,20 @@ type Server struct {
 
 	// immutableLabels are the immutable labels assigned to the server's host certificate
 	immutableLabels map[string]string
+}
+
+type remoteForwardingMapKey struct {
+	user    string
+	cluster string
+	srcAddr string
+}
+
+func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
+	return remoteForwardingMapKey{
+		user:    scx.Identity.TeleportUser,
+		cluster: scx.Identity.OriginClusterName,
+		srcAddr: scx.SrcAddr,
+	}
 }
 
 // EventMetadata returns metadata about the server.
@@ -406,7 +424,7 @@ func (s *Server) Close() error {
 	// Close the server first so we don't accept any new forwarding connections
 	// after we've closed them all.
 	errors := []error{s.srv.Close()}
-	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+	s.remoteForwardingMap.Range(func(_ remoteForwardingMapKey, closer io.Closer) bool {
 		if closer != nil {
 			if err := closer.Close(); err != nil {
 				errors = append(errors, err)
@@ -838,6 +856,16 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 			},
 			Writer: cfg.LogWriter,
 		}
+		return nil
+	}
+}
+
+// SetTestLoginShell overrides the shell used for sessions instead of resolving
+// the login shell of the OS user. This is intended for tests only to avoid
+// running the real user's shell and polluting shell history.
+func SetTestLoginShell(shell string) ServerOption {
+	return func(s *Server) error {
+		s.testLoginShell = shell
 		return nil
 	}
 }
@@ -1642,6 +1670,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(channel)
 	scx.SessionRecordingConfig.SetMode(types.RecordOff)
 	scx.ExecType = teleport.ChanDirectTCPIP
@@ -1717,6 +1746,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.ExecType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
@@ -2224,6 +2254,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 		return
 	}
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.AddCloser(ch)
 	scx.SetAllowFileCopying(s.allowFileCopying)
 	defer scx.Close()
@@ -2355,6 +2386,7 @@ func (s *Server) createForwardingContext(ctx context.Context, ccx *sshutils.Conn
 
 	listenAddr := sshutils.JoinHostPort(req.Addr, req.Port)
 	scx.IsTestStub = s.isTestStub
+	scx.TestLoginShell = s.testLoginShell
 	scx.ExecType = teleport.TCPIPForwardRequest
 	scx.SrcAddr = listenAddr
 	scx.DstAddr = ccx.NetConn.RemoteAddr().String()
@@ -2477,12 +2509,13 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	s.remoteForwardingMap.Store(scx.SrcAddr, listener)
+	key := getRemoteForwardingMapKey(scx)
+	s.remoteForwardingMap.Store(key, listener)
 
 	// Close the listener once the connection is closed, if it hasn't
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
-		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+		listener, ok := s.remoteForwardingMap.LoadAndDelete(key)
 		if ok {
 			return trace.Wrap(listener.Close())
 		}
@@ -2500,7 +2533,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+	listener, ok := s.remoteForwardingMap.LoadAndDelete(getRemoteForwardingMapKey(scx))
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", scx.SrcAddr)
 	}

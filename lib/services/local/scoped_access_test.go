@@ -31,9 +31,12 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -113,20 +116,23 @@ func testScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: role.Metadata.Name,
-	})
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: "/",
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	deletedRole := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: types.Metadata{
-			Name: role.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		Metadata: headerv1.Metadata_builder{
+			Name: role.GetMetadata().GetName(),
+		}.Build(),
+		Scope: "/",
+	}.Build(), deletedRole, protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
 	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
@@ -146,10 +152,10 @@ func testScopedRoleEvents(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  role.Metadata.Name,
+				scopedaccessv1.Assignment_builder{
+					Role:  scopes.QualifiedName{Scope: "/", Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -166,22 +172,25 @@ func testScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    assignment.Metadata.Name,
-		SubKind: assignment.SubKind,
-	})
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:    assignment.GetMetadata().GetName(),
+		SubKind: assignment.GetSubKind(),
+		Scope:   "/",
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	deletedAssignment := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: types.Metadata{
-			Name: assignment.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		Metadata: headerv1.Metadata_builder{
+			Name: assignment.GetMetadata().GetName(),
+		}.Build(),
+		Scope: "/",
+	}.Build(), deletedAssignment, protocmp.Transform()))
 
 	// Assert that any materialized assignments put into the backend (possibly
 	// by an auth service on a later version) don't make it into the event
@@ -197,6 +206,108 @@ func testScopedRoleEvents(t *testing.T) {
 		t.Fatalf("expected no event, got %v", evt)
 	default:
 	}
+}
+
+// TestScopedRoleEventsScopeFilter verifies that the local backend event watcher honors a watch kind's
+// scope filter (equivalently to the fanout), applying it to both put and delete events.
+func TestScopedRoleEventsScopeFilter(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testScopedRoleEventsScopeFilter)
+}
+
+func testScopedRoleEventsScopeFilter(t *testing.T) {
+	ctx := t.Context()
+
+	backend, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	service := NewScopedAccessService(backend)
+	events := NewEventsService(backend)
+
+	// watch scoped roles at exactly "/foo".
+	watcher, err := events.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind:        scopedaccess.KindScopedRole,
+			ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Scope: "/foo", Mode: scopesv1.Mode_MODE_EXACT}.Build()),
+		}},
+	})
+	require.NoError(t, err)
+	defer watcher.Close()
+
+	getNextEvent := func() types.Event {
+		t.Helper()
+		synctest.Wait()
+		select {
+		case event := <-watcher.Events():
+			return event
+		case <-watcher.Done():
+			require.FailNow(t, "Watcher exited with error", watcher.Error())
+		default:
+			require.FailNow(t, "No event ready, synctest bubble is durably blocked")
+		}
+		panic("unreachable")
+	}
+
+	expectNoEvent := func() {
+		t.Helper()
+		synctest.Wait()
+		select {
+		case event := <-watcher.Events():
+			require.FailNow(t, "expected no event", "got %v of kind %q at scope %q", event.Type, event.Resource.GetKind(), event.Resource.GetSubKind())
+		default:
+		}
+	}
+
+	createRole := func(name, scope string) {
+		t.Helper()
+		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1.ScopedRole_builder{
+				Kind:     scopedaccess.KindScopedRole,
+				Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+				Scope:    scope,
+				Spec:     scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: []string{scope}}.Build(),
+				Version:  types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	deleteRole := func(name, scope string) {
+		t.Helper()
+		_, err := service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+			Name:  name,
+			Scope: scope,
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	event := getNextEvent()
+	require.Equal(t, types.OpInit, event.Type)
+
+	// a role at "/foo" matches the filter: its put event is delivered.
+	createRole("foo-role", "/foo")
+	event = getNextEvent()
+	require.Equal(t, types.OpPut, event.Type)
+	require.Equal(t, "/foo", event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT().GetScope())
+
+	// a role at "/bar" (orthogonal) does not match: no event.
+	createRole("bar-role", "/bar")
+	expectNoEvent()
+
+	// a role at "/foo/sub" (descendant) does not match an EXACT filter: no event.
+	createRole("sub-role", "/foo/sub")
+	expectNoEvent()
+
+	// the delete of the "/foo" role matches the filter (scoped deletes carry scope): delete is delivered.
+	deleteRole("foo-role", "/foo")
+	event = getNextEvent()
+	require.Equal(t, types.OpDelete, event.Type)
+	require.Equal(t, "/foo", event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT().GetScope())
+
+	// the delete of the "/bar" role does not match: no event.
+	deleteRole("bar-role", "/bar")
+	expectNoEvent()
 }
 
 // TestScopedRoleBasicCRUD tests the basic CRUD operations of the ScopedAccessService, excluding the more non-trivial
@@ -264,9 +375,10 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 		require.Empty(t, cmp.Diff(role, crsp.Role, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 		// Check that the role can be retrieved.
-		grsp, err := service.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-			Name: role.Metadata.Name,
-		})
+		grsp, err := service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(crsp.Role, grsp.Role, protocmp.Transform() /* deliberately not ignoring revision */))
 
@@ -295,9 +407,10 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(basic01Mod, ursp.Role, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// verify that update really happened
-	grsp, err := service.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: basic01Mod.Metadata.Name,
-	})
+	grsp, err := service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  basic01Mod.GetMetadata().GetName(),
+		Scope: "/",
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(ursp.Role, grsp.Role, protocmp.Transform() /* deliberately not ignoring revision */))
 
@@ -337,44 +450,50 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
 	// verify that delete fails if the role does not exist
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: "non-existent",
-	})
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  "non-existent",
+		Scope: "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// verify that delete fails if the revision does not match
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name:     basicRoles[0].Metadata.Name,
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:     basicRoles[0].GetMetadata().GetName(),
+		Scope:    basicRoles[0].GetScope(),
 		Revision: revisions[0],
-	})
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
 	// verify successful unconditional delete
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: basicRoles[0].Metadata.Name,
-	})
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  basicRoles[0].GetMetadata().GetName(),
+		Scope: basicRoles[0].GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	// verify that the role is gone
-	_, err = service.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: basicRoles[0].Metadata.Name,
-	})
+	_, err = service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  basicRoles[0].GetMetadata().GetName(),
+		Scope: basicRoles[0].GetScope(),
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// verify successful conditional delete
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name:     basicRoles[1].Metadata.Name,
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:     basicRoles[1].GetMetadata().GetName(),
+		Scope:    basicRoles[1].GetScope(),
 		Revision: revisions[1],
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// verify that the role is gone
-	_, err = service.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: basicRoles[1].Metadata.Name,
-	})
+	_, err = service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  basicRoles[1].GetMetadata().GetName(),
+		Scope: basicRoles[1].GetScope(),
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
@@ -408,15 +527,33 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 	require.NoError(t, err, "upsert should succeed despite stale revision")
 	require.Empty(t, cmp.Diff(basic04Mod, uprsp2.Role, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
-	// verify upsert rejects scope change
-	basic04ScopeChange := apiutils.CloneProtoMsg(uprsp2.Role)
-	basic04ScopeChange.Scope = "/other"
-	basic04ScopeChange.Spec.AssignableScopes = []string{"/other"}
-	_, err = service.UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
-		Role: basic04ScopeChange,
-	})
-	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	// namespaced by scope, so upserting the same name at a different scope creates a distinct role
+	// rather than "moving" the existing one.
+	basic04OtherScope := apiutils.CloneProtoMsg(uprsp2.GetRole())
+	basic04OtherScope.SetScope("/other")
+	basic04OtherScope.GetSpec().SetAssignableScopes([]string{"/other"})
+	basic04OtherScope.GetMetadata().SetRevision("")
+	upOther, err := service.UpsertScopedRole(ctx, scopedaccessv1.UpsertScopedRoleRequest_builder{
+		Role: basic04OtherScope,
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(basic04OtherScope, upOther.GetRole(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// the original role at /qux is untouched.
+	origGet, err := service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  basic04.GetMetadata().GetName(),
+		Scope: "/qux",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(basic04Mod, origGet.GetRole(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// and the distinct role at /other is independently retrievable.
+	otherGet, err := service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  basic04.GetMetadata().GetName(),
+		Scope: "/other",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(basic04OtherScope, otherGet.GetRole(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 }
 
 // TestScopedRoleAssignmentBasicCRD tests the basic CRD operations of the ScopedRoleAssignmentService, excluding the more non-trivial
@@ -495,10 +632,10 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "role-02",
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::role-02",
 					Scope: "/", // root scope of effect is not permitted
-				},
+				}.Build(),
 			},
 		},
 		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
@@ -561,18 +698,20 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Empty(t, cmp.Diff(crsp.Assignment, assignment01, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// check that the assignment can be retrieved.
-	grsp, err := service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	grsp, err := service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    assignment01.Metadata.Name,
 		SubKind: scopedaccess.SubKindDynamic,
-	})
+		Scope:   "/",
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// verify that getting a materialized assignment from the backend is an error.
-	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	_, err = service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    assignment01.Metadata.Name,
 		SubKind: scopedaccess.SubKindMaterialized,
-	})
+		Scope:   "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
@@ -596,10 +735,11 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Empty(t, cmp.Diff(assignment01Mod, ursp.Assignment, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// verify that update really happened
-	grsp, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name:    assignment01Mod.Metadata.Name,
-		SubKind: assignment01Mod.SubKind,
-	})
+	grsp, err = service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment01Mod.GetMetadata().GetName(),
+		SubKind: assignment01Mod.GetSubKind(),
+		Scope:   "/",
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(ursp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
 
@@ -610,14 +750,15 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
-	// verify that update is rejected if the assignment's resource scope is changed
-	assignment01ScopeChange := apiutils.CloneProtoMsg(ursp.Assignment)
-	assignment01ScopeChange.Scope = "/foo"
-	_, err = service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
-		Assignment: assignment01ScopeChange,
-	})
+	// namespaced by scope, so changing the scope targets a different (nonexistent) resource
+	// and fails rather than mutating the original.
+	assignment01OtherScope := apiutils.CloneProtoMsg(ursp.GetAssignment())
+	assignment01OtherScope.SetScope("/foo")
+	_, err = service.UpdateScopedRoleAssignment(ctx, scopedaccessv1.UpdateScopedRoleAssignmentRequest_builder{
+		Assignment: assignment01OtherScope,
+	}.Build())
 	require.Error(t, err)
-	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
 	// verify that update fails if the assignment does not exist
 	_, err = service.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
@@ -632,7 +773,7 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "role-02", Scope: "/foo"},
+					scopedaccessv1.Assignment_builder{Role: "/::role-02", Scope: "/foo"}.Build(),
 				},
 			},
 			Version: types.V1,
@@ -642,45 +783,50 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
 	// verify that delete of assignment with incorrect revision fails
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:     assignment01.Metadata.Name,
 		Revision: roleRevisions[0],
-		SubKind:  crsp.Assignment.SubKind,
-	})
+		SubKind:  crsp.GetAssignment().GetSubKind(),
+		Scope:    "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsCompareFailed(err), "expected CompareFailed error, got %v", err)
 
 	// verify that delete of assignment with materialized subkind fails
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
 		SubKind:  scopedaccess.SubKindMaterialized,
-	})
+		Scope:    "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
 	// verify that delete of assignment with unknown subkind fails
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:     assignment01.Metadata.Name,
 		Revision: crsp.Assignment.Metadata.Revision,
 		SubKind:  "unknown",
-	})
+		Scope:    "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 
 	// verify that delete of assignment with correct revision works
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:     assignment01.Metadata.Name,
-		Revision: ursp.Assignment.Metadata.Revision,
-		SubKind:  ursp.Assignment.SubKind,
-	})
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:     assignment01.GetMetadata().GetName(),
+		Revision: ursp.GetAssignment().GetMetadata().GetRevision(),
+		SubKind:  ursp.GetAssignment().GetSubKind(),
+		Scope:    "/",
+	}.Build())
 	require.NoError(t, err)
 
 	// verify that the assignment is gone
-	_, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name:    assignment01.Metadata.Name,
-		SubKind: assignment01.SubKind,
-	})
+	_, err = service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment01.GetMetadata().GetName(),
+		SubKind: assignment01.GetSubKind(),
+		Scope:   "/",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
@@ -698,18 +844,18 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "role-01",
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::role-01",
 					Scope: "/foo",
-				},
-				{
-					Role:  "role-02",
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::role-02",
 					Scope: "/foo/bar",
-				},
-				{
-					Role:  "role-03", // resource scope /foo, different from assignment resource scope /
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
+					Role:  "/foo::role-03", // resource scope /foo, different from assignment resource scope /
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -723,10 +869,11 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Empty(t, cmp.Diff(crsp.Assignment, assignment02, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// Check that the assignment can be retrieved
-	grsp, err = service.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-		Name:    assignment02.Metadata.Name,
-		SubKind: assignment02.SubKind,
-	})
+	grsp, err = service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment02.GetMetadata().GetName(),
+		SubKind: assignment02.GetSubKind(),
+		Scope:   "/",
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(crsp.Assignment, grsp.Assignment, protocmp.Transform() /* deliberately not ignoring revision */))
 
@@ -743,14 +890,14 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "carol",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "role-01",
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::role-01",
 					Scope: "/foo",
-				},
-				{
-					Role:  "role-01",
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::role-01",
 					Scope: "/bar",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -763,10 +910,11 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that deletion of assignment works
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    assignment03.Metadata.Name,
-		SubKind: assignment03.SubKind,
-	})
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:    assignment03.GetMetadata().GetName(),
+		SubKind: assignment03.GetSubKind(),
+		Scope:   "/",
+	}.Build())
 	require.NoError(t, err)
 
 	// verify upsert creates when assignment does not exist
@@ -780,7 +928,7 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "dave",
 			Assignments: []*scopedaccessv1.Assignment{
-				{Role: "role-01", Scope: "/foo"},
+				scopedaccessv1.Assignment_builder{Role: "/::role-01", Scope: "/foo"}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -793,11 +941,11 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.Empty(t, cmp.Diff(assignment04, uaprsp.Assignment, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
 	// verify upsert updates when assignment already exists (including with a stale/wrong revision)
-	assignment04Mod := apiutils.CloneProtoMsg(uaprsp.Assignment)
-	assignment04Mod.Spec.Assignments = append(assignment04Mod.Spec.Assignments, &scopedaccessv1.Assignment{
-		Role: "role-02", Scope: "/foo",
-	})
-	assignment04Mod.Metadata.Revision = roleRevisions[0] // deliberately stale revision
+	assignment04Mod := apiutils.CloneProtoMsg(uaprsp.GetAssignment())
+	assignment04Mod.GetSpec().SetAssignments(append(assignment04Mod.GetSpec().GetAssignments(), scopedaccessv1.Assignment_builder{
+		Role: "/::role-02", Scope: "/foo",
+	}.Build()))
+	assignment04Mod.GetMetadata().SetRevision(roleRevisions[0]) // deliberately stale revision
 
 	uaprsp2, err := service.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
 		Assignment: assignment04Mod,
@@ -805,12 +953,115 @@ func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	require.NoError(t, err, "upsert should succeed despite stale revision")
 	require.Len(t, uaprsp2.Assignment.Spec.Assignments, 2)
 
-	// verify upsert rejects scope change
-	assignment04ScopeChange := apiutils.CloneProtoMsg(uaprsp2.Assignment)
-	assignment04ScopeChange.Scope = "/foo"
-	_, err = service.UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
-		Assignment: assignment04ScopeChange,
-	})
+	// under namespacing an assignment's (scope, name) is its identity, so upserting the same name at a
+	// different scope creates a distinct assignment rather than moving the existing one; both coexist.
+	assignment04OtherScope := apiutils.CloneProtoMsg(uaprsp2.GetAssignment())
+	assignment04OtherScope.SetScope("/foo")
+	assignment04OtherScope.GetMetadata().SetRevision("") // distinct resource, no prior revision
+	upOther, err := service.UpsertScopedRoleAssignment(ctx, scopedaccessv1.UpsertScopedRoleAssignmentRequest_builder{
+		Assignment: assignment04OtherScope,
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment04OtherScope, upOther.GetAssignment(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// the original assignment at / is untouched.
+	origGet, err := service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment04.GetMetadata().GetName(),
+		SubKind: assignment04.GetSubKind(),
+		Scope:   "/",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment04Mod, origGet.GetAssignment(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// and the distinct assignment at /foo is independently retrievable.
+	otherGet, err := service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		Name:    assignment04.GetMetadata().GetName(),
+		SubKind: assignment04.GetSubKind(),
+		Scope:   "/foo",
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment04OtherScope, otherGet.GetAssignment(), protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+}
+
+// TestScopedAccessScopeConflict verifies that when a scoped resource's scope field disagrees with the
+// scope encoded in its backend key, the resource is rejected appropriately. Get errors, List skips,
+// and the event parser errors (closing the watcher). Delete succeeds when targeting the.
+func TestScopedAccessScopeConflict(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	service := NewScopedAccessService(bk)
+
+	// role definition specifies scope `/foo`
+	role := scopedaccessv1.ScopedRole_builder{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: headerv1.Metadata_builder{Name: "conflicted"}.Build(),
+		Scope:    "/foo",
+		Spec:     scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: []string{"/foo"}}.Build(),
+		Version:  types.V1,
+	}.Build()
+
+	validItem, err := scopedRoleToItem(role)
+	require.NoError(t, err)
+
+	// role key specified scope `/bar`
+	conflictKey, err := scopedRoleKey{scope: "/bar", name: role.GetMetadata().GetName()}.Key()
+	require.NoError(t, err)
+	conflictItem := backend.Item{Key: conflictKey, Value: validItem.Value}
+	_, err = service.bk.Put(ctx, conflictItem)
+	require.NoError(t, err)
+
+	//  write a well-formed role so we can confirm List skips only the conflicting one.
+	validRole := scopedaccessv1.ScopedRole_builder{
+		Kind:     scopedaccess.KindScopedRole,
+		Metadata: headerv1.Metadata_builder{Name: "valid"}.Build(),
+		Scope:    "/baz",
+		Spec:     scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: []string{"/baz"}}.Build(),
+		Version:  types.V1,
+	}.Build()
+	_, err = service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{Role: validRole}.Build())
+	require.NoError(t, err)
+
+	// Get at the key-encoded scope finds the item but rejects it as a scope conflict.
+	_, err = service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: "/bar",
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// List skips the conflicting role but still returns the valid one.
+	lrsp, err := service.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{})
+	require.NoError(t, err)
+	var listedNames []string
+	for _, r := range lrsp.GetRoles() {
+		listedNames = append(listedNames, r.GetMetadata().GetName())
+	}
+	require.Equal(t, []string{"valid"}, listedNames)
+
+	parser := newScopedRoleParser()
+
+	// the Put event parser errors on the conflict.
+	_, err = parser.parse(backend.Event{Type: types.OpPut, Item: conflictItem})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+
+	// the Delete event parser is unaffecte.
+	deleted, err := parser.parse(backend.Event{Type: types.OpDelete, Item: conflictItem})
+	require.NoError(t, err)
+	deletedRole := deleted.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
+	require.Equal(t, "/bar", deletedRole.GetScope())
+	require.Equal(t, role.GetMetadata().GetName(), deletedRole.GetMetadata().GetName())
+
+	// Delete by the key-encoded scope succeeds
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: "/bar",
+	}.Build())
+	require.NoError(t, err)
 }

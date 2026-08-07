@@ -32,6 +32,7 @@ export default function Menu(
     onEntering?: (el: HTMLElement) => void;
     menuListCss?: CSSProp;
     menuListProps?: ComponentPropsWithoutRef<typeof MenuList>;
+    autoFocus?: boolean;
   }> &
     Pick<
       PopoverProps,
@@ -43,6 +44,7 @@ export default function Menu(
       | 'anchorOrigin'
       | 'transformOrigin'
       | 'updatePositionOnChildResize'
+      | 'trapFocus'
     >
 ) {
   const {
@@ -51,6 +53,7 @@ export default function Menu(
     menuListCss,
     menuListProps,
     onEntering,
+    autoFocus,
     anchorOrigin = { vertical: 'bottom', horizontal: 'right' },
     transformOrigin = { vertical: 'top', horizontal: 'right' },
     ...other
@@ -81,11 +84,15 @@ export default function Menu(
         menuList.style.width = `calc(100% + ${size})`;
       }
 
+      if (autoFocus) {
+        menuList.focus();
+      }
+
       if (onEntering) {
         onEntering(element);
       }
     },
-    [onEntering]
+    [autoFocus, onEntering]
   );
 
   return (
@@ -98,7 +105,12 @@ export default function Menu(
       getContentAnchorEl={defaultGetContentAnchorEl}
       {...other}
     >
-      <MenuList {...menuListProps} css={menuListCss} ref={menuListRef}>
+      <MenuList
+        tabIndex={-1}
+        {...menuListProps}
+        css={menuListCss}
+        ref={menuListRef}
+      >
         {children}
       </MenuList>
     </Popover>
@@ -111,6 +123,7 @@ export const MenuList = styled.div.attrs({ role: 'menu' })`
   box-shadow: ${props => props.theme.boxShadow[0]};
   box-sizing: border-box;
   max-height: calc(100% - 96px);
+  outline: none;
   overflow: hidden;
   overflow-y: auto;
   position: relative;

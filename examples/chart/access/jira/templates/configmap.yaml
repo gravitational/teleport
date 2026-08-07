@@ -11,7 +11,7 @@ metadata:
 data:
   teleport-jira.toml: |
     [teleport]
-    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    addr = {{ default "" (coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress) | quote }}
     identity = "/var/lib/teleport/plugins/jira/teleport-identity/{{ include "jira.identitySecretPath" . }}"
     refresh_identity = true
 
@@ -30,7 +30,7 @@ data:
     https_key_file = "/var/lib/teleport/plugins/jira/tls/tls.key"
     https_cert_file = "/var/lib/teleport/plugins/jira/tls/tls.crt"
 
-    {{ if .Values.http.basicAuth.enabled -}}
+    {{- if .Values.http.basicAuth.enabled }}
     [http.basic_auth]
     user = {{ .Values.http.basicAuth.user }}
     password = {{ .Values.http.basicAuth.password }}

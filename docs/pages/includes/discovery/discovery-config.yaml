@@ -97,7 +97,7 @@ discovery_service:
           http_proxy: http://172.31.5.130:3128
           no_proxy: my-local-domain
       # Optional section: ssm is used to configure which AWS SSM document to use
-      # If the ssm section isnt provided the below defaults are used.
+      # If the ssm section isn't provided the below defaults are used.
       ssm:
         # document_name is the name of the SSM document that should be
         # executed when installing teleport on matching nodes

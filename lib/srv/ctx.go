@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -295,6 +297,10 @@ type IdentityContext struct {
 	// this identity is associated with, if any.
 	BotInstanceID string
 
+	// BotScope is the scope of the Machine ID bot this identity is associated
+	// with, if any.
+	BotScope string
+
 	// JoinToken is the name of the join token used to join this bot identity,
 	// if any, and will not be set for bot instances that joined using the
 	// `token` join method.
@@ -366,6 +372,10 @@ type ServerContext struct {
 
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
+
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string
 
 	// execRequest is the command to be executed within this session context. Do
 	// not get or set this field directly, use (Get|Set)ExecRequest.
@@ -994,6 +1004,24 @@ func (c *ServerContext) ShouldHandleSessionRecording() bool {
 	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
+// AuditEmitter returns the emitter to use for session-level audit events.
+// On a Teleport Node in proxy recording mode it returns a discard emitter
+// so the node does not duplicate events the proxy forwarding node already emits.
+func (c *ServerContext) AuditEmitter() apievents.Emitter {
+	if c.ShouldHandleSessionRecording() {
+		return c.srv
+	}
+	return events.NewDiscardAuditLog()
+}
+
+// BPFEmitter returns the emitter to use for Enhanced Session Recording
+// (BPF) events. BPF programs only run on the Teleport Node where the
+// session executes, so these events must always reach the audit log
+// regardless of cluster recording mode.
+func (c *ServerContext) BPFEmitter() apievents.Emitter {
+	return c.srv
+}
+
 func (c *ServerContext) Close() error {
 	// If the underlying connection is holding tracking information, report that
 	// to the audit log at close.
@@ -1172,6 +1200,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
+		TestLoginShell:        c.TestLoginShell,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 	}, nil
@@ -1183,18 +1212,28 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		userKind = apievents.UserKind_USER_KIND_BOT
 	}
 
+	// Extract scoped info from the scope pin if it's present. Since scopes do
+	// not support trusted clusters, the scope pin should always be available
+	// on the unmapped identity for all scoped identities.
+	var scopePin *scopesv1.Pin
+	if id.UnmappedIdentity != nil {
+		scopePin = id.UnmappedIdentity.ScopePin
+	}
+
 	return apievents.UserMetadata{
-		Login:           id.Login,
-		User:            id.TeleportUser,
-		Impersonator:    id.Impersonator,
-		AccessRequests:  id.ActiveRequests,
-		TrustedDevice:   id.UnmappedIdentity.GetDeviceMetadata(),
-		UserKind:        userKind,
-		BotName:         id.BotName,
-		BotInstanceID:   id.BotInstanceID,
-		UserClusterName: id.OriginClusterName,
-		UserRoles:       slices.Clone(id.MappedRoles),
-		UserTraits:      id.Traits.Clone(),
+		Login:            id.Login,
+		User:             id.TeleportUser,
+		Impersonator:     id.Impersonator,
+		AccessRequests:   id.ActiveRequests,
+		TrustedDevice:    id.UnmappedIdentity.GetDeviceMetadata(),
+		UserKind:         userKind,
+		BotName:          id.BotName,
+		BotInstanceID:    id.BotInstanceID,
+		BotScopeOfOrigin: id.BotScope,
+		UserClusterName:  id.OriginClusterName,
+		UserRoles:        slices.Clone(id.MappedRoles),
+		UserTraits:       id.Traits.Clone(),
+		ScopePin:         pinning.ToEventsPin(scopePin),
 	}
 }
 

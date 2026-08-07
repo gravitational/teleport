@@ -270,6 +270,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
 		AccessListsService: g.accessLists,
 		Clock:              g.clock,
+		IgnoreScoped:       true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

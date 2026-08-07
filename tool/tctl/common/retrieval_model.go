@@ -30,13 +30,14 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // retrievalModelCollection is a collection of RetrievalModel resources that
 // can be written to an io.Writer in a human-readable format.
 type retrievalModelCollection []*summarizerv1.RetrievalModel
 
-func (c retrievalModelCollection) resources() []types.Resource {
+func (c retrievalModelCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
 		out = append(out, types.ProtoResource153ToLegacy(item))
@@ -44,7 +45,7 @@ func (c retrievalModelCollection) resources() []types.Resource {
 	return out
 }
 
-func (c retrievalModelCollection) writeText(w io.Writer, verbose bool) error {
+func (c retrievalModelCollection) WriteText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Description", "Provider", "Provider Model ID", "Inference Model"}
 	var rows [][]string
 	for _, item := range c {
@@ -117,7 +118,7 @@ func (rc *ResourceCommand) updateRetrievalModel(ctx context.Context, clt *authcl
 	return nil
 }
 
-func (rc *ResourceCommand) getRetrievalModel(ctx context.Context, clt *authclient.Client) (ResourceCollection, error) {
+func (rc *ResourceCommand) getRetrievalModel(ctx context.Context, clt *authclient.Client) (resources.Collection, error) {
 	res, err := clt.SummarizerServiceClient().GetRetrievalModel(ctx, &summarizerv1.GetRetrievalModelRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)

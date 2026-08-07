@@ -2,9 +2,12 @@ name: Lint
 on:
   pull_request:
   merge_group:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   GOFLAGS: '-buildvcs=false'
-  GOEXPERIMENT: 'synctest'
 
 jobs:
   changes:
@@ -36,8 +39,8 @@ jobs:
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
@@ -81,9 +84,12 @@ jobs:
               - 'docs/pages/reference/infrastructure-as-code/terraform-modules/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
               - 'build.assets/tooling/cmd/resource-ref-generator/**'
+              - 'buf-go.gen.yaml'
+              - 'buf.yaml'
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
+              - 'e2e/**'
               - 'gen/proto/js/**'
               - 'gen/proto/ts/**'
               - 'package.json'
@@ -92,10 +98,10 @@ jobs:
               - 'tsconfig.node.json'
             has_cli:
               - '.github/workflows/lint.yaml'
-              - 'tool/tsh/**.go'
-              - 'tool/tctl/**.go'
-              - 'tool/tbot/**.go'
-              - 'tool/teleport/**.go'
+              - 'tool/tsh/**'
+              - 'tool/tctl/**'
+              - 'tool/tbot/**'
+              - 'tool/teleport/**'
               - 'lib/utils/usage_docs.go'
               - 'lib/utils/usage_docs_test.go'
               - 'lib/utils/docs-usage.md.tmpl'
@@ -373,7 +379,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout

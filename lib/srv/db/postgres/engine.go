@@ -304,9 +304,10 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.HijackedConn) error {
 	// AuthenticationOk indicates that the authentication was successful.
 	client.Send(&pgproto3.AuthenticationOk{})
-	// BackendKeyData provides secret-key data that the frontend must save
-	// if it wants to be able to issue cancel requests later.
-	client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey})
+	// Forward the cancel key, unless the backend omits it (e.g. RDS Proxy).
+	if len(hijackedConn.SecretKey) > 0 {
+		client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey})
+	}
 	// ParameterStatuses contains parameters reported by the server such as
 	// server version, relay them back to the client.
 	for k, v := range hijackedConn.ParameterStatuses {

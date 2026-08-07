@@ -7,14 +7,19 @@ videoBanner: "ZDWRt105tBg"
 tags:
  - mwi
  - infrastructure-identity
+page_type: conceptual
 ---
 
-Teleport Machine & Workload Identity offers two complementary sets of capabilities for non-human entities in your infrastructure:
+Teleport Machine & Workload Identity (MWI) offers two complementary sets of capabilities for non-human entities in your infrastructure:
 
 - **Zero Trust Access for machines**: 
 Enables machines (like CI/CD pipelines) to securely authenticate with your Teleport cluster to access protected resources and configure the cluster itself.
 - **Flexible Workload Identities**: 
 Issues short-lived cryptographic identities to workloads, compatible with the SPIFFE standard, enabling secure workload-to-workload communication and third-party API authentication.
+
+This page describes the concepts behind Machine & Workload Identity, explains
+common use cases, and helps you understand how MWI relates to Teleport Zero
+Trust Access.
 
 ## Secure service-to-service authentication
 

@@ -112,6 +112,14 @@ type ServiceDependencies struct {
 	Scoped bool
 }
 
+// WithStatusReporter returns a copy of the dependencies with the status reporter
+// overridden. This is useful when constructing "sidecar" services which should
+// not be allowed to clobber the primary service's status.
+func (deps ServiceDependencies) WithStatusReporter(reporter readyz.Reporter) ServiceDependencies {
+	deps.GetStatusReporter = func() readyz.Reporter { return reporter }
+	return deps
+}
+
 // ServiceBuilder will be used by the bot to create a service.
 type ServiceBuilder interface {
 	// GetTypeAndName returns the service type and name.

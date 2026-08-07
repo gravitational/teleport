@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,12 +40,14 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -94,6 +98,8 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	// ScopesFeatures dictates which scoped authorization components are enabled.
+	ScopesFeatures scopes.Features
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -146,6 +152,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		scopesFeatures:          opts.ScopesFeatures,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -240,6 +247,8 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	// scopesFeatures dictates whether scoped authorization is enabled.
+	scopesFeatures scopes.Features
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -301,44 +310,18 @@ func (c *Context) LockTargets() []types.LockTarget {
 	if _, ok := c.Identity.(UnauthenticatedRole); ok {
 		return nil
 	}
-	lockTargets := services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity())
-Loop:
-	for _, unmappedTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
-		// Append a lock target from UnmappedIdentity only if it is not already
-		// known from Identity.
-		for _, knownTarget := range lockTargets {
-			if unmappedTarget.Equals(knownTarget) {
-				continue Loop
-			}
-		}
-		lockTargets = append(lockTargets, unmappedTarget)
+	lockTargets := make(map[types.LockTarget]struct{})
+	for lockTarget := range services.LockTargetsFromTLSIdentity(c.Identity.GetIdentity()) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	for lockTarget := range services.LockTargetsFromTLSIdentity(c.UnmappedIdentity.GetIdentity()) {
+		lockTargets[lockTarget] = struct{}{}
 	}
 	if r, ok := c.Identity.(BuiltinRole); ok {
-		switch r.Role {
-		// Node role is a special case because it was previously suported as a
-		// lock target that only locked the `ssh_service`. If the same Teleport server
-		// had multiple roles, Node lock would only lock the `ssh_service` while
-		// other roles would be able to authenticate into Teleport without a problem.
-		// To remove the ambiguity, we now lock the entire Teleport server for
-		// all roles using the LockTarget.ServerID field and `Node` field is
-		// deprecated.
-		// In order to support legacy behavior, we need fill in both `ServerID`
-		// and `Node` fields if the role is `Node` so that the previous behavior
-		// is preserved.
-		// This is a legacy behavior that we need to support for backwards compatibility.
-		case types.RoleNode:
-			lockTargets = append(lockTargets,
-				types.LockTarget{ServerID: r.GetServerID()},
-				types.LockTarget{ServerID: r.Identity.Username},
-			)
-		default:
-			lockTargets = append(lockTargets,
-				types.LockTarget{ServerID: r.GetServerID()},
-				types.LockTarget{ServerID: r.Identity.Username},
-			)
-		}
+		lockTargets[types.LockTarget{ServerID: r.GetServerID()}] = struct{}{}
+		lockTargets[types.LockTarget{ServerID: r.Identity.Username}] = struct{}{}
 	}
-	return lockTargets
+	return slices.AppendSeq(make([]types.LockTarget, 0, len(lockTargets)), maps.Keys(lockTargets))
 }
 
 // WithExtraRoles returns a shallow copy of [c], where the users roles have been
@@ -438,6 +421,10 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
+	}
+
+	if _, ok := userI.(ScopedBuiltinRole); ok {
 		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
@@ -811,6 +798,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
+		DeviceExtensions:  u.Identity.DeviceExtensions,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -943,6 +931,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 				types.NewRule(types.KindUser, services.RO()),
 				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 				types.NewRule(types.KindClusterAuthPreference, services.RO()),
 				types.NewRule(types.KindClusterName, services.RO()),
 				types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -964,6 +953,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindWindowsDesktopService, services.RO()),
 				types.NewRule(types.KindDatabaseCertificate, []string{types.VerbCreate}),
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
+				types.NewRule(types.KindLinuxDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
@@ -1016,10 +1006,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 }
 
 // RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role)
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1053,8 +1043,61 @@ func RoleSetForUnauthenticatedRoles(clusterName string, roles ...types.Unauthent
 	return services.NewRoleSet(definitions...), nil
 }
 
-// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role.
-func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role with
+// consideration for whether the definition be will be used in a scoped context.
+func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole, isScoped bool) (types.Role, error) {
+	if isScoped {
+		return scopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+	}
+	return unscopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+}
+
+// scopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in a scoped context.
+func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+	switch role {
+	case types.RoleNode:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleNode)
+	case types.RoleKube:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:       []string{types.Wildcard},
+					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						// Kube agents have implicit permission to write their own cluster resource.
+						types.NewRule(types.KindKubernetesCluster, services.RO()),
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of agents only being able to read scoped roles that may affect
+						// access decisions for the given agent specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
+					},
+				},
+			},
+		)
+	case types.RoleApp:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleApp)
+	}
+
+	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
+}
+
+// unscopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in an unscoped context.
+func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.RoleFromSpec(
@@ -1077,7 +1120,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindNode, services.RW()),
+						// Node agents have implicit permission to write their own node resource.
+						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindSSHSession, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -1129,10 +1173,17 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindAppServer, services.RW()),
+						// App agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindAppServer, services.RO()),
+						// App agents have implicit permission to write their own App resource.
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of apps only being able to read scoped roles that may affect
+						// access decisions for the given app specifically. This verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
@@ -1158,8 +1209,10 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindDatabaseServer, services.RW()),
-						types.NewRule(types.KindDatabaseService, services.RW()),
+						// Databases agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						// Databases agents have implicit permission to write their own service resource.
+						types.NewRule(types.KindDatabaseService, services.RO()),
 						types.NewRule(types.KindDatabase, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
@@ -1249,6 +1302,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 					GitHubPermissions: []types.GitHubPermission{{
 						Organizations: []string{types.Wildcard},
 					}},
@@ -1266,7 +1320,8 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindKubeServer, services.RW()),
+						// Kube agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -1279,6 +1334,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+						// Kube agents have implicit permission to write their own cluster resource.
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
@@ -1295,6 +1351,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindCertAuthorityOverride, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
@@ -1304,9 +1361,34 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						types.NewRule(types.KindWindowsDesktopService, services.RW()),
-						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						// Desktop agents have implicit permission to write their own service resource.
+						types.NewRule(types.KindWindowsDesktopService, services.RO()),
+						// Desktop agents have implicit permission to write their own desktop resources.
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
+					},
+				},
+			})
+	case types.RoleLinuxDesktop:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:         []string{types.Wildcard},
+					LinuxDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.WO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLinuxDesktop, services.RO()),
 					},
 				},
 			})
@@ -1454,7 +1536,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 		// all other certs encode a single system role
 		systemRoles = []types.SystemRole{r.Role}
 	}
-	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, systemRoles...)
+	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, r.GetIdentity().AgentScope != "", systemRoles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1828,6 +1910,40 @@ func (r BuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// ScopedBuiltinRole is the role of a scoped Teleport service — one whose access is constrained to a specific
+// scope via a scope pin. It is intentionally a distinct type from [BuiltinRole] so that code paths
+// handling builtin roles must explicitly opt into supporting scoped agents.
+type ScopedBuiltinRole struct {
+	// ScopePin is the agent scope pin, encoding the target scope and the agent's system roles.
+	ScopePin *scopesv1.Pin
+
+	// ServerFQDN is the host FQDN of the agent, of the form <host-uuid>.<cluster-name>.
+	ServerFQDN string
+
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+
+	// Identity is source x509 used to build this role.
+	Identity tlsca.Identity
+}
+
+// GetServerID extracts the server UUID from the agent's ServerFQDN.
+func (r ScopedBuiltinRole) GetServerID() string {
+	return strings.TrimSuffix(r.ServerFQDN, "."+r.ClusterName)
+}
+
+// GetIdentity returns the client identity.
+func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
+}
+
+// IsServer returns true if the primary role is either RoleInstance, or one of
+// the local service roles (e.g. node).
+func (r ScopedBuiltinRole) IsServer() bool {
+	role := types.SystemRole(r.ScopePin.GetSystemRoles().GetPrimary())
+	return role == types.RoleInstance || role.IsLocalService()
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {
@@ -2026,17 +2142,42 @@ func IsLocalOrRemoteUser(authContext Context) bool {
 
 // IsLocalOrRemoteService checks if the identity is either a local or remote service.
 func IsLocalOrRemoteService(authContext Context) bool {
-	switch authContext.UnmappedIdentity.(type) {
-	case BuiltinRole, RemoteBuiltinRole:
-		return true
-	default:
-		return false
-	}
+	return isLocalOrRemoteService(authContext.UnmappedIdentity)
 }
 
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
+func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
+	_, isLocal := scopedContext.Identity.(LocalUser)
+	return isLocal && scopedContext.User.GetName() == username
+}
+
+// ScopedIsLocalOrRemoteService checks if the scoped identity is either a local or
+// remote service, for scoped or unscoped agents alike. This is the
+// scoped aware counterpart to [IsLocalOrRemoteService].
+// RemoteBuiltinRoles continue to be only available for unscoped identities.
+func ScopedIsLocalOrRemoteService(scopedContext *ScopedContext) bool {
+	if scopedContext == nil {
+		return false
+	}
+
+	if scopedContext.unscopedContext != nil {
+		return isLocalOrRemoteService(scopedContext.unscopedContext.UnmappedIdentity)
+	}
+	return isLocalOrRemoteService(scopedContext.Identity)
+}
+
+func isLocalOrRemoteService(identity IdentityGetter) bool {
+	switch identity.(type) {
+	case BuiltinRole, RemoteBuiltinRole, ScopedBuiltinRole:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsRemoteUser checks if the identity is a remote user.

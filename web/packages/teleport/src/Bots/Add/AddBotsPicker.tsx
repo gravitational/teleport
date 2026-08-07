@@ -193,7 +193,7 @@ export const integrations: BotIntegration[] = [
     title: 'Generic Linux',
     description:
       'Use Machine & Workload Identity (MWI) to eliminate long-lived credentials on Linux servers.',
-    link: 'https://goteleport.com/docs/enroll-resources/machine-id/getting-started/',
+    link: 'https://goteleport.com/docs/machine-workload-identity/deployment/linux/',
     icon: 'server',
     kind: IntegrationEnrollKind.MachineID,
     type: 'bot',

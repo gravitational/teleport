@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -216,10 +217,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster2 ("first-cluster") should appear before
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
 					[][]string{
-						{p.rootKubeCluster2, formattedRootLabels, ""},
-						{p.rootKubeCluster1, formattedRootLabels, ""},
+						{p.rootKubeCluster2, formattedRootLabels, "", ""},
+						{p.rootKubeCluster1, formattedRootLabels, "", ""},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -230,9 +231,9 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
-					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, "", ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, "", ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -240,7 +241,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "show headless table",
 			args: []string{"--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(2)
+				table := asciitable.MakeHeadlessTable(3)
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
@@ -252,15 +253,15 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all"},
 			wantTable: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
 					[][]string{
 						// "leaf-cluster" should be displayed instead of the
 						// full leaf cluster name, since it is mocked as a
 						// discovered resource and the discovered resource name
 						// is displayed in non-verbose mode.
-						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""},
 					},
 					"Labels",
 				)
@@ -272,10 +273,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all", "--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose, ""},
 				)
 				return table.AsBuffer().String()
 			},
@@ -284,10 +285,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters in headless table",
 			args: []string{"--all", "--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(4)
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
+				table := asciitable.MakeHeadlessTable(5)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -813,4 +814,88 @@ func newKubeSelfSubjectServer(t *testing.T) string {
 	t.Cleanup(func() { srv.Close() })
 
 	return srv.URL
+}
+
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		wantErr      bool
+	}{
+		{
+			name: "no requirement",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:  "example.com:443",
+				KubeProxyAddr: "example.com:3026",
+			},
+			wantErr: false,
+		},
+		{
+			name: "kube local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			wantErr: true,
+		},
+		{
+			// A hardware-key policy can't be serialized for the exec plugin, so
+			// the credentials command must return an actionable error even when
+			// a local proxy would not otherwise be required.
+			name: "hardware key policy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "example.com:443",
+				KubeProxyAddr:    "example.com:3026",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := &kubeCredentialsCommand{}
+			err := c.checkLocalProxyRequirement(test.inputProfile)
+			if !test.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			// The error must be the actionable one, not the opaque PEM failure.
+			require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			require.ErrorContains(t, err, "tsh proxy kube")
+			require.ErrorContains(t, err, "tsh kubectl")
+		})
+	}
+}
+
+// Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell
+// covers the case where credentials are requested from inside an active
+// `tsh proxy kube --exec` shell (kubeLocalProxyEnvVar set).
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell(t *testing.T) {
+	const sessionKubeconfig = "/tmp/proxy-kubeconfig-123"
+	t.Setenv(kubeLocalProxyEnvVar, sessionKubeconfig)
+	c := &kubeCredentialsCommand{}
+
+	t.Run("hardware key -> session-specific error", func(t *testing.T) {
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		})
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.ErrorContains(t, err, "tsh proxy kube")
+		// The error points the user at the session's kubeconfig path.
+		require.ErrorContains(t, err, sessionKubeconfig)
+	})
+
+	t.Run("software key -> no error even inside a session", func(t *testing.T) {
+		// A software key can be served by the exec plugin, so being inside a
+		// local proxy shell must not break it (no regression).
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			WebProxyAddr:  "example.com:443",
+			KubeProxyAddr: "example.com:3026",
+		})
+		require.NoError(t, err)
+	})
 }

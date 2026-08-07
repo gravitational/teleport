@@ -30,96 +30,82 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.8.0  | Week of May 4, 2026    |
-| 18.9.0  | Week of June 1, 2026   |
-| 19.0.0  | August 2026            |
+| Version | Date                       |
+|---------|----------------------------|
+| 18.11.0 | Week of August 17, 2026    |
+| 19.0.0  | Week of September 21, 2026 |
 
-### 18.8.0
+### 18.11.0
 
-#### VNet for Linux
+#### Agentic UX for Access Configuration
 
-Teleport VNet support will be extended to Linux workstations.
+Teleport will provide a custom agent skill for configuring access to connected
+resources using access lists.
 
-*Delayed from 18.7.0.*
+#### Linux Desktop Access
 
-#### Improvements to access list creation UX
+Teleport will support remote desktop sessions to Linux hosts.
 
-Teleport will provide guided in-product UX for creating common types of access
-lists centered around granting users permissions to resources and permissions
-to request access to resources.
+_Delayed from Teleport 18.10.0._
 
-*Delayed from 18.7.0.*
+#### Desktop Session Recording Export
 
-#### `tsh` MFA via browser
+Desktop session recordings can be exported to video files with the revamped
+`tsh recordings export` command.
 
-`tsh` will be able to delegate MFA checks (both on login and for per-session
-MFA) to the browser, enabling the use of browser based passkeys or password
-managers with `tsh`.
+#### Identity Security CLI
 
-#### Multi-domain support for Windows desktop access
+Teleport will add commands to `tctl` for querying Identity Security, letting you
+explore identities, resources, and their access relationships from the command
+line.
 
-Teleport will support RDP connections to Windows hosts where the Windows users
-belong to different Active Directory domains than the target hosts.
+#### Generic OIDC Join Method
 
-#### Bound keypair joining for agents
+Teleport will include a new generic OIDC join method for bots and agents.
+Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
+that lack a dedicated Teleport join method.
 
-Teleport's bound keypair join method will be extended to support arbitrary
-Teleport agents in addition to bots.
+#### Auto-Discovery Improvements
 
-#### Session summaries search
+Teleport will extend AWS EC2 and Azure VM auto-discovery to support enrollment
+at an organization/tenant level in addition to a single account.
 
-Identity Security will provide users with CLI tooling for searching session
-summaries allowing users to find sessions based on natural language queries.
+In addition, Teleport will extend cloud database auto-discovery support to
+GCP CloudSQL.
 
-#### Reduce resource consumption of SSH sessions
+### 19.0.0
 
-Teleport SSH session latency will be reduced and each session will consume
-less memory.
+#### Amazon Aurora DSQL Cluster State Backend
 
-### 18.9.0
+Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
 
-#### Device Bound Session Credentials for App Access
+#### Audit Log Reliability Improvements
 
-Application access session cookies will be compatible with Google's [Device
-Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
-adding a layer of protection against session hijacking and cookie theft.
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
 
-#### Directory sharing enhancements for Windows desktop access
+_Delayed from Teleport 18.11.0._
 
-Teleport will support sharing multiple directories in a single RDP session.  In
-addition, users will be able to unmount shared directories without terminating
-the session.
+#### Improved Principal Selection for Access Requests
 
-#### Windows sessions summaries
+Teleport will improve access requests experience by allowing users to pick specific
+principals for SSH nodes, Kubernetes clusters, databases and Windows desktop to better
+support scenarios like just-in-time access elevation requests.
 
-Identity Security will support AI summarization for Windows desktop access session
-recordings.
+#### In-band Per-Session MFA for SSH and Desktops
 
-#### Terraform support for AWS EKS discovery
-
-Users will be able to set up AWS EKS discovery on an AWS account level using
-Terraform module.
-
-#### Terraform support for Azure VM discovery
-
-Users will be able to set up Azure VM discovery on a subscription level using
-Terraform module.
-
-#### Terraform support for access list workflows
-
-Short and long term access list creation flows in the web UI will include terraform
-support allowing users to define access with infrastructure-as-code.
+Added in-band MFA for SSH and Desktop sessions, moving MFA checks into session establishment 
+so challenges are bound to the specific session. This removes per-session MFA SSH certificates 
+and reduces MFA bypass risk.
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                                 |
-|------------------|-------------------------------------------------------------|
-| May 11, 2026     | Teleport 18.8 will begin rollout on Cloud.                   |
-| May 11, 2026     | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| Week of       | Description                                                     |
+|---------------|-----------------------------------------------------------------|
+| July 13, 2026 | Teleport 18.10.0 will begin rollout on Cloud.                   |
+| July 20, 2026 | Teleport 18.10.0 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

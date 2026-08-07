@@ -376,6 +376,15 @@ const (
 	// also known as Join Token. See [types.ProvisionToken].
 	ProvisionTokenCreateEvent = "join_token.create"
 
+	// ScopedTokenCreateEvent is the event for creating a scoped token.
+	ScopedTokenCreateEvent = "scoped_token.create"
+	// ScopedTokenUpsertEvent is the event for upserting a scoped token.
+	ScopedTokenUpsertEvent = "scoped_token.upsert"
+	// ScopedTokenUpdateEvent is the event for updating a scoped token.
+	ScopedTokenUpdateEvent = "scoped_token.update"
+	// ScopedTokenDeleteEvent is the event for deleting a scoped token.
+	ScopedTokenDeleteEvent = "scoped_token.delete"
+
 	// GithubConnectorCreatedEvent fires when a Github connector is created.
 	GithubConnectorCreatedEvent = "github.created"
 	// GithubConnectorUpdatedEvent fires when a Github connector is updated.
@@ -601,6 +610,13 @@ const (
 	// WindowsDesktopSessionEndEvent is emitted when a user disconnects
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
+
+	// LinuxDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	LinuxDesktopSessionStartEvent = "linux.desktop.session.start"
+	// LinuxDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	LinuxDesktopSessionEndEvent = "linux.desktop.session.end"
 
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
@@ -1027,6 +1043,26 @@ const (
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
+
+	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
+	// resources.
+	CertAuthOverrideCreateEvent = "cert_auth_override.create"
+	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
+	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
+	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
+	// resources.
+	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
+
+	// BeamsConfigCreateEvent is emitted when a Beams config resource is created.
+	BeamsConfigCreateEvent = "beams.config.create"
+	// BeamsConfigUpdateEvent is emitted when a Beams config resource is updated.
+	BeamsConfigUpdateEvent = "beams.config.update"
+	// BeamsConfigDeleteEvent is emitted when a Beams config resource is deleted.
+	BeamsConfigDeleteEvent = "beams.config.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1050,6 +1086,7 @@ const (
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
+	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.

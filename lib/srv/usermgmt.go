@@ -268,7 +268,7 @@ func sanitizeSudoersName(username string) string {
 func (u *HostSudoersManagement) WriteSudoers(name string, sudoers []string) error {
 	var sudoersOut strings.Builder
 	for _, entry := range sudoers {
-		sudoersOut.WriteString(fmt.Sprintf("%s %s\n", name, entry))
+		fmt.Fprintf(&sudoersOut, "%s %s\n", name, entry)
 	}
 	err := u.backend.WriteSudoersFile(name, []byte(sudoersOut.String()))
 	if errors.Is(err, host.ErrInvalidSudoers) {

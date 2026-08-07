@@ -150,6 +150,12 @@
           "tools": [
             "{{internal.mcp_tools}}"
           ]
+        },
+        "linux_desktop_logins": [
+          "{{internal.linux_desktop_logins}}"
+        ],
+        "linux_desktop_labels": {
+          "*": "*"
         }
       },
       "deny": {}
@@ -1252,6 +1258,18 @@
           {
             "resources": [
               "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",

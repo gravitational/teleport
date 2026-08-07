@@ -13,9 +13,25 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package access
 
 import "github.com/gravitational/teleport/api/types"
+
+// Verb is an alias that allows current teleport code to import a scopedaccess.Verb type
+// compatible with the current ScopedAccessChecker.CheckAccessToRules signature. A future commit
+// will switch this over to being a proper enum type, but we need this intermediate state to
+// avoid breaking CI.
+type Verb = string
+
+const (
+	Create  Verb = types.VerbCreate
+	Read    Verb = types.VerbReadNoSecrets
+	Update  Verb = types.VerbUpdate
+	Delete  Verb = types.VerbDelete
+	List    Verb = types.VerbList
+	Secrets Verb = types.VerbRead
+)
 
 // isAllowedScopedVerb returns true if the given verb is allowed for the given scoped resource kind. Scoped roles are not sane
 // for use with all resource kind/verb combinations, so we restrict the allowed combinations here.
@@ -36,6 +52,18 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindBotInstance:
 		// bot instances can be read/written, and do not currently contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
+	case types.KindWorkloadIdentity:
+		// workload identities can be read/written, and do not contain a concept of a secret.
+		return isReadWriteNoSecrets(verb)
+	case types.KindAppServer:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindAccessList:
+		// access lists can be read/written, and do not contain a concept of a secret.
+		// permissions for access list members are conferred by permissions for
+		// access list themselves, and/or list ownership.
+		return isReadWriteNoSecrets(verb)
+	case types.KindKubernetesCluster:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
 	default:
 		return false
 	}

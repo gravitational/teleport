@@ -159,9 +159,9 @@ requires access to a file system and network ports.
 
 ### Configuration
 
-Teleport processes read their configuration from a local file path, which is
-`/etc/teleport.yaml` by default. Make sure this file path is mounted to your
-Teleport container.
+While Teleport's default configuration path is `/etc/teleport.yaml`, the Docker
+image is configured to read from `/etc/teleport/teleport.yaml`. Mount your 
+configuration directory to `/etc/teleport` in the container so Teleport can find it.
 
 ### Data directory
 

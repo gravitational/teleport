@@ -71,8 +71,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -127,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/env0"
 	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
@@ -148,6 +151,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsession "github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -342,8 +346,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.Kubernetes == nil {
-		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
+		cfg.Kubernetes, err = local.NewKubernetesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
@@ -364,6 +372,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.DynamicWindowsDesktops == nil {
 		cfg.DynamicWindowsDesktops, err = local.NewDynamicWindowsDesktopService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.LinuxDesktops == nil {
+		cfg.LinuxDesktops, err = local.NewLinuxDesktopService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -423,6 +437,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			// TODO(tross): replace modules.GetModules with cfg.Modules
 			Modules:                     modules.GetModules(),
 			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+			ScopesFeatures:              cfg.ScopesFeatures,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -593,7 +608,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetterWithCache(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -623,30 +638,51 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.ScopedTokenService == nil {
-		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend)
+		cfg.ScopedTokenService, err = local.NewScopedTokenService(cfg.Backend, cfg.ScopesFeatures)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if cfg.WorkloadClusterService == nil {
-		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+	if cfg.BeamsConfigService == nil {
+		cfg.BeamsConfigService, err = local.NewBeamsConfigService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsConfigService")
+		}
+	}
+
+	if cfg.SubCAService == nil || cfg.PendingCSRRequestService == nil {
+		localSubCA, err := local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+		if cfg.SubCAService == nil {
+			cfg.SubCAService = localSubCA
+		}
+		if cfg.PendingCSRRequestService == nil {
+			cfg.PendingCSRRequestService = localSubCA
 		}
 	}
 
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
-		Provisioner:                     cfg.Provisioner,
-		Identity:                        cfg.Identity,
-		Access:                          cfg.Access,
+		ProvisionerInternal:             cfg.Provisioner,
+		IdentityInternal:                cfg.Identity,
+		AccessInternal:                  cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Applications:                    cfg.Apps,
+		ApplicationsInternal:            cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -655,6 +691,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
 		DynamicWindowsDesktops:          cfg.DynamicWindowsDesktops,
+		LinuxDesktops:                   cfg.LinuxDesktops,
 		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
 		UserGroups:                      cfg.UserGroups,
 		SessionTrackerService:           cfg.SessionTrackerService,
@@ -696,7 +733,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Summarizer:                      cfg.Summarizer,
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
-		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
+		BeamsConfigService:              cfg.BeamsConfigService,
+		SubCAService:                    cfg.SubCAService,
+		PendingCSRRequestService:        cfg.PendingCSRRequestService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -712,6 +752,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as = &Server{
 		bk:                           cfg.Backend,
 		clock:                        cfg.Clock,
+		scopesFeatures:               cfg.ScopesFeatures,
 		fakePasswordHash:             cfg.FakePasswordHash,
 		fakeRecoveryCodeHash:         cfg.FakeRecoveryCodeHash,
 		limiter:                      limiter,
@@ -883,6 +924,15 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		as.env0IDTokenValidator = validator
 	}
 
+	if as.genericOIDCIDTokenValidator == nil {
+		validator, err := genericoidc.NewIDTokenValidator()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		as.genericOIDCIDTokenValidator = validator
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         as.logger,
@@ -936,18 +986,19 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.ProvisionerInternal
+	services.IdentityInternal
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Applications
+	services.ApplicationsInternal
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
 	services.DelegationSessions
 	services.WindowsDesktops
+	services.LinuxDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
@@ -997,11 +1048,14 @@ type Services struct {
 	services.Summarizer
 	RecordingEncryptionManager
 	services.ScopedTokenService
-	services.WorkloadClusterService
+	services.Beams
+	services.BeamsConfigService
+	services.SubCAService
+	services.PendingCSRRequestService
 }
 
-// awsOrganizationsClientGetter returns an AWS Organizations client getter.
-func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+// awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
+func awsOrganizationsClientGetterWithCache(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1063,18 +1117,28 @@ func (o *organizationsClientGetter) Get(ctx context.Context, integration string,
 	}
 
 	return &organizationsClient{
+		integration:             integration,
 		describeAccountAPICache: o.describeAccountAPICache,
 		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
 	}, nil
 }
 
 type organizationsClient struct {
+	integration             string
 	describeAccountAPICache *utils.FnCache
 	remoteAPI               iamjoin.OrganizationsAPI
 }
 
 func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+	cacheKey := struct {
+		AccountID   string
+		Integration string
+	}{
+		AccountID:   aws.ToString(params.AccountId),
+		Integration: o.integration,
+	}
+
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
 		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
 		return remoteDescribeAccountOutput, trace.Wrap(err)
 	})
@@ -1085,7 +1149,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
+	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -1298,6 +1362,8 @@ type Server struct {
 	lock  sync.RWMutex
 	clock clockwork.Clock
 	bk    backend.Backend
+	// scopesFeatures dictates which scoped components are enabled for this auth server.
+	scopesFeatures scopes.Features
 
 	closeCtx   context.Context
 	cancelFunc context.CancelFunc
@@ -1475,6 +1541,10 @@ type Server struct {
 	// env0IDTokenValidator is a helper to validate env0 OIDC tokens. Used to
 	// override the implementation used in tests.
 	env0IDTokenValidator join.Env0TokenValidator
+
+	// genericOIDCIDTokenValidator is a helper to validate geneneric OIDC
+	// tokens. Used to override the implementation in tests.
+	genericOIDCIDTokenValidator join.GenericOIDCTokenValidator
 
 	// azureJoinConfig holds configuration for the Azure join method.
 	azureJoinConfig *azurejoin.AzureJoinConfig
@@ -2868,6 +2938,28 @@ func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (serv
 	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
+// regenerateUserLoginState computes the user login state for the given user
+// from the current backend user and access lists, and returns it without
+// persisting it. Unlike GetUserOrLoginState, this does not trust the stored
+// login state, which is a snapshot from login time and may miss both role
+// changes on the backend user and access list membership changes. The stored
+// login state in backend is left untouched.
+func (a *Server) regenerateUserLoginState(ctx context.Context, username string) (services.UserState, error) {
+	// Use Services (real backend instead of cache) to pick up user changes
+	// that may not have propagated to the cache yet.
+	user, err := a.Services.GetUser(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if user.IsBot() {
+		// Bot user don't have ULS no  need to regenerate.
+		// See GetUserOrLoginState where IsBot is checked and the user is returned directly.
+		return user, nil
+	}
+	uls, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	return uls, trace.Wrap(err)
+}
+
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	if req.User == nil {
 		return nil, trace.BadParameter("user is empty")
@@ -2889,26 +2981,37 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("cluster is empty")
 	}
 
-	// add implicit roles to the set and build a checker
-	accessInfo := services.AccessInfoFromUserState(req.User)
-	roles := make([]types.Role, len(req.Roles))
-	for i := range req.Roles {
-		var err error
-		roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
-			Username: req.User.GetName(),
-			Traits:   req.User.GetTraits(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	roleSet := services.NewRoleSet(roles...)
-
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
+
+	var checkerContext *services.ScopedAccessCheckerContext
+	if req.ScopePin != nil {
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(req.User, req.ScopePin)
+		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// add implicit roles to the set and build a checker
+		accessInfo := services.AccessInfoFromUserState(req.User)
+		roles := make([]types.Role, 0, len(req.Roles))
+		for _, requestedRole := range req.Roles {
+			var err error
+			role, err := services.ApplyTraitsWithContext(requestedRole, services.RoleTemplateContext{
+				Username: req.User.GetName(),
+				Traits:   req.User.GetTraits(),
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			roles = append(roles, role)
+		}
+		roleSet := services.NewRoleSet(roles...)
+		checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
+		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(checker)
+	}
 
 	sessionTTL := time.Duration(req.TTL)
 
@@ -2932,14 +3035,16 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 
 	certs, err := a.generateOpenSSHCert(ctx, cert.Request{
-		User:            req.User,
-		SSHPublicKey:    req.PublicKey,
-		Compatibility:   constants.CertificateFormatStandard,
-		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to OpenSSH certs.
+		User:          req.User,
+		SSHPublicKey:  req.PublicKey,
+		Compatibility: constants.CertificateFormatStandard,
+
+		CheckerContext:  checkerContext,
 		TTL:             sessionTTL,
 		Traits:          req.User.GetTraits(),
 		RouteToCluster:  req.Cluster,
 		DisallowReissue: true,
+		Login:           req.Login,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3027,6 +3132,7 @@ func (a *Server) GenerateUserTestCertsWithContext(ctx context.Context, req Gener
 	if botName, isBot := userState.GetLabel(types.BotLabel); isBot {
 		certReq.BotName = botName
 		certReq.BotInstanceID = uuid.NewString()
+		certReq.BotScope, _ = userState.GetLabel(types.BotScopeLabel)
 	}
 
 	certs, err := a.GenerateUserCerts(ctx, certReq)
@@ -3062,6 +3168,8 @@ type AppTestCertRequest struct {
 	PinnedIP string
 	// LoginTrait is the login to include in the cert
 	LoginTrait string
+	// Scope is the optional scope of the target application to encode in the route.
+	Scope string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -3107,6 +3215,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		AppSessionID:      sessionID,
 		AppPublicAddr:     req.PublicAddr,
+		TargetScope:       req.Scope,
 		AppTargetPort:     req.TargetPort,
 		AppClusterName:    req.ClusterName,
 		AWSRoleARN:        req.AWSRoleARN,
@@ -3622,17 +3731,11 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		return nil, trace.Wrap(err)
 	}
 
-	if _, ok := req.CheckerContext.ScopePin(); ok {
+	_, isScoped := req.CheckerContext.ScopePin()
+	if isScoped {
 		// require that the scope feature is enabled for scoped certificate creation
-		if err := scopes.AssertFeatureEnabled(); err != nil {
+		if err := a.scopesFeatures.AssertEnabled(); err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		if caType == types.OpenSSHCA {
-			// This restriction *must* not be removed until we rework how logins are handled for openssh certs. Currently, openssh certs contain *all* the
-			// logins the user's role set permits. This isn't sound for scoped access. We will need to instead issue openssh certs with only the subset of
-			// logins that are granted by the specific scoped role that permitted the access attempt.
-			return nil, trace.NotImplemented("scoped certificates for openssh access are not yet supported")
 		}
 	}
 
@@ -3693,30 +3796,40 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		req.TTL = time.Duration(readOnlyAuthPref.GetDefaultSessionTTL())
 	}
 
-	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
-	// The only caller setting this parameter should be "tctl auth sign".
-	// Otherwise, set the session TTL to the smallest of all roles and
-	// then only grant access to allowed logins based on that.
-	if req.OverrideRoleTTL {
-		// Take whatever was passed in. Pass in 0 to GetSSHLoginsForTTL so all
-		// logins are returned for the role set.
-		sessionTTL = req.TTL
-		allowedLogins, err = certParams.GetSSHLoginsForTTL(ctx, 0)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	if isScoped && caType == types.OpenSSHCA {
+		sessionTTL = certParams.AdjustSessionTTL(req.TTL)
+		if req.Login != "" {
+			allowedLogins = []string{req.Login}
+		} else {
+			return nil, trace.AccessDenied("login required for scoped ssh access")
 		}
 	} else {
-		// Adjust session TTL to the smaller of two values: the session TTL requested
-		// in tsh (possibly using default_session_ttl) or the session TTL for the
-		// role. For scoped identities, this returns the requested TTL unchanged.
-		sessionTTL = certParams.AdjustSessionTTL(req.TTL)
-		// Return a list of logins that meet the session TTL limit. For scoped identities,
-		// this enumerates all possible logins across all roles in the pin.
-		allowedLogins, err = certParams.GetSSHLoginsForTTL(ctx, sessionTTL)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// If the role TTL is ignored, do not restrict session TTL and allowed logins.
+		// The only caller setting this parameter should be "tctl auth sign".
+		// Otherwise, set the session TTL to the smallest of all roles and
+		// then only grant access to allowed logins based on that.
+		if req.OverrideRoleTTL {
+			// Take whatever was passed in. Pass in 0 to GetSSHLoginsForTTL so all
+			// logins are returned for the role set.
+			sessionTTL = req.TTL
+			allowedLogins, err = certParams.GetSSHLoginsForTTL(ctx, 0)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		} else {
+			// Adjust session TTL to the smaller of two values: the session TTL requested
+			// in tsh (possibly using default_session_ttl) or the session TTL for the
+			// role. For scoped identities, this returns the requested TTL unchanged.
+			sessionTTL = certParams.AdjustSessionTTL(req.TTL)
+			// Return a list of logins that meet the session TTL limit. For scoped identities,
+			// this enumerates all possible logins across all roles in the pin.
+			allowedLogins, err = certParams.GetSSHLoginsForTTL(ctx, sessionTTL)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
+
 	notAfter := a.clock.Now().UTC().Add(sessionTTL)
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
@@ -3783,7 +3896,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if req.RouteToCluster != clusterName {
 		unscoped := certParams.UnscopedCertParams()
 		if unscoped == nil {
-			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
+			return nil, trace.WrapWithMessage(services.ErrScopedIdentity, "cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
 		}
 
 		// Authorize access to a remote cluster.
@@ -3892,6 +4005,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				BotScope:                 req.BotScope,
 				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
@@ -3941,8 +4055,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		gcpAccounts           []string
 	)
 
-	// only unscoped identities currently support kube groups/users.
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
+		// only unscoped identities need to include the kube groups/users.
 		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
@@ -4000,6 +4114,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Traits:            req.Traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
+		WebSessionID:      req.WebSessionID,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:                       req.AppSessionID,
 			URI:                             req.AppURI,
@@ -4007,6 +4122,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			PublicAddr:                      req.AppPublicAddr,
 			ClusterName:                     req.AppClusterName,
 			Name:                            req.AppName,
+			Scope:                           req.TargetScope,
 			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 			AzureIdentity:                   req.AzureIdentity,
@@ -4036,6 +4152,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Generation:               req.Generation,
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
+		BotScope:                 req.BotScope,
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
@@ -4226,16 +4343,12 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	}
 
 	if unscoped := req.checkerContext.CertParams().UnscopedCertParams(); unscoped != nil {
-		lockTargets = append(lockTargets,
-			services.RolesToLockTargets(unscoped.RoleNames())...,
-		)
+		lockTargets = slices.AppendSeq(lockTargets, services.RolesToLockTargets(slices.Values(unscoped.RoleNames())))
 	}
 
 	// TODO(fspmarshall/scopes): implement scoped role locking.
 
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(req.activeAccessRequests)...,
-	)
+	lockTargets = slices.AppendSeq(lockTargets, services.AccessRequestsToLockTargets(slices.Values(req.activeAccessRequests)))
 	if req.botInstanceID != "" {
 		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: req.botInstanceID})
 	}
@@ -4452,7 +4565,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 
 		var err error
-		browserMFAReq, err = a.GetMFASession(ctx, req.BrowserMFARequestID)
+		browserMFAReq, err = a.GetMFASessionData(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")
@@ -4473,6 +4586,10 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
 			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
 		}
+	}
+
+	if err := mfa.ValidateChallengeScope(challengeExtensions.Scope); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	switch req.GetRequest().(type) {
@@ -5160,7 +5277,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(ctx, req.User, false)
+		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5367,22 +5484,6 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	return req, nil
 }
 
-// CreateWebSession creates a new web session for user without any
-// checks, is used by admins
-func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.GetUserOrLoginState(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:      user,
-		Roles:     u.GetRoles(),
-		Traits:    u.GetTraits(),
-		LoginTime: a.clock.Now().UTC(),
-	})
-	return session, trace.Wrap(err)
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -5414,7 +5515,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	}
 
 	if err := req.Role.Check(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.limiter.AcquireConnection(req.Role.String()); err != nil {
@@ -5531,22 +5632,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
-		CASigner:      caSigner,
-		PublicHostKey: req.PublicSSHKey,
-		HostID:        req.HostID,
-		NodeName:      req.NodeName,
-		Identity: sshca.Identity{
-			ClusterName:        clusterName.GetClusterName(),
-			SystemRole:         req.Role,
-			Principals:         req.AdditionalPrincipals,
-			AgentScope:         params.AgentScope,
-			ImmutableLabelHash: params.ImmutableLabelHash,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var useAgentPin bool
+	if params.AgentScope != "" {
+		// We are in the process of switching over the format of scoped agent certificates. Until the
+		// transition is complete, the new agent pin format is behind a feature flag.
+		useAgentPin = a.scopesFeatures.AgentPinEnabled
 	}
 
 	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
@@ -5558,15 +5649,71 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		systemRoles = append(systemRoles, string(r))
 	}
 
+	var agentScopePin *scopesv1.Pin
+	if useAgentPin {
+		agentScopePin = &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: params.AgentScope,
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    req.Role.String(),
+				Additional: systemRoles,
+			},
+		}
+	}
+
+	// Agent scope pins encode role and scope solely via ScopePin; setting the
+	// legacy fields alongside the pin would let old infrastructure treat the cert
+	// as unscoped. Only populate them for the legacy (non-pin) path.
+	var sshRole types.SystemRole
+	var sshAgentScope string
+	if !useAgentPin {
+		sshRole = req.Role
+		sshAgentScope = params.AgentScope
+	}
+
+	// generate host SSH certificate
+	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
+		CASigner:      caSigner,
+		PublicHostKey: req.PublicSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		Identity: sshca.Identity{
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         sshRole,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         sshAgentScope,
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate host TLS certificate
-	identity := tlsca.Identity{
-		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:             []string{req.Role.String()},
-		TeleportCluster:    clusterName.GetClusterName(),
-		SystemRoles:        systemRoles,
-		AgentScope:         params.AgentScope,
-		ImmutableLabelHash: params.ImmutableLabelHash,
-		JoinToken:          params.JoinToken,
+	var identity tlsca.Identity
+	if useAgentPin {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             nil, // omitted in agent pin case
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        nil, // omitted in agent pin case
+			AgentScope:         "",  // omitted in agent pin case
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
+	} else {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             []string{req.Role.String()},
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        systemRoles,
+			AgentScope:         params.AgentScope,
+			ScopePin:           nil, // omitted when not in agent pin case
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5642,6 +5789,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
 			RelayServerHeartbeatsCleanup:  true,
+			LinuxDesktopHeartbeats:        true,
+			LinuxDesktopCleanup:           true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -6368,7 +6517,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 // SubmitAccessReview is used to process a review of an Access Request.
-// This is implemented by Server.submitAccessRequest but this method exists
+// This is implemented by Server.submitAccessReview but this method exists
 // to provide a matching signature with the auth client. This allows the
 // hosted plugins to use the Server struct directly as a client.
 func (a *Server) SubmitAccessReview(
@@ -6397,6 +6546,15 @@ func (a *Server) submitAccessReview(
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// For identities (eg. plugins) that submit the review on behalf of the author, we zero out
+	// the identity as a protection measure. This is because the identity no longer
+	// correlates with the review author, and is not used for checking the author's permissions.
+	// The caller should already pass in a nil identity for this case, but this measure ensures
+	// we correctly handle identity and review author correlation.
+	if params.Review.SubmittedBy != "" {
+		identity = nil
 	}
 
 	// set up a checker for the review author
@@ -6431,6 +6589,7 @@ func (a *Server) submitAccessReview(
 		ProposedState:          params.Review.ProposedState.String(),
 		Reason:                 params.Review.Reason,
 		Reviewer:               params.Review.Author,
+		SubmittedBy:            params.Review.SubmittedBy,
 		MaxDuration:            req.GetMaxDuration(),
 		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
@@ -6781,9 +6940,56 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return lease, nil
 }
 
+// UpsertLinuxDesktop upserts a Linux desktop resource.
+func (a *Server) UpsertLinuxDesktop(ctx context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	updated, err := a.Services.LinuxDesktops.UpsertLinuxDesktop(ctx, desktop)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetMetadata().GetName(),
+		Kind:   usagereporter.ResourceKindLinuxDesktop,
+		Static: false,
+	})
+
+	return updated, nil
+}
+
+// DeleteLinuxDesktop deletes the Linux desktop resource by name.
+func (a *Server) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	return trace.Wrap(a.Services.LinuxDesktops.DeleteLinuxDesktop(ctx, name))
+}
+
+// UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
+// by delegating to [Server.Services] and then potentially emitting a
+// [usagereporter] event.
+func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
+	server, err := a.Services.UnconditionalUpdateApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return server, nil
+}
+
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
+	// getServerInfo starting in v20, so this block only remains to populate
+	// the field for older agents that haven't been upgraded yet. If this
+	// change is backported to v18, we can drop it on the v20
+	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
+		db.SetStatusVNetDNSName(dbvnet.DNSName(db.GetName()))
+	}
+
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7428,6 +7634,9 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 // CreateApp creates a new application resource.
 func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.CreateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -7454,6 +7663,12 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 
 // UpdateApp updates an existing application resource.
 func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
+	// TODO (williamo/scopes): While a blanket deny is fine for update for now,
+	// when scoped dynamic app registration is supported, we must check whether
+	// the updated scope differs or not, and reject if different.
+	if err := services.EnsureNotScopedApp(app); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.UpdateApp(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
@@ -7649,6 +7864,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
@@ -7676,6 +7892,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
+			Scope:   kubeCluster.GetScope(),
 			Expires: kubeCluster.Expiry(),
 		},
 		KubeClusterMetadata: apievents.KubeClusterMetadata{
@@ -7687,11 +7904,12 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 	return nil
 }
 
-// DeleteKubernetesCluster deletes a kubernetes cluster resource.
-func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
+// DeleteKubeCluster deletes a kubernetes cluster resource.
+func (a *Server) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	if err := a.Kubernetes.DeleteKubeCluster(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
 		Metadata: apievents.Metadata{
 			Type: events.KubernetesClusterDeleteEvent,
@@ -7699,7 +7917,8 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
@@ -7760,12 +7979,12 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
-		ScopesStatus:            scopesStatusFromFeatureFlag(),
+		ScopesStatus:            a.scopesStatusFromFeatureFlag(),
 	}, nil
 }
 
-func scopesStatusFromFeatureFlag() proto.ScopesStatus {
-	if scopes.FeatureEnabled() {
+func (a *Server) scopesStatusFromFeatureFlag() proto.ScopesStatus {
+	if a.scopesFeatures.Enabled {
 		return proto.ScopesStatus_SCOPES_STATUS_ENABLED
 	}
 	return proto.ScopesStatus_SCOPES_STATUS_DISABLED
@@ -7863,7 +8082,28 @@ func MFARequiredToBool(m proto.MFARequired) (required bool) {
 	}
 }
 
-func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+// getMFARequiredForScopedCtx returns the [services.MFARequired] decision for the given scoped auth context.
+// When unscoped, it returns the MFA requirement as defined by the context's role set.
+// When scoped, it always returns [services.MFARequiredNever] unless the cluster auth preferences dictate that
+// per-session MFA is required. This always results in an error until scopes support MFA.
+func (a *Server) getMFARequiredForScopedCtx(ctx context.Context, scopedCtx *authz.ScopedContext) (services.MFARequired, error) {
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return services.MFARequiredAlways, trace.Wrap(err)
+	}
+
+	if unscopedCtx, isUnscoped := scopedCtx.UnscopedContext(); isUnscoped {
+		return unscopedCtx.Checker.GetAccessState(authPref).MFARequired, nil
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO (eriktate/scopes): implement scoped MFA
+		return services.MFARequiredAlways, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+	return services.MFARequiredNever, nil
+}
+
+func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedContext, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -7871,12 +8111,11 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 	}()
 
-	authPref, err := a.GetAuthPreference(ctx)
+	mfaRequired, err := a.getMFARequiredForScopedCtx(ctx, scopedCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch state := checker.GetAccessState(authPref); state.MFARequired {
+	switch mfaRequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{
 			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -7887,6 +8126,14 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}, nil
 	}
 
+	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
+	if !isUnscoped {
+		// This should be an impossible state because if this were a scoped identity we would have either returned
+		// an error due to cluster-level per-session MFA being enabled or returned MFARequiredNever due to scoped
+		// identities not supporting it. We return an error here to prevent progressing in an unpredictable state
+		return nil, trace.AccessDenied("scoped identities must not require per-session MFA")
+	}
+	checker := unscopedCtx.Checker
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
@@ -7968,18 +8215,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
-		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var cluster types.KubeCluster
-		for _, svc := range svcs {
-			kubeCluster := svc.GetCluster()
-			if kubeCluster.GetName() == t.KubernetesCluster {
-				cluster = kubeCluster
-				break
+		for server, err := range a.RangeKubernetesServersWithName(ctx, t.KubernetesCluster) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			cluster = server.GetCluster()
+			break
 		}
 		if cluster == nil {
 			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
@@ -7991,16 +8233,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var db types.Database
-		for _, server := range servers {
-			if server.GetDatabase().GetName() == t.Database.ServiceName {
-				db = server.GetDatabase()
-				break
+		for server, err := range a.RangeDatabaseServersWithName(ctx, t.Database.ServiceName) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			db = server.GetDatabase()
+			break
 		}
 		if db == nil {
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -8013,36 +8252,52 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()},
+			Limit:                1,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(desktops) == 0 {
+		if len(resp.Desktops) == 0 {
 			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
-		noMFAAccessErr = checker.CheckAccess(desktops[0],
+		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
+
+	case *proto.IsMFARequiredRequest_LinuxDesktop:
+		desktop, err := a.GetLinuxDesktop(ctx, t.LinuxDesktop.GetLinuxDesktop())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		noMFAAccessErr = checker.CheckAccess(types.ProtoResource153ToLegacy(desktop),
+			services.AccessState{},
+			services.NewLinuxDesktopLoginMatcher(t.LinuxDesktop.GetLogin()))
 
 	case *proto.IsMFARequiredRequest_App:
 		if t.App.Name == "" {
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
 
-		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var app types.Application
+		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Make sure we only return the app with the matching scope.
+			if server.GetScope() != t.App.Scope {
+				continue
+			}
+			app = server.GetApp()
+			break
 		}
-
-		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
-			return server.GetApp().GetName() == t.App.Name
-		})
-		if i == -1 {
+		if app == nil {
 			return nil, trace.NotFound("application service %q not found", t.App.Name)
 		}
 
-		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
@@ -8448,16 +8703,8 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
-			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
-				trace.IsNotFound(err) {
-				// Do not add extra user messages to
-				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
-				// client-side code from using errors.Is to reliably identify
-				// this specific error after it goes through gRPC. The original
-				// error isn't particularly useful to the user anyway, so just
-				// log it at debug level.
-				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
-				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
+				return nil, trace.Wrap(reuseErr)
 			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
@@ -8490,6 +8737,50 @@ func (a *Server) validateMFAAuthResponseInternal(
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
+}
+
+// convertToErrExpiredReusableMFAResponse converts err to
+// mfa.ErrExpiredReusableMFAResponse, if appropriate.
+// Returns nil if the conversion should not apply.
+func (a *Server) convertToErrExpiredReusableMFAResponse(ctx context.Context, err error, requiredExtensions *mfav1.ChallengeExtensions) error {
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && trace.IsNotFound(err) {
+		a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+		return trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+	}
+	return nil
+}
+
+// mfaSessionDataNotFoundMsg is the client-facing error for a missing, foreign, or wrong-flow MFA session.
+const mfaSessionDataNotFoundMsg = "mfa session data not found"
+
+// verifyMFASessionData validates the stored MFA session shared by the SSO and browser MFA verify flows.
+func (a *Server) verifyMFASessionData(
+	ctx context.Context,
+	sessionID,
+	username string,
+	requiredExtensions *mfav1.ChallengeExtensions,
+) (*services.MFASessionData, error) {
+	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
+	if err != nil {
+		if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
+			return nil, reuseErr
+		}
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
+		}
+		return nil, trace.Wrap(err)
+	}
+	if mfaSess.Username != username {
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
+	}
+	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
+		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
+	}
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO &&
+		mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given MFA session allows reuse, but reuse is not permitted in this context")
+	}
+	return mfaSess, nil
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
@@ -8549,7 +8840,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.OktaCA,
 		types.AWSRACA,
 		types.BoundKeypairCA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8577,7 +8869,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SAMLIDPCA,
 		types.SPIFFECA,
 		types.AWSRACA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8633,6 +8926,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.AWSRACATLS
 	case types.WindowsCA:
 		return cryptosuites.WindowsCARDP
+	case types.AppClientCA:
+		return cryptosuites.AppClientCATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

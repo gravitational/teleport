@@ -1,14 +1,16 @@
 packages:
   - web/packages/*
   - e/web/*
-onlyBuiltDependencies:
-  - '@swc/core'
-  - electron
-  - esbuild
-  - msw
-  - node-pty
-  - protobufjs
-  - unrs-resolver
+  - e2e
+  - e/e2e
+allowBuilds:
+  '@swc/core': true
+  cbor-extract: true
+  esbuild: true
+  msw: true
+  node-pty: true
+  protobufjs: true
+  unrs-resolver: true
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
@@ -33,8 +35,13 @@ shellEmulator: true
 # affect performance outside of docker.
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
-patchedDependencies:
-  # Needed for roundRect support which was merged to jest-canvas-mock but not released.
-  jest-canvas-mock@2.5.2: web/patches/jest-canvas-mock@2.5.2.patch
 # Do not install packages released less than 2 days (2880 minutes) ago
 minimumReleaseAge: 2880
+# These are published as GitHub release tarballs rather than to the npm registry, so they have no
+# registry publish time for minimumReleaseAge to check and would otherwise fail the policy.
+minimumReleaseAgeExclude:
+  - '@gravitational/design-system'
+  - '@gravitational/swc-plugin-jsx-marker'
+  - '@gravitational/swc-plugin-styled-components'
+# The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
+updateNotifier: false

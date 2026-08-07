@@ -25,6 +25,11 @@ import type {
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
+  SecondFactor,
+} from 'shared/services';
+import {
+  legacySecondFactorToSecondFactors,
+  secondFactorsToLegacySecondFactor,
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
@@ -33,11 +38,11 @@ import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants'
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  AzureResource,
   IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
   Regions,
-  AzureResource,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { GroupAction } from 'teleport/services/managedUpdates';
@@ -101,6 +106,9 @@ const cfg = {
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
 
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -144,6 +152,7 @@ const cfg = {
     localConnectorName: '',
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
+    second_factors: [] as SecondFactor[],
     authType: 'local' as AuthType,
     /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
     defaultConnectorName: '',
@@ -198,6 +207,8 @@ const cfg = {
     databases: '/web/cluster/:clusterId/databases',
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+    linuxDesktop:
+      '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
     users: '/web/users',
     bots: '/web/bots',
     bot: '/web/bot/:botName',
@@ -232,6 +243,8 @@ const cfg = {
     browserMfa: `/web/mfa/browser/:requestId?`,
     integrations: '/web/integrations',
     integrationOverview: '/web/integrations/overview/:type/:name',
+    integrationOverviewSettings:
+      '/web/integrations/overview/:type/:name/settings',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -314,10 +327,12 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
@@ -592,6 +607,10 @@ const cfg = {
     return cfg.playable_db_protocols;
   },
 
+  getBeamsUi() {
+    return cfg.beamsUi;
+  },
+
   getClusterInfoPath(clusterId: string) {
     return generatePath(cfg.api.clusterInfoPath, {
       clusterId,
@@ -657,8 +676,33 @@ const cfg = {
     return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];
   },
 
+  // auth2faType is derived from second_factors. Prefer calling secondFactors directly.
   getAuth2faType() {
-    return cfg.auth ? cfg.auth.second_factor : null;
+    if (!cfg.auth) {
+      return null;
+    }
+
+    // If second_factors isn't set, use second_factor to determine the auth2faType.
+    // TODO(Joerger): DELETE in v20 - v19 server sets second_factors.
+    if (!cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factor;
+    }
+
+    return secondFactorsToLegacySecondFactor(cfg.auth.second_factors);
+  },
+
+  secondFactors(): SecondFactor[] {
+    if (!cfg.auth) {
+      return null;
+    }
+
+    if (cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factors;
+    }
+
+    // If second_factors isn't set, use second_factor to populate it.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    return legacySecondFactorToSecondFactors(cfg.auth.second_factor);
   },
 
   getDefaultConnectorName() {
@@ -681,12 +725,28 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
-  isMfaEnabled() {
-    return cfg.auth.second_factor !== 'off';
+  isMfaUserConfigurable() {
+    // Users can add/remove MFA devices when at least one non-SSO factor is allowed.
+    // (SSO MFA is managed by the auth connector, not by the user.)
+    return cfg.secondFactors().some(f => f !== 'sso');
   },
 
-  isAdminActionMfaEnforced() {
-    return cfg.auth.second_factor === 'webauthn';
+  // Mirrors authpref.IsAdminActionMFAEnforced server-side. Returns undefined
+  // when the answer is unknowable from the webcfg (older proxy/auth with an
+  // SSO-only cluster), signaling callers to fall back to a server-side check.
+  isAdminActionMfaEnforced(): boolean | undefined {
+    const factors = cfg.secondFactors();
+
+    // If second_factors is empty, it could mean that `second_factors: ["sso"]`,
+    // but the old server only sent us `second_factor: "off"`.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    if (factors.length === 0) {
+      return undefined;
+    }
+
+    // OTP is not supported for admin actions, so admin MFA is only enforced
+    // when every configured factor can satisfy an admin action.
+    return !factors.includes('otp');
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -800,6 +860,13 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -935,7 +1002,7 @@ const cfg = {
     if (options?.activeTab) {
       search.set('tab', options.activeTab);
     }
-    return generatePath(`${cfg.routes.botInstances}?${search.toString()}`);
+    return `${generatePath(cfg.routes.botInstances)}?${search.toString()}`;
   },
 
   getInstancesRoute() {
@@ -982,6 +1049,14 @@ const cfg = {
 
   getDesktopRoute({ clusterId, username, desktopName }) {
     return generatePath(cfg.routes.desktop, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
       clusterId,
       desktopName,
       username,

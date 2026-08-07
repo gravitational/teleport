@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 )
 
@@ -50,11 +51,17 @@ func (b *Collection) Validate(ctx context.Context) error {
 		if err := accessList.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+		if accessList.Scope != "" {
+			return trace.BadParameter("collections do not support scoped access lists")
+		}
 	}
 	for _, members := range b.MembersByAccessList {
 		for _, member := range members {
 			if err := member.CheckAndSetDefaults(); err != nil {
 				return trace.Wrap(err)
+			}
+			if member.Scope != "" {
+				return trace.BadParameter("collections do not support scoped access list members")
 			}
 		}
 	}
@@ -103,6 +110,16 @@ func (b *Collection) GetAccessList(ctx context.Context, name string) (*accesslis
 	return al, nil
 }
 
+// GetAccessListV2 retrieves an access list from the batch by scoped name.
+// Implements accesslists.AccessListAndMembersGetter interface.
+func (b *Collection) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	// TODO(nklaassen): support collections of scoped access lists.
+	if req.GetScope() != "" {
+		return nil, trace.BadParameter("Collection does not support scoped access lists")
+	}
+	return b.GetAccessList(ctx, req.GetName())
+}
+
 // ListAccessListMembers retrieves members for an access list from the batch.
 // Implements accesslists.AccessListAndMembersGetter interface.
 func (b *Collection) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
@@ -147,6 +164,15 @@ func (b *Collection) ListAccessListMembers(ctx context.Context, accessListName s
 	return pageMembers, nextToken, nil
 }
 
+// ListAccessListMembersV2 retrieves members for an access list from the batch.
+func (b *Collection) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
+	// TODO(nklaassen): support collections of scoped access lists.
+	if req.GetAccessListScope() != "" {
+		return nil, "", trace.BadParameter("collection does not support scoped access lists")
+	}
+	return b.ListAccessListMembers(ctx, req.GetAccessList(), int(req.GetPageSize()), req.GetPageToken())
+}
+
 // GetAccessListMember retrieves a specific member from an access list in the batch.
 // Implements accesslists.AccessListAndMembersGetter interface.
 func (b *Collection) GetAccessListMember(ctx context.Context, accessListName, memberName string) (*accesslist.AccessListMember, error) {
@@ -160,6 +186,15 @@ func (b *Collection) GetAccessListMember(ctx context.Context, accessListName, me
 		}
 	}
 	return nil, trace.NotFound("member %q not found in access list %q", memberName, accessListName)
+}
+
+// GetAccessListMemberV2 retrieves a specific member from an access list in the batch.
+func (b *Collection) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	// TODO(nklaassen): support collections of scoped access lists.
+	if req.GetAccessListScope() != "" || req.GetMemberScope() != "" {
+		return nil, trace.BadParameter("collection does not support scoped access lists")
+	}
+	return b.GetAccessListMember(ctx, req.GetAccessList(), req.GetMemberName())
 }
 
 // RefUpdates calculates and applies reference updates (Status.MemberOf and Status.OwnerOf)

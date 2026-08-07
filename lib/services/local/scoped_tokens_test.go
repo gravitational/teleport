@@ -40,16 +40,17 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestScopedTokenService(t *testing.T) {
+	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -160,7 +161,7 @@ func TestScopedTokenService(t *testing.T) {
 func TestScopedTokenList(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -246,125 +247,125 @@ func TestScopedTokenList(t *testing.T) {
 		},
 		{
 			name: "tokens assigning scope descendant of /test",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
 		{
 			name: "tokens assigning scope descendant of /test/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
 		{
 			name: "tokens assigning scope ancestor to /test/bb",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
 		{
 			name: "tokens descendants of /test",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
 		{
 			name: "tokens descendants of /test/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
 		{
 			name: "tokens ancestor to /test/bb",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
 		{
 			name: "tokens descendant of /stage assigning /stage/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage",
-				},
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				}.Build(),
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{stage1, stage2},
 		},
 		{
 			name: "tokens descendant of /stage/aa assigning /stage/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				}.Build(),
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{stage2},
 		},
 		{
 			name: "tokens in /test scope applying auth role",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				Roles:       []string{types.RoleAuth.String()},
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{},
 		},
 		{
 			name: "tokens in /test scope filtered by label",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				Roles: []string{types.RoleNode.String()},
 				Labels: map[string]string{
 					"hello": "world",
 				},
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test2},
 		},
 		{
@@ -406,7 +407,7 @@ func TestScopedTokenList(t *testing.T) {
 func TestScopedTokenNameCollisions(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk)
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	provisioningService := local.NewProvisioningService(bk)
@@ -513,10 +514,11 @@ func TestScopedTokenNameCollisions(t *testing.T) {
 }
 
 func TestScopedTokenUse(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		bk, err := memory.New(memory.Config{})
 		require.NoError(t, err)
-		service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+		service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 		require.NoError(t, err)
 
 		ctx := t.Context()
@@ -609,8 +611,7 @@ func newBoundKeypairToken() *joiningv1.ScopedToken {
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
 			AssignedScope: "",
-			BotName:       "example",
-			BotScope:      "/test",
+			Bot:           scopes.QualifiedName{Scope: "/test", Name: "example"}.String(),
 			JoinMethod:    string(types.JoinMethodBoundKeypair),
 			Roles:         []string{types.RoleBot.String()},
 			UsageMode:     string(joining.TokenUsageModeBot),
@@ -623,7 +624,7 @@ func TestScopedTokenUpdate(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -732,7 +733,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -1003,7 +1004,7 @@ func TestScopedTokenCreate(t *testing.T) {
 	t.Parallel()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk))
+	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()

@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -161,7 +162,8 @@ func TestJoinAzure(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -661,7 +663,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -701,7 +704,7 @@ func TestJoinAzureClaims(t *testing.T) {
 			Name: botName,
 		},
 		Spec: &machineidv1pb.BotSpec{},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {

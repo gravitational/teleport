@@ -460,6 +460,10 @@ func (a *testAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) 
 	}
 }
 
+func (a *testAuth) WithSession(session *common.Session) common.Auth {
+	return a
+}
+
 func TestMongoDBAtlas(t *testing.T) {
 	t.Parallel()
 

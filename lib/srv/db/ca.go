@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -169,7 +171,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	// downloaded from a well-known URL.
 	// DocumentDB uses same certs as RDS.
 	case types.DatabaseTypeRDS, types.DatabaseTypeRDSOracle, types.DatabaseTypeDocumentDB:
-		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database)))}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, rdsCAURLForDatabase(database))
 
 	// All Redshift instances share the same root CA which can be downloaded
 	// from a well-known URL.
@@ -177,7 +179,7 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	case types.DatabaseTypeRedshift,
 		types.DatabaseTypeRedshiftServerless:
-		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database)))}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, redshiftCAURLForDatabase(database))
 
 	// ElastiCache databases are signed with Amazon root CA. In most cases,
 	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
@@ -191,27 +193,50 @@ func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 		types.DatabaseTypeElastiCacheServerless,
 		types.DatabaseTypeMemoryDB,
 		types.DatabaseTypeDynamoDB:
-		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, amazonRootCA1URL)
 
 	// Each Cloud SQL instance has its own CA.
 	case types.DatabaseTypeCloudSQL:
 		return []string{filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName()))}, nil
 
 	case types.DatabaseTypeAzure:
-		return []string{
-			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLDigiCert)),
-		}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, azureCAURLDigiCert)
 
 	case types.DatabaseTypeAWSKeyspaces:
-		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL))}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, amazonKeyspacesCAURLs...)
 
 	case types.DatabaseTypeMongoAtlas:
-		return []string{
-			filepath.Join(s.cfg.DataDir, filepath.Base(isrgRootX1URL)),
-		}, nil
+		return caFilePathsForURLs(s.cfg.DataDir, isrgRootX1URL)
 	}
 
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+}
+
+func caFilePathsForURLs(dataDir string, caURLs ...string) ([]string, error) {
+	paths := make([]string, 0, len(caURLs))
+	for _, caURL := range caURLs {
+		filename, err := caFilenameFromURL(caURL)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		paths = append(paths, filepath.Join(dataDir, filename))
+	}
+	return paths, nil
+}
+
+func caFilenameFromURL(caURL string) (string, error) {
+	parsedURL, err := url.Parse(caURL)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if parsedURL.Path == "" {
+		return "", trace.BadParameter("CA URL %q does not contain a path", caURL)
+	}
+	filename := path.Base(parsedURL.EscapedPath())
+	if filename == "." || filename == "/" {
+		return "", trace.BadParameter("CA URL %q does not contain a filename", caURL)
+	}
+	return filename, nil
 }
 
 // saveCACert saves the downloaded certificate to the filesystem.
@@ -329,7 +354,11 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database, 
 		}
 		return nil, nil, trace.BadParameter("unknown Azure CA %q", hint)
 	case types.DatabaseTypeAWSKeyspaces:
-		return d.downloadFromURL(amazonKeyspacesCAURL)
+		url, err := keyspacesCAURLForHint(hint)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return d.downloadFromURL(url)
 	case types.DatabaseTypeMongoAtlas:
 		return d.downloadFromURL(isrgRootX1URL)
 	}
@@ -354,12 +383,29 @@ func (d *realDownloader) GetVersion(ctx context.Context, database types.Database
 		}
 		return nil, trace.BadParameter("unknown Azure CA %q", hint)
 	case types.DatabaseTypeAWSKeyspaces:
-		return d.getVersionFromURL(database, amazonKeyspacesCAURL)
+		url, err := keyspacesCAURLForHint(hint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return d.getVersionFromURL(database, url)
 	case types.DatabaseTypeMongoAtlas:
 		return d.getVersionFromURL(database, isrgRootX1URL)
 	}
 
 	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
+}
+
+func keyspacesCAURLForHint(hint string) (string, error) {
+	for _, caURL := range amazonKeyspacesCAURLs {
+		filename, err := caFilenameFromURL(caURL)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		if filename == hint {
+			return caURL, nil
+		}
+	}
+	return "", trace.BadParameter("unknown AWS Keyspaces CA %q", hint)
 }
 
 // downloadFromURL downloads root certificate from the provided URL.
@@ -503,15 +549,18 @@ const (
 	//
 	// https://www.amazontrust.com/repository/
 	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+	amazonRootCA2URL = "https://www.amazontrust.com/repository/AmazonRootCA2.pem"
+	amazonRootCA3URL = "https://www.amazontrust.com/repository/AmazonRootCA3.pem"
+	amazonRootCA4URL = "https://www.amazontrust.com/repository/AmazonRootCA4.pem"
 
 	// azureCAURLDigiCert is the URL of the CA certificate for validating
 	// certificates presented by Azure hosted databases.
 	azureCAURLDigiCert = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
 
-	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
-	// presented by AWS Keyspace. See:
+	// amazonKeyspacesStarfieldCAURL is the URL of the legacy CA certificate for
+	// validating certificates presented by AWS Keyspaces. See:
 	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
-	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
+	amazonKeyspacesStarfieldCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
 
 	// isrgRootX1URL is the URL to download ISRG Root X1 CA for Let's Encrypt. See:
 	// https://letsencrypt.org/certificates/
@@ -534,3 +583,11 @@ To correct the error you can try the following:
   * Download root certificate for your Cloud SQL instance %q manually and set
     it in the database configuration using "ca_cert_file" configuration field.`
 )
+
+var amazonKeyspacesCAURLs = []string{
+	amazonRootCA1URL,
+	amazonRootCA2URL,
+	amazonRootCA3URL,
+	amazonRootCA4URL,
+	amazonKeyspacesStarfieldCAURL,
+}

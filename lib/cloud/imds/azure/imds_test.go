@@ -21,15 +21,18 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
@@ -91,7 +94,7 @@ func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
 }
 
 func TestAzureIsInstanceMetadataAvailableWithHTTPProxyEnv(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	imdsFakeServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/versions" {
 			w.WriteHeader(http.StatusOK)
 			versions := struct {
@@ -103,15 +106,47 @@ func TestAzureIsInstanceMetadataAvailableWithHTTPProxyEnv(t *testing.T) {
 			return
 		}
 	}))
-	defer server.Close()
+
+	// Azure IMDS local server is available at 169.254.169.254
+	// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
+	//
+	// To access IMDS, clients must never use a proxy, even if HTTP_PROXY env is set
+	// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#proxies
+	// > IMDS is not intended to be used behind a proxy and doing so is unsupported.
+	//
+	// This test verifies that our client correctly ignores HTTP_PROXY env and can access IMDS server.
+	// So, we start a local HTTP server to emulate the IMDS endpoint and set HTTP_PROXY env to point to a non-existent proxy server.
+	// Then, the client is created and it should be able to access the fake IMDS server successfully, proving that it ignores the HTTP_PROXY env.
+	//
+	// The problem with the above setup is that Go's default HTTP proxy implementation ignores calls to localhost and any IP that is loopback, even if HTTP_PROXY is set.
+	// See: https://cs.opensource.google/go/x/net/+/refs/tags/v0.55.0:http/httpproxy/proxy.go;l=185-186
+	// So, while the code is correct we can't prove it with a test, because httptest.Server will always give us a localhost address.
+	//
+	// To work around this, we need to set the base url in the client to use a hostname that is not localhost.
+	// Plan A is to find a non-loopback local interface and use its IP address as the server host.
+	// The fallback is to use nip.io service which which resolves any hostname in the format <IP>.nip.io to IP.
+	//
+	// This way, we can prove that removing the defaults.DisableProxyFromEnvironment() when creating the HTTP client in imds.go causes the test to fail.
+	// We also need to create a specific listener that binds to all interfaces because httptest.Server only binds to localhost.
+	l, err := net.Listen("tcp", "0.0.0.0:0")
+	require.NoError(t, err)
+	imdsFakeServer.Listener = l
+	imdsFakeServer.Start()
+	defer imdsFakeServer.Close()
+
+	serverHost, err := testutils.NonLocalhostLocalInterfaceIP()
+	if err != nil {
+		t.Logf("failed to find a non-localhost usable network interface, using 127.0.0.1.nip.io: %v", err)
+		serverHost = "127.0.0.1.nip.io"
+	}
+
+	fakeServerURL, err := url.Parse(imdsFakeServer.URL)
+	require.NoError(t, err)
+	fakeServerURL.Host = net.JoinHostPort(serverHost, fakeServerURL.Port())
 
 	t.Setenv("HTTP_PROXY", "http://127.0.0.1:0")
 
-	// We need to use a hostname that is not localhost or net/IP.IsLoopback, because Go's default HTTP proxy implementation ignores calls to those hosts even if HTTP_PROXY is set.
-	// httptest can only provide an http server at localhost, so we have to use a workaround to get a non-localhost host that still resolves to the HTTP Server above.
-	serverURL := strings.Replace(server.URL, "127.0.0.1", "127.0.0.1.nip.io", 1)
-
-	clt := NewInstanceMetadataClient(WithBaseURL(serverURL))
+	clt := NewInstanceMetadataClient(WithBaseURL(fakeServerURL.String()))
 	require.True(t, clt.IsAvailable(t.Context()), "instance metadata should be available even with HTTP_PROXY set")
 }
 

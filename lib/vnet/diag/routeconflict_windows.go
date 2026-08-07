@@ -74,6 +74,5 @@ func (c *RouteConflictDiag) commands(ctx context.Context) []*exec.Cmd {
 	return []*exec.Cmd{
 		exec.CommandContext(ctx, "netstat.exe", "-rn"),
 		exec.CommandContext(ctx, "ipconfig.exe", "/all"),
-		exec.CommandContext(ctx, "netsh.exe", "namespace", "show", "effectivepolicy"),
 	}
 }

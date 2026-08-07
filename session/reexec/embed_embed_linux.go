@@ -28,18 +28,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// embeddedReexecAvailable is the definition of [EmbeddedReexecAvailable] in
+// this build.
+const embeddedReexecAvailable = true
+
 var embeddedReexecMemfd atomic.Pointer[os.File]
 
 var embeddedReexecOnce sync.Once
 var embeddedReexecError error
 
-func initEmbeddedReexec() (bool, error) {
+// initEmbeddedReexec is the implementation of [InitEmbeddedReexec] in this
+// build.
+func initEmbeddedReexec() error {
 	embeddedReexecOnce.Do(func() {
-		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC") == "yes" {
-			embeddedReexecError = trace.Errorf("embedded binary disabled by TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC")
-			return
-		}
-
 		// this name is only displayed as a link in /proc/<pid>/exe or /proc/<pid>/fd/<n>
 		mf, err := loadEmbeddedReexec("teleport-sessionhelper", sessionHelperGZ)
 		if err != nil {
@@ -50,7 +51,7 @@ func initEmbeddedReexec() (bool, error) {
 		embeddedReexecMemfd.Store(mf)
 	})
 
-	return true, embeddedReexecError
+	return embeddedReexecError
 }
 
 func setLinuxReexecPath(cmd *exec.Cmd) {

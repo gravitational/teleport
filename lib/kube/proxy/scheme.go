@@ -211,6 +211,30 @@ func newClusterSchemaBuilder(log *slog.Logger, client kubernetes.Interface) (*se
 	return &kubeCodecs, supportedResources, gvkSupportedRes, nil
 }
 
+// buildCodecsForGVKs builds a codec factory whose scheme knows the well-known
+// Kubernetes types plus the given discovered GVKs (as unstructured). It mirrors
+// newClusterSchemaBuilder's registration and is used to rebuild the codecs after
+// a targeted, single-group-version discovery, without re-discovering the cluster.
+func buildCodecsForGVKs(gvks gvkSupportedResources) (*serializer.CodecFactory, error) {
+	kubeScheme := runtime.NewScheme()
+	if err := registerDefaultKubeTypes(kubeScheme); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, gvk := range gvks {
+		if gvk == nil {
+			continue
+		}
+		// Skip well-known types already registered by registerDefaultKubeTypes.
+		if _, err := kubeScheme.New(*gvk); err == nil {
+			continue
+		}
+		kubeScheme.AddKnownTypeWithName(*gvk, &unstructured.Unstructured{})
+		kubeScheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+listSuffix), &unstructured.Unstructured{})
+	}
+	kubeCodecs := serializer.NewCodecFactory(kubeScheme)
+	return &kubeCodecs, nil
+}
+
 // getKubeAPIGroupAndVersion returns the API group and version from the given
 // groupVersion string.
 // The groupVersion string can be in the following formats:

@@ -62,6 +62,16 @@ func TestWorkloadIdentityAPIService_YAML(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with trust domains",
+			in: WorkloadAPIConfig{
+				Listen: "tcp://0.0.0.0:4040",
+				Selector: bot.WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			},
+		},
 	}
 	testYAML(t, tests)
 }
@@ -155,7 +165,7 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "listen: should not be empty",
 		},
 		{
-			name:   "scoped",
+			name:   "valid scoped",
 			scoped: true,
 			in: func() *WorkloadAPIConfig {
 				return &WorkloadAPIConfig{
@@ -165,7 +175,54 @@ func TestWorkloadIdentityAPIService_CheckAndSetDefaults(t *testing.T) {
 					Listen: "tcp://0.0.0.0:4040",
 				}
 			},
-			wantErr: "is not supported in scoped mode",
+			want: &WorkloadAPIConfig{
+				Selector: bot.WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				Listen: "tcp://0.0.0.0:4040",
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
+					},
+				},
+			},
+		},
+		{
+			name: "valid trust domains",
+			in: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Listen:              "tcp://0.0.0.0:4040",
+					TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+				}
+			},
+			want: &WorkloadAPIConfig{
+				Selector: bot.WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				Listen:              "tcp://0.0.0.0:4040",
+				TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.DefaultBinaryHashMaxBytes,
+					},
+				},
+			},
+		},
+		{
+			name: "invalid trust domains",
+			in: func() *WorkloadAPIConfig {
+				return &WorkloadAPIConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Listen:              "tcp://0.0.0.0:4040",
+					TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomain("bogus")},
+				}
+			},
+			wantErr: `invalid trust domain "bogus"`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

@@ -139,6 +139,12 @@ func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// accessGraphTLSCertPath returns the path to the Access Graph TLS certificate
+// for the given KeyRingIndex.
+func (fs *FSKeyStore) accessGraphTLSCertPath(idx KeyRingIndex) string {
+	return keypaths.AccessGraphTLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
 // tlsCertPathLegacy returns the legacy TLS certificate path used in Teleport v16 and
 // older given KeyRingIndex.
 func (fs *FSKeyStore) tlsCertPathLegacy(idx KeyRingIndex) string {
@@ -211,6 +217,15 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 
+	// Store Access Graph cert. Share the same key-file lock used for the main
+	// TLS credential so this cert doesn't drift from TLSPrivateKey under
+	// concurrent writes.
+	if len(keyRing.AccessGraphTLSCert) > 0 {
+		if err := fs.writeAccessGraphTLSCert(keyRing); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Store SSH private and public key.
 	sshPrivateKeyPEM, err := keyRing.SSHPrivateKey.MarshalSSHPrivateKey()
 	if err != nil {
@@ -273,6 +288,43 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	}
 
 	return nil
+}
+
+// readAccessGraphTLSCert reads the Access Graph TLS cert under a read lock
+// on the main TLS key file, so the returned bytes are paired with the key
+// loaded by readTLSCredential. Returns nil bytes (no error) if the cert
+// file isn't present.
+func (fs *FSKeyStore) readAccessGraphTLSCert(idx KeyRingIndex) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryReadLockFile(ctx, fs.userTLSKeyPath(idx))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer unlock()
+	cert, err := os.ReadFile(fs.accessGraphTLSCertPath(idx))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, trace.ConvertSystemError(err)
+	}
+	return cert, nil
+}
+
+// writeAccessGraphTLSCert writes the Access Graph TLS cert under a write
+// lock on the main TLS key file. The AccessGraph cert reuses TLSPrivateKey,
+// so this lock prevents a concurrent key rotation from leaving the
+// AccessGraph cert bound to a stale key.
+func (fs *FSKeyStore) writeAccessGraphTLSCert(keyRing *KeyRing) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	unlock, err := tryWriteLockFile(ctx, fs.userTLSKeyPath(keyRing.KeyRingIndex))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock()
+	return trace.Wrap(fs.writeBytes(keyRing.AccessGraphTLSCert, fs.accessGraphTLSCertPath(keyRing.KeyRingIndex)))
 }
 
 func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath string) error {
@@ -441,6 +493,12 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	for _, fn := range files {
 		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
 	}
+
+	// Access Graph cert may not exist — it's only persisted when minted.
+	if err := utils.RemoveSecure(fs.accessGraphTLSCertPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove Access Graph TLS cert file"))
+	}
+
 	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
 	// as such, deletion should be best-effort and not generate an error if it fails.
@@ -564,6 +622,11 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err)
 	}
 
+	accessGraphTLSCert, err := fs.readAccessGraphTLSCert(idx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.contextualKeyInfo()))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -572,6 +635,9 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
 	keyRing.KeyRingIndex = idx
 	keyRing.TLSCert = tlsCred.Cert
+	// readAccessGraphTLSCert returns nil bytes when the file isn't present,
+	// so this is a no-op for keyrings without an Access Graph cert.
+	keyRing.AccessGraphTLSCert = accessGraphTLSCert
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
@@ -906,6 +972,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 	retKeyRing := NewKeyRing(keyRing.SSHPrivateKey, keyRing.TLSPrivateKey)
 	retKeyRing.KeyRingIndex = idx
 	retKeyRing.TLSCert = keyRing.TLSCert
+	retKeyRing.AccessGraphTLSCert = keyRing.AccessGraphTLSCert
 	for _, o := range opts {
 		switch o.(type) {
 		case WithSSHCerts:

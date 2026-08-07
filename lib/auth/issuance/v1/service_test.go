@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -54,9 +55,14 @@ func TestMain(m *testing.M) {
 }
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	return newTestTLSServerWithScopesFeatures(t, scopes.Features{})
+}
+
+func newTestTLSServerWithScopesFeatures(t testing.TB, scopesFeatures scopes.Features) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:            t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -75,10 +81,10 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 }
 
 func TestIssueScopedBotCerts(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 
 	const botScope = "/test-scope"
 
@@ -128,10 +134,9 @@ func TestIssueScopedBotCerts(t *testing.T) {
 			},
 			Scope: botScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  bot.Metadata.Name,
-				BotScope: botScope,
+				Bot: scopes.QualifiedName{Scope: botScope, Name: bot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "bot-role", Scope: botScope},
+					scopedaccessv1.Assignment_builder{Role: botScope + "::bot-role", Scope: botScope}.Build(),
 				},
 			},
 		},
@@ -272,7 +277,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 }
 
 func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
-	// Do NOT set the feature flag env vars.
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -299,10 +304,10 @@ func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
 }
 
 func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 
 	const testScope = "/test-scope"
 
@@ -359,10 +364,9 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 			},
 			Scope: testScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  scopedBot.Metadata.Name,
-				BotScope: testScope,
+				Bot: scopes.QualifiedName{Scope: testScope, Name: scopedBot.GetMetadata().GetName()}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "test-role", Scope: testScope},
+					scopedaccessv1.Assignment_builder{Role: testScope + "::test-role", Scope: testScope}.Build(),
 				},
 			},
 		},
@@ -403,7 +407,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
-						{Role: "test-role", Scope: testScope},
+						scopedaccessv1.Assignment_builder{Role: testScope + "::test-role", Scope: testScope}.Build(),
 					},
 				},
 			},
@@ -495,6 +499,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			})
 			require.NoError(t, err)
 		}

@@ -56,15 +56,40 @@ const (
 	validatorTTL = time.Hour * 24 * 2
 )
 
-// validatorKey is a composite key for the validator instance map
-type validatorKey struct {
+// ValidatorKey is a caching key for validator instances. Keys at minimum must
+// contain an issuer an audience (required to construct validators) but may also
+// contain other caching keys as desired.
+type ValidatorKey interface {
+	comparable
+
+	GetIssuer() string
+	GetAudience() string
+}
+
+// StandardValidatorKey is a composite key for the validator instance map
+type StandardValidatorKey struct {
 	issuer   string
 	audience string
 }
 
+func (k StandardValidatorKey) GetIssuer() string {
+	return k.issuer
+}
+
+func (k StandardValidatorKey) GetAudience() string {
+	return k.audience
+}
+
+func NewStandardValidatorKey(issuer, audience string) StandardValidatorKey {
+	return StandardValidatorKey{
+		issuer:   issuer,
+		audience: audience,
+	}
+}
+
 // NewCachingTokenValidator creates a caching validator for the given issuer and
 // audience, using a real clock.
-func NewCachingTokenValidator[C oidc.Claims](clock clockwork.Clock) (*CachingTokenValidator[C], error) {
+func NewCachingTokenValidator[C oidc.Claims, K ValidatorKey](clock clockwork.Clock) (*CachingTokenValidator[C, K], error) {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
@@ -78,7 +103,7 @@ func NewCachingTokenValidator[C oidc.Claims](clock clockwork.Clock) (*CachingTok
 		return nil, err
 	}
 
-	return &CachingTokenValidator[C]{
+	return &CachingTokenValidator[C, K]{
 		clock: clock,
 		cache: cache,
 	}, nil
@@ -89,31 +114,52 @@ func NewCachingTokenValidator[C oidc.Claims](clock clockwork.Clock) (*CachingTok
 // (issuer, audience) pair. This helps to ensure validators and key sets don't
 // remain in memory indefinitely if e.g. a Teleport auth token is modified to
 // use a different issuer or removed outright.
-type CachingTokenValidator[C oidc.Claims] struct {
+type CachingTokenValidator[C oidc.Claims, K ValidatorKey] struct {
 	clock clockwork.Clock
 
 	cache *utils.FnCache
 }
 
-// GetValidator retreives a validator for the given issuer and audience. This
-// will create a new validator instance if necessary, and will occasionally
-// prune old instances that have not been used to validate any tokens in some
-// time.
-func (v *CachingTokenValidator[C]) GetValidator(ctx context.Context, issuer, audience string) (*CachingValidatorInstance[C], error) {
-	key := validatorKey{issuer: issuer, audience: audience}
+// ClientMutator is used to modify settings on the constructed http client.
+// Note that if your downstream use case contains user-configurable client
+// options (e.g. custom CA, insecure verification, timeout, etc) you MUST
+// include those parameters as components of a custom caching key or changes to
+// those parameters will not take effect until the cache is busted (min 48 hours
+// or a change to something in the key). It is okay to hash values (e.g. CA
+// PEM) or similar.
+type ClientMutator func(client *http.Client) error
+
+// GetValidatorWithKey returns a caching token validator using a custom caching
+// key. See the ClientMutator docstring for notes about using client mutators
+// with caching.
+func (v *CachingTokenValidator[C, K]) GetValidatorWithKey(
+	ctx context.Context,
+	key K,
+	opts ...ClientMutator,
+) (*CachingValidatorInstance[C], error) {
 	instance, err := utils.FnCacheGet(ctx, v.cache, key, func(ctx context.Context) (*CachingValidatorInstance[C], error) {
 		transport, err := defaults.Transport()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		client := &http.Client{
+			Transport: NewOIDCRoundTripper(otelhttp.NewTransport(transport)),
+		}
+
+		for _, mutator := range opts {
+			if err := mutator(client); err != nil {
+				return nil, trace.Wrap(err, "constructing cached http client")
+			}
+		}
+
 		return &CachingValidatorInstance[C]{
-			client:     &http.Client{Transport: otelhttp.NewTransport(transport)},
+			client:     client,
 			clock:      v.clock,
-			issuer:     issuer,
-			audience:   audience,
+			issuer:     key.GetIssuer(),
+			audience:   key.GetAudience(),
 			verifierFn: zoidcTokenVerifier[C],
-			logger:     log.With("issuer", issuer, "audience", audience),
+			logger:     log.With("issuer", key.GetIssuer(), "audience", key.GetAudience()),
 		}, nil
 	})
 

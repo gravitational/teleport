@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.8.2
+VERSION=18.10.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -58,8 +58,24 @@ BUILDFLAGS_TBOT ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=fals
 BUILDFLAGS_TELEPORT_UPDATE ?= $(ADDFLAGS) -ldflags '$(GO_LDFLAGS)' -trimpath -buildvcs=false
 endif
 
+# HOST_OS is the platform make is running on, which is not necessarily
+# the same as the platform we are building for (that's OS).
+HOST_UNAME := $(shell uname -s 2>/dev/null)
+ifeq ($(HOST_UNAME),Darwin)
+HOST_OS := darwin
+else ifeq ($(HOST_UNAME),Linux)
+HOST_OS := linux
+else ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(HOST_UNAME)))
+HOST_OS := windows
+else ifeq ($(OS),Windows_NT)
+# Native Windows make has no uname, but Windows always sets OS=Windows_NT.
+HOST_OS := windows
+else
+HOST_OS := unknown
+endif
+
 GO_ENV_OS := $(shell go env GOOS)
-OS ?= $(GO_ENV_OS)
+OS ?= $(or $(GO_ENV_OS),$(HOST_OS))
 
 GO_ENV_ARCH := $(shell go env GOARCH)
 ARCH ?= $(GO_ENV_ARCH)
@@ -130,14 +146,16 @@ CARGO_TARGET_linux_arm := arm-unknown-linux-gnueabihf
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
 CARGO_TARGET_linux_386 := i686-unknown-linux-gnu
 CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
+CARGO_TARGET_windows_amd64 := x86_64-pc-windows-gnu
 
 CARGO_TARGET := --target=$(RUST_TARGET_ARCH)
 CARGO_WASM_TARGET := wasm32-unknown-unknown
 
-# If set to 1, Windows RDP client is not built.
+# If set to 1, then we don't build the desktop access RDP client
+# or the RDP decoder for tsh.
 RDPCLIENT_SKIP_BUILD ?= 0
 
-# Enable Windows RDP client build?
+# Enable Rust RDP support?
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -159,6 +177,7 @@ ifneq ("$(is_fips_on_arm64)","yes")
 with_rdpclient := yes
 RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
+TSH_RDP_DECODER_TAG := rust_rdp_decoder
 endif
 endif
 endif
@@ -285,9 +304,19 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
+# This unexport statement is required for make to work with the `-e` flag.
+# With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
+# passes HELMJANITOR=$(go tool) to the child make process.
+# Because of the `-e` flag it takes precedence over the child's make definition
+# of HELMJANITOR and breaks environment variable expansion.
+# To avoid breaking other parts of the release pipeline, the easiest fix is to
+# unexport HELMJANITOR so the child uses the definition from its Makefile.
+unexport HELMJANITOR
 export
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
+
+EXTLDFLAGS ?=
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
@@ -307,16 +336,17 @@ CC=arm-linux-gnueabihf-gcc
 endif
 endif
 
+# Add "-Wl,--long-plt" to avoid ld assertion failure on large binaries.
+EXTLDFLAGS += -Wl,--long-plt
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-# Add "-extldflags -Wl,--long-plt" to avoid ld assertion failure on large binaries
-GO_LDFLAGS += -extldflags=-Wl,--long-plt -debugtramp=2
+GO_LDFLAGS += -debugtramp=2
 endif
 endif # OS == linux
 
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 # Temporary link flags due to changes in Apple's linker
 # https://github.com/golang/go/issues/67854
-GO_LDFLAGS += -extldflags=-ld_classic
+EXTLDFLAGS += -ld_classic
 endif
 
 # Windows requires extra parameters to cross-compile with CGO.
@@ -408,14 +438,26 @@ ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
 endif
 
+ifneq ($(strip $(EXTLDFLAGS)),)
+GO_LDFLAGS += -extldflags "$(EXTLDFLAGS)"
+endif
+
+# Strip unreachable native code from tsh.
+ifeq ("$(OS)","darwin")
+TSH_DEADSTRIP := -Wl,-dead_strip
+else
+TSH_DEADSTRIP := -Wl,--gc-sections
+endif
+$(BUILDDIR)/tsh: GO_LDFLAGS += -extldflags "$(EXTLDFLAGS) $(TSH_DEADSTRIP)"
+
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
 .PHONY: $(BUILDDIR)/tsh
-$(BUILDDIR)/tsh:
+$(BUILDDIR)/tsh: rdpdecoder
 	@if [[ "$(OS)" != "windows" && -z "$(LIBFIDO2_BUILD_TAG)" ]]; then \
 		echo 'Warning: Building tsh without libfido2. Install libfido2 to have access to MFA.' >&2; \
 	fi
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(TSH_RDP_DECODER_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
 # tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
@@ -498,10 +540,17 @@ bpf-bytecode:
 endif
 
 .PHONY: rdpclient
-rdpclient:
+rdpclient: rustup-toolchain-warning
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+endif
+
+.PHONY: rdpdecoder
+rdpdecoder: rustup-toolchain-warning
+ifeq ("$(with_rdpclient)", "yes")
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-decoder --release --locked $(CARGO_TARGET)
 endif
 
 define ironrdp_package_json
@@ -519,7 +568,11 @@ export ironrdp_package_json
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 build-ironrdp-wasm: ensure-wasm-deps
-	cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+ifeq ($(HOST_OS),darwin)
+	CC="$(CC)" AR="$(AR)" RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+else
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
+endif
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
 	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
@@ -922,25 +975,11 @@ helmunit/installed:
 # environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 --with-subchart=false examples/chart/access/*
-	helm unittest -3 --with-subchart=false examples/chart/event-handler
-	helm unittest -3 --with-subchart=false examples/chart/tbot
-	helm unittest -3 --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 -u --with-subchart=false examples/chart/access/*
-	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test --update-snapshots
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -981,7 +1020,7 @@ test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit: test-go-prepare | $(TEST_LOG_DIR)
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
 # Runs tbot unit tests
@@ -1234,6 +1273,12 @@ e2e-aws: | $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -json $(PACKAGES) $(FLAGS) $(ADDFLAGS)\
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-e2e-aws.json --raw-command -- cat
 
+# e2e-binaries builds teleport, tctl, and tsh (with webauthnmock) in parallel
+# for use in e2e tests.
+.PHONY: e2e-binaries
+e2e-binaries:
+	build.assets/build-e2e-binaries.sh
+
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local
@@ -1305,7 +1350,7 @@ endif
 
 .PHONY: fix-imports/host
 fix-imports/host:
-	GOEXPERIMENT=synctest $(GCI) write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	$(GCI) write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1353,30 +1398,8 @@ lint-sh:
 # If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
-	@if ! type yamllint 2>&1 >/dev/null; then \
-		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
-		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
-		exit 0; \
-	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot ./examples/chart/tbot-spiffe-daemon-set; do \
-		if [ -d $${CHART}/.lint ]; then \
-			for VALUES in $${CHART}/.lint/*.yaml; do \
-				export HELM_TEMP=$$(mktemp); \
-				echo -n "Using values from '$${VALUES}': "; \
-				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
-				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
-				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
-				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-				echo; \
-			done \
-		else \
-			export HELM_TEMP=$$(mktemp); \
-			helm lint --quiet --strict $${CHART} || exit 1; \
-			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
-			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-		fi; \
-	done
-	$(MAKE) -C examples/chart check-chart-ref
+	$(HELMJANITOR) reference -check
+	$(HELMJANITOR) lint
 
 ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
@@ -1402,6 +1425,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
@@ -1645,7 +1669,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 .PHONY: derive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
-	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate ./lib/config/
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
@@ -1867,6 +1891,18 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
+# Stage the logo SVGs the Vite build will compress and embed. Runs before the
+# sha check so a change in GITHUB_REPOSITORY_OWNER produces a different web/
+# sha and forces a rebuild.
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+	@echo "copying teleport logo assets (community)";
+	@cp web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+else
+	@echo "copying teleport logo assets (agpl)";
+	@cp web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+endif
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/teleport/index.html webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
@@ -1915,7 +1951,31 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm
+ifeq ($(HOST_OS),darwin)
+BREW_DIR = $(shell brew --prefix)
+LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+# Prevent these from being exported and expanded for every recipe.
+unexport BREW_DIR LLVM_PREFIX LLVM_DIR
+
+# The ironrdp WASM build needs clang/llvm-ar.
+# These are applied as target-specific variables so
+# brew is only invoked when necessary and so that
+# CC and AR are only overwritten for WASM compilation.
+build-ironrdp-wasm: override CC = $(LLVM_DIR)/bin/clang
+build-ironrdp-wasm: override AR = $(LLVM_DIR)/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
+		exit 1; \
+	fi
+else
+ensure-llvm:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
@@ -1972,6 +2032,26 @@ rustup-set-version: ; # obsoleted by toolchain file
 rustup-install-target-toolchain:
 	rustup target add $(RUST_TARGET_ARCH)
 
+
+define rust_toolchain_warning
+  The active Rust toolchain version does not match the toolchain required
+  to build Teleport. This is likely caused by a directory override. You
+  can inspect your current overrides with 'rustup show active-toolchain'
+  and clear directory overrides with 'rustup override unset'
+endef
+export rust_toolchain_warning
+
+# inspect the current active toolchain and display a warning if it doesn't
+# match the version defined in our toolchain file.
+.PHONY: rustup-toolchain-warning
+rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
+rustup-toolchain-warning:
+	@if [ "$(shell rustup show active-toolchain | cut -d'-' -f1)" != "$(EXPECTED)" ]; then \
+		echo -en "\033[31m";\
+		echo  "$$rust_toolchain_warning";\
+		echo  -en "\033[0m";\
+	fi
+
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
@@ -2019,10 +2099,6 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
-
-.PHONY: test-e2e
-test-e2e: ensure-webassets
-	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
 
 cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
 

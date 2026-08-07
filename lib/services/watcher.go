@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -490,6 +491,70 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 	return w, trace.Wrap(err)
 }
 
+type AppServersWatcherConfig struct {
+	AppServersGetter
+	ResourceWatcherConfig
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *AppServersWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cfg.MaxStaleness == 0 {
+		const appServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = appServerMaxStaleness
+	}
+
+	if cfg.AppServersGetter == nil {
+		getter, ok := cfg.Client.(AppServersGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter AppServersGetter and Client not usable as AppServersGetter")
+		}
+		cfg.AppServersGetter = getter
+	}
+
+	return nil
+}
+
+func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindAppServer,
+		// The app server watcher is a proxy only routing construct (see the
+		// reversetunnel server and initProxyEndpoint call sites); it must observe app
+		// servers in every scope, not just unscoped ones, so it watches with MODE_ALL.
+		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
+		ResourceKey: func(resource types.AppServer) string {
+			// host IDs are guaranteed to not contain "/"
+			return resource.GetHostID() + "/" + resource.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// the host ID is stored in metadata.description in app server delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
+		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
+			// TODO(fspmarshall/scopes): this list does not yet honor scope filters, so it
+			// currently returns app servers in every scope and happens to match the MODE_ALL watch
+			// above. Once the list API supports scope filters (and defaults unscoped callers to
+			// unscoped-only, like the watch API), this call must explicitly request MODE_ALL as well.
+			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		DisableUpdateBroadcast: true,
+		CloneFunc:              types.AppServer.Copy,
+		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
+			return resource
+		},
+	})
+
+	return w, trace.Wrap(err)
+}
+
 type DatabaseServerWatcherConfig struct {
 	DatabaseServersGetter
 	ResourceWatcherConfig
@@ -505,16 +570,17 @@ func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
 		const databaseServerMaxStaleness = time.Minute
 		cfg.MaxStaleness = databaseServerMaxStaleness
 	}
-
 	if cfg.DatabaseServersGetter == nil {
 		getter, ok := cfg.Client.(DatabaseServersGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
 		}
 		cfg.DatabaseServersGetter = getter
+		const appServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = appServerMaxStaleness
 	}
-
 	return nil
+
 }
 
 func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
@@ -595,10 +661,17 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubernetesClusters(ctx, "", ""))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
 		},
-		ResourceKey: types.KubeCluster.GetName,
-		ResourcesC:  cfg.KubeClustersC,
+		ResourceKey: GetCursorForKubeCluster,
+		DeleteKey: func(res types.Resource) string {
+			cluster, ok := res.(types.KubeCluster)
+			if !ok {
+				return ""
+			}
+			return GetCursorForKubeCluster(cluster)
+		},
+		ResourcesC: cfg.KubeClustersC,
 		CloneFunc: func(resource types.KubeCluster) types.KubeCluster {
 			return resource.Copy()
 		},
@@ -676,6 +749,14 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
+	// ScopeFilter is an optional scope filter applied to the watch. A nil filter
+	// yields the caller's default scope behavior (unscoped-only for unscoped
+	// callers, current-scope-only for scoped callers). Watchers that run on the
+	// teleport proxy and must observe every instance of an optionally-scoped kind
+	// (regardless of scope) should set this to MODE_ALL. Note that the paired
+	// ResourceGetter (the list seed) does not yet honor scope filters; see the
+	// TODO at each MODE_ALL call site.
+	ScopeFilter *types.ScopeFilter
 	// RequireResourcesForInitialBroadcast indicates whether an update should be
 	// performed if the initial set of resources is empty.
 	RequireResourcesForInitialBroadcast bool
@@ -821,6 +902,7 @@ func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{
 		Kind:        g.ResourceKind,
 		LoadSecrets: g.LoadSecrets,
+		ScopeFilter: g.ScopeFilter,
 	}}
 }
 
@@ -1227,7 +1309,7 @@ func (p *lockCollector) notifyStale() {
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
-		if target.IsEmpty() {
+		if target == (types.LockTarget{}) {
 			continue
 		}
 		filter, err := target.IntoMap()
@@ -1518,6 +1600,11 @@ type NodeWatcherConfig struct {
 	// NodesGetter is used to directly fetch the list of active nodes.
 	NodesGetter
 	ResourceWatcherConfig
+	// ScopeFilter is an optional scope filter applied to the node watch. See
+	// GenericWatcherConfig.ScopeFilter for discussion of function. Node watchers
+	// that run on the teleport proxy need to see nodes in every scope for routing
+	// and should set this to MODE_ALL.
+	ScopeFilter *types.ScopeFilter
 }
 
 // NewNodeWatcher returns a new instance of NodeWatcher.
@@ -1529,7 +1616,12 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*GenericWatcher
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindNode,
+		ScopeFilter:           cfg.ScopeFilter,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
+			// TODO(fspmarshall/scopes): this list does not yet honor scope filters, so it
+			// currently returns nodes in every scope and happens to match a MODE_ALL watch.
+			// Once the list API supports scope filters (and defaults unscoped callers to
+			// unscoped-only, like the watch API), this call must honor cfg.ScopeFilter.
 			return cfg.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 		},
 		ResourceKey:            types.Server.GetName,

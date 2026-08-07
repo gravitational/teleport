@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 // that net.Resolver can successfully use the stack to lookup hosts.
 func TestServer(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	defaultIP4 := tcpip.AddrFrom4([4]byte{1, 2, 3, 4})
 	defaultIP6 := tcpip.AddrFrom16([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})

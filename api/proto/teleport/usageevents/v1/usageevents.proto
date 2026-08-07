@@ -490,12 +490,15 @@ message AssistAction {
 
 // AccessListMetadata contains common metadata for Access List related events.
 message AccessListMetadata {
-  // Uniquely identifies an Access List. Will allow correlation of events within an access list.
+  // Uniquely identifies an Access List within a scope. Will allow correlation of
+  // events within an access list.
   string id = 1;
   // anonymized
   string user_name = 2;
   // Describes the sessions preset.
   AccessListPreset preset = 3;
+  // The scope of the access list.
+  string scope = 4;
 }
 
 // AccessListMemberMetadata contains common metadata for Access List Member related events.
@@ -504,6 +507,8 @@ message AccessListMemberMetadata {
   string name = 1;
   // membership_kind is the type of membership in the parent access list.
   teleport.accesslist.v1.MembershipKind membership_kind = 2;
+  // The scope of the access list member.
+  string scope = 3;
 }
 
 // AccessListCreate is an event that is emitted when an access list is created.
@@ -925,6 +930,17 @@ message UIUsageReportingAlertCtaClickEvent {
   string utm_campaign = 3;
 }
 
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+message UIInteractionEvent {
+  // path is the route template of the page viewed, e.g. "/web/summary/mau"
+  string path = 1;
+  // page_id is a stable identifier for the page that does not change when the
+  // route template changes, e.g. "observability_graph"
+  string page_id = 2;
+  // params holds arbitrary key/value config for the interaction
+  map<string, string> params = 3;
+}
+
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
@@ -1164,6 +1180,7 @@ message UsageEventOneOf {
     UIAccessListCustomEvent ui_access_list_custom_event = 74;
     UIPageViewEvent ui_page_view_event = 75;
     UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click_event = 76;
+    UIInteractionEvent ui_interaction = 77;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

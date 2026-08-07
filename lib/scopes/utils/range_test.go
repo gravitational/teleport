@@ -94,10 +94,10 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
-					{
-						Role:  "some-role",
+					scopedaccessv1.Assignment_builder{
+						Role:  "/::some-role",
 						Scope: "/foo",
-					},
+					}.Build(),
 				},
 			},
 			Version: types.V1,

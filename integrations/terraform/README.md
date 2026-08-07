@@ -2,7 +2,7 @@
 
 ## Usage
 
-Please, refer to [official documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/terraform-provider/).
+Please refer to the [official documentation](https://goteleport.com/docs/reference/infrastructure-as-code/terraform-provider/).
 
 ## Development
 
@@ -25,6 +25,11 @@ Please, refer to [official documentation](https://goteleport.com/docs/admin-guid
     ```bash
     make test
     ```
+
+6. For provider architecture and resource development, see:
+
+    - [Architecture](./ARCHITECTURE.md)
+    - [Contributing resources](./CONTRIBUTING.md)
 
 # Updating the provider
 

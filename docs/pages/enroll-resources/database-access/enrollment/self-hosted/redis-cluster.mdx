@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 {/* vale messaging.protocol-products = NO */}
@@ -48,6 +49,8 @@ If you want to configure Redis Standalone, please read [Database Access with Red
   (!docs/pages/includes/database-access/split-db-ca-details.mdx db="Redis Cluster"!)
 
 - (!docs/pages/includes/tctl.mdx!)
+
+(!docs/pages/includes/database-access/single-node-note.mdx!)
 
 ## Step 1/6. Set up the Teleport Database Service
 
@@ -182,7 +185,6 @@ returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 - `PFSELFTEST`
 - `PSUBSCRIBE`
 - `PSYNC`
-- `PUNSUBSCRIBE`
 - `PUNSUBSCRIBE`
 - `READONLY`
 - `READWRITE`

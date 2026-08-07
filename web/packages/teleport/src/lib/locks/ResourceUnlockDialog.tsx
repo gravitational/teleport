@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import format from 'date-fns/format';
-import parseISO from 'date-fns/parseISO';
+import { format } from 'date-fns/format';
+import { parseISO } from 'date-fns/parseISO';
 import { MouseEventHandler } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';

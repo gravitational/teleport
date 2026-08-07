@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -109,7 +110,8 @@ func TestJoinOracle(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{
@@ -184,7 +186,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -205,7 +207,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),
@@ -304,7 +306,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -325,7 +327,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),

@@ -17,19 +17,24 @@
 package joining_test
 
 import (
+	"bytes"
 	"cmp"
+	"encoding/base64"
 	"fmt"
 	"maps"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility with gogoproto-generated types.Struct
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -71,8 +76,7 @@ func TestValidateScopedToken(t *testing.T) {
 		},
 		Spec: &joiningv1.ScopedTokenSpec{
 			Roles:      []string{types.RoleBot.String()},
-			BotScope:   "/aa/bb",
-			BotName:    "test-bot",
+			Bot:        "/aa/bb::test-bot",
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			UsageMode:  joining.TokenUsageModeBot,
 		},
@@ -120,7 +124,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Metadata.Name = ""
 			},
-			expectedStrongErr: "missing name",
+			expectedStrongErr: "name is empty",
 		},
 		{
 			name: "missing spec",
@@ -259,8 +263,8 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
 		},
 		{
 			name: "ec2 token with invalid IID TTL",
@@ -279,44 +283,221 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "invalid IID TTL value",
 		},
 		{
+			name: "ec2 token with aws_arn",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsArn:     "arn:aws:sts::1234567890:assumed-role/role/i-1234567890abcdef0",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_arn" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_arn" parameter not supported`,
+		},
+		{
+			name: "ec2 token with aws_organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount:        "1234567890",
+							AwsOrganizationId: "o-123abcd",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_organization_id" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_organization_id" parameter not supported`,
+		},
+		{
+			name: "ec2 token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account" or "aws_role"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account" or "aws_role"`,
+		},
+		{
 			name: "iam token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "iam token with aws_role",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsRole:    "arn:aws:iam::1234567890:role/TeleportJoin",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_role" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_role" parameter not supported`,
+		},
+		{
+			name: "iam token with aws_regions",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsRegions: []string{"us-west-2"},
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_regions" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_regions" parameter not supported`,
+		},
+		{
+			name: "iam token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
 		},
 		{
 			name: "gcp token without gcp configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
 			},
-			expectedStrongErr: "gcp configuration must be defined for a scoped token when using the gcp join method",
-			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
+			expectedStrongErr: "gcp configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "gcp configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "gcp token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.Spec.Gcp = &joiningv1.GCP{
+					Allow: []*joiningv1.GCP_Rule{{}},
+				}
+			},
+			expectedStrongErr: "allow[0]: requires at least one project ID",
+			expectedWeakErr:   "allow[0]: requires at least one project ID",
+		},
+		{
+			name: "gcp token with allow rule with empty project ID",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.Spec.Gcp = &joiningv1.GCP{
+					Allow: []*joiningv1.GCP_Rule{{ProjectIds: []string{""}}},
+				}
+			},
+			expectedStrongErr: "allow[0].project_ids[0]: must not be empty",
+			expectedWeakErr:   "allow[0].project_ids[0]: must not be empty",
 		},
 		{
 			name: "azure token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
 			},
-			expectedStrongErr: "azure configuration must be defined for a scoped token when using the azure join method",
-			expectedWeakErr:   "azure configuration must be defined for a scoped token when using the azure join method",
+			expectedStrongErr: "azure configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
+				tok.Spec.Azure = &joiningv1.Azure{
+					Allow: []*joiningv1.Azure_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "subscription" or "tenant"`,
+			expectedWeakErr:   `allow[0]: must set "subscription" or "tenant"`,
 		},
 		{
 			name: "azure_devops token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
 			},
-			expectedStrongErr: "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
-			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
+			expectedStrongErr: "azure_devops configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure_devops configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure_devops token without organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					Allow: []*joiningv1.AzureDevops_Rule{
+						{
+							Sub: "p://my-org/my-project/my-pipeline",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `"organization_id" must be set`,
+			expectedWeakErr:   `"organization_id" must be set`,
+		},
+		{
+			name: "azure_devops token with allow rule missing key field",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
+					Allow: []*joiningv1.AzureDevops_Rule{
+						{
+							RepositoryVersion: "aaabbccddeefgghhjjiii",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "sub", "project_name", or "project_id"`,
+			expectedWeakErr:   `allow[0]: must set "sub", "project_name", or "project_id"`,
 		},
 		{
 			name: "oracle token without oracle configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
 			},
-			expectedStrongErr: "oracle configuration must be defined for a scoped token when using the oracle join method",
-			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
+			expectedStrongErr: "oracle configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "oracle configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "oracle token without tenancy",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: "tenancy" must be set`,
+			expectedWeakErr:   `allow[0]: "tenancy" must be set`,
+		},
+		{
+			name: "oracle token with too many instance IDs",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{
+						{
+							Tenancy:   "ocid1.tenancy.oc1..aaaaaaaa",
+							Instances: make([]string, 101),
+						},
+					},
+				}
+			},
+			expectedStrongErr: "allow[0]: maximum 100 instances may be set (found 101)",
+			expectedWeakErr:   "allow[0]: maximum 100 instances may be set (found 101)",
 		},
 		{
 			name: "kubernetes token without configuration",
@@ -678,6 +859,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
 				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
 					Allow: []*joiningv1.AzureDevops_Rule{
 						{
 							Sub: "1234567890",
@@ -779,18 +961,334 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
-			name: "non-bot token with bot_scope",
+			name: "valid generic_oidc scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = "/aa/bb"
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+
+				mustMatch, err := structpb.NewStruct(map[string]any{
+					"foo": "bar",
+					"nested": map[string]any{
+						"string": "abc",
+						"number": 123.456,
+						"bool":   true,
+					},
+				})
+				require.NoError(t, err)
+
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:          "https://example.com",
+					Audience:        "example.teleport.sh/example",
+					MustMatchFields: mustMatch,
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+						joiningv1.GenericOIDC_Rule_builder{
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
 			},
-			expectedStrongErr: "bot_scope cannot be set",
 		},
 		{
-			name: "non-bot token with bot_name",
+			name: "invalid generic_oidc scoped token without rules",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotName = "foo"
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+				}.Build())
 			},
-			expectedStrongErr: "bot_name cannot be set",
+			expectedStrongErr: "at least one rule must exist",
+			expectedWeakErr:   "at least one rule must exist",
+		},
+		{
+			name: "invalid generic_oidc scoped token with bad condition",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+						joiningv1.GenericOIDC_Rule_builder{
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+									NotEq: joiningv1.GenericOIDC_ConditionNotEq_builder{
+										Value: "asdf",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "exactly one operator is required",
+			expectedWeakErr:   "exactly one operator is required",
+		},
+		{
+			name: "invalid generic_oidc scoped token with bad allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "https://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+							Conditions: []*joiningv1.GenericOIDC_Condition{
+								joiningv1.GenericOIDC_Condition_builder{
+									Attribute: "nested.string",
+									Eq: joiningv1.GenericOIDC_ConditionEq_builder{
+										Value: "abc",
+									}.Build(),
+								}.Build(),
+							},
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "only one of `expression` or `conditions` may be set",
+			expectedWeakErr:   "only one of `expression` or `conditions` may be set",
+		},
+		{
+			name: "invalid generic_oidc token http without override",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   "http://example.com",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer must be https://",
+			expectedWeakErr:   "generic_oidc: issuer must be https://",
+		},
+		{
+			name: "invalid generic_oidc token issuer with invalid issuer",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:   ":not-a-url",
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer must be a valid URL",
+			expectedWeakErr:   "generic_oidc: issuer must be a valid URL",
+		},
+		{
+			name: "invalid generic_oidc token issuer required",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Audience: "example.teleport.sh/example",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: issuer is required",
+			expectedWeakErr:   "generic_oidc: issuer is required",
+		},
+		{
+			name: "invalid generic_oidc token audience required",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer: "https://example.com",
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "generic_oidc: audience is required",
+			expectedWeakErr:   "generic_oidc: audience is required",
+		},
+		{
+			name: "valid generic_oidc token http with override",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGenericOIDC))
+				tok.GetSpec().SetGenericOidc(joiningv1.GenericOIDC_builder{
+					Issuer:                  "http://example.com",
+					Audience:                "example.teleport.sh/example",
+					InsecureAllowHttpIssuer: true,
+					AllowAny: []*joiningv1.GenericOIDC_Rule{
+						joiningv1.GenericOIDC_Rule_builder{
+							Expression: "claims.foo == \"bar\"",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "valid github token with EnterpriseServerHost",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com",
+					EnterpriseSlug:       "",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "valid github token with EnterpriseSlug",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "",
+					EnterpriseSlug:       "exampleorg",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+		},
+		{
+			name: "github token with single use mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+				tok.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `usage mode "single_use" is not supported for github join method`,
+			expectedWeakErr:   `usage mode "single_use" is not supported for github join method`,
+		},
+		{
+			name: "github token with EnterpriseSlug and EnterpriseServerHost set",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com",
+					EnterpriseSlug:       "exampleorg",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
+			expectedWeakErr:   "'github.enterprise_server_host' and 'github.enterprise_slug' cannot both be set",
+		},
+		{
+			name: "github token with EnterpriseServerHost with a path",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "example.com/v1",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "github.enterprise_server_host' should not contain the scheme or path",
+			expectedWeakErr:   "github.enterprise_server_host' should not contain the scheme or path",
+		},
+		{
+			name: "github token with EnterpriseServerHost with a scheme",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					EnterpriseServerHost: "https://example.com",
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "github.enterprise_server_host' should not contain the scheme or path",
+			expectedWeakErr:   "github.enterprise_server_host' should not contain the scheme or path",
+		},
+		{
+			name: "github token with no rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{},
+				}.Build())
+			},
+			expectedStrongErr: "the github join method requires at least one token allow rule",
+			expectedWeakErr:   "the github join method requires at least one token allow rule",
+		},
+		{
+			name: "github token with empty rules",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{}.Build(),
+						joiningv1.Github_Rule_builder{}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "allow rule for github must include at least one of",
+			expectedWeakErr:   "allow rule for github must include at least one of",
+		},
+		{
+			name: "github token with no github config",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+				// deliberately not calling SetGithub()
+			},
+			expectedStrongErr: "github configuration must be defined",
+			expectedWeakErr:   "github configuration must be defined",
+		},
+		{
+			name: "non-bot token with bot",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.Bot = "/aa/bb::foo"
+			},
+			expectedStrongErr: "bot cannot be set for a non-bot token",
 		},
 		{
 			name: "non-bot token with bot usage mode",
@@ -804,31 +1302,31 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 		},
 		{
-			name:      "bot token without a bot_name",
+			name:      "bot token without a bot",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotName = ""
+				tok.Spec.Bot = ""
 			},
-			expectedStrongErr: "expected non-empty bot_name",
-			expectedWeakErr:   "expected non-empty bot_name",
+			expectedStrongErr: "expected non-empty bot",
+			expectedWeakErr:   "expected non-empty bot",
 		},
 		{
-			name:      "bot token without a bot_scope",
+			name:      "bot token with bot missing scope qualification",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = ""
+				tok.Spec.Bot = "test-bot"
 			},
-			expectedStrongErr: "expected non-empty bot_scope",
-			expectedWeakErr:   "expected non-empty bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with an invalid bot scope",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.BotScope = "aa/bb}"
+				tok.Spec.Bot = "aa/bb}::test-bot"
 			},
-			expectedStrongErr: "validating scoped token bot_scope",
-			expectedWeakErr:   "validating scoped token bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with invalid usage mode",
@@ -851,9 +1349,9 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Scope = "/aa/bb"
-				tok.Spec.BotScope = "/aa/cc"
+				tok.Spec.Bot = "/aa/cc::test-bot"
 			},
-			expectedStrongErr: "scoped token bot_scope must be a descendant of",
+			expectedStrongErr: "scoped token bot scope must be a descendant of",
 		},
 		{
 			name:      "bot token with assigned_scope",
@@ -871,6 +1369,14 @@ func TestValidateScopedToken(t *testing.T) {
 				tok.Status.Secret = "abc123"
 			},
 			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
+		},
+		{
+			name:      "tokens with semicolons are prevented",
+			baseToken: baseToken,
+			modFn: func(st *joiningv1.ScopedToken) {
+				st.GetMetadata().SetName("testing:testing")
+			},
+			expectedStrongErr: `name "testing:testing" is malformed`,
 		},
 	}
 
@@ -937,6 +1443,191 @@ func TestScopedTokenAzureRoundTrip(t *testing.T) {
 			},
 		},
 	}, token.GetAzure())
+}
+
+func TestScopedTokenGithubRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	githubConfig := types.ProvisionTokenSpecV2GitHub{
+		EnterpriseServerHost: "example.com",
+		Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+			{
+				Sub:             "foo",
+				Repository:      "bar",
+				RepositoryOwner: "myself",
+			},
+		},
+	}
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodGitHub,
+		Roles:      []types.SystemRole{types.RoleNode},
+		GitHub:     &githubConfig,
+	}, joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Metadata: headerv1.Metadata_builder{
+			Name: "test-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(scopedToken)
+	require.NoError(t, err)
+
+	require.Equal(t, &githubConfig, token.GetGithub())
+}
+
+func TestNewTokenGetBot(t *testing.T) {
+	t.Parallel()
+
+	newBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				Bot:        "/aa/bb::test-bot",
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  joining.TokenUsageModeBot,
+			}.Build(),
+		}.Build()
+	}
+	newNonBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:         []string{types.RoleNode.String()},
+				AssignedScope: "/aa/bb",
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build()
+	}
+
+	cases := []struct {
+		name             string
+		token            *joiningv1.ScopedToken
+		modFn            func(*joiningv1.ScopedToken)
+		expectedBotName  string
+		expectedBotScope string
+		expectedErr      string
+	}{
+		{
+			name:             "bot token",
+			token:            newBotToken(),
+			expectedBotName:  "test-bot",
+			expectedBotScope: "/aa/bb",
+		},
+		{
+			name:  "non-bot token",
+			token: newNonBotToken(),
+		},
+		{
+			// A stray bot field on a non-bot token is rejected by strong
+			// validation at write time but tolerated when wrapping, matching
+			// weak validation; the bot reference is empty.
+			name:  "non-bot token with stray bot field",
+			token: newNonBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("/aa/bb::test-bot")
+			},
+		},
+		{
+			name:  "bot token without bot",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("")
+			},
+			expectedErr: "expected non-empty bot",
+		},
+		{
+			name:  "bot token with bot missing scope qualification",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("test-bot")
+			},
+			expectedErr: "validating scoped token bot",
+		},
+		{
+			name:  "bot token with malformed bot scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("aa/bb}::test-bot")
+			},
+			expectedErr: "validating scoped token bot",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.modFn != nil {
+				tc.modFn(tc.token)
+			}
+			token, err := joining.NewToken(tc.token)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			botName, botScope := token.GetBot()
+			require.Equal(t, tc.expectedBotName, botName)
+			require.Equal(t, tc.expectedBotScope, botScope)
+		})
+	}
+}
+
+func TestScopedTokenGenericOIDCMustMatchFieldsConversion(t *testing.T) {
+	t.Parallel()
+
+	mustMatch, err := structpb.NewStruct(map[string]any{
+		"example": "foo",
+		"nested": map[string]any{
+			"string": "abc",
+			"number": 123.456,
+			"bool":   true,
+		},
+	})
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(joiningv1.ScopedToken_builder{
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:      []string{string(types.RoleNode)},
+			JoinMethod: string(types.JoinMethodGenericOIDC),
+			GenericOidc: joiningv1.GenericOIDC_builder{
+				Issuer:          "https://example.com",
+				Audience:        "example",
+				MustMatchFields: mustMatch,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	spec, err := token.GetGenericOIDC()
+	require.NoError(t, err)
+
+	var buf bytes.Buffer
+	require.NoError(t, (&jsonpb.Marshaler{}).Marshal(&buf, spec.MustMatchFields))
+	require.JSONEq(t, `{
+		"example": "foo",
+		"nested": {
+			"number": 123.456,
+			"string": "abc",
+			"bool": true
+		}
+	}`, buf.String())
 }
 
 func TestImmutableLabelHashing(t *testing.T) {
@@ -1176,4 +1867,74 @@ func TestValidateTokenUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateTokenForUse(t *testing.T) {
+	t.Parallel()
+	token := &joiningv1.ScopedToken{
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:         []string{types.RoleNode.String()},
+			JoinMethod:    string(types.JoinMethodToken),
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+	features := scopes.Features{Enabled: true}
+	// we want to ensure that token validation before use is always the strongest
+	// available, so we confirm that the test token passes weak validation and then
+	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
+	assert.NoError(t, joining.WeakValidateToken(token))
+	strongValidateErr := joining.StrongValidateToken(token)
+	assert.Error(t, strongValidateErr)
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token, features))
+
+	// fix token so StrongValidate succeeds
+	token.Kind = types.KindScopedToken
+	token.Version = types.V1
+	token.Metadata = &headerv1.Metadata{
+		Name: "test-token",
+	}
+
+	// validation should succeed for node role if scopes are enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
+
+	features.Enabled = false
+	// validation should fail if scopes are disabled
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoping features are not enabled")
+
+	features.Enabled = true
+	// validation should fail for kube role if agent pinning is disabled
+	token.Spec.Roles = append(token.Spec.Roles, string(types.RoleKube))
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+
+	features.AgentPinEnabled = true
+	// validation should succeed for kube role if agent pinning is enabled
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
+
+	// validation should succeed for bot role even if agent scope pins are disabled
+	token.Spec.Bot = token.Spec.AssignedScope + "::bot-name"
+	token.Spec.AssignedScope = "" // we expect this to be empty for bot tokens
+	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
+	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
+	token.Spec.Roles = []string{string(types.RoleBot)}
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
+}
+
+func TestScopedTokenEncoding(t *testing.T) {
+	encoded := joining.EncodeScopedToken("TESTING", "SECRETSHERE")
+	require.Equal(t, "TESTING:"+base64.RawURLEncoding.EncodeToString([]byte("SECRETSHERE")), encoded)
+
+	name, secret, ok := joining.DecodeScopedToken(encoded)
+	assert.True(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Equal(t, "SECRETSHERE", secret)
+
+	name, secret, ok = joining.DecodeScopedToken("TESTING")
+	assert.False(t, ok)
+	assert.Equal(t, "TESTING", name)
+	assert.Empty(t, secret)
 }

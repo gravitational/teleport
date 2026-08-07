@@ -159,6 +159,11 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			GitService: u.Git.GitService,
 		}
 	}
+	if u.Beam != nil {
+		sessionStart.Beam = &prehogv1a.SessionStartBeamMetadata{
+			BeamId: a.AnonymizeString(u.Beam.BeamId),
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,
@@ -779,6 +784,7 @@ const (
 	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
 	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
 	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindLinuxDesktop    = prehogv1a.ResourceKind_RESOURCE_KIND_LINUX_DESKTOP
 	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
@@ -2209,6 +2215,15 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 
+	case *usageeventsv1.UsageEventOneOf_UiInteraction:
+		data := e.UiInteraction
+		ret := &UIInteractionEvent{
+			UserName: userMD.Username,
+			Path:     data.Path,
+			PageId:   data.PageId,
+			Params:   data.Params,
+		}
+		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -2269,6 +2284,23 @@ func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 	}
 }
 
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+type UIInteractionEvent prehogv1a.UIInteractionEvent
+
+// Anonymize anonymizes the event.
+func (e *UIInteractionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiInteraction{
+			UiInteraction: &prehogv1a.UIInteractionEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Path:     e.Path,
+				PageId:   e.PageId,
+				Params:   e.Params,
+			},
+		},
+	}
+}
+
 // DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
 type DiscoveryConfigEvent prehogv1a.DiscoveryConfigEvent
 
@@ -2313,6 +2345,38 @@ func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) p
 			IdentitySecurityAuditLogsIngestedEvent: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{
 				Provider:     e.Provider,
 				LogsIngested: e.LogsIngested,
+			},
+		},
+	}
+}
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+type BeamsCreatedEvent prehogv1a.BeamsCreatedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsCreated{
+			BeamsCreated: &prehogv1a.BeamsCreatedEvent{
+				BeamId:            a.AnonymizeString(e.BeamId),
+				Region:            e.Region,
+				StartupDurationMs: e.StartupDurationMs,
+			},
+		},
+	}
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+type BeamsDestroyedEvent prehogv1a.BeamsDestroyedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsDestroyed{
+			BeamsDestroyed: &prehogv1a.BeamsDestroyedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
+				Reason: e.Reason,
+				Region: e.Region,
 			},
 		},
 	}

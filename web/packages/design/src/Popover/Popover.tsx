@@ -480,6 +480,15 @@ export class Popover extends Component<Props> {
         updatePosition: this.handleResize,
       });
     }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', this.handleResize);
+    }
+  }
+
+  componentWillUnmount() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', this.handleResize);
+    }
   }
 
   setPositioningStyles = () => {

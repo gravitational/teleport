@@ -17,6 +17,7 @@
 package desktop
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -27,11 +28,16 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // Session uniquely describes a desktop session.
@@ -40,8 +46,8 @@ type Session struct {
 	desktopURI uri.ResourceURI
 	login      string
 
-	dirAccess   *DirectoryAccess
-	dirAccessMu sync.RWMutex
+	sharedDirectories   map[uint32]*DirectoryAccess
+	sharedDirectoriesMu sync.RWMutex
 }
 
 // NewSession initializes a Session struct for a given desktop and login.
@@ -54,8 +60,9 @@ func NewSession(desktopURI uri.ResourceURI, login string) (*Session, error) {
 	}
 
 	return &Session{
-		desktopURI: desktopURI,
-		login:      login,
+		desktopURI:        desktopURI,
+		login:             login,
+		sharedDirectories: map[uint32]*DirectoryAccess{},
 	}, nil
 }
 
@@ -63,32 +70,47 @@ func (s *Session) desktopName() string {
 	return s.desktopURI.GetWindowsDesktopName()
 }
 
-func (s *Session) SetSharedDirectory(basePath string) error {
-	s.dirAccessMu.Lock()
-	defer s.dirAccessMu.Unlock()
+func (s *Session) ShareDirectory(basePath string, directoryID uint32) error {
+	s.sharedDirectoriesMu.Lock()
+	defer s.sharedDirectoriesMu.Unlock()
 
-	if s.dirAccess != nil {
-		return trace.AlreadyExists("directory is already shared for desktop %q and %q login", s.desktopName(), s.login)
+	if _, exists := s.sharedDirectories[directoryID]; exists {
+		return trace.AlreadyExists("directory with identifier '%d' is already shared for desktop %q and %q login", directoryID, s.desktopName(), s.login)
 	}
 
 	dirAccess, err := NewDirectoryAccess(basePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.dirAccess = dirAccess
+	s.sharedDirectories[directoryID] = dirAccess
 
 	return nil
 }
 
-func (s *Session) GetDirectoryAccess() (*DirectoryAccess, error) {
-	s.dirAccessMu.RLock()
-	defer s.dirAccessMu.RUnlock()
+func (s *Session) GetDirectoryAccess(directoryID uint32) (*DirectoryAccess, error) {
+	s.sharedDirectoriesMu.RLock()
+	defer s.sharedDirectoriesMu.RUnlock()
 
-	if s.dirAccess == nil {
-		return nil, trace.NotFound("directory sharing has not been initialized for desktop %q and login %q", s.desktopName(), s.login)
+	directory, exists := s.sharedDirectories[directoryID]
+	if !exists {
+		return nil, trace.NotFound("directory with id '%d' has not been initialized for desktop %q and login %q", directoryID, s.desktopName(), s.login)
 	}
 
-	return s.dirAccess, nil
+	return directory, nil
+}
+
+// CloseSharedDirectory releases the shared directory handle, if one was opened
+// via SetSharedDirectory. Safe to call multiple times.
+func (s *Session) CloseSharedDirectory() error {
+	s.sharedDirectoriesMu.Lock()
+	defer s.sharedDirectoriesMu.Unlock()
+
+	errors := []error{}
+	for id, access := range s.sharedDirectories {
+		errors = append(errors, access.Close())
+		delete(s.sharedDirectories, id)
+	}
+	return trace.Wrap(trace.NewAggregate(errors...))
 }
 
 // Start starts a remote desktop session.
@@ -115,20 +137,18 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, clusterClient.SiteName, s.desktopName(), cert, tlsConfig.RootCAs)
+	// conn is the server connection
+	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, transportv1.WindowsDesktopSessionConfig{
+		Cluster:     clusterClient.SiteName,
+		DesktopName: s.desktopName(),
+		DesktopCert: cert,
+		RootCAs:     tlsConfig.RootCAs,
+		Protocol:    tdpb.ProtocolName,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer conn.Close()
-
-	// Now that we have a connection to the desktop service, we can
-	// send the username.
-	tdpConn := tdp.NewConn(conn)
-	defer tdpConn.Close()
-	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: s.login})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	downstreamRW, err := streamutils.NewReadWriter(
 		&clientStream{
@@ -140,23 +160,91 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
+	// Client always speaks TDPB.
+	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+	// Receive, enrich, and forward the ClientHello message
+	msg, err := clientConn.ReadMessage()
+	if err != nil {
+		return trace.WrapWithMessage(err, "error listening for client hello")
+	}
+
+	hello, ok := msg.(*tdpb.ClientHello)
+	if !ok {
+		return trace.Errorf("expected ClientHello message but received %T", msg)
+	}
+
+	if hello.ScreenSpec == nil {
+		return trace.Errorf("received ClientHello with missing screen spec")
+	}
+
+	// Enrich with username
+	hello.Username = s.login
+
+	// Whether we forward the ClientHello as-is, or send a triple
+	// (Username, ClientScreenSpec, ClientScreenSpec) depends on
+	// the server's serverProtocol selection.
+	serverProtocol := conn.ConnectionState().NegotiatedProtocol
+	var tdpServerConn tdp.MessageReadWriteCloser
+	if serverProtocol == tdpb.ProtocolName {
+		// Use TDPB decoder
+		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+		// Send the client hello
+		if err := tdpServerConn.WriteMessage(hello); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// Use default TDP decoder
+		tdpServerConn = tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
+		defer tdpServerConn.Close()
+
+		// Now that we have a connection to the desktop service, we can
+		// send the username, and clientScreenSpec messages.
+		for _, msg := range []tdp.Message{
+			legacy.ClientUsername{Username: s.login},
+			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
+			// For backwards compatibility with v17 Windows Desktop Servers, send a duplicate
+			// client screenspec message. This satisfies v18's requirement to receive exactly
+			// 3 handshake messages, while preventing v17 from receiving a keyboard message that
+			// it does not support. Teleport Connect doesn't support non-default keyboard layouts anyhow.
+			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
+		} {
+			err = tdpServerConn.WriteMessage(msg)
+			if err != nil {
+				return trace.Wrap(err, "error sending %T message", msg)
+			}
+		}
+
+		// Aside from this block, Teleport Connect will be speaking TDPB.
+		// Install a translation layer to convert inbound messages to TDPB, and
+		// outbound messages to TDP for compatibility with this legacy WDS instance.
+		tdpServerConn = tdp.NewReadWriteInterceptor(tdpServerConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
+
+	}
+
 	fsHandle := fsRequestHandler{
 		directoryAccessProvider: s,
 	}
 
-	tdpConnProxy := tdp.NewConnProxy(downstreamRW, conn, func(tdpConn *tdp.Conn, message tdp.Message) (tdp.Message, error) {
+	// Install FS interceptor
+	serverConn := tdp.NewReadWriteInterceptor(tdpServerConn, func(message tdp.Message) ([]tdp.Message, error) {
 		msg, intErr := fsHandle.process(message, func(message tdp.Message) error {
-			return trace.Wrap(tdpConn.WriteMessage(message))
+			return trace.Wrap(tdpServerConn.WriteMessage(message))
 		})
 		if intErr != nil {
 			// Treat all file system errors as warnings, do not interrupt the connection.
-			return tdp.Alert{
+			return []tdp.Message{&tdpb.Alert{
 				Message:  intErr.Error(),
-				Severity: tdp.SeverityWarning,
-			}, nil
+				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
+			}}, nil
 		}
-		return msg, nil
-	})
+
+		if msg != nil {
+			return []tdp.Message{msg}, nil
+		}
+		return nil, nil
+	}, nil)
+
+	tdpConnProxy := tdp.NewConnProxy(clientConn, serverConn)
 
 	return trace.Wrap(tdpConnProxy.Run())
 }
@@ -187,7 +275,7 @@ func (d clientStream) Recv() ([]byte, error) {
 	}
 
 	// Check if the message sent from the renderer is allowed.
-	decoded, err := tdp.Decode(data)
+	decoded, err := tdpb.DecodeStrict(bytes.NewBuffer(data))
 	if err != nil {
 		return nil, trace.Wrap(err, "could not decode desktop message")
 	}
@@ -206,14 +294,7 @@ func (d clientStream) Recv() ([]byte, error) {
 // by tshd and should not originate from the renderer process.
 func isClientMessageAllowed(msg tdp.Message) error {
 	switch msg.(type) {
-	case tdp.SharedDirectoryInfoResponse,
-		tdp.SharedDirectoryCreateResponse,
-		tdp.SharedDirectoryDeleteResponse,
-		tdp.SharedDirectoryReadResponse,
-		tdp.SharedDirectoryWriteResponse,
-		tdp.SharedDirectoryMoveResponse,
-		tdp.SharedDirectoryListResponse,
-		tdp.SharedDirectoryTruncateResponse:
+	case *tdpb.SharedDirectoryResponse:
 		return trace.AccessDenied("file system messages are not allowed from the renderer process")
 	default:
 		return nil
@@ -230,27 +311,32 @@ type fsRequestHandler struct {
 }
 
 type directoryAccessProvider interface {
-	GetDirectoryAccess() (*DirectoryAccess, error)
+	GetDirectoryAccess(uint32) (*DirectoryAccess, error)
 }
 
 func (d *fsRequestHandler) process(msg tdp.Message, sendToServer func(message tdp.Message) error) (tdp.Message, error) {
 	switch r := msg.(type) {
-	case tdp.SharedDirectoryInfoRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryInfoRequest(r, sendToServer))
-	case tdp.SharedDirectoryListRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryListRequest(r, sendToServer))
-	case tdp.SharedDirectoryReadRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryReadRequest(r, sendToServer))
-	case tdp.SharedDirectoryMoveRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryMoveRequest(r, sendToServer))
-	case tdp.SharedDirectoryWriteRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryWriteRequest(r, sendToServer))
-	case tdp.SharedDirectoryTruncateRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryTruncateRequest(r, sendToServer))
-	case tdp.SharedDirectoryCreateRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryCreateRequest(r, sendToServer))
-	case tdp.SharedDirectoryDeleteRequest:
-		return nil, trace.Wrap(d.handleSharedDirectoryDeleteRequest(r, sendToServer))
+	case *tdpb.SharedDirectoryRequest:
+		switch op := r.Operation.(type) {
+		case *tdpbv1.SharedDirectoryRequest_Info_:
+			return nil, trace.Wrap(d.handleSharedDirectoryInfoRequest(r.DirectoryId, r.CompletionId, op.Info, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Create_:
+			return nil, trace.Wrap(d.handleSharedDirectoryCreateRequest(r.DirectoryId, r.CompletionId, op.Create, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Delete_:
+			return nil, trace.Wrap(d.handleSharedDirectoryDeleteRequest(r.DirectoryId, r.CompletionId, op.Delete, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_List_:
+			return nil, trace.Wrap(d.handleSharedDirectoryListRequest(r.DirectoryId, r.CompletionId, op.List, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Read_:
+			return nil, trace.Wrap(d.handleSharedDirectoryReadRequest(r.DirectoryId, r.CompletionId, op.Read, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Write_:
+			return nil, trace.Wrap(d.handleSharedDirectoryWriteRequest(r.DirectoryId, r.CompletionId, op.Write, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Move_:
+			return nil, trace.Wrap(d.handleSharedDirectoryMoveRequest(r.DirectoryId, r.CompletionId, op.Move, sendToServer))
+		case *tdpbv1.SharedDirectoryRequest_Truncate_:
+			return nil, trace.Wrap(d.handleSharedDirectoryTruncateRequest(r.DirectoryId, r.CompletionId, op.Truncate, sendToServer))
+		default:
+			return msg, nil
+		}
 	default:
 		return msg, nil
 	}
@@ -265,37 +351,42 @@ const (
 	SharedDirectoryErrCodeAlreadyExists
 )
 
-func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(r tdp.SharedDirectoryInfoRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryInfoRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Info, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	info, err := dirAccess.Stat(r.Path)
 	if err == nil {
-		return trace.Wrap(sendToServer(tdp.SharedDirectoryInfoResponse{
-			CompletionID: r.CompletionID,
-			ErrCode:      uint32(SharedDirectoryErrCodeNil),
-			Fso:          toFso(info),
+		return trace.Wrap(sendToServer(&tdpb.SharedDirectoryResponse{
+			DirectoryId:  directoryID,
+			CompletionId: completionID,
+			ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
+				Info: &tdpbv1.SharedDirectoryResponse_Info{
+					Fso: toFso(info),
+				},
+			},
 		}))
 	}
 	if errors.Is(err, os.ErrNotExist) {
-		return trace.Wrap(sendToServer(tdp.SharedDirectoryInfoResponse{
-			CompletionID: r.CompletionID,
-			ErrCode:      uint32(SharedDirectoryErrCodeDoesNotExist),
-			Fso: tdp.FileSystemObject{
-				LastModified: 0,
-				Size:         0,
-				FileType:     0,
-				IsEmpty:      0,
-				Path:         "",
-			}}))
+		return trace.Wrap(sendToServer(&tdpb.SharedDirectoryResponse{
+			DirectoryId:  directoryID,
+			CompletionId: completionID,
+			ErrorCode:    uint32(SharedDirectoryErrCodeDoesNotExist),
+			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
+				Info: &tdpbv1.SharedDirectoryResponse_Info{
+					Fso: &tdpbv1.FileSystemObject{},
+				},
+			},
+		}))
 	}
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryListRequest(r tdp.SharedDirectoryListRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryListRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_List, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -304,21 +395,27 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(r tdp.SharedDirector
 		return trace.Wrap(err)
 	}
 
-	fsoList := make([]tdp.FileSystemObject, len(contents))
-	for i, content := range contents {
-		fsoList[i] = toFso(content)
-	}
-
-	err = sendToServer(tdp.SharedDirectoryListResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeNil),
-		FsoList:      fsoList,
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_List_{
+			List: &tdpbv1.SharedDirectoryResponse_List{
+				FsoList: slices.Map(contents, toFso),
+			},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryReadRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Read, sendToServer func(message tdp.Message) error) error {
+	// Defense in depth: the protocol decoder already caps Length, but re-check here so
+	// the make([]byte, r.Length) below can't be driven into an unbounded allocation by a future caller.
+	if r.Length > tdp.MaxFileReadWriteLength {
+		return tdp.FileReadWriteMaxLenErr
+	}
+
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -329,19 +426,25 @@ func (d *fsRequestHandler) handleSharedDirectoryReadRequest(r tdp.SharedDirector
 		return trace.Wrap(err)
 	}
 
-	err = sendToServer(tdp.SharedDirectoryReadResponse{
-		CompletionID:   r.CompletionID,
-		ErrCode:        uint32(SharedDirectoryErrCodeNil),
-		ReadDataLength: uint32(n),
-		ReadData:       buf[:n],
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_Read_{
+			Read: &tdpbv1.SharedDirectoryResponse_Read{
+				Data: buf[:n],
+			},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryMoveRequest(r tdp.SharedDirectoryMoveRequest, sendToServer func(message tdp.Message) error) error {
-	err := sendToServer(tdp.SharedDirectoryMoveResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeFailed),
+func (d *fsRequestHandler) handleSharedDirectoryMoveRequest(directoryID, completionID uint32, _ *tdpbv1.SharedDirectoryRequest_Move, sendToServer func(message tdp.Message) error) error {
+	err := sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeFailed),
+		Operation:    &tdpbv1.SharedDirectoryResponse_Move_{},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -350,43 +453,52 @@ func (d *fsRequestHandler) handleSharedDirectoryMoveRequest(r tdp.SharedDirector
 	return trace.NotImplemented("Moving or renaming files and directories within a shared directory is not supported.")
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryWriteRequest(r tdp.SharedDirectoryWriteRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryWriteRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Write, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	bytesWritten, err := dirAccess.Write(r.Path, int64(r.Offset), r.WriteData)
+	bytesWritten, err := dirAccess.Write(r.Path, int64(r.Offset), r.Data)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = sendToServer(tdp.SharedDirectoryWriteResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeNil),
-		BytesWritten: uint32(bytesWritten),
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_Write_{
+			Write: &tdpbv1.SharedDirectoryResponse_Write{
+				BytesWritten: uint32(bytesWritten),
+			},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(r tdp.SharedDirectoryTruncateRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Truncate, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Truncate(r.Path, int64(r.EndOfFile))
+	err = dirAccess.Truncate(r.Path, r.Size)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = sendToServer(tdp.SharedDirectoryTruncateResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_Truncate_{
+			Truncate: &tdpbv1.SharedDirectoryResponse_Truncate{},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(r tdp.SharedDirectoryCreateRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Create, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -400,16 +512,21 @@ func (d *fsRequestHandler) handleSharedDirectoryCreateRequest(r tdp.SharedDirect
 		return trace.Wrap(err)
 	}
 
-	err = sendToServer(tdp.SharedDirectoryCreateResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeNil),
-		Fso:          toFso(info),
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_Create_{
+			Create: &tdpbv1.SharedDirectoryResponse_Create{
+				Fso: toFso(info),
+			},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(r tdp.SharedDirectoryDeleteRequest, sendToServer func(message tdp.Message) error) error {
-	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
+func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(directoryID, completionID uint32, r *tdpbv1.SharedDirectoryRequest_Delete, sendToServer func(message tdp.Message) error) error {
+	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess(directoryID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -418,24 +535,23 @@ func (d *fsRequestHandler) handleSharedDirectoryDeleteRequest(r tdp.SharedDirect
 		return trace.Wrap(err)
 	}
 
-	err = sendToServer(tdp.SharedDirectoryDeleteResponse{
-		CompletionID: r.CompletionID,
-		ErrCode:      uint32(SharedDirectoryErrCodeNil),
+	err = sendToServer(&tdpb.SharedDirectoryResponse{
+		DirectoryId:  directoryID,
+		CompletionId: completionID,
+		ErrorCode:    uint32(SharedDirectoryErrCodeNil),
+		Operation: &tdpbv1.SharedDirectoryResponse_Delete_{
+			Delete: &tdpbv1.SharedDirectoryResponse_Delete{},
+		},
 	})
 	return trace.Wrap(err)
 }
 
-func toFso(info *FileOrDirInfo) tdp.FileSystemObject {
-	obj := tdp.FileSystemObject{
+func toFso(info *FileOrDirInfo) *tdpbv1.FileSystemObject {
+	return &tdpbv1.FileSystemObject{
 		LastModified: uint64(info.LastModified),
 		Size:         uint64(info.Size),
 		FileType:     uint32(info.FileType),
-		IsEmpty:      1,
+		IsEmpty:      info.IsEmpty,
 		Path:         info.Path,
 	}
-	if info.IsEmpty {
-		obj.IsEmpty = 0
-	}
-
-	return obj
 }

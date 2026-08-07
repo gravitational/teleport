@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -261,7 +262,11 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 
 // deleteKubernetesServer deletes kubernetes server for the specified cluster.
 func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) error {
-	err := s.AuthClient.DeleteKubernetesServer(ctx, s.HostID, name)
+	err := s.AuthClient.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Scope:  s.GetScope(),
+		HostId: s.HostID,
+		Name:   name,
+	}.Build())
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}

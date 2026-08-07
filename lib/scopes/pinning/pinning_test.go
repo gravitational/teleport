@@ -42,9 +42,10 @@ func TestValidate(t *testing.T) {
 		{
 			name: "basic",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-					"/": {"/": {"r1"}, "/foo": {"r2"}, "/foo/bar": {"r3"}},
+					"/": {"/": {"/::r1"}, "/foo": {"/::r2"}, "/foo/bar": {"/::r3"}},
 				}),
 			},
 			strongOk: true,
@@ -54,7 +55,7 @@ func TestValidate(t *testing.T) {
 			name: "missing scope",
 			pin: &scopesv1.Pin{
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-					"/": {"/": {"r1"}},
+					"/": {"/": {"/::r1"}},
 				}),
 			},
 			strongOk: false,
@@ -63,6 +64,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing assignments",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 			},
 			strongOk: false,
@@ -71,9 +73,10 @@ func TestValidate(t *testing.T) {
 		{
 			name: "orthogonal assignment",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-					"/": {"/": {"r1"}, "/bar": {"r2"}},
+					"/": {"/": {"/::r1"}, "/bar": {"/::r2"}},
 				}),
 			},
 			strongOk: false,
@@ -82,6 +85,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "empty assignments",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 			},
 			strongOk: false,
@@ -90,10 +94,11 @@ func TestValidate(t *testing.T) {
 		{
 			name: "malformed assignment scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-					"/":             {"/": {"r1"}},
-					"invalid@scope": {"invalid@scope": {"r2"}},
+					"/":             {"/": {"/::r1"}},
+					"invalid@scope": {"invalid@scope": {"invalid@scope::r2"}},
 				}),
 			},
 			strongOk: false,
@@ -104,7 +109,7 @@ func TestValidate(t *testing.T) {
 			pin: &scopesv1.Pin{
 				Scope: "invalid@scope",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-					"/": {"/": {"r1"}},
+					"/": {"/": {"/::r1"}},
 				}),
 			},
 			strongOk: false,
@@ -150,7 +155,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo": {
-						"/foo": {"r1"},
+						"/foo": {"/foo::r1"},
 					},
 				}),
 			},
@@ -158,9 +163,11 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r1",
+					RoleScope:     "/foo",
 				},
 			},
 		},
@@ -170,13 +177,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/": {"r1"},
+						"/": {"/::r1"},
 					},
 					"/foo": {
-						"/foo": {"r2"},
+						"/foo": {"/foo::r2"},
 					},
 					"/foo/bar": {
-						"/foo/bar": {"r3"},
+						"/foo/bar": {"/foo/bar::r3"},
 					},
 				}),
 			},
@@ -184,14 +191,18 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
+					RoleScope:     "/",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r2",
+					RoleScope:     "/foo",
 				},
 			},
 		},
@@ -201,9 +212,9 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":        {"r1"},
-						"/foo":     {"r2"},
-						"/foo/bar": {"r3"},
+						"/":        {"/::r1"},
+						"/foo":     {"/::r2"},
+						"/foo/bar": {"/::r3"},
 					},
 				}),
 			},
@@ -211,14 +222,18 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r2",
+					RoleScope:     "/",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
+					RoleScope:     "/",
 				},
 			},
 		},
@@ -228,13 +243,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/": {"r1"},
+						"/": {"/::r1"},
 					},
 					"/foo/bar": {
-						"/foo/bar": {"r2"},
+						"/foo/bar": {"/foo/bar::r2"},
 					},
 					"/foo/baz": {
-						"/foo/baz": {"r3"},
+						"/foo/baz": {"/foo/baz::r3"},
 					},
 				}),
 			},
@@ -242,14 +257,18 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
+					RoleScope:     "/",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo/bar",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "r2",
+					RoleScope:     "/foo/bar",
 				},
 			},
 		},
@@ -259,7 +278,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo/bar": {
-						"/foo/bar": {"r1"},
+						"/foo/bar": {"/foo/bar::r1"},
 					},
 				}),
 			},
@@ -273,7 +292,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo": {
-						"/foo": {"b", "c", "a", "x", "q"},
+						"/foo": {"/foo::b", "/foo::c", "/foo::a", "/foo::x", "/foo::q"},
 					},
 				}),
 			},
@@ -281,29 +300,39 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "a",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "b",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "c",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "q",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "x",
+					RoleScope:     "/foo",
 				},
 			},
 		},
@@ -313,17 +342,17 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":        {"rr1"},
-						"/foo/bar": {"rr2"},
+						"/":        {"/::rr1"},
+						"/foo/bar": {"/::rr2"},
 					},
 					"/foo": {
-						"/foo":         {"rf1"},
-						"/foo/bar":     {"rf3", "rf2"},
-						"/foo/bar/baz": {"rf4"},
+						"/foo":         {"/foo::rf1"},
+						"/foo/bar":     {"/foo::rf3", "/foo::rf2"},
+						"/foo/bar/baz": {"/foo::rf4"},
 					},
 					"/foo/bar": {
-						"/foo/bar":     {"rb1"},
-						"/foo/bar/baz": {"rb2"},
+						"/foo/bar":     {"/foo/bar::rb1"},
+						"/foo/bar/baz": {"/foo/bar::rb2"},
 					},
 				}),
 			},
@@ -331,34 +360,46 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rr2",
+					RoleScope:     "/",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "rr1",
+					RoleScope:     "/",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rf2",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rf3",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "rf1",
+					RoleScope:     "/foo",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo/bar",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rb1",
+					RoleScope:     "/foo/bar",
 				},
 			},
 		},
@@ -368,7 +409,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo/bar": {
-						"/foo/bar": {"r1"},
+						"/foo/bar": {"/foo/bar::r1"},
 					},
 				}),
 			},
@@ -382,8 +423,8 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":    {"r1"},
-						"/foo": {"r2"},
+						"/":    {"/::r1"},
+						"/foo": {"/::r2"},
 					},
 				}),
 			},
@@ -396,8 +437,8 @@ func TestDescendAssignmentTree(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":    {"r1"},
-						"/foo": {"r2"},
+						"/":    {"/::r1"},
+						"/foo": {"/::r2"},
 					},
 				}),
 			},
@@ -437,17 +478,17 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 		Scope: "/staging/west",
 		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 			"/": {
-				"/":             {"root-global"},
-				"/staging":      {"root-staging"},
-				"/staging/west": {"root-west"},
-				"/staging/east": {"root-east"},
+				"/":             {"/::root-global"},
+				"/staging":      {"/::root-staging"},
+				"/staging/west": {"/::root-west"},
+				"/staging/east": {"/::root-east"},
 			},
 			"/staging": {
-				"/staging":      {"staging-staging"},
-				"/staging/west": {"staging-west-a", "staging-west-b"},
+				"/staging":      {"/staging::staging-staging"},
+				"/staging/west": {"/staging::staging-west-a", "/staging::staging-west-b"},
 			},
 			"/staging/west": {
-				"/staging/west": {"west-west-a", "west-west-b", "west-west-c"},
+				"/staging/west": {"/staging/west::west-west-a", "/staging/west::west-west-b", "/staging/west::west-west-c"},
 			},
 		}),
 	}
@@ -537,11 +578,11 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for role := range GetRolesAtEnforcementPoint(tt.pin, scopes.EnforcementPoint{
+			for ref := range GetRolesAtEnforcementPoint(tt.pin, scopes.EnforcementPoint{
 				ScopeOfOrigin: tt.scopeOfOrigin,
 				ScopeOfEffect: tt.scopeOfEffect,
 			}) {
-				got = append(got, role)
+				got = append(got, ref.RoleName)
 			}
 
 			if tt.expect == nil {
@@ -562,16 +603,16 @@ func TestRolesAtEnforcementPointComposition(t *testing.T) {
 		Scope: "/staging/west",
 		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 			"/": {
-				"/staging/west": {"root-west"},
-				"/staging":      {"root-staging"},
-				"/":             {"root-root"},
+				"/staging/west": {"/::root-west"},
+				"/staging":      {"/::root-staging"},
+				"/":             {"/::root-root"},
 			},
 			"/staging": {
-				"/staging/west": {"staging-west"},
-				"/staging":      {"staging-staging"},
+				"/staging/west": {"/staging::staging-west"},
+				"/staging":      {"/staging::staging-staging"},
 			},
 			"/staging/west": {
-				"/staging/west": {"west-west-a", "west-west-b"},
+				"/staging/west": {"/staging/west::west-west-a", "/staging/west::west-west-b"},
 			},
 		}),
 	}
@@ -589,12 +630,8 @@ func TestRolesAtEnforcementPointComposition(t *testing.T) {
 	// Collect assignments using EnforcementPointsForResourceScope + GetRolesAtEnforcementPoint
 	var gotAssignments []RoleAssignment
 	for point := range scopes.EnforcementPointsForResourceScope(resourceScope) {
-		for role := range GetRolesAtEnforcementPoint(pin, point) {
-			gotAssignments = append(gotAssignments, RoleAssignment{
-				ScopeOfOrigin: point.ScopeOfOrigin,
-				ScopeOfEffect: point.ScopeOfEffect,
-				RoleName:      role,
-			})
+		for ref := range GetRolesAtEnforcementPoint(pin, point) {
+			gotAssignments = append(gotAssignments, ref)
 		}
 	}
 
@@ -626,12 +663,12 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/": {"role1"},
+						"/": {"/::role1"},
 					},
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "role1"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "role1", RoleScope: "/"},
 			},
 		},
 		{
@@ -640,26 +677,26 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				Scope: "/staging/west",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":             {"root-root"},
-						"/staging":      {"root-staging"},
-						"/staging/west": {"root-west"},
+						"/":             {"/::root-root"},
+						"/staging":      {"/::root-staging"},
+						"/staging/west": {"/::root-west"},
 					},
 					"/staging": {
-						"/staging":      {"staging-staging"},
-						"/staging/west": {"staging-west"},
+						"/staging":      {"/staging::staging-staging"},
+						"/staging/west": {"/staging::staging-west"},
 					},
 					"/staging/west": {
-						"/staging/west": {"west-west"},
+						"/staging/west": {"/staging/west::west-west"},
 					},
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "root-root"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging", RoleName: "staging-staging"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
-				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west", RoleName: "west-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "root-root", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging", RoleName: "staging-staging", RoleScope: "/staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west", RoleScope: "/staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west", RoleName: "west-west", RoleScope: "/staging/west"},
 			},
 		},
 		{
@@ -668,26 +705,26 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				Scope: "/staging",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/staging":           {"root-staging"},
-						"/staging/west":      {"root-west"},
-						"/staging/west/rack": {"root-rack"},
+						"/staging":           {"/::root-staging"},
+						"/staging/west":      {"/::root-west"},
+						"/staging/west/rack": {"/::root-rack"},
 					},
 					"/staging": {
-						"/staging/west":      {"staging-west"},
-						"/staging/west/rack": {"staging-rack"},
+						"/staging/west":      {"/staging::staging-west"},
+						"/staging/west/rack": {"/staging::staging-rack"},
 					},
 					"/staging/west": {
-						"/staging/west/rack": {"west-rack"},
+						"/staging/west/rack": {"/staging/west::west-rack"},
 					},
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west/rack", RoleName: "root-rack"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west/rack", RoleName: "staging-rack"},
-				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west/rack", RoleName: "west-rack"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west/rack", RoleName: "root-rack", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west", RoleScope: "/staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west/rack", RoleName: "staging-rack", RoleScope: "/staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west/rack", RoleName: "west-rack", RoleScope: "/staging/west"},
 			},
 		},
 		{
@@ -696,19 +733,19 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/foo": {"admin", "developer", "viewer"},
+						"/foo": {"/::admin", "/::developer", "/::viewer"},
 					},
 					"/foo": {
-						"/foo": {"owner", "user"},
+						"/foo": {"/foo::owner", "/foo::user"},
 					},
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "admin"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "developer"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "viewer"},
-				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "owner"},
-				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "user"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "admin", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "developer", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "viewer", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "owner", RoleScope: "/foo"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "user", RoleScope: "/foo"},
 			},
 		},
 		{
@@ -717,28 +754,28 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				Scope: "/",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
-						"/":        {"global"},
-						"/staging": {"staging-policy"},
-						"/prod":    {"prod-policy"},
+						"/":        {"/::global"},
+						"/staging": {"/::staging-policy"},
+						"/prod":    {"/::prod-policy"},
 					},
 					"/staging": {
-						"/staging/west": {"west-admin"},
-						"/staging/east": {"east-admin"},
+						"/staging/west": {"/staging::west-admin"},
+						"/staging/east": {"/staging::east-admin"},
 					},
 					"/prod": {
-						"/prod/us": {"us-admin"},
-						"/prod/eu": {"eu-admin"},
+						"/prod/us": {"/prod::us-admin"},
+						"/prod/eu": {"/prod::eu-admin"},
 					},
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "global"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod", RoleName: "prod-policy"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "staging-policy"},
-				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/eu", RoleName: "eu-admin"},
-				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us", RoleName: "us-admin"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/east", RoleName: "east-admin"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "west-admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "global", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/prod", RoleName: "prod-policy", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "staging-policy", RoleScope: "/"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/eu", RoleName: "eu-admin", RoleScope: "/prod"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us", RoleName: "us-admin", RoleScope: "/prod"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/east", RoleName: "east-admin", RoleScope: "/staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "west-admin", RoleScope: "/staging"},
 			},
 		},
 	}
@@ -798,7 +835,7 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			name: "single role at root",
 			input: map[string]map[string][]string{
 				"/": {
-					"/": {"role1"},
+					"/": {"/::role1"},
 				},
 			},
 		},
@@ -806,7 +843,7 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			name: "multiple roles at single scope combination",
 			input: map[string]map[string][]string{
 				"/foo": {
-					"/foo": {"admin", "developer", "viewer"},
+					"/foo": {"/foo::admin", "/foo::developer", "/foo::viewer"},
 				},
 			},
 		},
@@ -814,17 +851,17 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			name: "hierarchical assignments",
 			input: map[string]map[string][]string{
 				"/": {
-					"/":        {"root-global"},
-					"/staging": {"root-staging"},
-					"/prod":    {"root-prod"},
+					"/":        {"/::root-global"},
+					"/staging": {"/::root-staging"},
+					"/prod":    {"/::root-prod"},
 				},
 				"/staging": {
-					"/staging":      {"staging-admin"},
-					"/staging/west": {"staging-west"},
-					"/staging/east": {"staging-east"},
+					"/staging":      {"/staging::staging-admin"},
+					"/staging/west": {"/staging::staging-west"},
+					"/staging/east": {"/staging::staging-east"},
 				},
 				"/staging/west": {
-					"/staging/west": {"west-local"},
+					"/staging/west": {"/staging/west::west-local"},
 				},
 			},
 		},
@@ -832,22 +869,22 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			name: "complex multi-branch tree",
 			input: map[string]map[string][]string{
 				"/": {
-					"/":        {"global"},
-					"/staging": {"staging-policy"},
-					"/prod":    {"prod-policy"},
+					"/":        {"/::global"},
+					"/staging": {"/::staging-policy"},
+					"/prod":    {"/::prod-policy"},
 				},
 				"/staging": {
-					"/staging":      {"staging-base"},
-					"/staging/west": {"west-admin", "west-user"},
-					"/staging/east": {"east-admin", "east-user"},
+					"/staging":      {"/staging::staging-base"},
+					"/staging/west": {"/staging::west-admin", "/staging::west-user"},
+					"/staging/east": {"/staging::east-admin", "/staging::east-user"},
 				},
 				"/prod": {
-					"/prod":    {"prod-base"},
-					"/prod/us": {"us-admin"},
-					"/prod/eu": {"eu-admin", "eu-auditor"},
+					"/prod":    {"/prod::prod-base"},
+					"/prod/us": {"/prod::us-admin"},
+					"/prod/eu": {"/prod::eu-admin", "/prod::eu-auditor"},
 				},
 				"/staging/west": {
-					"/staging/west": {"west-dev", "west-ops"},
+					"/staging/west": {"/staging/west::west-dev", "/staging/west::west-ops"},
 				},
 			},
 		},
@@ -855,18 +892,18 @@ func TestAssignmentTreeMapConversions(t *testing.T) {
 			name: "deep hierarchy",
 			input: map[string]map[string][]string{
 				"/": {
-					"/":                      {"r1"},
-					"/a":                     {"r2"},
-					"/a/b":                   {"r3"},
-					"/a/b/c":                 {"r4"},
-					"/a/b/c/d":               {"r5"},
-					"/a/b/c/d/e":             {"r6"},
-					"/a/b/c/d/e/f":           {"r7"},
-					"/a/b/c/d/e/f/g":         {"r8"},
-					"/a/b/c/d/e/f/g/h":       {"r9"},
-					"/a/b/c/d/e/f/g/h/i":     {"r10"},
-					"/a/b/c/d/e/f/g/h/i/j":   {"r11"},
-					"/a/b/c/d/e/f/g/h/i/j/k": {"r12"},
+					"/":                      {"/::r1"},
+					"/a":                     {"/::r2"},
+					"/a/b":                   {"/::r3"},
+					"/a/b/c":                 {"/::r4"},
+					"/a/b/c/d":               {"/::r5"},
+					"/a/b/c/d/e":             {"/::r6"},
+					"/a/b/c/d/e/f":           {"/::r7"},
+					"/a/b/c/d/e/f/g":         {"/::r8"},
+					"/a/b/c/d/e/f/g/h":       {"/::r9"},
+					"/a/b/c/d/e/f/g/h/i":     {"/::r10"},
+					"/a/b/c/d/e/f/g/h/i/j":   {"/::r11"},
+					"/a/b/c/d/e/f/g/h/i/j/k": {"/::r12"},
 				},
 			},
 		},
@@ -907,12 +944,12 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "no pruning needed",
 			before: map[string]map[string][]string{
 				"/": {
-					"/staging": {"role1"},
+					"/staging": {"/::role1"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/staging": {"role1"},
+					"/staging": {"/::role1"},
 				},
 			},
 			maxBytes:     10000,
@@ -922,23 +959,23 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "prune deepest level only",
 			before: map[string]map[string][]string{
 				"/": {
-					"/staging":      {"root-staging"},
-					"/staging/west": {"root-west"},
+					"/staging":      {"/::root-staging"},
+					"/staging/west": {"/::root-west"},
 				},
 				"/staging": {
-					"/staging/west": {"staging-west"},
+					"/staging/west": {"/staging::staging-west"},
 				},
 				"/staging/west": {
-					"/staging/west": {"west-local"},
+					"/staging/west": {"/staging/west::west-local"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/staging":      {"root-staging"},
-					"/staging/west": {"root-west"},
+					"/staging":      {"/::root-staging"},
+					"/staging/west": {"/::root-west"},
 				},
 				"/staging": {
-					"/staging/west": {"staging-west"},
+					"/staging/west": {"/staging::staging-west"},
 				},
 			},
 			maxBytes:     110,
@@ -948,32 +985,32 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "prune two deepest levels",
 			before: map[string]map[string][]string{
 				"/": {
-					"/":                  {"global"},
-					"/staging":           {"root-staging"},
-					"/staging/west":      {"root-west"},
-					"/staging/west/rack": {"root-rack"},
+					"/":                  {"/::global"},
+					"/staging":           {"/::root-staging"},
+					"/staging/west":      {"/::root-west"},
+					"/staging/west/rack": {"/::root-rack"},
 				},
 				"/staging": {
-					"/staging/west":      {"staging-west"},
-					"/staging/west/rack": {"staging-rack"},
+					"/staging/west":      {"/staging::staging-west"},
+					"/staging/west/rack": {"/staging::staging-rack"},
 				},
 				"/staging/west": {
-					"/staging/west/rack": {"west-rack"},
+					"/staging/west/rack": {"/staging/west::west-rack"},
 				},
 				"/staging/west/rack": {
-					"/staging/west/rack": {"rack-local"},
+					"/staging/west/rack": {"/staging/west/rack::rack-local"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/":                  {"global"},
-					"/staging":           {"root-staging"},
-					"/staging/west":      {"root-west"},
-					"/staging/west/rack": {"root-rack"},
+					"/":                  {"/::global"},
+					"/staging":           {"/::root-staging"},
+					"/staging/west":      {"/::root-west"},
+					"/staging/west/rack": {"/::root-rack"},
 				},
 				"/staging": {
-					"/staging/west":      {"staging-west"},
-					"/staging/west/rack": {"staging-rack"},
+					"/staging/west":      {"/staging::staging-west"},
+					"/staging/west/rack": {"/staging::staging-rack"},
 				},
 			},
 			maxBytes:     160,
@@ -983,22 +1020,22 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "uniform pruning across branches",
 			before: map[string]map[string][]string{
 				"/": {
-					"/staging": {"root-staging"},
-					"/prod":    {"root-prod"},
+					"/staging": {"/::root-staging"},
+					"/prod":    {"/::root-prod"},
 				},
 				"/staging": {
-					"/staging/west": {"west-admin"},
-					"/staging/east": {"east-admin"},
+					"/staging/west": {"/staging::west-admin"},
+					"/staging/east": {"/staging::east-admin"},
 				},
 				"/prod": {
-					"/prod/us": {"us-admin"},
-					"/prod/eu": {"eu-admin"},
+					"/prod/us": {"/prod::us-admin"},
+					"/prod/eu": {"/prod::eu-admin"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/staging": {"root-staging"},
-					"/prod":    {"root-prod"},
+					"/staging": {"/::root-staging"},
+					"/prod":    {"/::root-prod"},
 				},
 			},
 			maxBytes:     150,
@@ -1008,20 +1045,20 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "prune everything except root",
 			before: map[string]map[string][]string{
 				"/": {
-					"/":        {"global"},
-					"/staging": {"root-staging"},
+					"/":        {"/::global"},
+					"/staging": {"/::root-staging"},
 				},
 				"/staging": {
-					"/staging": {"staging-admin"},
+					"/staging": {"/staging::staging-admin"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/":        {"global"},
-					"/staging": {"root-staging"},
+					"/":        {"/::global"},
+					"/staging": {"/::root-staging"},
 				},
 			},
-			maxBytes:     40,
+			maxBytes:     50,
 			expectPruned: 1,
 		},
 		{
@@ -1037,16 +1074,16 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "only root assignments, oversized",
 			before: map[string]map[string][]string{
 				"/": {
-					"/a": {"role1"},
-					"/b": {"role2"},
-					"/c": {"role3"},
+					"/a": {"/::role1"},
+					"/b": {"/::role2"},
+					"/c": {"/::role3"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/a": {"role1"},
-					"/b": {"role2"},
-					"/c": {"role3"},
+					"/a": {"/::role1"},
+					"/b": {"/::role2"},
+					"/c": {"/::role3"},
 				},
 			},
 			maxBytes:        1,
@@ -1059,20 +1096,20 @@ func TestPruneAssignmentTree(t *testing.T) {
 			name: "still oversized after pruning to root",
 			before: map[string]map[string][]string{
 				"/": {
-					"/a": {"role1"},
-					"/b": {"role2"},
-					"/c": {"role3"},
+					"/a": {"/::role1"},
+					"/b": {"/::role2"},
+					"/c": {"/::role3"},
 				},
 				"/a": {
-					"/a": {"a-role1"},
-					"/b": {"a-role2"},
+					"/a":   {"/a::a-role1"},
+					"/a/b": {"/a::a-role2"},
 				},
 			},
 			after: map[string]map[string][]string{
 				"/": {
-					"/a": {"role1"},
-					"/b": {"role2"},
-					"/c": {"role3"},
+					"/a": {"/::role1"},
+					"/b": {"/::role2"},
+					"/c": {"/::role3"},
 				},
 			},
 			maxBytes:        1,

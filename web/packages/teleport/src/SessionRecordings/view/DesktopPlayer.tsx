@@ -16,7 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+  type RefObject,
+} from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, Indicator } from 'design';
@@ -28,52 +37,73 @@ import { useListener } from 'shared/libs/tdp';
 
 import cfg from 'teleport/config';
 import { formatDisplayTime, StatusEnum } from 'teleport/lib/player';
-import { PlayerClient } from 'teleport/lib/tdp';
+import { PlayerClient, type PlayerTimeAnchor } from 'teleport/lib/tdp';
 import { getHostName } from 'teleport/services/api';
+import type { SessionRecordingEvent } from 'teleport/services/recordings';
 
+import {
+  CurrentEventInfo,
+  type CurrentEventInfoHandle,
+} from './CurrentEventInfo';
 import ProgressBar from './ProgressBar';
+import type { PlayerHandle } from './SshPlayer';
 
 const reload = () => window.location.reload();
+
+// how often the React-rendered ProgressBar is updated (instead of every animation frame)
+const PROGRESS_UPDATE_INTERVAL_MS = 50;
+
+interface DesktopPlayerProps {
+  clusterId: string;
+  durationMs: number;
+  /** Enables the current event overlay (e.g. the skip inactivity button). */
+  events?: SessionRecordingEvent[];
+  onTimeChange?: (time: number) => void;
+  ref?: Ref<PlayerHandle>;
+  sid: string;
+}
 
 export const DesktopPlayer = ({
   sid,
   clusterId,
   durationMs,
-}: {
-  sid: string;
-  clusterId: string;
-  durationMs: number;
-}) => {
+  events,
+  onTimeChange,
+  ref,
+}: DesktopPlayerProps) => {
+  const canvasRendererRef = useRef<CanvasRendererRef>(null);
+  const eventInfoRef = useRef<CurrentEventInfoHandle>(null);
+
   const {
     playerClient,
     playerStatus,
     statusText,
     time,
 
-    clientOnTransportOpen,
-    clientOnTransportClose,
-    clientOnError,
-    clientOnTdpInfo,
+    seekTo,
+    setPlaySpeed,
+    suspendProgressUpdates,
+    togglePlayPause,
   } = useDesktopPlayer({
     sid,
     clusterId,
+    durationMs,
+    eventInfoRef,
+    onTimeChange,
   });
-  const canvasRendererRef = useRef<CanvasRendererRef>(null);
 
-  useListener(playerClient?.onError, clientOnError);
-  useListener(playerClient?.onInfo, clientOnTdpInfo);
-  useListener(playerClient?.onTransportOpen, clientOnTransportOpen);
-  useListener(playerClient?.onTransportClose, clientOnTransportClose);
+  useImperativeHandle(ref, () => ({ moveToTime: seekTo }), [seekTo]);
+
   useListener(
-    playerClient?.onPngFrame,
+    playerClient.onPngFrame,
     canvasRendererRef.current?.renderPngFrame
   );
   useListener(
-    playerClient?.onBmpFrame,
+    playerClient.onBmpFrame,
     canvasRendererRef.current?.renderBitmapFrame
   );
   useListener(
-    playerClient?.onScreenSpec,
+    playerClient.onScreenSpec,
     canvasRendererRef.current?.setResolution
   );
 
@@ -98,6 +128,14 @@ export const DesktopPlayer = ({
       <StyledContainer>
         <CanvasRenderer ref={canvasRendererRef} />
 
+        {events && (
+          <CurrentEventInfo
+            events={events}
+            onSeek={seekTo}
+            ref={eventInfoRef}
+          />
+        )}
+
         <ProgressBar
           min={0}
           max={durationMs}
@@ -106,41 +144,96 @@ export const DesktopPlayer = ({
           isPlaying={isPlaying}
           time={formatDisplayTime(t)}
           onRestart={reload}
-          onStartMove={() => playerClient.suspendTimeUpdates()}
-          move={pos => {
-            playerClient.resumeTimeUpdates();
-            playerClient.seekTo(pos);
-          }}
-          onPlaySpeedChange={s => playerClient.setPlaySpeed(s)}
-          toggle={() => playerClient.togglePlayPause()}
+          onStartMove={suspendProgressUpdates}
+          move={seekTo}
+          onPlaySpeedChange={setPlaySpeed}
+          toggle={togglePlayPause}
         />
       </StyledContainer>
     </StyledPlayer>
   );
 };
 
-const useDesktopPlayer = ({ clusterId, sid }) => {
+interface TimeAnchor extends PlayerTimeAnchor {
+  receivedAt: number;
+}
+
+const useDesktopPlayer = ({
+  clusterId,
+  durationMs,
+  eventInfoRef,
+  onTimeChange,
+  sid,
+}: {
+  clusterId: string;
+  durationMs: number;
+  eventInfoRef: RefObject<CurrentEventInfoHandle | null>;
+  onTimeChange?: (time: number) => void;
+  sid: string;
+}) => {
   const [time, setTime] = useState(0);
   const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
   const [statusText, setStatusText] = useState('');
+
+  // latest authoritative playback position, interpolated between by the requestAnimationFrame loop
+  const anchorRef = useRef<TimeAnchor>({
+    ms: 0,
+    speed: 1,
+    paused: true,
+    receivedAt: 0,
+  });
+  // interpolated time as of the last frame, used to rebase on pause/play/speed changes
+  const currentTimeRef = useRef(0);
+  const lastProgressUpdateRef = useRef(0);
+  // progress bar updates are suspended while the user drags the slider
+  const progressSuspendedRef = useRef(false);
 
   const playerClient = useMemo(() => {
     const url = cfg.api.desktopPlaybackWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':sid', sid);
-    return new PlayerClient({ url, setTime, setPlayerStatus, setStatusText });
+    return new PlayerClient({ url });
   }, [clusterId, sid]);
+
+  const rebaseAnchor = useCallback((changes: Partial<PlayerTimeAnchor>) => {
+    anchorRef.current = {
+      ...anchorRef.current,
+      ms: currentTimeRef.current,
+      receivedAt: performance.now(),
+      ...changes,
+    };
+  }, []);
+
+  const handleTimeUpdate = useCallback((anchor: PlayerTimeAnchor) => {
+    anchorRef.current = { ...anchor, receivedAt: performance.now() };
+  }, []);
+
+  const handlePlayerStatus = useCallback(
+    (status: StatusEnum) => {
+      setPlayerStatus(status);
+
+      if (status === StatusEnum.PLAYING || status === StatusEnum.PAUSED) {
+        rebaseAnchor({ paused: status === StatusEnum.PAUSED });
+      }
+    },
+    [rebaseAnchor]
+  );
 
   const clientOnTransportOpen = useCallback(() => {
     setPlayerStatus(StatusEnum.PLAYING);
+    anchorRef.current = {
+      ms: 0,
+      speed: anchorRef.current.speed,
+      paused: false,
+      receivedAt: performance.now(),
+    };
   }, []);
 
   const clientOnTransportClose = useCallback(() => {
-    if (playerClient) {
-      playerClient.cancelTimeUpdate();
-    }
-  }, [playerClient]);
+    // freeze the clock, there will be no more authoritative positions
+    rebaseAnchor({ paused: true });
+  }, [rebaseAnchor]);
 
   const clientOnError = useCallback((error: Error) => {
     setPlayerStatus(StatusEnum.ERROR);
@@ -152,15 +245,80 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     setStatusText(info);
   }, []);
 
+  useListener(playerClient.onTimeUpdate, handleTimeUpdate);
+  useListener(playerClient.onPlayerStatus, handlePlayerStatus);
+  useListener(playerClient.onError, clientOnError);
+  useListener(playerClient.onInfo, clientOnTdpInfo);
+  useListener(playerClient.onTransportOpen, clientOnTransportOpen);
+  useListener(playerClient.onTransportClose, clientOnTransportClose);
+
+  const seekTo = useCallback(
+    (pos: number) => {
+      progressSuspendedRef.current = false;
+      playerClient.seekTo(pos);
+      setTime(pos);
+    },
+    [playerClient]
+  );
+
+  const setPlaySpeed = useCallback(
+    (speed: number) => {
+      rebaseAnchor({ speed });
+      playerClient.setPlaySpeed(speed);
+    },
+    [playerClient, rebaseAnchor]
+  );
+
+  const suspendProgressUpdates = useCallback(() => {
+    progressSuspendedRef.current = true;
+  }, []);
+
+  const togglePlayPause = useCallback(() => {
+    playerClient.togglePlayPause();
+  }, [playerClient]);
+
   useEffect(() => {
-    if (!playerClient) {
-      return;
-    }
+    let handle = 0;
+
+    const update = () => {
+      const { ms, speed, paused, receivedAt } = anchorRef.current;
+      const now = performance.now();
+      const current = Math.min(
+        paused ? ms : ms + (now - receivedAt) * speed,
+        durationMs
+      );
+
+      // Skip while the time is unchanged (paused, loading, complete) to avoid
+      // redrawing the timeline and rescanning events every frame.
+      if (current !== currentTimeRef.current) {
+        currentTimeRef.current = current;
+
+        onTimeChange?.(current);
+        eventInfoRef.current?.setTime(current);
+      }
+
+      if (
+        !progressSuspendedRef.current &&
+        now - lastProgressUpdateRef.current >= PROGRESS_UPDATE_INTERVAL_MS
+      ) {
+        lastProgressUpdateRef.current = now;
+        setTime(current);
+      }
+
+      handle = requestAnimationFrame(update);
+    };
+
+    handle = requestAnimationFrame(update);
+
+    return () => cancelAnimationFrame(handle);
+  }, [durationMs, onTimeChange, eventInfoRef]);
+
+  useEffect(() => {
     playerClient.connect().catch(clientOnError);
     return () => {
       playerClient.shutdown();
     };
-  }, [playerClient]);
+  }, [playerClient, clientOnError]);
 
   return {
     time,
@@ -168,10 +326,10 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     playerStatus,
     statusText,
 
-    clientOnTransportOpen,
-    clientOnTransportClose,
-    clientOnError,
-    clientOnTdpInfo,
+    seekTo,
+    setPlaySpeed,
+    suspendProgressUpdates,
+    togglePlayPause,
   };
 };
 
@@ -191,6 +349,7 @@ const DesktopPlayerAlert = styled(Alert)`
 `;
 
 const StyledContainer = styled(Flex)`
+  position: relative;
   flex-direction: column;
   justify-content: center;
   width: 100%;

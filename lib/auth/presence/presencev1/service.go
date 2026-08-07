@@ -20,6 +20,7 @@ package presencev1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -31,7 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -48,9 +52,19 @@ type Backend interface {
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 
 	DeleteRelayServer(ctx context.Context, name string) error
+
+	DeleteAppServer(ctx context.Context, req *presencepb.DeleteAppServerRequest) error
+
+	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
+	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
+	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
+
+	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
 }
 
 type Cache interface {
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
 	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
@@ -66,28 +80,30 @@ type AuthServer interface {
 // ServiceConfig holds configuration options for
 // the presence gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Backend    Backend
-	Cache      Cache
-	Logger     *slog.Logger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	AuthServer       AuthServer
+	Backend          Backend
+	Cache            Cache
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.presence.v1.PresenceService RPC service.
 type Service struct {
 	presencepb.UnimplementedPresenceServiceServer
 
-	authorizer authz.Authorizer
-	authServer AuthServer
-	backend    Backend
-	cache      Cache
-	logger     *slog.Logger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	authServer       AuthServer
+	backend          Backend
+	cache            Cache
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
 
 var _ presencepb.PresenceServiceServer = (*Service)(nil)
@@ -99,6 +115,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
@@ -117,11 +135,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		authServer:       cfg.AuthServer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
 
 		emitter:  cfg.Emitter,
 		reporter: cfg.Reporter,
@@ -329,6 +348,117 @@ func (s *Service) DeleteRemoteCluster(
 	return &emptypb.Empty{}, nil
 }
 
+// DeleteApplicationServer deletes a scoped or unscoped application server.
+func (s *Service) DeleteAppServer(
+	ctx context.Context, req *presencepb.DeleteAppServerRequest,
+) (*presencepb.DeleteAppServerResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetHostId() == "":
+		return nil, trace.BadParameter("host_id: must be specified")
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	// App agents can delete their own app servers
+	// (builtin RoleApp only grants read on app_server rules); anyone else
+	// needs an app_server delete rule granted in the target scope.
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleApp); err != nil {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, types.VerbDelete)
+		}
+		return nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAppServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteAppServerResponse_builder{}.Build(), nil
+}
+
+// ListAuthServers returns a page of auth servers.
+func (s *Service) ListAuthServers(
+	ctx context.Context, req *presencepb.ListAuthServersRequest,
+) (*presencepb.ListAuthServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListAuthServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// ListProxyServers returns a page of proxy servers.
+func (s *Service) ListProxyServers(
+	ctx context.Context, req *presencepb.ListProxyServersRequest,
+) (*presencepb.ListProxyServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListProxyServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
 // ListReverseTunnels returns a page of reverse tunnels.
 func (s *Service) ListReverseTunnels(
 	ctx context.Context, req *presencepb.ListReverseTunnelsRequest,
@@ -476,4 +606,175 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 	}
 
 	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// GetKubeCluster returns the specified kube cluster resource.
+func (s *Service) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (*presencepb.GetKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cluster, err := s.backend.GetKubeCluster(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid cluster")
+	}
+	return presencepb.GetKubeClusterResponse_builder{
+		Cluster: clusterV3,
+	}.Build(), nil
+}
+
+// getCursorForKubeCluster wraps [services.GetCursorForKubeCluster] with a signature
+// referencing [*types.KubernetesClusterV3] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForKubeCluster(cluster *types.KubernetesClusterV3) string {
+	return services.GetCursorForKubeCluster(cluster)
+}
+
+// ListKubeClusters returns a page of registered kube clusters.
+func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) (*presencepb.ListKubeClustersResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
+	clusters, nextToken, err := generic.CollectPageAndCursor(
+		stream.FilterMap(
+			s.backend.RangeKubeClusters(ctx, req),
+			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
+				// Filter out kube clusters user doesn't have access to.
+				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+					if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+						return err
+					}
+					return checker.Kube().CanAccessCluster(cluster)
+				}); err == nil {
+					clusterV3, ok := cluster.(*types.KubernetesClusterV3)
+					return clusterV3, ok
+				}
+				return nil, false
+			},
+		),
+		int(req.GetPageSize()),
+		getCursorForKubeCluster,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListKubeClustersResponse_builder{
+		Clusters:      clusters,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// DeleteKubeCluster removes the specified kube cluster resource.
+func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) (*presencepb.DeleteKubeClusterResponse, error) {
+	authContext, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authContext.RuleContext()
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Make sure user has access to the kubernetes cluster before deleting.
+	cluster, err := s.backend.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		if err := checker.CheckAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
+			return err
+		}
+		return checker.Kube().CanAccessCluster(cluster)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeCluster(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
+	}
+	return presencepb.DeleteKubeClusterResponse_builder{}.Build(), nil
+}
+
+// DeleteKubeServer deletes a scoped or unscoped kube server.
+func (s *Service) DeleteKubeServer(
+	ctx context.Context, req *presencepb.DeleteKubeServerRequest,
+) (*presencepb.DeleteKubeServerResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetHostId() == "":
+		return nil, trace.BadParameter("host_id: must be specified")
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		// Kube agents can delete their own kube servers
+		// (builtin RoleKube only grants read on kube_server rules); anyone else
+		// needs an app_server delete rule granted in the target scope.
+		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleKube); err == nil {
+			return nil
+		}
+		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
 }

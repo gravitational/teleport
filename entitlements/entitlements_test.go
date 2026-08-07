@@ -200,6 +200,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(SAML):                   {Enabled: true},
 				string(SessionLocks):           {Enabled: true},
 				// defaults, no legacy equivalent
+				string(Beams):                      {Enabled: false},
 				string(UsageReporting):             {Enabled: false},
 				string(UpsellAlert):                {Enabled: false},
 				string(CloudAuditLogRetention):     {Enabled: false},
@@ -277,6 +278,7 @@ func TestBackfillFeatures(t *testing.T) {
 				string(SAML):                   {Enabled: true},
 
 				// defaults, no legacy equivalent
+				string(Beams):                      {Enabled: false},
 				string(UsageReporting):             {Enabled: false},
 				string(UpsellAlert):                {Enabled: false},
 				string(CloudAuditLogRetention):     {Enabled: false},

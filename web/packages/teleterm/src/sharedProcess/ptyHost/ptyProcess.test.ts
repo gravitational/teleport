@@ -54,7 +54,7 @@ describe('PtyProcess', () => {
   });
 
   if (process.platform !== 'win32') {
-    test('including the last input in the exit event', async () => {
+    test('reports whether the last input was Ctrl+D in the exit event', async () => {
       const pty = new PtyProcess({
         path: 'sh',
         env: {},
@@ -73,7 +73,7 @@ describe('PtyProcess', () => {
         tick: 10,
       });
       expect(listener).toHaveBeenCalledWith(
-        expect.objectContaining({ lastInput: '\x04' })
+        expect.objectContaining({ lastInputWasCtrlD: true })
       );
     });
   }

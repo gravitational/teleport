@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -157,10 +158,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	clusterName := conn.ClusterName()
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ClusterName:    clusterName,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ScopesFeatures: process.scopesFeatures,
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.
@@ -176,6 +178,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
 	// Populate the correct CAs for the incoming client connection.
 	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string

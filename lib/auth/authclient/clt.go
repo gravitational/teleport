@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/gitserver"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -48,6 +49,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -499,11 +501,6 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -838,13 +835,17 @@ type WebService interface {
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
-	// AppSession defines application session features.
-	services.AppSession
+	// AppSessionReader defines application session features available to remote clients.
+	services.AppSessionReader
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
+
+	// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+	// resulting public key to an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error
+	// SignDBSCChallenge signs a DBSC challenge for app-session registration or refresh.
+	SignDBSCChallenge(ctx context.Context, sessionID string) (string, error)
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -1535,6 +1536,7 @@ type ClientI interface {
 	services.HealthCheckConfig
 	types.Events
 	services.ScopedAccessClientGetter
+	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
@@ -1545,6 +1547,9 @@ type ClientI interface {
 	DynamicDesktopClient() *dynamicwindows.Client
 	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	LinuxDesktopClient() *linuxdesktop.Client
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient

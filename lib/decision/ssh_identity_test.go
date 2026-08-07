@@ -46,10 +46,15 @@ func TestSSHIdentityConversion(t *testing.T) {
 		SystemRole:  types.RoleNode,
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    string(types.RoleNode),
+				Additional: []string{string(types.RoleProxy)},
+			},
 		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
@@ -75,6 +80,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 		Generation:    3,
 		BotName:       "bot",
 		BotInstanceID: "instance",
+		BotScope:      "/foo",
 		JoinToken:     "join-token",
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs: []types.ResourceID{{
@@ -130,6 +136,9 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"Pin.XXX_unrecognized",
 		"Pin.XXX_sizecache",
 		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
+		"SystemRoles.XXX_NoUnkeyedLiteral",
+		"SystemRoles.XXX_unrecognized",
+		"SystemRoles.XXX_sizecache",
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
@@ -140,7 +149,8 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"RoleNode.XXX_NoUnkeyedLiteral",
 		"RoleNode.XXX_unrecognized",
 		"RoleNode.XXX_sizecache",
-		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.Children",  // has to be empty in leaf nodes because of how trees work
+		"RolesByScope.Depth", // 0 is the only valid depth for root role assignments
 		"ResourceAccessID.XXX_NoUnkeyedLiteral",
 		"ResourceAccessID.XXX_unrecognized",
 		"ResourceAccessID.XXX_sizecache",

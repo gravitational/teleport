@@ -47,9 +47,10 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 	fullIdentity := &decisionpb.TLSIdentity{
 		Username: "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
 		},
 		Impersonator:      "impersonator",
@@ -104,6 +105,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		Generation:              112,
 		BotName:                 "bot-name",
 		BotInstanceId:           "bot-instance-id",
+		BotScope:                "/foo",
 		AllowedResourceIds: []*decisionpb.ResourceId{
 			{
 				ClusterName:     "cluster1",

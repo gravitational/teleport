@@ -72,6 +72,7 @@ func TLSIdentityToTLSCA(id *decisionpb.TLSIdentity) *tlsca.Identity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceID:           id.BotInstanceId,
+		BotScope:                id.BotScope,
 		JoinToken:               id.JoinToken,
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIDs:       resourceIDsToTypes(id.AllowedResourceIds),
@@ -124,6 +125,7 @@ func TLSIdentityFromTLSCA(id *tlsca.Identity) *decisionpb.TLSIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
+		BotScope:                id.BotScope,
 		JoinToken:               id.JoinToken,
 		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
 		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),

@@ -66,6 +66,8 @@ type NewWebSessionRequest struct {
 	// DelegationSessionID is the ID of the Delegation Session this session is
 	// being created for.
 	DelegationSessionID string
+	// Usage identifies the intended usage of the session.
+	Usage types.WebSessionUsage
 }
 
 // CheckAndSetDefaults validates the request and sets defaults.
@@ -117,4 +119,8 @@ type NewAppSessionRequest struct {
 	BotName string
 	// BotInstanceID is the ID of the bot instance that is creating this session.
 	BotInstanceID string
+	// BotScope is the scope of the bot that is creating this session, if any.
+	BotScope string
+	// TargetScope is the scope of the target resource.
+	TargetScope string
 }

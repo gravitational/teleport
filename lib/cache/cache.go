@@ -39,6 +39,7 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -136,8 +137,14 @@ func makeAllKnownCAsFilter() types.CertAuthorityFilter {
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
 	cfg.EnableRelativeExpiry = true
+	// Scope-aware kinds default (for unscoped callers) to matching only unscoped instances. Auth must have
+	// access to all instances (scoped and unscoped) of the resources it manages, so it watches those kinds with an
+	// explicit MODE_ALL filter.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
+		{Kind: types.KindPendingCSRRequest},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -151,20 +158,22 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRole},
 		{Kind: scopedaccess.KindScopedRole},
 		{Kind: scopedaccess.KindScopedRoleAssignment},
-		{Kind: types.KindNode},
+		{Kind: types.KindNode, ScopeFilter: allScopes},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAccessRequest},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindApp},
+		{Kind: types.KindAppServer, ScopeFilter: allScopes},
+		{Kind: types.KindApp, ScopeFilter: allScopes},
+		{Kind: types.KindBeam},
+		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseServer, ScopeFilter: allScopes},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
@@ -172,9 +181,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
-		{Kind: types.KindKubeServer},
+		{Kind: types.KindLinuxDesktop},
+		{Kind: types.KindKubeServer, ScopeFilter: allScopes},
 		{Kind: types.KindInstaller},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes},
 		{Kind: types.KindCrownJewel},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
@@ -211,7 +221,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindPlugin, LoadSecrets: true},
 		{Kind: types.KindPluginStaticCredentials},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindWorkloadIdentity},
+		{Kind: types.KindWorkloadIdentity, ScopeFilter: allScopes},
 		{Kind: types.KindHealthCheckConfig},
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
@@ -233,6 +243,10 @@ func ForAuth(cfg Config) Config {
 // ForProxy sets up watch configuration for proxy
 func ForProxy(cfg Config) Config {
 	cfg.target = "proxy"
+	// Scope-aware kinds default (for unscoped callers) to matching only unscoped instances. The proxy is
+	// unscoped but must see all instances (scoped and unscoped) of the resources it routes on, so it
+	// watches those kinds with an explicit MODE_ALL filter.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
@@ -243,26 +257,27 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNode},
+		{Kind: types.KindNode, ScopeFilter: allScopes},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindApp},
+		{Kind: types.KindAppServer, ScopeFilter: allScopes},
+		{Kind: types.KindApp, ScopeFilter: allScopes},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseServer, ScopeFilter: allScopes},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
-		{Kind: types.KindKubeServer},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindLinuxDesktop},
+		{Kind: types.KindKubeServer, ScopeFilter: allScopes},
+		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindIntegration},
@@ -315,6 +330,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -424,6 +440,7 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -436,6 +453,34 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
+func ForLinuxDesktop(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
+	cfg.target = "linux_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindLinuxDesktop},
+	}
+	cfg.QueueSize = defaults.LinuxDesktopQueueSize
 	return cfg
 }
 
@@ -474,8 +519,6 @@ func ForOkta(cfg Config) Config {
 		{Kind: types.KindProxy},
 		{Kind: types.KindRole},
 		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindAccessList},
-		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -502,7 +545,12 @@ type Cache struct {
 	// when checking the `ok` or `confirmedKinds` fields. Since the write
 	// lock must be held in order to modify the `ok` field, this serves
 	// to ensure that all in-progress reads complete *before* a reset can begin.
-	rw sync.RWMutex
+	//
+	// In test builds with the race detector enabled, it's a read-write mutex
+	// that must be unlocked for reading in the same goroutine that acquired the
+	// read lock. This is currently the case and shouldn't be particularly
+	// restricting in the future.
+	rw rwMutex
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
 	ok bool
@@ -676,6 +724,10 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Applications
+	// Beams is a beam reader service.
+	Beams services.BeamReader
+	// BeamsConfig is a beams config getter service.
+	BeamsConfig services.BeamsConfigGetter
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -689,15 +741,17 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a windows desktop service.
+	// WindowsDesktops is a Windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+	// LinuxDesktops is a Linux desktop service.
+	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -794,6 +848,8 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1829,7 +1885,7 @@ func buildListResourcesResponse[T types.ResourceWithLabels](resources iter.Seq[T
 			return nil, trace.Wrap(err)
 		case match:
 			if len(resp.Resources) == limit {
-				resp.NextKey = backend.GetPaginationKey(r)
+				resp.NextKey = services.GetCursorForResource(r)
 				return &resp, nil
 			}
 

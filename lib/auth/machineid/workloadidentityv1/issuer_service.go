@@ -23,6 +23,8 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
+	"iter"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -38,11 +40,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	apiproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -88,11 +94,13 @@ type issuerCache interface {
 	GetProxies() ([]types.Server, error)
 	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	ListResources(ctx context.Context, req apiproto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
 	Authorizer                 authz.Authorizer
+	ScopedAuthorizer           authz.ScopedAuthorizer
 	Cache                      issuerCache
 	Clock                      clockwork.Clock
 	Emitter                    apievents.Emitter
@@ -110,6 +118,7 @@ type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
 	authorizer                 authz.Authorizer
+	scopedAuthorizer           authz.ScopedAuthorizer
 	cache                      issuerCache
 	clock                      clockwork.Clock
 	emitter                    apievents.Emitter
@@ -128,13 +137,14 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("key store is required")
 	case cfg.OverrideGetter == nil:
 		return nil, trace.BadParameter("override getter is required")
-
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
 	case cfg.GetSigstorePolicyEvaluator == nil:
@@ -149,6 +159,7 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	}
 	return &IssuanceService{
 		authorizer:                 cfg.Authorizer,
+		scopedAuthorizer:           cfg.ScopedAuthorizer,
 		cache:                      cfg.Cache,
 		clock:                      cfg.Clock,
 		emitter:                    cfg.Emitter,
@@ -162,21 +173,28 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 }
 
 func (s *IssuanceService) deriveAttrs(
-	authzCtx *authz.Context,
+	identity authz.IdentityGetter,
+	user types.User,
 	workloadAttrs *workloadidentityv1pb.WorkloadAttrs,
 ) (*workloadidentityv1pb.Attrs, error) {
+	// user is nil for non-user identities (e.g. scoped agents); in that case,
+	// no user labels are exposed.
+	var userLabels map[string]string
+	if user != nil {
+		userLabels = user.GetAllLabels()
+	}
 	attrs := &workloadidentityv1pb.Attrs{
 		Workload: workloadAttrs,
 		User: &workloadidentityv1pb.UserAttrs{
-			Name:    authzCtx.Identity.GetIdentity().Username,
-			IsBot:   authzCtx.Identity.GetIdentity().BotName != "",
-			BotName: authzCtx.Identity.GetIdentity().BotName,
-			Labels:  authzCtx.User.GetAllLabels(),
+			Name:    identity.GetIdentity().Username,
+			IsBot:   identity.GetIdentity().BotName != "",
+			BotName: identity.GetIdentity().BotName,
+			Labels:  userLabels,
 		},
-		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
+		Join: identity.GetIdentity().JoinAttributes,
 	}
 
-	for key, values := range authzCtx.Identity.GetIdentity().Traits {
+	for key, values := range identity.GetIdentity().Traits {
 		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
 			Key:    key,
 			Values: values,
@@ -206,28 +224,24 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.BadParameter("at least one credential type must be requested")
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	attrs, err := s.deriveAttrs(authCtx.Identity, authCtx.User, req.GetWorkloadAttrs())
 	if err != nil {
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	wi, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
+	wi, err := s.cache.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check the principal has access to the workload identity resource by
-	// virtue of WorkloadIdentityLabels on a role.
-	if err := authCtx.Checker.CheckAccess(
-		types.Resource153ToResourceWithLabels(wi),
-		services.AccessState{},
-	); err != nil {
+
+	if err := s.authorizeIssuance(ctx, authCtx, wi, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -235,11 +249,14 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
 	}
+	if err := validateRenderedWorkloadIdentity(decision.templatedWorkloadIdentity); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
@@ -306,35 +323,42 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.BadParameter("at least one credential type must be requested")
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
+	// Before we hit the db, perform cheap check to ensure user could issue
+	// /any/ workload identity at all.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindWorkloadIdentity, types.VerbReadNoSecrets, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	attrs, err := s.deriveAttrs(authCtx.Identity, authCtx.User, req.GetWorkloadAttrs())
 	if err != nil {
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	// Fetch all workload identities that match the label selectors AND the
-	// principal can access.
-	workloadIdentities, err := s.matchingAndAuthorizedWorkloadIdentities(
+	// Evaluate rules/templating for each workload identity that matches the
+	// label selectors and the principal can access, filtering out those that
+	// should not be issued. The matching identities are streamed and filtered
+	// lazily, so we stop as soon as the issue limit is exceeded.
+	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
+	for wi, err := range s.matchingAndAuthorizedWorkloadIdentities(
 		ctx,
 		authCtx,
-		convertLabels(req.LabelSelectors),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		convertLabels(req.GetLabelSelectors()),
+	) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// Evaluate rules/templating for each worklaod identity, filtering out those
-	// that should not be issued.
-	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wi := range workloadIdentities {
 		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 		if decision.shouldIssue {
+			if err := validateRenderedWorkloadIdentity(decision.templatedWorkloadIdentity); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
 		}
 		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
@@ -349,7 +373,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
@@ -411,6 +435,281 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	}, nil
 }
 
+// IssueTeleportWorkloadIdentity issues a workload identity credential for the
+// requested Teleport usage. This request cannot be performed by users, only
+// by Teleport services.
+//
+// Optional future work: define the audit semantics for the workload identity
+// issued by this RPC. This path currently does not emit per-issuance audit
+// events because the app-access usage issues short-lived credentials
+// periodically, up to once every 5 minutes per app session.
+//
+// If explicit audit is needed here, prefer a dedicated lower-volume Teleport
+// workload event over reusing SPIFFESVIDIssued, and review event frequency
+// before enabling it.
+func (s *IssuanceService) IssueTeleportWorkloadIdentity(
+	ctx context.Context,
+	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
+) (*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	builtin, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok {
+		return nil, trace.AccessDenied("only Teleport services can execute this request")
+	}
+
+	switch usage := req.Usage.(type) {
+	case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess:
+		if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
+			return nil, trace.AccessDenied("only app services can issue workload identity for app access")
+		}
+		switch credParams := req.Credential.(type) {
+		case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams:
+			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, usage.AppAccess, credParams)
+		default:
+			return nil, trace.BadParameter("app access usage only supports issuing x509 credentials")
+		}
+	default:
+		return nil, trace.BadParameter("invalid identity usage")
+	}
+}
+
+func (s *IssuanceService) issueAppAccessX509Identity(
+	ctx context.Context,
+	hostID string,
+	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
+	appUsage *workloadidentityv1pb.AppAccessUsage,
+	credParams *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams,
+) (_ *workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, err error) {
+	ctx, span := tracer.Start(ctx, "IssuanceService/issueAppAccessX509Identity")
+	defer func() { tracing.EndSpan(span, err) }()
+
+	route, userIdentity, err := s.routeToAppFromCert(ctx, appUsage.GetUserCertificate())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We cannot rely on RouteToApp.Name because:
+	//   1. It might not be available.
+	//   2. The value is not guarateed to be from the correct app, and in some
+	//      flows requestors can provide arbitrary values.
+	app, err := s.getApp(ctx, hostID, route)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to locate app")
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing public key")
+	}
+
+	// AppClient CA doesn't support workload identity CA override.
+	ca, chain, err := s.getX509CA(ctx, types.AppClientCA, false /* useIssuerOverrides */)
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
+	}
+
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		req.RequestedTtl.AsDuration(),
+		// Cap the cert TTL at the session expiry, plus an alloweance for clock
+		// drift that mirrors [veirfyCertValidityWithSkew]. Without the
+		// allowance session that are within the skew window would yield app
+		// certs with a near-zero (or negative) TTL.
+		s.clock.Until(userIdentity.Expires)+certVerifyClockSkewAllowance,
+	)
+
+	// This intentionally uses cluster name as part of the the SPIFFE trust
+	// domain, matching regular workload identity issuance behavior. Clusters
+	// with names that are not valid SPIFFE trust domain are expected to fail
+	// issuance.
+	td, err := spiffeid.TrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain(s.clusterName),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "cluster name cannot be used as SPIFFE ID trust domain")
+	}
+
+	spiffeID, err := spiffeid.FromSegments(td, "app", app.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err, "app name contains invalid format and cannot be used as SPIFFE ID")
+	}
+
+	certSerial, err := generateCertSerial()
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certificate serial")
+	}
+
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			nil, /* dnsSANs */
+			&workloadidentityv1pb.X509DistinguishedNameTemplate{
+				CommonName: userIdentity.Username,
+			},
+		),
+		ca.Cert,
+		pubKey,
+		ca.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse{
+		Credential: &workloadidentityv1pb.Credential{
+			SpiffeId: spiffeID.String(),
+
+			ExpiresAt: timestamppb.New(notAfter),
+			Ttl:       durationpb.New(ttl),
+
+			Credential: &workloadidentityv1pb.Credential_X509Svid{
+				X509Svid: &workloadidentityv1pb.X509SVIDCredential{
+					Cert:         certBytes,
+					SerialNumber: serialString(certSerial),
+					Chain:        chain,
+				},
+			},
+		},
+	}, nil
+}
+
+// routeToAppFromCert validates the certificate and extracts the RouteToApp info.
+//
+// We intentionally validate only the user certificate signature and expiration,
+// and app routing metadata here. The app service is expected to call this RPC
+// only after it has already authenticated the app request and verified that the
+// referenced AppSession still exists.
+//
+// Because it won't look up the AppSession, callers must not use this as the
+// AppSession validity check.
+func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte) (tlsca.RouteToApp, *tlsca.Identity, error) {
+	cert, err := x509.ParseCertificate(rawCert)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: s.clusterName,
+	}, false)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	roots := x509.NewCertPool()
+	for _, key := range ca.GetTrustedTLSKeyPairs() {
+		if ok := roots.AppendCertsFromPEM(key.Cert); !ok {
+			return tlsca.RouteToApp{}, nil, trace.BadParameter("unable to build UserCA pool to validate certificate")
+		}
+	}
+
+	// cert.Verify applies CurrentTime to every certificate in the chain and
+	// does not support separate NotBefore/NotAfter leeway for the leaf
+	// certificate.
+	//
+	// For this reason we perform the certificate verify in two steps:
+	//   1. Verify certificate validity using custom clock-skew policy.
+	//   2. Perform the remaining verification on the cert using a shallow copy
+	//      of the certificate that will pass the expiry verification.
+	//
+	// The shallow copy usage still checks the original TBSCertificate bytes,
+	// the only effective difference is the Verify's leaf time check.
+	now := s.clock.Now()
+	if err := verifyCertValidityWithSkew(cert, now); err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	verifyCert := *cert
+	verifyCert.NotAfter = now.Add(time.Second)
+	verifyCert.NotBefore = now.Add(-time.Second)
+
+	if _, err := verifyCert.Verify(x509.VerifyOptions{
+		Roots:       roots,
+		CurrentTime: now,
+		KeyUsages: []x509.ExtKeyUsage{
+			// Extensions added by tlsca.
+			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+	}); err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided an invalid certificate")
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided a certificate that doesn't contain a Teleport identity")
+	}
+
+	route, err := identity.GetRouteToApp()
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "identity must be from an app access session")
+	}
+
+	// Ensure the required information is available on the identity.
+	//
+	// This acts as a guardrail for any inconsistent or malformed identity and
+	// shouldn't happen. This validation just prevents generating workload
+	// identity that is inconsistent as well.
+	if route.ClusterName != s.clusterName {
+		return tlsca.RouteToApp{}, nil, trace.BadParameter("cannot request workload identity for a different cluster")
+	}
+
+	return route, identity, nil
+}
+
+// getApp retrieves the app definition from an AppServer registered by the
+// requesting host. Requiring the requestor (identified by hostID) to be one
+// of the app's serving AppServers ensures the app definition we sign comes from
+// a service authoritative for the app, not from an arbitrary cached entry.
+//
+// This is not a strong authorization check: any app service that advertises the
+// target app can satisfy this lookup, even if it is not actually serving the
+// specific session referenced by the app session certificate.
+func (s *IssuanceService) getApp(ctx context.Context, hostID string, route tlsca.RouteToApp) (types.Application, error) {
+	appServersIter := clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
+		resp, err := s.cache.ListResources(ctx, apiproto.ListResourcesRequest{
+			Namespace:           apidefaults.Namespace,
+			ResourceType:        types.KindAppServer,
+			Limit:               int32(limit),
+			StartKey:            startKey,
+			PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == %q`, route.PublicAddr),
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.Resources, resp.NextKey, nil
+	})
+
+	for resource, err := range appServersIter {
+		if err != nil {
+			return nil, trace.Wrap(err, "unabled to complete app servers list")
+		}
+
+		appServer, ok := resource.(types.AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+
+		// Ensure the requesting app service can serve the app.
+		if appServer.GetHostID() == hostID {
+			return appServer.GetApp(), nil
+		}
+	}
+
+	return nil, trace.NotFound("application at %q not found for app service %q", route.PublicAddr, hostID)
+}
+
 func generateCertSerial() (*big.Int, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	return rand.Int(rand.Reader, serialNumberLimit)
@@ -470,6 +769,7 @@ func x509Template(
 
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
+	caType types.CertAuthType,
 	useIssuerOverrides bool,
 ) (_ *tlsca.CertAuthority, _ [][]byte, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
@@ -477,7 +777,7 @@ func (s *IssuanceService) getX509CA(
 
 	const loadKeysTrue = true
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
+		Type:       caType,
 		DomainName: s.clusterName,
 	}, loadKeysTrue)
 
@@ -572,6 +872,7 @@ func baseEvent(
 		Hint:                     wi.GetSpec().GetSpiffe().GetHint(),
 		WorkloadIdentity:         wi.GetMetadata().GetName(),
 		WorkloadIdentityRevision: wi.GetMetadata().GetRevision(),
+		WorkloadIdentityScope:    wi.GetScope(),
 		Attributes:               structAttrs,
 		NameSelector:             nameSelector,
 		LabelSelectors:           labelSelectorsToAudit(labelSelectors),
@@ -870,63 +1171,86 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	}, nil
 }
 
-func (s *IssuanceService) getAllWorkloadIdentities(
-	ctx context.Context,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
-	page := ""
-	for {
-		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		workloadIdentities = append(workloadIdentities, pageItems...)
-		if nextPage == "" {
-			break
-		}
-		page = nextPage
-	}
-	return workloadIdentities, nil
-}
-
-// matchingAndAuthorizedWorkloadIdentities returns the workload identities that
-// match the provided labels and the principal has access to.
+// matchingAndAuthorizedWorkloadIdentities returns a stream of the workload
+// identities that match the provided labels and that the caller is authorized
+// to issue using.
 func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 	ctx context.Context,
-	authCtx *authz.Context,
+	authCtx *authz.ScopedContext,
 	labels types.Labels,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	allWorkloadIdentities, err := s.getAllWorkloadIdentities(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+		for wid, err := range s.cache.RangeWorkloadIdentities(
+			ctx, "", "", "", false,
+		) {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
 
-	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
-	// Filter out identities user cannot access.
-	for _, wid := range allWorkloadIdentities {
-		if err := authCtx.Checker.CheckAccess(
-			types.Resource153ToResourceWithLabels(wid),
-			services.AccessState{},
-		); err == nil {
-			canAccess = append(canAccess, wid)
+			// Filter out WI that do not match the label selector.
+			match, _, err := services.MatchLabelGetter(
+				labels, types.Resource153ToResourceWithLabels(wid),
+			)
+			if err != nil {
+				// Maybe log and skip rather than returning an error?
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			if !match {
+				continue
+			}
+
+			// Silently skip WI the caller is not authorized to issue using.
+			if err := s.authorizeIssuance(
+				ctx, authCtx, wid, types.VerbReadNoSecrets, types.VerbList,
+			); err != nil {
+				continue
+			}
+
+			if !yield(wid, nil) {
+				return
+			}
 		}
 	}
+}
 
-	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wid := range canAccess {
-		match, _, err := services.MatchLabelGetter(
-			labels, types.Resource153ToResourceWithLabels(wid),
-		)
-		if err != nil {
-			// Maybe log and skip rather than returning an error?
-			return nil, trace.Wrap(err)
-		}
-		if match {
-			canAccessAndInSearch = append(canAccessAndInSearch, wid)
-		}
+func (s *IssuanceService) authorizeIssuance(
+	ctx context.Context,
+	authCtx *authz.ScopedContext,
+	wi *workloadidentityv1pb.WorkloadIdentity,
+	verbs ...string,
+) error {
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = wi
+	// The caller must hold the given verbs for the workload_identity kind and
+	// match the resource via a workload_identity label selector. Both checks
+	// run within a single Decision so that, for scoped identities, a single
+	// role must carry both grants - grants do not aggregate across scoped
+	// roles.
+	return trace.Wrap(authCtx.CheckerContext.Decision(
+		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, verbs...); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(checker.CheckAccessToWorkloadIdentity(wi))
+		},
+	))
+}
+
+// validateRenderedWorkloadIdentity re-validates that a scoped WorkloadIdentity's
+// rendered (post-templating) SPIFFE ID still conforms to its scope.
+func validateRenderedWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	// No special rules for unscoped workload identities.
+	if wi.GetScope() == "" {
+		return nil
 	}
-
-	return canAccessAndInSearch, nil
+	if err := services.ValidateScopedSPIFFEID(
+		wi.GetScope(), wi.GetSpec().GetSpiffe().GetId(),
+	); err != nil {
+		return trace.Wrap(err, "validating rendered SPIFFE ID against scope")
+	}
+	return nil
 }
 
 func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {
@@ -951,4 +1275,28 @@ func serialString(serial *big.Int) string {
 		out.WriteString(hex[i : i+2])
 	}
 	return out.String()
+}
+
+// certVerifyClockSkewAllowance is the amount of leeway added to the
+// certificate's expiration status check to allow for clock drift.
+const certVerifyClockSkewAllowance = 1 * time.Minute
+
+func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
+	if now.Add(certVerifyClockSkewAllowance).Before(cert.NotBefore) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate is not yet valid",
+		}
+	}
+
+	if now.Add(-certVerifyClockSkewAllowance).After(cert.NotAfter) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate has expired",
+		}
+	}
+
+	return nil
 }

@@ -21,12 +21,14 @@ package authz
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -89,7 +91,7 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		}
 	}()
 
-	if !scopes.FeatureEnabled() {
+	if !a.scopesFeatures.Enabled {
 		return nil, trace.AccessDenied("cannot authorize scoped identity, scoping is not enabled for this cluster")
 	}
 
@@ -102,28 +104,79 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		return nil, trace.Wrap(err)
 	}
 
-	user, ok := userI.(LocalUser)
-	if !ok {
-		return nil, trace.AccessDenied("scoped authorization is only supported for local users, got %T", userI)
+	switch user := userI.(type) {
+	case LocalUser:
+		if user.Identity.ScopePin == nil {
+			return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
+		}
+		if a.scopedRoleReader == nil {
+			return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
+		}
+		scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
+	case ScopedBuiltinRole:
+		scopedCtx, err = a.scopedContextForBuiltinRole(ctx, user)
+	default:
+		return nil, trace.AccessDenied("scoped authorization is not supported for identity of type %T", userI)
 	}
-
-	if user.Identity.ScopePin == nil {
-		return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
-	}
-
-	if a.scopedRoleReader == nil {
-		return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
-	}
-
-	scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(fspmarshall/scopes): include controls like locks/device enforcement here or (better), refactor to
+	// Enforce applicable locks. Scoped identities do not have a means of expressing identity-level locking
+	// mode (though they *can* express locking modes specific to resource access decisions). Since this logic
+	// is dealing with global locks and not specific to any resource access decision, we always use the global
+	// locking mode here.
+	authPref, err := a.readOnlyAccessPoint.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authPref.GetLockingMode(), scopedCtx.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
+	// TODO(fspmarshall/scopes): add device enforcement and other controls here or (better), refactor to
 	// have enforcement use a common implementation across scoped/unscoped authorize variants.
 
 	return scopedCtx, nil
+}
+
+// scopedContextForBuiltinRole builds a ScopedContext for a scoped agent identity.
+func (a *authorizer) scopedContextForBuiltinRole(ctx context.Context, role ScopedBuiltinRole) (*ScopedContext, error) {
+	recConfig, err := a.readOnlyAccessPoint.GetReadOnlySessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped agent authorization mirrors scoped user authorization in that it treats each role as an individual
+	// checker. building a scoped access checker context for a scoped agent requires providing per-role checkers
+	// organized by system role name, as they appear in the pin.
+	checkersByRole := make(map[string]*services.ScopedAccessChecker)
+	for sr := range pinning.SystemRoles(role.ScopePin) {
+		// TODO(fspmarshall/scopes): investigate the possibility of initializing checkers lazily.
+		roleSet, err := RoleSetForBuiltinRoles(role.ClusterName, recConfig, true /* isScoped */, sr)
+		if err != nil {
+			// skip system roles we cannot build a checker for. in theory this aught to only happen for unrecognized
+			// roles (e.g. due to the certificate having been issued by a teleport version which supports a system role
+			// that we do not).
+			a.logger.WarnContext(ctx, "skipping system role in scoped agent pin, role will confer no privileges",
+				"role", sr, "error", err)
+			continue
+		}
+		checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+			Roles: []string{string(sr)},
+		}, role.ClusterName, roleSet)
+		checkersByRole[string(sr)] = services.NewScopedAccessCheckerForSystemRole(string(sr), checker)
+	}
+
+	checkerContext, err := services.NewScopedAccessCheckerContextForAgentPin(role.ScopePin, checkersByRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopedContext{
+		Identity:       role,
+		CheckerContext: checkerContext,
+	}, nil
 }
 
 func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, reader services.ScopedRoleReader, clusterName string) (*ScopedContext, error) {
@@ -171,7 +224,8 @@ func (s *ScopedContext) UnscopedContext() (*Context, bool) {
 }
 
 // RuleContext returns the standard services.Context used for resource-independent rule
-// evaluation.
+// evaluation. For agent pin identities, User is nil and rule evaluation will rely on
+// system-role permissions which do not use user traits in their where-clauses.
 func (s *ScopedContext) RuleContext() services.Context {
 	return services.Context{
 		User: s.User,
@@ -184,18 +238,150 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	if s.unscopedContext != nil {
 		return s.unscopedContext.GetDisconnectCertExpiry(authPref)
 	}
-
 	if !authPref.GetDisconnectExpiredCert() {
 		return time.Time{}
 	}
+	return s.GetDisconnectCertExpiryTime()
+}
 
+// GetDisconnectCertExpiryTime returns the timestamp for when the identity expires.
+// It takes in a bool parameter to specify whether to return the expiry time or not.
+func (s *ScopedContext) GetDisconnectCertExpiryTime() time.Time {
 	identity := s.Identity.GetIdentity()
 	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its issuing certificates expiry value.
 		return identity.PreviousIdentityExpires
 	}
-
-	// Otherwise, return the current certificates expiration
 	return identity.Expires
+}
+
+// LockTargets returns a list of [types.LockTarget] for scoped and unscoped identities.
+// For unscoped identities, the result is unchanged from [AuthContext.LockTargets()] and relies on
+// assigned roles in addition to identity attributes.
+// For scoped user identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
+// The only difference is that the Groups and AccessRequests are not considered
+// when generating the lock targets.
+func (s *ScopedContext) LockTargets() []types.LockTarget {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		return unscopedCtx.LockTargets()
+	}
+	id := s.Identity.GetIdentity()
+
+	var lockTargets []types.LockTarget
+	if r, ok := s.Identity.(ScopedBuiltinRole); ok {
+		// Scoped agents are locked via ServerID, not User. This mirrors Context.LockTargets()
+		// for BuiltinRole. Two targets are added for compatibility: the bare UUID and the FQDN.
+		lockTargets = append(lockTargets,
+			types.LockTarget{ServerID: r.GetServerID()},
+			types.LockTarget{ServerID: id.Username},
+		)
+	} else {
+		lockTargets = append(lockTargets, types.LockTarget{User: id.Username})
+	}
+
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
+	}
+	return lockTargets
+}
+
+// HasBuiltinRole reports whether the calling identity is a local builtin role
+// (scoped or unscoped) matching any of the given system roles.
+func (s *ScopedContext) HasBuiltinRole(roles ...types.SystemRole) bool {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		for _, role := range roles {
+			if HasBuiltinRole(*unscopedCtx, string(role)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Since unscoped contexts are handled above, the only valid builtin
+	// identity at this point is a [ScopedBuiltinRole].
+	role, isBuiltin := s.Identity.(ScopedBuiltinRole)
+	if !isBuiltin {
+		return false
+	}
+	// For service certs, the additional system roles will be empty so we only
+	// check if the primary role is included in the given roles.
+	if primary := types.SystemRole(role.ScopePin.GetSystemRoles().GetPrimary()); primary != types.RoleInstance {
+		return types.SystemRoles(roles).Include(primary)
+	}
+	// For instance certs, we check if there is any overlap between the given
+	// roles and the additional system roles included in the scope pin.
+	existingRoles := role.ScopePin.GetSystemRoles().GetAdditional()
+	for _, r := range roles {
+		if slices.Contains(existingRoles, string(r)) {
+			return true
+		}
+	}
+	return false
+}
+
+// LocalServerID returns the builtin server ID associated with the calling
+// identity. If the identity is not a builtin server role, an empty string and
+// false are returned.
+func (s *ScopedContext) LocalServerID() (serverID string, isBuiltinServer bool) {
+	switch role := s.Identity.(type) {
+	case BuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	case ScopedBuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	}
+	return "", false
+}
+
+// DisplayName returns a display name for the calling identity.
+// authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
+// the identity's username.
+// TODO (williamo/scopes) - consider implementing slog.LogValuer if we end up only needing this for logging.
+func (s *ScopedContext) DisplayName() string {
+	if s.User != nil {
+		return s.User.GetName()
+	}
+	if s.Identity != nil {
+		return s.Identity.GetIdentity().Username
+	}
+	return ""
+}
+
+// AgentOwnedResourceAction authorizes an agent identity to perform actions on its own resources.
+func (s *ScopedContext) AgentOwnedResourceAction(scope, hostID string, systemRoles ...types.SystemRole) error {
+	if !s.HasBuiltinRole(systemRoles...) {
+		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
+	}
+
+	serverID, isAgent := s.LocalServerID()
+	if !isAgent {
+		return trace.BadParameter("no agent identity after confirming that request context is BuiltinRole (this is a bug)")
+	}
+	// For now, agents must also check that
+	if hostID != serverID {
+		return trace.AccessDenied("resource host ID %+q does not match agent identity ID %+q", hostID, serverID)
+	}
+
+	agentScope := s.Identity.GetIdentity().GetAgentScope()
+	// Unscoped agents must be only allowed to delete unscoped resources.
+	// Scoped pinned agents must have matching agent and resource scopes.
+	// TODO (williamo/scopes): We most likely will relax this rule in the future.
+	if agentScope == "" && scope == "" {
+		return nil
+	}
+	if scopes.Compare(agentScope, scope) == scopes.Equivalent {
+		return nil
+	}
+
+	return trace.AccessDenied("agent scope %+q does not match resource scope %+q", agentScope, scope)
+
 }

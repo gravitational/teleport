@@ -19,11 +19,13 @@ package workloadidentityv1_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/big"
@@ -42,6 +44,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -53,12 +57,17 @@ import (
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -73,6 +82,8 @@ import (
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -88,9 +99,14 @@ func TestMain(m *testing.M) {
 }
 
 func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
+	return newTestTLSServerWithScopesFeatures(t, scopes.Features{}, opts...)
+}
+
+func newTestTLSServerWithScopesFeatures(t testing.TB, scopesFeatures scopes.Features, opts ...authtest.TestTLSServerOption) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:            t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -116,18 +132,24 @@ func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*auth
 type issuanceTestPack struct {
 	srv                     *authtest.TLSServer
 	eventRecorder           *eventstest.MockRecorderEmitter
-	clock                   clockwork.Clock
+	clock                   *clockwork.FakeClock
 	sigstorePolicyEvaluator *mockSigstorePolicyEvaluator
 
-	issuer             string
-	spiffeX509CAPool   *x509.CertPool
-	spiffeJWTSigner    crypto.Signer
-	spiffeJWTSignerKID string
+	issuer              string
+	spiffeX509CAPool    *x509.CertPool
+	spiffeJWTSigner     crypto.Signer
+	spiffeJWTSignerKID  string
+	appClientX509CAPool *x509.CertPool
 }
 
 func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
-	srv, eventRecorder := newTestTLSServer(t)
+	// Scopes are enabled so the issuance RPCs (which authorize via the scoped
+	// authorizer) can serve both unscoped and scoped identities. Unscoped
+	// issuance is unaffected by enabling the feature.
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	clock := srv.Auth().GetClock()
+	fakeClock, ok := clock.(*clockwork.FakeClock)
+	require.True(t, ok, "expected to be a clockwork.FakeClock but got %T", clock)
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
 	// issuer.
@@ -157,6 +179,14 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	require.NoError(t, err)
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
+	// Fetch X509 AppClient CA for validation of signature later
+	appClientX509CA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.AppClientCA,
+		DomainName: srv.ClusterName(),
+	}, false)
+	require.NoError(t, err)
+	appClientX509CAPool, err := services.CertPool(appClientX509CA)
+	require.NoError(t, err)
 
 	sigstorePolicyEvaluator := newMockSigstorePolicyEvaluator(t)
 	srv.Auth().SetSigstorePolicyEvaluator(sigstorePolicyEvaluator)
@@ -164,12 +194,13 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	return &issuanceTestPack{
 		srv:                     srv,
 		eventRecorder:           eventRecorder,
-		clock:                   clock,
+		clock:                   fakeClock,
 		sigstorePolicyEvaluator: sigstorePolicyEvaluator,
 		issuer:                  wantIssuer,
 		spiffeX509CAPool:        spiffeX509CAPool,
 		spiffeJWTSigner:         jwtSigner,
 		spiffeJWTSignerKID:      kid,
+		appClientX509CAPool:     appClientX509CAPool,
 	}
 }
 
@@ -638,6 +669,59 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		}
 		return attrs
 	}
+
+	// Scoped issuance setup: a user authorized to issue using foo=bar-labeled
+	// WorkloadIdentities within its scope, plus scoped resources for the
+	// scoped table cases below.
+	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const scopedScope = "/scopes/test"
+	const otherScope = "/scopes/other"
+	scopedIssuer := newScopedWorkloadIdentityIssuer(
+		t, tp.srv, adminClient, "scoped-issuer", scopedScope,
+		map[string][]string{"foo": {"bar"}},
+	)
+	scopedIssuerClient, err := tp.srv.NewClient(authtest.TestScopedUser(scopedIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
+
+	// A user whose verb and label grants are split across two scoped roles in
+	// the same scope. Issuance requires a single role to hold both grants.
+	splitRulesRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-rules-role", scopedScope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, nil,
+	)
+	splitLabelsRole := createScopedWorkloadIdentityRole(
+		t, adminClient, "split-labels-role", scopedScope,
+		nil, map[string][]string{"foo": {"bar"}},
+	)
+	splitGrantIssuer := createScopedWorkloadIdentityUser(
+		t, tp.srv, adminClient, "split-grant-issuer", scopedScope,
+		splitRulesRole, splitLabelsRole,
+	)
+	splitGrantClient, err := tp.srv.NewClient(authtest.TestScopedUser(splitGrantIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = splitGrantClient.Close() })
+
+	// A WorkloadIdentity in the issuer's scope it can access (label match).
+	scopedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-wi", scopedScope, scopedScope+"/_/foo", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity in the issuer's scope it cannot access (label mismatch).
+	unmatchedWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("unmatched-wi", scopedScope, scopedScope+"/_/nope", map[string]string{"foo": "other"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity in a scope the issuer is not assigned to.
+	otherScopeWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("other-scope-wi", otherScope, otherScope+"/_/foo", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+	// A WorkloadIdentity whose templated SPIFFE ID can be made to escape its
+	// scope at issuance time.
+	templateEscapeWI, err := tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("template-escape-wi", scopedScope, scopedScope+"/_/{{ workload.kubernetes.namespace }}", map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		client     *authclient.Client
@@ -645,6 +729,96 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 		requireErr require.ErrorAssertionFunc
 		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentityResponse)
 	}{
+		{
+			name:   "scoped success",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentityResponse) {
+				require.Equal(t, "spiffe://localhost/scopes/test/_/foo", res.GetCredential().GetSpiffeId())
+			},
+		},
+		{
+			// Addressing a scoped WorkloadIdentity without the matching scope
+			// (here, as unscoped) must not reveal its existence.
+			name:   "scoped scope mismatch is not found",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+			},
+		},
+		{
+			// The issuer holds the rules in the resource's scope but the resource's
+			// labels do not match its workload_identity label selector.
+			name:   "scoped label mismatch denied",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          unmatchedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// The issuer is not assigned any role in the resource's scope.
+			name:   "scoped cross-scope denied",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          otherScopeWI.GetMetadata().GetName(),
+				Scope:         otherScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// The verb and label grants are split across two roles in the
+			// scope; scoped roles are evaluated in isolation, so a single role
+			// must hold both grants and issuance is denied.
+			name:   "scoped split-role grants denied",
+			client: splitGrantClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          scopedWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+			},
+		},
+		{
+			// Defense-in-depth: templating renders a SPIFFE ID that escapes the
+			// scope (two separators), which the rendered-ID re-validation rejects.
+			name:   "scoped templating escape rejected",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentityRequest_builder{
+				Name:          templateEscapeWI.GetMetadata().GetName(),
+				Scope:         scopedScope,
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{Audiences: []string{"example.com"}}.Build(),
+				WorkloadAttrs: workloadAttrs(func(attrs *workloadidentityv1pb.WorkloadAttrs) {
+					attrs.GetKubernetes().SetNamespace("escaped/_/elevated")
+				}),
+			}.Build(),
+			requireErr: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			},
+		},
 		{
 			name:   "jwt svid",
 			client: wilcardAccessClient,
@@ -1499,6 +1673,27 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		}
 		return attrs
 	}
+	// Scoped issuance setup: an issuer scoped to one scope, with
+	// identically-labeled WorkloadIdentities in two scopes.
+	adminClient, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const scopedScope = "/scopes/test"
+	const otherScope = "/scopes/other"
+	scopedIssuer := newScopedWorkloadIdentityIssuer(
+		t, tp.srv, adminClient, "scoped-issuer", scopedScope,
+		map[string][]string{"scoped": {"plural"}},
+	)
+	scopedIssuerClient, err := tp.srv.NewClient(authtest.TestScopedUser(scopedIssuer, scopedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedIssuerClient.Close() })
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-plural-a", scopedScope, scopedScope+"/_/a", map[string]string{"scoped": "plural"}))
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().CreateWorkloadIdentity(ctx,
+		scopedWorkloadIdentityWithLabels("scoped-plural-other", otherScope, otherScope+"/_/b", map[string]string{"scoped": "plural"}))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name       string
 		client     *authclient.Client
@@ -1506,6 +1701,33 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 		requireErr require.ErrorAssertionFunc
 		assert     func(*testing.T, *workloadidentityv1pb.IssueWorkloadIdentitiesResponse)
 	}{
+		{
+			// Only the identity in the issuer's scope is issued; the
+			// identically-labeled one in the other scope is filtered out by
+			// per-item scope authz.
+			name:   "scoped filtered by scope",
+			client: scopedIssuerClient,
+			req: workloadidentityv1pb.IssueWorkloadIdentitiesRequest_builder{
+				LabelSelectors: []*workloadidentityv1pb.LabelSelector{
+					workloadidentityv1pb.LabelSelector_builder{
+						Key:    "scoped",
+						Values: []string{"plural"},
+					}.Build(),
+				},
+				JwtSvidParams: workloadidentityv1pb.JWTSVIDParams_builder{
+					Audiences: []string{"example.com"},
+				}.Build(),
+				WorkloadAttrs: workloadAttrs(nil),
+			}.Build(),
+			requireErr: require.NoError,
+			assert: func(t *testing.T, res *workloadidentityv1pb.IssueWorkloadIdentitiesResponse) {
+				issued := []string{}
+				for _, cred := range res.GetCredentials() {
+					issued = append(issued, cred.GetWorkloadIdentityName())
+				}
+				require.ElementsMatch(t, []string{"scoped-plural-a"}, issued)
+			},
+		},
 		{
 			name:   "jwt svid",
 			client: client,
@@ -1658,9 +1880,351 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 	}
 }
 
+func TestIssueTeleportWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	const appServiceID = "test-server"
+	const appName = "panel"
+	ctx := t.Context()
+	tp := newIssuanceTestPack(t, ctx)
+	clusterName := tp.srv.ClusterName()
+
+	// Register an application.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: appName + "." + clusterName,
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
+	require.NoError(t, err)
+
+	// This alice is the one accessing the Teleport resource.
+	alice, _, err := authtest.CreateUserAndRole(
+		tp.srv.Auth(),
+		"alice",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindApp,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		authtest.WithRoleMutator(func(role types.Role) {
+			role.SetAppLabels(types.Allow, types.Labels{
+				"*": []string{"*"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+
+	// To create an expired session, we issue the cert, and the advance the clock.
+	aliceExpiredClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+	aliceExpiredSessionCertBytes, aliceSessionExpiresAt := createAppSessionCertBytes(t, aliceExpiredClt, appName, alice.GetName())
+	// Add a bit more time to "escape" the clock skew condition.
+	tp.clock.Advance(tp.clock.Until(aliceSessionExpiresAt) + 10*time.Minute)
+
+	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+	aliceSessionCertBytes, aliceSessionExpirity := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
+	require.True(t, aliceSessionExpirity.After(tp.clock.Now()))
+
+	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
+	require.NoError(t, err)
+	// This app service is not serving the requested app.
+	nonServingAppServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, "random-host-id"))
+	require.NoError(t, err)
+
+	// Generate a keypair to generate x509 SVIDs for.
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	// Those clients are used by the test cases.
+	userClt, err := tp.srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	otherServiceClt, err := tp.srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		clt        *authclient.Client
+		req        *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest
+		expectErr  require.ErrorAssertionFunc
+		expectResp require.ValueAssertionFunc
+	}{
+		"app service generates workload identity for a session": {
+			clt: appServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSessionCertBytes,
+					},
+				},
+			},
+			expectErr: require.NoError,
+			expectResp: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, _ := i1.(*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse)
+				// Check X509 cert actually included and signed.
+				cert, err := x509.ParseCertificate(resp.Credential.GetX509Svid().GetCert())
+				require.NoError(tt, err)
+				// Check included public key matches
+				require.Equal(tt, workloadKey.Public(), cert.PublicKey)
+				_, err = cert.Verify(x509.VerifyOptions{
+					// Must be signed by AppClient CA
+					Roots:       tp.appClientX509CAPool,
+					CurrentTime: tp.srv.Auth().GetClock().Now(),
+				})
+				require.NoError(tt, err)
+				// Check SPIFFE ID contains the trusted domain, and app name.
+				require.Len(tt, cert.URIs, 1, "certificate doesn't contain SPIFFE ID")
+				spiffeID, err := spiffeid.FromString(cert.URIs[0].String())
+				require.NoError(tt, err)
+				require.Len(t, cert.URIs, 1)
+				td, err := spiffeid.TrustDomainFromString(
+					apiworkloadidentity.NewInternalAppTrustDomain(tp.srv.ClusterName()),
+				)
+				require.NoError(tt, err)
+				require.True(tt, spiffeID.MemberOf(td), "expected the returned SPIFFE ID %q to be part of internal trust domain %q", spiffeID, td)
+			},
+		},
+		"other service cannot generate workload identity for app access": {
+			clt: otherServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSessionCertBytes,
+					},
+				},
+			},
+			expectErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "only app services can issue workload identity for app access", i...)
+			},
+			expectResp: require.Nil,
+		},
+		"app service not serving app cannot generate workload identity for requested session": {
+			clt: nonServingAppServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSessionCertBytes,
+					},
+				},
+			},
+			expectErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "unable to locate app", i...)
+			},
+			expectResp: require.Nil,
+		},
+		"app service generates workload identity for an expired session": {
+			clt: appServiceClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceExpiredSessionCertBytes,
+					},
+				},
+			},
+			expectErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "certificate has expired", i...)
+			},
+			expectResp: require.Nil,
+		},
+		"users cannot request the RPC": {
+			clt: userClt,
+			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+						PublicKey: workloadKeyPubBytes,
+					},
+				},
+				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+					AppAccess: &workloadidentityv1pb.AppAccessUsage{
+						UserCertificate: aliceSessionCertBytes,
+					},
+				},
+			},
+			expectErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "only app services can issue workload identity for app access", i...)
+			},
+			expectResp: require.Nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
+				tc.clt.GetConnection(),
+			)
+
+			res, err := c.IssueTeleportWorkloadIdentity(ctx, tc.req)
+			tc.expectErr(t, err)
+			tc.expectResp(t, res)
+		})
+	}
+}
+
+// TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA given an app access
+// workload identity request with an expired UserCA certificate, the server must
+// reject the request.
+func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
+	const appServiceID = "test-server"
+	const appName = "panel"
+
+	ctx := t.Context()
+	tp := newIssuanceTestPack(t, ctx)
+	clusterName := tp.srv.ClusterName()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: appName + "." + clusterName,
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
+	require.NoError(t, err)
+
+	// This alice is the one accessing the Teleport resource.
+	alice, _, err := authtest.CreateUserAndRole(
+		tp.srv.Auth(),
+		"alice",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindApp,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		authtest.WithRoleMutator(func(role types.Role) {
+			role.SetAppLabels(types.Allow, types.Labels{
+				"*": []string{"*"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+
+	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+
+	// Important: create the app session cert while the User CA is still valid.
+	aliceSessionCertBytes, _ := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
+
+	sessionCert, err := x509.ParseCertificate(aliceSessionCertBytes)
+	require.NoError(t, err)
+	require.True(t, tp.clock.Now().After(sessionCert.NotBefore))
+	require.True(t, tp.clock.Now().Before(sessionCert.NotAfter))
+
+	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
+	require.NoError(t, err)
+
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(appServiceClt.GetConnection())
+
+	// Here we ensure the certificate is OK and returns without errors.
+	res, err := c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: workloadKeyPubBytes,
+			},
+		},
+		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+			AppAccess: &workloadidentityv1pb.AppAccessUsage{
+				UserCertificate: aliceSessionCertBytes,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	// Now replace the trusted User CA cert with an expired cert using the same key.
+	userCA, err := tp.srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: clusterName,
+	}, true)
+	require.NoError(t, err)
+
+	activeKeys := userCA.GetActiveKeys()
+	userCATLSKey := activeKeys.TLS[0]
+
+	oldUserCACert, err := tlsca.ParseCertificatePEM(userCATLSKey.Cert)
+	require.NoError(t, err)
+
+	userCASigner, err := keys.ParsePrivateKey(userCATLSKey.Key)
+	require.NoError(t, err)
+
+	expiredUserCACert := *oldUserCACert
+	expiredUserCACert.NotBefore = tp.clock.Now().Add(-2 * time.Hour)
+	expiredUserCACert.NotAfter = tp.clock.Now().Add(-time.Minute)
+
+	expiredUserCADER, err := x509.CreateCertificate(
+		rand.Reader,
+		&expiredUserCACert,
+		&expiredUserCACert,
+		userCASigner.Public(),
+		userCASigner,
+	)
+	require.NoError(t, err)
+
+	userCATLSKey.Cert = pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: expiredUserCADER,
+	})
+	activeKeys.TLS[0] = userCATLSKey
+	require.NoError(t, userCA.SetActiveKeys(activeKeys))
+	require.NoError(t, tp.srv.Auth().UpsertCertAuthority(ctx, userCA))
+
+	// This time, the UserCA is expected to be expired, meaning it should fail
+	// the certificate verification.
+	res, err = c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: workloadKeyPubBytes,
+			},
+		},
+		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+			AppAccess: &workloadidentityv1pb.AppAccessUsage{
+				UserCertificate: aliceSessionCertBytes,
+			},
+		},
+	})
+
+	require.ErrorContains(t, err, "requestor provided an invalid certificate")
+	require.ErrorContains(t, err, "certificate has expired")
+	require.Nil(t, res)
+}
+
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -1685,6 +2249,17 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	unauthorizedClient, err := srv.NewClient(authtest.TestUser(unauthorizedUser.GetName()))
 	require.NoError(t, err)
+
+	// A scoped user able to create workload identities within /scopes/granted.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	scopedCreator := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-creator", grantedScope, types.VerbCreate)
+	scopedCreatorClient, err := srv.NewClient(authtest.TestScopedUser(scopedCreator, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedCreatorClient.Close() })
 
 	// Create a pre-existing workload identity
 	preExisting, err := srv.Auth().CreateWorkloadIdentity(
@@ -1810,6 +2385,35 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped success",
+			client: scopedCreatorClient,
+			req: workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-new", grantedScope, grantedScope+"/_/svc"),
+			}.Build(),
+			requireError:        require.NoError,
+			checkResultReturned: true,
+		},
+		{
+			name:   "scoped denied in another scope",
+			client: scopedCreatorClient,
+			req: workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-other", otherScope, otherScope+"/_/svc"),
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:   "scoped SPIFFE ID outside scope rejected",
+			client: scopedCreatorClient,
+			req: workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-bad-id", grantedScope, otherScope+"/_/svc"),
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1836,7 +2440,10 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.Metadata.Name)
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -1863,7 +2470,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 
 func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -1905,6 +2512,26 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
+
+	// Scoped deleters pinned to two scopes, plus seeded scoped workload
+	// identities to act on.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	grantedDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-granted", grantedScope, types.VerbDelete)
+	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedDeleter, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = grantedClient.Close() })
+	otherDeleter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-delete-other", otherScope, types.VerbDelete)
+	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherDeleter, otherScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = otherClient.Close() })
+	for _, name := range []string{"scoped-delete-ok", "scoped-delete-denied"} {
+		_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity(name, grantedScope, grantedScope+"/_/"+name))
+		require.NoError(t, err)
+	}
 
 	tests := []struct {
 		name             string
@@ -1969,6 +2596,27 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped delete within scope",
+			client: grantedClient,
+			req: workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
+				Name:  "scoped-delete-ok",
+				Scope: grantedScope,
+			}.Build(),
+			requireError:     require.NoError,
+			checkNonExisting: true,
+		},
+		{
+			name:   "scoped delete in inaccessible scope denied",
+			client: otherClient,
+			req: workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
+				Name:  "scoped-delete-denied",
+				Scope: grantedScope,
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1981,7 +2629,10 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			tt.requireError(t, err)
 
 			if tt.checkNonExisting {
-				_, err := srv.Auth().GetWorkloadIdentity(ctx, tt.req.Name)
+				_, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: tt.req.GetScope(),
+					Name:  tt.req.GetName(),
+				}.Build())
 				require.True(t, trace.IsNotFound(err))
 			}
 			if tt.requireEvent != nil {
@@ -2000,7 +2651,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 
 func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServer(t)
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -2041,6 +2692,24 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 				},
 			},
 		})
+	require.NoError(t, err)
+
+	// Scoped readers pinned to two different scopes, plus a scoped workload
+	// identity seeded directly via the backend.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = grantedClient.Close() })
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-get-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = otherClient.Close() })
+	scopedWI, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity("scoped", grantedScope, grantedScope+"/_/svc"))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2090,6 +2759,68 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped read within scope",
+			client: grantedClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name:  "scoped",
+				Scope: grantedScope,
+			}.Build(),
+			wantRes:      scopedWI,
+			requireError: require.NoError,
+		},
+		{
+			name:   "scoped missing requested scope not found",
+			client: grantedClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name: "scoped",
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:   "scoped mismatched requested scope not found",
+			client: grantedClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name:  "scoped",
+				Scope: otherScope,
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:   "scoped inaccessible scope not found",
+			client: otherClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name:  "scoped",
+				Scope: grantedScope,
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name:   "unscoped caller declares scope to read scoped",
+			client: authorizedClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name:  "scoped",
+				Scope: grantedScope,
+			}.Build(),
+			wantRes:      scopedWI,
+			requireError: require.NoError,
+		},
+		{
+			name:   "unscoped caller without scope not found for scoped",
+			client: authorizedClient,
+			req: workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+				Name: "scoped",
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2116,8 +2847,8 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 
 func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Parallel()
-	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2142,24 +2873,42 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	unauthorizedClient, err := srv.NewClient(authtest.TestUser(unauthorizedUser.GetName()))
 	require.NoError(t, err)
 
+	// Scoped readers pinned to two scopes. Scoped workload identities are seeded
+	// inside the scoped subtest below so the unscoped count assertions stay valid.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	grantedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-granted", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedReader, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = grantedClient.Close() })
+	otherReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-list-other", otherScope, types.VerbReadNoSecrets, types.VerbList)
+	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherReader, otherScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = otherClient.Close() })
+
 	// Create a pre-existing workload identities
-	// Two complete pages of ten, plus one incomplete page of nine
+	// Two complete pages of ten, plus one incomplete page of nine.
+	// SPIFFE IDs alternate between /test/0/ and /test/1/ so the search-filter
+	// subtest can match on a field other than name.
 	created := []*workloadidentityv1pb.WorkloadIdentity{}
 	for i := 0; i < 29; i++ {
 		r, err := srv.Auth().CreateWorkloadIdentity(
 			ctx,
-			&workloadidentityv1pb.WorkloadIdentity{
+			workloadidentityv1pb.WorkloadIdentity_builder{
 				Kind:    types.KindWorkloadIdentity,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: fmt.Sprintf("preexisting-%d", i),
-				},
-				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-						Id: "/example",
-					},
-				},
-			})
+				}.Build(),
+				Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+					Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+						Id: fmt.Sprintf("/test/%d/id%d", i%2, i),
+					}.Build(),
+				}.Build(),
+			}.Build())
 		require.NoError(t, err)
 		created = append(created, r)
 	}
@@ -2220,11 +2969,231 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 			}))
 		}
 	})
+
+	t.Run("success - search filter", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(
+			authorizedClient.GetConnection(),
+		)
+
+		// The filter is applied at the gRPC layer over the ranged results. The
+		// "test/1" term matches on SPIFFE ID, selecting the odd-indexed
+		// preexisting identities (/test/1/...).
+		var want []*workloadidentityv1pb.WorkloadIdentity
+		for _, wi := range created {
+			if strings.Contains(wi.GetSpec().GetSpiffe().GetId(), "/test/1/") {
+				want = append(want, wi)
+			}
+		}
+		require.NotEmpty(t, want)
+
+		res, err := client.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+			FilterSearchTerm: "test/1",
+		})
+		require.NoError(t, err)
+		require.Len(t, res.WorkloadIdentities, len(want))
+		for _, wi := range res.WorkloadIdentities {
+			require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
+		}
+	})
+
+	t.Run("scoped users list only their own scope", func(t *testing.T) {
+		for _, name := range []string{"gl-granted-1", "gl-granted-2"} {
+			_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity(name, grantedScope, grantedScope+"/_/"+name))
+			require.NoError(t, err)
+		}
+		_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity("gl-other-1", otherScope, otherScope+"/_/gl-other-1"))
+		require.NoError(t, err)
+
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(grantedClient.GetConnection())
+		res, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			PageSize: 100,
+		}.Build())
+		require.NoError(t, err)
+		names := map[string]struct{}{}
+		for _, wi := range res.GetWorkloadIdentities() {
+			names[wi.GetMetadata().GetName()] = struct{}{}
+			require.Equal(t, grantedScope, wi.GetScope())
+		}
+		require.Contains(t, names, "gl-granted-1")
+		require.Contains(t, names, "gl-granted-2")
+		// Neither the other scope's identity nor the unscoped ones leak.
+		require.NotContains(t, names, "gl-other-1")
+		require.NotContains(t, names, "preexisting-0")
+
+		// A search matching only an inaccessible-scope identity returns nothing.
+		res, err = client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			PageSize:         100,
+			FilterSearchTerm: "gl-other-1",
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, res.GetWorkloadIdentities())
+
+		// The other scope's user sees the mirror image over the same fixtures.
+		client = workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(otherClient.GetConnection())
+		res, err = client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			PageSize: 100,
+		}.Build())
+		require.NoError(t, err)
+		names = map[string]struct{}{}
+		for _, wi := range res.GetWorkloadIdentities() {
+			names[wi.GetMetadata().GetName()] = struct{}{}
+			require.Equal(t, otherScope, wi.GetScope())
+		}
+		require.Contains(t, names, "gl-other-1")
+		require.NotContains(t, names, "gl-granted-1")
+	})
+}
+
+// TestResourceService_ListWorkloadIdentitiesScopeFilter covers the scope_filter
+// field on ListWorkloadIdentitiesV2 and the identity-based defaulting applied to
+// it. Kept separate from TestResourceService_ListWorkloadIdentities because that
+// test's count assertions depend on only unscoped fixtures existing.
+func TestResourceService_ListWorkloadIdentitiesScopeFilter(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := t.Context()
+
+	const grantedScope = "/scopes/granted"
+	const subScope = "/scopes/granted/sub"
+	const otherScope = "/scopes/other"
+
+	unscopedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"scope-filter-unscoped",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     []string{types.VerbRead, types.VerbList},
+			},
+		})
+	require.NoError(t, err)
+	unscopedClient, err := srv.NewClient(authtest.TestUser(unscopedUser.GetName()))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = unscopedClient.Close() })
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+
+	scopedReader := newScopedWorkloadIdentityUser(t, srv, adminClient, "scope-filter-scoped", grantedScope, types.VerbReadNoSecrets, types.VerbList)
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(scopedReader, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedClient.Close() })
+
+	// One fixture per scope of interest, each named after the scope it lives in.
+	_, err = srv.Auth().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:     types.KindWorkloadIdentity,
+		Version:  types.V1,
+		Metadata: headerv1.Metadata_builder{Name: "sf-unscoped"}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/sf-unscoped"}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	for name, scope := range map[string]string{
+		"sf-granted": grantedScope,
+		"sf-sub":     subScope,
+		"sf-other":   otherScope,
+	} {
+		_, err := srv.Auth().CreateWorkloadIdentity(ctx, scopedWorkloadIdentity(name, scope, scope+"/_/"+name))
+		require.NoError(t, err)
+	}
+
+	listNames := func(t *testing.T, clt *authclient.Client, scopeFilter *scopesv1.Filter) []string {
+		t.Helper()
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(clt.GetConnection())
+		res, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			PageSize:    100,
+			ScopeFilter: scopeFilter,
+		}.Build())
+		require.NoError(t, err)
+		var names []string
+		for _, wi := range res.GetWorkloadIdentities() {
+			names = append(names, wi.GetMetadata().GetName())
+		}
+		slices.Sort(names)
+		return names
+	}
+
+	t.Run("unscoped caller without a scope filter sees only unscoped", func(t *testing.T) {
+		require.Equal(t, []string{"sf-unscoped"}, listNames(t, unscopedClient, nil))
+	})
+
+	t.Run("unscoped caller with mode ALL sees every scope", func(t *testing.T) {
+		require.Equal(t,
+			[]string{"sf-granted", "sf-other", "sf-sub", "sf-unscoped"},
+			listNames(t, unscopedClient, scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
+		)
+	})
+
+	t.Run("unscoped caller can filter to an exact scope", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode:  scopesv1.Mode_MODE_EXACT,
+			Scope: grantedScope,
+		}.Build()))
+	})
+
+	t.Run("unscoped caller can filter to a scope and its descendants", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted", "sf-sub"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+			Scope: grantedScope,
+		}.Build()))
+	})
+
+	t.Run("unscoped caller can filter to unscoped only", func(t *testing.T) {
+		require.Equal(t, []string{"sf-unscoped"}, listNames(t, unscopedClient, scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build()))
+	})
+
+	t.Run("scoped caller without a scope filter sees only its pinned scope", func(t *testing.T) {
+		require.Equal(t, []string{"sf-granted"}, listNames(t, scopedClient, nil))
+	})
+
+	t.Run("scoped caller with mode ALL is still limited by RBAC", func(t *testing.T) {
+		// Unlike a watch, a list does not rewrite mode ALL to DESCENDANTS@pin;
+		// the per-resource Decision confines the caller instead.
+		names := listNames(t, scopedClient, scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
+		require.Contains(t, names, "sf-granted")
+		require.NotContains(t, names, "sf-other")
+		require.NotContains(t, names, "sf-unscoped")
+	})
+
+	t.Run("malformed filter is rejected", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
+		_, err := client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_EXACT}.Build(),
+		}.Build())
+		require.ErrorContains(t, err, "requires a non-empty scope")
+
+		// A scope without a mode must fail as malformed, not be resolved to the
+		// identity default (which would silently discard the scope).
+		_, err = client.ListWorkloadIdentitiesV2(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
+			ScopeFilter: scopesv1.Filter_builder{Scope: grantedScope}.Build(),
+		}.Build())
+		require.ErrorContains(t, err, "without a mode")
+	})
+
+	t.Run("V1 lists every scope", func(t *testing.T) {
+		// V1 cannot express a filter, so the shim pins it to mode ALL.
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(unscopedClient.GetConnection())
+		res, err := client.ListWorkloadIdentities(t.Context(), workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
+			PageSize: 100,
+		}.Build())
+		require.NoError(t, err)
+		var names []string
+		for _, wi := range res.GetWorkloadIdentities() {
+			names = append(names, wi.GetMetadata().GetName())
+		}
+		slices.Sort(names)
+		require.Equal(t, []string{"sf-granted", "sf-other", "sf-sub", "sf-unscoped"}, names)
+	})
 }
 
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -2280,6 +3249,30 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				},
 			},
 		})
+	require.NoError(t, err)
+
+	// Scoped updaters pinned to two scopes, plus seeded scoped workload
+	// identities to act on.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	grantedUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-granted", grantedScope, types.VerbUpdate)
+	grantedClient, err := srv.NewClient(authtest.TestScopedUser(grantedUpdater, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = grantedClient.Close() })
+	otherUpdater := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-update-other", otherScope, types.VerbUpdate)
+	otherClient, err := srv.NewClient(authtest.TestScopedUser(otherUpdater, otherScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = otherClient.Close() })
+	scopedPreExisting, err := srv.Auth().CreateWorkloadIdentity(
+		ctx, scopedWorkloadIdentity("scoped-update-ok", grantedScope, grantedScope+"/_/scoped-update-ok"),
+	)
+	require.NoError(t, err)
+	scopedPreExisting2, err := srv.Auth().CreateWorkloadIdentity(
+		ctx, scopedWorkloadIdentity("scoped-update-denied", grantedScope, grantedScope+"/_/scoped-update-denied"),
+	)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -2358,6 +3351,25 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped update within scope",
+			client: grantedClient,
+			req: workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedPreExisting,
+			}.Build(),
+			requireError:        require.NoError,
+			checkResultReturned: true,
+		},
+		{
+			name:   "scoped update in inaccessible scope denied",
+			client: otherClient,
+			req: workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedPreExisting2,
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2385,7 +3397,10 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.Metadata.Name)
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -2412,7 +3427,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 
 func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	t.Parallel()
-	srv, eventRecorder := newTestTLSServer(t)
+	srv, eventRecorder := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
@@ -2437,6 +3452,17 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 	require.NoError(t, err)
 	unauthorizedClient, err := srv.NewClient(authtest.TestUser(unauthorizedUser.GetName()))
 	require.NoError(t, err)
+
+	// A scoped user able to upsert workload identities within /scopes/granted.
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = adminClient.Close() })
+	const grantedScope = "/scopes/granted"
+	const otherScope = "/scopes/other"
+	scopedUpserter := newScopedWorkloadIdentityUser(t, srv, adminClient, "scoped-upserter", grantedScope, types.VerbCreate, types.VerbUpdate)
+	scopedUpserterClient, err := srv.NewClient(authtest.TestScopedUser(scopedUpserter, grantedScope))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = scopedUpserterClient.Close() })
 
 	tests := []struct {
 		name                string
@@ -2524,6 +3550,25 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
+		{
+			name:   "scoped success",
+			client: scopedUpserterClient,
+			req: workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-new", grantedScope, grantedScope+"/_/svc"),
+			}.Build(),
+			requireError:        require.NoError,
+			checkResultReturned: true,
+		},
+		{
+			name:   "scoped denied in another scope",
+			client: scopedUpserterClient,
+			req: workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+				WorkloadIdentity: scopedWorkloadIdentity("scoped-other", otherScope, otherScope+"/_/svc"),
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2550,7 +3595,10 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.Metadata.Name)
+				fetched, err := srv.Auth().Services.WorkloadIdentities.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				}.Build())
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -2573,6 +3621,55 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResourceService_ScopedWritesRequireScopesFeature(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	authorizedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(authtest.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(authorizedClient.GetConnection())
+
+	const scope = "/scopes/granted"
+	scoped := scopedWorkloadIdentity("scoped", scope, scope+"/_/svc")
+
+	t.Run("create rejected", func(t *testing.T) {
+		_, err := client.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("update rejected", func(t *testing.T) {
+		_, err := client.UpdateWorkloadIdentity(ctx, workloadidentityv1pb.UpdateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("upsert rejected", func(t *testing.T) {
+		_, err := client.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scoped,
+		}.Build())
+		require.ErrorContains(t, err, "scoping features are not enabled")
+	})
+	t.Run("unscoped create unaffected", func(t *testing.T) {
+		_, err := client.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: scopedWorkloadIdentity("unscoped", "", "/svc"),
+		}.Build())
+		require.NoError(t, err)
+	})
 }
 
 func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
@@ -3717,4 +4814,258 @@ func TestRevocationService_CRL(t *testing.T) {
 		cancel()
 		require.NoError(t, <-rpcErrCh)
 	})
+}
+
+// createAppSessionCertBytes creates an app session and returns the session
+// certificate.
+func createAppSessionCertBytes(t *testing.T, clt *authclient.Client, appName, username string) ([]byte, time.Time) {
+	t.Helper()
+
+	clusterName, err := clt.GetClusterName(t.Context())
+	require.NoError(t, err)
+
+	aliceSession, err := clt.CreateAppSession(t.Context(), &apiproto.CreateAppSessionRequest{
+		AppName:     appName,
+		Username:    username,
+		PublicAddr:  appName + "." + clusterName.GetClusterName(),
+		ClusterName: clusterName.GetClusterName(),
+	})
+	require.NoError(t, err)
+	cert, err := tlsutils.ParseCertificatePEM(aliceSession.GetTLSCert())
+	require.NoError(t, err)
+	return cert.Raw, aliceSession.Expiry()
+}
+
+// newScopedWorkloadIdentityUser creates a scoped user assigned a scoped role
+// granting the given verbs on WorkloadIdentity within the given scope, and
+// returns the username. The returned user can be used with
+// authtest.TestScopedUser to mint a client pinned to that scope.
+func newScopedWorkloadIdentityUser(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	verbs ...string,
+) string {
+	t.Helper()
+	ctx := t.Context()
+
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	role, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: username + "-role",
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs:     verbs,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username)
+	require.NoError(t, err)
+
+	resp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					// Sub-assignments reference roles by scope-qualified name.
+					scopedaccessv1.Assignment_builder{
+						Role: scopes.QualifiedName{
+							Scope: role.GetRole().GetScope(),
+							Name:  role.GetRole().GetMetadata().GetName(),
+						}.String(),
+						Scope: scope,
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the assignment to propagate to the cache used by the authorizer.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
+		}.Build())
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	return user.GetName()
+}
+
+// scopedWorkloadIdentity builds a WorkloadIdentity with the given scope and
+// SPIFFE ID.
+func scopedWorkloadIdentity(name, scope, spiffeID string) *workloadidentityv1pb.WorkloadIdentity {
+	return workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: name,
+		}.Build(),
+		Scope: scope,
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: spiffeID,
+			}.Build(),
+		}.Build(),
+	}.Build()
+}
+
+// scopedWorkloadIdentityWithLabels is like scopedWorkloadIdentity but also sets
+// resource labels, used to exercise workload_identity label-selector grants on
+// scoped roles.
+func scopedWorkloadIdentityWithLabels(name, scope, spiffeID string, labels map[string]string) *workloadidentityv1pb.WorkloadIdentity {
+	wi := scopedWorkloadIdentity(name, scope, spiffeID)
+	wi.GetMetadata().SetLabels(labels)
+	return wi
+}
+
+// createScopedWorkloadIdentityRole creates a scoped role assignable within the
+// given scope, granting the given rule verbs for the workload_identity kind
+// (if any) and the given workload_identity label selector (if any). Returns
+// the role name.
+func createScopedWorkloadIdentityRole(
+	t *testing.T,
+	adminClient *authclient.Client,
+	roleName string,
+	scope string,
+	verbs []string,
+	labels map[string][]string,
+) string {
+	t.Helper()
+	ctx := t.Context()
+
+	spec := scopedaccessv1.ScopedRoleSpec_builder{
+		AssignableScopes: []string{scope},
+	}
+	if len(verbs) > 0 {
+		spec.Rules = []*scopedaccessv1.ScopedRule{
+			scopedaccessv1.ScopedRule_builder{
+				Resources: []string{types.KindWorkloadIdentity},
+				Verbs:     verbs,
+			}.Build(),
+		}
+	}
+	if len(labels) > 0 {
+		wiLabels := make([]*labelv1.Label, 0, len(labels))
+		for labelName, values := range labels {
+			wiLabels = append(wiLabels, labelv1.Label_builder{Name: labelName, Values: values}.Build())
+		}
+		spec.WorkloadIdentity = scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: wiLabels,
+		}.Build()
+	}
+
+	role, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: roleName,
+			}.Build(),
+			Scope: "/scopes",
+			Spec:  spec.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	// Sub-assignments reference roles by scope-qualified name.
+	return scopes.QualifiedName{
+		Scope: role.GetRole().GetScope(),
+		Name:  role.GetRole().GetMetadata().GetName(),
+	}.String()
+}
+
+// createScopedWorkloadIdentityUser creates a user assigned the given scoped
+// roles within the given scope, and waits for the assignment to propagate to
+// the cache used by the authorizer. It returns the username, which can be used
+// with authtest.TestScopedUser to mint a client pinned to that scope.
+func createScopedWorkloadIdentityUser(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	roleNames ...string,
+) string {
+	t.Helper()
+	ctx := t.Context()
+
+	user, err := authtest.CreateUser(ctx, srv.Auth(), username)
+	require.NoError(t, err)
+
+	assignments := make([]*scopedaccessv1.Assignment, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		assignments = append(assignments, scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build())
+	}
+	resp, err := adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User:        user.GetName(),
+				Assignments: assignments,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait for the assignment to propagate to the cache used by the authorizer.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
+		}.Build())
+		require.NoError(t, err)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	return user.GetName()
+}
+
+// newScopedWorkloadIdentityIssuer creates a user assigned a single scoped role
+// that grants both the rules (read_no_secrets + list) and the workload_identity
+// label selector required to issue SVIDs using scoped WorkloadIdentities within
+// the given scope. It returns the username, which can be used with
+// authtest.TestScopedUser to mint a client pinned to that scope.
+func newScopedWorkloadIdentityIssuer(
+	t *testing.T,
+	srv *authtest.TLSServer,
+	adminClient *authclient.Client,
+	username string,
+	scope string,
+	labels map[string][]string,
+) string {
+	t.Helper()
+	role := createScopedWorkloadIdentityRole(
+		t, adminClient, username+"-role", scope,
+		[]string{types.VerbReadNoSecrets, types.VerbList}, labels,
+	)
+	return createScopedWorkloadIdentityUser(t, srv, adminClient, username, scope, role)
 }

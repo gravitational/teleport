@@ -483,17 +483,20 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Roles = nil
 	out.Reason = ""
 	out.Annotations = nil
+	out.SubmittedBy = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
 	customFieldsCount := nonEmptyStrsInSlice(m.Roles) +
 		nonEmptyStrs(m.Reason) +
-		m.Annotations.nonEmptyStrs()
+		m.Annotations.nonEmptyStrs() +
+		nonEmptyStrs(m.SubmittedBy)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
 	out.Reason = trimStr(m.Reason, maxFieldsSize)
 	out.Annotations = m.Annotations.trimToMaxFieldSize(maxFieldsSize)
+	out.SubmittedBy = trimStr(m.SubmittedBy, maxFieldsSize)
 
 	return out
 }
@@ -1452,6 +1455,60 @@ func (m *WindowsDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 
 	out.Domain = trimStr(m.Domain, maxFieldsSize)
 	out.WindowsUser = trimStr(m.WindowsUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
+
+	return out
+}
+
+func (m *LinuxDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.Status = Status{}
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := m.Status.nonEmptyStrs() +
+		nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
+	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
+	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
+
+	return out
+}
+
+func (m *LinuxDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	out.LinuxUser = ""
+	out.DesktopLabels = nil
+	out.DesktopName = ""
+	out.Participants = nil
+
+	maxSize = adjustedMaxSize(out, maxSize)
+
+	customFieldsCount := nonEmptyStrs(m.LinuxUser, m.DesktopName) +
+		nonEmptyStrsInMap(m.DesktopLabels) +
+		nonEmptyStrsInSlice(m.Participants)
+	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
+
+	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
 	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
 	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
 	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
@@ -2931,12 +2988,61 @@ func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Status.Error, &out.Status.Error),
+			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
+		}
+	})
+}
+
 func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
 		return fieldTrimmers{
 			newStrTrimmer(m.Path, &out.Path),
 			newStrTrimmer(m.Method, &out.Method),
 			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
+			newStrTrimmer(m.Model, &out.Model),
+			newGenericTrimmer(&m.Status, &out.Status),
 		}
 	})
+}
+
+func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ScopedTokenCreate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenCreate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *ScopedTokenUpdate) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Scope, &out.Scope),
+			newStrTrimmer(m.JoinMethod, &out.JoinMethod),
+			newStrTrimmer(m.UsageMode, &out.UsageMode),
+			newStrSliceTrimmer(m.Roles, &out.Roles),
+		}
+	})
+}
+
+func (m *ScopedTokenDelete) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
 }

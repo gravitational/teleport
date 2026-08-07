@@ -1,0 +1,32 @@
+[
+    {
+        "spec": {
+            "permission_set": {
+                "arn": "arn:aws:sso:::permissionSet/abc/ps-aaaa",
+                "name": "AdminAccess"
+            },
+            "account_name": "Production",
+            "account_id": "111111111111"
+        }
+    },
+    {
+        "spec": {
+            "permission_set": {
+                "arn": "arn:aws:sso:::permissionSet/abc/ps-bbbb",
+                "name": "ReadOnly"
+            },
+            "account_name": "Production",
+            "account_id": "111111111111"
+        }
+    },
+    {
+        "spec": {
+            "permission_set": {
+                "arn": "arn:aws:sso:::permissionSet/abc/ps-bbbb",
+                "name": "ReadOnly"
+            },
+            "account_name": "Staging",
+            "account_id": "222222222222"
+        }
+    }
+]

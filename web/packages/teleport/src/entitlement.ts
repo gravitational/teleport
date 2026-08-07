@@ -23,6 +23,7 @@ type entitlement =
   | 'AccessRequests'
   | 'AccessGraphDemoMode'
   | 'App'
+  | 'Beams'
   | 'CloudAuditLogRetention'
   | 'DB'
   | 'Desktop'
@@ -54,6 +55,7 @@ export const defaultEntitlements: Record<
   AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
+  Beams: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },
   DB: { enabled: false, limit: 0 },
   Desktop: { enabled: false, limit: 0 },

@@ -29,6 +29,8 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/sync/errgroup"
 	"gvisor.dev/gvisor/pkg/tcpip"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -43,6 +45,13 @@ const (
 	// common in practice.
 	forwardRequestTimeout = 5 * time.Second
 )
+
+// DNSServerSuffix is the byte appended to VNet's IPv6 prefix to form the DNS server
+// address, VNet's DNS server lives at <ipv6_prefix>::N where N is this value
+var DNSServerSuffix = []byte{2}
+
+// DNSServerPort is the port VNet's DNS server listens on.
+const DNSServerPort = 53
 
 // Resolver represents an entity that can resolve DNS requests.
 type Resolver interface {
@@ -73,6 +82,24 @@ type UpstreamNameserverSource interface {
 	// UpstreamNameservers should return the current set of upstream nameservers, requests that cannot be
 	// resolved will be forwarded to these addresses.
 	UpstreamNameservers(context.Context) ([]string, error)
+}
+
+type upstreamNameserverSourceFn func(context.Context) ([]string, error)
+
+func (fn upstreamNameserverSourceFn) UpstreamNameservers(ctx context.Context) ([]string, error) {
+	return fn(ctx)
+}
+
+// CachingUpstreamNameserverSource wraps an upstream nameserver source to cache
+// its results until the given TTL.
+func CachingUpstreamNameserverSource(src UpstreamNameserverSource, ttl time.Duration) (UpstreamNameserverSource, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: ttl})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
+		return utils.FnCacheGet(ctx, cache, 0, src.UpstreamNameservers)
+	}), nil
 }
 
 // Server is a DNS server.

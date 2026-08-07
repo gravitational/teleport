@@ -437,6 +437,7 @@ func TestNewAppV3(t *testing.T) {
 		name    string
 		meta    Metadata
 		spec    AppSpecV3
+		scope   string
 		want    *AppV3
 		wantErr require.ErrorAssertionFunc
 	}{
@@ -734,14 +735,67 @@ func TestNewAppV3(t *testing.T) {
 			},
 			wantErr: require.NoError,
 		},
+		{
+			name: "mcp with tcp_ports",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+				TCPPorts: []*PortRange{
+					{Port: 1000, EndPort: 5000},
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp with inference",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+				LLM: &LLM{
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			name:  "set with scope",
+			meta:  Metadata{Name: "myapp"},
+			spec:  AppSpecV3{URI: "https://localhost:1337"},
+			scope: "/staging/test",
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myapp", Namespace: "default"},
+				Spec:     AppSpecV3{URI: "https://localhost:1337"},
+				Scope:    "/staging/test",
+			},
+			wantErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := NewAppV3(tt.meta, tt.spec)
+			actual, err := NewAppV3(tt.meta, tt.spec, tt.scope)
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, actual)
 		})
 	}
+
+	// TODO (williamo/scopes) temp test - delete this once we delete the variadic params for scopes.
+	t.Run("set with a multiple scopes", func(t *testing.T) {
+		_, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://localhost:1337"}, "/staging/test", "/prod/test")
+		require.ErrorContains(t, err, "expected at most 1 scope, got 2")
+	})
 }
 
 func TestPortRangesContains(t *testing.T) {
@@ -838,4 +892,272 @@ func TestDeduplicateApps(t *testing.T) {
 
 	deduped := DeduplicateApps(apps)
 	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
+}
+
+func TestLLMSubKind(t *testing.T) {
+	app, err := NewAppV3(Metadata{
+		Name: "my-app",
+	}, AppSpecV3{
+		LLM: &LLM{
+			Format:   LLMFormatAnthropic,
+			Provider: LLMProviderAnthropic,
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, app.IsLLM())
+	require.Equal(t, SubKindLLM, app.SubKind)
+}
+
+func TestLLMConfiguration(t *testing.T) {
+	// Given an inference endpoint configuration, ensure the selected values for
+	// 'format' and 'provider' are compatible.
+	t.Run("format and provider combination", func(t *testing.T) {
+		for _, format := range SupportedLLMFormats {
+			supportedProviders := supportedFormatInferenceProviders[format]
+			for _, provider := range SupportedLLMProviders {
+				t.Run(format+" "+provider, func(t *testing.T) {
+					_, err := NewAppV3(Metadata{
+						Name: "my-app",
+					}, AppSpecV3{
+						LLM: &LLM{
+							Format:   format,
+							Provider: provider,
+						},
+					})
+					// If it is supported, we don't expect errors.
+					if slices.Contains(supportedProviders, provider) {
+						require.NoError(t, err)
+						return
+					}
+					require.Error(t, err)
+				})
+			}
+		}
+	})
+
+	// Given an inference endpoint configuration, ensure the models list elements
+	// contain at least the model name.
+	t.Run("models element", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			models    []*LLM_Model
+			expectErr require.ErrorAssertionFunc
+		}{
+			"valid": {
+				models: []*LLM_Model{
+					{Name: "claude-opus-4-6", ProviderName: "opus-4.6"},
+					{Name: "claude-sonnet-4-6"},
+					{Name: "claude-haiku-4-5", ProviderName: "haiku-4.5"},
+				},
+				expectErr: require.NoError,
+			},
+			"invalid": {
+				models: []*LLM_Model{
+					{ProviderName: "opus-4.6"},
+					{Name: "claude-sonnet-4-6"},
+					{Name: "claude-haiku-4-5"},
+				},
+				expectErr: require.Error,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				_, err := NewAppV3(Metadata{
+					Name: "my-app",
+				}, AppSpecV3{
+					LLM: &LLM{
+						Format:   LLMFormatAnthropic,
+						Provider: LLMProviderAnthropic,
+						Models:   tc.models,
+					},
+				})
+				tc.expectErr(t, err)
+			})
+		}
+	})
+
+	// Given an inference endpoint configuration, ensure the fallback model is
+	// present on the models list.
+	t.Run("fallback model", func(t *testing.T) {
+		t.Run("valid", func(t *testing.T) {
+			_, err := NewAppV3(Metadata{
+				Name: "my-app",
+			}, AppSpecV3{
+				LLM: &LLM{
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
+					Models: []*LLM_Model{
+						{Name: "claude-opus-4-6"},
+					},
+					FallbackModel: "claude-opus-4-6",
+				},
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("invalid", func(t *testing.T) {
+			for name, models := range map[string][]*LLM_Model{
+				"missing": {{Name: "claude-opus-4-6"}},
+				"empty":   nil,
+			} {
+				t.Run(name, func(t *testing.T) {
+					_, err := NewAppV3(Metadata{
+						Name: "my-app",
+					}, AppSpecV3{
+						LLM: &LLM{
+							Format:        LLMFormatAnthropic,
+							Provider:      LLMProviderAnthropic,
+							Models:        models,
+							FallbackModel: "claude-sonnet-4-6",
+						},
+					})
+					require.Error(t, err)
+				})
+			}
+		})
+	})
+
+	t.Run("invalid configurations", func(t *testing.T) {
+		for name, modifySpec := range map[string]func(AppSpecV3) AppSpecV3{
+			"mcp": func(spec AppSpecV3) AppSpecV3 {
+				spec.MCP = &MCP{
+					Command: "docker",
+					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
+				}
+				return spec
+			},
+			"tcp_ports": func(spec AppSpecV3) AppSpecV3 {
+				spec.TCPPorts = []*PortRange{
+					{Port: 1000, EndPort: 5000},
+				}
+				return spec
+			},
+			"rewrite": func(spec AppSpecV3) AppSpecV3 {
+				spec.Rewrite = &Rewrite{
+					Redirect: []string{"localhost"},
+				}
+				return spec
+			},
+			"custom uri": func(spec AppSpecV3) AppSpecV3 {
+				spec.URI = SchemeLLMEndpoint + "://my-inference-endpoint"
+				return spec
+			},
+			"non-bedrock aws configuration": func(spec AppSpecV3) AppSpecV3 {
+				spec.AWS = &AppAWS{Region: "us-west-2"}
+				return spec
+			},
+			"llm provider": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Provider = "random"
+				return spec
+			},
+			"llm format": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Format = "random"
+				return spec
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				spec := modifySpec(AppSpecV3{
+					LLM: &LLM{
+						Format:   LLMFormatAnthropic,
+						Provider: LLMFormatAnthropic,
+					},
+				})
+				_, err := NewAppV3(Metadata{Name: "my-app"}, spec)
+				require.Error(t, err)
+			})
+		}
+	})
+}
+
+func TestAppTLSMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppTLSMode
+	}{
+		"unsupported protocol": {
+			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			expectedMode: "",
+		},
+		"https insecure": {
+			spec: AppSpecV3{
+				URI: "https://localhost:443",
+				TLS: &AppTLS{
+					Mode: AppTLSModeInsecure,
+				},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"insecure skip verify is respected": {
+			spec: AppSpecV3{
+				URI:                "https://localhost:80",
+				InsecureSkipVerify: true,
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"https default": {
+			spec:         AppSpecV3{URI: "https://localhost:443"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"mcp https default": {
+			spec:         AppSpecV3{URI: "mcp+https://localhost:8080"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"insecure skip verify with mode insecure": {
+			spec: AppSpecV3{
+				URI:                "https://localhost",
+				InsecureSkipVerify: true,
+				TLS:                &AppTLS{Mode: AppTLSModeInsecure},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetTLSMode())
+		})
+	}
+}
+
+func TestAppClientCertMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppClientCertMode
+	}{
+		"default disabled": {
+			spec:         AppSpecV3{URI: "https://0.0.0.0:8000"},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"empty tls block returns disabled": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"explicit disable": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeDisabled,
+				},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"managed": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeManaged,
+				},
+			},
+			expectedMode: AppClientCertModeManaged,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetClientCertMode())
+		})
+	}
 }

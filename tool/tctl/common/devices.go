@@ -62,20 +62,19 @@ type DevicesCommand struct {
 	Stdout io.Writer
 }
 
-type osType = string
-
-const (
-	linuxType   osType = "linux"
-	macosType   osType = "macos"
-	windowsType osType = "windows"
-)
-
-var osTypes = []string{linuxType, macosType, windowsType}
-
-var osTypeToEnum = map[osType]devicepb.OSType{
-	linuxType:   devicepb.OSType_OS_TYPE_LINUX,
-	macosType:   devicepb.OSType_OS_TYPE_MACOS,
-	windowsType: devicepb.OSType_OS_TYPE_WINDOWS,
+// osTypeFlagValues returns the accepted --os values: every [devicepb.OSType]
+// except UNSPECIFIED, spelled the way api spells it.
+func osTypeFlagValues() []string {
+	values := make([]string, 0, len(devicepb.OSType_name)-1)
+	for num := range devicepb.OSType_name {
+		osType := devicepb.OSType(num)
+		if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+			continue
+		}
+		values = append(values, types.ResourceOSTypeToString(osType))
+	}
+	sort.Strings(values)
+	return values
 }
 
 func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
@@ -85,7 +84,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")
 	addCmd.Flag("os", "Operating system").
-		EnumVar(&c.add.os, osTypes...)
+		EnumVar(&c.add.os, osTypeFlagValues()...)
 	addCmd.Flag("asset-tag", "Inventory identifier for the device (e.g., Mac serial number)").
 		StringVar(&c.add.assetTag)
 	addCmd.Flag("current-device", "Registers the current device. Overrides --os and --asset-tag.").
@@ -191,10 +190,13 @@ func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Clien
 	}
 
 	if c.os != "" {
-		var ok bool
-		c.osType, ok = osTypeToEnum[c.os]
-		if !ok {
-			return trace.BadParameter("invalid --os: %v", c.os)
+		var err error
+		// kingpin makes sure that c.os is set to one of the values returned from
+		// [osTypeFlagValues], so we don't have to worry about "unspecified" here.
+		if c.osType, err = types.ResourceOSTypeFromString(c.os); err != nil {
+			// No need to re-wrap err into something specific to the --os flag, as at
+			// this point we know that c.os points to a valid OSType.
+			return trace.Wrap(err)
 		}
 	}
 

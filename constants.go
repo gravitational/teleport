@@ -269,6 +269,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentLinuxDesktop is a Linux desktop access server.
+	ComponentLinuxDesktop = "linux_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
@@ -301,6 +304,9 @@ const (
 
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
+
+	// ComponentLLM represents the LLM server handler.
+	ComponentLLM = "llm"
 
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
@@ -470,6 +476,9 @@ const (
 	// This constrains other identities' access to the agent itself as well as the agent's
 	// access to other resources based on scoping rules.
 	CertExtensionAgentScope = "agent-scope@goteleport.com"
+	// CertExtensionAgentScopePin encodes an agent's scope pin, including the pinned scope and system roles.
+	// Supersedes CertExtensionAgentScope for scoped agents.
+	CertExtensionAgentScopePin = "agent-scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -538,6 +547,9 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionBotScope indicates the scope of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotScope = "bot-scope@goteleport.com"
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
@@ -624,6 +636,10 @@ const (
 	// TraitInternalWindowsLoginsVariable is the variable used to store
 	// allowed Windows Desktop logins for local accounts.
 	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
+
+	// TraitInternalLinuxDesktopLoginsVariable is the variable used to store
+	// allowed Linux Desktop logins for local accounts.
+	TraitInternalLinuxDesktopLoginsVariable = "{{internal.linux_desktop_logins}}"
 
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
@@ -744,6 +760,10 @@ const (
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
+	// SystemBeamRoleName specifies the name of a system role that grants the
+	// beam bot permission to issue itself credentials.
+	SystemBeamRoleName = "beam"
+
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
 	// credentials using any workload_identity resource. This exists to simplify
@@ -754,6 +774,10 @@ const (
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
 
+	// PresetAccessPluginWithReviewRoleName names the preset role that includes
+	// permissions required by self-hosted access request plugins that permit native reviews.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
+
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
@@ -761,6 +785,14 @@ const (
 	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
 	PresetMCPUserRoleName = "mcp-user"
+
+	// PresetBeamUserRoleName is a name of a preset role that allows users to use
+	// the Beams feature.
+	PresetBeamUserRoleName = "beam-user"
+
+	// PresetBeamAdminRoleName is a name of a preset role that allows users to
+	// administer beams belonging to other users.
+	PresetBeamAdminRoleName = "beam-admin"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -901,6 +933,14 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageLinuxDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Linux desktop access
+	UsageLinuxDesktopOnly = "usage:linux_desktop"
+
+	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Access Graph API access.
+	UsageAccessGraphAPIOnly = "usage:access_graph_api"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that
@@ -1032,4 +1072,11 @@ const (
 	OktaAccessRoleContext = "access-okta-acl-role"
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
+)
+
+const (
+	// EnvVarUnstableDisableSAMLRedirectDowngradeCheck allows disabling saml_connector
+	// entity_descriptor_url check preventing following redirects via HTTP originating from
+	// HTTPS route.
+	EnvVarUnstableDisableSAMLRedirectDowngradeCheck = "TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK"
 )

@@ -125,7 +125,7 @@ func TestScopedTokens(t *testing.T) {
 	// Test all output formats of "tokens ls".
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls"})
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(buf.String(), "Token "))
+	require.True(t, strings.HasPrefix(buf.String(), "ID"))
 	require.Equal(t, 8, strings.Count(buf.String(), "\n")) // account for header lines
 
 	buf, err = runScopedCommand(t, clt, []string{"tokens", "ls", "--format", teleport.Text})

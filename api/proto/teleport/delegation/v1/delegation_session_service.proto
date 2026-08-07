@@ -17,15 +17,29 @@ syntax = "proto3";
 package teleport.delegation.v1;
 
 import "google/protobuf/duration.proto";
+import "teleport/delegation/v1/delegation_session_resource.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
 
 // DelegationSessionService allows users to delegate a subset of their access to
 // a workload or bot.
 service DelegationSessionService {
+  // CreateDelegationSession creates a delegation session for the authenticated
+  // user.
+  rpc CreateDelegationSession(CreateDelegationSessionRequest) returns (DelegationSession);
+
   // GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
   // session.
   rpc GenerateCerts(GenerateCertsRequest) returns (GenerateCertsResponse);
+}
+
+// CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
+message CreateDelegationSessionRequest {
+  // Spec of the delegation session that will be created.
+  DelegationSessionSpec spec = 1;
+
+  // TTL determines how long the session will last.
+  google.protobuf.Duration ttl = 2;
 }
 
 // GenerateCertsRequest are the parameters to GenerateCerts.

@@ -17,9 +17,40 @@
  */
 
 import type { ITerminalAddon, Terminal } from '@xterm/xterm';
-import type { IRenderDimensions } from '@xterm/xterm/src/browser/renderer/shared/Types';
 
-import type { TerminalSize } from 'teleport/SessionRecordings/view/player/tty/types';
+import type { TerminalSize } from './types';
+
+// TODO(gzdunek): This interface was copied from the xterm's source code.
+// Replace this with a direct import from '@xterm/xterm' once
+// https://github.com/xtermjs/xterm.js/pull/5551 is released (expected in v6.1.0).
+// Additionally, consider refactoring this addon to implement the IFitApi interface.
+interface IRenderDimensions {
+  /**
+   * Dimensions measured in CSS pixels (ie. device pixels / device pixel ratio).
+   */
+  css: {
+    canvas: IDimensions;
+    cell: IDimensions;
+  };
+  /**
+   * Dimensions measured in actual pixels as rendered to the device.
+   */
+  device: {
+    canvas: IDimensions;
+    cell: IDimensions;
+    char: IDimensions & IOffset;
+  };
+}
+
+interface IDimensions {
+  width: number;
+  height: number;
+}
+
+interface IOffset {
+  top: number;
+  left: number;
+}
 
 /**
  * AspectFitAddon is a xterm.js addon that resizes the terminal to fit within its parent element

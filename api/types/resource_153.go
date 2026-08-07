@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -174,6 +175,16 @@ func (r *resource153ToLegacyAdapter[T]) GetKind() string {
 	return r.inner.GetKind()
 }
 
+// GetScope returns the scope of the wrapped resource if it is scope-aware, or "" otherwise. This lets
+// scope-based event/watch filtering extract scope uniformly from wrapped resources without needing to
+// know their concrete type.
+func (r *resource153ToLegacyAdapter[T]) GetScope() string {
+	if scoped, ok := any(r.inner).(interface{ GetScope() string }); ok {
+		return scoped.GetScope()
+	}
+	return ""
+}
+
 // Metadata153ToLegacy converts RFD153-style resource metadata to legacy
 // metadata.
 func Metadata153ToLegacy(md *headerv1.Metadata) Metadata {
@@ -325,7 +336,12 @@ type ProtoResource153 interface {
 
 type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	inner T
-	resource153ToLegacyAdapter[T]
+	resource153ToResourceWithLabelsAdapter[T]
+}
+
+func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
+	clone := proto.CloneOf(r.inner)
+	return ProtoResource153ToLegacy(clone)
 }
 
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
@@ -351,9 +367,29 @@ func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func ProtoResource153ToLegacy[T ProtoResource153](r T) Resource {
+func ProtoResource153ToLegacy[T ProtoResource153](r T) ClonableResourceWithLabels {
 	return &protoResource153ToLegacyAdapter[T]{
 		r,
-		resource153ToLegacyAdapter[T]{r},
+		resource153ToResourceWithLabelsAdapter[T]{
+			resource153ToLegacyAdapter[T]{r},
+		},
 	}
+}
+
+// ConvertResource is a generic helper func that converts a [types.Resource] by
+// direct type assertion or assertion to an [types.Resource153UnwrapperT].
+func ConvertResource[T any](resource Resource) (T, error) {
+	switch resource := resource.(type) {
+	case interface{ UnwrapT() T }:
+		return resource.UnwrapT(), nil
+	case T:
+		return resource, nil
+	}
+	var zero T
+	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
+}
+
+type ClonableResourceWithLabels interface {
+	ResourceWithLabels
+	CloneResource() ResourceWithLabels
 }

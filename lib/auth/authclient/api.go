@@ -37,6 +37,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -177,6 +178,9 @@ type ReadProxyAccessPoint interface {
 	// HealthCheckConfigReader defines methods for fetching health check config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -321,14 +325,7 @@ type ReadProxyAccessPoint interface {
 	// GetWindowsDesktopService returns a windows desktop host by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
@@ -503,6 +500,9 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetWindowsDesktopService returns a registered windows desktop service by name.
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
+
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 }
 
 // RelayAccessPoint is the top-level access point interface required by a Relay service.
@@ -540,6 +540,9 @@ type ReadKubernetesAccessPoint interface {
 	// HealthCheckConfigReader defines methods for fetching health check config
 	// resources.
 	services.HealthCheckConfigReader
+
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -586,15 +589,6 @@ type ReadKubernetesAccessPoint interface {
 	// container that are waiting to be created until moderated
 	// session conditions are met.
 	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
-
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -605,6 +599,9 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -676,6 +673,10 @@ type ReadAppsAccessPoint interface {
 type AppsAccessPoint interface {
 	// ReadAppsAccessPoint provides methods to read data
 	ReadAppsAccessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client. Used by the app service to
+	// authorize scope-pinned identities accessing applications.
+	ScopedRoleReader() services.ScopedRoleReader
 
 	// accessPoint provides common access point functionality
 	accessPoint
@@ -759,6 +760,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -819,11 +822,11 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
-// ReadDiscoveryAccessPoint is a read only API interface to be
-// used by a teleport.ComponentDiscovery.
+// ReadLinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentLinuxDesktop.
 //
-// NOTE: This interface must match the resources replicated in cache.ForDiscovery.
-type ReadDiscoveryAccessPoint interface {
+// NOTE: This interface must match the resources replicated in cache.ForLinuxDesktop.
+type ReadLinuxDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
@@ -839,16 +842,61 @@ type ReadDiscoveryAccessPoint interface {
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(ctx context.Context) (types.ClusterName, error)
 
+	// GetClusterAuditConfig returns cluster audit configuration.
+	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
+
+	// GetClusterNetworkingConfig returns cluster networking configuration.
+	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetSessionRecordingConfig returns session recording configuration.
+	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetRoles returns a list of roles
+	GetRoles(ctx context.Context) ([]types.Role, error)
+}
+
+// LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentLinuxDesktop.
+type LinuxDesktopAccessPoint interface {
+	// ReadLinuxDesktopAccessPoint provides methods to read data
+	ReadLinuxDesktopAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+}
+
+// ReadDiscoveryAccessPoint is a read only API interface to be
+// used by a teleport.ComponentDiscovery.
+//
+// NOTE: This interface must match the resources replicated in cache.ForDiscovery.
+type ReadDiscoveryAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	services.KubernetesClusterGetter
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+
+	// GetCertAuthorities returns a list of cert authorities
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+
+	// GetClusterName gets the name of the cluster from the backend.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -909,8 +957,8 @@ type DiscoveryAccessPoint interface {
 	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
 	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
 	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
-	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
-	DeleteKubernetesCluster(ctx context.Context, name string) error
+	// DeleteKubeCluster deletes specified kubernetes cluster resource.
+	DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error
 
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(ctx context.Context, database types.Database) error
@@ -1067,8 +1115,19 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
+
 	// DeleteApplicationServer removes specified application server.
+	// DeleteApplicationServer removes an unscoped application server.
+	//
+	// Deprecated: use DeleteAppServer instead. Kept temporarily so
+	// gravitational/teleport.e compiles across the rename; remove once e
+	// has migrated.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+
+	// DeleteAppServer removes a scoped or unscoped application server.
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
 
 	// UpsertLock creates or updates a given lock
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -1108,6 +1167,9 @@ type AccessCache interface {
 type Cache interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1198,6 +1260,9 @@ type Cache interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
@@ -1231,6 +1296,9 @@ type Cache interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
+
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
@@ -1243,6 +1311,9 @@ type Cache interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -1273,6 +1344,12 @@ type Cache interface {
 
 	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	// GetLinuxDesktop returns registered Linux desktop by name.
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
+
+	// ListLinuxDesktops returns all registered Linux desktop.
+	ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
 	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
@@ -1325,15 +1402,6 @@ type Cache interface {
 	// RangeInstallers returns installer script resources within the range [start, end).
 	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-
 	// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -1357,15 +1425,25 @@ type Cache interface {
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(context.Context, *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
+	// CountAccessListMembersV2 will count all access list members.
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembersV2 returns a paginated list of all members of all access lists.
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
 
 	// GetAccessListOwners returns a list of owners for a particular access list.
 	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
@@ -1427,11 +1505,12 @@ type Cache interface {
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 
-	// GetWorkloadIdentity gets a WorkloadIdentity by name.
-	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
-	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request.
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1485,6 +1564,16 @@ type Cache interface {
 
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
+	// BeamsConfigGetter reads BeamsConfig.
+	services.BeamsConfigGetter
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
+
+	// KubernetesClusterGetter reads KubeCluster resources.
+	services.KubernetesClusterGetter
 }
 
 type NodeWrapper struct {
@@ -1607,6 +1696,12 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 	}
 }
 
+func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on kube agents.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *KubernetesWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1649,6 +1744,12 @@ func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessP
 	}
 }
 
+func (w *AppsWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on app agents.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *AppsWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1674,6 +1775,27 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type LinuxDesktopWrapper struct {
+	ReadLinuxDesktopAccessPoint
+	accessPoint
+	NoCache LinuxDesktopAccessPoint
+}
+
+func NewLinuxDesktopWrapper(base LinuxDesktopAccessPoint, cache ReadLinuxDesktopAccessPoint) LinuxDesktopAccessPoint {
+	return &LinuxDesktopWrapper{
+		NoCache:                     base,
+		accessPoint:                 base,
+		ReadLinuxDesktopAccessPoint: cache,
+	}
+}
+
+// Close closes all associated resources
+func (w *LinuxDesktopWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadLinuxDesktopAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
@@ -1713,9 +1835,9 @@ func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster 
 	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
 }
 
-// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
-func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	return w.NoCache.DeleteKubernetesCluster(ctx, name)
+// DeleteKubeCluster deletes specified kubernetes cluster resource.
+func (w *DiscoveryWrapper) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	return w.NoCache.DeleteKubeCluster(ctx, req)
 }
 
 // CreateDatabase creates a new database resource.
@@ -1866,7 +1988,19 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
 }
 
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
+}
+
+// DeleteAppServer removes a scoped or unscoped application server.
+func (w *OktaWrapper) DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error {
+	return w.NoCache.DeleteAppServer(ctx, req)
+}
+
 // DeleteApplicationServer removes specified application server.
+//
+// Deprecated: Use [DeleteAppServer] instead.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
 }

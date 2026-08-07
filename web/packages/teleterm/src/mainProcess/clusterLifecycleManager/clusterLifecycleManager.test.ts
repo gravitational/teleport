@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* oxlint-disable jest/no-standalone-expect */
-
 import { enablePatches } from 'immer';
 
 import Logger, { NullService } from 'teleterm/logger';

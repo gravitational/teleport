@@ -123,10 +123,14 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	dynamicAccessS := local.NewDynamicAccessService(bkWrapper)
 	restrictions := local.NewRestrictionsService(bkWrapper)
 	apps := local.NewAppService(bkWrapper)
-	kubernetes := local.NewKubernetesService(bkWrapper)
+	kubernetes, err := local.NewKubernetesService(bkWrapper)
+	require.NoError(t, err)
 	databases := local.NewDatabasesService(bkWrapper)
 	databaseServices := local.NewDatabaseServicesService(bkWrapper)
 	windowsDesktops := local.NewWindowsDesktopService(bkWrapper)
+
+	linuxDesktops, err := local.NewLinuxDesktopService(bkWrapper)
+	require.NoError(t, err)
 
 	samlIDPServiceProviders, err := local.NewSAMLIdPServiceProviderService(bkWrapper)
 	require.NoError(t, err)
@@ -168,6 +172,12 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	require.NoError(t, err)
 
 	workloadIdentitySvc, err := local.NewWorkloadIdentityService(bkWrapper)
+	require.NoError(t, err)
+
+	beamService, err := local.NewBeamService(bkWrapper)
+	require.NoError(t, err)
+
+	beamsConfigService, err := local.NewBeamsConfigService(bkWrapper)
 	require.NoError(t, err)
 
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(bkWrapper)
@@ -215,6 +225,11 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	})
 	require.NoError(t, err)
 
+	subCA, err := local.NewSubCAService(local.SubCAServiceParams{
+		Backend: bkWrapper,
+	})
+	require.NoError(t, err)
+
 	c, err := cache.New(setupConfig(cache.Config{
 		Context:                 ctx,
 		Events:                  eventsS,
@@ -228,6 +243,8 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		AppSession:              idService,
 		WebSession:              idService.WebSessions(),
 		WebToken:                idService,
+		Beams:                   beamService,
+		BeamsConfig:             beamsConfigService,
 		SnowflakeSession:        idService,
 		Restrictions:            restrictions,
 		Apps:                    apps,
@@ -236,6 +253,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Databases:               databases,
 		WindowsDesktops:         windowsDesktops,
 		DynamicWindowsDesktops:  dynamicWindowsDesktopService,
+		LinuxDesktops:           linuxDesktops,
 		SAMLIdPServiceProviders: samlIDPServiceProviders,
 		UserGroups:              userGroups,
 		Okta:                    oktaSvc,
@@ -266,6 +284,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
 		Summarizer:              summaries,
+		SubCAService:            subCA,
 	}))
 	require.NoError(t, err)
 

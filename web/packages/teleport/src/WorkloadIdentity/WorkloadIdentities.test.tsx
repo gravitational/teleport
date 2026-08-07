@@ -17,17 +17,18 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   fireEvent,
   render,
   screen,
+  server,
   testQueryClient,
+  theme,
   userEvent,
   waitFor,
   waitForElementToBeRemoved,
@@ -56,20 +57,12 @@ jest.mock('teleport/services/workloadIdentity/workloadIdentity', () => {
   };
 });
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('WorkloadIdentities', () => {
   it('Shows an empty state', async () => {
@@ -169,6 +162,11 @@ describe('WorkloadIdentities', () => {
       screen.getByText(
         'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
       )
+    ).toBeInTheDocument();
+
+    // Scoped workload identities show their scope-qualified name.
+    expect(
+      screen.getByText('/staging::test-workload-identity-4')
     ).toBeInTheDocument();
   });
 
@@ -397,7 +395,7 @@ function makeWrapper(
     return (
       <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             <InfoGuidePanelProvider data-testid="blah">
               <ContextProvider ctx={ctx}>{children}</ContextProvider>
             </InfoGuidePanelProvider>

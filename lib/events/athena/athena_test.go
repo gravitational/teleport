@@ -339,7 +339,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxDirectMessageSize),
+			Code: strings.Repeat("d", 2*maxSNSDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -420,12 +420,10 @@ func TestPublisherConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fS3 := newFakeS3manager()
 			fq := newFakeQueue()
-			p := &publisher{
-				PublisherConfig: PublisherConfig{
-					MessagePublisher: fq,
-					Uploader:         fS3,
-				},
-			}
+			p := NewPublisher(PublisherConfig{
+				MessagePublisher: fq,
+				Uploader:         fS3,
+			})
 			cfg := validCollectCfgForTests(t)
 			cfg.sqsReceiver = fq
 			cfg.payloadDownloader = fS3

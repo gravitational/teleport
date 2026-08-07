@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -681,43 +682,11 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 	return vars
 }
 
-// RetryWithRelogin is a helper error handling method, attempts to relogin and
-// retry the function once.
-func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
-	fnErr := fn()
-	switch {
-	case fnErr == nil:
-		return nil
-	case utils.IsPredicateError(fnErr):
-		return trace.Wrap(utils.PredicateError{Err: fnErr})
-	case tc.NonInteractive:
-		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
-	case !IsErrorResolvableWithRelogin(fnErr):
-		// If the connection to Auth was unexpectedly cut, see if the client is too
-		// old to interact with the cluster.
-		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
-			// The results are intentionally ignored - Ping prints warnings
-			// related to versions, and that's all that is needed here.
-			_, _ = tc.Ping(ctx)
-		}
-
-		return trace.Wrap(fnErr)
-	}
+// Relogin attempts to relogin and runs before/after login hooks.
+func Relogin(ctx context.Context, tc *TeleportClient, opts ...RetryWithReloginOption) error {
 	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
 		o(opt)
-	}
-	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
-
-	if keys.IsPrivateKeyPolicyError(fnErr) {
-		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	if opt.beforeLoginHook != nil {
@@ -729,7 +698,6 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
 			log.DebugContext(ctx, "Relogin is not available in this environment", "error", err)
-			return trace.Wrap(fnErr)
 		}
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
@@ -761,6 +729,63 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		if err := opt.afterLoginHook(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// ShouldRetryWithRelogin determines if the error should be retried. It applies more scrutiny than
+// 'IsErrorResolvableWithRelogin' by checking if the client is non-interactive or if a predicate error occurred.
+// Returns the original error (possibly wrapped with additional context) and a boolean indicating whether or not
+// relogin should be attempted.
+func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error) (bool, error) {
+	if keys.IsPrivateKeyPolicyError(fnErr) {
+		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		tc.updatePrivateKeyPolicy(privateKeyPolicy)
+	}
+
+	switch {
+	case utils.IsPredicateError(fnErr):
+		return false, trace.Wrap(utils.PredicateError{Err: fnErr})
+	case tc.NonInteractive:
+		return false, trace.Wrap(fnErr, "cannot relogin in non-interactive session")
+	case !IsErrorResolvableWithRelogin(fnErr):
+		// If the connection to Auth was unexpectedly cut, see if the client is too
+		// old to interact with the cluster.
+		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
+			// The results are intentionally ignored - Ping prints warnings
+			// related to versions, and that's all that is needed here.
+			_, _ = tc.Ping(ctx)
+		}
+
+		return false, trace.Wrap(fnErr)
+	}
+	return true, fnErr
+}
+
+// RetryWithRelogin is a helper error handling method, attempts to relogin and
+// retry the function once.
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
+	fnErr := fn()
+	if fnErr == nil {
+		return nil
+	}
+
+	var shouldRetry bool
+	if shouldRetry, fnErr = ShouldRetryWithRelogin(ctx, tc, fnErr); !shouldRetry {
+		return fnErr
+	}
+
+	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
+	err := Relogin(ctx, tc, opts...)
+	if err != nil {
+		if errors.Is(err, prompt.ErrNotTerminal) {
+			return trace.Wrap(fnErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	return fn()
@@ -3465,17 +3490,17 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 }
 
 // LogoutApp removes key and cert for the specified app.
-func (tc *TeleportClient) LogoutApp(appName string) error {
+func (tc *TeleportClient) LogoutApp(appSQN scopes.QualifiedName) error {
 	if tc.localAgent == nil {
 		return nil
 	}
 	if tc.SiteName == "" {
 		return trace.BadParameter("cluster name must be set for app logout")
 	}
-	if appName == "" {
+	if appSQN.Name == "" {
 		return trace.BadParameter("please specify app name to log out of")
 	}
-	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{ScopedAppName(appSQN)})
 }
 
 // LogoutAllApps removes keys and certs for all apps in the cluster.
@@ -4063,9 +4088,7 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 				return nil, trace.Wrap(err)
 			}
 
-			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			tc.updatePrivateKeyPolicy(privateKeyPolicy)
 
 			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
 			keyRing, err = tc.GetNewLoginKeyRing(ctx)
@@ -4080,13 +4103,12 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 	return keyRing, trace.Wrap(loginErr)
 }
 
-func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) error {
+func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) {
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
-	return nil
 }
 
 // GetNewLoginKeyRing gets a KeyRing with new private keys for login.
@@ -5080,6 +5102,44 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 // ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }
 func ParseLabelSpec(spec string) (map[string]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
+}
+
+// MultiValueLabelSelectorSpec parses a string like 'name=value,name=other,"long name"="quoted value"`
+// into a map like { "name" -> ["value", "other"], "long name" -> ["quoted value"] }.
+// Similar to LabelSelectorSpec but allows repeated key values stored into a slice.
+// Duplicate values for the same key are dropped.
+//
+// Multi valued labels are supported for role resources e.g. node_labels.
+func MultiValueLabelSelectorSpec(spec string) (map[string][]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map, appending repeated keys:
+	labels := make(map[string][]string)
+	for i := 0; i < len(tokens); i += 2 {
+		key := tokens[i]
+		val := tokens[i+1]
+		if !slices.Contains(labels[key], val) {
+			labels[key] = append(labels[key], val)
+		}
+	}
+	return labels, nil
+}
+
+// tokenizeLabelSpec breaks a label spec like 'name=value,"long name"="quoted value"'
+// into a list of key/value tokens (name, value, long name, quoted value...).
+func tokenizeLabelSpec(spec string) ([]string, error) {
 	var tokens []string
 	openQuotes := false
 	var tokenStart, assignCount int
@@ -5113,12 +5173,7 @@ func ParseLabelSpec(spec string) (map[string]string, error) {
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
 		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
 	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
+	return tokens, nil
 }
 
 // ParseSearchKeywords parses a string ie: foo,bar,"quoted value"` into a slice of

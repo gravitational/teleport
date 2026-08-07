@@ -24,6 +24,8 @@ import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
 import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
+import { SharedDirectoryList } from 'shared/components/DesktopSession/DirectoryList';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 import { statusBarHeight } from './constants';
@@ -38,6 +40,11 @@ export function DesktopSessionControls({
   const iconColor = (active: boolean) =>
     active ? theme.colors.text.main : theme.colors.text.muted;
 
+  const maxDirectoriesReached = controls.canShareMultipleDirectories
+    ? controls.sharedDirectories.length >= controls.maxSharedDirectories
+    : controls.sharedDirectories.length > 0;
+  const isSharingDirectory = controls.sharedDirectories.length > 0;
+
   return (
     <Inset>
       <Box mx={2}>
@@ -46,19 +53,30 @@ export function DesktopSessionControls({
       {controls.latencyStats && (
         <LatencyDiagnostic latency={controls.latencyStats} />
       )}
-      <HoverTooltip
-        tipContent={directorySharingTooltip(
-          controls.canShareDirectory,
-          controls.isSharingDirectory
-        )}
-        placement="top"
-      >
-        <FolderShared
-          size="small"
-          padding="8px"
-          color={iconColor(controls.isSharingDirectory)}
+      {controls.canShareMultipleDirectories ? (
+        <SharedDirectoryList
+          sharedDirectories={controls.sharedDirectories}
+          onAddSharedDirectory={controls.onAddSharedDirectory}
+          canShareDirectories={controls.canShareDirectory}
+          maxSharedDirectories={controls.maxSharedDirectories}
+          directorySharingMessage={controls.directorySharingMessage}
+          size={'medium'}
         />
-      </HoverTooltip>
+      ) : (
+        <HoverTooltip
+          tipContent={directorySharingTooltip(
+            controls.canShareDirectory,
+            isSharingDirectory
+          )}
+          placement="top"
+        >
+          <FolderShared
+            size="small"
+            padding="8px"
+            color={iconColor(isSharingDirectory)}
+          />
+        </HoverTooltip>
+      )}
       <HoverTooltip
         tipContent={controls.clipboardSharingMessage}
         placement="top"
@@ -79,11 +97,18 @@ export function DesktopSessionControls({
         />
       )}
       <Divider />
+      <SessionSettings
+        hiDpiEnabled={controls.hiDpiEnabled}
+        onToggleHiDpi={controls.onToggleHiDpi}
+        screenIsHiDpi={controls.screenIsHiDpi}
+        hiDpiSupported={controls.hiDpiSupported}
+        openUpward
+      />
       <ActionMenu
         showShareDirectory={
-          controls.canShareDirectory && !controls.isSharingDirectory
+          controls.canShareDirectory && !maxDirectoriesReached
         }
-        onShareDirectory={controls.onShareDirectory}
+        onShareDirectory={controls.onAddSharedDirectory}
         onCtrlAltDel={controls.onCtrlAltDel}
         onDisconnect={controls.onDisconnect}
         openUpward

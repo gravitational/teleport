@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -394,6 +395,12 @@ func WithAuthPreference(authPref types.AuthPreference) TestServerOptFunc {
 func WithLogger(log *slog.Logger) TestServerOptFunc {
 	return WithConfig(func(cfg *servicecfg.Config) {
 		cfg.Logger = log
+	})
+}
+
+func WithScopesFeatures(features scopes.Features) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.ScopesFeatures = features
 	})
 }
 

@@ -970,7 +970,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Using the Identity service makes it easier to set up the test case.
-	err = s.a.Identity.UpsertPassword("dave", []byte("it's full of stars!"))
+	err = s.a.UpsertPassword("dave", []byte("it's full of stars!"))
 	require.NoError(t, err)
 
 	// Reset password.
@@ -979,7 +979,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
-	u, err := s.a.Identity.GetUser(ctx, "dave", true /* withSecrets */)
+	u, err := s.a.GetUser(ctx, "dave", true /* withSecrets */)
 	require.NoError(t, err)
 	assert.Nil(t, u.GetLocalAuth(), "user LocalAuth not nil")
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())

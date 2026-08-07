@@ -292,7 +292,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	require.NoError(t, err)
 
 	accessList.Status = accesslist.Status{
-		MemberCount: &memberCount,
+		MemberCount:    &memberCount,
+		OwnerOf:        []string{"ownerof"},
+		MemberOf:       []string{"memberof"},
+		ScopedOwnerOf:  []string{"scopedownerof"},
+		ScopedMemberOf: []string{"scopedmemberof"},
 	}
 
 	return accessList

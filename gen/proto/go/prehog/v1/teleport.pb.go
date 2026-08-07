@@ -204,6 +204,8 @@ const (
 	//
 	// PostHog property value: "node.openssh_ec2_ice"
 	ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE ResourceKind = 7
+	// PostHog property value: "linux_desktop"
+	ResourceKind_RESOURCE_KIND_LINUX_DESKTOP ResourceKind = 8
 )
 
 // Enum value maps for ResourceKind.
@@ -217,6 +219,7 @@ var (
 		5: "RESOURCE_KIND_WINDOWS_DESKTOP",
 		6: "RESOURCE_KIND_NODE_OPENSSH",
 		7: "RESOURCE_KIND_NODE_OPENSSH_EICE",
+		8: "RESOURCE_KIND_LINUX_DESKTOP",
 	}
 	ResourceKind_value = map[string]int32{
 		"RESOURCE_KIND_UNSPECIFIED":       0,
@@ -227,6 +230,7 @@ var (
 		"RESOURCE_KIND_WINDOWS_DESKTOP":   5,
 		"RESOURCE_KIND_NODE_OPENSSH":      6,
 		"RESOURCE_KIND_NODE_OPENSSH_EICE": 7,
+		"RESOURCE_KIND_LINUX_DESKTOP":     8,
 	}
 )
 
@@ -421,8 +425,10 @@ type UserActivityRecord struct {
 	// counter of free-text session summary search queries submitted by this user
 	// where the request included filters.
 	SessionSummarySearchQueriesWithFilters uint64 `protobuf:"varint,28,opt,name=session_summary_search_queries_with_filters,json=sessionSummarySearchQueriesWithFilters,proto3" json:"session_summary_search_queries_with_filters,omitempty"`
-	unknownFields                          protoimpl.UnknownFields
-	sizeCache                              protoimpl.SizeCache
+	// counter of linux.desktop.session.start events
+	LinuxDesktopSessions uint64 `protobuf:"varint,29,opt,name=linux_desktop_sessions,json=linuxDesktopSessions,proto3" json:"linux_desktop_sessions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UserActivityRecord) Reset() {
@@ -648,6 +654,13 @@ func (x *UserActivityRecord) GetSessionSummarySearchQueries() uint64 {
 func (x *UserActivityRecord) GetSessionSummarySearchQueriesWithFilters() uint64 {
 	if x != nil {
 		return x.SessionSummarySearchQueriesWithFilters
+	}
+	return 0
+}
+
+func (x *UserActivityRecord) GetLinuxDesktopSessions() uint64 {
+	if x != nil {
+		return x.LinuxDesktopSessions
 	}
 	return 0
 }
@@ -1640,8 +1653,7 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x127\n" +
-	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xed\n" +
-	"\n" +
+	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xa3\v\n" +
 	"\x12UserActivityRecord\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\fR\buserName\x120\n" +
 	"\tuser_kind\x18\x0e \x01(\x0e2\x13.prehog.v1.UserKindR\buserKind\x12\x16\n" +
@@ -1674,7 +1686,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x1asession_summaries_accessed\x18\x19 \x03(\v2).prehog.v1.SessionSummariesAccessedRecordR\x18sessionSummariesAccessed\x120\n" +
 	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\x12C\n" +
 	"\x1esession_summary_search_queries\x18\x1b \x01(\x04R\x1bsessionSummarySearchQueries\x12[\n" +
-	"+session_summary_search_queries_with_filters\x18\x1c \x01(\x04R&sessionSummarySearchQueriesWithFilters\"\x9b\x02\n" +
+	"+session_summary_search_queries_with_filters\x18\x1c \x01(\x04R&sessionSummarySearchQueriesWithFilters\x124\n" +
+	"\x16linux_desktop_sessions\x18\x1d \x01(\x04R\x14linuxDesktopSessions\"\x9b\x02\n" +
 	"\x16ResourcePresenceReport\x12\x1f\n" +
 	"\vreport_uuid\x18\x01 \x01(\fR\n" +
 	"reportUuid\x12!\n" +
@@ -1758,7 +1771,7 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0fUSER_ORIGIN_SSO\x10\x02\x12\x14\n" +
 	"\x10USER_ORIGIN_OKTA\x10\x03\x12\x14\n" +
 	"\x10USER_ORIGIN_SCIM\x10\x04\x12\x17\n" +
-	"\x13USER_ORIGIN_ENTRAID\x10\x05*\x87\x02\n" +
+	"\x13USER_ORIGIN_ENTRAID\x10\x05*\xa8\x02\n" +
 	"\fResourceKind\x12\x1d\n" +
 	"\x19RESOURCE_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12RESOURCE_KIND_NODE\x10\x01\x12\x1c\n" +
@@ -1767,7 +1780,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x17RESOURCE_KIND_DB_SERVER\x10\x04\x12!\n" +
 	"\x1dRESOURCE_KIND_WINDOWS_DESKTOP\x10\x05\x12\x1e\n" +
 	"\x1aRESOURCE_KIND_NODE_OPENSSH\x10\x06\x12#\n" +
-	"\x1fRESOURCE_KIND_NODE_OPENSSH_EICE\x10\a2\x7f\n" +
+	"\x1fRESOURCE_KIND_NODE_OPENSSH_EICE\x10\a\x12\x1f\n" +
+	"\x1bRESOURCE_KIND_LINUX_DESKTOP\x10\b2\x7f\n" +
 	"\x18TeleportReportingService\x12c\n" +
 	"\x12SubmitUsageReports\x12$.prehog.v1.SubmitUsageReportsRequest\x1a%.prehog.v1.SubmitUsageReportsResponse\"\x00B\xa6\x01\n" +
 	"\rcom.prehog.v1B\rTeleportProtoP\x01ZAgithub.com/gravitational/teleport/gen/proto/go/prehog/v1;prehogv1\xa2\x02\x03PXX\xaa\x02\tPrehog.V1\xca\x02\tPrehog\\V1\xe2\x02\x15Prehog\\V1\\GPBMetadata\xea\x02\n" +

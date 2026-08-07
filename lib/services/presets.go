@@ -20,8 +20,10 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -230,6 +232,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
 					types.NewRule(types.KindRecordingEncryption, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -285,6 +288,7 @@ func NewPresetAccessRole() types.Role {
 				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
@@ -324,6 +328,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetLinuxDesktopLogins(types.Allow, []string{teleport.TraitInternalLinuxDesktopLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
@@ -641,6 +646,43 @@ func NewPresetAccessPluginRole() types.Role {
 	return role
 }
 
+// NewPresetAccessPluginWithReviewRole returns a new pre-defined role for self-hosted
+// access request plugins that permits review.
+func NewPresetAccessPluginWithReviewRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessPluginWithReviewRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Default access plugin with review role",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindAccessRequest, RO()),
+					types.NewRule(types.KindAccessPluginData, RW()),
+					types.NewRule(types.KindAccessMonitoringRule, RO()),
+					types.NewRule(types.KindAccessList, RO()),
+					types.NewRule(types.KindRole, RO()),
+					types.NewRule(types.KindUser, RO()),
+					types.NewRule(types.KindUserLoginState, RO()),
+				},
+				ReviewRequests: &types.AccessReviewConditions{
+					PreviewAsRoles: []string{
+						teleport.PresetListAccessRequestResourcesRoleName,
+					},
+					SubmitForUsers: []string{"*"},
+				},
+			},
+		},
+	}
+	return role
+}
+
 // NewPresetListAccessRequestResourcesRole returns a new pre-defined role that
 // allows reading access request resources.
 func NewPresetListAccessRequestResourcesRole() types.Role {
@@ -843,6 +885,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(access.KindScopedRole, RW()),
 					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
+					types.NewRule(types.KindBeamsConfig, RW()),
 				},
 			},
 		},
@@ -871,6 +914,137 @@ func NewPresetMCPUserRole() types.Role {
 				},
 				MCP: &types.MCPPermissions{
 					Tools: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamUserRole returns a new pre-defined role for accessing your own
+// beam resources.
+func NewPresetBeamUserRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
+	allowBeamApps := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamUserRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Use the Beams feature",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins:              []string{types.BeamsLogin},
+				AppLabelsExpression: strings.Join([]string{allowLLMApps, allowBeamApps}, " || "),
+				NodeLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+					types.NewRule(types.KindBeamsConfig, RO()),
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamAdminRole returns a new pre-defined role for administering beams
+// belonging to other users.
+func NewPresetBeamAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer beams belonging to other users",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {types.Wildcard},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+					types.NewRule(types.KindBeamsConfig, RW()),
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewSystemBeamRole returns a new pre-defined role for the beam to issue itself
+// credentials.
+func NewSystemBeamRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	// Only allow the bot to generate host certificates for the Beam's OpenSSH
+	// server. tbot explicitly sends a blank HostID, HostName and the Node role.
+	hostCertConstraints := strings.Join([]string{
+		fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
+		`host_cert.host_id == ""`,
+		`host_cert.node_name == ""`,
+	}, " && ")
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemBeamRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Used by a beam to issue itself credentials",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindHostCert},
+						Verbs:     []string{types.VerbCreate},
+						Where:     hostCertConstraints,
+					},
+					{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs: []string{
+							types.VerbList,
+							types.VerbRead,
+						},
+					},
+				},
+				WorkloadIdentityLabels: types.Labels{
+					types.BeamIDLabel: []string{fmt.Sprintf(`{{external[%q]}}`, types.BeamIDLabel)},
 				},
 			},
 		},
@@ -958,22 +1132,33 @@ func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	}
 }
 
-var defaultAllowRulesMap = map[string][]types.Rule{
-	teleport.PresetAuditorRoleName:                    NewPresetAuditorRole().GetRules(types.Allow),
-	teleport.PresetEditorRoleName:                     NewPresetEditorRole().GetRules(types.Allow),
-	teleport.PresetAccessRoleName:                     NewPresetAccessRole().GetRules(types.Allow),
-	teleport.PresetTerraformProviderRoleName:          NewPresetTerraformProviderRole().GetRules(types.Allow),
-	teleport.PresetAccessPluginRoleName:               NewPresetAccessPluginRole().GetRules(types.Allow),
-	teleport.PresetListAccessRequestResourcesRoleName: NewPresetListAccessRequestResourcesRole().GetRules(types.Allow),
-}
-
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
 // on auth server restart. Rules defined in preset template should be
 // exactly the same rule when added here.
-func defaultAllowRules() map[string][]types.Rule {
-	return defaultAllowRulesMap
+func defaultAllowRules(buildType string) map[string][]types.Rule {
+	roles := []types.Role{
+		NewPresetAuditorRole(),
+		NewPresetEditorRole(),
+		NewPresetAccessRole(),
+		NewPresetTerraformProviderRole(),
+		NewPresetAccessPluginRole(),
+		NewPresetAccessPluginWithReviewRole(),
+		NewPresetListAccessRequestResourcesRole(),
+		NewPresetDeviceAdminRole(buildType),
+		NewPresetBeamUserRole(buildType),
+		NewPresetBeamAdminRole(buildType),
+	}
+
+	allowRules := make(map[string][]types.Rule, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		allowRules[role.GetName()] = role.GetRules(types.Allow)
+	}
+	return allowRules
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
@@ -1123,7 +1308,7 @@ func AddRoleDefaults(ctx context.Context, buildType string, role types.Role) (ty
 	}
 
 	// Resource Rules
-	defaultRules, ok := defaultAllowRules()[role.GetName()]
+	defaultRules, ok := defaultAllowRules(buildType)[role.GetName()]
 	if ok {
 		existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 

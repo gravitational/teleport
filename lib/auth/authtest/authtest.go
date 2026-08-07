@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -119,6 +121,8 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
+	// ScopesFeatures dictates which scoped components are enabled for the test auth server.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -383,6 +387,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		FakePasswordHash:             []byte(FakePasswordHash),
 		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
+		ScopesFeatures:               cfg.ScopesFeatures,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
@@ -533,6 +538,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
 		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
+		ScopesFeatures:      cfg.ScopesFeatures,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
@@ -592,11 +598,13 @@ func InitAuthCache(p AuthCacheParams) error {
 		EventsSystem: true,
 		Unstarted:    p.Unstarted,
 
-		Access:                  p.AuthServer.Services.Access,
+		Access:                  p.AuthServer.Services.AccessInternal,
 		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
-		AppSession:              p.AuthServer.Services.Identity,
-		Apps:                    p.AuthServer.Services.Applications,
+		AppSession:              p.AuthServer.Services.IdentityInternal,
+		Apps:                    p.AuthServer.Services.ApplicationsInternal,
+		Beams:                   p.AuthServer.Services.Beams,
+		BeamsConfig:             p.AuthServer.Services.BeamsConfigService,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -612,22 +620,23 @@ func InitAuthCache(p AuthCacheParams) error {
 		Notifications:           p.AuthServer.Services.Notifications,
 		Okta:                    p.AuthServer.Services.Okta,
 		Presence:                p.AuthServer.Services.PresenceInternal,
-		Provisioner:             p.AuthServer.Services.Provisioner,
+		Provisioner:             p.AuthServer.Services.ProvisionerInternal,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
 		SecReports:              p.AuthServer.Services.SecReports,
-		SnowflakeSession:        p.AuthServer.Services.Identity,
+		SnowflakeSession:        p.AuthServer.Services.IdentityInternal,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
 		StaticHostUsers:         p.AuthServer.Services.StaticHostUser,
 		Trust:                   p.AuthServer.Services.TrustInternal,
 		UserGroups:              p.AuthServer.Services.UserGroups,
 		UserTasks:               p.AuthServer.Services.UserTasks,
 		UserLoginStates:         p.AuthServer.Services.UserLoginStates,
-		Users:                   p.AuthServer.Services.Identity,
-		WebSession:              p.AuthServer.Services.Identity.WebSessions(),
-		WebToken:                p.AuthServer.Services.Identity,
+		Users:                   p.AuthServer.Services.IdentityInternal,
+		WebSession:              p.AuthServer.Services.IdentityInternal.WebSessions(),
+		WebToken:                p.AuthServer.Services.IdentityInternal,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
@@ -640,6 +649,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		Summarizer:              p.AuthServer.Services.Summarizer,
+		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -766,6 +776,28 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
+			AgentScope: id.Identity.GetAgentScope(),
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return certs.TLS, privateKeyPEM, nil
+	case authz.ScopedBuiltinRole:
+		systemRoles, err := types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       id.ServerFQDN,
+				NodeName:     id.ServerFQDN,
+				Role:         types.SystemRole(id.ScopePin.GetSystemRoles().GetPrimary()),
+				PublicTLSKey: tlsPublicKeyPEM,
+				PublicSSHKey: sshPublicKeyPEM,
+				SystemRoles:  systemRoles,
+			},
+			AgentScope: id.Identity.GetAgentScope(),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1123,8 +1155,8 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1139,8 +1171,8 @@ func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity 
 			Username: userName,
 			Identity: tlsca.Identity{
 				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
+				// GenerateUserTestCertsWithContext will inject BotName,
+				// BotInstanceID and BotScope.
 				BotInternal: botInternal,
 			},
 		},
@@ -1222,8 +1254,9 @@ func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
 	}
 }
 
-// TestScopedHost returns TestIdentity for a scoped host
-func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
+// TestScopedHost returns TestIdentity for a scoped host. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
 	username := hostID
 	if clusterName != "" {
 		username = utils.HostFQDN(hostID, clusterName)
@@ -1232,9 +1265,38 @@ func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) Te
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              username,
-			AdditionalSystemRoles: types.SystemRoles{role},
+			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
+				Username:   hostID,
 				AgentScope: scope,
+			},
+		},
+	}
+}
+
+// TestScopePinnedHost returns TestIdentity for a scoped host with an agent pin. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
+	serverFQDN := hostID
+	if clusterName != "" {
+		serverFQDN = utils.HostFQDN(hostID, clusterName)
+	}
+	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary:    string(types.RoleInstance),
+			Additional: types.SystemRoles(roles).StringSlice(),
+		},
+	}
+	return TestIdentity{
+		I: authz.ScopedBuiltinRole{
+			ClusterName: clusterName,
+			ServerFQDN:  serverFQDN,
+			ScopePin:    pin,
+			Identity: tlsca.Identity{
+				Username: serverFQDN,
+				ScopePin: pin,
 			},
 		},
 	}
@@ -1242,13 +1304,19 @@ func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) Te
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
+	return TestScopedServerID(role, serverID, "")
+}
+
+// TestScopedServerID returns a scoped TestIdentity for a node with the passed in serverID.
+func TestScopedServerID(role types.SystemRole, serverID, scope string) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              serverID,
 			AdditionalSystemRoles: types.SystemRoles{role},
 			Identity: tlsca.Identity{
-				Username: serverID,
+				Username:   serverID,
+				AgentScope: scope,
 			},
 		},
 	}
@@ -1523,6 +1591,49 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
 		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
+}
+
+// NewScopedServerIdentity generates new scoped server identity, used in tests
+func NewScopedServerIdentity(clt *auth.Server, hostID, scope string, role types.SystemRole) (*state.Identity, error) {
+	if scope == "" {
+		return NewServerIdentity(clt, hostID, role)
+	}
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         role,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
+		},
+		AgentScope: scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

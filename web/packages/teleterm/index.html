@@ -6,6 +6,22 @@
     <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
+    <style>
+      /* Sunken values mirrored from @gravitational/design-system
+         (themes/teleport/colors.ts). Inlined so the body has the right
+         background on the first paint, before next-themes attaches the
+         theme class to <html> in a useEffect. */
+      html,
+      body {
+        background-color: #f1f2f4;
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background-color: #0c143d;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>

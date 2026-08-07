@@ -131,6 +131,14 @@ func (s ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
 	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
+// ConditionalDeleteResource conditionally deletes the resource based on its
+// revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *ServiceWrapper[T]) ConditionalDeleteResource(ctx context.Context, name, revision string) error {
+	return trace.Wrap(s.service.ConditionalDeleteResource(ctx, name, revision))
+}
+
 // ListResources returns a paginated list of resources.
 func (s ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	adapters, nextToken, err := s.service.ListResources(ctx, pageSize, pageToken)
@@ -176,4 +184,14 @@ func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey stri
 			}
 		}
 	}
+}
+
+// MakeBackendItem returns a backend.Item for the given resource.
+func (s *ServiceWrapper[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	return s.service.MakeBackendItem(newResourceMetadataAdapter(resource))
+}
+
+// BackendKey returns a backend.Key for the resource with the given name.
+func (s *ServiceWrapper[T]) BackendKey(name string) backend.Key {
+	return s.service.resourceKey(name)
 }

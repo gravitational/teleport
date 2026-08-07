@@ -25,10 +25,13 @@ import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
 import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
+import "teleport/legacy/types/metadata.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 import "teleport/mfa/v1/mfa.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -98,6 +101,9 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
+  option (gogoproto.marshaler) = false;
+  option (gogoproto.sizer) = false;
+  option (gogoproto.unmarshaler) = false;
   reserved 1; // Username, jsontag "username"
   reserved "Username";
   // PublicKey is the public key to sign.
@@ -114,6 +120,11 @@ message OpenSSHCertRequest {
   // Roles are the roles of the Teleport user the certificate will be
   // generated for.
   repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
+  // The scope pin from the user's certificate.
+  teleport.scopes.v1.Pin scope_pin = 7;
+  // The OS login the user wants to use for the session. The authserver relies on the proxy
+  // to have already preformed authorization checks to ensure that this login is usable for the openssh node.
+  string login = 8;
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.
@@ -182,6 +193,12 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
+    AccessGraphAPI = 6;
+    // LinuxDesktop means a request for a TLS certificate for access to a specific
+    // linux desktop.
+    // Field number 7 matches master
+    LinuxDesktop = 7;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -298,6 +315,13 @@ message UserCertsRequest {
   // re-issuable. This flag is only applicable when UseRoleRequests is set to
   // true.
   bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
+
+  // RouteToLinuxDesktop specifies the target linux desktop name to encode into
+  // certificate so linux desktop client requests are routed appropriately.
+  RouteToLinuxDesktop RouteToLinuxDesktop = 28 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "route_to_linux_desktop,omitempty"
+  ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -320,6 +344,14 @@ message RouteToWindowsDesktop {
   string WindowsDesktop = 1 [(gogoproto.jsontag) = "windows_desktop"];
   // Login is the Windows desktop user login to embed.
   string Login = 2 [(gogoproto.jsontag) = "login"];
+}
+
+// RouteToLinuxDesktop combines parameters for Linux desktop routing information.
+message RouteToLinuxDesktop {
+  // LinuxDesktop is the Linux Desktop server name to embed.
+  string linux_desktop = 1;
+  // Login is the Linux desktop user login to embed.
+  string login = 2;
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -351,6 +383,8 @@ message RouteToApp {
   // This is a JSON string that conforms with
   // https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
   string AWSCredentialProcessCredentials = 10 [(gogoproto.jsontag) = "aws_credentialprocess_credentials,omitempty"];
+  // Scope is the scope of the target application.
+  string scope = 11;
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -651,6 +685,8 @@ message Features {
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
   // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -813,6 +849,9 @@ message GenerateAppTokenRequest {
   // AuthorityType configures which Teleport authority issues the JWT token.
   // Defaults to JWTSigner ("jwt") if empty.
   string authority_type = 6;
+  // Scope is defined when a scoped service must generate an app token.
+  // It will be used when making scoped rbac decisions
+  string scope = 7;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -917,6 +956,8 @@ message CreateAppSessionRequest {
   string URI = 10 [(gogoproto.jsontag) = "uri"];
   // ClientAddr is a client (user's) address.
   string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
+  // Scope is the requested app session scope.
+  string scope = 12;
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -1001,6 +1042,29 @@ message DeleteSAMLIdPSessionRequest {
 // user's application web sessions.
 message DeleteUserAppSessionsRequest {
   string Username = 1 [(gogoproto.jsontag) = "username"];
+}
+
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
+// on an application web session.
+message SetAppSessionDBSCPublicKeyRequest {
+  // The ID of the application session to update.
+  string session_id = 1;
+  // The device-bound public key (JWK format) for Device Bound
+  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  bytes public_key = 2;
+}
+
+// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
+message SetAppSessionDBSCPublicKeyResponse {}
+
+// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
+message SignDBSCChallengeRequest {
+  string session_id = 1;
+}
+
+// SignDBSCChallengeResponse contains the signed DBSC challenge.
+message SignDBSCChallengeResponse {
+  string challenge = 1;
 }
 
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
@@ -1179,7 +1243,22 @@ message DatabaseCertResponse {
   // Cert is the signed certificate.
   bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
   // CACerts is a list of certificate authorities.
+  //
+  // CACerts are the root CAs that the client itself should trust
+  // (tls.Config.RootCAs).
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // Cert and TrustChain are the certificates the client should present
+  // (tls.Config.Certificates). Pseudocode:
+  //
+  // 	tlsConfig.Certificates = []tls.Certificate{{
+  // 		Certificate: append([][]byte{resp.Cert}, resp.TrustChain...),
+  // 	}}
+  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
 }
 
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
@@ -1559,6 +1638,8 @@ message IsMFARequiredRequest {
     AdminAction AdminAction = 5;
     // App specifies the target App.
     RouteToApp App = 6;
+    // LinuxDesktop specifies the target Linux Desktop.
+    RouteToLinuxDesktop LinuxDesktop = 7;
   }
 }
 
@@ -1845,6 +1926,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -2214,6 +2304,23 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
+// LinuxDesktop represents Linux desktop. This is strictly a wire-format object
+// for use with the unified resource cache, and the types defined in the
+// `linuxdesktop` package should be used for actual processing.
+message LinuxDesktop {
+  // Kind is the Linux desktop resource kind.
+  string kind = 1;
+  // SubKind is an optional resource subkind.
+  string sub_kind = 2;
+  // Version is the resource version.
+  string version = 3;
+  // Metadata is the account metadata.
+  types.Metadata metadata = 4 [(gogoproto.nullable) = false];
+  string addr = 5;
+  string hostname = 6;
+  repeated string proxy_ids = 7;
+}
+
 message ListInstallersRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -2260,6 +2367,8 @@ message PaginatedResource {
     // IdentityCenterAccountAssignment represents a requestable Identity Center
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
+    // LinuxDesktop represents LinuxDesktop resource
+    LinuxDesktop linux_desktop = 17;
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
@@ -3208,6 +3317,10 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
+  // SignDBSCChallenge signs a DBSC challenge for an application web session.
+  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

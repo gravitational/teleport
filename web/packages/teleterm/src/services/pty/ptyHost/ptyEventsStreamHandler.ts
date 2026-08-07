@@ -116,14 +116,19 @@ export class PtyEventsStreamHandler {
     callback: (reason: {
       exitCode: number;
       signal?: number;
-      lastInput: string;
+      lastInputWasCtrlD: boolean;
     }) => void
   ): RemoveListenerFunction {
     return this.addDataListenerAndReturnRemovalFunction(
       (event: PtyServerEvent) => {
         if (ptyEventOneOfIsExit(event.event)) {
-          this.logger.info('On exit', event.event.exit);
-          callback(event.event.exit);
+          const exitEvent = event.event.exit;
+          this.logger.info('On exit', {
+            lastInputWasCtrlD: exitEvent.lastInputWasCtrlD,
+            exitCode: exitEvent.exitCode,
+            signal: exitEvent.signal,
+          });
+          callback(exitEvent);
         }
       }
     );

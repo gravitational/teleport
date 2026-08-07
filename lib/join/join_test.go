@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -89,7 +91,17 @@ func TestJoinToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authService := newFakeAuthService(t)
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			ClusterName:    "testcluster",
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	authService := &fakeAuthService{
+		Server: testServer,
+	}
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
 
@@ -137,13 +149,13 @@ func TestJoinToken(t *testing.T) {
 	proxy.runGRPCServer(t, proxyListener)
 
 	t.Run("invalid token", func(t *testing.T) {
+		ctx := t.Context()
 		_, err := joinViaProxy(
-			t.Context(),
+			ctx,
 			"invalidtoken",
 			proxyListener.Addr(),
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		ctx := t.Context()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			evt, err := authService.lastEvent(ctx, "instance.join")
 			require.NoError(t, err)
@@ -160,7 +172,8 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					Role:     "Instance",
+					NodeName: "node",
 				},
 				evt,
 				protocmp.Transform(),
@@ -217,9 +230,10 @@ func TestJoinToken(t *testing.T) {
 	})
 
 	t.Run("join and rejoin with scoped token", func(t *testing.T) {
+		ctx := t.Context()
 		// Node initially joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxyWithSecret(
-			t.Context(),
+			ctx,
 			scopedToken1.GetMetadata().GetName(),
 			scopedToken1.GetStatus().GetSecret(),
 			proxyListener.Addr(),
@@ -233,8 +247,39 @@ func TestJoinToken(t *testing.T) {
 			func(s string) bool { return s == types.RoleInstance.String() },
 		)
 		require.ElementsMatch(t, expectedSystemRoles, identity.SystemRoles)
-
 		require.Equal(t, scopedToken1.GetSpec().GetAssignedScope(), identity.AgentScope)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: events.InstanceJoinEvent,
+						Code: events.InstanceJoinCode,
+					},
+					Status: apievents.Status{
+						Success: true,
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					HostID:    identity.ID.HostID(),
+					NodeName:  "node",
+					Role:      "Instance",
+					TokenName: scopedToken1.GetMetadata().GetName(),
+					Method:    scopedToken1.GetSpec().GetJoinMethod(),
+					Scope:     scopedToken1.GetSpec().GetAssignedScope(),
+					Roles:     scopedToken1.GetSpec().GetRoles(),
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join success event not found")
+
 		// Build an auth client with the new identity.
 		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
 		require.NoError(t, err)
@@ -303,9 +348,10 @@ func TestJoinToken(t *testing.T) {
 	})
 
 	t.Run("join and rejoin with bad token", func(t *testing.T) {
+		ctx := t.Context()
 		// Node joins by connecting to the proxy's gRPC service.
 		identity, err := joinViaProxy(
-			t.Context(),
+			ctx,
 			token1.GetName(),
 			proxyListener.Addr(),
 		)
@@ -319,12 +365,11 @@ func TestJoinToken(t *testing.T) {
 
 		// Node the tries to rejoin with valid certs but an invalid token.
 		_, err = rejoinViaAuthClient(
-			t.Context(),
+			ctx,
 			"invalidtoken",
 			authClient,
 		)
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-		ctx := t.Context()
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			evt, err := authService.lastEvent(ctx, "instance.join")
 			require.NoError(t, err)
@@ -341,25 +386,32 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					HostID:   identity.ID.HostID(),
+					Role:     "Instance",
+					NodeName: "node",
+					Roles:    slices.DeleteFunc(token1.GetRoles().StringSlice(), func(role string) bool { return role == types.RoleInstance.String() }),
 				},
 				evt,
 				protocmp.Transform(),
 				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
 					return key == "Time" || key == "ID"
 				}),
+				// sort roles so the diff is deterministic
+				cmpopts.SortSlices(strings.Compare),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	t.Run("join with single use scoped token", func(t *testing.T) {
+		ctx := t.Context()
 		identity, err := joinViaProxyWithSecret(
-			t.Context(),
+			ctx,
 			singleUseToken.GetMetadata().GetName(),
 			singleUseToken.GetStatus().GetSecret(),
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
+
 		// Make sure the result contains a host ID and expected certificate roles.
 		require.NotEmpty(t, identity.ID.HostUUID)
 		require.Equal(t, types.RoleInstance, identity.ID.Role)
@@ -378,6 +430,38 @@ func TestJoinToken(t *testing.T) {
 			proxyListener.Addr(),
 		)
 		require.ErrorContains(t, err, joining.ErrTokenExhausted.Error())
+
+		// Make sure the instance.join limit audit event is emitted
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinLimitCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "scoped token usage exhausted",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Method:    string(types.JoinMethodToken),
+					NodeName:  "node",
+					Role:      "Instance",
+					Roles:     singleUseToken.GetSpec().GetRoles(),
+					TokenName: singleUseToken.GetMetadata().GetName(),
+					Scope:     singleUseToken.GetSpec().GetAssignedScope(),
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID" || key == "HostID"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
 	})
 
 	for i, tc := range []struct {
@@ -471,6 +555,53 @@ func TestJoinToken(t *testing.T) {
 			tc.assertRejoinExpectation(t, newIdentity, err)
 		})
 	}
+
+	t.Run("rejected join records sanitized node name", func(t *testing.T) {
+		ctx := t.Context()
+		// The join is rejected before host params are received, so the node name
+		// on the audit event comes from the advisory (untrusted) ClientInit
+		// value and must be sanitized. \x00 is stripped to '_'.
+		_, err := joinclient.Join(ctx, joinclient.JoinParams{
+			Token: "invalidtoken",
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "node\x00name",
+			},
+			ProxyServer: utils.NetAddr{
+				AddrNetwork: proxyListener.Addr().Network(),
+				Addr:        proxyListener.Addr().String(),
+			},
+			// The proxy's TLS cert for the test is not trusted.
+			Insecure: true,
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "token expired or not found",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:     "Instance",
+					NodeName: "node_name",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, 15*time.Second, 100*time.Millisecond, "expected instance.join failed event not found")
+	})
 }
 
 // TestJoinError asserts that attempts to join with an invalid token return an
@@ -627,7 +758,7 @@ func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork
 		From:       clock.Now().Add(-time.Hour),
 		To:         clock.Now().Add(time.Hour),
 		EventTypes: []string{eventType},
-		Limit:      1,
+		Limit:      3,
 		Order:      types.EventOrderDescending,
 	})
 	if err != nil {
@@ -665,7 +796,6 @@ func (p *fakeProxy) join(t *testing.T) {
 		AdditionalPrincipals: []string{"127.0.0.1"},
 	})
 	require.NoError(t, err)
-
 	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
 	require.NoError(t, err)
 	p.identity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)

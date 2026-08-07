@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -88,7 +89,7 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
+func defaultTeleportServiceConfig(t *testing.T, scopesFeatures scopes.Features) (*helpers.TeleInstance, string) {
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -107,6 +108,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.ScopesFeatures = scopesFeatures
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
@@ -199,6 +201,7 @@ type TestSetup struct {
 	TeleportServer           *helpers.TeleInstance
 	ResourceName             string
 	Context                  context.Context
+	ScopesFeatures           scopes.Features
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -234,6 +237,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)
+
 	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures)
 	require.NoError(t, err)
 
@@ -268,7 +272,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
-	teleportServer, operatorName := defaultTeleportServiceConfig(t)
+	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.ScopesFeatures)
 	setup.TeleportServer = teleportServer
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
@@ -289,6 +293,12 @@ type TestOption func(*TestSetup)
 func WithTeleportClient(clt *client.Client) TestOption {
 	return func(setup *TestSetup) {
 		setup.TeleportClient = clt
+	}
+}
+
+func WithScopesFeatures(features scopes.Features) TestOption {
+	return func(setup *TestSetup) {
+		setup.ScopesFeatures = features
 	}
 }
 

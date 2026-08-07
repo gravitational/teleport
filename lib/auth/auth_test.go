@@ -28,7 +28,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	goslices "slices"
 	"sort"
 	"strings"
 	"sync"
@@ -54,8 +57,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	scopedaccessv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -86,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -104,13 +111,12 @@ type testPack struct {
 	mockEmitter    *eventstest.MockRecorderEmitter
 }
 
-func newTestPack(
-	ctx context.Context, dataDir string, opts ...auth.ServerOption,
-) (testPack, error) {
-	var (
-		p   testPack
-		err error
-	)
+type testPackOptions struct {
+	DataDir        string
+	ScopesFeatures scopes.Features
+}
+
+func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err error) {
 	p.bk, err = memory.New(memory.Config{})
 	if err != nil {
 		return p, trace.Wrap(err)
@@ -119,14 +125,14 @@ func newTestPack(
 		ClusterName: "test.localhost",
 	})
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	p.versionStorage = authtest.NewFakeTeleportVersion()
 
 	identityService, err := local.NewTestIdentityService(p.bk)
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	// TODO(tross): replace modules.GetModules with opts.Modules
@@ -137,7 +143,7 @@ func newTestPack(
 
 	p.mockEmitter = &eventstest.MockRecorderEmitter{}
 	authConfig := &auth.InitConfig{
-		DataDir:        dataDir,
+		DataDir:        opts.DataDir,
 		Backend:        p.bk,
 		VersionStorage: p.versionStorage,
 		ClusterName:    p.clusterName,
@@ -147,10 +153,11 @@ func newTestPack(
 		Identity:               identityService,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		ScopesFeatures:         opts.ScopesFeatures,
 	}
-	p.a, err = auth.NewServer(authConfig, opts...)
+	p.a, err = auth.NewServer(authConfig)
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	// set lock watcher
@@ -161,7 +168,7 @@ func newTestPack(
 		},
 	})
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	p.a.SetLockWatcher(lockWatcher)
 
@@ -174,14 +181,14 @@ func newTestPack(
 		ResourceGetter: p.a,
 	})
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	p.a.SetUnifiedResourcesCache(urc)
 
 	// set cluster name
 	if err := p.a.SetClusterName(p.clusterName); err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	// set static tokens
@@ -189,11 +196,11 @@ func newTestPack(
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	err = p.a.SetStaticTokens(staticTokens)
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -201,19 +208,19 @@ func newTestPack(
 		SecondFactor: constants.SecondFactorOff,
 	})
 	if err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	if _, err = p.a.UpsertAuthPreference(ctx, authPreference); err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	if err := p.a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()); err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	if _, err := p.a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()); err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 	if _, err := p.a.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()); err != nil {
-		return p, trace.Wrap(err)
+		return testPack{}, trace.Wrap(err)
 	}
 
 	clusterName := p.clusterName.GetClusterName()
@@ -235,7 +242,7 @@ func newTestPack(
 }
 
 func newAuthSuite(t *testing.T) *testPack {
-	s, err := newTestPack(context.Background(), t.TempDir())
+	s, err := newTestPack(t.Context(), testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		if s.bk != nil {
@@ -1486,6 +1493,85 @@ func TestOIDCConnector(t *testing.T) {
 		require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 		require.Equal(t, events.OIDCConnectorDeletedEvent, s.mockEmitter.LastEvent().GetType())
 	})
+}
+
+func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
+	t.Parallel()
+
+	const loginEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://login.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://login.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+	const mfaEntityDescriptor = `
+		<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://mfa.idp.test/metadata">
+			<IDPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+				<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://mfa.idp.test/sso/saml"></SingleSignOnService>
+			</IDPSSODescriptor>
+		</EntityDescriptor>`
+
+	s := newAuthSuite(t)
+	t.Cleanup(func() { _ = s.a.Close() })
+
+	ctx := t.Context()
+
+	role, err := types.NewRole("dummy", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role, err = s.a.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	const loginMetadataPath = "/test_metadata_login"
+	const mfaMetadataPath = "/test_metadata_mfa"
+	const badMetadataPath = "/test_metadata_bad"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case loginMetadataPath:
+			w.Write([]byte(loginEntityDescriptor))
+		case mfaMetadataPath:
+			w.Write([]byte(mfaEntityDescriptor))
+		default:
+			http.Error(w, "upstream response should not be exposed", http.StatusForbidden)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
+		EntityDescriptorURL:      server.URL + badMetadataPath,
+		AttributesToRoles: []types.AttributeMapping{
+			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
+
+	// Let's create a valid connector to check updates.
+	samlConnector.SetEntityDescriptorURL(server.URL + loginMetadataPath)
+	createdSAMLConnector, err := s.a.CreateSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	// Now let's check MFA entity descriptor fetching errors sanitization.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + badMetadataPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)
+	// Make sure the error doesn't leak any extra info about the download failure.
+	require.Equal(t, services.ErrFailedToFetchOrParseEntityDescriptor.Error(), err.Error())
+
+	// Verify it passes when URLs are OK.
+	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
+		Enabled:             true,
+		EntityDescriptorUrl: server.URL + mfaMetadataPath,
+	})
+	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
+	require.NoError(t, err)
 }
 
 func TestSAMLConnector(t *testing.T) {
@@ -2785,7 +2871,7 @@ func contextWithGRPCClientUserAgent(ctx context.Context, userAgent string) conte
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	t.Parallel()
 	ctx := contextWithGRPCClientUserAgent(context.Background(), "test-user-agent/1.0")
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	user, role, err := authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
@@ -2854,7 +2940,7 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	// create keypair and sign with OpenSSH CA
@@ -2941,10 +3027,117 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	})
 }
 
+func TestGenerateOpenSSHCertScoped(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	p, err := newTestPack(t.Context(), testPackOptions{
+		DataDir:        t.TempDir(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.bk.Close() })
+
+	normalRoleLogins := []string{"login1", "login2"}
+	u, r, err := authtest.CreateUserAndRole(p.a, "scoped-user", normalRoleLogins, nil)
+	require.NoError(t, err)
+
+	user, ok := u.(*types.UserV2)
+	require.True(t, ok)
+	role, ok := r.(*types.RoleV6)
+	require.True(t, ok)
+
+	priv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+
+	// Create a scoped role at /staging that grants "scoped-login".
+	scopedService := local.NewScopedAccessService(p.bk)
+
+	_, err = scopedService.CreateScopedRole(ctx, &scopedaccessv1pb.CreateScopedRoleRequest{
+		Role: &scopedaccessv1pb.ScopedRole{
+			Kind: "scoped_role",
+			Metadata: &headerv1.Metadata{
+				Name: "staging-ssh",
+			},
+			Scope: "/staging",
+			Spec: &scopedaccessv1pb.ScopedRoleSpec{
+				AssignableScopes: []string{"/staging"},
+				Ssh: &scopedaccessv1pb.ScopedRoleSSH{
+					Logins: []string{"scoped-login"},
+					Labels: []*labelv1.Label{
+						{Name: "*", Values: []string{"*"}},
+					},
+				},
+			},
+			Version: types.V1,
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = scopedService.CreateScopedRoleAssignment(ctx, &scopedaccessv1pb.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1pb.ScopedRoleAssignment{
+			Kind: "scoped_role_assignment",
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope:   "/staging",
+			SubKind: "dynamic",
+			Spec: &scopedaccessv1pb.ScopedRoleAssignmentSpec{
+				User: "scoped-user",
+				Assignments: []*scopedaccessv1pb.Assignment{
+					scopedaccessv1pb.Assignment_builder{
+						Role:  "/staging::staging-ssh",
+						Scope: "/staging",
+					}.Build(),
+				},
+			},
+			Version: types.V1,
+		},
+	})
+	require.NoError(t, err)
+	pin := &scopesv1pb.Pin{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/staging"}
+
+	// Wait for scoped access cache to see the assignment.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		err := p.a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(ctx, "scoped-user", pin)
+		assert.NoError(ct, err)
+		assert.NotNil(ct, pin.GetAssignmentTree())
+	}, 15*time.Second, 100*time.Millisecond)
+
+	t.Run("valid login in principals", func(t *testing.T) {
+		reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+			ScopePin:  pin,
+			Login:     "scoped-login",
+		})
+		require.NoError(t, err)
+
+		signedCert, err := sshutils.ParseCertificate(reply.Cert)
+		require.NoError(t, err)
+		require.Contains(t, signedCert.ValidPrincipals, "scoped-login")
+	})
+
+	t.Run("errors when login is not provided", func(t *testing.T) {
+		_, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+			User:      user,
+			Roles:     []*types.RoleV6{role},
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       proto.Duration(time.Hour),
+			Cluster:   p.clusterName.GetClusterName(),
+			ScopePin:  pin,
+			Login:     "",
+		})
+		require.ErrorContains(t, err, "login required for scoped ssh access")
+	})
+}
+
 func TestGenerateUserCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	user, _, err := authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
@@ -2972,15 +3165,13 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	_, _, err = p.a.GenerateUserTestCertsWithContext(ctx, certReq)
 	require.NoError(t, err)
 
-	testTargets := append(
-		[]types.LockTarget{
-			{User: user.GetName()},
-			{MFADevice: mfaID},
-			{AccessRequest: requestID},
-			{Device: deviceID},
-		},
-		services.RolesToLockTargets(user.GetRoles())...,
-	)
+	testTargets := []types.LockTarget{
+		{User: user.GetName()},
+		{MFADevice: mfaID},
+		{AccessRequest: requestID},
+		{Device: deviceID},
+	}
+	testTargets = goslices.AppendSeq(testTargets, services.RolesToLockTargets(goslices.Values(user.GetRoles())))
 	for _, target := range testTargets {
 		t.Run(fmt.Sprintf("lock targeting %v", target), func(t *testing.T) {
 			lockWatch, err := p.a.SubscribeToLockTarget(ctx, target)
@@ -3010,7 +3201,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 func TestGenerateHostCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	hostID := uuid.New().String()
@@ -3053,7 +3244,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	user, role, err := authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
@@ -3141,7 +3332,7 @@ func TestGenerateUserCertWithUserLoginState(t *testing.T) {
 
 func TestGenerateUserCertWithHardwareKeySupport(t *testing.T) {
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	user, _, err := authtest.CreateUserAndRole(p.a, "test-user", []string{}, nil)
@@ -3382,7 +3573,7 @@ func TestGenerateKubernetesUserCert(t *testing.T) {
 func TestNewWebSession(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	// Set a web idle timeout.
@@ -4171,9 +4362,9 @@ func newTestServices(t *testing.T) auth.Services {
 	return auth.Services{
 		TrustInternal:                local.NewCAService(bk),
 		PresenceInternal:             local.NewPresenceService(bk),
-		Provisioner:                  local.NewProvisioningService(bk),
-		Identity:                     identityService,
-		Access:                       local.NewAccessService(bk),
+		ProvisionerInternal:          local.NewProvisioningService(bk),
+		IdentityInternal:             identityService,
+		AccessInternal:               local.NewAccessService(bk),
 		DynamicAccessExt:             local.NewDynamicAccessService(bk),
 		ClusterConfigurationInternal: configService,
 		Events:                       local.NewEventsService(bk),
@@ -4464,7 +4655,7 @@ func TestAccessRequestAuditLog(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	p, err := newTestPack(ctx, t.TempDir())
+	p, err := newTestPack(ctx, testPackOptions{DataDir: t.TempDir()})
 	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClock()
@@ -5051,28 +5242,32 @@ func testCreateAccessListReminderNotifications(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
+	t.Parallel()
 	type fixture struct {
-		name         string
-		envVar       string
-		scopesStatus proto.ScopesStatus
+		name           string
+		scopesFeatures scopes.Features
+		scopesStatus   proto.ScopesStatus
 	}
 	fixtures := []fixture{
 		{
 			name:         "scopes disabled",
-			envVar:       "",
 			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_DISABLED,
 		},
 		{
-			name:         "scopes enabled",
-			envVar:       "yes",
-			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_ENABLED,
+			name:           "scopes enabled",
+			scopesFeatures: scopes.Features{Enabled: true},
+			scopesStatus:   proto.ScopesStatus_SCOPES_STATUS_ENABLED,
 		},
 	}
 
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
-			t.Setenv("TELEPORT_UNSTABLE_SCOPES", f.envVar)
-			s := newAuthSuite(t)
+			s, err := newTestPack(t.Context(), testPackOptions{
+				DataDir:        t.TempDir(),
+				ScopesFeatures: f.scopesFeatures,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { s.bk.Close() })
 			resp, err := s.a.Ping(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, "test.localhost", resp.ClusterName)

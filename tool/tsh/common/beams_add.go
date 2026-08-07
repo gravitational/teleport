@@ -20,22 +20,27 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/spinner"
 	"github.com/gravitational/teleport/tool/common"
 )
 
 type beamsAddCommand struct {
 	*kingpin.CmdClause
-	console bool
-	format  string
+	console             bool
+	format              string
+	isTerminalOverwrite func(io.Writer) bool
 }
 
 func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
@@ -47,6 +52,7 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 		Short('f').
 		Default(teleport.Text).
 		EnumVar(&cmd.format, defaults.DefaultFormats...)
+	cmd.Alias(beamsAddHelp)
 	return cmd
 }
 
@@ -65,6 +71,12 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer clusterClient.Close()
+
+		// Show spinner after successful connection to avoid spinning during re-login.
+		if c.shouldShowSpinner(cf.Stdout(), c.format) {
+			creatingBeamSpinner := spinner.New(cf.Stdout(), "Creating beam...")
+			defer creatingBeamSpinner.Stop()
+		}
 
 		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
@@ -109,9 +121,30 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 
 		// Connect to the beam via SSH.
 		if c.console {
-			return trace.Wrap(sshBeam(cf, tc, beam, nil))
+			if err := sshBeam(cf, tc, beam, nil); err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(c.printReconnectMessage(cf.Stdout(), beam.GetStatus().GetAlias()))
 		}
 	}
 
 	return nil
+}
+
+func (c *beamsAddCommand) printReconnectMessage(w io.Writer, alias string) error {
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	_, err := fmt.Fprintln(w, gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
+	return trace.Wrap(err)
+}
+
+func (c *beamsAddCommand) shouldShowSpinner(w io.Writer, format string) bool {
+	switch strings.ToLower(format) {
+	case teleport.JSON, teleport.YAML:
+		return false
+	default:
+		if c.isTerminalOverwrite != nil {
+			return c.isTerminalOverwrite(w)
+		}
+		return utils.IsTerminal(w)
+	}
 }

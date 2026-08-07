@@ -154,6 +154,9 @@ type Request struct {
 	// BotInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any.
 	BotInstanceID string
+	// BotScope is the scope of the bot requesting this cert, if any. Empty for
+	// unscoped bots and non-bot identities.
+	BotScope string
 	// BotInternal is a flag that indicates an identity is specifically a bot
 	// internal identity, rather than output certificates intended for direct
 	// consumption by users or user-facing bot services.
@@ -167,9 +170,22 @@ type Request struct {
 	JoinAttributes *workloadidentityv1pb.JoinAttrs
 	// RequesterName is the name of the service that sent the request.
 	RequesterName proto.UserCertsRequest_Requester
+	// WebSessionID is the session ID of the web session.
+	// When the certificate is generated for access graph usage, we store the
+	// web session ID in the cert request to be able to link the certificate to
+	// a valid web session so that we can properly report access graph usage
+	// and reuse the same handlers.
+	WebSessionID string
 	// DelegationSessionID is the ID of the Delegation Session this certificate
 	// is being generated for.
 	DelegationSessionID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
+	// Login is the SSH login (OS username) the user is requesting to connect as.
+	Login string
+	// TargetScope is the scope of the target resource.
+	TargetScope string
 }
 
 // Check verifies the cert request is valid.

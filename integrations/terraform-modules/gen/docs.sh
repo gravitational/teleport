@@ -19,6 +19,16 @@ convert_tf_docs_comment() {
   sed 's#<!-- \(.*\) -->#{/\* \1 \*/}#'
 }
 
+check_file() {
+    local file="$1"
+    if [[ ! -f "${file}" ]]; then
+        error "${file} is missing"
+    fi
+    if grep -q -- "TODO" "${file}"; then
+        error "${file} contains TODO"
+    fi
+}
+
 VERSION="$1"; shift
 
 if [ -z "$VERSION" ]; then
@@ -41,7 +51,7 @@ SOURCE_URI="github.com/gravitational/teleport/tree/master/${MODULES_ROOT_DIR}"
 info "Rendering modules reference index"
 cat <<EOF > "${MODULES_DOC_INDEX}"
 ---
-title: "Teleport Terraform Modules Reference"
+title: Teleport Terraform Modules Reference
 sidebar_label: Terraform Modules
 description: Reference documentation for the Teleport Terraform modules.
 tags:
@@ -86,7 +96,7 @@ EOF
 ---
 title: Reference for the ${module_name} Terraform module
 sidebar_label: ${module_name}
-description: This page describes the Terraform module for discovering resources in ${remote_system}.
+description: This page describes the ${module_name} Terraform module.
 ---
 
 {/*
@@ -97,8 +107,11 @@ description: This page describes the Terraform module for discovering resources 
 */}
 
 Source Code: [${SOURCE_URI}/${module}](https://${SOURCE_URI}/${module})
+
 EOF
-    convert_tf_docs_comment < "${module}/README.md" >> "${module_index_doc}"
+    module_readme="${module}/README.md"
+    check_file "${module_readme}"
+    convert_tf_docs_comment < "${module_readme}" >> "${module_index_doc}"
 
     # handle examples
     module_examples_docs_dir="${module_docs_dir}/examples"
@@ -107,7 +120,7 @@ EOF
     info "Rendering module ${module_name} examples index"
     cat <<EOF > "${module_examples_index}"
 ---
-title: Teleport ${remote_system} discovery examples
+title: Terraform Module ${module_name} Examples
 sidebar_label: examples
 description: Index of all the examples for the ${module_name} Terraform module.
 ---
@@ -127,12 +140,26 @@ EOF
         example_name="$(basename "${example}")"
         info "Rendering module ${module_name} example ${example_name} reference doc"
         example_doc="${module_examples_docs_dir}/${example_name}.mdx"
+        if [[ ! -f "${example}/docs_title" ]]; then
+            error "${example}/docs_title is missing — run gen/example.sh to scaffold"
+        fi
+        if [[ ! -f "${example}/docs_description" ]]; then
+            error "${example}/docs_description is missing — run gen/example.sh to scaffold"
+        fi
+        example_readme="${example}/README.md"
+        check_file "${example_readme}"
+        check_file "${example}/docs_title"
+        check_file "${example}/docs_description"
+
+        example_title="$(head -1 "${example}/docs_title")"
+        example_description="$(head -1 "${example}/docs_description")"
+
         # inject header
         cat <<EOF > "${example_doc}"
 ---
-title: Example for discovering ${remote_system} resources in a single account
+title: ${example_title}
 sidebar_label: ${example_name}
-description: Configure Teleport to discover resources in a ${remote_system} account.
+description: ${example_description}
 ---
 
 {/*
@@ -143,8 +170,9 @@ description: Configure Teleport to discover resources in a ${remote_system} acco
 */}
 
 Source Code: [${SOURCE_URI}/${example}](https://${SOURCE_URI}/${example})
+
 EOF
-        convert_tf_docs_comment < "${example}/README.md" >> "${example_doc}"
+        convert_tf_docs_comment < "${example_readme}" >> "${example_doc}"
     done
 done
 

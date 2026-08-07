@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobject"
 	"github.com/gravitational/teleport/lib/srv/db/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/common"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 var (
@@ -72,7 +73,7 @@ func TestDatabaseResourceMatchersToString(t *testing.T) {
 }
 
 type writeTextTest struct {
-	collection          ResourceCollection
+	collection          resources.Collection
 	wantVerboseTable    func() string
 	wantNonVerboseTable func() string
 }
@@ -82,7 +83,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, true)
+		err := test.collection.WriteText(w, true)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -90,7 +91,7 @@ func (test *writeTextTest) run(t *testing.T) {
 	t.Run("non-verbose mode", func(t *testing.T) {
 		t.Helper()
 		w := &bytes.Buffer{}
-		err := test.collection.writeText(w, false)
+		err := test.collection.WriteText(w, false)
 		require.NoError(t, err)
 		diff := cmp.Diff(test.wantNonVerboseTable(), w.String())
 		require.Empty(t, diff)
@@ -115,7 +116,7 @@ func testKubeClusterCollection_writeText(t *testing.T) {
 		mustCreateNewKubeCluster(t, "cluster3-eks-us-west-1-123456789012", "", eksDiscoveredNameLabel),
 	}
 	test := writeTextTest{
-		collection: &kubeClusterCollection{clusters: kubeClusters},
+		collection: resources.NewKubeClusterCollection(kubeClusters),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Name", "Labels"},
@@ -153,7 +154,7 @@ func testKubeServerCollection_writeText(t *testing.T) {
 		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", "_", "cluster3", nil),
 	}
 	test := writeTextTest{
-		collection: &kubeServerCollection{servers: kubeServers},
+		collection: resources.NewKubeServerCollection(kubeServers),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Cluster", "Labels", "Version"},
@@ -445,7 +446,7 @@ type autoUpdateConfigBrokenCollection struct {
 	autoUpdateConfigCollection
 }
 
-func (c *autoUpdateConfigBrokenCollection) resources() []types.Resource {
+func (c *autoUpdateConfigBrokenCollection) Resources() []types.Resource {
 	// We use Resource153ToLegacy instead of ProtoResource153ToLegacy.
 	return []types.Resource{types.Resource153ToLegacy(c.config)}
 }

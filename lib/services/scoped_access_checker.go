@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -78,14 +79,18 @@ func (b *scopedAccessCheckerBuilder) Check() error {
 	return nil
 }
 
-func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key roleCheckerKey) (*ScopedAccessChecker, error) {
-	if key == defaultImplicitRoleKey {
+func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key pinning.RoleAssignment) (*ScopedAccessChecker, error) {
+	if key == (pinning.RoleAssignment{}) {
 		return b.newDefaultImplicitChecker(ctx), nil
 	}
+	if key.RoleKind != pinning.RoleKindUser {
+		return nil, trace.BadParameter("cannot build checker for non-user role kind %q (this is a bug)", key.RoleKind)
+	}
 
-	rsp, err := b.reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: key.roleName,
-	})
+	rsp, err := b.reader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  key.RoleName,
+		Scope: key.RoleScope,
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, errMissingAssignedRole
@@ -97,15 +102,15 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	// skipped. this check is a critical part of the scopes security model and must always be
 	// performed prior to any enforcement logic related to a scoped role.
 	if !scopedaccess.RoleIsEnforceableAt(rsp.Role, scopes.EnforcementPoint{
-		ScopeOfOrigin: key.scopeOfOrigin,
-		ScopeOfEffect: key.scopeOfEffect,
+		ScopeOfOrigin: key.ScopeOfOrigin,
+		ScopeOfEffect: key.ScopeOfEffect,
 	}) {
 		return nil, errUnenforcceableAssignment
 	}
 
 	// Convert the scoped role to a classic role using the scope of effect.
 	// The scope of effect determines which resources this role's privileges apply to.
-	role, err := scopedaccess.ScopedRoleToRole(rsp.Role, key.scopeOfEffect)
+	role, err := scopedaccess.ScopedRoleToRole(rsp.Role, key.ScopeOfEffect)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,8 +123,8 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	checker := newAccessChecker(b.info, b.localCluster, NewRoleSet(role))
 
 	return &ScopedAccessChecker{
-		scopeOfOrigin:       key.scopeOfOrigin,
-		scopeOfEffect:       key.scopeOfEffect,
+		scopeOfOrigin:       key.ScopeOfOrigin,
+		scopeOfEffect:       key.ScopeOfEffect,
 		role:                rsp.Role,
 		scopedCompatChecker: checker,
 	}, nil
@@ -186,6 +191,32 @@ func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChec
 	return &ScopedAccessChecker{unscopedChecker: checker}
 }
 
+// NewScopedAccessCheckerForSystemRole creates a ScopedAccessChecker for a single system role. Currently
+// the checker masquerades as a scoped role checker but pulls all meaningful functionality from the provided
+// unscoped access checker. This is the simplest way to achieve our desired effect of having scoped agent
+// system roles act like scoped roles, but is somewhat brittle. It only works right now because we happen
+// to still defer to the scopedCompatChecker for resource access checks. In the long run we may want to
+// consider providing true scoped role representations of system roles, or more likely representing the
+// system role presets in a format suitable for representation as a scoped or unscoped role.
+// TODO(fspmarshall/scopes): revisit our scoped system role strateg as described above.
+func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker) *ScopedAccessChecker {
+	return &ScopedAccessChecker{
+		scopeOfOrigin: scopes.Root,
+		scopeOfEffect: scopes.Root,
+		role: &scopedaccessv1.ScopedRole{
+			Metadata: &headerv1.Metadata{
+				Name: "system/" + roleName,
+			},
+			Scope:   scopes.Root,
+			Version: types.V1,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scopes.Root},
+			},
+		},
+		scopedCompatChecker: checker,
+	}
+}
+
 // isScoped reports whether this checker operates on a scoped identity.
 func (c *ScopedAccessChecker) isScoped() bool {
 	return c.role != nil
@@ -195,6 +226,18 @@ func (c *ScopedAccessChecker) isScoped() bool {
 // (logins, port forwarding, recording mode, idle timeout, etc.) live on [SSHAccessChecker].
 func (c *ScopedAccessChecker) SSH() *SSHAccessChecker {
 	return &SSHAccessChecker{checker: c}
+}
+
+// Kube returns a kube-specific access checker backed by this checker. All kube-specific methods
+// (users, groups, idle timeout, etc.) live on [KubeAccessChecker].
+func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
+	return &KubeAccessChecker{checker: c}
+}
+
+// App returns an app-specific access checker backed by this checker. All app-specific methods
+// live on [AppAccessChecker].
+func (c *ScopedAccessChecker) App() *AppAccessChecker {
+	return &AppAccessChecker{checker: c}
 }
 
 // AccessInfo returns the AccessInfo that this access checker is based on.
@@ -220,6 +263,9 @@ func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource strin
 	if !c.isScoped() {
 		return checkAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
 	}
+	// XXX: the sanity of [NewScopedAccessCheckerForSystemRole] depends upon us continuing to defer to
+	// scopedCompatChecker for resource permission checks. Any revisiting of this strategy must take
+	// our scoped system role strategy into account.
 	return checkAccessToRulesImpl(c.scopedCompatChecker, ctx, resource, verbs...)
 }
 
@@ -234,6 +280,17 @@ func (c *ScopedAccessChecker) CheckAccessToRemoteCluster(cluster types.RemoteClu
 	// at the type-level. this has been implemented experimentally to explore the pattern of having the scoped access checker
 	// implement methods that always deny for unsupported features.
 	return trace.AccessDenied("remote cluster access is not permitted for scoped identities")
+}
+
+// CheckAccessToWorkloadIdentity checks access to a workload identity resource by
+// matching it against the WorkloadIdentityLabels granted by the checker's roles.
+// This is the scoped equivalent of the label-based access check used by the
+// unscoped issuance path.
+func (c *ScopedAccessChecker) CheckAccessToWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
+	}
+	return c.scopedCompatChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL for this role set.

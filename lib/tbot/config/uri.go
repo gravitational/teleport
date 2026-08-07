@@ -156,6 +156,8 @@ func MapURLSafeJoinMethod(name string) (types.JoinMethod, error) {
 		return types.JoinMethodAzureDevops, nil
 	case "terraform-cloud", "terraformcloud":
 		return types.JoinMethodTerraformCloud, nil
+	case "generic-oidc", "genericoidc":
+		return types.JoinMethodGenericOIDC, nil
 	default:
 		return types.JoinMethodUnspecified, trace.BadParameter("unsupported join method %q", name)
 	}

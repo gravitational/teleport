@@ -28,15 +28,18 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestScopedAssignmentListCommand(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
@@ -56,7 +59,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 		},
 	}
 
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -72,10 +75,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role1",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"bob-role1": {
@@ -88,10 +91,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role1",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"charlie-role2": {
@@ -104,10 +107,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role2",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role2",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"charlie-role3": {
@@ -120,10 +123,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role3",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role3",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 	}
@@ -140,17 +143,20 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 	allAssignmentNames := slices.Collect(maps.Keys(assignments))
 	slices.Sort(allAssignmentNames)
 
-	collectExpectedAssignments := func(names []string) *scopedRoleAssignmentCollection {
+	collectExpectedAssignments := func(names []string) resources.Collection {
 		slice := make([]*scopedaccessv1.ScopedRoleAssignment, 0, len(names))
 		for _, name := range names {
 			slice = append(slice, assignments[name])
 		}
-		return newScopedRoleAssignmentCollection(slice)
+		return resources.NewScopedRoleAssignmentCollection(slice)
 	}
 
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := scopedClt.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
+		resp, err := scopedClt.ListScopedRoleAssignments(ctx, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			// exhaustive view: opt out of identity-based filter defaulting.
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build())
 		require.NoError(t, err)
 		require.Len(t, resp.Assignments, len(assignments))
 	}, 10*time.Second, 50*time.Millisecond, "waiting for scoped role assignments to be present in cache")
@@ -177,12 +183,12 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 		},
 		{
 			desc:                    "charlie role2",
-			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "role2"},
+			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "/testscope::role2"},
 			expectedAssignmentNames: []string{"charlie-role2"},
 		},
 		{
 			desc:                    "role1",
-			args:                    []string{"assignments", "ls", "--role", "role1"},
+			args:                    []string{"assignments", "ls", "--role", "/testscope::role1"},
 			expectedAssignmentNames: []string{"alice-role1", "bob-role1"},
 		},
 		{

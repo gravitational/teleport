@@ -28,7 +28,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html/template"
+	htmltemplate "html/template"
 	"io"
 	"log/slog"
 	"math/rand/v2"
@@ -42,6 +42,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	texttemplate "text/template"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -56,6 +57,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -65,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -107,6 +110,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -149,7 +154,7 @@ const (
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
 // public address).
-type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+type healthCheckAppServerFunc func(ctx context.Context, appName, publicAddr, clusterName string) error
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -177,6 +182,9 @@ type Handler struct {
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// appServerWatcher ia a app server watcher to speed up app look up.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
@@ -186,6 +194,12 @@ type Handler struct {
 	findEndpointCache *utils.FnCache
 
 	autoUpdateResolver *autoupdatelookup.Resolver
+
+	accessGraphHandler http.Handler
+
+	// webSessionRootClientDialOptions contains additional gRPC dial options for
+	// root clients created for web sessions. Used for testing.
+	webSessionRootClientDialOptions []grpc.DialOption
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -196,6 +210,15 @@ type HandlerOption func(h *Handler) error
 func SetClock(clock clockwork.Clock) HandlerOption {
 	return func(h *Handler) error {
 		h.clock = clock
+		return nil
+	}
+}
+
+// WithWebSessionRootClientDialOption adds a [grpc.DialOption] to root clients
+// created for web sessions. It is intended for tests.
+func WithWebSessionRootClientDialOption(opt grpc.DialOption) HandlerOption {
+	return func(h *Handler) error {
+		h.webSessionRootClientDialOptions = append(h.webSessionRootClientDialOptions, opt)
 		return nil
 	}
 }
@@ -308,6 +331,9 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// AppServerWatcher ia a app server watcher to speed up app look up.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
@@ -370,7 +396,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -428,11 +454,22 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// If the request is either to the fragment authentication endpoint or if the
-	// request has a session cookie or a client cert, forward to
-	// application handlers. If the request is requesting a
-	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
+	// If the request is for the Access Graph API, forward to the access graph handler.
+	// This handler is only setup for enterprise but for OSS and non licensed clusters,
+	// it will return an error indicating that the feature is not enabled.
+	if isAccessGraphAPIRequest(r) {
+		if h.handler.accessGraphHandler == nil {
+			trace.WriteError(w, trace.NotImplemented("access graph is not enabled"))
+			return
+		}
+		h.handler.accessGraphHandler.ServeHTTP(w, r)
+		return
+	}
+	// If the request is either to the fragment authentication endpoint, a DBSC
+	// endpoint, or if the request has a session cookie or a client cert, forward
+	// to application handlers. If the request is requesting a FQDN that is not of
+	// the proxy, redirect to application launcher.
+	if h.appHandler != nil && shouldForwardToAppHandler(r) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -467,6 +504,37 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+func shouldForwardToAppHandler(r *http.Request) bool {
+	return app.HasFragment(r) ||
+		app.IsDBSCRequest(r) ||
+		app.HasSessionCookie(r) ||
+		app.HasClientCert(r) ||
+		app.IsHTTPSTunnelConn(r)
+}
+
+// SetAccessGraphHandler sets the handler used to serve Access Graph API
+// requests authenticated via a client TLS certificate (RouteToApp.AccessGraph=true).
+// Only called by the enterprise plugin; remains nil on OSS clusters.
+func (h *Handler) SetAccessGraphHandler(handler http.Handler) {
+	h.accessGraphHandler = handler
+}
+
+// isAccessGraphAPIRequest returns true if the request is authenticated with a client TLS certificate
+// with UsageAccessGraphAPIOnly set in the certificate's usage, indicating that the request is
+// intended for the Access Graph API.
+func isAccessGraphAPIRequest(r *http.Request) bool {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return false
+	}
+
+	cert := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return false
+	}
+	return slices.Contains(identity.Usage, teleport.UsageAccessGraphAPIOnly)
 }
 
 // HandleConnection handles connections from plain TCP applications.
@@ -545,6 +613,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		sessionLingeringThreshold: sessionLingeringThreshold,
 		proxySigner:               cfg.PROXYSigner,
 		logger:                    h.logger,
+		rootClientDialOptions:     h.webSessionRootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -603,7 +672,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	// serve the web UI from the embedded filesystem
-	var indexPage *template.Template
+	var indexPage *htmltemplate.Template
 	// we will set our etag based on the teleport version and
 	// the webasset app hash if available. The version only will not
 	// suffice as it can cause incorrect caching for local development.
@@ -625,7 +694,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		indexPage, err = template.New("index").Parse(string(indexContent))
+		indexPage, err = htmltemplate.New("index").Parse(string(indexContent))
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
@@ -645,6 +714,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
+	}
+
+	if cfg.AppServerWatcher != nil {
+		h.appServerWatcher = cfg.AppServerWatcher
 	}
 
 	const v1Prefix = "/v1"
@@ -1042,9 +1115,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/desktopservices", h.WithClusterAuth(h.clusterDesktopServicesGet))
 	h.GET("/webapi/sites/:site/desktops/:desktopName", h.WithClusterAuth(h.getDesktopHandle))
 	// GET /webapi/sites/:site/desktops/:desktopName/connect?username=<username>&width=<width>&height=<height>
-	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle))
+	h.GET("/webapi/sites/:site/desktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.desktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
 	// GET /webapi/sites/:site/desktopplayback/:sid/ws
 	h.GET("/webapi/sites/:site/desktopplayback/:sid/ws", h.WithClusterAuthWebSocket(h.desktopPlaybackHandle))
+	// GET /webapi/sites/:site/linuxdesktops/:desktopName/connect/ws?username=<username>&width=<width>&height=<height>
+	h.GET("/webapi/sites/:site/linuxdesktops/:desktopName/connect/ws", h.WithClusterAuthWebSocket(h.linuxDesktopConnectHandle, WithSubprotocols(tdpb.ProtocolName)))
 	h.GET("/webapi/sites/:site/desktops/:desktopName/active", h.WithClusterAuth(h.desktopIsActive))
 
 	// GET a Connection Diagnostics by its name
@@ -1873,7 +1948,7 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 
 // getWebConfig returns configuration for the web application.
 func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	httplib.SetWebConfigHeaders(w.Header())
+	w.Header().Set("Content-Type", "application/javascript")
 
 	authProviders := []webclient.WebConfigAuthProvider{}
 
@@ -1955,6 +2030,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:                   authProviders,
 			SecondFactor:                types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			SecondFactors:               cap.GetSecondFactors(),
 			LocalAuthEnabled:            cap.GetAllowLocalAuth(),
 			AllowPasswordless:           cap.GetAllowPasswordless(),
 			AuthType:                    authType,
@@ -2044,6 +2120,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessGraphConfigSet:        rsp.GetEnabled() && rsp.GetAddress() != "",
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
+		BeamsUI: clusterFeatures.GetBeamsUI(),
 	}
 
 	// Set entitlements with backwards field compatibility
@@ -2546,7 +2623,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		targetVersion = teleport.SemVer()
 	}
 
-	instTmpl, err := template.New("").Parse(installer.GetScript())
+	instTmpl, err := texttemplate.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3344,6 +3421,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindDatabase,
 			types.KindNode,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
 			types.KindGitServer,
@@ -3522,7 +3600,17 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			logins := enriched.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, logins, enriched.RequiresRequest))
+		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3813,6 +3901,8 @@ func (h *Handler) getClusterLocksV2(
 				target.MFADevice = parts[1]
 			case "windows_desktop":
 				target.WindowsDesktop = parts[1]
+			case "linux_desktop":
+				target.LinuxDesktop = parts[1]
 			case "access_request":
 				target.AccessRequest = parts[1]
 			case "device":
@@ -4868,9 +4958,9 @@ var authnWsUpgrader = websocket.Upgrader{
 // WithClusterAuthWebSocket wraps a ClusterWebsocketHandler to ensure that a request is authenticated
 // to this proxy via websocket, as well as to grab the remoteSite (which can represent this local
 // cluster or a remote trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httprouter.Handle {
+func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler, opts ...wsUpgraderOption) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p)
+		sctx, ws, site, err := h.authenticateWSRequestWithCluster(w, r, p, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4889,8 +4979,8 @@ func (h *Handler) WithClusterAuthWebSocket(fn ClusterWebsocketHandler) httproute
 // *SessionContext (same as AuthenticateRequest), and also grabs the
 // remoteSite (which can represent this local cluster or a remote
 // trusted cluster) as specified by the ":site" url parameter.
-func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
-	sctx, ws, err := h.AuthenticateRequestWS(w, r)
+func (h *Handler) authenticateWSRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, reversetunnelclient.Cluster, error) {
+	sctx, ws, err := h.AuthenticateRequestWS(w, r, opts...)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -5313,6 +5403,10 @@ func (h *Handler) validateCookie(w http.ResponseWriter, r *http.Request) (*Sessi
 		return nil, trace.AccessDenied("need auth")
 	}
 
+	if sctx.cfg.Session.GetUsage() != types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED {
+		clearSessionCookies((w))
+		return nil, trace.AccessDenied("need auth")
+	}
 	return sctx, nil
 }
 
@@ -5335,6 +5429,44 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 
 	if err := parseMFAResponseFromRequest(r); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	return sctx, nil
+}
+
+// AuthenticateReqForAccessGraphAPI is a special authentication method for Access Graph API requests.
+// It requires a client TLS certificate with the UsageAccessGraphAPIOnly usage and does not require a bearer token.
+// It's used by the enterprise plugin to serve AccessGraph API via CLI.
+func (h *Handler) AuthenticateReqForAccessGraphAPI(r *http.Request) (*SessionContext, error) {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return nil, trace.AccessDenied("client certificate required")
+	}
+
+	cert := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse client certificate")
+	}
+
+	if len(identity.Usage) != 1 || !slices.Contains(identity.Usage, teleport.UsageAccessGraphAPIOnly) {
+		return nil, trace.AccessDenied("client certificate is not valid for Access Graph API")
+	}
+
+	if identity.Username == "" || identity.WebSessionID == "" {
+		return nil, trace.AccessDenied("client certificate missing required fields")
+	}
+
+	sctx, err := h.auth.getOrCreateSession(
+		r.Context(),
+		identity.Username,
+		identity.WebSessionID,
+	)
+	if err != nil {
+		return nil, trace.AccessDenied("need auth")
+	}
+
+	if sctx.cfg.Session.GetUsage() != types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API {
+		return nil, trace.AccessDenied("needs auth")
 	}
 
 	return sctx, nil
@@ -5386,14 +5518,29 @@ type wsStatus struct {
 // open.
 const wsIODeadline = time.Second * 4
 
+type wsUpgraderOption func(*websocket.Upgrader)
+
+// Adds subprotocol(s) to the websocket upgrade response
+func WithSubprotocols(s ...string) wsUpgraderOption {
+	return func(u *websocket.Upgrader) {
+		u.Subprotocols = s
+	}
+}
+
 // AuthenticateRequest authenticates request using combination of a session cookie
 // and bearer token retrieved from a websocket
-func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request) (*SessionContext, *websocket.Conn, error) {
+func (h *Handler) AuthenticateRequestWS(w http.ResponseWriter, r *http.Request, opts ...wsUpgraderOption) (*SessionContext, *websocket.Conn, error) {
 	sctx, err := h.validateCookie(w, r)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ws, err := authnWsUpgrader.Upgrade(w, r, nil)
+
+	upgrader := authnWsUpgrader
+	for _, opt := range opts {
+		opt(&upgrader)
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return nil, nil, trace.ConnectionProblem(err, "Error upgrading to websocket: %v", err)
 	}

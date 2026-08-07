@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -67,7 +68,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -83,7 +84,7 @@ func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []
 	return err
 }
 
-func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runResourceCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
 		Stdout: &stdoutBuff,
@@ -260,6 +261,7 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
+	scopesFeatures  scopes.Features
 	enableCache     bool
 }
 
@@ -283,6 +285,12 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
+func withScopesFeatures(features scopes.Features) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.scopesFeatures = features
+	}
+}
+
 func withEnableCache(enableCache bool) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.enableCache = enableCache
@@ -298,6 +306,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.ScopesFeatures = options.scopesFeatures
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)

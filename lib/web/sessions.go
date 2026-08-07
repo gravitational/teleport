@@ -316,7 +316,7 @@ func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr)
 			dialParams.From = clientSrcAddr
 		}
 		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
+			dialParams.OriginalClientDstAddr = clientDstAddr
 		}
 
 		return remoteCluster.DialAuthServer(dialParams)
@@ -603,9 +603,10 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
+	expiry := c.cfg.Session.GetEarliestExpiry()
+
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -642,6 +643,8 @@ type sessionCacheOptions struct {
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
+	// See [sessionCache.rootClientDialOptions]. Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -683,6 +686,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 			}
 		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
+		rootClientDialOptions:               config.rootClientDialOptions,
 	}
 
 	// periodically close expired and unused sessions
@@ -746,6 +750,9 @@ type sessionCache struct {
 	// May be nil.
 	// Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
+	// rootClientDialOptions contains additional gRPC dial options for root clients.
+	// Used for testing.
+	rootClientDialOptions []grpc.DialOption
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -1209,6 +1216,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
+		DialOpts:             s.rootClientDialOptions,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
