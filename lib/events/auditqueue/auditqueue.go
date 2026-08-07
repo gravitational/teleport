@@ -103,7 +103,9 @@ type Config struct {
 	// Sealer, when set, encrypts each batch payload before it is written to
 	// disk. The queue borrows the Sealer. It is closed by the emitter that
 	// owns it, never by the queue.
-	Sealer Sealer
+	Sealer         Sealer
+	StatsInterval  time.Duration
+	OnStatsUpdated func()
 }
 
 const (

@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +94,8 @@ CREATE TABLE IF NOT EXISTS audit_queue (
     enqueued_at INTEGER NOT NULL,
     attempts    INTEGER NOT NULL DEFAULT 0
 ) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_audit_queue_enqueued_at ON audit_queue(enqueued_at);
 
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,6 +172,8 @@ type sqliteQueue struct {
 	deadLetterTTL           time.Duration
 	synchronous             SynchronousMode
 	sealer                  Sealer
+	statsInterval           time.Duration
+	onStatsUpdated          func()
 
 	// recoveryWatermark is the highest corrupt_events id that
 	// recoverCorruptEvents has already examined in this process. It only ever
@@ -223,6 +228,11 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		writeLinger = defaultWriteLinger
 	}
 
+	statsInterval := cfg.StatsInterval
+	if statsInterval <= 0 {
+		statsInterval = defaultStatsInterval
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &sqliteQueue{
 		db:                      db,
@@ -240,6 +250,8 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		sealer:                  cfg.Sealer,
 		writeLinger:             writeLinger,
 		deadLetterKick:          make(chan struct{}, 1),
+		statsInterval:           statsInterval,
+		onStatsUpdated:          cfg.OnStatsUpdated,
 	}
 
 	q.wg.Go(q.writeLoop)
@@ -675,6 +687,38 @@ func (q *sqliteQueue) Stats(ctx context.Context) (Stats, error) {
 		stats.OldestDeadLetterTime = time.Unix(oldestDeadLetter.Int64, 0).UTC()
 	}
 	return stats, nil
+}
+
+func (q *sqliteQueue) statsLoop() {
+	ticker := time.NewTicker(q.statsInterval)
+	defer ticker.Stop()
+	for {
+		stats, err := q.Stats(q.ctx)
+		if err != nil {
+			if q.ctx.Err() == nil {
+				slog.ErrorContext(q.ctx,
+					"Failed to read audit queue stats for metrics.",
+					"path", q.path,
+					"error", err,
+				)
+			}
+		} else {
+			if q.path != "" {
+				label := filepath.Base(q.path)
+				queuePending.WithLabelValues(label).Set(float64(stats.PendingCount))
+				queueDeadLetter.WithLabelValues(label).Set(float64(stats.DeadLetterCount))
+				queueCorrupt.WithLabelValues(label).Set(float64(stats.CorruptCount))
+			}
+			if q.onStatsUpdated != nil {
+				q.onStatsUpdated()
+			}
+		}
+		select {
+		case <-q.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {

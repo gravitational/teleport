@@ -186,6 +186,34 @@ func TestStats_OldestEventTimes(t *testing.T) {
 	require.Equal(t, time.Unix(500, 0).UTC(), stats.OldestDeadLetterTime)
 }
 
+func TestStats_OnStatsUpdatedSignals(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Kind{KindSQLiteDisk, KindSQLiteMemory} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			signaled := make(chan struct{}, 1)
+			q, err := New(kind, Config{
+				Path:          filepath.Join(t.TempDir(), queueDir),
+				StatsInterval: 10 * time.Millisecond,
+				OnStatsUpdated: func() {
+					select {
+					case signaled <- struct{}{}:
+					default:
+					}
+				},
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, q.Close()) })
+
+			select {
+			case <-signaled:
+			case <-time.After(10 * time.Second):
+				t.Fatal("timed out waiting for stats signal")
+			}
+		})
+	}
+}
+
 func TestEnqueue_StampsEnqueuedAt(t *testing.T) {
 	t.Parallel()
 	q := newSqliteTestQueue(t)
