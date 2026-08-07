@@ -60,9 +60,11 @@ func GenSchemaBeamsConfig(ctx context.Context) (github_com_hashicorp_terraform_p
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -70,9 +72,11 @@ func GenSchemaBeamsConfig(ctx context.Context) (github_com_hashicorp_terraform_p
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Computed:      true,
@@ -99,18 +103,22 @@ func GenSchemaBeamsConfig(ctx context.Context) (github_com_hashicorp_terraform_p
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					"anthropic": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"app_name": {
-							Description: "AppName is the name of the Teleport app that proxies LLM requests. When empty, defaults to the Cloud-managed LLM app for this endpoint.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "AppName is the name of the Teleport app that proxies LLM requests. When empty, defaults to the Cloud-managed LLM app for this endpoint.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						}}),
 						Description: "Anthropic LLM endpoint configuration.",
 						Optional:    true,
 					},
 					"openai": {
 						Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"app_name": {
-							Description: "AppName is the name of the Teleport app that proxies LLM requests. When empty, defaults to the Cloud-managed LLM app for this endpoint.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "AppName is the name of the Teleport app that proxies LLM requests. When empty, defaults to the Cloud-managed LLM app for this endpoint.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						}}),
 						Description: "OpenAI LLM endpoint configuration.",
 						Optional:    true,
@@ -407,6 +415,12 @@ func CopyBeamsConfigFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 
 // CopyBeamsConfigToTerraform copies contents of the source Terraform object into a target struct
 func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_beams_v1.BeamsConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
+	return CopyBeamsConfigToTerraformPreserveUnknown(ctx, obj, tf, false)
+}
+
+// CopyBeamsConfigToTerraformPreserveUnknown copies contents of the source Terraform object into a target struct.
+// Set preserveUnknown to true to preserve unknown values.
+func CopyBeamsConfigToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gravitational_teleport_api_gen_proto_go_teleport_beams_v1.BeamsConfig, tf *github_com_hashicorp_terraform_plugin_framework_types.Object, preserveUnknown bool) github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics {
 	var diags github_com_hashicorp_terraform_plugin_framework_diag.Diagnostics
 	tf.Null = false
 	tf.Unknown = false
@@ -420,6 +434,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"BeamsConfig.kind", err})
@@ -428,10 +445,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["kind"] = v
 		}
 	}
@@ -442,6 +462,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"BeamsConfig.sub_kind", err})
@@ -450,10 +473,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["sub_kind"] = v
 		}
 	}
@@ -464,6 +490,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"BeamsConfig.version", err})
@@ -472,10 +501,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
-			v.Unknown = false
+			if !preserveUnknown {
+				v.Unknown = false
+			}
 			tf.Attrs["version"] = v
 		}
 	}
@@ -503,6 +535,7 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -512,6 +545,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"BeamsConfig.metadata.name", err})
@@ -520,10 +556,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["name"] = v
 						}
 					}
@@ -534,6 +573,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"BeamsConfig.metadata.namespace", err})
@@ -542,10 +584,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["namespace"] = v
 						}
 					}
@@ -556,6 +601,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"BeamsConfig.metadata.description", err})
@@ -564,10 +612,13 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
-							v.Unknown = false
+							if !preserveUnknown {
+								v.Unknown = false
+							}
 							tf.Attrs["description"] = v
 						}
 					}
@@ -593,11 +644,14 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"BeamsConfig.metadata.labels", err})
@@ -606,17 +660,20 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
-										v.Unknown = false
+										if !preserveUnknown {
+											v.Unknown = false
+										}
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
-								c.Unknown = false
+								c.Null = false
+								if !preserveUnknown {
+									c.Unknown = false
+								}
 								tf.Attrs["labels"] = c
 							}
 						}
@@ -626,12 +683,14 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 						if !ok {
 							diags.Append(attrWriteMissingDiag{"BeamsConfig.metadata.expires"})
 						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
+							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"], preserveUnknown)
 							tf.Attrs["expires"] = v
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["metadata"] = v
 			}
 		}
@@ -660,6 +719,7 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -686,6 +746,7 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 								if obj.Llm == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Llm
 									tf := &v
 									{
@@ -712,6 +773,7 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 												if obj.Anthropic == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.Anthropic
 													tf := &v
 													{
@@ -721,6 +783,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 														} else {
 															v, ok := tf.Attrs["app_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
+																if tf.Attrs["app_name"] != nil {
+																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.spec.llm.anthropic.app_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"BeamsConfig.spec.llm.anthropic.app_name", err})
@@ -729,15 +794,20 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.spec.llm.anthropic.app_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
-																v.Null = string(obj.AppName) == ""
 															}
+
+															v.Null = false
 															v.Value = string(obj.AppName)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["app_name"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["anthropic"] = v
 											}
 										}
@@ -766,6 +836,7 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 												if obj.Openai == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.Openai
 													tf := &v
 													{
@@ -775,6 +846,9 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 														} else {
 															v, ok := tf.Attrs["app_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 															if !ok {
+																if tf.Attrs["app_name"] != nil {
+																	diags.Append(attrWriteUnexpectedExistingTypeDiag{"BeamsConfig.spec.llm.openai.app_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																}
 																i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																if err != nil {
 																	diags.Append(attrWriteGeneralError{"BeamsConfig.spec.llm.openai.app_name", err})
@@ -783,27 +857,36 @@ func CopyBeamsConfigToTerraform(ctx context.Context, obj *github_com_gravitation
 																if !ok {
 																	diags.Append(attrWriteConversionFailureDiag{"BeamsConfig.spec.llm.openai.app_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																}
-																v.Null = string(obj.AppName) == ""
 															}
+
+															v.Null = false
 															v.Value = string(obj.AppName)
-															v.Unknown = false
+															if !preserveUnknown {
+																v.Unknown = false
+															}
 															tf.Attrs["app_name"] = v
 														}
 													}
 												}
-												v.Unknown = false
+												if !preserveUnknown {
+													v.Unknown = false
+												}
 												tf.Attrs["openai"] = v
 											}
 										}
 									}
 								}
-								v.Unknown = false
+								if !preserveUnknown {
+									v.Unknown = false
+								}
 								tf.Attrs["llm"] = v
 							}
 						}
 					}
 				}
-				v.Unknown = false
+				if !preserveUnknown {
+					v.Unknown = false
+				}
 				tf.Attrs["spec"] = v
 			}
 		}
@@ -916,5 +999,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }

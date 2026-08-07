@@ -34,7 +34,6 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
   - "BeamsConfig.metadata"
-  - "BeamsConfig.metadata.name"
   - "BeamsConfig.metadata.namespace"
   - "BeamsConfig.kind"
   - "BeamsConfig.sub_kind"

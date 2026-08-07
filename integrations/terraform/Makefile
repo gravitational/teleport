@@ -45,9 +45,8 @@ clean: tfclean
 .PHONY: build
 build: clean
 # Turning off GOWORK to prevent missing package errors.
-# TODO(greedy52): drop teleport_protohybrid once protoc-gen-terraform uses setters (#68494).
 	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) \
-		go build -tags "kustomize_disable_go_plugin_support,terraformprovider,teleport_protohybrid" \
+		go build -tags "kustomize_disable_go_plugin_support,terraformprovider" \
 		-o $(BUILDDIR)/$(BINARY_NAME) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
@@ -289,8 +288,7 @@ ifndef TERRAFORM_EXISTS
 	@exit -1
 endif
 
-# TODO(greedy52): drop teleport_protohybrid once protoc-gen-terraform uses setters (#68494).
-	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- -tags "teleport_protohybrid" ./testlib -v $(TEST_ARGS)
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
 testlib/plugin_ent_test.go:
 	go generate testlib/plugin_test.go
