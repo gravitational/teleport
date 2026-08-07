@@ -7938,6 +7938,24 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "granted principals for %q", e.name)
 				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "requestable principals for %q", e.name)
 			}
+
+			// Fetch the same page through the typed client helper to cover the
+			// conversion into EnrichedResource end to end.
+			enriched, _, err := apiclient.GetUnifiedResourcePage(ctx, tc.clt, &req)
+			require.NoError(t, err)
+			require.Len(t, enriched, len(tc.expectedResources))
+			for _, e := range tc.expectedResources {
+				idx := slices.IndexFunc(enriched, func(r *types.EnrichedResource) bool {
+					return r.GetName() == e.name
+				})
+				require.GreaterOrEqual(t, idx, 0, "resource %q missing from enriched page", e.name)
+				r := enriched[idx]
+				require.ElementsMatch(t, e.allLogins, r.Logins, "enriched logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "enriched principals for %q", e.name)
+				require.Equal(t, types.PrincipalTypeLogins, r.Principals[0].PrincipalType, "enriched principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "enriched granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "enriched requestable principals for %q", e.name)
+			}
 		})
 	}
 }

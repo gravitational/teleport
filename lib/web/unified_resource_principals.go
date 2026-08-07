@@ -144,6 +144,10 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 // request, preferring Auth's precomputed granted set when present,
 // else, computing locally using the base access checker.
 //
+// The local path covers a Proxy reading from an Auth that predates the
+// principal sets, which happens while a cluster is part way through an
+// upgrade.
+//
 // TODO(kiosion): DELETE IN 20.0.0
 func grantedLoginsForResource(opts PrincipalsForUnifiedResourceOpts, kind string, resource services.AccessCheckable) ([]string, error) {
 	for _, ps := range opts.Resource.Principals {

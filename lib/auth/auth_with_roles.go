@@ -1630,20 +1630,43 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 // getLogins returns the principals allowed on a resource. `all` is the full set
 // from the lister's checker; `granted`, only computed when withGranted is set,
 // is the subset allowed by the user's current roles. When no search_as_roles
-// widen the listing, both sets are equal and no extra computation is performed.
+// widen the listing, granted is a copy of all.
 func (l *unifiedResourceLister) getLogins(withGranted bool, resource services.AccessCheckable) (all, granted []string, err error) {
 	all, err = l.getAllowedLogins(resource)
-	if err != nil || !withGranted {
-		return all, nil, trace.Wrap(err)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if !withGranted {
+		return all, nil, nil
 	}
 	if l.requestableAccessChecker == nil {
-		return all, all, nil
+		return all, slices.Clone(all), nil
 	}
 	granted, err = l.accessChecker.GetAllowedLoginsForResource(resource)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	return all, granted, nil
+}
+
+// makeResourcePrincipalSet builds a principal set for one dimension of a
+// resource, splitting the full list into granted and requestable subsets.
+func makeResourcePrincipalSet(principalType string, all, granted []string) *proto.ResourcePrincipalSet {
+	grantedSet := make(map[string]struct{}, len(granted))
+	for _, v := range granted {
+		grantedSet[v] = struct{}{}
+	}
+	var requestable []string
+	for _, v := range all {
+		if _, ok := grantedSet[v]; !ok {
+			requestable = append(requestable, v)
+		}
+	}
+	return &proto.ResourcePrincipalSet{
+		PrincipalType: principalType,
+		Granted:       granted,
+		Requestable:   requestable,
+	}
 }
 
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
@@ -1826,6 +1849,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.IncludeLogins {
+		// Splitting granted from requestable requires the caller to have specified
+		// IncludeRequestable, or no search_as_roles to have widened listing, otherwise
+		// every value would be reported as granted.
 		populatePrincipals := req.IncludeRequestable || resourceLister.requestableAccessChecker == nil
 		for _, r := range paginatedResources {
 			var checkable services.AccessCheckable
@@ -1867,22 +1893,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				continue
 			}
 			r.Logins = all
+			// Resources with no allowed principals carry no dimensions, except
+			// for kinds whose dimensions' empty states are meaningful, e.g.,
+			// databases with auto-user provisioning.
 			if principalType != "" && populatePrincipals && len(all) > 0 {
-				grantedSet := make(map[string]struct{}, len(granted))
-				for _, v := range granted {
-					grantedSet[v] = struct{}{}
-				}
-				var requestable []string
-				for _, v := range all {
-					if _, ok := grantedSet[v]; !ok {
-						requestable = append(requestable, v)
-					}
-				}
-				r.Principals = []*proto.ResourcePrincipalSet{{
-					PrincipalType: principalType,
-					Granted:       granted,
-					Requestable:   requestable,
-				}}
+				r.Principals = []*proto.ResourcePrincipalSet{makeResourcePrincipalSet(principalType, all, granted)}
 			}
 		}
 	}

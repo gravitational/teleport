@@ -787,37 +787,60 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 
 	require.Len(t, resources, len(clt.resp.Resources))
 
-	principalTypes := func(sets []types.ResourcePrincipalSet) []*proto.ResourcePrincipalSet {
-		if len(sets) == 0 {
-			return nil
-		}
-		out := make([]*proto.ResourcePrincipalSet, 0, len(sets))
-		for _, s := range sets {
-			ps := &proto.ResourcePrincipalSet{PrincipalType: s.PrincipalType, Granted: s.Granted, Requestable: s.Requestable}
-			for _, br := range s.ByRole {
-				ps.ByRole = append(ps.ByRole, &proto.RolePrincipalValues{
-					Role:            br.Role,
-					RequiresRequest: br.RequiresRequest,
-					Values:          br.Values,
-				})
-			}
-			out = append(out, ps)
-		}
-		return out
-	}
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
-			assert.Equal(t, principalTypes(enriched.Principals), clt.resp.Resources[0].Principals)
+			assert.Equal(t, clt.resp.Resources[0].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeLogins,
+				Granted:       []string{"alice"},
+				Requestable:   []string{"bob"},
+				ByRole: []types.RolePrincipalValues{
+					{Role: "access", Values: []string{"alice"}},
+					{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+				},
+			}}, enriched.Principals)
 		case *types.WindowsDesktopV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
-			assert.Equal(t, principalTypes(enriched.Principals), clt.resp.Resources[1].Principals)
+			assert.Equal(t, clt.resp.Resources[1].Logins, enriched.Logins)
+			assert.Empty(t, enriched.Principals)
 		case *types.AppServerV3:
-			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
-			assert.Equal(t, principalTypes(enriched.Principals), clt.resp.Resources[2].Principals)
+			assert.Equal(t, clt.resp.Resources[2].Logins, enriched.Logins)
+			assert.Equal(t, []types.ResourcePrincipalSet{{
+				PrincipalType: types.PrincipalTypeRoleARNs,
+				Granted:       []string{"llama"},
+			}}, enriched.Principals)
 		}
 	}
+}
+
+// TestConvertResourcePrincipalSets validates the conversion of proto principal
+// sets to their api/types form, including per-role attribution and nil entries.
+func TestConvertResourcePrincipalSets(t *testing.T) {
+	require.Nil(t, convertResourcePrincipalSets(nil))
+	require.Nil(t, convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{}))
+
+	converted := convertResourcePrincipalSets([]*proto.ResourcePrincipalSet{
+		nil,
+		{
+			PrincipalType: types.PrincipalTypeLogins,
+			Granted:       []string{"alice"},
+			Requestable:   []string{"bob"},
+			ByRole: []*proto.RolePrincipalValues{
+				nil,
+				{Role: "access", Values: []string{"alice"}},
+				{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+			},
+		},
+	})
+	require.Equal(t, []types.ResourcePrincipalSet{{
+		PrincipalType: types.PrincipalTypeLogins,
+		Granted:       []string{"alice"},
+		Requestable:   []string{"bob"},
+		ByRole: []types.RolePrincipalValues{
+			{Role: "access", Values: []string{"alice"}},
+			{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+		},
+	}}, converted)
 }
 
 func TestUploadEncryptedRecording(t *testing.T) {
