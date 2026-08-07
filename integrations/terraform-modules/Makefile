@@ -64,7 +64,7 @@ PLUGIN_TYPE := terraform-module
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
-	teleport/container-service/aws \
+	teleport/agent/aws \
 
 MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))

@@ -3,7 +3,8 @@ provider "aws" {
 
   default_tags {
     tags = {
-      env = "example"
+      env                    = "example"
+      "teleport.dev/creator" = "gavin.frazar@goteleport.com"
     }
   }
 }
