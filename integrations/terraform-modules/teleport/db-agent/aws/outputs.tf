@@ -71,4 +71,5 @@ output "teleport_provision_token_name" {
 output "teleport_config" {
   description = "Teleport configuration used by the ECS task."
   value       = module.teleport_db_service.teleport_config
+  sensitive   = true
 }

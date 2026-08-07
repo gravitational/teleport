@@ -1,8 +1,20 @@
-## Teleport ECS Deployment
+## Teleport Agent Service Deployment on AWS ECS
 
-This module deploys a Teleport service to AWS ECS.
+This module deploys a Teleport agent to AWS ECS. The agent registers one or
+more Teleport services, such as Database, Discovery, Application, or
+Kubernetes, with an existing Teleport cluster.
+
+This module does not deploy a Teleport cluster or its Auth and Proxy control
+plane. It does not provision the persistent backend and audit storage, load
+balancing, DNS, or TLS certificates required to operate a self-hosted Teleport
+cluster.
 
 ## Prerequisites
+- An existing Teleport cluster with Auth and Proxy Services
+- A reachable Teleport Proxy Service endpoint
+- A supported join method and credentials that the agent can use to join the
+  cluster. Examples creates an IAM join token using the Teleport Terraform
+  provider.
 <!-- lint ignore absolute-docs-links -->
 - [Configure Teleport Terraform Provider](https://goteleport.com/docs/configuration/terraform-provider/)
 - [Configure AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
