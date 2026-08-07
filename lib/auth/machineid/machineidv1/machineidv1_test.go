@@ -672,7 +672,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-bot-success",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-bot-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -698,7 +698,7 @@ func TestCreateBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-bot-from-unscoped",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-bot-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -1819,7 +1819,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-upsert-success",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-upsert-success",
 				}.Build(),
 			}.Build(),
 		},
@@ -1845,7 +1845,7 @@ func TestUpsertBot(t *testing.T) {
 				Scope: "/scopes/granted",
 				Spec:  &machineidv1pb.BotSpec{},
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-++scopes+granted+scoped-upsert-from-unscoped",
+					UserName: "bot-30010173636f7065730000016772616e7465640000-scoped-upsert-from-unscoped",
 				}.Build(),
 			}.Build(),
 		},
@@ -2866,9 +2866,9 @@ func TestBotScopeNamespacing(t *testing.T) {
 		wantUserName string
 	}{
 		{scope: "", description: "unscoped", wantUserName: "bot-shared-name"},
-		{scope: "/scopes", description: "parent", wantUserName: "bot-++scopes+shared-name"},
-		{scope: "/scopes/alpha", description: "alpha", wantUserName: "bot-++scopes+alpha+shared-name"},
-		{scope: "/scopes/beta", description: "beta", wantUserName: "bot-++scopes+beta+shared-name"},
+		{scope: "/scopes", description: "parent", wantUserName: "bot-30010173636f7065730000-shared-name"},
+		{scope: "/scopes/alpha", description: "alpha", wantUserName: "bot-30010173636f706573000001616c7068610000-shared-name"},
+		{scope: "/scopes/beta", description: "beta", wantUserName: "bot-30010173636f706573000001626574610000-shared-name"},
 	}
 
 	// Creating each must succeed despite the shared name, and each must land
@@ -2926,7 +2926,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "alpha updated", upserted.GetMetadata().GetDescription())
-	require.Equal(t, "bot-++scopes+alpha+shared-name", upserted.GetStatus().GetUserName())
+	require.Equal(t, "bot-30010173636f706573000001616c7068610000-shared-name", upserted.GetStatus().GetUserName())
 	upsertEvt, ok := emitter.LastEvent().(*apievents.BotCreate)
 	require.True(t, ok, "expected BotCreate event, got %T", emitter.LastEvent())
 	require.Equal(t, "/scopes/alpha", upsertEvt.ResourceMetadata.Scope)
@@ -2951,7 +2951,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	require.True(t, ok, "expected BotDelete event, got %T", emitter.LastEvent())
 	require.Equal(t, botName, deleteEvt.ResourceMetadata.Name)
 	require.Equal(t, "/scopes/alpha", deleteEvt.ResourceMetadata.Scope)
-	_, err = srv.Auth().GetUser(ctx, "bot-++scopes+alpha+shared-name", false)
+	_, err = srv.Auth().GetUser(ctx, "bot-30010173636f706573000001616c7068610000-shared-name", false)
 	require.True(t, trace.IsNotFound(err), "expected backing user to be deleted, got: %v", err)
 	_, err = getBot("/scopes/alpha")
 	require.True(t, trace.IsNotFound(err), "expected not found, got: %v", err)
@@ -2980,16 +2980,16 @@ func TestBotScopeNamespacing(t *testing.T) {
 	// scoped bot's encoded user name. Upsert must refuse to write through the
 	// collision in either direction rather than clobber the other bot.
 	squatter, err := botSvc.CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
-		Bot: newBot("++scopes+alpha+victim", "", "unscoped squatter"),
+		Bot: newBot("30010173636f706573000001616c7068610000-victim", "", "unscoped squatter"),
 	}.Build())
 	require.NoError(t, err)
-	require.Equal(t, "bot-++scopes+alpha+victim", squatter.GetStatus().GetUserName())
+	require.Equal(t, "bot-30010173636f706573000001616c7068610000-victim", squatter.GetStatus().GetUserName())
 	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
 		Bot: newBot("victim", "/scopes/alpha", "clobber attempt"),
 	}.Build())
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
 	got, err := botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
-		BotName: "++scopes+alpha+victim",
+		BotName: "30010173636f706573000001616c7068610000-victim",
 	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(squatter, got, protocmp.Transform()),
@@ -3000,7 +3000,7 @@ func TestBotScopeNamespacing(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	_, err = botSvc.UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
-		Bot: newBot("++scopes+alpha+victim2", "", "clobber attempt"),
+		Bot: newBot("30010173636f706573000001616c7068610000-victim2", "", "clobber attempt"),
 	}.Build())
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists, got: %v", err)
 	got, err = botSvc.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
