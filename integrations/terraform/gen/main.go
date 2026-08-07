@@ -294,21 +294,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	database = payload{
-		Name:                   "Database",
-		TypeName:               "DatabaseV3",
-		VarName:                "database",
-		GetMethod:              "GetDatabase",
-		CreateMethod:           "CreateDatabase",
-		UpdateMethod:           "UpdateDatabase",
-		DeleteMethod:           "DeleteDatabase",
-		ID:                     `database.Metadata.Name`,
-		Kind:                   "db",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_database",
-		HasCheckAndSetDefaults: true,
-	}
-
 	dynamicWindowsDesktop = payload{
 		Name:                   "DynamicWindowsDesktop",
 		TypeName:               "DynamicWindowsDesktopV1",
@@ -1109,8 +1094,6 @@ func genTFSchema() {
 	generateDataSource(clusterMaintenance, singularDataSource)
 	generateResource(clusterNetworking, singularResource)
 	generateDataSource(clusterNetworking, singularDataSource)
-	generateResource(database, pluralResource)
-	generateDataSource(database, pluralDataSource)
 	generateResource(dynamicWindowsDesktop, pluralResource)
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
