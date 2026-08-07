@@ -30,13 +30,21 @@ import (
 	"github.com/gravitational/teleport/lib/events/auditqueue"
 )
 
-type fakeStatsEmitter struct {
+type fakeEmitter struct {
 	stats auditqueue.Stats
 	err   error
 }
 
-func (f *fakeStatsEmitter) Stats(context.Context) (auditqueue.Stats, error) {
+func (f *fakeEmitter) Stats(context.Context) (auditqueue.Stats, error) {
 	return f.stats, f.err
+}
+
+func (f *fakeEmitter) Shutdown(context.Context) error {
+	return nil
+}
+
+func (f *fakeEmitter) Close() error {
+	return nil
 }
 
 func TestAuditQueueStatusAggregation(t *testing.T) {
@@ -47,21 +55,21 @@ func TestAuditQueueStatusAggregation(t *testing.T) {
 	require.Nil(t, process.AuditQueueStatus(ctx))
 
 	now := time.Now()
-	a := &fakeStatsEmitter{stats: auditqueue.Stats{
+	a := &fakeEmitter{stats: auditqueue.Stats{
 		PendingCount:      3,
 		DeadLetterCount:   1,
 		CorruptCount:      4,
 		OldestPendingTime: now.Add(-10 * time.Minute),
 	}}
-	b := &fakeStatsEmitter{stats: auditqueue.Stats{
+	b := &fakeEmitter{stats: auditqueue.Stats{
 		PendingCount:         5,
 		DeadLetterCount:      2,
 		CorruptCount:         6,
 		OldestPendingTime:    now.Add(-20 * time.Minute),
 		OldestDeadLetterTime: now.Add(-time.Hour),
 	}}
-	process.registerAuditQueueStats(a)
-	process.registerAuditQueueStats(b)
+	process.registerEmitter(a)
+	process.registerEmitter(b)
 
 	// Depth is summed across all registered emitters; the oldest ages take
 	// the largest non-zero value, ignoring emitters with empty queues.
@@ -74,15 +82,15 @@ func TestAuditQueueStatusAggregation(t *testing.T) {
 	require.InDelta(t, 60*60, status.OldestDeadLetterAgeSeconds, 5)
 
 	// An erroring getter is skipped, not fatal.
-	c := &fakeStatsEmitter{err: errors.New("queue closed")}
-	process.registerAuditQueueStats(c)
+	c := &fakeEmitter{err: errors.New("queue closed")}
+	process.registerEmitter(c)
 	status = process.AuditQueueStatus(ctx)
 	require.Equal(t, int64(8), status.PendingCount)
 	require.Equal(t, int64(3), status.DeadLetterCount)
 	require.Equal(t, int64(10), status.CorruptCount)
 
 	// Unregistering drops the emitter from the sum.
-	process.unregisterAuditQueueStats(b)
+	process.unregisterEmitter(b)
 	status = process.AuditQueueStatus(ctx)
 	require.Equal(t, int64(3), status.PendingCount)
 	require.Equal(t, int64(1), status.DeadLetterCount)

@@ -95,7 +95,9 @@ type Config struct {
 	// permanently deleted.
 	DeadLetterTTL time.Duration
 	// Synchronous controls the SQLite synchronous pragma.
-	Synchronous SynchronousMode
+	Synchronous    SynchronousMode
+	StatsInterval  time.Duration
+	OnStatsUpdated func()
 }
 
 // Item is an event yielded to a Handler.

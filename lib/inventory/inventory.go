@@ -100,6 +100,7 @@ type DownstreamSender interface {
 type downstreamHandleOptions struct {
 	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
 }
 
@@ -130,6 +131,12 @@ func WithDownstreamClock(clock clockwork.Clock) DownstreamHandleOption {
 func WithAuditQueueStatusGetter(getter func(ctx context.Context) *types.AuditQueueStatus) DownstreamHandleOption {
 	return func(opts *downstreamHandleOptions) {
 		opts.auditQueueStatusGetter = getter
+	}
+}
+
+func WithAuditQueueStatusSignal(signal <-chan struct{}) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.auditQueueStatusSignal = signal
 	}
 }
 
@@ -173,13 +180,14 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 		cancel:                 cancel,
 		metadataGetter:         options.metadataGetter,
 		auditQueueStatusGetter: options.auditQueueStatusGetter,
+		auditQueueStatusSignal: options.auditQueueStatusSignal,
 		clock:                  options.clock,
 		helloGetter:            cachedHelloGetter,
 	}
 	go handle.run(fn)
 	go handle.autoEmitMetadata()
 	go handle.autoEmitGoodbye()
-	go handle.autoEmitAuditQueueStatus()
+	go handle.autoEmitInstanceStatus()
 	return handle, nil
 }
 
@@ -194,6 +202,7 @@ type downstreamHandle struct {
 	upstreamSSHLabels      map[string]string
 	metadataGetter         func(ctx context.Context) (*metadata.Metadata, error)
 	auditQueueStatusGetter func(ctx context.Context) *types.AuditQueueStatus
+	auditQueueStatusSignal <-chan struct{}
 	clock                  clockwork.Clock
 	helloGetter            HelloGetter
 	goodbye                atomic.Pointer[proto.UpstreamInventoryGoodbye]
@@ -275,10 +284,8 @@ func (h *downstreamHandle) autoEmitMetadata() {
 	}
 }
 
-const auditQueueStatusInterval = 30 * time.Second
-
-func (h *downstreamHandle) autoEmitAuditQueueStatus() {
-	if h.auditQueueStatusGetter == nil {
+func (h *downstreamHandle) autoEmitInstanceStatus() {
+	if h.auditQueueStatusGetter == nil || h.auditQueueStatusSignal == nil {
 		return
 	}
 
@@ -287,13 +294,11 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 		if status == nil {
 			return
 		}
-		if err := sender.Send(h.CloseContext(), proto.InventoryHeartbeat_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
-			slog.WarnContext(h.CloseContext(), "Failed to send audit queue status", "error", err)
+		if err := sender.Send(h.CloseContext(), proto.InstanceStatus_builder{AuditQueue: status}.Build()); err != nil && !errors.Is(err, context.Canceled) {
+			slog.WarnContext(h.CloseContext(), "Failed to send instance status", "error", err)
 		}
 	}
 
-	ticker := h.clock.NewTicker(auditQueueStatusInterval)
-	defer ticker.Stop()
 	for {
 		var sender DownstreamSender
 		select {
@@ -302,11 +307,20 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 			return
 		}
 
+		if !sender.Hello().GetCapabilities().GetInstanceStatus() {
+			select {
+			case <-sender.Done():
+				continue
+			case <-h.CloseContext().Done():
+				return
+			}
+		}
+
 	streamLoop:
 		for {
 			send(sender)
 			select {
-			case <-ticker.Chan():
+			case <-h.auditQueueStatusSignal:
 			case <-sender.Done():
 				break streamLoop
 			case <-h.CloseContext().Done():
