@@ -7791,6 +7791,8 @@ message SPIFFESVIDIssued {
   // was used to issue the SVID. Empty if the WorkloadIdentity is unscoped or
   // the legacy RPCs were used.
   string WorkloadIdentityScope = 17 [(gogoproto.jsontag) = "workload_identity_scope,omitempty"];
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 18 [(gogoproto.jsontag) = "ca_override,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.

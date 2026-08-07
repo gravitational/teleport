@@ -124,7 +124,6 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	id, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
 	)

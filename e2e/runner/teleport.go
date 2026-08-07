@@ -31,9 +31,9 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"gopkg.in/yaml.v3"
 )
 
@@ -73,7 +73,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 	t.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	t.log.Info("starting teleport with bootstrap state")
+	t.log.InfoContext(ctx, "starting teleport with bootstrap state")
 	if err := t.cmd.Start(); err != nil {
 		return fmt.Errorf("starting teleport: %w", err)
 	}
@@ -89,7 +89,7 @@ func (t *teleportInstance) start(ctx context.Context) error {
 
 // waitReady polls the proxy's /webapi/ping endpoint until it responds with 200.
 func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration) error {
-	t.log.Debug("waiting for teleport to be ready")
+	t.log.DebugContext(ctx, "waiting for teleport to be ready")
 
 	client := &http.Client{
 		Timeout: 2 * time.Second,
@@ -120,7 +120,7 @@ func (t *teleportInstance) waitReady(ctx context.Context, timeout time.Duration)
 		return fmt.Errorf("teleport failed to become ready: %w", err)
 	}
 
-	t.log.Info("teleport is ready")
+	t.log.InfoContext(ctx, "teleport is ready")
 
 	return nil
 }
@@ -130,7 +130,7 @@ func (t *teleportInstance) stop() {
 		return
 	}
 
-	t.log.Info("stopping teleport")
+	t.log.InfoContext(context.Background(), "stopping teleport")
 
 	select {
 	case <-t.waitDone:
@@ -141,7 +141,7 @@ func (t *teleportInstance) stop() {
 		select {
 		case <-t.waitDone:
 		case <-time.After(5 * time.Second):
-			t.log.Warn("teleport did not exit gracefully, sending SIGKILL")
+			t.log.WarnContext(context.Background(), "teleport did not exit gracefully, sending SIGKILL")
 			_ = syscall.Kill(-t.cmd.Process.Pid, syscall.SIGKILL)
 			<-t.waitDone
 		}

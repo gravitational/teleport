@@ -68,7 +68,7 @@ func (s *TerraformSuiteEnterprise) TestInferencePolicy() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "spec.kinds.1", "db"),
 					resource.TestCheckResourceAttr(name, "spec.model", "another-dummy-model"),
-					resource.TestCheckNoResourceAttr(name, "spec.filter"),
+					resource.TestCheckResourceAttr(name, "spec.filter", ""),
 				),
 			},
 			{

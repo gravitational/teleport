@@ -290,6 +290,11 @@ func itemFromGithubConnector(gc types.GithubConnector) (*backend.Item, error) {
 	if err := services.CheckAndSetDefaults(gc); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := gc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := gc.GetRevision()
 	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
@@ -326,6 +331,11 @@ func itemFromRole(role types.Role) (*backend.Item, error) {
 // instance of `backend.Item` suitable for storage.
 func itemFromOIDCConnector(connector types.OIDCConnector) (*backend.Item, error) {
 	rev := connector.GetRevision()
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)

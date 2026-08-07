@@ -34,8 +34,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -565,7 +566,9 @@ Ingest:
 				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
 			}
 		case *usagereporter.BotJoinEvent:
-			botUserName := machineidv1.BotResourceName(te.BotName)
+			// TODO(strideynet): BotJoinEvent carries no scope, so same-named
+			// bots in different scopes aggregate together.
+			botUserName, _ := services.BotResourceName(scopes.QualifiedName{Name: te.BotName})
 			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
 			if te.BotInstanceId != "" {
 				botInstanceRecord(botUserName, te.BotInstanceId).BotJoins++
