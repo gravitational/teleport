@@ -54,6 +54,11 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
+	ctx, err = withReusableAdminActionMFA(ctx, client)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	createResponse, err := c.createAccessList(ctx, client, newAccessList, members)
 	if err != nil {
 		return trace.Wrap(err)
