@@ -9574,10 +9574,9 @@ message MCPJSONRPCMessage {
   string ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
   // Method is the method of this message.
   string method = 3 [(gogoproto.jsontag) = "method"];
-  // Params is the optional parameters. May lose precision for large numbers
-  // due to protobuf Struct using float64. Use raw for exact values.
-  // TODO(greedy52) deprecate in v20.
+  // Deprecated: use raw for exact values.
   google.protobuf.Struct params = 5 [
+    deprecated = true,
     (gogoproto.jsontag) = "params,omitempty",
     (gogoproto.casttype) = "Struct"
   ];

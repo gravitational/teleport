@@ -478,10 +478,26 @@ func TestTrimMCPJSONRPCMessage(t *testing.T) {
 	})
 
 	t.Run("trimmed", func(t *testing.T) {
-		trimmed := m.trimToMaxFieldSize(maxSizePerField(50, m.nonEmptyStrs()))
+		trimmed := m.trimToMaxFieldSize(maxSizePerField(100, m.nonEmptyStrs()))
 		require.Equal(t, orgSize, m.Size())
-		require.Less(t, trimmed.Size(), 50)
-		require.NotEmpty(t, trimmed.ToolsCallName)
-		require.NotEmpty(t, trimmed.Raw)
+		require.Less(t, trimmed.Size(), 100)
+		require.Equal(t, MCPJSONRPCMessage{
+			JSONRPC:       "2.0",
+			ID:            "some-id",
+			Method:        "tools/call",
+			ToolsCallName: "echo_number",
+			Raw:           `{"jsonrpc"`,
+			Params: &Struct{
+				Struct: types.Struct{
+					Fields: map[string]*types.Value{
+						strings.Repeat("A", 12): {
+							Kind: &types.Value_StringValue{
+								StringValue: "A",
+							},
+						},
+					},
+				},
+			},
+		}, trimmed)
 	})
 }

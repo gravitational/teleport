@@ -248,13 +248,13 @@ func (c *requestBuilder) makeRequestID() mcp.RequestId {
 	return mcp.NewRequestId(atomic.AddInt64(&c.idCounter, 1))
 }
 
-func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPCRequest {
+func (c *requestBuilder) makeToolsCallRequest(t testing.TB, toolName string) *mcputils.JSONRPCRequest {
 	return &mcputils.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      c.makeRequestID(),
 		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
-			"name": json.RawMessage(`"` + toolName + `"`),
+			"name": mustMarshalJSON(t, toolName),
 		},
 	}
 }
@@ -626,7 +626,7 @@ func requireRequestResponseError(t *testing.T, respJSON []byte, expectedCode int
 	require.Contains(t, string(messageErrorDetails["data"]), string(escapedIncludedData))
 }
 
-func requireMarshalJSON(t *testing.T, v any) json.RawMessage {
+func mustMarshalJSON(t testing.TB, v any) json.RawMessage {
 	t.Helper()
 	b, err := json.Marshal(v)
 	require.NoError(t, err)

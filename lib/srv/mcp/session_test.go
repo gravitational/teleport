@@ -123,7 +123,7 @@ func Test_sessionHandler(t *testing.T) {
 
 			for _, allowedTool := range tt.allowedTools {
 				t.Run("allow tools call "+allowedTool, func(t *testing.T) {
-					clientReq := requestBuilder.makeToolsCallRequest(allowedTool)
+					clientReq := requestBuilder.makeToolsCallRequest(t, allowedTool)
 					clientCapture := &captureMessageWriter{}
 					serverCapture := &captureMessageWriter{}
 					require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
@@ -144,7 +144,7 @@ func Test_sessionHandler(t *testing.T) {
 
 			for _, deniedTool := range tt.deniedTools {
 				t.Run("deny tools call "+deniedTool, func(t *testing.T) {
-					clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
+					clientReq := requestBuilder.makeToolsCallRequest(t, deniedTool)
 					clientCapture := &captureMessageWriter{}
 					serverCapture := &captureMessageWriter{}
 					require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
@@ -169,10 +169,10 @@ func Test_sessionHandler(t *testing.T) {
 			for _, allowedTool := range tt.allowedTools {
 				for _, deniedTool := range tt.deniedTools {
 					t.Run(fmt.Sprintf("deny %q tool while allowed tool %q is passed with a non-canonical name param", deniedTool, allowedTool), func(t *testing.T) {
-						clientReq := requestBuilder.makeToolsCallRequest(deniedTool)
-						clientReq.Params["Name"] = requireMarshalJSON(t, allowedTool)
-						clientReq.Params["NaMe"] = requireMarshalJSON(t, allowedTool)
-						clientReq.Params["NAME"] = requireMarshalJSON(t, allowedTool)
+						clientReq := requestBuilder.makeToolsCallRequest(t, deniedTool)
+						clientReq.Params["Name"] = mustMarshalJSON(t, allowedTool)
+						clientReq.Params["NaMe"] = mustMarshalJSON(t, allowedTool)
+						clientReq.Params["NAME"] = mustMarshalJSON(t, allowedTool)
 						clientCapture := &captureMessageWriter{}
 						serverCapture := &captureMessageWriter{}
 						require.NoError(t, handler.onClientRequest(clientCapture, serverCapture)(ctx, clientReq))
@@ -446,7 +446,7 @@ func BenchmarkAccessToTool(b *testing.B) {
 
 	requests := make([]*mcputils.JSONRPCRequest, len(tools))
 	for i, tool := range tools {
-		requests[i] = requestBuilder.makeToolsCallRequest(tool)
+		requests[i] = requestBuilder.makeToolsCallRequest(b, tool)
 	}
 
 	b.ResetTimer()
