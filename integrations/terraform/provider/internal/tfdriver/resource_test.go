@@ -245,6 +245,97 @@ func TestResourceUpdateSetsStateFromRetrieved(t *testing.T) {
 	}
 }
 
+// testSingletonResourceClient is a resource client for singleton resources
+// that returns a virtual default (empty revision) when no user-created
+// resource exists.
+type testSingletonResourceClient struct {
+	resource *testTeleportResource
+}
+
+func (c *testSingletonResourceClient) Get(_ context.Context, _ SingletonIdentifier) (*testTeleportResource, error) {
+	if c.resource != nil {
+		clone := *c.resource
+		return &clone, nil
+	}
+	return &testTeleportResource{
+		Name: "singleton",
+	}, nil
+}
+
+func (c *testSingletonResourceClient) Create(_ context.Context, resource *testTeleportResource) error {
+	clone := *resource
+	clone.Revision = "1"
+	c.resource = &clone
+	return nil
+}
+
+func (c *testSingletonResourceClient) Upsert(context.Context, *testTeleportResource) error {
+	return errors.New("upsert not implemented")
+}
+
+func (c *testSingletonResourceClient) Delete(_ context.Context, _ SingletonIdentifier) error {
+	c.resource = nil
+	return nil
+}
+
+func TestResourceCreateSingletonVirtualDefault(t *testing.T) {
+	newSingletonResource := func(client *testSingletonResourceClient) Resource[testTeleportResource, SingletonIdentifier] {
+		return Resource[testTeleportResource, SingletonIdentifier]{
+			resourceClient: client,
+			resource: ResourceType[testTeleportResource, SingletonIdentifier]{
+				Kind: "test_singleton",
+				Codec: ResourceCodecFuncs[testTeleportResource]{
+					FromPlanFunc: copyTestTeleportResourceFromTerraform,
+					ToStateFunc:  copyTestTeleportResourceToTerraform,
+				},
+				Identifier: SingletonIdentifierPolicy[testTeleportResource]("singleton"),
+				ResourceRevision: func(resource *testTeleportResource) string {
+					return resource.Revision
+				},
+			},
+			runtime: testRuntime{},
+		}
+	}
+
+	plan := func(t *testing.T) tfsdk.Plan {
+		return testTeleportResourcePlan(t, t.Context(), testTeleportResourceSchema(), map[string]string{
+			"id":           "singleton",
+			"name":         "singleton",
+			"revision":     "",
+			"value":        "my-value",
+			"server_value": "",
+		})
+	}
+
+	t.Run("skips virtual default", func(t *testing.T) {
+		client := &testSingletonResourceClient{}
+		resource := newSingletonResource(client)
+		resp := &tfsdk.CreateResourceResponse{
+			State: tfsdk.State{Schema: testTeleportResourceSchema()},
+		}
+		resource.Create(t.Context(), tfsdk.CreateResourceRequest{Plan: plan(t)}, resp)
+		require.False(t, resp.Diagnostics.HasError(), resp.Diagnostics)
+		require.NotNil(t, client.resource)
+		require.Equal(t, "my-value", client.resource.Value)
+	})
+
+	t.Run("rejects existing with revision", func(t *testing.T) {
+		client := &testSingletonResourceClient{
+			resource: &testTeleportResource{
+				Name:     "singleton",
+				Revision: "existing-rev",
+				Value:    "existing-value",
+			},
+		}
+		resource := newSingletonResource(client)
+		resp := &tfsdk.CreateResourceResponse{
+			State: tfsdk.State{Schema: testTeleportResourceSchema()},
+		}
+		resource.Create(t.Context(), tfsdk.CreateResourceRequest{Plan: plan(t)}, resp)
+		require.True(t, resp.Diagnostics.HasError())
+	})
+}
+
 func testTeleportResourceSchema() tfsdk.Schema {
 	return tfsdk.Schema{
 		Attributes: map[string]tfsdk.Attribute{

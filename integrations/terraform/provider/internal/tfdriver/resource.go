@@ -375,3 +375,25 @@ func (r Resource[T, I]) ImportState(ctx context.Context, req tfsdk.ImportResourc
 		return
 	}
 }
+
+// isResourceAbsent returns true if no user-created resource exists.
+func (r Resource[T, I]) isResourceAbsent(t *T, err error) bool {
+	switch {
+	case trace.IsNotFound(err):
+		return true
+
+	case err == nil && t != nil && r.resource.ResourceRevision != nil:
+		// If a resource is fetched successfully, check if it is a singleton
+		// virtual default which has no revision.
+		return r.isSingleton(t) && r.resource.ResourceRevision(t) == ""
+
+	default:
+		return false
+	}
+}
+
+func (r Resource[T, I]) isSingleton(t *T) bool {
+	id := r.resource.Identifier.FromResource(t)
+	_, ok := any(id).(SingletonIdentifier)
+	return ok
+}

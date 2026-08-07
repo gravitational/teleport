@@ -42,6 +42,7 @@ var testModules = &modulestest.Modules{
 			entitlements.Policy:           {Enabled: true},
 			entitlements.SessionSummaries: {Enabled: true},
 			entitlements.AccessLists:      {Enabled: true},
+			entitlements.Beams:            {Enabled: true},
 		},
 	},
 }

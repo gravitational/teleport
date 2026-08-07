@@ -20,6 +20,8 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
 
 // ResourceNormalizer prepares a Teleport resource before create and update.
@@ -92,6 +94,33 @@ func CheckAndSetDefaults[T any]() ResourceNormalizer[T] {
 			}
 			return trace.Wrap(defaulter.CheckAndSetDefaults())
 		},
+	}
+}
+
+// SetDefaultName sets the metadata name if the user did not provide one.
+func SetDefaultName[T any](name string) ResourceNormalizer[T] {
+	setName := func(_ context.Context, resource *T) error {
+		type metadataAccessor interface {
+			GetMetadata() *headerv1.Metadata
+			SetMetadata(*headerv1.Metadata)
+		}
+		accessor, ok := any(resource).(metadataAccessor)
+		if !ok {
+			return trace.BadParameter("%T does not implement metadata accessors", resource)
+		}
+		meta := accessor.GetMetadata()
+		if meta == nil {
+			meta = &headerv1.Metadata{}
+			accessor.SetMetadata(meta)
+		}
+		if meta.GetName() == "" {
+			meta.SetName(name)
+		}
+		return nil
+	}
+	return ResourceNormalizerFuncs[T]{
+		Create: setName,
+		Update: setName,
 	}
 }
 

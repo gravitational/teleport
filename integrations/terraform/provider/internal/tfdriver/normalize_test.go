@@ -22,13 +22,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 )
 
 type normalizerTestResource struct {
 	kind       string
+	metadata   *headerv1.Metadata
 	defaulted  bool
 	createSeen bool
 	updateSeen bool
+}
+
+func (r *normalizerTestResource) GetMetadata() *headerv1.Metadata {
+	return r.metadata
+}
+
+func (r *normalizerTestResource) SetMetadata(m *headerv1.Metadata) {
+	r.metadata = m
 }
 
 func (r *normalizerTestResource) CheckAndSetDefaults() error {
@@ -85,6 +96,35 @@ func TestResourceNormalizersStopsOnError(t *testing.T) {
 	err := normalizers.NormalizeCreate(t.Context(), &resource)
 	require.ErrorIs(t, err, sentinel)
 	require.Empty(t, resource.kind)
+}
+
+func TestSetDefaultName(t *testing.T) {
+	t.Run("sets name when empty", func(t *testing.T) {
+		var resource normalizerTestResource
+		require.NoError(t, SetDefaultName[normalizerTestResource]("my-default").NormalizeCreate(t.Context(), &resource))
+		require.Equal(t, "my-default", resource.metadata.GetName())
+	})
+
+	t.Run("sets name when metadata nil", func(t *testing.T) {
+		resource := normalizerTestResource{metadata: nil}
+		require.NoError(t, SetDefaultName[normalizerTestResource]("my-default").NormalizeCreate(t.Context(), &resource))
+		require.NotNil(t, resource.metadata)
+		require.Equal(t, "my-default", resource.metadata.GetName())
+	})
+
+	t.Run("preserves existing name", func(t *testing.T) {
+		meta := &headerv1.Metadata{}
+		meta.SetName("user-provided")
+		resource := normalizerTestResource{metadata: meta}
+		require.NoError(t, SetDefaultName[normalizerTestResource]("my-default").NormalizeCreate(t.Context(), &resource))
+		require.Equal(t, "user-provided", resource.metadata.GetName())
+	})
+
+	t.Run("works on update", func(t *testing.T) {
+		var resource normalizerTestResource
+		require.NoError(t, SetDefaultName[normalizerTestResource]("my-default").NormalizeUpdate(t.Context(), &resource))
+		require.Equal(t, "my-default", resource.metadata.GetName())
+	})
 }
 
 func TestSpecificNormalizersRejectUnsupportedResource(t *testing.T) {
