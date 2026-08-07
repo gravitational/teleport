@@ -45,8 +45,6 @@ service OktaService {
   rpc CreateOktaAssignment(CreateOktaAssignmentRequest) returns (types.OktaAssignmentV1);
   // UpdateOktaAssignment updates an existing Okta assignment resource.
   rpc UpdateOktaAssignment(UpdateOktaAssignmentRequest) returns (types.OktaAssignmentV1);
-  // UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-  rpc UpdateOktaAssignmentStatus(UpdateOktaAssignmentStatusRequest) returns (google.protobuf.Empty);
   // DeleteOktaAssignment removes the specified Okta assignment resource.
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
   // DeleteAllOktaAssignments removes all Okta assignments.
@@ -340,17 +338,6 @@ message CreateOktaAssignmentRequest {
 message UpdateOktaAssignmentRequest {
   // assignment is the Okta assignment to update.
   types.OktaAssignmentV1 assignment = 1;
-}
-
-// UpdateOktaAssignmentStatusRequest is a request for updating an Okta assignment status.
-message UpdateOktaAssignmentStatusRequest {
-  // name is the name of the Okta assignment.
-  string name = 1;
-  // status is the status to update the assignment to.
-  types.OktaAssignmentSpecV1.OktaAssignmentStatus status = 2;
-  // timeHasPassed is the amount of time that must have passed since the last transition
-  // in order to set the new transition.
-  google.protobuf.Duration time_has_passed = 3;
 }
 
 // DeleteOktaAssignmentRequest is the request for deleting an Okta assignment.
