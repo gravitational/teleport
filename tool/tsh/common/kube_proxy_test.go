@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -350,4 +352,49 @@ func (p *kubeTestPack) testKubeProxyCertReissuer(t *testing.T) {
 	identity, err := tlsca.FromSubject(reissued.Leaf.Subject, reissued.Leaf.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, p.rootKubeCluster1, identity.KubernetesCluster)
+}
+
+// TestKubeProxyCertReissuerRestoresKubeconfig verifies that the middleware cert reissuer
+// recreates the ephemeral kubeconfig deleted by a relogin before it attempts the issuance,
+// so a failed issuance does not leave the running proxy without its kubeconfig and the next reissue can load it again.
+func TestKubeProxyCertReissuerRestoresKubeconfig(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "kubeconfig")
+	cfg := clientcmdapi.NewConfig()
+	cfg.CurrentContext = "test-context"
+	require.NoError(t, kubeconfig.Save(path, *cfg))
+
+	cc := &fakeKubeCertClient{mfaRequired: true}
+	cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+		return nil, trace.AccessDenied("issuance failed after the relogin")
+	}
+	issuer := newTestKubeCertIssuer(cc)
+	issuer.conn = &clusterConn{dialer: reloginClusterDialer{path: path, cc: cc}}
+
+	kubeProxy := &kubeLocalProxy{
+		kubeConfigPath: path,
+		kubeconfig:     cfg,
+		certIssuer:     issuer,
+	}
+
+	_, err := kubeProxy.getCertReissuer()(t.Context(), "root", "kube-a")
+	require.Error(t, err, "the issuance must fail in this scenario")
+
+	restored, err := kubeconfig.Load(path)
+	require.NoError(t, err, "the kubeconfig deleted by the relogin must be recreated even when the issuance fails")
+	require.Equal(t, "test-context", restored.CurrentContext)
+}
+
+// reloginClusterDialer deletes the ephemeral kubeconfig when it dials, mimicking a relogin during the dial.
+type reloginClusterDialer struct {
+	path string
+	cc   *fakeKubeCertClient
+}
+
+func (d reloginClusterDialer) DialCluster(ctx context.Context) (kubeCertClient, error) {
+	if err := os.Remove(d.path); err != nil && !os.IsNotExist(err) {
+		return nil, trace.Wrap(err)
+	}
+	return d.cc, nil
 }
