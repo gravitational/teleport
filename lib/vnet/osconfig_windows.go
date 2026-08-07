@@ -220,10 +220,10 @@ func configureDNS(ctx context.Context, zones, nameservers []string, doesGroupPol
 	return nil
 }
 
-// hostIPv6Disabled checks whether IPv6 has been disabled on the host via the
+// platformHostIPv6Disabled checks whether IPv6 has been disabled on the host via the
 // DisabledComponents value under tcpip6ParametersKey. The setting is
 // host-wide, so the TUN device name is unused.
-func hostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+func platformHostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
 	// Bit 0x10 disables IPv6 on all non-tunnel interfaces, checking it also
 	// covers the 0xFF value that disables IPv6 entirely. Absent key or value
 	// means that IPv6 is enabled.
