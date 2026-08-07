@@ -1,7 +1,8 @@
 include install.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
+CURRENT_DIR := $(shell pwd)
+PROTOC_GEN_TERRAFORM:= "protoc-gen-terraform=$(CURRENT_DIR)/protoc-gen-terraform.sh"
 
 BUILDDIR ?= build
 TFDIR ?= example
@@ -63,17 +64,8 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
-# This version must match the version installed by .github/workflows/lint.yaml
-PROTOC_GEN_TERRAFORM_VERSION ?= v4.0.0
-PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
-
 .PHONY: gen-tfschema
 gen-tfschema:
-ifndef PROTOC_GEN_TERRAFORM_EXISTS
-	@echo "protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION) is not installed. Please, refer to README.md for installation instructions."
-	@exit -1
-endif
-
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go list -m -f '{{.Dir}}' github.com/gogo/protobuf))
