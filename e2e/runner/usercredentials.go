@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -64,7 +65,14 @@ func generateUserCredentials() (*credentials, error) {
 		return nil, fmt.Errorf("marshaling private key: %w", err)
 	}
 
-	pubCBOR := encodeEC2PublicKeyCBOR(privateKey.PublicKey.X, privateKey.PublicKey.Y)
+	// Bytes returns the SEC 1 uncompressed point, 0x04 || X || Y, with each
+	// coordinate zero-padded to the 32-byte P-256 field size.
+	pub, err := privateKey.PublicKey.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("encoding public key: %w", err)
+	}
+
+	pubCBOR := encodeEC2PublicKeyCBOR(pub[1:33], pub[33:65])
 
 	credID := make([]byte, 32)
 	if _, err := rand.Read(credID); err != nil {
@@ -79,8 +87,8 @@ func generateUserCredentials() (*credentials, error) {
 		privateKeyPKCS8Base64: base64.StdEncoding.EncodeToString(pkcs8),
 	}
 
-	slog.Debug("generated per-run credentials",
-		"credentialID", creds.credentialIDBase64,
+	slog.DebugContext(context.Background(), "generated per-run credentials",
+		"credential_id", creds.credentialIDBase64,
 	)
 
 	return creds, nil
@@ -88,8 +96,9 @@ func generateUserCredentials() (*credentials, error) {
 
 // encodeEC2PublicKeyCBOR builds the 77-byte COSE key encoding for an
 // EC2 P-256 public key. The structure is fixed so we construct the bytes
-// directly rather than pulling in a CBOR library.
-func encodeEC2PublicKeyCBOR(x, y *big.Int) []byte {
+// directly rather than pulling in a CBOR library. x and y must each be the
+// 32-byte big-endian coordinate.
+func encodeEC2PublicKeyCBOR(x, y []byte) []byte {
 	buf := make([]byte, 0, 77)
 
 	buf = append(buf, 0xa5)       // map(5)
@@ -101,10 +110,10 @@ func encodeEC2PublicKeyCBOR(x, y *big.Int) []byte {
 	buf = append(buf, 0x01)       // value: 1 (P-256)
 	buf = append(buf, 0x21)       // key: -2 (x)
 	buf = append(buf, 0x58, 0x20) // bstr(32)
-	buf = append(buf, x.FillBytes(make([]byte, 32))...)
+	buf = append(buf, x...)
 	buf = append(buf, 0x22)       // key: -3 (y)
 	buf = append(buf, 0x58, 0x20) // bstr(32)
-	buf = append(buf, y.FillBytes(make([]byte, 32))...)
+	buf = append(buf, y...)
 
 	return buf
 }

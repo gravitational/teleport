@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -157,7 +158,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 		if len(f.testFiles) > 0 || mode != modeUI {
 			targets, resolveErr := resolveTargetsWithHelpers(e2eDir, f.testFiles)
 			if resolveErr != nil {
-				slog.Warn("scan: error resolving files", "error", resolveErr)
+				slog.WarnContext(context.Background(), "scan: error resolving files", "error", resolveErr)
 			} else {
 				f.scanTargets = targets
 				for _, fix := range scanFixturesFromTargets(targets) {
@@ -174,7 +175,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 	}
 
 	if enabled := fixtures.Enabled(); len(enabled) > 0 {
-		slog.Info("enabled fixtures", "fixtures", enabled)
+		slog.InfoContext(context.Background(), "enabled fixtures", "fixtures", enabled)
 	}
 
 	// If every specified test file targets connect, skip browser instances.

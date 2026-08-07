@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,8 +28,6 @@ import (
 	"slices"
 	"strings"
 )
-
-const commentMarker = "<!-- e2e-test-results -->"
 
 func writeGitHubReport(resultsPath string) error {
 	data, err := os.ReadFile(resultsPath)
@@ -57,7 +56,7 @@ func writeGitHubReport(resultsPath string) error {
 	emitAnnotations(mergedFailures, mergedFlaky, report.Errors)
 
 	if err := writeJobSummary(report, mergedFailures, mergedFlaky); err != nil {
-		slog.Warn("could not write job summary", "error", err)
+		slog.WarnContext(context.Background(), "could not write job summary", "error", err)
 	}
 
 	return nil
@@ -152,7 +151,7 @@ func emitAnnotations(failures, flaky []mergedFailure, errors []pwError) {
 func writeJobSummary(report pwReport, failures, flaky []mergedFailure) error {
 	summaryPath := os.Getenv("GITHUB_STEP_SUMMARY")
 	if summaryPath == "" {
-		slog.Warn("GITHUB_STEP_SUMMARY not set, skipping job summary")
+		slog.WarnContext(context.Background(), "GITHUB_STEP_SUMMARY not set, skipping job summary")
 
 		return nil
 	}
