@@ -44,9 +44,13 @@ var validMethods = []string{
 var whereParser = mustNewWhereParser()
 
 // Request encodes the elements of the HTTP request a where clause is
-// evaluated against.
+// evaluated against. Path is the encoded request path as sent to the
+// upstream app, [net/url.URL.EscapedPath]. NewEnv does not validate it;
+// the first path.match call in an evaluation tokenizes it and returns an
+// error when Tokenize rejects it, and the caller denies on error.
 type Request struct {
 	Method string
+	Path   string
 }
 
 // Identity is the caller a where clause is evaluated against.
@@ -144,6 +148,62 @@ func mustNewWhereParser() *typical.CachedParser[Env, bool] {
 			}),
 		},
 		Functions: map[string]typical.Function{
+			// path.match walks the matcher tree against the tokenized
+			// request path and reports whether it matched. A path that
+			// Tokenize rejects is an evaluation error, and a path carrying
+			// the encoded separator %2F is too, because no node in this
+			// version admits one. An error, not false, keeps a negated
+			// path.match from turning an unmatchable path into an allow:
+			// the error aborts the evaluation and the caller denies.
+			"path.match": typical.UnaryFunctionWithEnv(func(e Env, root *Node) (bool, error) {
+				tokens, err := Tokenize(e.Request.Path)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+				for _, tok := range tokens {
+					if hasEncodedSeparator(tok) {
+						return false, trace.BadParameter("path %q carries the encoded separator %%2F, which no rule in this version admits", e.Request.Path)
+					}
+				}
+				matched, _ := Eval(tokens, root)
+				return matched, nil
+			}),
+			// Matcher constructors. Each returns one Node, so they nest
+			// and type-check at parse time: every child argument must
+			// itself evaluate to a *Node.
+			"literal": typical.BinaryVariadicFunction[Env](func(s string, children ...*Node) (*Node, error) {
+				if err := validateLiteral(s); err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return Literal(s, children...), nil
+			}),
+			"capture": typical.BinaryVariadicFunction[Env](func(name string, children ...*Node) (*Node, error) {
+				return Capture(name, children...), nil
+			}),
+			"glob": typical.UnaryVariadicFunction[Env](func(children ...*Node) (*Node, error) {
+				return Glob(children...), nil
+			}),
+			"greedy": typical.NullaryFunction[Env](func() (*Node, error) {
+				return Greedy(), nil
+			}),
+			// slash() matches the empty segment a final "/" produces, so a
+			// literal never carries empty text.
+			"slash": typical.NullaryFunction[Env](func() (*Node, error) {
+				return Slash(), nil
+			}),
+			// optional() makes a trailing subtree optional: the path may
+			// end at this node, or one of the children matches the
+			// remainder. So optional(slash()) matches "/foo" and "/foo/"
+			// alike from one tree with no duplicated prefix.
+			"optional": typical.UnaryVariadicFunction[Env](func(children ...*Node) (*Node, error) {
+				return Optional(children...)
+			}),
+			// root gives a tree several first segments. It consumes no
+			// token and OR-s its children, so it folds several root paths
+			// into one path.match call.
+			"root": typical.UnaryVariadicFunction[Env](func(children ...*Node) (*Node, error) {
+				return Root(children...)
+			}),
 			// set and contains are named after the functions in the role
 			// where-clause language, services.NewWhereParser.
 			"set": typical.UnaryVariadicFunction[Env](func(args ...string) ([]string, error) {
