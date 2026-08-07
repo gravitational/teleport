@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -49,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -777,15 +777,10 @@ func x509Template(
 
 // getX509CA returns the X.509 CA and trust chain used to sign SVIDs.
 //
-// When useIssuerOverrides is true, it checks for an active CA override:
-//
-//   - The sub-CA override resolver (cert_authority_override resources) is checked first. If an override is active, the
-//     override certificate replaces the self-signed CA cert, and the trust chain from the override is returned.
-//
-//   - If no sub-CA override is found and the legacy override getter is configured, it falls back to the legacy
-//     workload_identity_x509_issuer_override system for backward compatibility.
-//
-// TODO(espadolini): support alternate overrides depending on the trust domain, once that's fleshed out
+// If useIssuerOverrides is false, the self-signed CA is returned. Otherwise, it checks for an active CA override:
+//   - The sub-CA override resolver (cert_authority_override resources) is checked first. If a CA override resource
+//     exists, then it's used to calculate the CA cert and trust chain.
+//   - Otherwise it falls back to the legacy workload_identity_x509_issuer_override resource.
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
 	caType types.CertAuthType,
@@ -794,12 +789,14 @@ func (s *IssuanceService) getX509CA(
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
 	defer func() { tracing.EndSpan(span, err) }()
 
+	const loadKeys = true
 	ca, err := s.cache.GetCertAuthority(
-		ctx, types.CertAuthID{
+		ctx,
+		types.CertAuthID{
 			Type:       caType,
 			DomainName: s.clusterName,
 		},
-		true, // Load keys.
+		loadKeys,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -832,7 +829,20 @@ func (s *IssuanceService) getX509CA(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Returns the override CA if active for this key, or the original self-signed CA otherwise.
+	if !subCAResolver.HasCAOverride() {
+		// No CA override resource exists, fall back to the legacy workload override. If no legacy override is found,
+		// return the self-signed CA.
+		//
+		// TODO(cthach): DELETE IN v20.0 remove this entire block and return the self-signed CA once all clusters
+		// have migrated from workload to sub-CA overrides.
+		signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return signingCA, chain, nil
+	}
+
 	result, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -844,7 +854,7 @@ func (s *IssuanceService) getX509CA(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		chain, err := pemChainToDER(result.CAChain.ToPEMs())
+		chain, err := certificatesToDER(result.CAChain)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -852,16 +862,9 @@ func (s *IssuanceService) getX509CA(
 		return overrideCA, chain, nil
 	}
 
-	// No sub-CA override active for this key, fall back to the legacy override. If no override is found, return the
-	// self-signed CA.
-	//
-	// TODO(cthach): DELETE IN v20.0 fall back path once all clusters have migrated from workload to sub-CA overrides.
-	signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return signingCA, chain, nil
+	// CA override resource exists but no override matches the selected signing key. Return the self-signed CA
+	// rather than falling back to a different trust source when an override is explicitly configured.
+	return selfSignedCA, nil, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
@@ -1358,16 +1361,16 @@ func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
 	return nil
 }
 
-func pemChainToDER(chain [][]byte) ([][]byte, error) {
-	der := make([][]byte, len(chain))
+func certificatesToDER(certs subca.Certificates) ([][]byte, error) {
+	der := make([][]byte, len(certs))
 
-	for i, certPEM := range chain {
-		cert, err := tlsutils.ParseCertificatePEM(certPEM)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	for i, cert := range certs {
+		block, _ := pem.Decode(cert.PEM)
+		if block == nil {
+			return nil, trace.BadParameter("expected PEM-encoded certificate at index %d", i)
 		}
 
-		der[i] = cert.Raw
+		der[i] = block.Bytes
 	}
 
 	return der, nil

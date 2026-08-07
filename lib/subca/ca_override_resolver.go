@@ -278,3 +278,9 @@ func (c *CAOverrideResolver) calculateOverride(
 
 	return res, nil
 }
+
+// HasCAOverride reports whether a CA override resource exists and has at least
+// one active (non-disabled) certificate override configured.
+func (c *CAOverrideResolver) HasCAOverride() bool {
+	return c.overridesActive
+}

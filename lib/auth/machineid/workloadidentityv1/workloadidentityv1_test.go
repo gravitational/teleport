@@ -1545,7 +1545,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:               "SVID chains to legacy override when sub-CA override targets a stale key",
+			name:               "SVID chains to self-signed CA when key does not match sub-CA override",
 			mods:               modulestest.EnterpriseModules(),
 			useIssuerOverrides: true,
 			configureOverrides: func(t *testing.T, tp *issuanceTestPack) overrideResult {
@@ -1554,7 +1554,7 @@ func TestIssueWorkloadIdentity_CAOverrides(t *testing.T) {
 
 				createSPIFFECAOverrideForKey(t, tp, staleKey.Public(), false)
 
-				return installLegacyOverrideGetter(t, tp)
+				return overrideResult{roots: tp.spiffeX509CAPool, issuer: spiffeCACert(t, tp).Subject}
 			},
 		},
 		{
