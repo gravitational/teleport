@@ -197,7 +197,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 		return true
 	}
 
-	cert, err := m.getCert(teleportCluster, kubeCluster)
+	cert, certKubeCluster, err := m.getCert(teleportCluster, kubeCluster)
 	// If the cert is cleared using m.ClearCerts(), it won't be found.
 	// This forces the middleware to issue a new cert on a new request.
 	// This is used in access requests in Connect where we want to refresh certs without closing the proxy.
@@ -205,7 +205,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 		return false
 	}
 
-	err = m.reissueCertIfExpired(req.Context(), cert, teleportCluster, kubeCluster)
+	err = m.reissueCertIfExpired(req.Context(), cert, teleportCluster, certKubeCluster)
 	if err != nil {
 		// If user input is required we return an error that will try to get user attention to the local proxy
 		if errors.Is(err, ErrUserInputRequired) {
@@ -249,19 +249,19 @@ func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) 
 	return kuberelay.FullSNIForKubeCluster(tc, kc), true, nil
 }
 
-// getCert looks up the per-cluster client cert to use for an outbound kube
-// API request. Clusters are identified by the (teleport, kube) pair parsed
-// from the request URL path.
-func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (tls.Certificate, error) {
-	key := kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}
-
+// getCert looks up the client cert to use for an outbound kube API request.
+// Clusters are identified by the (teleport, kube) pair parsed from the request URL path.
+func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (cert tls.Certificate, resolvedKubeCluster string, err error) {
 	m.certsMu.RLock()
-	cert, ok := m.certs[key]
-	m.certsMu.RUnlock()
-	if !ok {
-		return tls.Certificate{}, trace.NotFound("no client cert found for teleport cluster %q kube cluster %q", teleportCluster, kubeCluster)
+	defer m.certsMu.RUnlock()
+
+	if cert, ok := m.certs[kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}]; ok {
+		return cert, kubeCluster, nil
 	}
-	return cert, nil
+	if cert, ok := m.certs[kubeClusterKey{teleportCluster: teleportCluster}]; ok {
+		return cert, "", nil
+	}
+	return tls.Certificate{}, kubeCluster, trace.NotFound("no client cert found for teleport cluster %q kube cluster %q", teleportCluster, kubeCluster)
 }
 
 func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, error) {
@@ -269,7 +269,8 @@ func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, 
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return m.getCert(tc, kc)
+	cert, _, err := m.getCert(tc, kc)
+	return cert, trace.Wrap(err)
 }
 
 // GetClientCerts implements [LocalProxyHTTPMiddleware].
