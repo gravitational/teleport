@@ -403,6 +403,11 @@ type ServerContext struct {
 	// recording proxy.
 	RemoteSession *tracessh.Session
 
+	// remoteEnhancedRecording is set when the target Teleport Node reports that
+	// Enhanced Session Recording is active. Only used by the recording proxy,
+	// which cannot determine this itself because BPF runs on the Node.
+	remoteEnhancedRecording atomic.Bool
+
 	// disconnectExpiredCert is set to time when/if the certificate should
 	// be disconnected, set to empty if no disconnect is necessary
 	disconnectExpiredCert time.Time
@@ -960,6 +965,19 @@ func (c *ServerContext) AuditEmitter() apievents.Emitter {
 // regardless of cluster recording mode.
 func (c *ServerContext) BPFEmitter() apievents.Emitter {
 	return c.srv
+}
+
+// SetRemoteEnhancedRecording records that the target Teleport Node reported
+// Enhanced Session Recording as active for this session.
+func (c *ServerContext) SetRemoteEnhancedRecording() {
+	c.remoteEnhancedRecording.Store(true)
+}
+
+// RemoteEnhancedRecording returns whether the target Teleport Node reported
+// Enhanced Session Recording as active for this session. Only a forwarding
+// node ever observes this, since it is the Node that runs BPF and reports.
+func (c *ServerContext) RemoteEnhancedRecording() bool {
+	return c.remoteEnhancedRecording.Load()
 }
 
 func (c *ServerContext) Close() error {

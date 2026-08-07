@@ -1127,6 +1127,160 @@ func TestBPFEnabledAndNoPermitEvents(t *testing.T) {
 	require.False(t, sess.hasEnhancedRecording)
 }
 
+// TestReportEnhancedRecordingToForwardingNode verifies that a Node only reports Enhanced Session
+// Recording to the forwarding node when the forwarding node owns the session events, since that is
+// the only case where the Node's own session.end is discarded.
+func TestReportEnhancedRecordingToForwardingNode(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name          string
+		recordingMode string
+		bpfEnabled    bool
+		wantReported  bool
+	}{
+		{
+			name:          "proxy recording reports to the forwarding node",
+			recordingMode: types.RecordAtProxy,
+			bpfEnabled:    true,
+			wantReported:  true,
+		},
+		{
+			name:          "proxy-sync recording reports to the forwarding node",
+			recordingMode: types.RecordAtProxySync,
+			bpfEnabled:    true,
+			wantReported:  true,
+		},
+		{
+			name:          "node recording has no forwarding node to report to",
+			recordingMode: types.RecordAtNode,
+			bpfEnabled:    true,
+			wantReported:  false,
+		},
+		{
+			name:          "nothing to report when BPF is disabled",
+			recordingMode: types.RecordAtProxy,
+			bpfEnabled:    false,
+			wantReported:  false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newMockServer(t)
+			srv.component = teleport.ComponentNode
+			srv.bpf = &countingBPF{enabled: tt.bpfEnabled}
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: srv.auth,
+			})
+			require.NoError(t, err)
+			t.Cleanup(reg.Close)
+
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: tt.recordingMode,
+			})
+			require.NoError(t, err)
+
+			scx := newTestServerContext(t, reg.Srv, nil, decisionpb.SSHAccessPermit_builder{
+				BpfEvents: []string{constants.EnhancedRecordingCommand},
+			}.Build())
+			scx.SessionRecordingConfig = recConfig
+			scx.execRequest = &mockExec{command: "true"}
+
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
+			require.NoError(t, reg.OpenExecSession(t.Context(), serverChan, scx))
+
+			sess := scx.getSession()
+			require.NotNil(t, sess)
+			select {
+			case <-sess.doneCh:
+			case <-time.After(3 * time.Second):
+				require.Fail(t, "exec session did not complete")
+			}
+
+			require.Equal(t, tt.bpfEnabled, sess.hasEnhancedRecording)
+
+			reported := slices.Contains(serverChan.sentRequestNames(), teleport.EnhancedRecordingRequest)
+			require.Equal(t, tt.wantReported, reported)
+		})
+	}
+}
+
+// TestSessionEndEnhancedRecordingReportedByNode verifies that a forwarding node reports enhanced
+// recording on session.end based on what the target Node told it, since BPF never runs on the
+// forwarding node itself.
+func TestSessionEndEnhancedRecordingReportedByNode(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name           string
+		reportedByNode bool
+	}{
+		{
+			name:           "node reported enhanced recording",
+			reportedByNode: true,
+		},
+		{
+			name:           "node reported nothing",
+			reportedByNode: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newMockServer(t)
+			srv.component = teleport.ComponentForwardingNode
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: srv.auth,
+			})
+			require.NoError(t, err)
+			t.Cleanup(reg.Close)
+
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: types.RecordAtProxy,
+			})
+			require.NoError(t, err)
+
+			scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+			scx.SessionRecordingConfig = recConfig
+			scx.execRequest = &mockExec{command: "true"}
+
+			if tt.reportedByNode {
+				scx.SetRemoteEnhancedRecording()
+			}
+
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
+			require.NoError(t, reg.OpenExecSession(t.Context(), serverChan, scx))
+
+			sess := scx.getSession()
+			require.NotNil(t, sess)
+			select {
+			case <-sess.doneCh:
+			case <-time.After(3 * time.Second):
+				require.Fail(t, "exec session did not complete")
+			}
+
+			// The forwarding node never runs BPF itself.
+			require.False(t, sess.hasEnhancedRecording)
+
+			var sessionEnd *apievents.SessionEnd
+			for _, event := range srv.Events() {
+				if end, ok := event.(*apievents.SessionEnd); ok {
+					sessionEnd = end
+				}
+			}
+			require.NotNil(t, sessionEnd, "no session.end event was emitted")
+			require.Equal(t, tt.reportedByNode, sessionEnd.EnhancedRecording)
+		})
+	}
+}
+
 func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 	t.Parallel()
 

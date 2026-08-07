@@ -872,6 +872,12 @@ const (
 	// clients should stop checking in v21, and servers should stop responding to the query in v22.
 	SessionIDQueryRequestV2 = "session-id-query-v2@goteleport.com"
 
+	// EnhancedRecordingRequest is sent by a Teleport Node to inform the
+	// forwarding node that Enhanced Session Recording is active for the
+	// session. BPF only runs on the Node, so in Proxy recording mode the
+	// forwarding node has no other way to know before it emits session.end.
+	EnhancedRecordingRequest = "enhanced-recording@goteleport.com"
+
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 

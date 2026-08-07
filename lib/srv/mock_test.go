@@ -26,6 +26,8 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -393,6 +395,9 @@ func (c *mockSSHConn) Wait() error {
 type mockSSHChannel struct {
 	reader io.ReadCloser
 	writer io.WriteCloser
+
+	mu           sync.Mutex
+	sentRequests []string
 }
 
 // newMockSSHChannel creates a mock ssh channel and returns both the client and server side.
@@ -446,7 +451,17 @@ func (c *mockSSHChannel) CloseWrite() error {
 }
 
 func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sentRequests = append(c.sentRequests, name)
 	return true, nil
+}
+
+// sentRequestNames returns the names of the requests sent on this side of the channel.
+func (c *mockSSHChannel) sentRequestNames() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.sentRequests)
 }
 
 // Stderr is not modeled by this mock yet. Return a sink so tests that only

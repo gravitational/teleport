@@ -46,6 +46,34 @@ export class TerminalPage {
   }
 
   /**
+   * Returns the ID of the session, which the console puts in the URL once the session is
+   * established.
+   */
+  async sessionID(): Promise<string> {
+    const sessionRoute = /\/console\/session\/([0-9a-f-]+)/;
+
+    await expect(this.page).toHaveURL(sessionRoute, {
+      timeout: TERMINAL_TIMEOUT,
+    });
+
+    const match = sessionRoute.exec(this.page.url());
+    if (!match) {
+      throw new Error(`no session ID in terminal URL ${this.page.url()}`);
+    }
+
+    return match[1];
+  }
+
+  /**
+   * Ends the session by exiting the remote shell and closing the tab, so the server tears the
+   * session down instead of waiting on an idle websocket.
+   */
+  async exit() {
+    await this.exec('exit');
+    await this.page.close();
+  }
+
+  /**
    * Selects all of the text rendered in the terminal and copies it.
    */
   async copyAllText() {
