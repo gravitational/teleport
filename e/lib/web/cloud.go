@@ -20,10 +20,12 @@ import (
 	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
+	clientiprestrictionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	"github.com/gravitational/teleport/api/trail"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -92,8 +94,18 @@ func (p *Plugin) registerCloudHandlers() {
 	p.h.DELETE("/enterprise/sites/:site/contact", p.withCloudClusterAuth(p.deleteClusterContactHandle))
 
 	// client IP restrictions
+	//
+	// Deprecated: the plural GET/PUT operate on CIDRs only. They are superseded by the
+	// singular endpoints below, which surface mode/expires/status. Kept so a proxy
+	// running this major still serves pre-v19 web clients (an out-of-date cached bundle)
+	// that expect the bare-array response.
+	// TODO(mcbattirola): remove in v20
 	p.h.GET("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.withCloudClusterCache(p.getClientIPRestrictions)))
 	p.h.PUT("/enterprise/sites/:site/clientiprestrictions", p.withCloudClusterAuth(p.putClientIPRestrictions))
+	// New RFD 153-compliant singular endpoints, backed by the ClientIPRestriction gRPC
+	// service. They surface the full resource ({cidrs,mode,expires,status,revision}).
+	p.h.GET("/enterprise/sites/:site/clientiprestriction", p.h.WithClusterAuth(p.getClientIPRestriction))
+	p.h.PUT("/enterprise/sites/:site/clientiprestriction", p.h.WithClusterAuth(p.putClientIPRestriction))
 
 	// assets
 	p.h.GET("/enterprise/cloud/assets/*path", p.withCloud(p.getCloudAssetHandle))
@@ -426,6 +438,10 @@ func (p *Plugin) getClientIPRestrictions(w http.ResponseWriter, r *http.Request,
 	return res.ClientIpRestrictions, nil
 }
 
+// Deprecated: use getClientIPRestriction, which returns mode/expires/status in
+// addition to the CIDRs. Kept for pre-v19 web clients that expect the bare-array
+// response and still call the plural endpoint.
+// TODO(mcbattirola): remove in v20
 func (p *Plugin) putClientIPRestrictions(w http.ResponseWriter, r *http.Request, sctx *web.SessionContext, cluster reversetunnelclient.Cluster, cloudClient cloud.Client) (any, error) {
 	var req cloudapi.PutClientIPRestrictionsRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
@@ -436,6 +452,60 @@ func (p *Plugin) putClientIPRestrictions(w http.ResponseWriter, r *http.Request,
 		return nil, trail.FromGRPC(err)
 	}
 	return res.ClientIpRestrictions, nil
+}
+
+// getClientIPRestriction returns the singleton ClientIPRestriction resource via the
+// RFD 153-compliant gRPC service, surfacing cidrs/mode/expires/status/revision.
+func (p *Plugin) getClientIPRestriction(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.ClientIPRestrictionClient().GetClientIPRestriction(r.Context(), &clientiprestrictionv1pb.GetClientIPRestrictionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.ToClientIPRestriction(resp.GetClientIpRestriction()), nil
+}
+
+// putClientIPRestriction creates or replaces the ClientIPRestriction resource via the
+// RFD 153-compliant gRPC service. When a revision is supplied the write is a guarded
+// Update; otherwise it is an Upsert (create-or-replace).
+func (p *Plugin) putClientIPRestriction(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *web.SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var req ui.PutClientIPRestrictionRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cir := req.ToProto()
+	cirClient := clt.ClientIPRestrictionClient()
+
+	// A revision means the caller read the resource first and wants an optimistic-lock
+	// guarded write; no revision means a plain create-or-replace.
+	if req.Revision != "" {
+		resp, err := cirClient.UpdateClientIPRestriction(r.Context(), clientiprestrictionv1pb.UpdateClientIPRestrictionRequest_builder{
+			ClientIpRestriction: cir,
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ui.ToClientIPRestriction(resp.GetClientIpRestriction()), nil
+	}
+
+	resp, err := cirClient.UpsertClientIPRestriction(r.Context(), clientiprestrictionv1pb.UpsertClientIPRestrictionRequest_builder{
+		ClientIpRestriction: cir,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui.ToClientIPRestriction(resp.GetClientIpRestriction()), nil
 }
 
 func (p *Plugin) surveyResultsHandler(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (any, error) {

@@ -290,8 +290,14 @@ const cfg = {
     },
 
     contacts: '/v1/enterprise/sites/:clusterId/contact',
+    /**
+     * @deprecated CIDR-only GET/PUT. Superseded by clientIpRestriction (singular), which also surfaces mode/expires/status. Kept for pre-v19 clients.
+     */
+    // Deprecated: CIDR-only GET/PUT. Superseded by clientIpRestriction (singular),
+    // which also surfaces mode/expires/status. Kept for pre-v19 clients.
     clientIpRestrictions:
       '/v1/enterprise/sites/:clusterId/clientiprestrictions',
+    clientIpRestriction: '/v1/enterprise/sites/:clusterId/clientiprestriction',
 
     sessionRecordingSummary:
       '/v1/webapi/sites/:clusterId/session-summaries/:sessionId',
@@ -677,6 +683,10 @@ const cfg = {
 
   getClientIpRestrictionsUrl(clusterId: string) {
     return generatePath(cfg.api.clientIpRestrictions, { clusterId });
+  },
+
+  getClientIpRestrictionUrl(clusterId: string) {
+    return generatePath(cfg.api.clientIpRestriction, { clusterId });
   },
 
   getSessionRecordingSummaryUrl(clusterId: string, sessionId: string) {
