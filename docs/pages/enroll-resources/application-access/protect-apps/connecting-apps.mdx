@@ -270,19 +270,30 @@ Clusters environment. Validation rules depend on where the app is registered:
   lowercase alphanumeric, `-`, `_`, or `.`, max 253 characters.
 
 <Admonition type="warning" title="Characters that can cause issues">
-On Teleport Enterprise (Cloud), avoid `.` in app names. The tenant wildcard
-certificate only covers one subdomain level (`*.<tenant>.teleport.sh`), so
-dotted names fail TLS validation. Underscores are accepted by the Auth Service
-but strict TLS clients (OpenSSL with `verify_hostname`) and proxies like NGINX
-(with `underscores_in_headers off`) may reject them.
+Avoid `.` in app names. The tenant wildcard certificate only covers one subdomain 
+level (`*.<tenant>.teleport.sh`), so dotted names fail TLS validation. Underscores 
+are accepted by the Auth Service but strict TLS clients (OpenSSL with `verify_hostname`)
+and proxies like NGINX (with `underscores_in_headers off`) may reject them.
 </Admonition>
 
 If you set `public_addr`, it must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.
 
-Two apps that route to the same FQDN create an ambiguous routing state.
-Teleport rejects such collisions when `proxy_service` is colocated in the same
-static configuration.
+Two apps that resolve to the same FQDN create an ambiguous routing state.
+Teleport detects several forms of this collision in static configuration
+(`app_service.apps` in YAML) and rejects them at startup:
+
+| Collision type | Example | Detected | Condition | Since |
+|---|---|---|---|---|
+| Duplicate explicit `public_addr` | Two apps set `public_addr: dash.example.com` | Always | — | v19 |
+| Duplicate `name` | Two apps named `dash` derive the same FQDN | Always | — | v19 |
+| Derived address matches explicit | `name: kibana` derives `kibana.tele.example.com`, colliding with another app's `public_addr` | Conditionally | `proxy_service.public_addr` or `auth_service.cluster_name` must be in the same config file | v19 |
+| App claims the proxy address | `public_addr: tele.example.com` matches the proxy's own address | Always | Checked against registered proxies in the backend | v18 |
+
+If none of these checks can detect the collision — for example, when the
+conflicting apps are registered by separate agents that each lack
+`proxy_service.public_addr` in their config — Teleport does not reject the
+configuration at startup, and routing behavior is undefined.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g

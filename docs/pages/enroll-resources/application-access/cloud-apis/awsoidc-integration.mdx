@@ -151,13 +151,15 @@ integration '<Var name="my-integration"/>' has been created
 
 ### Validate the integration
 
-To validate the integration without making a mutating AWS change, run:
+To validate the integration without modifying any AWS resources, run::
 
 ```code
 $ tctl integrations test <Var name="my-integration"/>
 ```
 
-This command calls AWS STS `GetCallerIdentity` using the OIDC token exchange, confirming that AWS trusts Teleport's identity provider and can assume the configured IAM role. If the integration is working, the command returns the AWS account ID and assumed role ARN, and you can skip ahead to [Next steps](#next-steps).
+This command calls AWS STS `GetCallerIdentity` using the OIDC token exchange, confirming that AWS trusts Teleport's identity provider and can assume the configured IAM role.
+
+If the integration is working, the command returns the AWS account ID and assumed role ARN, and you can skip ahead to [Next steps](#next-steps).
 
 If `tctl integrations test` fails, use the following steps to narrow down where
 the problem is.
