@@ -354,7 +354,7 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: false,
 		},
 		{
-			inputName: "invalid-mssql-kerberos-kdchostname-without-ldapcert",
+			inputName: "valid-mssql-kerberos-kdchostname-with-system-cert-pool",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver.goteleport.com:1433",
@@ -365,7 +365,7 @@ func TestValidateDatabase(t *testing.T) {
 					SPN:         "MSSQLSvc/sqlserver.goteleport.com:1433",
 				},
 			},
-			expectError: true,
+			expectError: false,
 		},
 		{
 			inputName: "valid-mssql-azure-kerberos",

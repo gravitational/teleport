@@ -181,13 +181,26 @@ func TestConnectorKInitClient(t *testing.T) {
 			},
 		},
 		{
+			name: "kinit using system certificate pool",
+			databaseSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "sqlserver:1443",
+				AD: types.AD{
+					KDCHostName: "kdc.example.com",
+				},
+			},
+			validateClient: func(t *testing.T, clt *client.Client) {
+				require.NotNil(t, clt)
+			},
+		},
+		{
 			name: "invalid AD config",
 			databaseSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver:1443",
 				AD:       types.AD{},
 			},
-			errorMessage: "configuration must have either keytab_file or kdc_host_name and ldap_cert",
+			errorMessage: "configuration must have either keytab_file or kdc_host_name",
 		},
 		{
 			name: "kinit invalid certificate",

@@ -75,7 +75,7 @@ func (c *clientProvider) GetKerberosClient(ctx context.Context, ad types.AD, use
 		}
 		return kt, nil
 	}
-	return nil, trace.BadParameter("configuration must have either keytab_file or kdc_host_name and ldap_cert")
+	return nil, trace.BadParameter("configuration must have either keytab_file or kdc_host_name")
 }
 
 // keytabClient returns a kerberos client using a keytab file
@@ -115,8 +115,10 @@ func (c *clientProvider) keytabClient(ad types.AD, username string) (*client.Cli
 
 // kinitClient returns a kerberos client using a kinit ccache
 func (c *clientProvider) kinitClient(ctx context.Context, ad types.AD, username string, auth winpki.AuthInterface) (*client.Client, error) {
-	if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
-		return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
+	if ad.LDAPCert != "" {
+		if _, err := tlsutils.ParseCertificatePEM([]byte(ad.LDAPCert)); err != nil {
+			return nil, trace.Wrap(err, "invalid certificate was provided via AD configuration")
+		}
 	}
 
 	if c.providerFun == nil {

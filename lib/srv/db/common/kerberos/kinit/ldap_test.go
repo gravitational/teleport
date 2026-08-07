@@ -120,4 +120,14 @@ func TestTLSConfigForLDAP(t *testing.T) {
 	require.Equal(t, "ldap.example.com", tlsConfig.ServerName)
 	require.NotEmpty(t, tlsConfig.Certificates)
 	require.NotNil(t, tlsConfig.RootCAs)
+
+	// Leaving LDAPCert unset leaves RootCAs nil, which makes crypto/tls use the
+	// host's system certificate pool.
+	adConfig.LDAPCert = ""
+	connector, err = newLDAPConnector(slog.Default(), auth, adConfig)
+	require.NoError(t, err)
+
+	tlsConfig, err = connector.tlsConfigForLDAP(ctx, "test-cluster")
+	require.NoError(t, err)
+	require.Nil(t, tlsConfig.RootCAs)
 }
