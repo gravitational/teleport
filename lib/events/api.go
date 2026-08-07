@@ -1257,6 +1257,10 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
+	// AbortUpload aborts a multipart upload, cleaning up any parts that
+	// were uploaded. This prevents the periodic completer from finalizing
+	// a truncated recording after part failures.
+	AbortUpload(ctx context.Context, upload StreamUpload) error
 	// GetUploadMetadata gets the upload metadata
 	GetUploadMetadata(sessionID session.ID) UploadMetadata
 }

@@ -287,9 +287,23 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			log.DebugContext(ctx, "Upload not found, moving on to next upload", "error", err)
 			continue
 		} else if err != nil {
-			return trace.Wrap(err, "completing upload %v for session %v", upload.ID, upload.SessionID)
+			log.ErrorContext(ctx, "Failed to complete upload", "error", err, "upload_id", upload.ID, "session_id", upload.SessionID)
+			// Do not emit a session.upload event for failed completions.
+			// Emitting a success event when the upload actually failed
+			// would mislead operators into thinking the recording is safe
+			// when it may be lost or corrupted.
+			//
+			// This is part of the fix for issue #65895 where persistent
+			// storage backend errors caused uploads to be silently dropped
+			// after hours of retries, with a misleading session.upload event
+			// implying success.
+			//
+			// Propagate the error so the caller (PerformPeriodicCheck) can
+			// back off and avoid hammering an unhealthy backend on every
+			// scan interval.
+			return trace.Wrap(err, "completing upload %v", upload.ID)
 		}
-		log.DebugContext(ctx, "Completed upload")
+		log.DebugContext(ctx, "Completed upload", "upload_id", upload.ID, "session_id", upload.SessionID)
 		completed++
 		incompleteSessionUploads.Dec()
 
