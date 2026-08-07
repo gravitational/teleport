@@ -278,3 +278,8 @@ func (c *CAOverrideResolver) calculateOverride(
 
 	return res, nil
 }
+
+// HasCAOverride reports whether a CA override resource exists for the resolver's target.
+func (c *CAOverrideResolver) HasCAOverride() bool {
+	return c.parsed != nil
+}

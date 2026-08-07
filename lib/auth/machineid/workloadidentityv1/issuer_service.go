@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -54,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/oidc"
@@ -95,6 +98,7 @@ type issuerCache interface {
 	GetProxies() ([]types.Server, error)
 	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error)
 	ListResources(ctx context.Context, req apiproto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
@@ -109,6 +113,7 @@ type IssuanceServiceConfig struct {
 	KeyStore                   KeyStorer
 	OverrideGetter             services.WorkloadIdentityX509CAOverrideGetter
 	GetSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	IsEnterpriseBuild          func() bool
 
 	ClusterName string
 }
@@ -127,6 +132,7 @@ type IssuanceService struct {
 	keyStore                   KeyStorer
 	overrideGetter             services.WorkloadIdentityX509CAOverrideGetter
 	getSigstorePolicyEvaluator func() SigstorePolicyEvaluator
+	isEnterpriseBuild          func() bool
 
 	clusterName string
 }
@@ -150,6 +156,8 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("cluster name is required")
 	case cfg.GetSigstorePolicyEvaluator == nil:
 		return nil, trace.BadParameter("sigstore policy evaluator is required")
+	case cfg.IsEnterpriseBuild == nil:
+		return nil, trace.BadParameter("enterprise build check is required")
 	}
 
 	if cfg.Logger == nil {
@@ -168,6 +176,7 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		keyStore:                   cfg.KeyStore,
 		overrideGetter:             cfg.OverrideGetter,
 		getSigstorePolicyEvaluator: cfg.GetSigstorePolicyEvaluator,
+		isEnterpriseBuild:          cfg.IsEnterpriseBuild,
 
 		clusterName: cfg.ClusterName,
 	}, nil
@@ -766,6 +775,12 @@ func x509Template(
 	return c
 }
 
+// getX509CA returns the X.509 CA and trust chain used to sign SVIDs.
+//
+// If useIssuerOverrides is false, the self-signed CA is returned. Otherwise, it checks for an active CA override:
+//   - The sub-CA override resolver (cert_authority_override resources) is checked first. If a CA override resource
+//     exists, then it's used to calculate the CA cert and trust chain.
+//   - Otherwise it falls back to the legacy workload_identity_x509_issuer_override resource.
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
 	caType types.CertAuthType,
@@ -774,32 +789,82 @@ func (s *IssuanceService) getX509CA(
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
 	defer func() { tracing.EndSpan(span, err) }()
 
-	const loadKeysTrue = true
-	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: s.clusterName,
-	}, loadKeysTrue)
+	const loadKeys = true
+	ca, err := s.cache.GetCertAuthority(
+		ctx,
+		types.CertAuthID{
+			Type:       caType,
+			DomainName: s.clusterName,
+		},
+		loadKeys,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
 	tlsCert, tlsSigner, err := s.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA cert and key")
+		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+
+	selfSignedCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	if !useIssuerOverrides {
-		return tlsCA, nil, nil
-	}
-	// TODO(espadolini): support alternate overrides depending on the trust
-	// domain, once that's fleshed out
-	newCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", tlsCA)
-	if err != nil {
-		return nil, nil, trace.Wrap(err, "getting CA override")
+		return selfSignedCA, nil, nil
 	}
 
-	return newCA, chain, nil
+	subCAResolver, err := subca.LoadCAOverrideResolver(
+		ctx,
+		s.cache,
+		s.isEnterpriseBuild(),
+		types.CertAuthorityOverrideID{
+			ClusterName: s.clusterName,
+			CAType:      subca.CertAuthTypeToSubKind(caType),
+		},
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if !subCAResolver.HasCAOverride() {
+		// No CA override resource exists, fall back to the legacy workload override. If no legacy override is found,
+		// return the self-signed CA.
+		//
+		// TODO(cthach): DELETE IN v20.0 remove this entire block and return the self-signed CA once all clusters
+		// have migrated from workload to sub-CA overrides.
+		signingCA, chain, err := s.overrideGetter.GetWorkloadIdentityX509CAOverride(ctx, "", selfSignedCA)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return signingCA, chain, nil
+	}
+
+	result, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: tlsCert})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if result.OverrideActive {
+		overrideCA, err := tlsca.FromCertAndSigner(result.CACertificate.PEM, tlsSigner)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		chain, err := certificatesToDER(result.CAChain)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		return overrideCA, chain, nil
+	}
+
+	// CA override resource exists but no override matches the selected signing key (or all overrides are disabled).
+	// Return the self-signed CA rather than falling back to a different trust source.
+	return selfSignedCA, nil, nil
 }
 
 func rawAttrsToStruct(in *workloadidentityv1pb.Attrs) (*apievents.Struct, error) {
@@ -1294,4 +1359,19 @@ func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
 	}
 
 	return nil
+}
+
+func certificatesToDER(certs subca.Certificates) ([][]byte, error) {
+	der := make([][]byte, len(certs))
+
+	for i, cert := range certs {
+		block, _ := pem.Decode(cert.PEM)
+		if block == nil {
+			return nil, trace.BadParameter("expected PEM-encoded certificate at index %d", i)
+		}
+
+		der[i] = block.Bytes
+	}
+
+	return der, nil
 }
