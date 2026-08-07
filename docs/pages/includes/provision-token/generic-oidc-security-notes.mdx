@@ -1,0 +1,101 @@
+Before getting started with `generic_oidc`, it is important to consider the
+potential security impacts associated with trusting arbitrary identity
+providers, as not all providers are created equal.
+
+When Teleport adds support for a new identity provider, care is taken to ensure
+they meet minimum security requirements and that joining rules ensure a minimum
+bar for security. This includes:
+- Ensuring the provider is actually OIDC compliant and issues sane credentials
+  to workloads
+- Ensuring those issued credentials contain useful identifying claims, and that
+  one or more of those claims are required
+
+When using `generic_oidc`, you should ensure any providers whose tokens you
+decide to trust provide at least the above properties.
+
+As a hypothetical example, consider Google Cloud Platform. Note that Teleport
+has a dedicated
+[`gcp` join method](../../reference/deployment/join-methods.mdx#gcp-service-account-gcp)
+which should be used instead of `generic_oidc`, but it makes for a useful
+example. If you naively issue a token using the `gcloud` tool it contains very
+few useful claims:
+```code
+$ gcloud auth print-identity-token --audiences=example.teleport.sh | jwt decode -
+[...]
+{
+  "aud": "example.teleport.sh",
+  "azp": "115001032080118155850",
+  "exp": 1784168534,
+  "iat": 1784164934,
+  "iss": "https://accounts.google.com",
+  "sub": "115001032080118155850"
+}
+```
+
+Note the following:
+- There are no custom claims to match against
+- Only `sub` contains any identifying information at all
+- The issuer (`iss`) is global (https://accounts.google.com) and applies to all
+  GCP users
+- The audience (`aud`) is determined by the client and is generally not a claim
+  that should be used for client verification
+
+Given this, if you configured a `generic_oidc` join token to trust these GCP
+tokens, it would be trivially easy to write a rule that accidentally allowed
+_any_ GCP user to authenticate to your Teleport cluster if your rule for the
+single useful claim (`sub`) was written incorrectly. As such, we would not
+recommend using `generic_oidc` to allow clients to join with a token this
+limited.
+
+In GCP's case, you can pass an additional flag (`--token-format=full`) to the
+`gcloud` tool to include a larger set of useful claims in the issued JWT, like
+service account, instance, and project information - this is what Teleport's
+[dedicated `gcp` join method](../../reference/deployment/join-methods.mdx#gcp-service-account-gcp)
+ensures - and is why built-in join methods are generally preferred where
+available.
+
+### Limitations
+
+Be aware that not all possible rules can be configured at this time. The
+`generic_oidc` join method has 3 different rule types, but it still may not
+always possible to encode arbitrarily complex logic into the token to account
+for especially unusual providers.
+
+Limitations to be aware of include:
+- Teleport's predicate language currently cannot compare floating point numbers,
+  so `expression` rules within `allow_any` cannot validate numeric fields. Use
+  `must_match_fields` or `conditions` if you need to compare a number field.
+  Note that numbers _encoded as strings_ in the JWT can be compared as strings
+  without issue.
+- Teleport's predicate language currently has limited support for lists and
+  unary strings within its built-in functions, so string and list values must be
+  wrapped using the `set()` helper to be used certain functions like
+  `regexp.match()`, `contains_all()`, or `contains_any()`.
+- The `generic_oidc` join method will refuse to compare integers encoded in
+  number fields if they are larger than 2^53-1. This is because JSON numbers
+  (64 bit IEEE floating point values) cannot uniquely represent numbers larger
+  than 2^53-1, meaning multiple values would would match your expected number
+  beyond this limit. If your token tries to compare a field with an integer
+  value larger than this - on either side of the comparison - the join attempt
+  will be rejected.
+- Teleport's Terraform provider currently does not support `must_match_fields`
+  and will **drop any values** you enter into the field.
+- Teleport's Kubernetes operator currently has limited support for
+  `must_match_fields` and only top-level claims fields (i.e. not nested fields)
+  can be validated with this rule type.
+
+### Identity provider requirements
+
+Additionally, there are a number of minimum security requirements that identity
+providers must meet to work with `generic_oidc`:
+
+1. They must use a modern signature algorithm, including: `RS256` or larger,
+   `PS256` or larger, `ES256` or larger, or `EdDSA`
+2. They must provide a `kid` in the token header
+3. They must issue JWTs with standard fields set, including `exp`, `iat`, `sub`,
+   `aud`, and `iss`
+4. They must be able to serve OIDC discovery and JWKS resources within 10
+   seconds (unless `static_jwks` is used)
+5. They must serve OIDC discovery and JWKS resources via HTTPS (unless
+   `insecure_allow_http_issuer` is set in the token) at the standard path:
+   `$ISSUER/.well-known/openid-configuration`
