@@ -287,23 +287,37 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 
 // EmitAuditEvent emits audit event
 func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (*emptypb.Empty, error) {
-	auth, err := g.scopedAuthenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	event, err := apievents.FromOneOf(*req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Mark this event as forwarded from a remote instance so the auth server's
-	// fallback queue does not take ownership of it on a delivery failure. The
-	// originating instance retries from its own queue.
-	ctx = events.WithForwardedEmit(ctx)
-	err = auth.EmitAuditEvent(ctx, event)
-	if err != nil {
+	if err := g.emitForwardedEvents(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// EmitAuditEvents emits a batch of audit events forwarded from a remote
+// instance. The batch has all-or-nothing semantics from the caller's
+// perspective. It returns on the first failed event.
+func (g *GRPCServer) EmitAuditEvents(ctx context.Context, req *authpb.EmitAuditEventsRequest) (*emptypb.Empty, error) {
+	if err := g.emitForwardedEvents(ctx, req.Events...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) emitForwardedEvents(ctx context.Context, oneOfs ...*apievents.OneOf) error {
+	auth, err := g.scopedAuthenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	ctx = events.WithForwardedEmit(ctx)
+	batch := make([]apievents.AuditEvent, 0, len(oneOfs))
+	for _, oneOf := range oneOfs {
+		event, err := apievents.FromOneOf(*oneOf)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		batch = append(batch, event)
+	}
+	return trace.Wrap(auth.EmitAuditEvents(ctx, batch))
 }
 
 var connectedResourceGauges = map[string]prometheus.Gauge{
