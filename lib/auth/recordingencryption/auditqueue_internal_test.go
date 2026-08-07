@@ -19,6 +19,8 @@ package recordingencryption
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
@@ -180,6 +182,24 @@ func (u *testKeyUnwrapper) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byt
 	return fileKey, trace.Wrap(err)
 }
 
+type auditQueueTestIdentity struct {
+	key *rsa.PrivateKey
+}
+
+func (i *auditQueueTestIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	for _, stanza := range stanzas {
+		if stanza.Type != AuditQueueStanza {
+			continue
+		}
+		fileKey, err := i.key.Decrypt(rand.Reader, stanza.Body, &rsa.OAEPOptions{Hash: crypto.SHA256})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fileKey, nil
+	}
+	return nil, age.ErrIncorrectIdentity
+}
+
 func TestNewAuditQueueSealer(t *testing.T) {
 	ctx := t.Context()
 
@@ -237,8 +257,7 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 	plaintext := []byte("audit event payload")
 
 	tryDecrypt := func(key *rsa.PrivateKey, payload []byte) bool {
-		identity := NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key})
-		reader, err := age.Decrypt(bytes.NewReader(payload), identity)
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
 		if err != nil {
 			return false
 		}
@@ -248,8 +267,7 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 
 	decrypt := func(t *testing.T, key *rsa.PrivateKey, payload []byte) []byte {
 		t.Helper()
-		identity := NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key})
-		reader, err := age.Decrypt(bytes.NewReader(payload), identity)
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
 		require.NoError(t, err)
 		decrypted, err := io.ReadAll(reader)
 		require.NoError(t, err)
@@ -267,6 +285,10 @@ func TestAuditQueueSealerSeal(t *testing.T) {
 		require.True(t, sealed)
 		require.NotEqual(t, plaintext, payload)
 		require.Equal(t, plaintext, decrypt(t, key, payload))
+
+		_, err = age.Decrypt(bytes.NewReader(payload), NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key}))
+		require.Error(t, err,
+			"sealed payloads must carry the audit queue stanza, not the recording stanza")
 	})
 
 	t.Run("seal passes through when encryption is disabled", func(t *testing.T) {
