@@ -426,6 +426,9 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 			apiclient.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		DialOpts: []grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentWeb),
+		},
 	})
 }
 
@@ -1270,7 +1273,9 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
-		DialOpts:             s.rootClientDialOptions,
+		DialOpts: append([]grpc.DialOption{
+			metadata.WithUserAgentFromTeleportComponent(teleport.ComponentWeb),
+		}, s.rootClientDialOptions...),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1063,6 +1063,9 @@ const (
 	IACToolLabel = TeleportNamespace + "/iac-tool"
 	// IACToolTerraform identifies that a IAC tool is Terraform.
 	IACToolTerraform = "terraform"
+	// SetupAttemptIDLabel is a resource metadata label that identifies the setup
+	// attempt that created the resource.
+	SetupAttemptIDLabel = TeleportNamespace + "/setup-attempt-id"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"

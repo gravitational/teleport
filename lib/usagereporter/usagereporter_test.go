@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -255,9 +256,10 @@ func TestUsageReporterBatchSubmit(t *testing.T) {
 
 // TestUsageReporterDiscard validates that events are discarded when the buffer
 // is full.
+//
+// usageEventsDropped is a package-level counter, so this test runs in the
+// sequential phase to keep the parallel tests from adding to it.
 func TestUsageReporterDiscard(t *testing.T) {
-	t.Parallel()
-
 	fakeClock := clockwork.NewFakeClock()
 	fakeSubmitClock := clockwork.NewFakeClock()
 	submitter, batchChan := newTestSubmitter(2)
@@ -265,10 +267,15 @@ func TestUsageReporterDiscard(t *testing.T) {
 	reporter, cancel, rx := newTestingUsageReporter(fakeClock, fakeSubmitClock, submitter)
 	defer cancel()
 
+	droppedBefore := testutil.ToFloat64(usageEventsDropped)
+
 	// Create enough events to fill the buffer and then some.
 	events := createDummyEvents(0, 12)
 	reporter.AddEventsToQueue(events...)
 	<-rx
+
+	require.Equal(t, len(events)-testMaxBufferSize,
+		int(testutil.ToFloat64(usageEventsDropped)-droppedBefore))
 
 	// Receive the first batch.
 	select {

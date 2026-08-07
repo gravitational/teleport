@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -110,6 +111,7 @@ type ServiceConfig struct {
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
 	Modules         modules.Modules
+	UsageReporter   usagereporter.UsageReporter
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -144,6 +146,11 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	if s.Modules == nil {
 		return trace.BadParameter("modules is required")
 	}
+
+	if s.UsageReporter == nil {
+		return trace.BadParameter("usage reporter is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.service")
 	}
@@ -166,6 +173,7 @@ type Service struct {
 	clock           clockwork.Clock
 	emitter         apievents.Emitter
 	modules         modules.Modules
+	usageReporter   usagereporter.UsageReporter
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
 }
@@ -185,6 +193,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		clock:           cfg.Clock,
 		emitter:         cfg.Emitter,
 		modules:         cfg.Modules,
+		usageReporter:   cfg.UsageReporter,
 
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
 	}, nil

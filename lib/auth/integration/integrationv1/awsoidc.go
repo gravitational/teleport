@@ -21,7 +21,6 @@ package integrationv1
 import (
 	"context"
 	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -33,11 +32,14 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -99,64 +101,66 @@ func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx 
 	// TODO(alexhemard): follow up work needed to add explicit labels for
 	// resources created by integration rather than rely on implicit rules
 
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAppServer, types.VerbDelete, types.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Delete discovery_configs created by this integration
 	var configsRequireCleanup []string
-	var configsToDelete []string
+	var configsToDelete []*discoveryconfig.DiscoveryConfig
 
 	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		awsMatchers := config.Spec.AWS
-
-		config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
-			return matcher.Integration == ig.GetName()
-		})
-
-		if len(awsMatchers) == len(config.Spec.AWS) {
+		if !config.ReferencesIntegration(ig.GetName()) {
 			continue
 		}
 
 		// discovery_configs can be assumed to be created by the integration
 		// and deleted if
-		// 1. only has matchers referencing this integration
+		// 1. every matcher and Access Graph sync references this integration
 		// 2. has valid uuid name
-		if config.IsMatchersEmpty() {
+		if !config.HasOtherMatchers(ig.GetName()) {
 			_, err := uuid.Parse(config.GetName())
 
 			if err == nil {
-				configsToDelete = append(configsToDelete, config.GetName())
+				configsToDelete = append(configsToDelete, config)
 				continue
 			}
 		}
 
-		configsRequireCleanup = append(configsRequireCleanup, config.GetName())
+		configsRequireCleanup = append(configsRequireCleanup, "discovery_config/"+config.GetName())
 	}
 
 	if len(configsRequireCleanup) > 0 {
-		var qualifiedConfigs []string
-		for _, config := range configsRequireCleanup {
-			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
-		}
-
-		return trace.BadParameter("cannot delete integration, "+
-			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
-			"Use `tsh rm %s` to remove them.",
-			strings.Join(configsRequireCleanup, ", "),
-			strings.Join(qualifiedConfigs, " "))
+		return trace.BadParameter("cannot delete integration %q because these discovery configs reference it "+
+			"and cannot be removed automatically: %s\n\n"+
+			"Remove the reference from each one, or delete it with `tctl rm <name>`, then try again.",
+			ig.GetName(), strings.Join(configsRequireCleanup, ", "))
 	}
 
-	for _, configName := range configsToDelete {
+	for _, config := range configsToDelete {
 		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
-			"discovery_config", configName,
+			"discovery_config", config.GetName(),
 			"integration", ig.GetName())
 
-		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
+		err := s.backend.DeleteDiscoveryConfig(ctx, config.GetName())
 
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+			continue
 		}
+
+		s.usageReporter.AnonymizeAndSubmit(usagereporter.NewDiscoveryConfigChangedEvent(ctx, config,
+			prehogv1a.DiscoveryConfigChangeAction_DISCOVERY_CONFIG_CHANGE_ACTION_DELETE))
 	}
 
 	// Delete AWS access app_server associated with this integration

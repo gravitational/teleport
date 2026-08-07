@@ -70,7 +70,7 @@ var (
 	usageEventsDropped = prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: teleport.MetricNamespace,
 		Name:      teleport.MetricUsageEventsDropped,
-		Help:      "a count of events dropped due to repeated errors or submission buffer overflow",
+		Help:      "a count of events dropped due to repeated errors, submission buffer overflow, or reporter shutdown",
 	})
 
 	UsagePrometheusCollectors = []prometheus.Collector{
@@ -273,6 +273,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		case <-ctx.Done():
 			if len(r.buf) > 0 {
 				r.logger.WarnContext(ctx, "dropped events due to context close", "discarded_count", len(r.buf))
+				usageEventsDropped.Add(float64(len(r.buf)))
 			}
 			return
 
@@ -282,6 +283,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 				select {
 				case <-ctx.Done():
 					r.logger.WarnContext(ctx, "dropped events due to context close during graceful stop", "discarded_count", len(r.buf))
+					usageEventsDropped.Add(float64(len(r.buf)))
 					return
 				case r.submissionQueue <- subBatch:
 					usageBatchesTotal.Inc()
@@ -313,11 +315,12 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		case events := <-r.events:
 			if len(r.buf)+len(events) > r.maxBufferSize {
 				keep := max(r.maxBufferSize-len(r.buf), 0)
+				dropped := len(events) - keep
 
-				r.logger.WarnContext(ctx, "usage event buffer is full, events will be discarded", "discarded_count", len(events)-keep)
+				r.logger.WarnContext(ctx, "usage event buffer is full, events will be discarded", "discarded_count", dropped)
+				usageEventsDropped.Add(float64(dropped))
+
 				events = events[:keep]
-
-				usageEventsDropped.Add(float64(len(events) - keep))
 			}
 
 			if len(events) == 0 {
@@ -369,6 +372,9 @@ func (r *UsageReporter[T]) submitEvents(events []*SubmittedEvent[T]) {
 	select {
 	case r.events <- events:
 	case <-r.eventsClosed: // unblock submitEvent when there is no receiver (because reporter closes)
+		r.logger.WarnContext(context.Background(), "dropped events because the usage reporter stopped receiving",
+			"discarded_count", len(events))
+		usageEventsDropped.Add(float64(len(events)))
 	}
 }
 

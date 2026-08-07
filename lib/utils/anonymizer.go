@@ -40,6 +40,15 @@ type Anonymizer interface {
 	AnonymizeNonEmpty(s string) []byte
 }
 
+// AnonymizeStrings anonymizes every string in s.
+func AnonymizeStrings(a Anonymizer, s []string) []string {
+	anonymized := make([]string, 0, len(s))
+	for _, v := range s {
+		anonymized = append(anonymized, a.AnonymizeString(v))
+	}
+	return anonymized
+}
+
 var _ AnonymizationKeyProvider = (AnonymizationKeyString)("")
 
 // AnonymizationKeyString is a simple implementation of AnonymizationKeyProvider that uses a string as the key.
