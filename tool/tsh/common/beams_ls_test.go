@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -69,10 +70,13 @@ func TestBeamsLSCommand(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		format  string
-		all     bool
-		wantAll bool
+		name             string
+		format           string
+		all              bool
+		anthropicAppName string
+		openaiAppName    string
+		beamsConfigErr   error
+		wantAll          bool
 	}{
 		{
 			name:    "text format",
@@ -83,6 +87,21 @@ func TestBeamsLSCommand(t *testing.T) {
 			all:     true,
 			format:  teleport.Text,
 			wantAll: true,
+		},
+		{
+			name:           "text format with beams config error",
+			format:         teleport.Text,
+			beamsConfigErr: trace.AccessDenied("ahhh"),
+		},
+		{
+			name:             "text format with beams config customized anthropic",
+			format:           teleport.Text,
+			anthropicAppName: "anthropic-custom",
+		},
+		{
+			name:          "text format with beams config customized openai",
+			format:        teleport.Text,
+			openaiAppName: "openai-custom",
 		},
 		{
 			name:    "JSON format",
@@ -117,6 +136,39 @@ func TestBeamsLSCommand(t *testing.T) {
 				fetchFn: func(_ context.Context, _ *client.TeleportClient, all bool) ([]*beamsv1.Beam, error) {
 					gotAll = all
 					return beams, nil
+				},
+				fetchBeamsConfigFn: func(_ context.Context, _ *client.TeleportClient) (*beamsv1.BeamsConfig, error) {
+					if tt.beamsConfigErr != nil {
+						return nil, tt.beamsConfigErr
+					}
+
+					config := beamsv1.BeamsConfig_builder{
+						Kind:    "beams_config",
+						Version: "v1",
+						Metadata: headerv1.Metadata_builder{
+							Name: "beams-config",
+						}.Build(),
+						Spec: beamsv1.BeamsConfigSpec_builder{
+							Llm: beamsv1.LLMConfig_builder{
+								Anthropic: beamsv1.LLMEndpointConfig_builder{
+									AppName: "anthropic",
+								}.Build(),
+								Openai: beamsv1.LLMEndpointConfig_builder{
+									AppName: "openai",
+								}.Build(),
+							}.Build(),
+						}.Build(),
+					}.Build()
+
+					if tt.anthropicAppName != "" {
+						config.GetSpec().GetLlm().GetAnthropic().SetAppName(tt.anthropicAppName)
+					}
+
+					if tt.openaiAppName != "" {
+						config.GetSpec().GetLlm().GetOpenai().SetAppName(tt.anthropicAppName)
+					}
+
+					return config, nil
 				},
 				proxyAddrFn: func(*CLIConf) (string, error) {
 					return "proxy.example.com:443", nil

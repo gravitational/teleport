@@ -3,3 +3,13 @@ ID      URL                                      Region       Expires
 alpha   https://alpha-app.proxy.example.com      us-east-1    3 hours from now 
 bravo                                            us-west-2    4 hours from now 
 charlie tcp://charlie-app.proxy.example.com:5432 eu-central-1 5 hours from now 
+
+╔══════════════════════════════════════════════════════════════╗
+║             Set up your LLM preference for Beams             ║
+║                      via Amazon Bedrock                      ║
+║                                                              ║
+║     Improve the privacy, scalability, and flexibility of     ║
+║                   your agentic workflows.                    ║
+║                                                              ║
+║            https://goteleport.com/docs/beams/byoi            ║
+╚══════════════════════════════════════════════════════════════╝
