@@ -22,10 +22,16 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // denyKindRequestNotAllowed is the deny kind reported to the client when a v9
@@ -118,8 +124,10 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 
 // enforceMinimalV9 applies v9 default-deny to a plain HTTP app request. It
 // returns true when the request is denied, after writing a 403 response
-// naming the deny kind. Cloud apps (AWS console, Azure, GCP) and LLM apps
-// never reach this path. Earlier cases in serveHTTP handle them.
+// naming the deny kind. A denial caused by version skew logs one warning
+// per user and app and emits one audit event per denied request.
+// Cloud apps (AWS console, Azure, GCP) and LLM apps never reach this path.
+// Earlier cases in serveHTTP handle them.
 //
 // TODO(@juliaogris): Replace with per-request rule matching from the
 // upcoming lib/appresource engine package.
@@ -166,6 +174,9 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 		)
 	}
 
+	if decision.versionSkew {
+		c.emitRequestDenied(r, &identity, app)
+	}
 	http.Error(w, denyKindRequestNotAllowed, http.StatusForbidden)
 	return true, nil
 }
@@ -175,6 +186,43 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 func isGovernedByAppResources(app types.Application) bool {
 	return !app.IsAWSConsole() && !app.IsAzureCloud() && !app.IsGCP() && !app.IsLLM() &&
 		app.GetSubKind() != types.KindIdentityCenterAccount
+}
+
+// emitRequestDenied emits one audit event for a request that the minimal v9
+// check denied because of version skew. The deny happens before any
+// session chunk exists, so the event goes directly through the handler's
+// emitter instead of a session recorder. The event is deliberately not rate
+// limited: it fires once per denied request, matching how
+// app.session.request records every request for AWS apps.
+func (c *ConnectionsHandler) emitRequestDenied(r *http.Request, identity *tlsca.Identity, app types.Application) {
+	event := &apievents.AppSessionRequestDenied{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionRequestDeniedEvent,
+			Code:        events.AppSessionRequestDeniedCode,
+			ClusterName: identity.RouteToApp.ClusterName,
+		},
+		UserMetadata: identity.GetUserMetadata(),
+		// The deny precedes any app session, so leaving SessionID unset gives
+		// each denial a unique audit key instead of colliding on the cert's
+		// shared session ID.
+		SessionMetadata: apievents.SessionMetadata{
+			WithMFA:          identity.MFAVerified,
+			PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
+			ServerID:        c.cfg.HostID,
+			ServerNamespace: apidefaults.Namespace,
+		},
+		AppMetadata: *common.MakeAppMetadata(app),
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		DenyKind:    denyKindRequestNotAllowed,
+	}
+	err := c.cfg.Emitter.EmitAuditEvent(r.Context(), event)
+	if err != nil {
+		c.log.WarnContext(r.Context(), "Failed to emit audit event for a denied app request.", "error", err)
+	}
 }
 
 // isCORSPreflight reports whether r is a CORS preflight request, an
