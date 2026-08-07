@@ -286,7 +286,7 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
-	var allowed []mcp.Tool
+	allowed := make([]mcp.Tool, 0, len(listResult.Tools))
 	for _, tool := range listResult.Tools {
 		if s.checkAccessToTool(ctx, tool.Name) == nil {
 			allowed = append(allowed, tool)
@@ -308,6 +308,13 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Drop the client's Accept-Encoding so the outgoing transport owns content
+	// negotiation. net/http only decompresses a response transparently when it
+	// added Accept-Encoding itself; forwarding the client's header instead
+	// leaves the body compressed, and Teleport parses MCP message bodies rather
+	// than passing them through, so a gzipped response fails to parse.
+	r.Header.Del("Accept-Encoding")
 
 	// Add in JWT headers. By default, JWT is not put into "Authorization"
 	// headers since the auth token can also come from the client and Teleport

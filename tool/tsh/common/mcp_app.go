@@ -21,14 +21,17 @@ package common
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"iter"
+	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -489,15 +493,50 @@ func (c *mcpConnectCommand) run() error {
 	}
 
 	dialer := client.NewMCPServerDialer(tc, c.cf.AppSQN.Name)
+
+	// Wire up OAuth credentials from `tsh mcp login`, if there are any. The
+	// Authorization header is produced per request so that expired access
+	// tokens get silently refreshed. An explicit -H "Authorization: ..."
+	// always wins.
+	credsPath := mcpOAuthTokenPath(c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
+	var oauthSource *mcpOAuthHeaderSource
+	var authDetail string
+	if _, ok := httpHeaders["Authorization"]; ok {
+		logger.InfoContext(c.cf.Context, "Using the explicit Authorization header from -H; stored MCP OAuth credentials are ignored", "app", c.cf.AppSQN.Name)
+		authDetail = "The explicit Authorization header from -H was sent; credentials from `tsh mcp login` are ignored while it is set."
+	} else {
+		oauthSource, err = newMCPOAuthHeaderSource(c.cf.Context, dialer, c.cf.HomePath, tc.WebProxyHost(), tc.SiteName, c.cf.AppSQN.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if oauthSource == nil {
+			logger.InfoContext(c.cf.Context, "No stored MCP OAuth credentials found", "path", credsPath)
+			authDetail = fmt.Sprintf("No stored credentials were found at %q; `tsh mcp login` may have run against a different profile, cluster, or TELEPORT_HOME.", credsPath)
+		} else {
+			logger.InfoContext(c.cf.Context, "Using stored MCP OAuth credentials", "path", credsPath)
+			authDetail = fmt.Sprintf("Stored credentials from %q were sent but rejected.", credsPath)
+		}
+	}
+	var getAuthHeader func(context.Context) (string, error)
+	var refreshAuthHeader func(context.Context, string) (string, error)
+	if oauthSource != nil {
+		getAuthHeader = oauthSource.GetAuthHeader
+		refreshAuthHeader = oauthSource.RefreshAuthHeader
+	}
+
 	return clientmcp.ProxyStdioConn(
 		c.cf.Context,
 		clientmcp.ProxyStdioConnConfig{
-			ClientStdio:              utils.CombinedStdio{},
-			GetApp:                   dialer.GetApp,
-			DialServer:               dialer.DialALPN,
-			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
-			AutoReconnect:            c.autoReconnect,
-			HTTPHeaders:              httpHeaders,
+			ClientStdio: utils.CombinedStdio{},
+			GetApp:      dialer.GetApp,
+			DialServer:  dialer.DialALPN,
+			MakeReconnectUserMessage: func(err error) string {
+				return makeMCPReconnectUserMessageWithAuthDetail(c.cf.AppSQN.Name, authDetail, err)
+			},
+			AutoReconnect:         c.autoReconnect,
+			HTTPHeaders:           httpHeaders,
+			GetHTTPAuthHeader:     getAuthHeader,
+			RefreshHTTPAuthHeader: refreshAuthHeader,
 		},
 	)
 }
@@ -518,24 +557,120 @@ func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
 }
 
 func makeMCPReconnectUserMessage(err error) string {
-	var userMessage string
-	switch {
-	case clientmcp.IsLikelyTemporaryNetworkError(err):
-		userMessage = "A network error occurred while trying to connect to Teleport." +
-			" This issue is likely temporary — the server may be unavailable, or your internet connection may be unstable." +
-			" Please check your network and try again in a few moments." +
-			" If your network appears to be working, try restarting your MCP client to see if the problem is resolved."
-	case client.IsErrorResolvableWithRelogin(err):
-		userMessage = clientmcp.ReloginRequiredErrorMessage
-	case clientmcp.IsServerInfoChangedError(err):
-		userMessage = "The remote MCP server information has changed after the reconnection. " +
-			" Please restart your MCP client to use the new version."
-	default:
-		userMessage = "An error was encountered while sending the request to Teleport." +
-			" This does not appear to be a transient error." +
-			" Please ensure your tsh session is valid and restart your MCP client to see if the problem is resolved."
+	return makeMCPReconnectUserMessageWithAuthDetail("", "", err)
+}
+
+func makeMCPReconnectUserMessageForApp(appName string, err error) string {
+	return makeMCPReconnectUserMessageWithAuthDetail(appName, "", err)
+}
+
+func makeMCPReconnectUserMessageWithAuthDetail(appName, authDetail string, err error) string {
+	server := "the MCP server"
+	loginTarget := "<server-name>"
+	if appName != "" {
+		server = fmt.Sprintf("MCP server %q", appName)
+		loginTarget = appName
 	}
 
-	userMessage += " If the issue persists, check the MCP logs for more details or contact your Teleport admin."
-	return userMessage
+	var loginRequiredErr *mcpOAuthLoginRequiredError
+	var httpServerErr *clientmcp.HTTPServerError
+	switch {
+	case errors.As(err, &loginRequiredErr):
+		return fmt.Sprintf("[MCP_AUTH_REQUIRED] Authentication with MCP server %q is required or has expired."+
+			" Run `tsh mcp login %s` in a terminal, complete authorization in the browser, then retry the request.",
+			loginRequiredErr.appName, loginRequiredErr.appName)
+	case isMCPProtectedResourceMismatch(err):
+		return fmt.Sprintf("[MCP_AUTH_FLOW_MISMATCH] The MCP client tried to authenticate directly through Teleport's local endpoint, but the OAuth server only accepts its public resource URL."+
+			" Run `tsh mcp login %s` in a terminal instead, then retry in the MCP client.", loginTarget)
+	case errors.Is(err, mcpclienttransport.ErrUnauthorized):
+		message := fmt.Sprintf("[MCP_AUTH_REQUIRED] %s rejected the request with HTTP 401."+
+			" Run `tsh mcp login %s` in a terminal, then retry. Do not use the MCP client's built-in OAuth login for a Teleport endpoint.",
+			server, loginTarget)
+		if authDetail != "" {
+			message += " " + authDetail
+		}
+		return message
+	case client.IsErrorResolvableWithRelogin(err):
+		return "[MCP_TELEPORT_LOGIN_REQUIRED] " + clientmcp.ReloginRequiredErrorMessage
+	case errors.Is(err, mcpclienttransport.ErrSessionTerminated):
+		return fmt.Sprintf("[MCP_SESSION_EXPIRED] %s rejected the saved MCP session (HTTP 404)."+
+			" Restart the MCP client to create a new session. If this repeats, the remote server may be losing session state.", server)
+	case errors.Is(err, mcpclienttransport.ErrLegacySSEServer):
+		return fmt.Sprintf("[MCP_TRANSPORT_MISMATCH] %s is configured as Streamable HTTP, but its endpoint responded like a legacy SSE server."+
+			" Ask your Teleport administrator to verify the MCP application URI and transport.", server)
+	case errors.As(err, &httpServerErr):
+		return makeMCPHTTPServerErrorMessage(server, httpServerErr)
+	case clientmcp.IsNetworkTimeoutError(err) || isMCPHTTPTimeout(err):
+		return makeMCPTimeoutUserMessage(server)
+	case clientmcp.IsServerInfoChangedError(err):
+		return fmt.Sprintf("[MCP_SERVER_CHANGED] %s reported a different name or version after reconnecting."+
+			" Restart the MCP client so it can load the server's current tools and capabilities.", server)
+	case clientmcp.IsLikelyTemporaryNetworkError(err):
+		return fmt.Sprintf("[MCP_NETWORK_UNAVAILABLE] tsh could not reach Teleport or %s."+
+			" Check your network and retry. If other Teleport commands work, check the remote MCP server and the Teleport Application Service logs.", server)
+	case isMCPUpstreamServerError(err):
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s or the Teleport Application Service returned an HTTP 5xx error."+
+			" Retry once, then check the remote server's health and the Application Service logs.", server)
+	case strings.Contains(strings.ToLower(err.Error()), "expected array, received null"):
+		return fmt.Sprintf("[MCP_PROTOCOL_ERROR] %s returned null where the MCP client requires an array."+
+			" Update tsh to a build containing the empty-tools-array fix and reconnect the MCP client.", server)
+	default:
+		return fmt.Sprintf("[MCP_REQUEST_FAILED] tsh could not complete the request to %s."+
+			" Check the tsh MCP logs for the underlying error. If `tsh status` shows an expired session, run `tsh login`; otherwise check the remote server and Teleport Application Service logs.", server)
+	}
+}
+
+func makeMCPTimeoutUserMessage(server string) string {
+	return fmt.Sprintf("[MCP_CONNECTION_TIMEOUT] The request to %s timed out before a response arrived."+
+		" Retry once. If it times out again, check the remote MCP server's health and the Teleport Application Service logs; restarting the MCP client will not fix a repeatedly slow upstream.", server)
+}
+
+// makeMCPHTTPServerErrorMessage builds the user message for an HTTP 5xx
+// failure, using the error origin reported by the Teleport Application Service
+// to attribute the failure instead of guessing.
+func makeMCPHTTPServerErrorMessage(server string, httpErr *clientmcp.HTTPServerError) string {
+	detail := httpErr.Body
+	if detail == "" {
+		detail = http.StatusText(httpErr.StatusCode)
+	}
+	switch httpErr.Origin {
+	case mcputils.ErrorOriginAppService:
+		return fmt.Sprintf("[MCP_TELEPORT_ERROR] The Teleport Application Service failed to proxy the request to %s (HTTP %d: %s)."+
+			" This is a Teleport-side failure; check the Teleport Application Service logs for details.", server, httpErr.StatusCode, detail)
+	case mcputils.ErrorOriginUpstreamUnreachable:
+		return fmt.Sprintf("[MCP_UPSTREAM_UNREACHABLE] The Teleport Application Service could not reach %s (HTTP %d: %s)."+
+			" Check the remote server's health and its network connectivity from the Application Service.", server, httpErr.StatusCode, detail)
+	case mcputils.ErrorOriginUpstream:
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s returned HTTP %d: %s."+
+			" Retry once, then check the remote server's health.", server, httpErr.StatusCode, detail)
+	default:
+		// No attribution header: the response came from an older Application
+		// Service or an intermediate proxy, so the origin cannot be determined.
+		if httpErr.StatusCode == http.StatusGatewayTimeout {
+			return makeMCPTimeoutUserMessage(server)
+		}
+		return fmt.Sprintf("[MCP_UPSTREAM_ERROR] %s or the Teleport Application Service returned HTTP %d: %s."+
+			" Retry once, then check the remote server's health and the Application Service logs.", server, httpErr.StatusCode, detail)
+	}
+}
+
+func isMCPProtectedResourceMismatch(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "protected resource") &&
+		strings.Contains(message, "does not match expected")
+}
+
+func isMCPUpstreamServerError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "internal server error") ||
+		strings.Contains(message, "status 500") ||
+		strings.Contains(message, "status 502") ||
+		strings.Contains(message, "status 503") ||
+		strings.Contains(message, "status 504")
+}
+
+func isMCPHTTPTimeout(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "gateway timeout") ||
+		strings.Contains(message, "status 504")
 }

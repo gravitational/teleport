@@ -320,6 +320,9 @@ func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mc
 
 	result, err := mcpResponse.GetListToolResult()
 	require.NoError(t, err)
+	// A JSON null unmarshals to a nil slice while an empty array unmarshals to
+	// a non-nil empty slice. MCP clients expect tools to always be an array.
+	require.NotNil(t, result.Tools)
 	checkToolsListResult(t, result, wantTools)
 }
 
@@ -375,6 +378,17 @@ type mockAuthClient struct {
 	mu                  sync.Mutex
 	appTokenRequests    []types.GenerateAppTokenRequest
 	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+}
+
+type blockingAuthClient struct {
+	mockAuthClient
+	calls atomic.Int32
+}
+
+func (c *blockingAuthClient) GenerateAppToken(ctx context.Context, _ types.GenerateAppTokenRequest) (string, error) {
+	c.calls.Add(1)
+	<-ctx.Done()
+	return "", ctx.Err()
 }
 
 // WorkloadIdentityIssuanceClient implements [AuthClient].

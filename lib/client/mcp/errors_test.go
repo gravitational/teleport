@@ -19,11 +19,57 @@
 package mcp
 
 import (
+	"context"
+	"fmt"
+	"net"
+	"syscall"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIsNetworkTimeoutError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "deadline exceeded",
+			err:  context.DeadlineExceeded,
+			want: true,
+		},
+		{
+			name: "wrapped deadline exceeded",
+			err:  fmt.Errorf("sending request: %w", context.DeadlineExceeded),
+			want: true,
+		},
+		{
+			name: "syscall timeout",
+			err:  syscall.ETIMEDOUT,
+			want: true,
+		},
+		{
+			name: "network timeout",
+			err:  &net.DNSError{IsTimeout: true},
+			want: true,
+		},
+		{
+			name: "other error",
+			err:  fmt.Errorf("server rejected request"),
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, IsNetworkTimeoutError(test.err))
+		})
+	}
+}
 
 func TestIsServerInfoChangedError(t *testing.T) {
 	err := &serverInfoChangedError{

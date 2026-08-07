@@ -21,12 +21,14 @@ package common
 import (
 	"bytes"
 	"context"
+	"errors"
 	"maps"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -34,12 +36,110 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	clientmcp "github.com/gravitational/teleport/lib/client/mcp"
 	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
+
+func TestMakeMCPReconnectUserMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      error
+		contains []string
+	}{
+		{
+			name:     "upstream login required",
+			err:      mcpclienttransport.ErrUnauthorized,
+			contains: []string{"[MCP_AUTH_REQUIRED]", "tsh mcp login sentry", "HTTP 401"},
+		},
+		{
+			name:     "client OAuth resource mismatch",
+			err:      errors.New("Protected resource https://mcp.sentry.dev/mcp does not match expected http://localhost:19102/ (or origin)"),
+			contains: []string{"[MCP_AUTH_FLOW_MISMATCH]", "tsh mcp login sentry", "local endpoint"},
+		},
+		{
+			name:     "connection timeout",
+			err:      context.DeadlineExceeded,
+			contains: []string{"[MCP_CONNECTION_TIMEOUT]", "timed out", "Application Service logs"},
+		},
+		{
+			name:     "upstream gateway timeout",
+			err:      errors.New("request failed with status 504: Gateway Timeout"),
+			contains: []string{"[MCP_CONNECTION_TIMEOUT]", "timed out", "Application Service logs"},
+		},
+		{
+			name:     "invalid remote session",
+			err:      mcpclienttransport.ErrSessionTerminated,
+			contains: []string{"[MCP_SESSION_EXPIRED]", "HTTP 404", "Restart the MCP client"},
+		},
+		{
+			name:     "upstream internal error",
+			err:      errors.New("request failed with status 500: Internal Server Error"),
+			contains: []string{"[MCP_UPSTREAM_ERROR]", "HTTP 5xx", "Application Service logs"},
+		},
+		{
+			name: "attributed app service error",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Origin:     mcputils.ErrorOriginAppService,
+				Body:       "failed to rewrite headers",
+			}),
+			contains: []string{"[MCP_TELEPORT_ERROR]", "HTTP 500", "failed to rewrite headers", "Application Service logs"},
+		},
+		{
+			name: "attributed upstream error",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Origin:     mcputils.ErrorOriginUpstream,
+				Body:       "database connection lost",
+			}),
+			contains: []string{"[MCP_UPSTREAM_ERROR]", `"sentry" returned HTTP 500`, "database connection lost", "remote server's health"},
+		},
+		{
+			name: "attributed upstream unreachable",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 502,
+				Origin:     mcputils.ErrorOriginUpstreamUnreachable,
+			}),
+			contains: []string{"[MCP_UPSTREAM_UNREACHABLE]", "could not reach", "HTTP 502", "Bad Gateway"},
+		},
+		{
+			name: "unattributed HTTP 5xx",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 500,
+				Body:       "Internal Server Error",
+			}),
+			contains: []string{"[MCP_UPSTREAM_ERROR]", "or the Teleport Application Service", "HTTP 500"},
+		},
+		{
+			name: "unattributed gateway timeout",
+			err: trace.Wrap(&clientmcp.HTTPServerError{
+				StatusCode: 504,
+			}),
+			contains: []string{"[MCP_CONNECTION_TIMEOUT]", "timed out"},
+		},
+		{
+			name:     "null collection",
+			err:      errors.New("Invalid input: expected array, received null"),
+			contains: []string{"[MCP_PROTOCOL_ERROR]", "returned null", "empty-tools-array fix"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			message := makeMCPReconnectUserMessageForApp("sentry", test.err)
+			for _, want := range test.contains {
+				require.Contains(t, message, want)
+			}
+		})
+	}
+}
 
 func Test_fetchMCPServers(t *testing.T) {
 	devLabels := map[string]string{"env": "dev"}

@@ -20,13 +20,19 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -49,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/mcptest"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
 	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -219,6 +226,119 @@ func Test_handleStreamableHTTP(t *testing.T) {
 
 // Test_Server_HandleSession_request_sanitization verifies the forwarded request is stripped of
 // non-canonical fields (e.g. uppercase) which may confuse the upstream server.
+// Test_handleStreamableHTTP_compressedUpstream covers a remote MCP server that
+// gzips its responses. Teleport parses MCP message bodies instead of passing
+// them through, so a body that is still compressed when it reaches the parser
+// fails on gzip's leading magic byte:
+//
+//	invalid character '\x1f' looking for beginning of value
+//
+// net/http only decompresses transparently when the transport adds
+// Accept-Encoding itself, so this only reproduces when the client sends its own
+// Accept-Encoding and Teleport forwards it upstream.
+func Test_handleStreamableHTTP_compressedUpstream(t *testing.T) {
+	t.Parallel()
+
+	var compressedResponse atomic.Bool
+	remoteMCPServer := mcpserver.NewStreamableHTTPServer(mcptest.NewServer())
+	remoteMCPHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only buffer POSTs. A GET is the long-lived SSE stream and would
+		// never finish.
+		if r.Method != http.MethodPost || !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			remoteMCPServer.ServeHTTP(w, r)
+			return
+		}
+
+		recorder := httptest.NewRecorder()
+		remoteMCPServer.ServeHTTP(recorder, r)
+		maps.Copy(w.Header(), recorder.Header())
+		body := recorder.Body.Bytes()
+
+		// Only JSON bodies are buffered whole; anything else is replayed as-is.
+		if !strings.Contains(recorder.Header().Get("Content-Type"), "application/json") {
+			w.WriteHeader(recorder.Code)
+			_, _ = w.Write(body)
+			return
+		}
+
+		var compressed bytes.Buffer
+		gzipWriter := gzip.NewWriter(&compressed)
+		_, err := gzipWriter.Write(body)
+		assert.NoError(t, err)
+		assert.NoError(t, gzipWriter.Close())
+
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", compressed.Len()))
+		w.WriteHeader(recorder.Code)
+		_, _ = w.Write(compressed.Bytes())
+		compressedResponse.Store(true)
+	}))
+	t.Cleanup(remoteMCPHTTPServer.Close)
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "test-http-gzip",
+	}, types.AppSpecV3{
+		URI: fmt.Sprintf("mcp+%s/mcp", remoteMCPHTTPServer.URL),
+	})
+	require.NoError(t, err)
+
+	emitter := eventstest.MockRecorderEmitter{}
+	s, err := NewServer(ServerConfig{
+		Emitter:       &emitter,
+		ParentContext: t.Context(),
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	listener := listenerutils.NewInMemoryListener()
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.True(t, utils.IsOKNetworkError(err))
+				return
+			}
+			wg.Go(func() {
+				defer conn.Close()
+				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
+				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
+			})
+		}
+	}()
+
+	// The client asking for gzip is what makes Teleport forward the header;
+	// without it net/http would decompress the response on its own.
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(
+		"http://memory",
+		mcpclienttransport.WithHTTPBasicClient(listener.MakeHTTPClient()),
+		mcpclienttransport.WithHTTPHeaders(map[string]string{
+			"Accept-Encoding": "gzip",
+		}),
+	)
+	require.NoError(t, err)
+	client := mcpclient.NewClient(mcpClientTransport)
+	require.NoError(t, client.Start(t.Context()))
+
+	mcptest.MustInitializeClient(t, client)
+	mcptest.MustCallServerTool(t, client)
+
+	require.True(t, compressedResponse.Load(),
+		"remote server never compressed a response, so this test would pass even with the bug present")
+
+	// Close the client and wait for the session to end, so the handler is not
+	// still running when the test context is canceled during cleanup.
+	require.NoError(t, client.Close())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, libevents.MCPSessionEndEvent, emitter.LastEvent().GetType())
+	}, 2*time.Second, time.Millisecond*100, "waiting for end event")
+}
+
 func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	t.Parallel()
 
@@ -613,4 +733,64 @@ func Test_Server_serveHTTPConn_closes_idle_connections(t *testing.T) {
 			}
 		})
 	})
+}
+
+func Test_makeProxyErrorHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantOrigin   string
+		wantBodyPart string
+	}{
+		{
+			name:         "teleport internal error",
+			err:          trace.Errorf("failed to rewrite headers"),
+			wantStatus:   http.StatusInternalServerError,
+			wantOrigin:   mcputils.ErrorOriginAppService,
+			wantBodyPart: "failed to rewrite headers",
+		},
+		{
+			name:         "teleport bad parameter",
+			err:          trace.BadParameter("invalid request body"),
+			wantStatus:   http.StatusBadRequest,
+			wantOrigin:   mcputils.ErrorOriginAppService,
+			wantBodyPart: "invalid request body",
+		},
+		{
+			name:         "upstream closed connection",
+			err:          io.EOF,
+			wantStatus:   http.StatusBadGateway,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "EOF",
+		},
+		{
+			name:         "upstream timeout",
+			err:          &net.DNSError{Err: "lookup timed out", IsTimeout: true},
+			wantStatus:   http.StatusGatewayTimeout,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "lookup timed out",
+		},
+		{
+			name:         "upstream unreachable",
+			err:          &net.OpError{Op: "dial", Err: fmt.Errorf("connection refused")},
+			wantStatus:   http.StatusBadGateway,
+			wantOrigin:   mcputils.ErrorOriginUpstreamUnreachable,
+			wantBodyPart: "connection refused",
+		},
+	}
+
+	handler := makeProxyErrorHandler(slog.New(slog.DiscardHandler))
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
+			handler(w, req, test.err)
+			require.Equal(t, test.wantStatus, w.Code)
+			require.Equal(t, test.wantOrigin, w.Header().Get(mcputils.TeleportErrorOriginHeader))
+			require.Contains(t, w.Body.String(), test.wantBodyPart)
+		})
+	}
 }

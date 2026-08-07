@@ -85,20 +85,26 @@ func (d *MCPServerDialer) GetApp(ctx context.Context) (types.Application, error)
 // DialALPN dials Teleport Proxy to establish a TLS routing connection for the
 // MCP server.
 func (d *MCPServerDialer) DialALPN(ctx context.Context) (net.Conn, error) {
+	d.mu.Lock()
 	app, err := d.getAppLocked(ctx)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
 	cert, err := d.getCertLocked(ctx, app)
 	if err != nil {
+		d.mu.Unlock()
 		return nil, trace.Wrap(err)
 	}
-	switch types.GetMCPServerTransportType(app.GetURI()) {
-	case types.MCPTransportHTTP:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolHTTP)
-	default:
-		return d.client.DialALPN(ctx, cert, alpncommon.ProtocolMCP)
+	protocol := alpncommon.ProtocolMCP
+	if types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP {
+		protocol = alpncommon.ProtocolHTTP
 	}
+	d.mu.Unlock()
+
+	// The app and certificate caches must be serialized, but independent
+	// network connections should still be allowed to dial concurrently.
+	return d.client.DialALPN(ctx, cert, protocol)
 }
 
 // DialContext is a simple wrapper of DialALPN. This function is defined to be
@@ -159,6 +165,9 @@ func (d *MCPServerDialer) getCertLocked(ctx context.Context, mcpServer types.App
 			URI:         mcpServer.GetURI(),
 		},
 		AccessRequests: profile.ActiveRequests,
+		// Declares the in-memory cert flow; without it the server caps
+		// MFA-verified certs at one minute.
+		RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
 	}
 
 	// Do NOT write the keyring to avoid race condition when AI clients run

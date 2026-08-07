@@ -20,6 +20,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"time"
@@ -85,6 +86,9 @@ type ServerConfig struct {
 	TargetHostPolicy appcommon.TargetHostPolicy
 
 	clock clockwork.Clock
+	// sessionHandlerSetupTimeout bounds external calls made while populating
+	// the streamable HTTP session cache. It is configurable for tests.
+	sessionHandlerSetupTimeout time.Duration
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -112,6 +116,9 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
+	}
+	if c.sessionHandlerSetupTimeout <= 0 {
+		c.sessionHandlerSetupTimeout = apidefaults.DefaultIOTimeout
 	}
 	if err := c.TargetHostPolicy.Check(); err != nil {
 		return trace.Wrap(err)
@@ -277,7 +284,13 @@ func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *Sessi
 	}
 	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
 	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, key, ttl, func(ctx context.Context) (*sessionHandler, error) {
-		return s.makeSessionHandler(ctx, sessionCtx)
+		setupCtx, cancel := context.WithTimeout(ctx, s.cfg.sessionHandlerSetupTimeout)
+		defer cancel()
+		handler, err := s.makeSessionHandler(setupCtx, sessionCtx)
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, trace.ConnectionProblem(err, "timed out setting up MCP session")
+		}
+		return handler, trace.Wrap(err)
 	})
 }
 

@@ -1197,6 +1197,38 @@ Arguments:
 |---|---|---|
 |name|*no default* (optional)|Database service name.|
 
+## tsh mcp login
+
+Log in to an OAuth-protected MCP server.
+
+Usage:
+
+```code
+$ tsh mcp login [<flags>] <name>
+```
+
+For an MCP server that requires a pre-registered OAuth client, provide its
+client ID, request a client-secret prompt, and use the callback port registered
+with the provider:
+
+```code
+$ tsh mcp login --client-id=<client-id> --client-secret --callback-port=8080 <name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--callback-port`|`0`|Local OAuth callback port. Set this to the exact port registered with the OAuth provider.|
+|`--client-id`|*no default*|OAuth client ID for a pre-registered client. When set, dynamic client registration is skipped.|
+|`--[no-]client-secret`|`false`|Prompt for the OAuth client secret of a pre-registered confidential client.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|name|*no default* (required)|Name of the MCP server.|
+
 ## tsh mcp ls
 
 List available MCP server applications.
